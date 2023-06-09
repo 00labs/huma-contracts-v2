@@ -2,14 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {IDealPortfolioPool} from "./IDealPortfolioPool.sol";
-
-interface IEpochManagerLike {
-    function epochIds()
-        external
-        view
-        returns (uint256 currentEpochId, uint256 lastExecutedEpochId);
-}
+import {IDealPortfolioPool} from "./interfaces/IDealPortfolioPool.sol";
 
 struct EpochOrder {
     uint96 totalDeposit;
@@ -17,13 +10,14 @@ struct EpochOrder {
 }
 
 struct EpochInfo {
+    uint64 epochId;
     uint96 depositFulfillment;
     uint96 redeemFulfillment;
     uint256 tokenPrice;
 }
 
 struct UserOrder {
-    uint64 epochId;
+    uint64 epochIndex;
     uint96 depositAmount;
     uint96 redeemShare;
 }
@@ -32,10 +26,8 @@ contract TrancheVault is ERC20 {
     IDealPortfolioPool public portfolioPool;
     uint256 public index;
 
-    IEpochManagerLike public epochManager;
-
     EpochOrder internal _epochOrder;
-    mapping(uint256 => EpochInfo) public epochs;
+    EpochInfo[] public epochs;
     mapping(address => UserOrder) public orders;
 
     constructor(string memory name_, string memory symbol_) ERC20(name_, symbol_) {}
@@ -54,10 +46,11 @@ contract TrancheVault is ERC20 {
         // check permission
 
         EpochInfo memory ei;
+        ei.epochId = uint64(epochId);
         ei.tokenPrice = price;
         ei.depositFulfillment = uint96(data[1] / data[0]);
         ei.redeemFulfillment = uint96(data[3] / data[2]);
-        epochs[epochId] = ei;
+        epochs.push(ei);
 
         // deposit/withdraw from reserve
         // mint/burn token
@@ -73,8 +66,7 @@ contract TrancheVault is ERC20 {
         UserOrder memory order = orders[msg.sender];
         uint256 oldDepositAmount = order.depositAmount;
         order.depositAmount = uint96(amount);
-        (uint256 epochId, ) = epochManager.epochIds();
-        order.epochId = uint64(epochId);
+        order.epochIndex = uint64(epochs.length);
         orders[msg.sender] = order;
         EpochOrder memory eo = _epochOrder;
         eo.totalDeposit = eo.totalDeposit - uint96(oldDepositAmount) + uint96(amount);
@@ -87,8 +79,7 @@ contract TrancheVault is ERC20 {
         UserOrder memory order = orders[msg.sender];
         uint256 oldRedeemShare = order.redeemShare;
         order.redeemShare = uint96(share);
-        (uint256 epochId, ) = epochManager.epochIds();
-        order.epochId = uint64(epochId);
+        order.epochIndex = uint64(epochs.length);
         orders[msg.sender] = order;
         EpochOrder memory eo = _epochOrder;
         eo.totalRedeemShare = eo.totalRedeemShare - uint96(oldRedeemShare) + uint96(share);
@@ -98,10 +89,12 @@ contract TrancheVault is ERC20 {
 
     function disburse() external {
         // check permissions
+
         UserOrder memory order = orders[msg.sender];
         uint256[] memory payouts;
         (payouts, order) = _calculateDisburse(order);
         orders[msg.sender] = order;
+
         // disburse payouts
     }
 
@@ -113,33 +106,25 @@ contract TrancheVault is ERC20 {
         uint256 remainingDepositAmount = order.depositAmount;
         uint256 remainingRedeemShare = order.redeemShare;
         payouts = new uint256[](2);
-        (, uint256 endEpochId) = epochManager.epochIds();
-        uint256 index = order.epochId;
-        uint256 amount;
-        while (index <= endEpochId && (remainingDepositAmount > 0 || remainingRedeemShare > 0)) {
-            // if (remainingDepositAmount > 0) {
-            //     amount = remainingDepositAmount, epochs[epochIdx].supplyFulfillment);
-            //     // supply currency payout in token
-            //     if (amount != 0) {
-            //         payoutTokenAmount = safeAdd(
-            //             payoutTokenAmount,
-            //             safeDiv(safeMul(amount, ONE), epochs[epochIdx].tokenPrice)
-            //         );
-            //         remainingSupplyCurrency = safeSub(remainingSupplyCurrency, amount);
-            //     }
-            // }
-            // if (remainingRedeemToken != 0) {
-            //     amount = rmul(remainingRedeemToken, epochs[epochIdx].redeemFulfillment);
-            //     // redeem token payout in currency
-            //     if (amount != 0) {
-            //         payoutCurrencyAmount = safeAdd(
-            //             payoutCurrencyAmount,
-            //             rmul(amount, epochs[epochIdx].tokenPrice)
-            //         );
-            //         remainingRedeemToken = safeSub(remainingRedeemToken, amount);
-            //     }
-            // }
-            // epochIdx = safeAdd(epochIdx, 1);
+        uint256 epochIdx = order.epochIndex;
+        uint256 epochsLen = epochs.length;
+        uint256 value;
+        while (epochIdx < epochsLen && (remainingDepositAmount > 0 || remainingRedeemShare > 0)) {
+            EpochInfo memory epoch = epochs[epochIdx];
+            if (remainingDepositAmount > 0 && epoch.depositFulfillment > 0) {
+                value = remainingDepositAmount * epoch.depositFulfillment;
+                payouts[0] += value / epoch.tokenPrice;
+                remainingDepositAmount -= value;
+            }
+            if (remainingRedeemShare > 0 && epoch.redeemFulfillment > 0) {
+                value = remainingRedeemShare * epoch.redeemFulfillment;
+                payouts[1] += value * epoch.tokenPrice;
+                remainingRedeemShare -= value;
+            }
+            epochIdx += 1;
         }
+        newOrder.epochIndex = uint64(epochsLen);
+        newOrder.depositAmount = uint96(remainingDepositAmount);
+        newOrder.redeemShare = uint96(remainingRedeemShare);
     }
 }

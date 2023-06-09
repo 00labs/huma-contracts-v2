@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {IDealPortfolioPool} from "./IDealPortfolioPool.sol";
+import {IDealPortfolioPool} from "./interfaces/IDealPortfolioPool.sol";
 
 interface ITrancheVaultLike {
     function totalSupply() external view returns (uint256);
@@ -11,17 +11,12 @@ interface ITrancheVaultLike {
     function closeEpoch(uint256 epochId, uint256 price, uint256[4] memory data) external;
 }
 
-struct EpochIds {
-    uint64 currentEpochId;
-    uint64 lastExecutedEpochId;
-}
-
 contract EpochManager {
     IDealPortfolioPool public pool;
     ITrancheVaultLike public seniorTranche;
     ITrancheVaultLike public juniorTranche;
 
-    EpochIds internal _epochIds;
+    uint256 public currentEpochId;
 
     function closeEpoch() external {
         uint96[] memory tranches = pool.updatePool();
@@ -40,30 +35,21 @@ contract EpochManager {
             [seniorDeposit, seniorRedeem, juniorDeposit, juniorRedeem]
         );
 
-        EpochIds memory ids = _epochIds;
+        uint256 epochId = currentEpochId;
+
         seniorTranche.closeEpoch(
-            ids.lastExecutedEpochId + 1,
+            epochId,
             seniorPrice,
             [seniorDeposit, results[0], seniorRedeem, results[1]]
         );
 
         juniorTranche.closeEpoch(
-            ids.lastExecutedEpochId + 1,
+            epochId,
             juniorPrice,
             [juniorRedeem, results[2], juniorRedeem, results[3]]
         );
 
-        _epochIds = EpochIds(ids.currentEpochId + 1, ids.currentEpochId);
-    }
-
-    function epochIds()
-        external
-        view
-        returns (uint256 currentEpochId, uint256 lastExecutedEpochId)
-    {
-        EpochIds memory eIds;
-        currentEpochId = eIds.currentEpochId;
-        lastExecutedEpochId = eIds.lastExecutedEpochId;
+        currentEpochId = epochId + 1;
     }
 
     function _executeEpoch(

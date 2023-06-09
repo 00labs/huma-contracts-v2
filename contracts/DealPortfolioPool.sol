@@ -2,10 +2,10 @@
 pragma solidity ^0.8.0;
 
 import {DealConfig} from "./DealStructs.sol";
-import {IDealPortfolioPool} from "./IDealPortfolioPool.sol";
-import {IDealLogic} from "./IDealLogic.sol";
-import {IFeeManager} from "./IFeeManager.sol";
-import {ITrancheLogic} from "./ITrancheLogic.sol";
+import {IDealPortfolioPool} from "./interfaces/IDealPortfolioPool.sol";
+import {IDealLogic} from "./interfaces/IDealLogic.sol";
+import {IFeeManager} from "./interfaces/IFeeManager.sol";
+import {ITrancheLogic} from "./interfaces/ITrancheLogic.sol";
 
 struct DealCheckPoint {
     uint96 totalAccruedInterest;

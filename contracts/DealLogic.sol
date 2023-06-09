@@ -3,9 +3,9 @@ pragma solidity ^0.8.0;
 
 import {DealConfig} from "./DealStructs.sol";
 
-import {IDealLogic} from "./IDealLogic.sol";
-import {IPaymentStrategy} from "./IPaymentStrategy.sol";
-import {IScheduleStrategy} from "./IScheduleStrategy.sol";
+import {IDealLogic} from "./interfaces/IDealLogic.sol";
+import {IPaymentStrategy} from "./interfaces/IPaymentStrategy.sol";
+import {IScheduleStrategy} from "./interfaces/IScheduleStrategy.sol";
 
 contract DealLogic is IDealLogic {
     mapping(uint256 => IScheduleStrategy) public scheduleStrategies;

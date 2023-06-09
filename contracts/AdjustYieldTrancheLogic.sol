@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {ITrancheLogic} from "./ITrancheLogic.sol";
+import {ITrancheLogic} from "./interfaces/ITrancheLogic.sol";
 
 contract AdjustYieldTrancheLogic is ITrancheLogic {
     uint16 public adjustRatio;

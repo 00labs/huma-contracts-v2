@@ -3,9 +3,9 @@ pragma solidity ^0.8.0;
 
 import {DealConfig} from "./DealStructs.sol";
 
-import {IDealManager} from "./IDealManager.sol";
-import {IReserve} from "./IReserve.sol";
-import {IDealPortfolioPool} from "./IDealPortfolioPool.sol";
+import {IDealManager} from "./interfaces/IDealManager.sol";
+import {IReserve} from "./interfaces/IReserve.sol";
+import {IDealPortfolioPool} from "./interfaces/IDealPortfolioPool.sol";
 
 struct DealLimit {
     bytes32 dealHash;
