@@ -8,9 +8,9 @@ import {IReserve} from "./interfaces/IReserve.sol";
 import {IDealPortfolioPool} from "./interfaces/IDealPortfolioPool.sol";
 
 struct DealLimit {
-    bytes32 dealHash;
-    address borrower;
-    uint96 dealLimit;
+    bytes32 dealHash; //a unique hash for a loan
+    address borrower; // loan borrower address
+    uint96 dealLimit; // the max borrowed amount
 }
 
 contract DealManager is IDealManager {

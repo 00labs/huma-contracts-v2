@@ -8,16 +8,16 @@ import {IFeeManager} from "./interfaces/IFeeManager.sol";
 import {ITrancheLogic} from "./interfaces/ITrancheLogic.sol";
 
 struct DealCheckPoint {
-    uint96 totalAccruedInterest;
-    uint96 totalAccruedPrincipal;
-    uint64 lastUpdatedTime;
+    uint96 totalAccruedInterest; // total accrued interest from tha loan start
+    uint96 totalAccruedPrincipal; // total principal to be repaid from tha loan start
+    uint64 lastUpdatedTime; // the updated timestamp of totalAccruedInterest and totalAccruedPrincipal
     uint96 totalPrincipal;
     uint96 totalPaidInterest;
     uint96 totalPaidPrincipal;
 }
 
 struct DealInfo {
-    uint64 startTime;
+    uint64 startTime; // loan start timestamp
     DealState state;
     DealCheckPoint checkPoint;
 }
@@ -37,11 +37,15 @@ struct FeeInfo {
 }
 
 struct TranchesInfo {
-    uint96[] totalAssets;
-    uint256 lastUpdatedTime;
+    uint96 seniorTotalAssets; // total assets of senior tranche
+    uint96 juniorTotalAssets; // total assets of junior tranche
+    uint256 lastUpdatedTime; // the updated timestamp of seniorTotalAssets and juniorTotalAssets
 }
 
 contract DealPortfolioPool is IDealPortfolioPool {
+    uint256 public constant SENIOR_TRANCHE_INDEX = 1;
+    uint256 public constant JUNIOR_TRANCHE_INDEX = 2;
+
     IDealLogic public dealLogic;
     IFeeManager public feeManager;
     ITrancheLogic public trancheLogic;
@@ -64,18 +68,31 @@ contract DealPortfolioPool is IDealPortfolioPool {
         DealInfo memory di = deals[dealHash];
 
         if (di.startTime == 0) {
+            // the first drawdown
+
+            // initialize a loan
             di.startTime = uint64(block.timestamp);
             di.checkPoint.totalPrincipal = uint96(amount);
             di.state = DealState.GoodStanding;
             di.checkPoint.lastUpdatedTime = uint64(block.timestamp);
         } else {
+            // drawdown for an existing loan
+
             uint256 accruedInterest;
+
+            // update loan data(interest, principal) to current time
             (di, accruedInterest) = _refreshDeal(dealHash, di);
+
+            // distribute new profit
             if (accruedInterest > 0) {
                 _processProfit(accruedInterest);
             }
+
+            // update the drawdown amount
             di.checkPoint.totalPrincipal += uint96(amount);
         }
+
+        // store loan data
         deals[dealHash] = di;
     }
 
@@ -84,15 +101,22 @@ contract DealPortfolioPool is IDealPortfolioPool {
 
         DealInfo memory di = deals[dealHash];
         uint256 accruedInterest;
+
+        // update loan data(interest, principal) to current time
         (di, accruedInterest) = _refreshDeal(dealHash, di);
+
+        // distribute new profit
         if (accruedInterest > 0) {
             _processProfit(accruedInterest);
         }
 
+        // update paid interest
         uint256 interestPart = di.checkPoint.totalAccruedInterest -
             di.checkPoint.totalPaidInterest;
         interestPart = amount > interestPart ? interestPart : amount;
         di.checkPoint.totalPaidInterest += uint96(interestPart);
+
+        // update paid principal
         if (amount > interestPart) {
             di.checkPoint.totalPaidPrincipal += uint96(amount - interestPart);
         }
@@ -100,27 +124,39 @@ contract DealPortfolioPool is IDealPortfolioPool {
 
     function trancheTotalAssets(uint256 index) external view returns (uint256) {
         if (block.timestamp > tranches.lastUpdatedTime) {
-            return _calculateLatestTranches()[index];
+            // need to update tranche assets
+
+            // update tranche assets to current time
+            uint96[2] memory assets = _calculateLatestTranches();
+
+            return index == SENIOR_TRANCHE_INDEX ? assets[0] : assets[1];
         } else {
-            return tranches.totalAssets[index];
+            return
+                index == SENIOR_TRANCHE_INDEX
+                    ? tranches.seniorTotalAssets
+                    : tranches.juniorTotalAssets;
         }
     }
 
-    function updatePool() external returns (uint96[] memory) {
+    function updatePool() external returns (uint96[2] memory) {
         // check permission
 
         uint256 profit;
+
+        // Iterates all active loans to get the total profit
         for (uint256 i; i < activeDealsHash.length; i++) {
             bytes32 hash = activeDealsHash[i];
             (DealInfo memory di, uint256 accruedInterest) = _refreshDeal(hash, deals[hash]);
             deals[hash] = di;
             profit += accruedInterest;
         }
+
+        // distribute profit
         if (profit > 0) {
             _processProfit(profit);
         }
 
-        return tranches.totalAssets;
+        return [tranches.seniorTotalAssets, tranches.juniorTotalAssets];
     }
 
     function _refreshDeal(
@@ -141,23 +177,27 @@ contract DealPortfolioPool is IDealPortfolioPool {
         return (di, accruedInterest);
     }
 
-    function _calculateLatestTranches() internal view returns (uint96[] memory trancheAssets) {
+    function _calculateLatestTranches() internal view returns (uint96[2] memory trancheAssets) {
         uint256 profit;
+        // Iterates all active loans to get the total profit
         for (uint256 i; i < activeDealsHash.length; i++) {
             bytes32 hash = activeDealsHash[i];
             (, uint256 accruedInterest) = _refreshDeal(hash, deals[hash]);
             profit += accruedInterest;
         }
+
         if (profit > 0) {
+            // distribute profit
             (, trancheAssets) = _calculateProfitDistribution(profit);
         } else {
-            trancheAssets = tranches.totalAssets;
+            trancheAssets = [tranches.seniorTotalAssets, tranches.juniorTotalAssets];
         }
     }
 
     function _calculateProfitDistribution(
         uint256 profit
-    ) internal view returns (uint96[] memory fees, uint96[] memory assets) {
+    ) internal view returns (uint96[] memory fees, uint96[2] memory assets) {
+        // calculate fees
         uint256[] memory feeParams = new uint256[](3);
         feeParams[0] = profit;
         (uint256 protocolFee, uint256 ownerFee, uint256 remaining) = feeManager.calculateFees(
@@ -165,22 +205,28 @@ contract DealPortfolioPool is IDealPortfolioPool {
         );
         fees[0] = uint96(protocolFee);
         fees[1] = uint96(ownerFee);
+
         if (remaining > 0) {
+            // calculate tranches assets after profit distribution
             assets = trancheLogic.distributeProfit(
                 remaining,
-                tranches.lastUpdatedTime,
-                tranches.totalAssets
+                [tranches.seniorTotalAssets, tranches.juniorTotalAssets],
+                tranches.lastUpdatedTime
             );
         }
     }
 
     function _processProfit(uint256 profit) internal {
-        (uint96[] memory fees, uint96[] memory assets) = _calculateProfitDistribution(profit);
+        // calculate fees and tranches assets
+        (uint96[] memory fees, uint96[2] memory assets) = _calculateProfitDistribution(profit);
+
+        // store fees info
         feeInfo.protocolFee += fees[0];
         feeInfo.ownerFee += fees[1];
-        if (assets.length > 0) {
-            tranches.totalAssets = assets;
-        }
+
+        // store tranches info
+        tranches.seniorTotalAssets = assets[0];
+        tranches.juniorTotalAssets = assets[1];
         tranches.lastUpdatedTime = block.timestamp;
     }
 }

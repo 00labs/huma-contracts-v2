@@ -32,6 +32,11 @@ contract RequestNetworkProcessor is ReceivableManager {
         }
     }
 
+    /**
+     * @notice Reviews the payment hash if its amount is too big.
+     * @param paymentHash payment hash
+     * @param approved approved or not
+     */
     function reviewPayment(bytes32 paymentHash, bool approved) external {
         // check parameters
 
@@ -40,5 +45,9 @@ contract RequestNetworkProcessor is ReceivableManager {
         }
     }
 
+    /**
+     * @notice Marks the given payment is processed
+     * @param paymentHash payment hash
+     */
     function markPaymentProcessed(bytes32 paymentHash) external {}
 }

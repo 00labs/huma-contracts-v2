@@ -3,18 +3,23 @@ pragma solidity ^0.8.0;
 
 import {ITrancheLogic} from "./interfaces/ITrancheLogic.sol";
 
+/**
+ * @notice This is fixed yield implementation. In the fixed yield mode,
+ * the yield for the senior tranches is fixed as long as the risk loss does not make this impossible.
+ */
+
 contract FixedAprTrancheLogic is ITrancheLogic {
     uint16 public seniorAprsInBps;
 
     function distributeProfit(
         uint256 profit,
-        uint256 lastUpdatedTime,
-        uint96[] memory assets
-    ) external view override returns (uint96[] memory) {}
+        uint96[2] memory assets,
+        uint256 lastUpdatedTime
+    ) external view override returns (uint96[2] memory) {}
 
     function distributeLoss(
         uint256 loss,
-        uint256 lastUpdatedTime,
-        uint96[] memory assets
-    ) external view returns (uint96[] memory) {}
+        uint96[2] memory assets,
+        uint256 lastUpdatedTime
+    ) external view returns (uint96[2] memory) {}
 }
