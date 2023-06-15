@@ -25,7 +25,7 @@ contract EpochManager {
     /**
      * @notice Closes current epoch and handle senior tranch orders and junior tranch orders
      */
-    function closeEpoch() external {
+    function closeEpoch() public virtual {
         // update tranches assets to current timestamp
         uint96[2] memory tranches = pool.updatePool();
 
