@@ -20,8 +20,5 @@ interface IReserve {
      */
     function withdraw(address to, uint256 amount) external;
 
-    /**
-     * @notice Return available underlying token amount
-     */
-    function totalAssets() external returns (uint256);
+    function getAvailableWithdrawAmount() external returns (uint256);
 }
