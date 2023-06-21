@@ -5,20 +5,32 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IDealPortfolioPool} from "./interfaces/IDealPortfolioPool.sol";
 import {ITrancheVault, EpochInfo} from "./interfaces/ITrancheVault.sol";
 
-struct UserEpochInfo {
-    uint64 epochIndex; // the max index of processed epoch array which was already consumed
-    uint96 redeemAmount; // the requested redeem share
-    uint64 lastProcessedEpochIndex; // the index of the last processed epoch for this user
+interface IEpochManagerLike {
+    function currentEpochId() external returns (uint256);
+}
+
+struct UserWithdrawalRequest {
+    uint64 epochId;
+    uint96 withdrawalAmount; // the requested redeem amount
+}
+
+struct UserWithdrawalInfo {
+    uint64 currentIndex;
+    uint96 totalRequestedAmount;
+    uint96 totalWithdrawableAmount;
 }
 
 contract TrancheVault is ERC20, ITrancheVault {
+    IEpochManagerLike public epochManager;
     IDealPortfolioPool public pool;
     uint256 public index; // senior index or junior index
 
     EpochInfo[] public epochs; // the epoch info array
+    mapping(uint256 => EpochInfo) public epochMapping;
     uint256 public currentEpochIndex; // the index of the last fully processed epoch
 
-    mapping(address => UserEpochInfo[]) public userEpochs;
+    mapping(address => UserWithdrawalRequest[]) public userWithdrawalRequests; // user withdrawal request array
+    mapping(address => UserWithdrawalInfo) public userWithdrawalInfos;
 
     constructor(string memory name_, string memory symbol_) ERC20(name_, symbol_) {}
 
@@ -45,5 +57,81 @@ contract TrancheVault is ERC20, ITrancheVault {
         // update currentEpochIndex
         // burn/lock vault tokens
         // withdraw underlying tokens from reserve
+    }
+
+    function deposit(uint256 assets, address receiver) external returns (uint256 shares) {
+        // verify cap
+
+        uint96[2] memory tranches = pool.updatePool();
+        // get correct total assets based on tranche index
+        uint256 totalAssets = tranches[index];
+
+        // verify max senior ratio if it is senior vault
+
+        uint256 price = totalAssets / ERC20.totalSupply();
+
+        // calculate minted shares
+
+        // transfer assets to reserve
+        // mint shares to receiver
+    }
+
+    /**
+     * @notice Adds withdrawal assets(underlying token amount) in current withdrawal request
+     */
+    function addWithdrawalRequest(uint256 assets) external {
+        UserWithdrawalRequest[] storage requests = userWithdrawalRequests[msg.sender];
+        UserWithdrawalRequest memory request = requests[requests.length - 1];
+        uint256 epochId = epochManager.currentEpochId();
+        if (request.epochId == epochId) {
+            // add assets in current withdrawal request
+            request.withdrawalAmount += uint96(assets);
+            requests[requests.length - 1] = request;
+        } else {
+            // no withdrawal request, create a new one
+            request.epochId = uint64(epochId);
+            request.withdrawalAmount = uint96(assets);
+            requests.push(request);
+        }
+    }
+
+    /**
+     * @notice Removes withdrawal assets(underlying token amount) from current withdrawal request
+     */
+    function removeWithdrawalRequest(uint256 assets) external {
+        UserWithdrawalRequest[] storage requests = userWithdrawalRequests[msg.sender];
+        UserWithdrawalRequest memory request = requests[requests.length - 1];
+        uint256 epochId = epochManager.currentEpochId();
+        if (request.epochId < epochId || request.withdrawalAmount < assets) {
+            // only remove from current withdrawal request
+            revert();
+        }
+
+        request.withdrawalAmount -= uint96(assets);
+        requests[requests.length - 1] = request;
+    }
+
+    /**
+     * @notice Transfers processed underlying tokens to the user
+     */
+    function disburse() external {
+        UserWithdrawalInfo memory withdrawalInfo = _updateUserWithdrawable(msg.sender);
+        // transfer totalWithdrawableAmount to user
+        // set withdrawalInfo.totalWithdrawableAmount to 0
+    }
+
+    /**
+     * @notice Calculates withdrawable amount from the last index of user withdrawal request array
+     * to current processed user withdrawal request
+     */
+    function _updateUserWithdrawable(address user) internal returns (UserWithdrawalInfo memory) {
+        UserWithdrawalInfo memory withdrawalInfo = userWithdrawalInfos[user];
+        UserWithdrawalRequest[] storage requests = userWithdrawalRequests[msg.sender];
+        EpochInfo memory ei = epochs[currentEpochIndex];
+
+        // iterate processed withdrawal request from withdrawalInfo.currentIndex to ei.epochId (not included)
+        // sum up processed withdrawalAmount and processed redeemShare
+        // update withdrawalInfo.totalWithdrawableAmount
+        // burn user's shares
     }
 }

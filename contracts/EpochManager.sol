@@ -37,8 +37,6 @@ contract EpochManager {
             juniorEpochs
         );
 
-        uint256 epochId = currentEpochId;
-
         EpochInfo[] memory processedEpochs;
         // call senior tranche's closeEpoch to update vault's epochs
         // get processed senior epochs
@@ -50,6 +48,7 @@ contract EpochManager {
 
         // generate callable amount from unprocessed epochs
 
+        uint256 epochId = currentEpochId;
         currentEpochId = epochId + 1;
     }
 

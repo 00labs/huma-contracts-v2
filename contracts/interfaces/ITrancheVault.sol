@@ -3,8 +3,9 @@ pragma solidity ^0.8.0;
 
 struct EpochInfo {
     uint64 epochId;
-    uint96 totalRequestedRedeemAmount;
-    uint96 totalProcessedRedeemAmount;
+    uint96 totalRequestedWithdrawalAmount;
+    uint96 totalProcessedWithdrawalAmount;
+    uint96 totalProcessedRedeemShare;
 }
 
 interface ITrancheVault {
