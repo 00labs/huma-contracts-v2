@@ -17,13 +17,13 @@ struct TranchesInfo {
     uint256 lastUpdatedTime; // the updated timestamp of seniorTotalAssets and juniorTotalAssets
 }
 
-contract DealPortfolioPool is IPool {
+contract Pool is IPool {
     uint256 public constant SENIOR_TRANCHE_INDEX = 1;
     uint256 public constant JUNIOR_TRANCHE_INDEX = 2;
 
     ICredit public credit;
     IFeeManager public feeManager;
-    ITranchePolicy public trancheLogic;
+    ITranchePolicy public tranchePolicy;
 
     FeeInfo public feeInfo;
     TranchesInfo public tranches;
@@ -82,7 +82,7 @@ contract DealPortfolioPool is IPool {
 
         if (remaining > 0) {
             // calculate tranches assets after profit distribution
-            assets = trancheLogic.distributeProfit(
+            assets = tranchePolicy.distributeProfit(
                 remaining,
                 [tranches.seniorTotalAssets, tranches.juniorTotalAssets],
                 tranches.lastUpdatedTime

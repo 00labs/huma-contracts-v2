@@ -8,7 +8,7 @@ import {ITranchePolicy} from "./interfaces/ITranchePolicy.sol";
  * a percentage of the return is shifted from the senior tranche to the junior tranche.
  */
 
-contract AdjustYieldTrancheLogic is ITranchePolicy {
+contract RiskAdjustedTranchePolicy is ITranchePolicy {
     uint16 public adjustRatio;
 
     function distributeProfit(

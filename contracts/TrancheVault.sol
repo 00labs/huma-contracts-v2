@@ -9,12 +9,12 @@ interface IEpochManagerLike {
     function currentEpochId() external returns (uint256);
 }
 
-struct UserWithdrawalRequest {
+struct UserRedemptionRequest {
     uint64 epochId;
-    uint96 withdrawalAmount; // the requested redeem amount
+    uint96 RedemptionAmount; // the requested redeem amount
 }
 
-struct UserWithdrawalInfo {
+struct UserRedemptionInfo {
     uint64 currentIndex;
     uint96 totalRequestedAmount;
     uint96 totalWithdrawableAmount;
@@ -29,8 +29,8 @@ contract TrancheVault is ERC20, ITrancheVault {
     mapping(uint256 => EpochInfo) public epochMapping;
     uint256 public currentEpochIndex; // the index of the last fully processed epoch
 
-    mapping(address => UserWithdrawalRequest[]) public userWithdrawalRequests; // user withdrawal request array
-    mapping(address => UserWithdrawalInfo) public userWithdrawalInfos;
+    mapping(address => UserRedemptionRequest[]) public userRedemptionRequests; // user Redemption request array
+    mapping(address => UserRedemptionInfo) public userRedemptionInfos;
 
     constructor(string memory name_, string memory symbol_) ERC20(name_, symbol_) {}
 
@@ -77,37 +77,37 @@ contract TrancheVault is ERC20, ITrancheVault {
     }
 
     /**
-     * @notice Adds withdrawal assets(underlying token amount) in current withdrawal request
+     * @notice Adds Redemption assets(underlying token amount) in current Redemption request
      */
-    function addWithdrawalRequest(uint256 assets) external {
-        UserWithdrawalRequest[] storage requests = userWithdrawalRequests[msg.sender];
-        UserWithdrawalRequest memory request = requests[requests.length - 1];
+    function addRedemptionRequest(uint256 assets) external {
+        UserRedemptionRequest[] storage requests = userRedemptionRequests[msg.sender];
+        UserRedemptionRequest memory request = requests[requests.length - 1];
         uint256 epochId = epochManager.currentEpochId();
         if (request.epochId == epochId) {
-            // add assets in current withdrawal request
-            request.withdrawalAmount += uint96(assets);
+            // add assets in current Redemption request
+            request.RedemptionAmount += uint96(assets);
             requests[requests.length - 1] = request;
         } else {
-            // no withdrawal request, create a new one
+            // no Redemption request, create a new one
             request.epochId = uint64(epochId);
-            request.withdrawalAmount = uint96(assets);
+            request.RedemptionAmount = uint96(assets);
             requests.push(request);
         }
     }
 
     /**
-     * @notice Removes withdrawal assets(underlying token amount) from current withdrawal request
+     * @notice Removes Redemption assets(underlying token amount) from current Redemption request
      */
-    function removeWithdrawalRequest(uint256 assets) external {
-        UserWithdrawalRequest[] storage requests = userWithdrawalRequests[msg.sender];
-        UserWithdrawalRequest memory request = requests[requests.length - 1];
+    function removeRedemptionRequest(uint256 assets) external {
+        UserRedemptionRequest[] storage requests = userRedemptionRequests[msg.sender];
+        UserRedemptionRequest memory request = requests[requests.length - 1];
         uint256 epochId = epochManager.currentEpochId();
-        if (request.epochId < epochId || request.withdrawalAmount < assets) {
-            // only remove from current withdrawal request
+        if (request.epochId < epochId || request.RedemptionAmount < assets) {
+            // only remove from current Redemption request
             revert();
         }
 
-        request.withdrawalAmount -= uint96(assets);
+        request.RedemptionAmount -= uint96(assets);
         requests[requests.length - 1] = request;
     }
 
@@ -115,23 +115,23 @@ contract TrancheVault is ERC20, ITrancheVault {
      * @notice Transfers processed underlying tokens to the user
      */
     function disburse() external {
-        UserWithdrawalInfo memory withdrawalInfo = _updateUserWithdrawable(msg.sender);
+        UserRedemptionInfo memory RedemptionInfo = _updateUserWithdrawable(msg.sender);
         // transfer totalWithdrawableAmount to user
-        // set withdrawalInfo.totalWithdrawableAmount to 0
+        // set RedemptionInfo.totalWithdrawableAmount to 0
     }
 
     /**
-     * @notice Calculates withdrawable amount from the last index of user withdrawal request array
-     * to current processed user withdrawal request
+     * @notice Calculates withdrawable amount from the last index of user Redemption request array
+     * to current processed user Redemption request
      */
-    function _updateUserWithdrawable(address user) internal returns (UserWithdrawalInfo memory) {
-        UserWithdrawalInfo memory withdrawalInfo = userWithdrawalInfos[user];
-        UserWithdrawalRequest[] storage requests = userWithdrawalRequests[msg.sender];
+    function _updateUserWithdrawable(address user) internal returns (UserRedemptionInfo memory) {
+        UserRedemptionInfo memory RedemptionInfo = userRedemptionInfos[user];
+        UserRedemptionRequest[] storage requests = userRedemptionRequests[msg.sender];
         EpochInfo memory ei = epochs[currentEpochIndex];
 
-        // iterate processed withdrawal request from withdrawalInfo.currentIndex to ei.epochId (not included)
-        // sum up processed withdrawalAmount and processed redeemShare
-        // update withdrawalInfo.totalWithdrawableAmount
+        // iterate processed Redemption request from RedemptionInfo.currentIndex to ei.epochId (not included)
+        // sum up processed RedemptionAmount and processed redeemShare
+        // update RedemptionInfo.totalWithdrawableAmount
         // burn user's shares
     }
 }

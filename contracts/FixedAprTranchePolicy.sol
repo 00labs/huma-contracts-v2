@@ -8,7 +8,7 @@ import {ITranchePolicy} from "./interfaces/ITranchePolicy.sol";
  * the yield for the senior tranches is fixed as long as the risk loss does not make this impossible.
  */
 
-contract FixedAprTrancheLogic is ITranchePolicy {
+contract FixedAprTranchePolicy is ITranchePolicy {
     uint16 public seniorAprsInBps;
 
     function distributeProfit(
