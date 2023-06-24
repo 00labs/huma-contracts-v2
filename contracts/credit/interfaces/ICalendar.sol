@@ -2,10 +2,10 @@
 pragma solidity ^0.8.0;
 
 /**
- * @notice IDealManager provides functions about loan schedule.
+ * @notice ICalendar defines functions for date calculation
  */
 
-interface IScheduleStrategy {
+interface ICalendar {
     /**
      * @notice Get next due date.
      * @param params params

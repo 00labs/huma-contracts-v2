@@ -2,10 +2,11 @@
 pragma solidity ^0.8.0;
 
 /**
- * @notice IDealPortfolioPool is the core contract to connect senior/junior tranche vaults to multiple loans.
+ * @notice IPool is a core contract that connects the lender lender side (via tranches)
+ * and the borrower side (via Credit).
  */
 
-interface IDealPortfolioPool {
+interface IPool {
     /**
      * @notice Gets senior/junior tranche total assets
      * @param index the index represents senior tranche or junior tranche
@@ -14,8 +15,8 @@ interface IDealPortfolioPool {
     function trancheTotalAssets(uint256 index) external view returns (uint256);
 
     /**
-     * @notice Updates the pool data, including all active loans data,
-     * all fees comming from profits, senior and junior tranche assets
+     * @notice Refreshes the pool data, including all active loans data,
+     * income for the pool and the asset value for different tranches.
      */
-    function updatePool() external returns (uint96[2] memory);
+    function refreshPool() external returns (uint96[2] memory);
 }

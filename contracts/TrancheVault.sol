@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {IDealPortfolioPool} from "./interfaces/IDealPortfolioPool.sol";
+import {IPool} from "./interfaces/IPool.sol";
 import {ITrancheVault, EpochInfo} from "./interfaces/ITrancheVault.sol";
 
 interface IEpochManagerLike {
@@ -22,7 +22,7 @@ struct UserWithdrawalInfo {
 
 contract TrancheVault is ERC20, ITrancheVault {
     IEpochManagerLike public epochManager;
-    IDealPortfolioPool public pool;
+    IPool public pool;
     uint256 public index; // senior index or junior index
 
     EpochInfo[] public epochs; // the epoch info array
@@ -62,7 +62,7 @@ contract TrancheVault is ERC20, ITrancheVault {
     function deposit(uint256 assets, address receiver) external returns (uint256 shares) {
         // verify cap
 
-        uint96[2] memory tranches = pool.updatePool();
+        uint96[2] memory tranches = pool.refreshPool();
         // get correct total assets based on tranche index
         uint256 totalAssets = tranches[index];
 

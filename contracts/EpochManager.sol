@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {IDealPortfolioPool} from "./interfaces/IDealPortfolioPool.sol";
+import {IPool} from "./interfaces/IPool.sol";
 import {ITrancheVault, EpochInfo} from "./interfaces/ITrancheVault.sol";
-import {IReserve} from "./interfaces/IReserve.sol";
+import {IPoolVault} from "./interfaces/IPoolVault.sol";
 
 contract EpochManager {
     uint256 public flexLoanPeriod;
 
-    IDealPortfolioPool public pool;
-    IReserve public reserve;
+    IPool public pool;
+    IPoolVault public reserve;
     ITrancheVault public seniorTranche;
     ITrancheVault public juniorTranche;
 
@@ -20,7 +20,7 @@ contract EpochManager {
      */
     function closeEpoch() public virtual {
         // update tranches assets to current timestamp
-        uint96[2] memory tranches = pool.updatePool();
+        uint96[2] memory tranches = pool.refreshPool();
 
         // calculate senior/junior token price
         uint256 seniorPrice = tranches[0] / seniorTranche.totalSupply();
@@ -64,7 +64,7 @@ contract EpochManager {
         EpochInfo[] memory juniorEpochs
     ) internal returns (uint256 seniorProcessedCount, uint256 juniorProcessedCount) {
         // get available underlying token amount
-        uint256 availableAmount = reserve.getAvailableWithdrawAmount();
+        uint256 availableAmount = reserve.getAvailableLiquidity();
         if (availableAmount <= 0) return (0, 0);
 
         uint256 flexPeriod = flexLoanPeriod;

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {IDealPortfolioPool} from "./interfaces/IDealPortfolioPool.sol";
+import {IPool} from "./interfaces/IPool.sol";
 import {IFeeManager} from "./interfaces/IFeeManager.sol";
-import {ITrancheLogic} from "./interfaces/ITrancheLogic.sol";
+import {ITranchePolicy} from "./interfaces/ITranchePolicy.sol";
 import {ICredit} from "./credit/interfaces/ICredit.sol";
 
 struct FeeInfo {
@@ -17,13 +17,13 @@ struct TranchesInfo {
     uint256 lastUpdatedTime; // the updated timestamp of seniorTotalAssets and juniorTotalAssets
 }
 
-contract DealPortfolioPool is IDealPortfolioPool {
+contract DealPortfolioPool is IPool {
     uint256 public constant SENIOR_TRANCHE_INDEX = 1;
     uint256 public constant JUNIOR_TRANCHE_INDEX = 2;
 
     ICredit public credit;
     IFeeManager public feeManager;
-    ITrancheLogic public trancheLogic;
+    ITranchePolicy public trancheLogic;
 
     FeeInfo public feeInfo;
     TranchesInfo public tranches;
@@ -44,7 +44,7 @@ contract DealPortfolioPool is IDealPortfolioPool {
         }
     }
 
-    function updatePool() external returns (uint96[2] memory) {
+    function refreshPool() external returns (uint96[2] memory) {
         // check permission
 
         uint256 profit = credit.updateProfit();

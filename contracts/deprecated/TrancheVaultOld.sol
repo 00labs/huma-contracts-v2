@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {IDealPortfolioPool} from "../interfaces/IDealPortfolioPool.sol";
+import {IPool} from "../interfaces/IPool.sol";
 
 struct EpochOrderOld {
     uint96 totalDeposit; // total requested deposit underlying token amount of current epoch
@@ -31,7 +31,7 @@ struct UserOrderOld {
  */
 
 contract TrancheVaultOld is ERC20 {
-    IDealPortfolioPool public portfolioPool;
+    IPool public portfolioPool;
     uint256 public index; // senior index or junior index
 
     EpochOrderOld internal _epochOrder; // total order data of current epoch

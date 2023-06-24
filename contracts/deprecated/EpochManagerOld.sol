@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {IDealPortfolioPool} from "../interfaces/IDealPortfolioPool.sol";
+import {IPool} from "../interfaces/IPool.sol";
 
 interface ITrancheVaultLike {
     function totalSupply() external view returns (uint256);
@@ -16,7 +16,7 @@ interface ITrancheVaultLike {
  */
 
 contract EpochManagerOld {
-    IDealPortfolioPool public pool;
+    IPool public pool;
     ITrancheVaultLike public seniorTranche;
     ITrancheVaultLike public juniorTranche;
 
@@ -27,7 +27,7 @@ contract EpochManagerOld {
      */
     function closeEpoch() public virtual {
         // update tranches assets to current timestamp
-        uint96[2] memory tranches = pool.updatePool();
+        uint96[2] memory tranches = pool.refreshPool();
 
         // get tranches orders of current epoch
         (uint256 seniorDeposit, uint256 seniorRedeemShare) = seniorTranche.epochOrder();

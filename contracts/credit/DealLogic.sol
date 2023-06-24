@@ -5,10 +5,10 @@ import {DealConfig} from "./DealStructs.sol";
 
 import {IDealLogic} from "./interfaces/IDealLogic.sol";
 import {IPaymentStrategy} from "./interfaces/IPaymentStrategy.sol";
-import {IScheduleStrategy} from "./interfaces/IScheduleStrategy.sol";
+import {ICalendar} from "./interfaces/ICalendar.sol";
 
 contract DealLogic is IDealLogic {
-    mapping(uint256 => IScheduleStrategy) public scheduleStrategies;
+    mapping(uint256 => ICalendar) public scheduleStrategies;
     mapping(uint256 => IPaymentStrategy) public paymentStrategies;
 
     function calculateInterestAndPincipal(
@@ -17,7 +17,7 @@ contract DealLogic is IDealLogic {
         uint256 lastUpdatedTime,
         DealConfig memory dealConfig
     ) external view override returns (uint256 accruedInterest, uint256 accruedPrincipal) {
-        IScheduleStrategy ss = scheduleStrategies[dealConfig.scheduleOption];
+        ICalendar ss = scheduleStrategies[dealConfig.scheduleOption];
         IPaymentStrategy ps = paymentStrategies[dealConfig.paymentOption];
         while (lastUpdatedTime < block.timestamp) {
             // prepare schedule strategy parameters
