@@ -23,4 +23,5 @@ interface ICreditFeeManager {
         uint256 lastUpdatedTime,
         CreditConfig memory dealConfig
     ) external view returns (uint256 accruedInterest, uint256 accruedPrincipal);
+    // .The return should include due date information
 }
