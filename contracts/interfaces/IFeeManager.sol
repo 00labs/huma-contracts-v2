@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 /**
- * @notice IDealManager provides functions about fees.
+ * @notice ICreditManager provides functions about fees.
  */
 
 interface IFeeManager {

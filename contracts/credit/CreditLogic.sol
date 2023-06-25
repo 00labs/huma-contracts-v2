@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {DealConfig} from "./DealStructs.sol";
+import {CreditConfig} from "./CreditStructs.sol";
 
-import {IDealLogic} from "./interfaces/IDealLogic.sol";
+import {ICreditLogic} from "./interfaces/ICreditLogic.sol";
 import {IPaymentStrategy} from "./interfaces/IPaymentStrategy.sol";
 import {ICalendar} from "./interfaces/ICalendar.sol";
 
-contract DealLogic is IDealLogic {
+contract CreditLogic is ICreditLogic {
     mapping(uint256 => ICalendar) public scheduleStrategies;
     mapping(uint256 => IPaymentStrategy) public paymentStrategies;
 
@@ -15,7 +15,7 @@ contract DealLogic is IDealLogic {
         uint256 principal,
         uint256 startTime,
         uint256 lastUpdatedTime,
-        DealConfig memory dealConfig
+        CreditConfig memory dealConfig
     ) external view override returns (uint256 accruedInterest, uint256 accruedPrincipal) {
         ICalendar ss = scheduleStrategies[dealConfig.scheduleOption];
         IPaymentStrategy ps = paymentStrategies[dealConfig.paymentOption];

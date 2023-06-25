@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {IReceivableFactoring, ReceivableInfo, DealConfig} from "./interfaces/IReceivableFactoring.sol";
+import {IReceivableFactoring, ReceivableInfo, CreditConfig} from "./interfaces/IReceivableFactoring.sol";
 
 /**
  * @notice SuperfluidProcessor handles all speicial actions about Superfulid integration.
@@ -15,7 +15,7 @@ contract SuperfluidProcessor {
     function approve(
         address borrower,
         uint256 creditLimit,
-        DealConfig calldata creditConfig,
+        CreditConfig calldata creditConfig,
         uint256 superfluidReceivableAsset,
         uint256 superfluidReceivableAmount,
         bytes32 superfluidReceivableDataHash

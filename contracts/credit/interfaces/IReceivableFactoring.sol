@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {DealConfig} from "../DealStructs.sol";
+import {CreditConfig} from "../CreditStructs.sol";
 
 struct ReceivableInfo {
     address receivableAsset;
@@ -13,7 +13,7 @@ interface IReceivableFactoring {
     function approve(
         address borrower,
         uint256 creditLimit,
-        DealConfig calldata creditConfig,
+        CreditConfig calldata creditConfig,
         ReceivableInfo memory receivableInfo
     ) external returns (bytes32 hash);
 

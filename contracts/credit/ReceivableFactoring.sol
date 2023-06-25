@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {BaseCredit, CreditLimit} from "./BaseCredit.sol";
 import {IReceivable} from "./interfaces/IReceivable.sol";
-import {IReceivableFactoring, ReceivableInfo, DealConfig} from "./interfaces/IReceivableFactoring.sol";
+import {IReceivableFactoring, ReceivableInfo, CreditConfig} from "./interfaces/IReceivableFactoring.sol";
 
 contract ReceivableFactoring is BaseCredit, IReceivableFactoring {
     mapping(bytes32 => ReceivableInfo) public receivables;
@@ -11,7 +11,7 @@ contract ReceivableFactoring is BaseCredit, IReceivableFactoring {
     function approve(
         address borrower,
         uint256 creditLimit,
-        DealConfig calldata creditConfig,
+        CreditConfig calldata creditConfig,
         ReceivableInfo memory receivableInfo
     ) external override returns (bytes32 hash) {
         // verify receivable

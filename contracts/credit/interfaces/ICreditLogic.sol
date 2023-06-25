@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {DealConfig} from "../DealStructs.sol";
+import {CreditConfig} from "../CreditStructs.sol";
 
 /**
- * @notice IDealLogic calculates interest and principal for the given loan.
+ * @notice ICreditLogic calculates interest and principal for the given loan.
  */
 
-interface IDealLogic {
+interface ICreditLogic {
     /**
      * @notice Calculates accrued interest and accrued principal from last updated timestamp to current timestamp.
      * @param principal the principal amount
@@ -21,6 +21,6 @@ interface IDealLogic {
         uint256 principal,
         uint256 startTime,
         uint256 lastUpdatedTime,
-        DealConfig memory dealConfig
+        CreditConfig memory dealConfig
     ) external view returns (uint256 accruedInterest, uint256 accruedPrincipal);
 }

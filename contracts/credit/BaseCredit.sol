@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {DealConfig} from "./DealStructs.sol";
-import {IDealLogic} from "./interfaces/IDealLogic.sol";
+import {CreditConfig} from "./CreditStructs.sol";
+import {ICreditLogic} from "./interfaces/ICreditLogic.sol";
 
 struct CreditCheckpoint {
     uint96 totalAccruedInterest; // total accrued interest from tha loan start
@@ -34,13 +34,13 @@ struct CreditLimit {
 }
 
 contract BaseCredit {
-    IDealLogic public dealLogic;
+    ICreditLogic public dealLogic;
 
     mapping(bytes32 => CreditLimit) public creditLimits;
-    mapping(bytes32 => DealConfig) public dealConfigs;
+    mapping(bytes32 => CreditConfig) public dealConfigs;
     mapping(bytes32 => CreditInfo) public deals;
 
-    bytes32[] public activeDealsHash;
+    bytes32[] public activeCreditsHash;
 
     uint256 public unprocessedProfit;
 
@@ -48,14 +48,14 @@ contract BaseCredit {
         bytes32 creditHash,
         address borrower,
         uint256 creditLimit,
-        DealConfig calldata dealConfig
+        CreditConfig calldata dealConfig
     ) internal {
         // only EA
 
         CreditLimit memory cl = creditLimits[creditHash];
         if (cl.borrower != address(0)) revert();
 
-        _createDealConfig(creditHash, dealConfig);
+        _createCreditConfig(creditHash, dealConfig);
     }
 
     /**
@@ -63,7 +63,7 @@ contract BaseCredit {
      * @param dealHash a unique hash for the loan
      * @param dealConfig the schedule and payment parameters for this loan
      */
-    function _createDealConfig(bytes32 dealHash, DealConfig memory dealConfig) internal {
+    function _createCreditConfig(bytes32 dealHash, CreditConfig memory dealConfig) internal {
         dealConfigs[dealHash] = dealConfig;
     }
 
@@ -72,7 +72,7 @@ contract BaseCredit {
 
         CreditLimit memory cl = creditLimits[creditHash];
 
-        _borrowFromDeal(creditHash, borrowAmount);
+        _borrowFromCredit(creditHash, borrowAmount);
 
         // transfer borrowAmount to borrower
     }
@@ -82,7 +82,7 @@ contract BaseCredit {
      * @param dealHash a unique hash for the loan
      * @param amount borrowed amount
      */
-    function _borrowFromDeal(bytes32 dealHash, uint256 amount) internal {
+    function _borrowFromCredit(bytes32 dealHash, uint256 amount) internal {
         // check parameters & permission
 
         CreditInfo memory di = deals[dealHash];
@@ -101,7 +101,7 @@ contract BaseCredit {
             uint256 accruedInterest;
 
             // update loan data(interest, principal) to current time
-            (di, accruedInterest) = _refreshDeal(dealHash, di);
+            (di, accruedInterest) = _refreshCredit(dealHash, di);
 
             unprocessedProfit += accruedInterest;
 
@@ -113,7 +113,7 @@ contract BaseCredit {
         deals[dealHash] = di;
     }
 
-    function _refreshDeal(
+    function _refreshCredit(
         bytes32 dealHash,
         CreditInfo memory di
     ) internal view returns (CreditInfo memory, uint256) {
@@ -137,7 +137,7 @@ contract BaseCredit {
     ) public virtual returns (uint256 amountPaid, bool paidoff) {
         CreditLimit memory cl = creditLimits[creditHash];
 
-        _payToDeal(creditHash, amount);
+        _payToCredit(creditHash, amount);
 
         // transfer amount from msg.sender
     }
@@ -147,14 +147,14 @@ contract BaseCredit {
      * @param dealHash a unique hash for the loan
      * @param amount paid amount
      */
-    function _payToDeal(bytes32 dealHash, uint256 amount) internal {
+    function _payToCredit(bytes32 dealHash, uint256 amount) internal {
         // check parameters & permission
 
         CreditInfo memory di = deals[dealHash];
         uint256 accruedInterest;
 
         // update loan data(interest, principal) to current time
-        (di, accruedInterest) = _refreshDeal(dealHash, di);
+        (di, accruedInterest) = _refreshCredit(dealHash, di);
 
         unprocessedProfit += accruedInterest;
 
@@ -174,9 +174,9 @@ contract BaseCredit {
         profit = unprocessedProfit;
 
         // Iterate all active loans to get the total profit
-        for (uint256 i; i < activeDealsHash.length; i++) {
-            bytes32 hash = activeDealsHash[i];
-            (CreditInfo memory di, uint256 accruedInterest) = _refreshDeal(hash, deals[hash]);
+        for (uint256 i; i < activeCreditsHash.length; i++) {
+            bytes32 hash = activeCreditsHash[i];
+            (CreditInfo memory di, uint256 accruedInterest) = _refreshCredit(hash, deals[hash]);
             deals[hash] = di;
             profit += accruedInterest;
         }
@@ -188,9 +188,9 @@ contract BaseCredit {
         profit = unprocessedProfit;
 
         // Iterates all active loans to get the total profit
-        for (uint256 i; i < activeDealsHash.length; i++) {
-            bytes32 hash = activeDealsHash[i];
-            (, uint256 accruedInterest) = _refreshDeal(hash, deals[hash]);
+        for (uint256 i; i < activeCreditsHash.length; i++) {
+            bytes32 hash = activeCreditsHash[i];
+            (, uint256 accruedInterest) = _refreshCredit(hash, deals[hash]);
             profit += accruedInterest;
         }
     }
