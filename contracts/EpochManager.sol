@@ -9,7 +9,7 @@ contract EpochManager {
     uint256 public flexLoanPeriod;
 
     IPool public pool;
-    IPoolVault public reserve;
+    IPoolVault public poolVault;
     ITrancheVault public seniorTranche;
     ITrancheVault public juniorTranche;
 
@@ -64,7 +64,7 @@ contract EpochManager {
         EpochInfo[] memory juniorEpochs
     ) internal returns (uint256 seniorProcessedCount, uint256 juniorProcessedCount) {
         // get available underlying token amount
-        uint256 availableAmount = reserve.getAvailableLiquidity();
+        uint256 availableAmount = poolVault.getAvailableLiquidity();
         if (availableAmount <= 0) return (0, 0);
 
         uint256 flexPeriod = flexLoanPeriod;

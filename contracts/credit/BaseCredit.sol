@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import {DealConfig} from "./DealStructs.sol";
 import {IDealLogic} from "./interfaces/IDealLogic.sol";
 
-struct DealCheckPoint {
+struct CreditCheckpoint {
     uint96 totalAccruedInterest; // total accrued interest from tha loan start
     uint96 totalAccruedPrincipal; // total principal to be repaid from tha loan start
     uint64 lastUpdatedTime; // the updated timestamp of totalAccruedInterest and totalAccruedPrincipal
@@ -13,13 +13,13 @@ struct DealCheckPoint {
     uint96 totalPaidPrincipal;
 }
 
-struct DealInfo {
+struct CreditInfo {
     uint64 startTime; // loan start timestamp
-    DealState state;
-    DealCheckPoint checkPoint;
+    CreditState state;
+    CreditCheckpoint checkPoint;
 }
 
-enum DealState {
+enum CreditState {
     Deleted,
     Requested,
     Approved,
@@ -38,7 +38,7 @@ contract BaseCredit {
 
     mapping(bytes32 => CreditLimit) public creditLimits;
     mapping(bytes32 => DealConfig) public dealConfigs;
-    mapping(bytes32 => DealInfo) public deals;
+    mapping(bytes32 => CreditInfo) public deals;
 
     bytes32[] public activeDealsHash;
 
@@ -85,7 +85,7 @@ contract BaseCredit {
     function _borrowFromDeal(bytes32 dealHash, uint256 amount) internal {
         // check parameters & permission
 
-        DealInfo memory di = deals[dealHash];
+        CreditInfo memory di = deals[dealHash];
 
         if (di.startTime == 0) {
             // the first drawdown
@@ -93,7 +93,7 @@ contract BaseCredit {
             // initialize a loan
             di.startTime = uint64(block.timestamp);
             di.checkPoint.totalPrincipal = uint96(amount);
-            di.state = DealState.GoodStanding;
+            di.state = CreditState.GoodStanding;
             di.checkPoint.lastUpdatedTime = uint64(block.timestamp);
         } else {
             // drawdown for an existing loan
@@ -115,8 +115,8 @@ contract BaseCredit {
 
     function _refreshDeal(
         bytes32 dealHash,
-        DealInfo memory di
-    ) internal view returns (DealInfo memory, uint256) {
+        CreditInfo memory di
+    ) internal view returns (CreditInfo memory, uint256) {
         (uint256 accruedInterest, uint256 accruedPrincipal) = dealLogic
             .calculateInterestAndPincipal(
                 di.checkPoint.totalPrincipal - di.checkPoint.totalPaidPrincipal,
@@ -150,7 +150,7 @@ contract BaseCredit {
     function _payToDeal(bytes32 dealHash, uint256 amount) internal {
         // check parameters & permission
 
-        DealInfo memory di = deals[dealHash];
+        CreditInfo memory di = deals[dealHash];
         uint256 accruedInterest;
 
         // update loan data(interest, principal) to current time
@@ -176,7 +176,7 @@ contract BaseCredit {
         // Iterate all active loans to get the total profit
         for (uint256 i; i < activeDealsHash.length; i++) {
             bytes32 hash = activeDealsHash[i];
-            (DealInfo memory di, uint256 accruedInterest) = _refreshDeal(hash, deals[hash]);
+            (CreditInfo memory di, uint256 accruedInterest) = _refreshDeal(hash, deals[hash]);
             deals[hash] = di;
             profit += accruedInterest;
         }
