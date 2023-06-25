@@ -16,4 +16,7 @@ interface ICalendar {
      * @return dueDate next due date
      */
     function getNextDueDate(uint256[] memory params) external view returns (uint256 dueDate);
+    //todo .We may want to include both due date and the date with grace period. 
+
+    //todo We may want to add a getDefaultEligibleDate() to return the first date that a default can be triggered
 }

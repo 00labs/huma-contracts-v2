@@ -20,9 +20,9 @@ contract SuperfluidProcessor {
         uint256 superfluidReceivableAmount,
         bytes32 superfluidReceivableDataHash
     ) external returns (bytes32 hash) {
-        // store superfluid receivable data hash
+        // :store superfluid receivable data hash
 
-        // generate an intermedia NFT
+        // :generate an intermedia NFT
 
         ReceivableInfo memory ri;
         ri.receivableAmount = uint96(superfluidReceivableAmount);

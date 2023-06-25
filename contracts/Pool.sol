@@ -9,6 +9,7 @@ import {ICredit} from "./credit/interfaces/ICredit.sol";
 struct FeeInfo {
     uint96 protocolFee;
     uint96 ownerFee;
+    // todo add eaFee and firstLossCoverFee
 }
 
 struct TranchesInfo {
@@ -53,6 +54,8 @@ contract Pool is IPool {
         if (profit > 0) {
             _processProfit(profit);
         }
+
+        // todo add handling of losses
 
         return [tranches.seniorTotalAssets, tranches.juniorTotalAssets];
     }
