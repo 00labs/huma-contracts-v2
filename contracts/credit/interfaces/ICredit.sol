@@ -9,9 +9,12 @@ interface ICredit {
         uint256 amount
     ) external returns (uint256 amountPaid, bool paidoff);
 
-    function refreshPnL() external returns (uint256 profit, uint256 loss);
+    function refreshPnL() external returns (uint256 profit, uint256 loss, uint256 lossRecovery);
 
-    function currentPnL() external view returns (uint256 profit, uint256 loss);
+    function currentPnL()
+        external
+        view
+        returns (uint256 profit, uint256 loss, uint256 lossRecovery);
 
     function submitPrincipalWithdrawal(uint256 amount) external;
 }

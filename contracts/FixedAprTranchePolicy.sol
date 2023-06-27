@@ -22,4 +22,10 @@ contract FixedAprTranchePolicy is ITranchePolicy {
         uint96[2] memory assets,
         uint256 lastUpdatedTime
     ) external view returns (uint96[2] memory) {}
+
+    function distributeLossRecovery(
+        uint256 lossRecovery,
+        uint96[2] memory assets,
+        uint256 lastUpdatedTime
+    ) external view returns (uint96[2] memory newAssets) {}
 }

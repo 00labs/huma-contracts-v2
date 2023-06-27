@@ -32,7 +32,7 @@ contract Pool is IPool {
     function refreshPool() external returns (uint96[2] memory) {
         // check permission
 
-        (uint256 profit, uint256 loss) = credit.refreshPnL();
+        (uint256 profit, uint256 loss, uint256 lossRecovery) = credit.refreshPnL();
 
         // distribute profit
         if (profit > 0) {
@@ -41,6 +41,10 @@ contract Pool is IPool {
 
         if (loss > 0) {
             _distributeLoss(loss);
+        }
+
+        if (lossRecovery > 0) {
+            _distributeLossRecovery(lossRecovery);
         }
 
         return [tranches.seniorTotalAssets, tranches.juniorTotalAssets];
@@ -69,6 +73,8 @@ contract Pool is IPool {
         // :reference v1 contract
     }
 
+    function _distributeLossRecovery(uint256 lossRecovery) internal {}
+
     function trancheTotalAssets(uint256 index) external view returns (uint256) {
         if (block.timestamp > tranches.lastUpdatedTime) {
             // need to update tranche assets
@@ -86,7 +92,7 @@ contract Pool is IPool {
     }
 
     function _currentTranches() internal view returns (uint96[2] memory trancheAssets) {
-        (uint256 profit, uint256 loss) = credit.currentPnL();
+        (uint256 profit, uint256 loss, uint256 lossRecovery) = credit.currentPnL();
 
         TranchesInfo memory ti = tranches;
         trancheAssets = [ti.seniorTotalAssets, ti.juniorTotalAssets];
@@ -104,6 +110,14 @@ contract Pool is IPool {
 
         if (loss > 0) {
             trancheAssets = tranchePolicy.distributeLoss(loss, trancheAssets, ti.lastUpdatedTime);
+        }
+
+        if (lossRecovery > 0) {
+            trancheAssets = tranchePolicy.distributeLossRecovery(
+                lossRecovery,
+                trancheAssets,
+                ti.lastUpdatedTime
+            );
         }
     }
 

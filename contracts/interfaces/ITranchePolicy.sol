@@ -34,6 +34,12 @@ interface ITranchePolicy {
         uint256 lastUpdatedTime
     ) external view returns (uint96[2] memory newAssets);
 
-    // todo Need an interface to handle loss recoveries. This can be tricky since we do not seem 
-    // to have record of distribution of past losses. 
+    function distributeLossRecovery(
+        uint256 lossRecovery,
+        uint96[2] memory assets,
+        uint256 lastUpdatedTime
+    ) external view returns (uint96[2] memory newAssets);
+
+    // todo Need an interface to handle loss recoveries. This can be tricky since we do not seem
+    // to have record of distribution of past losses.
 }
