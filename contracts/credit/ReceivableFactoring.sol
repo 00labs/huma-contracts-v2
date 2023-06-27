@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {BaseCredit, CreditLimit} from "./BaseCredit.sol";
 import {IReceivable} from "./interfaces/IReceivable.sol";
-import {IReceivableFactoring, ReceivableInfo, CreditConfig} from "./interfaces/IReceivableFactoring.sol";
+import {IReceivableFactoring, ReceivableInfo, CreditConfig, ICredit} from "./interfaces/IReceivableFactoring.sol";
 
 contract ReceivableFactoring is BaseCredit, IReceivableFactoring {
     mapping(bytes32 => ReceivableInfo) public receivables;
@@ -27,7 +27,7 @@ contract ReceivableFactoring is BaseCredit, IReceivableFactoring {
     function drawdown(
         bytes32 hash,
         uint256 borrowAmount
-    ) public virtual override(BaseCredit, IReceivableFactoring) {
+    ) public virtual override(BaseCredit, ICredit) {
         // check parameters
         ReceivableInfo memory ri = receivables[hash];
         if (ri.receivableId == 0) revert();
@@ -46,12 +46,7 @@ contract ReceivableFactoring is BaseCredit, IReceivableFactoring {
     function makePayment(
         bytes32 hash,
         uint256 amount
-    )
-        public
-        virtual
-        override(BaseCredit, IReceivableFactoring)
-        returns (uint256 amountPaid, bool paidoff)
-    {
+    ) public virtual override(BaseCredit, ICredit) returns (uint256 amountPaid, bool paidoff) {
         super.makePayment(hash, amount);
 
         // burn receivable?

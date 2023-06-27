@@ -19,4 +19,9 @@ interface IPool {
      * profit for the pool and the asset value for different tranches.
      */
     function refreshPool() external returns (uint96[2] memory);
+
+    /**
+     * @notice Submits principal withdrawal request to flex loan pool
+     */
+    function submitPrincipalWithdrawal(uint256 amount) external;
 }

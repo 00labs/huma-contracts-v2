@@ -53,27 +53,27 @@ contract TrancheVault is ERC20, ITrancheVault {
      * @notice Updates processed epochs
      */
     function closeEpoch(EpochInfo[] memory processedEpochs) external {
-        // update epochs array
-        // update currentEpochIndex
-        // burn/lock vault tokens
-        // withdraw underlying tokens from reserve
+        // :update epochs array
+        // :update currentEpochIndex
+        // :burn/lock vault tokens
+        // :withdraw underlying tokens from reserve
     }
 
     function deposit(uint256 assets, address receiver) external returns (uint256 shares) {
-        // verify cap
+        // :verify cap
 
         uint96[2] memory tranches = pool.refreshPool();
         // get correct total assets based on tranche index
         uint256 totalAssets = tranches[index];
 
-        // verify max senior ratio if it is senior vault
+        // :verify max senior ratio if it is senior vault
 
         uint256 price = totalAssets / ERC20.totalSupply();
 
-        // calculate minted shares
+        // :calculate minted shares
 
-        // transfer assets to reserve
-        // mint shares to receiver
+        // :transfer assets to reserve
+        // :mint shares to receiver
     }
 
     /**
@@ -116,8 +116,8 @@ contract TrancheVault is ERC20, ITrancheVault {
      */
     function disburse() external {
         UserRedemptionInfo memory RedemptionInfo = _updateUserWithdrawable(msg.sender);
-        // transfer totalWithdrawableAmount to user
-        // set RedemptionInfo.totalWithdrawableAmount to 0
+        // :transfer totalWithdrawableAmount to user
+        // :set RedemptionInfo.totalWithdrawableAmount to 0
     }
 
     /**
@@ -129,9 +129,9 @@ contract TrancheVault is ERC20, ITrancheVault {
         UserRedemptionRequest[] storage requests = userRedemptionRequests[msg.sender];
         EpochInfo memory ei = epochs[currentEpochIndex];
 
-        // iterate processed Redemption request from RedemptionInfo.currentIndex to ei.epochId (not included)
-        // sum up processed RedemptionAmount and processed redeemShare
-        // update RedemptionInfo.totalWithdrawableAmount
-        // burn user's shares
+        // :iterate processed Redemption request from RedemptionInfo.currentIndex to ei.epochId (not included)
+        // :sum up processed RedemptionAmount and processed redeemShare
+        // :update RedemptionInfo.totalWithdrawableAmount
+        // :burn user's shares
     }
 }

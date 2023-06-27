@@ -2,13 +2,13 @@
 pragma solidity ^0.8.0;
 
 import {IPool} from "./interfaces/IPool.sol";
+import {PoolConfig} from "./PoolConfig.sol";
 import {ITrancheVault, EpochInfo} from "./interfaces/ITrancheVault.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
 
 contract EpochManager {
-    uint256 public flexLoanPeriod;
-
     IPool public pool;
+    PoolConfig public poolConfig;
     IPoolVault public poolVault;
     ITrancheVault public seniorTranche;
     ITrancheVault public juniorTranche;
@@ -38,15 +38,11 @@ contract EpochManager {
         );
 
         EpochInfo[] memory processedEpochs;
-        // call senior tranche's closeEpoch to update vault's epochs
-        // get processed senior epochs
+        // :get processed senior epochs
         seniorTranche.closeEpoch(processedEpochs);
 
-        // call junior tranche's closeEpoch to update vault's epoch data
-        // get processed junior epochs
+        // :get processed junior epochs
         juniorTranche.closeEpoch(processedEpochs);
-
-        // generate callable amount from unprocessed epochs
 
         uint256 epochId = currentEpochId;
         currentEpochId = epochId + 1;
@@ -67,23 +63,23 @@ contract EpochManager {
         uint256 availableAmount = poolVault.getAvailableLiquidity();
         if (availableAmount <= 0) return (0, 0);
 
-        uint256 flexPeriod = flexLoanPeriod;
+        uint256 flexPeriod = poolConfig.flexLoanPeriod();
 
         // process mature senior withdrawal requests
 
-        // get mature senior withdrawal requests
         EpochInfo[] memory sEpochs;
         uint256 count;
 
+        // :get mature senior withdrawal requests
         (availableAmount, count) = _processSeniorEpochs(tranches, sEpochs, availableAmount);
         seniorProcessedCount += count;
         if (availableAmount <= 0) return (seniorProcessedCount, juniorProcessedCount);
 
         // process mature junior withdrawal requests
 
-        // get mature junior withdrawal requests
         EpochInfo[] memory jEpochs;
 
+        // :get mature junior withdrawal requests
         (availableAmount, count) = _processJuniorEpochs(tranches, jEpochs, availableAmount);
         juniorProcessedCount += count;
 
@@ -92,18 +88,22 @@ contract EpochManager {
 
         // process immature senior withdrawal requests
 
-        // get immature senior withdrawal requests
-
+        // :get immature senior withdrawal requests
         (availableAmount, count) = _processSeniorEpochs(tranches, sEpochs, availableAmount);
         seniorProcessedCount += count;
         if (availableAmount <= 0) return (seniorProcessedCount, juniorProcessedCount);
 
         // process immature senior withdrawal requests
 
-        // get immature junior withdrawal requests
-
+        // :get immature junior withdrawal requests
         (availableAmount, count) = _processJuniorEpochs(tranches, jEpochs, availableAmount);
         juniorProcessedCount += count;
+
+        uint256 printcipalWithdrawalAmount;
+        // :generate callable amount from unprocessed epochs
+        if (flexPeriod > 0) {
+            pool.submitPrincipalWithdrawal(printcipalWithdrawalAmount);
+        }
     }
 
     function _processSeniorEpochs(

@@ -2,7 +2,8 @@
 pragma solidity ^0.8.0;
 
 import {CreditConfig} from "./CreditStructs.sol";
-import {ICreditLogic} from "./interfaces/ICreditLogic.sol";
+import {ICreditFeeManager} from "./utils/interfaces/ICreditFeeManager.sol";
+import {ICredit} from "./interfaces/ICredit.sol";
 
 struct CreditCheckpoint {
     uint96 totalAccruedInterest; // total accrued interest from tha loan start
@@ -33,8 +34,8 @@ struct CreditLimit {
     uint96 creditLimit; // the max borrowed amount
 }
 
-contract BaseCredit {
-    ICreditLogic public dealLogic;
+contract BaseCredit is ICredit {
+    ICreditFeeManager public feeManager;
 
     mapping(bytes32 => CreditLimit) public creditLimits;
     mapping(bytes32 => CreditConfig) public dealConfigs;
@@ -42,7 +43,8 @@ contract BaseCredit {
 
     bytes32[] public activeCreditsHash;
 
-    uint256 public unprocessedProfit;
+    uint256 public accruedProfit;
+    uint256 public accruedLoss;
 
     function _approve(
         bytes32 creditHash,
@@ -103,7 +105,7 @@ contract BaseCredit {
             // update loan data(interest, principal) to current time
             (di, accruedInterest) = _refreshCredit(dealHash, di);
 
-            unprocessedProfit += accruedInterest;
+            accruedProfit += accruedInterest;
 
             // update the drawdown amount
             di.checkPoint.totalPrincipal += uint96(amount);
@@ -117,13 +119,12 @@ contract BaseCredit {
         bytes32 dealHash,
         CreditInfo memory di
     ) internal view returns (CreditInfo memory, uint256) {
-        (uint256 accruedInterest, uint256 accruedPrincipal) = dealLogic
-            .calculateInterestAndPincipal(
-                di.checkPoint.totalPrincipal - di.checkPoint.totalPaidPrincipal,
-                di.startTime,
-                di.checkPoint.lastUpdatedTime,
-                dealConfigs[dealHash]
-            );
+        (uint256 accruedInterest, uint256 accruedPrincipal) = feeManager.accruedDebt(
+            di.checkPoint.totalPrincipal - di.checkPoint.totalPaidPrincipal,
+            di.startTime,
+            di.checkPoint.lastUpdatedTime,
+            dealConfigs[dealHash]
+        );
         di.checkPoint.totalAccruedInterest += uint96(accruedInterest);
         di.checkPoint.totalAccruedPrincipal += uint96(accruedPrincipal);
         di.checkPoint.lastUpdatedTime = uint64(block.timestamp);
@@ -156,7 +157,7 @@ contract BaseCredit {
         // update loan data(interest, principal) to current time
         (di, accruedInterest) = _refreshCredit(dealHash, di);
 
-        unprocessedProfit += accruedInterest;
+        accruedProfit += accruedInterest;
 
         // update paid interest
         uint256 interestPart = di.checkPoint.totalAccruedInterest -
@@ -170,10 +171,10 @@ contract BaseCredit {
         }
     }
 
-    function updateProfit() external returns (uint256 profit) {
-        profit = unprocessedProfit;
+    function refreshPnL() external returns (uint256 profit, uint256 loss) {
+        profit = accruedProfit;
 
-        // Iterate all active loans to get the total profit
+        // Iterate all active credits to get the total profit
         for (uint256 i; i < activeCreditsHash.length; i++) {
             bytes32 hash = activeCreditsHash[i];
             (CreditInfo memory di, uint256 accruedInterest) = _refreshCredit(hash, deals[hash]);
@@ -181,11 +182,23 @@ contract BaseCredit {
             profit += accruedInterest;
         }
 
-        unprocessedProfit = 0;
+        // :handle defaulted credits
+        loss = accruedLoss;
+
+        if (profit >= loss) {
+            profit -= loss;
+            loss = 0;
+        } else {
+            loss -= profit;
+            profit = 0;
+        }
+
+        accruedProfit = 0;
+        accruedLoss = 0;
     }
 
-    function calculateProfit() external view returns (uint256 profit) {
-        profit = unprocessedProfit;
+    function currentPnL() external view returns (uint256 profit, uint256 loss) {
+        profit = accruedProfit;
 
         // Iterates all active loans to get the total profit
         for (uint256 i; i < activeCreditsHash.length; i++) {
@@ -193,5 +206,20 @@ contract BaseCredit {
             (, uint256 accruedInterest) = _refreshCredit(hash, deals[hash]);
             profit += accruedInterest;
         }
+
+        // :handle defaulted credits
+        loss = accruedLoss;
+
+        if (profit >= loss) {
+            profit -= loss;
+            loss = 0;
+        } else {
+            loss -= profit;
+            profit = 0;
+        }
     }
+
+    function submitPrincipalWithdrawal(uint256 amount) external {}
+
+    // todo provide an external view function for credit payment due list ?
 }

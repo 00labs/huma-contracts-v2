@@ -13,15 +13,14 @@ interface ICreditFeeManager {
      * @param principal the principal amount
      * @param startTime the loan start timestamp
      * @param lastUpdatedTime the last updated timestamp
-     * @param dealConfig the schedule and payment parameters for this loan
+     * @param creditInfo the schedule and payment parameters for this loan
      * @return accruedInterest the accrued interest from last updated timestamp to current timestamp,
-     * the accrued principal from last updated timestamp to current timestamp,
+     * accruedPrincipal the accrued principal from last updated timestamp to current timestamp,
      */
-    function getDueInfo(
+    function accruedDebt(
         uint256 principal,
         uint256 startTime,
         uint256 lastUpdatedTime,
-        CreditConfig memory dealConfig
+        CreditConfig memory creditInfo
     ) external view returns (uint256 accruedInterest, uint256 accruedPrincipal);
-    // .The return should include due date information
 }

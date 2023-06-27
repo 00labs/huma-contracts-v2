@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {IPool} from "./interfaces/IPool.sol";
-import {IFeeManager} from "./interfaces/IFeeManager.sol";
+import {IPlatformFeeManager} from "./interfaces/IPlatformFeeManager.sol";
 import {ITranchePolicy} from "./interfaces/ITranchePolicy.sol";
 import {ICredit} from "./credit/interfaces/ICredit.sol";
 
@@ -19,24 +19,64 @@ struct TranchesInfo {
 }
 
 contract Pool is IPool {
-    uint256 public constant SENIOR_TRANCHE_INDEX = 1;
-    uint256 public constant JUNIOR_TRANCHE_INDEX = 2;
+    uint256 public constant SENIOR_TRANCHE_INDEX = 0;
+    uint256 public constant JUNIOR_TRANCHE_INDEX = 1;
 
     ICredit public credit;
-    IFeeManager public feeManager;
+    IPlatformFeeManager public feeManager;
     ITranchePolicy public tranchePolicy;
 
     FeeInfo public feeInfo;
     TranchesInfo public tranches;
+
+    function refreshPool() external returns (uint96[2] memory) {
+        // check permission
+
+        (uint256 profit, uint256 loss) = credit.refreshPnL();
+
+        // distribute profit
+        if (profit > 0) {
+            _distributeProfit(profit);
+        }
+
+        if (loss > 0) {
+            _distributeLoss(loss);
+        }
+
+        return [tranches.seniorTotalAssets, tranches.juniorTotalAssets];
+    }
+
+    function _distributeProfit(uint256 profit) internal {
+        // calculate fees and tranches assets
+        uint256 remaining = feeManager.distributePlatformFees(profit);
+
+        if (remaining > 0) {
+            // calculate tranches assets after profit distribution
+            uint96[2] memory assets = tranchePolicy.distributeProfit(
+                remaining,
+                [tranches.seniorTotalAssets, tranches.juniorTotalAssets],
+                tranches.lastUpdatedTime
+            );
+
+            // store tranches info
+            tranches.seniorTotalAssets = assets[0];
+            tranches.juniorTotalAssets = assets[1];
+            tranches.lastUpdatedTime = block.timestamp;
+        }
+    }
+
+    function _distributeLoss(uint256 loss) internal {
+        // :reference v1 contract
+    }
 
     function trancheTotalAssets(uint256 index) external view returns (uint256) {
         if (block.timestamp > tranches.lastUpdatedTime) {
             // need to update tranche assets
 
             // update tranche assets to current time
-            uint96[2] memory assets = _calculateLatestTranches();
+            uint96[2] memory assets = _currentTranches();
 
-            return index == SENIOR_TRANCHE_INDEX ? assets[0] : assets[1];
+            return assets[index];
         } else {
             return
                 index == SENIOR_TRANCHE_INDEX
@@ -45,65 +85,29 @@ contract Pool is IPool {
         }
     }
 
-    function refreshPool() external returns (uint96[2] memory) {
-        // check permission
+    function _currentTranches() internal view returns (uint96[2] memory trancheAssets) {
+        (uint256 profit, uint256 loss) = credit.currentPnL();
 
-        uint256 profit = credit.updateProfit();
-
-        // distribute profit
-        if (profit > 0) {
-            _processProfit(profit);
-        }
-
-        // todo add handling of losses
-
-        return [tranches.seniorTotalAssets, tranches.juniorTotalAssets];
-    }
-
-    function _calculateLatestTranches() internal view returns (uint96[2] memory trancheAssets) {
-        uint256 profit = credit.calculateProfit();
+        TranchesInfo memory ti = tranches;
+        trancheAssets = [ti.seniorTotalAssets, ti.juniorTotalAssets];
 
         if (profit > 0) {
-            // distribute profit
-            (, trancheAssets) = _calculateProfitDistribution(profit);
-        } else {
-            trancheAssets = [tranches.seniorTotalAssets, tranches.juniorTotalAssets];
+            uint256 remaining = feeManager.getRemaining(profit);
+            if (remaining > 0) {
+                trancheAssets = tranchePolicy.distributeProfit(
+                    remaining,
+                    trancheAssets,
+                    ti.lastUpdatedTime
+                );
+            }
+        }
+
+        if (loss > 0) {
+            trancheAssets = tranchePolicy.distributeLoss(loss, trancheAssets, ti.lastUpdatedTime);
         }
     }
 
-    function _calculateProfitDistribution(
-        uint256 profit
-    ) internal view returns (uint96[] memory fees, uint96[2] memory assets) {
-        // calculate fees
-        uint256[] memory feeParams = new uint256[](3);
-        feeParams[0] = profit;
-        (uint256 protocolFee, uint256 ownerFee, uint256 remaining) = feeManager.calculateFees(
-            feeParams
-        );
-        fees[0] = uint96(protocolFee);
-        fees[1] = uint96(ownerFee);
-
-        if (remaining > 0) {
-            // calculate tranches assets after profit distribution
-            assets = tranchePolicy.distributeProfit(
-                remaining,
-                [tranches.seniorTotalAssets, tranches.juniorTotalAssets],
-                tranches.lastUpdatedTime
-            );
-        }
-    }
-
-    function _processProfit(uint256 profit) internal {
-        // calculate fees and tranches assets
-        (uint96[] memory fees, uint96[2] memory assets) = _calculateProfitDistribution(profit);
-
-        // store fees info
-        feeInfo.protocolFee += fees[0];
-        feeInfo.ownerFee += fees[1];
-
-        // store tranches info
-        tranches.seniorTotalAssets = assets[0];
-        tranches.juniorTotalAssets = assets[1];
-        tranches.lastUpdatedTime = block.timestamp;
+    function submitPrincipalWithdrawal(uint256 amount) external {
+        credit.submitPrincipalWithdrawal(amount);
     }
 }
