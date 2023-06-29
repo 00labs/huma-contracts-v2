@@ -9,12 +9,19 @@ struct CreditCheckpoint {
     uint96 totalAccruedInterest; // total accrued interest from tha loan start
     uint96 totalAccruedPrincipal; // total principal to be repaid from tha loan start
     uint64 lastProfitUpdatedTime; // the updated timestamp of totalAccruedInterest and totalAccruedPrincipal
-    uint96 totalPaidInterest;
-    uint96 totalPaidPrincipal;
-    uint64 lastPaidInFullTime;
-    uint96 totalPrincipal;
-    uint96 totalAccruedLoss;
+    uint96 totalPaidInterest; // todo delete?
+    uint96 totalPaidPrincipal; // todo delete?
     uint64 lastLossUpdatedTime; // the updated timestamp of totalAccruedLoss
+    uint96 totalPrincipal; // todo delete?
+    uint96 totalAccruedLoss;
+}
+
+struct CreditDueInfo {
+    uint64 dueDate; // the due date of the next payment
+    uint96 unbilledPrincipal; // the amount of principal not included in the bill
+    uint96 totalDue; // the due amount of the next payment
+    uint96 feesAndInterestDue; // interest and fees due for the next payment
+    uint16 remainingPeriods; // # of payment periods until the maturity of the credit line
 }
 
 struct CreditInfo {
@@ -43,6 +50,7 @@ contract BaseCredit is ICredit {
     mapping(bytes32 => CreditLimit) public creditLimits;
     mapping(bytes32 => CreditConfig) public creditConfigs;
     mapping(bytes32 => CreditInfo) public credits;
+    mapping(bytes32 => CreditDueInfo) public creditDues;
 
     bytes32[] public activeCreditsHash;
     bytes32[] public overdueCreditsHash;
@@ -120,6 +128,9 @@ contract BaseCredit is ICredit {
 
         // store loan data
         credits[creditHash] = creditInfo;
+
+        // :update credit due to current time
+        // :update totalDue and unbilledPrincipal
     }
 
     function _refreshCredit(
@@ -127,11 +138,9 @@ contract BaseCredit is ICredit {
         CreditInfo memory creditInfo
     ) internal view returns (uint256 accruedInterest, uint256 accruedPrincipalLoss) {
         CreditConfig memory creditConfig = creditConfigs[creditHash];
+        CreditDueInfo memory creditDue = creditDues[creditHash];
 
-        if (
-            creditInfo.state == CreditState.GoodStanding &&
-            _isOverdue(creditInfo.checkPoint.lastPaidInFullTime, creditConfig)
-        ) {
+        if (creditInfo.state == CreditState.GoodStanding && _isOverdue(creditDue.dueDate)) {
             // :move credit from active array to overdue array
             // :update credit state to overdue
         }
@@ -196,6 +205,8 @@ contract BaseCredit is ICredit {
 
         CreditInfo memory creditInfo = credits[creditHash];
 
+        // :update due info
+
         // update loan data(interest, principal) to current time
         (uint256 accruedInterest, uint256 accruedPrincipalLoss) = _refreshCredit(
             creditHash,
@@ -227,15 +238,17 @@ contract BaseCredit is ICredit {
 
         // :handle payoff
         // :if payoff remove credit from active/overdue array and set recovered to true
-        bool recovered;
+        bool fullPayment;
 
         if (remaining >= principalPart) {
             // :if credit is overdue, move credit to active array
-            recovered = true;
+            fullPayment = true;
         }
         creditInfo.checkPoint.totalPaidPrincipal += uint96(remaining);
 
-        if (recovered) {
+        if (fullPayment) {
+            // :generate next due info
+
             uint256 lossPart = creditInfo.checkPoint.totalAccruedLoss > totalAccruedLoss
                 ? totalAccruedLoss
                 : creditInfo.checkPoint.totalAccruedLoss;
@@ -251,6 +264,7 @@ contract BaseCredit is ICredit {
     function refreshPnL() external returns (uint256 profit, uint256 loss, uint256 lossRecovery) {
         profit = totalAccruedProfit;
         loss = totalAccruedLoss;
+        lossRecovery = totalAccruedLossRecovery;
 
         uint256 activeHashCount = activeCreditsHash.length;
         uint256 overdueHashCount = overdueCreditsHash.length;
@@ -278,14 +292,6 @@ contract BaseCredit is ICredit {
             if (accruedPrincipalLoss > 0) loss += accruedPrincipalLoss;
         }
 
-        if (profit >= loss) {
-            profit -= loss;
-            loss = 0;
-        } else {
-            loss -= profit;
-            profit = 0;
-        }
-
         if (loss >= lossRecovery) {
             loss -= lossRecovery;
             lossRecovery = 0;
@@ -306,6 +312,7 @@ contract BaseCredit is ICredit {
     {
         profit = totalAccruedProfit;
         loss = totalAccruedLoss;
+        lossRecovery = totalAccruedLossRecovery;
 
         uint256 activeHashCount = activeCreditsHash.length;
         uint256 overdueHashCount = overdueCreditsHash.length;
@@ -332,21 +339,18 @@ contract BaseCredit is ICredit {
             if (accruedPrincipalLoss > 0) loss += accruedPrincipalLoss;
         }
 
-        if (profit >= loss) {
-            profit -= loss;
-            loss = 0;
+        if (loss >= lossRecovery) {
+            loss -= lossRecovery;
+            lossRecovery = 0;
         } else {
-            loss -= profit;
-            profit = 0;
+            lossRecovery -= loss;
+            loss = 0;
         }
     }
 
     function submitPrincipalWithdrawal(uint256 amount) external {}
 
-    function _isOverdue(
-        uint256 lastPaiInFullTime,
-        CreditConfig memory creditConfig
-    ) internal view returns (bool) {}
+    function _isOverdue(uint256 dueDate) internal view returns (bool) {}
 
     // todo provide an external view function for credit payment due list ?
 }

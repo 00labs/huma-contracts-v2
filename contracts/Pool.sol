@@ -5,6 +5,7 @@ import {IPool} from "./interfaces/IPool.sol";
 import {IPlatformFeeManager} from "./interfaces/IPlatformFeeManager.sol";
 import {ITranchePolicy} from "./interfaces/ITranchePolicy.sol";
 import {ICredit} from "./credit/interfaces/ICredit.sol";
+import {ILossCoverer} from "./interfaces/ILossCoverer.sol";
 
 struct FeeInfo {
     uint96 protocolFee;
@@ -25,6 +26,7 @@ contract Pool is IPool {
     ICredit public credit;
     IPlatformFeeManager public feeManager;
     ITranchePolicy public tranchePolicy;
+    ILossCoverer[] public lossCoverers;
 
     FeeInfo public feeInfo;
     TranchesInfo public tranches;
@@ -70,10 +72,19 @@ contract Pool is IPool {
     }
 
     function _distributeLoss(uint256 loss) internal {
-        // :reference v1 contract
+        for (uint256 i; i < lossCoverers.length; i++) {
+            ILossCoverer coverer = lossCoverers[i];
+            loss = coverer.coverLoss(loss);
+        }
+        // :distribute Loss between tranches
     }
 
-    function _distributeLossRecovery(uint256 lossRecovery) internal {}
+    function _distributeLossRecovery(uint256 lossRecovery) internal {
+        for (uint256 i; i < lossCoverers.length; i++) {
+            ILossCoverer coverer = lossCoverers[i];
+            lossRecovery = coverer.recoverLoss(lossRecovery);
+        }
+    }
 
     function trancheTotalAssets(uint256 index) external view returns (uint256) {
         if (block.timestamp > tranches.lastUpdatedTime) {
