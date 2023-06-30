@@ -7,7 +7,7 @@ import {ICredit} from "./interfaces/ICredit.sol";
 
 struct CreditCheckpoint {
     uint96 totalAccruedInterest; // total accrued interest from tha loan start
-    uint96 totalAccruedPrincipal; // total principal to be repaid from tha loan start
+    uint96 totalAccruedPrincipal; // total principal to be repaid from tha loan start todo delete?
     uint64 lastProfitUpdatedTime; // the updated timestamp of totalAccruedInterest and totalAccruedPrincipal
     uint96 totalPaidInterest; // todo delete?
     uint96 totalPaidPrincipal; // todo delete?
@@ -22,6 +22,7 @@ struct CreditDueInfo {
     uint96 totalDue; // the due amount of the next payment
     uint96 feesAndInterestDue; // interest and fees due for the next payment
     uint16 remainingPeriods; // # of payment periods until the maturity of the credit line
+    uint16 missedPeriods; // # of consecutive missed payments, for default processing
 }
 
 struct CreditInfo {
