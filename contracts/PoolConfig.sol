@@ -18,4 +18,7 @@ enum CalenderType {
 contract PoolConfig {
     PoolInfo public poolInfo;
     uint256 public flexLoanPeriod;
+
+    uint256 public liquidityCap;
+    uint256 public maxSeniorRatio;
 }

@@ -7,6 +7,9 @@ import {ITrancheVault, EpochInfo} from "./interfaces/ITrancheVault.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
 
 contract EpochManager {
+    uint256 public constant SENIOR_TRANCHE_INDEX = 0;
+    uint256 public constant JUNIOR_TRANCHE_INDEX = 1;
+
     IPool public pool;
     PoolConfig public poolConfig;
     IPoolVault public poolVault;
@@ -23,8 +26,8 @@ contract EpochManager {
         uint96[2] memory tranches = pool.refreshPool();
 
         // calculate senior/junior token price
-        uint256 seniorPrice = tranches[0] / seniorTranche.totalSupply();
-        uint256 juniorPrice = tranches[1] / juniorTranche.totalSupply();
+        uint256 seniorPrice = tranches[SENIOR_TRANCHE_INDEX] / seniorTranche.totalSupply();
+        uint256 juniorPrice = tranches[JUNIOR_TRANCHE_INDEX] / juniorTranche.totalSupply();
 
         // get unprocessed withdrawal requests
         EpochInfo[] memory seniorEpochs = seniorTranche.unprocessedEpochInfos();
@@ -38,11 +41,21 @@ contract EpochManager {
         );
 
         EpochInfo[] memory processedEpochs;
-        // :get processed senior epochs
-        seniorTranche.closeEpoch(processedEpochs);
+        if (seniorProcessedCount > 0) {
+            processedEpochs = new EpochInfo[](seniorProcessedCount);
+            for (uint256 i; i < seniorProcessedCount; i++) {
+                processedEpochs[i] = seniorEpochs[i];
+            }
+            seniorTranche.closeEpoch(processedEpochs);
+        }
 
-        // :get processed junior epochs
-        juniorTranche.closeEpoch(processedEpochs);
+        if (juniorProcessedCount > 0) {
+            processedEpochs = new EpochInfo[](juniorProcessedCount);
+            for (uint256 i; i < juniorProcessedCount; i++) {
+                processedEpochs[i] = juniorEpochs[i];
+            }
+            juniorTranche.closeEpoch(processedEpochs);
+        }
 
         uint256 epochId = currentEpochId;
         currentEpochId = epochId + 1;
