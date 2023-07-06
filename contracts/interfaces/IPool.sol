@@ -21,7 +21,9 @@ interface IPool {
     function refreshPool() external returns (uint96[2] memory);
 
     /**
-     * @notice Submits principal withdrawal request to flex loan pool
+     * @notice Submits redemption request to the pool
      */
-    function submitPrincipalWithdrawal(uint256 amount) external;
+    function submitRedemptionRequest(uint256 amounts) external;
+
+    function updateTranchesAssets(uint96[2] memory assets) external;
 }

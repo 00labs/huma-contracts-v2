@@ -9,6 +9,18 @@ import {IPoolVault} from "./interfaces/IPoolVault.sol";
 contract EpochManager {
     uint256 public constant SENIOR_TRANCHE_INDEX = 0;
     uint256 public constant JUNIOR_TRANCHE_INDEX = 1;
+    uint256 public constant RATIO_DECIMALS = 10000;
+
+    struct TrancheProcessedResult {
+        uint256 count;
+        uint256 shares;
+        uint256 amounts;
+    }
+
+    struct EpochsRange {
+        uint256 startIndex;
+        uint256 length;
+    }
 
     IPool public pool;
     PoolConfig public poolConfig;
@@ -33,29 +45,44 @@ contract EpochManager {
         EpochInfo[] memory seniorEpochs = seniorTranche.unprocessedEpochInfos();
         EpochInfo[] memory juniorEpochs = juniorTranche.unprocessedEpochInfos();
 
-        // process withdrawal requests
-        (uint256 seniorProcessedCount, uint256 juniorProcessedCount) = _executeEpoch(
-            tranches,
-            seniorEpochs,
-            juniorEpochs
-        );
+        (
+            TrancheProcessedResult memory seniorResult,
+            TrancheProcessedResult memory juniorResult
+        ) = _executeEpoch(tranches, seniorEpochs, seniorPrice, juniorEpochs, juniorPrice);
 
         EpochInfo[] memory processedEpochs;
-        if (seniorProcessedCount > 0) {
-            processedEpochs = new EpochInfo[](seniorProcessedCount);
-            for (uint256 i; i < seniorProcessedCount; i++) {
+        if (seniorResult.count > 0) {
+            processedEpochs = new EpochInfo[](seniorResult.count);
+            for (uint256 i; i < seniorResult.count; i++) {
                 processedEpochs[i] = seniorEpochs[i];
             }
-            seniorTranche.closeEpoch(processedEpochs);
+            seniorTranche.closeEpoch(processedEpochs, seniorResult.shares, seniorResult.amounts);
         }
 
-        if (juniorProcessedCount > 0) {
-            processedEpochs = new EpochInfo[](juniorProcessedCount);
-            for (uint256 i; i < juniorProcessedCount; i++) {
+        if (juniorResult.count > 0) {
+            processedEpochs = new EpochInfo[](juniorResult.count);
+            for (uint256 i; i < juniorResult.count; i++) {
                 processedEpochs[i] = juniorEpochs[i];
             }
-            juniorTranche.closeEpoch(processedEpochs);
+            juniorTranche.closeEpoch(processedEpochs, juniorResult.shares, juniorResult.amounts);
         }
+
+        pool.updateTranchesAssets(tranches);
+
+        uint256 unprocessedShares;
+        for (uint256 i = seniorResult.count; i < seniorEpochs.length; i++) {
+            EpochInfo memory epoch = seniorEpochs[i];
+            unprocessedShares += epoch.totalShareRequested - epoch.totalShareProcessed;
+        }
+        uint256 unprocessedAmounts = unprocessedShares * seniorPrice;
+        unprocessedShares = 0;
+        for (uint256 i = juniorResult.count; i < juniorEpochs.length; i++) {
+            EpochInfo memory epoch = juniorEpochs[i];
+            unprocessedShares += epoch.totalShareRequested - epoch.totalShareProcessed;
+        }
+        unprocessedAmounts = unprocessedShares * juniorPrice;
+
+        pool.submitRedemptionRequest(unprocessedAmounts);
 
         uint256 epochId = currentEpochId;
         currentEpochId = epochId + 1;
@@ -70,64 +97,184 @@ contract EpochManager {
     function _executeEpoch(
         uint96[2] memory tranches,
         EpochInfo[] memory seniorEpochs,
-        EpochInfo[] memory juniorEpochs
-    ) internal returns (uint256 seniorProcessedCount, uint256 juniorProcessedCount) {
+        uint256 seniorPrice,
+        EpochInfo[] memory juniorEpochs,
+        uint256 juniorPrice
+    )
+        internal
+        view
+        returns (
+            TrancheProcessedResult memory seniorResult,
+            TrancheProcessedResult memory juniorResult
+        )
+    {
         // get available underlying token amount
-        uint256 availableAmount = poolVault.getAvailableLiquidity();
-        if (availableAmount <= 0) return (0, 0);
+        uint256 availableAmount = poolVault.getAvailableReservation();
+        if (availableAmount <= 0) return (seniorResult, juniorResult);
 
         uint256 flexPeriod = poolConfig.flexLoanPeriod();
+        uint256 maxEpochId = currentEpochId;
 
         // process mature senior withdrawal requests
-
-        EpochInfo[] memory sEpochs;
-        uint256 count;
-
-        // :get mature senior withdrawal requests
-        (availableAmount, count) = _processSeniorEpochs(tranches, sEpochs, availableAmount);
-        seniorProcessedCount += count;
-        if (availableAmount <= 0) return (seniorProcessedCount, juniorProcessedCount);
+        uint256 availableCount = seniorEpochs.length;
+        if (flexPeriod > 0) {
+            // get mature senior epochs count
+            uint256 maxMatureEpochId = maxEpochId - flexPeriod;
+            for (uint256 i; i < seniorEpochs.length; i++) {
+                if (seniorEpochs[i].epochId <= maxMatureEpochId) {
+                    availableCount += 1;
+                } else {
+                    break;
+                }
+            }
+        }
+        availableAmount = _processSeniorEpochs(
+            tranches,
+            seniorPrice,
+            seniorEpochs,
+            EpochsRange(0, availableCount),
+            availableAmount,
+            seniorResult
+        );
+        if (availableAmount <= 0) {
+            return (seniorResult, juniorResult);
+        }
 
         // process mature junior withdrawal requests
-
-        EpochInfo[] memory jEpochs;
-
-        // :get mature junior withdrawal requests
-        (availableAmount, count) = _processJuniorEpochs(tranches, jEpochs, availableAmount);
-        juniorProcessedCount += count;
-
-        if (availableAmount <= 0 || flexPeriod <= 0)
-            return (seniorProcessedCount, juniorProcessedCount);
-
-        // process immature senior withdrawal requests
-
-        // :get immature senior withdrawal requests
-        (availableAmount, count) = _processSeniorEpochs(tranches, sEpochs, availableAmount);
-        seniorProcessedCount += count;
-        if (availableAmount <= 0) return (seniorProcessedCount, juniorProcessedCount);
-
-        // process immature senior withdrawal requests
-
-        // :get immature junior withdrawal requests
-        (availableAmount, count) = _processJuniorEpochs(tranches, jEpochs, availableAmount);
-        juniorProcessedCount += count;
-
-        uint256 printcipalWithdrawalAmount;
-        // :generate callable amount from unprocessed epochs
+        availableCount = juniorEpochs.length;
         if (flexPeriod > 0) {
-            pool.submitPrincipalWithdrawal(printcipalWithdrawalAmount);
+            // get mature junior epochs count
+            uint256 maxMatureEpochId = maxEpochId - flexPeriod;
+            for (uint256 i; i < juniorEpochs.length; i++) {
+                if (juniorEpochs[i].epochId <= maxMatureEpochId) {
+                    availableCount += 1;
+                } else {
+                    break;
+                }
+            }
+        }
+
+        uint256 maxSeniorRatio = poolConfig.maxSeniorRatio();
+        availableAmount = _processJuniorEpochs(
+            tranches,
+            juniorPrice,
+            maxSeniorRatio,
+            juniorEpochs,
+            EpochsRange(0, availableCount),
+            availableAmount,
+            juniorResult
+        );
+        if (availableAmount <= 0 || flexPeriod <= 0) {
+            return (seniorResult, juniorResult);
+        }
+
+        // process immature senior withdrawal requests
+        availableCount = seniorEpochs.length - seniorResult.count;
+        if (availableCount > 0) {
+            availableAmount = _processSeniorEpochs(
+                tranches,
+                seniorPrice,
+                seniorEpochs,
+                EpochsRange(seniorResult.count, availableCount),
+                availableAmount,
+                seniorResult
+            );
+            if (availableAmount <= 0) {
+                return (seniorResult, juniorResult);
+            }
+        }
+
+        // process immature junior withdrawal requests
+        availableCount = juniorEpochs.length - juniorResult.count;
+        if (availableCount > 0) {
+            availableAmount = _processJuniorEpochs(
+                tranches,
+                juniorPrice,
+                maxSeniorRatio,
+                juniorEpochs,
+                EpochsRange(juniorResult.count, availableCount),
+                availableAmount,
+                juniorResult
+            );
+            if (availableAmount <= 0) {
+                return (seniorResult, juniorResult);
+            }
         }
     }
 
     function _processSeniorEpochs(
         uint96[2] memory tranches,
-        EpochInfo[] memory seniorEpochs,
-        uint256 availableAmount
-    ) internal returns (uint256 remainingAmount, uint256 newProcessedCount) {}
+        uint256 price,
+        EpochInfo[] memory epochs,
+        EpochsRange memory epochsRange,
+        uint256 availableAmount,
+        TrancheProcessedResult memory trancheResult
+    ) internal pure returns (uint256 remainingAmount) {
+        for (uint256 i = epochsRange.startIndex; i < epochsRange.length; i++) {
+            EpochInfo memory epochInfo = epochs[i];
+            uint256 shares = epochInfo.totalShareRequested - epochInfo.totalShareProcessed;
+            uint256 amounts = shares * price;
+            if (availableAmount < amounts) {
+                amounts = availableAmount;
+                shares = amounts / price;
+            }
+            epochInfo.totalShareProcessed += uint96(shares);
+            epochInfo.totalAmountProcessed += uint96(amounts);
+            availableAmount -= amounts;
+
+            trancheResult.count += 1;
+            trancheResult.shares += shares;
+            trancheResult.amounts += amounts;
+
+            if (availableAmount == 0) break;
+        }
+
+        remainingAmount = availableAmount;
+        tranches[SENIOR_TRANCHE_INDEX] -= uint96(trancheResult.amounts);
+    }
 
     function _processJuniorEpochs(
         uint96[2] memory tranches,
-        EpochInfo[] memory juniorEpochs,
-        uint256 availableAmount
-    ) internal returns (uint256 remainingAmount, uint256 newProcessedCount) {}
+        uint256 price,
+        uint256 maxSeniorRatio,
+        EpochInfo[] memory epochs,
+        EpochsRange memory epochsRange,
+        uint256 availableAmount,
+        TrancheProcessedResult memory trancheResult
+    ) internal pure returns (uint256 remainingAmount) {
+        uint256 maxJuniorAmounts = (tranches[SENIOR_TRANCHE_INDEX] * RATIO_DECIMALS) /
+            maxSeniorRatio;
+        uint256 maxAmounts = maxJuniorAmounts > tranches[JUNIOR_TRANCHE_INDEX]
+            ? maxJuniorAmounts - tranches[JUNIOR_TRANCHE_INDEX]
+            : 0;
+
+        if (maxAmounts <= 0) return availableAmount;
+
+        for (uint256 i = epochsRange.startIndex; i < epochsRange.length; i++) {
+            EpochInfo memory epochInfo = epochs[i];
+            uint256 shares = epochInfo.totalShareRequested - epochInfo.totalShareProcessed;
+            uint256 amounts = shares * price;
+            if (availableAmount < amounts) {
+                amounts = availableAmount;
+            }
+            if (maxAmounts < amounts) {
+                amounts = maxAmounts;
+            }
+
+            shares = amounts / price;
+            epochInfo.totalShareProcessed += uint96(shares);
+            epochInfo.totalAmountProcessed += uint96(amounts);
+            availableAmount -= amounts;
+            maxAmounts -= amounts;
+            tranches[JUNIOR_TRANCHE_INDEX] -= uint96(amounts);
+
+            trancheResult.count += 1;
+            trancheResult.shares += shares;
+            trancheResult.amounts += amounts;
+
+            if (availableAmount == 0 || maxAmounts == 0) break;
+        }
+
+        remainingAmount = availableAmount;
+    }
 }
