@@ -6,6 +6,7 @@ import {IPlatformFeeManager} from "./interfaces/IPlatformFeeManager.sol";
 import {ITranchePolicy} from "./interfaces/ITranchePolicy.sol";
 import {ICredit} from "./credit/interfaces/ICredit.sol";
 import {ILossCoverer} from "./interfaces/ILossCoverer.sol";
+import {IPoolVault} from "./interfaces/IPoolVault.sol";
 
 struct FeeInfo {
     uint96 protocolFee;
@@ -27,6 +28,7 @@ contract Pool is IPool {
     IPlatformFeeManager public feeManager;
     ITranchePolicy public tranchePolicy;
     ILossCoverer[] public lossCoverers;
+    IPoolVault public poolVault;
 
     FeeInfo public feeInfo;
     TranchesInfo public tranches;
@@ -132,7 +134,16 @@ contract Pool is IPool {
         }
     }
 
-    function submitPrincipalWithdrawal(uint256 amount) external {
-        credit.submitPrincipalWithdrawal(amount);
+    function submitRedemptionRequest(uint256 amounts) external {
+        poolVault.setReserveAssets(amounts);
+
+        // :handle redemption request for flex loan
+    }
+
+    function updateTranchesAssets(uint96[2] memory assets) external {
+        TranchesInfo memory ti = tranches;
+        ti.seniorTotalAssets = assets[SENIOR_TRANCHE_INDEX];
+        ti.juniorTotalAssets = assets[JUNIOR_TRANCHE_INDEX];
+        tranches = ti;
     }
 }
