@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {Constants} from "./Constants.sol";
 
 struct PoolInfo {
     CalenderType calenderType;
@@ -17,11 +18,7 @@ enum CalenderType {
     SemiMoth
 }
 
-contract PoolConfig {
-    uint256 public constant SENIOR_TRANCHE_INDEX = 0;
-    uint256 public constant JUNIOR_TRANCHE_INDEX = 1;
-    uint256 public constant RATIO_DECIMALS = 10000;
-
+contract PoolConfig is Constants {
     IERC20 public asset;
     PoolInfo public poolInfo;
     uint256 public flexLoanPeriod;
@@ -31,9 +28,9 @@ contract PoolConfig {
 
     function getTrancheLiquidityCap(uint256 index) external returns (uint256 cap) {
         if (index == SENIOR_TRANCHE_INDEX) {
-            cap = (liquidityCap * maxSeniorRatio) / (maxSeniorRatio + RATIO_DECIMALS);
+            cap = (liquidityCap * maxSeniorRatio) / (maxSeniorRatio + BPS_DECIMALS);
         } else if (index == JUNIOR_TRANCHE_INDEX) {
-            cap = liquidityCap / (maxSeniorRatio + RATIO_DECIMALS);
+            cap = liquidityCap / (maxSeniorRatio + BPS_DECIMALS);
         }
     }
 }

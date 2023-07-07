@@ -3,10 +3,11 @@ pragma solidity ^0.8.0;
 
 import {IPool} from "./interfaces/IPool.sol";
 import {IPlatformFeeManager} from "./interfaces/IPlatformFeeManager.sol";
-import {ITranchePolicy} from "./interfaces/ITranchePolicy.sol";
+import {IWaterfallPolicy} from "./waterfall/interfaces/IWaterfallPolicy.sol";
 import {ICredit} from "./credit/interfaces/ICredit.sol";
 import {ILossCoverer} from "./interfaces/ILossCoverer.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
+import {Constants} from "./Constants.sol";
 
 struct FeeInfo {
     uint96 protocolFee;
@@ -17,21 +18,24 @@ struct FeeInfo {
 struct TranchesInfo {
     uint96 seniorTotalAssets; // total assets of senior tranche
     uint96 juniorTotalAssets; // total assets of junior tranche
-    uint256 lastUpdatedTime; // the updated timestamp of seniorTotalAssets and juniorTotalAssets
+    uint64 lastUpdatedTime; // the updated timestamp of seniorTotalAssets and juniorTotalAssets
 }
 
-contract Pool is IPool {
-    uint256 public constant SENIOR_TRANCHE_INDEX = 0;
-    uint256 public constant JUNIOR_TRANCHE_INDEX = 1;
+struct TranchesLosses {
+    uint96 seniorLoss; // total losses of senior tranche
+    uint96 juniorLoss; // total losses of junior tranche
+}
 
+contract Pool is Constants, IPool {
     ICredit public credit;
     IPlatformFeeManager public feeManager;
-    ITranchePolicy public tranchePolicy;
+    IWaterfallPolicy public tranchePolicy;
     ILossCoverer[] public lossCoverers;
     IPoolVault public poolVault;
 
     FeeInfo public feeInfo;
     TranchesInfo public tranches;
+    TranchesLosses public tranchesLosses;
 
     function refreshPool() external returns (uint96[2] memory) {
         // check permission
@@ -55,21 +59,22 @@ contract Pool is IPool {
     }
 
     function _distributeProfit(uint256 profit) internal {
-        // calculate fees and tranches assets
         uint256 remaining = feeManager.distributePlatformFees(profit);
 
         if (remaining > 0) {
+            TranchesInfo memory tranchesInfo = tranches;
+
             // calculate tranches assets after profit distribution
             uint96[2] memory assets = tranchePolicy.distributeProfit(
                 remaining,
-                [tranches.seniorTotalAssets, tranches.juniorTotalAssets],
-                tranches.lastUpdatedTime
+                [tranchesInfo.seniorTotalAssets, tranchesInfo.juniorTotalAssets],
+                tranchesInfo.lastUpdatedTime
             );
 
-            // store tranches info
-            tranches.seniorTotalAssets = assets[0];
-            tranches.juniorTotalAssets = assets[1];
-            tranches.lastUpdatedTime = block.timestamp;
+            tranchesInfo.seniorTotalAssets = assets[SENIOR_TRANCHE_INDEX];
+            tranchesInfo.juniorTotalAssets = assets[JUNIOR_TRANCHE_INDEX];
+            tranchesInfo.lastUpdatedTime = uint64(block.timestamp);
+            tranches = tranchesInfo;
         }
     }
 
@@ -78,13 +83,46 @@ contract Pool is IPool {
             ILossCoverer coverer = lossCoverers[i];
             loss = coverer.coverLoss(loss);
         }
-        // :distribute Loss between tranches
+
+        if (loss > 0) {
+            TranchesInfo memory tranchesInfo = tranches;
+            uint96[2] memory assets = tranchePolicy.distributeLoss(
+                loss,
+                [tranchesInfo.seniorTotalAssets, tranchesInfo.juniorTotalAssets]
+            );
+
+            // store tranches info
+            tranchesInfo.seniorTotalAssets = assets[SENIOR_TRANCHE_INDEX];
+            tranchesInfo.juniorTotalAssets = assets[JUNIOR_TRANCHE_INDEX];
+            tranchesInfo.lastUpdatedTime = uint64(block.timestamp);
+            tranches = tranchesInfo;
+        }
     }
 
     function _distributeLossRecovery(uint256 lossRecovery) internal {
         for (uint256 i; i < lossCoverers.length; i++) {
             ILossCoverer coverer = lossCoverers[i];
             lossRecovery = coverer.recoverLoss(lossRecovery);
+        }
+
+        if (lossRecovery > 0) {
+            TranchesInfo memory tranchesInfo = tranches;
+            uint96[2] memory assets = [
+                tranchesInfo.seniorTotalAssets,
+                tranchesInfo.juniorTotalAssets
+            ];
+            TranchesLosses memory tsLosses = tranchesLosses;
+            uint96[2] memory losses = [tsLosses.seniorLoss, tsLosses.juniorLoss];
+            tranchePolicy.distributeLossRecovery(lossRecovery, assets, losses);
+
+            tranchesInfo.seniorTotalAssets = assets[SENIOR_TRANCHE_INDEX];
+            tranchesInfo.juniorTotalAssets = assets[JUNIOR_TRANCHE_INDEX];
+            tranchesInfo.lastUpdatedTime = uint64(block.timestamp);
+            tranches = tranchesInfo;
+
+            tsLosses.seniorLoss = losses[SENIOR_TRANCHE_INDEX];
+            tsLosses.juniorLoss = losses[JUNIOR_TRANCHE_INDEX];
+            tranchesLosses = tsLosses;
         }
     }
 
@@ -122,15 +160,13 @@ contract Pool is IPool {
         }
 
         if (loss > 0) {
-            trancheAssets = tranchePolicy.distributeLoss(loss, trancheAssets, ti.lastUpdatedTime);
+            trancheAssets = tranchePolicy.distributeLoss(loss, trancheAssets);
         }
 
         if (lossRecovery > 0) {
-            trancheAssets = tranchePolicy.distributeLossRecovery(
-                lossRecovery,
-                trancheAssets,
-                ti.lastUpdatedTime
-            );
+            TranchesLosses memory tsLosses = tranchesLosses;
+            uint96[2] memory losses = [tsLosses.seniorLoss, tsLosses.juniorLoss];
+            tranchePolicy.distributeLossRecovery(lossRecovery, trancheAssets, losses);
         }
     }
 
