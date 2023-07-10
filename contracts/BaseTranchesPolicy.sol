@@ -17,13 +17,15 @@ abstract contract BaseTranchesPolicy is Constants, ITranchesPolicy {
         uint96[2] memory assets,
         uint96[2] memory losses
     ) external view {
-        uint96 juniorLoss = losses[JUNIOR_TRANCHE_INDEX];
-        uint256 juniorLossRecovery = lossRecovery >= juniorLoss ? juniorLoss : lossRecovery;
-        assets[JUNIOR_TRANCHE_INDEX] += uint96(juniorLossRecovery);
-        losses[JUNIOR_TRANCHE_INDEX] -= uint96(juniorLossRecovery);
-        if (lossRecovery > juniorLossRecovery) {
-            assets[SENIOR_TRANCHE_INDEX] += uint96(lossRecovery - juniorLossRecovery);
-            losses[SENIOR_TRANCHE_INDEX] -= uint96(lossRecovery - juniorLossRecovery);
+        uint96 seniorLoss = losses[SENIOR_TRANCHE_INDEX];
+        uint256 seniorLossRecovery = lossRecovery >= seniorLoss ? seniorLoss : lossRecovery;
+        if (seniorLossRecovery > 0) {
+            assets[SENIOR_TRANCHE_INDEX] += uint96(seniorLossRecovery);
+            losses[SENIOR_TRANCHE_INDEX] -= uint96(seniorLossRecovery);
+        }
+        if (lossRecovery > seniorLossRecovery) {
+            assets[JUNIOR_TRANCHE_INDEX] += uint96(lossRecovery - seniorLossRecovery);
+            losses[JUNIOR_TRANCHE_INDEX] -= uint96(lossRecovery - seniorLossRecovery);
         }
     }
 }
