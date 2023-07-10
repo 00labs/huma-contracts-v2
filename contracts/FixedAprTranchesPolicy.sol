@@ -17,7 +17,7 @@ contract FixedAprTranchesPolicy is BaseTranchesPolicy {
         uint256 profit,
         uint96[2] memory assets,
         uint256 lastUpdatedTime
-    ) external view override returns (uint96[2] memory newAssets) {
+    ) external view {
         uint256 seniorTotalAssets = assets[SENIOR_TRANCHE_INDEX];
         uint256 seniorProfit;
         if (block.timestamp > 0) {
@@ -30,7 +30,7 @@ contract FixedAprTranchesPolicy is BaseTranchesPolicy {
         seniorProfit = seniorProfit > profit ? profit : seniorProfit;
         uint256 juniorProfit = profit - seniorProfit;
 
-        newAssets[SENIOR_TRANCHE_INDEX] = assets[SENIOR_TRANCHE_INDEX] + uint96(seniorProfit);
-        newAssets[JUNIOR_TRANCHE_INDEX] = assets[JUNIOR_TRANCHE_INDEX] + uint96(juniorProfit);
+        assets[SENIOR_TRANCHE_INDEX] = assets[SENIOR_TRANCHE_INDEX] + uint96(seniorProfit);
+        assets[JUNIOR_TRANCHE_INDEX] = assets[JUNIOR_TRANCHE_INDEX] + uint96(juniorProfit);
     }
 }

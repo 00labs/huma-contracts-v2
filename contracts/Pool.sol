@@ -63,13 +63,11 @@ contract Pool is Constants, IPool {
 
         if (remaining > 0) {
             TranchesInfo memory tranchesInfo = tranches;
-
-            // calculate tranches assets after profit distribution
-            uint96[2] memory assets = tranchePolicy.distributeProfit(
-                remaining,
-                [tranchesInfo.seniorTotalAssets, tranchesInfo.juniorTotalAssets],
-                tranchesInfo.lastUpdatedTime
-            );
+            uint96[2] memory assets = [
+                tranchesInfo.seniorTotalAssets,
+                tranchesInfo.juniorTotalAssets
+            ];
+            tranchePolicy.distributeProfit(remaining, assets, tranchesInfo.lastUpdatedTime);
 
             tranchesInfo.seniorTotalAssets = assets[SENIOR_TRANCHE_INDEX];
             tranchesInfo.juniorTotalAssets = assets[JUNIOR_TRANCHE_INDEX];
@@ -86,10 +84,11 @@ contract Pool is Constants, IPool {
 
         if (loss > 0) {
             TranchesInfo memory tranchesInfo = tranches;
-            uint96[2] memory assets = tranchePolicy.distributeLoss(
-                loss,
-                [tranchesInfo.seniorTotalAssets, tranchesInfo.juniorTotalAssets]
-            );
+            uint96[2] memory assets = [
+                tranchesInfo.seniorTotalAssets,
+                tranchesInfo.juniorTotalAssets
+            ];
+            tranchePolicy.distributeLoss(loss, assets);
 
             // store tranches info
             tranchesInfo.seniorTotalAssets = assets[SENIOR_TRANCHE_INDEX];
@@ -151,16 +150,12 @@ contract Pool is Constants, IPool {
         if (profit > 0) {
             uint256 remaining = feeManager.getRemaining(profit);
             if (remaining > 0) {
-                trancheAssets = tranchePolicy.distributeProfit(
-                    remaining,
-                    trancheAssets,
-                    ti.lastUpdatedTime
-                );
+                tranchePolicy.distributeProfit(remaining, trancheAssets, ti.lastUpdatedTime);
             }
         }
 
         if (loss > 0) {
-            trancheAssets = tranchePolicy.distributeLoss(loss, trancheAssets);
+            tranchePolicy.distributeLoss(loss, trancheAssets);
         }
 
         if (lossRecovery > 0) {

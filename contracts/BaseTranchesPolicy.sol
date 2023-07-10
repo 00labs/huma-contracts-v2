@@ -5,14 +5,11 @@ import {ITranchesPolicy} from "./interfaces/ITranchesPolicy.sol";
 import {Constants} from "./Constants.sol";
 
 abstract contract BaseTranchesPolicy is Constants, ITranchesPolicy {
-    function distributeLoss(
-        uint256 loss,
-        uint96[2] memory assets
-    ) external view returns (uint96[2] memory newAssets) {
+    function distributeLoss(uint256 loss, uint96[2] memory assets) external view {
         uint256 juniorTotalAssets = assets[JUNIOR_TRANCHE_INDEX];
         uint256 juniorLoss = juniorTotalAssets >= loss ? loss : juniorTotalAssets;
-        newAssets[JUNIOR_TRANCHE_INDEX] = uint96(assets[JUNIOR_TRANCHE_INDEX] - juniorLoss);
-        newAssets[SENIOR_TRANCHE_INDEX] = uint96(assets[SENIOR_TRANCHE_INDEX] + juniorLoss - loss);
+        assets[JUNIOR_TRANCHE_INDEX] = uint96(assets[JUNIOR_TRANCHE_INDEX] - juniorLoss);
+        assets[SENIOR_TRANCHE_INDEX] = uint96(assets[SENIOR_TRANCHE_INDEX] + juniorLoss - loss);
     }
 
     function distributeLossRecovery(
