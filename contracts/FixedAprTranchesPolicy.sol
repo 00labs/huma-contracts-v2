@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {BaseWaterfallPolicy} from "./BaseWaterfallPolicy.sol";
+import {BaseTranchesPolicy} from "./BaseTranchesPolicy.sol";
 
 /**
  * @notice This is fixed yield implementation. In the fixed yield mode,
  * the yield for the senior tranches is fixed as long as the risk loss does not make this impossible.
  */
 
-contract FixedAprWaterfallPolicy is BaseWaterfallPolicy {
+contract FixedAprTranchesPolicy is BaseTranchesPolicy {
     uint256 public constant SECONDS_IN_A_YEAR = 365 days;
 
     uint16 public seniorAprsInBps;

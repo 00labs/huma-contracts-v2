@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {BaseWaterfallPolicy} from "./BaseWaterfallPolicy.sol";
+import {BaseTranchesPolicy} from "./BaseTranchesPolicy.sol";
 
 /**
  * @notice RiskAdjustedWaterfallPolicy is one tranche policy implementation. In this policy,
  * a percentage of the pool return is shifted from the senior tranche to the junior tranche.
  */
-contract RiskAdjustedWaterfallPolicy is BaseWaterfallPolicy {
+contract RiskAdjustedTranchesPolicy is BaseTranchesPolicy {
     uint16 public adjustRatio;
 
     /**

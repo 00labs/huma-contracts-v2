@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {IWaterfallPolicy} from "./interfaces/IWaterfallPolicy.sol";
-import {Constants} from "../Constants.sol";
+import {ITranchesPolicy} from "./interfaces/ITranchesPolicy.sol";
+import {Constants} from "./Constants.sol";
 
-abstract contract BaseWaterfallPolicy is Constants, IWaterfallPolicy {
+abstract contract BaseTranchesPolicy is Constants, ITranchesPolicy {
     function distributeLoss(
         uint256 loss,
         uint96[2] memory assets

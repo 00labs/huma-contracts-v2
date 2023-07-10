@@ -2,10 +2,10 @@
 pragma solidity ^0.8.0;
 
 /**
- * @notice IWaterfallPolicy defines the profit sharing policy between different tranches
+ * @notice ITranchesPolicy defines the profit sharing policy between different tranches
  */
 
-interface IWaterfallPolicy {
+interface ITranchesPolicy {
     /**
      * @notice Distributes profit among tranches
      * @dev Passing the asset value for each tranche to make this function stateless

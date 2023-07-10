@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {IPool} from "./interfaces/IPool.sol";
 import {IPlatformFeeManager} from "./interfaces/IPlatformFeeManager.sol";
-import {IWaterfallPolicy} from "./waterfall/interfaces/IWaterfallPolicy.sol";
+import {ITranchesPolicy} from "./interfaces/ITranchesPolicy.sol";
 import {ICredit} from "./credit/interfaces/ICredit.sol";
 import {ILossCoverer} from "./interfaces/ILossCoverer.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
@@ -29,7 +29,7 @@ struct TranchesLosses {
 contract Pool is Constants, IPool {
     ICredit public credit;
     IPlatformFeeManager public feeManager;
-    IWaterfallPolicy public tranchePolicy;
+    ITranchesPolicy public tranchePolicy;
     ILossCoverer[] public lossCoverers;
     IPoolVault public poolVault;
 
