@@ -14,6 +14,6 @@ contract RevolvingCreditLine is BaseCredit {
 
         hash = keccak256(abi.encode(address(this), borrower));
 
-        _approve(hash, borrower, creditLimit, creditConfig);
+        //_approve(hash, borrower, creditLimit, creditConfig);
     }
 }

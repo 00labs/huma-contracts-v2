@@ -19,7 +19,7 @@ contract ReceivableFactoring is BaseCredit, IReceivableFactoring {
         //   b. verify if borrower is the owner of the receivable id
 
         hash = keccak256(abi.encode(borrower, receivableInfo));
-        _approve(hash, borrower, creditLimit, creditConfig);
+        //_approve(hash, borrower, creditLimit, creditConfig);
 
         // create & store receivable info
     }
@@ -32,7 +32,7 @@ contract ReceivableFactoring is BaseCredit, IReceivableFactoring {
         ReceivableInfo memory ri = receivables[hash];
         if (ri.receivableId == 0) revert();
         if (IReceivable(ri.receivableAsset).ownerOf(ri.receivableId) != address(this)) {
-            CreditLimit memory cl = creditLimits[hash];
+            CreditLimit memory cl; // = creditLimits[hash];
             IReceivable(ri.receivableAsset).safeTransferFrom(
                 cl.borrower,
                 address(this),
