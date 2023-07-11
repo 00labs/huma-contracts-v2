@@ -14,6 +14,8 @@ interface IPool {
      */
     function trancheTotalAssets(uint256 index) external view returns (uint256);
 
+    function totalAssets() external view returns (uint256);
+
     /**
      * @notice Refreshes the pool data, including all active loans data,
      * profit for the pool and the asset value for different tranches.

@@ -77,13 +77,17 @@ contract Pool is Constants, IPool {
     }
 
     function _distributeLoss(uint256 loss) internal {
-        for (uint256 i; i < lossCoverers.length; i++) {
-            ILossCoverer coverer = lossCoverers[i];
-            loss = coverer.coverLoss(loss);
-        }
-
         if (loss > 0) {
             TranchesInfo memory tranchesInfo = tranches;
+
+            for (uint256 i; i < lossCoverers.length; i++) {
+                ILossCoverer coverer = lossCoverers[i];
+                loss = coverer.coverLoss(
+                    tranchesInfo.seniorTotalAssets + tranchesInfo.juniorTotalAssets,
+                    loss
+                );
+            }
+
             uint96[2] memory assets = [
                 tranchesInfo.seniorTotalAssets,
                 tranchesInfo.juniorTotalAssets
@@ -99,12 +103,13 @@ contract Pool is Constants, IPool {
     }
 
     function _distributeLossRecovery(uint256 lossRecovery) internal {
-        for (uint256 i; i < lossCoverers.length; i++) {
-            ILossCoverer coverer = lossCoverers[i];
-            lossRecovery = coverer.recoverLoss(lossRecovery);
-        }
-
         if (lossRecovery > 0) {
+            uint256 len = lossCoverers.length;
+            for (uint256 i = 0; i < len; i++) {
+                ILossCoverer coverer = lossCoverers[len - i - 1];
+                lossRecovery = coverer.recoverLoss(lossRecovery);
+            }
+
             TranchesInfo memory tranchesInfo = tranches;
             uint96[2] memory assets = [
                 tranchesInfo.seniorTotalAssets,
@@ -138,6 +143,19 @@ contract Pool is Constants, IPool {
                 index == SENIOR_TRANCHE_INDEX
                     ? tranches.seniorTotalAssets
                     : tranches.juniorTotalAssets;
+        }
+    }
+
+    function totalAssets() external view returns (uint256) {
+        if (block.timestamp > tranches.lastUpdatedTime) {
+            // need to update tranche assets
+
+            // update tranche assets to current time
+            uint96[2] memory assets = _currentTranches();
+
+            return assets[SENIOR_TRANCHE_INDEX] + assets[JUNIOR_TRANCHE_INDEX];
+        } else {
+            return tranches.seniorTotalAssets + tranches.juniorTotalAssets;
         }
     }
 
