@@ -31,7 +31,8 @@ contract Pool is Constants, IPool {
     IPlatformFeeManager public feeManager;
     ITranchesPolicy public tranchePolicy;
     ILossCoverer[] public lossCoverers;
-    IPoolVault public poolVault;
+    IPoolVault public override poolVault;
+    address public override poolConfig;
 
     FeeInfo public feeInfo;
     TranchesInfo public tranches;
