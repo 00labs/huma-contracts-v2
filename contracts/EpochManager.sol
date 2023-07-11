@@ -5,12 +5,9 @@ import {IPool} from "./interfaces/IPool.sol";
 import {PoolConfig} from "./PoolConfig.sol";
 import {ITrancheVault, EpochInfo} from "./interfaces/ITrancheVault.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
+import {Constants} from "./Constants.sol";
 
-contract EpochManager {
-    uint256 public constant SENIOR_TRANCHE_INDEX = 0;
-    uint256 public constant JUNIOR_TRANCHE_INDEX = 1;
-    uint256 public constant RATIO_DECIMALS = 10000;
-
+contract EpochManager is Constants {
     struct TrancheProcessedResult {
         uint256 count;
         uint256 shares;
@@ -242,7 +239,7 @@ contract EpochManager {
         uint256 availableAmount,
         TrancheProcessedResult memory trancheResult
     ) internal pure returns (uint256 remainingAmount) {
-        uint256 maxJuniorAmounts = (tranches[SENIOR_TRANCHE_INDEX] * RATIO_DECIMALS) /
+        uint256 maxJuniorAmounts = (tranches[SENIOR_TRANCHE_INDEX] * BPS_DECIMALS) /
             maxSeniorRatio;
         uint256 maxAmounts = maxJuniorAmounts > tranches[JUNIOR_TRANCHE_INDEX]
             ? maxJuniorAmounts - tranches[JUNIOR_TRANCHE_INDEX]

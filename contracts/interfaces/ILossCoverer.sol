@@ -2,7 +2,11 @@
 pragma solidity ^0.8.0;
 
 interface ILossCoverer {
-    function coverLoss(uint256 loss) external view returns (uint256 remainingLoss);
+    function removeLiquidity(address receiver) external;
 
-    function recoverLoss(uint256 recovery) external view returns (uint256 remainingRecovery);
+    function coverLoss(uint256 poolAssets, uint256 loss) external returns (uint256 remainingLoss);
+
+    function recoverLoss(uint256 recovery) external returns (uint256 remainingRecovery);
+
+    function isSufficient() external view returns (bool sufficient);
 }

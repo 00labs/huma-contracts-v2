@@ -6,6 +6,7 @@ import {IPool} from "./interfaces/IPool.sol";
 import {PoolConfig} from "./PoolConfig.sol";
 import {ITrancheVault, EpochInfo} from "./interfaces/ITrancheVault.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
+import {Constants} from "./Constants.sol";
 
 interface IEpochManagerLike {
     function currentEpochId() external view returns (uint256);
@@ -23,11 +24,7 @@ struct UserDisburseInfo {
     uint96 partialAmountProcessed;
 }
 
-contract TrancheVault is ERC20, ITrancheVault {
-    uint256 public constant SENIOR_TRANCHE_INDEX = 0;
-    uint256 public constant JUNIOR_TRANCHE_INDEX = 1;
-    uint256 public constant RATIO_DECIMALS = 10000;
-
+contract TrancheVault is Constants, ERC20, ITrancheVault {
     IEpochManagerLike public epochManager;
     IPool public pool;
     IPoolVault public poolVault;
@@ -107,8 +104,7 @@ contract TrancheVault is ERC20, ITrancheVault {
             // validate maxRatio for senior tranche
             uint256 maxRatio = poolConfig.maxSeniorRatio();
             if (
-                ((totalAssets + assets) / tranches[JUNIOR_TRANCHE_INDEX]) * RATIO_DECIMALS >
-                maxRatio
+                ((totalAssets + assets) / tranches[JUNIOR_TRANCHE_INDEX]) * BPS_DECIMALS > maxRatio
             ) revert(); // greater than max ratio
         }
 
