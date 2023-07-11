@@ -27,6 +27,21 @@ contract EpochManager is Constants {
 
     uint256 public currentEpochId;
 
+    // TODO permission
+    function setPool(IPool _pool) external {
+        pool = _pool;
+        poolConfig = PoolConfig(_pool.poolConfig());
+        poolVault = _pool.poolVault();
+    }
+
+    // TODO permission
+    function setTrancheVaults(address _seniorTranche, address _juniorTranche) external {
+        seniorTranche = ITrancheVault(_seniorTranche);
+        juniorTranche = ITrancheVault(_juniorTranche);
+    }
+
+    // TODO migration function
+
     /**
      * @notice Closes current epoch and handle senior tranch orders and junior tranch orders
      */

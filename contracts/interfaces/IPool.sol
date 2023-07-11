@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
+import {IPoolVault} from "./IPoolVault.sol";
+
 /**
  * @notice IPool is a core contract that connects the lender lender side (via tranches)
  * and the borrower side (via Credit).
@@ -28,4 +30,8 @@ interface IPool {
     function submitRedemptionRequest(uint256 amounts) external;
 
     function updateTranchesAssets(uint96[2] memory assets) external;
+
+    function poolConfig() external view returns (address);
+
+    function poolVault() external view returns (IPoolVault);
 }

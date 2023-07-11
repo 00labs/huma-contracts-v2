@@ -1,45 +1,51 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {IPool} from "./interfaces/IPool.sol";
-import {PoolConfig} from "./PoolConfig.sol";
-import {ITrancheVault, EpochInfo} from "./interfaces/ITrancheVault.sol";
-import {IPoolVault} from "./interfaces/IPoolVault.sol";
 import {Constants} from "./Constants.sol";
+import {IERC20MetadataUpgradeable, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import {TrancheVaultStorage, IEpochManagerLike} from "./TrancheVaultStorage.sol";
+import {ITrancheVault, EpochInfo} from "./interfaces/ITrancheVault.sol";
+import {Errors} from "./Errors.sol";
+import {PoolConfig} from "./PoolConfig.sol";
+import {IPool} from "./interfaces/IPool.sol";
+import {IPoolVault} from "./interfaces/IPoolVault.sol";
 
-interface IEpochManagerLike {
-    function currentEpochId() external view returns (uint256);
-}
+contract TrancheVault is Constants, ERC20Upgradeable, TrancheVaultStorage, ITrancheVault {
+    constructor() {
+        _disableInitializers();
+    }
 
-struct UserRedemptionRequest {
-    uint64 epochId; // the epochId of EpochInfo
-    uint96 shareRequested; // the requested shares to redeem
-}
+    function initialize(
+        string memory name,
+        string memory symbol,
+        address underlyingToken,
+        address poolConfigAddress,
+        address poolAddress,
+        address poolVaultAddress,
+        address epochManagerAddress,
+        uint8 seniorTrancheOrJuniorTranche
+    ) external initializer {
+        if (underlyingToken == address(0)) revert Errors.zeroAddressProvided();
+        __ERC20_init(name, symbol);
+        _decimals = IERC20MetadataUpgradeable(underlyingToken).decimals();
 
-struct UserDisburseInfo {
-    // an index of user redemption requests array, withdrawable amounts should be calculated from this request
-    uint64 requestsIndex;
-    uint96 partialShareProcessed;
-    uint96 partialAmountProcessed;
-}
+        if (poolConfigAddress == address(0)) revert Errors.zeroAddressProvided();
+        poolConfig = PoolConfig(poolConfigAddress);
 
-contract TrancheVault is Constants, ERC20, ITrancheVault {
-    IEpochManagerLike public epochManager;
-    IPool public pool;
-    IPoolVault public poolVault;
-    PoolConfig public poolConfig;
+        if (poolAddress == address(0)) revert Errors.zeroAddressProvided();
+        pool = IPool(poolAddress);
 
-    uint256 public trancheIndex; // senior index or junior index
+        if (poolVaultAddress == address(0)) revert Errors.zeroAddressProvided();
+        poolVault = IPoolVault(poolVaultAddress);
 
-    uint256[] public epochIds; // the epoch id array,
-    mapping(uint256 => EpochInfo) public epochMapping; // key is epochId
-    uint256 public currentEpochIdsIndex; // the index of the epoch id currently being processed
+        if (epochManagerAddress == address(0)) revert Errors.zeroAddressProvided();
+        epochManager = IEpochManagerLike(epochManagerAddress);
 
-    mapping(address => UserRedemptionRequest[]) public userRedemptionRequests; // user redemption request array
-    mapping(address => UserDisburseInfo) public userDisburseInfos;
+        if (seniorTrancheOrJuniorTranche > 1) revert();
+        trancheIndex = seniorTrancheOrJuniorTranche;
+    }
 
-    constructor(string memory name_, string memory symbol_) ERC20(name_, symbol_) {}
+    //TODO set function/functions
 
     /**
      * @notice Returns all unprocessed epochs.
@@ -52,8 +58,17 @@ contract TrancheVault is Constants, ERC20, ITrancheVault {
         }
     }
 
-    function totalSupply() public view override(ERC20, ITrancheVault) returns (uint256) {
-        return ERC20.totalSupply();
+    function decimals() public view override returns (uint8) {
+        return _decimals;
+    }
+
+    function totalSupply()
+        public
+        view
+        override(ERC20Upgradeable, ITrancheVault)
+        returns (uint256)
+    {
+        return ERC20Upgradeable.totalSupply();
     }
 
     /**
@@ -77,7 +92,7 @@ contract TrancheVault is Constants, ERC20, ITrancheVault {
             currentEpochIdsIndex += count - 1;
         }
 
-        ERC20._burn(address(this), sharesProcessed);
+        ERC20Upgradeable._burn(address(this), sharesProcessed);
 
         // withdraw underlying tokens from reserve
         poolVault.withdraw(address(this), amountProcessed);
@@ -111,7 +126,7 @@ contract TrancheVault is Constants, ERC20, ITrancheVault {
         poolVault.deposit(msg.sender, assets);
 
         shares = _convertToShares(assets, totalAssets);
-        ERC20._mint(receiver, shares);
+        ERC20Upgradeable._mint(receiver, shares);
 
         tranches[trancheIndex] += uint96(assets);
         pool.updateTranchesAssets(tranches);
@@ -126,7 +141,7 @@ contract TrancheVault is Constants, ERC20, ITrancheVault {
         if (shares <= 0) {
             revert(); // assets is 0
         }
-        uint256 userShares = ERC20.balanceOf(msg.sender);
+        uint256 userShares = ERC20Upgradeable.balanceOf(msg.sender);
         if (shares < userShares) {
             revert(); // assets is too big
         }
@@ -158,7 +173,7 @@ contract TrancheVault is Constants, ERC20, ITrancheVault {
             requests.push(request);
         }
 
-        ERC20._transfer(msg.sender, address(this), shares);
+        ERC20Upgradeable._transfer(msg.sender, address(this), shares);
 
         // :send an event
     }
@@ -198,7 +213,7 @@ contract TrancheVault is Constants, ERC20, ITrancheVault {
             delete epochIds[lastIndex];
         }
 
-        ERC20._transfer(address(this), msg.sender, shares);
+        ERC20Upgradeable._transfer(address(this), msg.sender, shares);
 
         // :send an event
     }
@@ -249,7 +264,7 @@ contract TrancheVault is Constants, ERC20, ITrancheVault {
         uint256 assets,
         uint256 totalAssets
     ) internal view returns (uint256 shares) {
-        uint256 supply = ERC20.totalSupply();
+        uint256 supply = ERC20Upgradeable.totalSupply();
 
         return supply == 0 ? assets : (assets * supply) / totalAssets;
     }
@@ -267,7 +282,7 @@ contract TrancheVault is Constants, ERC20, ITrancheVault {
 
         userDisburseInfos[user] = disburseInfo;
         if (burnableShare > 0) {
-            ERC20._burn(address(this), burnableShare);
+            ERC20Upgradeable._burn(address(this), burnableShare);
         }
         withdrableAmount = amount;
     }
