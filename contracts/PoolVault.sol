@@ -11,12 +11,12 @@ contract PoolVault is IPoolVault {
     uint256 public reserveAssets;
 
     function deposit(address from, uint256 amount) external {
-        IERC20 asset = poolConfig.asset();
+        IERC20 asset = poolConfig.underlyingToken();
         asset.transferFrom(from, address(this), amount);
     }
 
     function withdraw(address to, uint256 amount) external {
-        IERC20 asset = poolConfig.asset();
+        IERC20 asset = poolConfig.underlyingToken();
         asset.transfer(to, amount);
     }
 
@@ -25,14 +25,14 @@ contract PoolVault is IPoolVault {
     }
 
     function getAvailableLiquidity() external view returns (uint256 assets) {
-        IERC20 asset = poolConfig.asset();
+        IERC20 asset = poolConfig.underlyingToken();
         assets = asset.balanceOf(address(this));
 
         assets = assets > reserveAssets ? assets - reserveAssets : 0;
     }
 
     function getAvailableReservation() external view returns (uint256 assets) {
-        IERC20 asset = poolConfig.asset();
+        IERC20 asset = poolConfig.underlyingToken();
         assets = asset.balanceOf(address(this));
 
         assets = assets < reserveAssets ? assets : reserveAssets;
