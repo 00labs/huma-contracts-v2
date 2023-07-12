@@ -117,7 +117,9 @@ contract TrancheVault is Constants, ERC20Upgradeable, TrancheVaultStorage, ITran
 
         if (trancheIndex == SENIOR_TRANCHE_INDEX) {
             // validate maxRatio for senior tranche
-            uint256 maxRatio = poolConfig.maxSeniorRatio();
+            // todo fix it
+            uint256 maxRatio = 4;
+            //uint256 maxRatio = poolConfig.lpConfig().maxSeniorJuniorRatio();
             if (
                 ((totalAssets + assets) / tranches[JUNIOR_TRANCHE_INDEX]) * BPS_DECIMALS > maxRatio
             ) revert(); // greater than max ratio
