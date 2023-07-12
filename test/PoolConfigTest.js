@@ -18,6 +18,7 @@ describe("Pool Config", function () {
     });
 
     it("setAsset", async function () {
+        expect(await poolConfig.asset()).to.equal(ethers.constants.AddressZero);
         await poolConfig.setAsset(mockToken.address);
         expect(await poolConfig.asset()).to.equal(mockToken.address);
     });

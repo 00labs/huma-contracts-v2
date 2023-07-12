@@ -30,8 +30,4 @@ interface IPool {
     function submitRedemptionRequest(uint256 amounts) external;
 
     function updateTranchesAssets(uint96[2] memory assets) external;
-
-    function poolConfig() external view returns (address);
-
-    function poolVault() external view returns (IPoolVault);
 }

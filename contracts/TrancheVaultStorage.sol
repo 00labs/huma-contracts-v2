@@ -5,11 +5,8 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {PoolConfig} from "./PoolConfig.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
-import {EpochInfo} from "./interfaces/ITrancheVault.sol";
-
-interface IEpochManagerLike {
-    function currentEpochId() external view returns (uint256);
-}
+import {IEpochManager} from "./interfaces/IEpochManager.sol";
+import {EpochInfo} from "./interfaces/IEpoch.sol";
 
 contract TrancheVaultStorage {
     struct UserRedemptionRequest {
@@ -28,7 +25,7 @@ contract TrancheVaultStorage {
     IPool public pool;
     IPoolVault public poolVault;
 
-    IEpochManagerLike public epochManager;
+    IEpochManager public epochManager;
     uint8 internal _decimals;
     uint8 public trancheIndex; // senior index or junior index
 

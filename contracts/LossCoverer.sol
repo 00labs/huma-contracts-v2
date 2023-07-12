@@ -24,6 +24,16 @@ contract LossCoverer is Constants, ILossCoverer {
     Config public config;
     uint256 public processedLoss;
 
+    // TODO permission
+    function setPoolConfig(PoolConfig _poolConfig) external {
+        poolConfig = _poolConfig;
+        // :set poolVault
+        // :set pool
+        // :set asset
+    }
+
+    // TODO migration function
+
     function removeLiquidity(address receiver) external {
         uint256 assets = asset.balanceOf(address(this));
         if (assets == 0) return;

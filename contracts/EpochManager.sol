@@ -3,11 +3,24 @@ pragma solidity ^0.8.0;
 
 import {IPool} from "./interfaces/IPool.sol";
 import {PoolConfig} from "./PoolConfig.sol";
-import {ITrancheVault, EpochInfo} from "./interfaces/ITrancheVault.sol";
+import {IEpoch, EpochInfo} from "./interfaces/IEpoch.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
 import {Constants} from "./Constants.sol";
+import {IEpochManager} from "./interfaces/IEpochManager.sol";
 
-contract EpochManager is Constants {
+interface ITrancheVaultLike {
+    function totalSupply() external view returns (uint256);
+
+    function unprocessedEpochInfos() external view returns (EpochInfo[] memory);
+
+    function closeEpoch(
+        EpochInfo[] memory epochsProcessed,
+        uint256 sharesProcessed,
+        uint256 amountProcessed
+    ) external;
+}
+
+contract EpochManager is Constants, IEpochManager {
     struct TrancheProcessedResult {
         uint256 count;
         uint256 shares;
@@ -22,22 +35,18 @@ contract EpochManager is Constants {
     IPool public pool;
     PoolConfig public poolConfig;
     IPoolVault public poolVault;
-    ITrancheVault public seniorTranche;
-    ITrancheVault public juniorTranche;
+    ITrancheVaultLike public seniorTranche;
+    ITrancheVaultLike public juniorTranche;
 
     uint256 public currentEpochId;
 
     // TODO permission
-    function setPool(IPool _pool) external {
-        pool = _pool;
-        poolConfig = PoolConfig(_pool.poolConfig());
-        poolVault = _pool.poolVault();
-    }
-
-    // TODO permission
-    function setTrancheVaults(address _seniorTranche, address _juniorTranche) external {
-        seniorTranche = ITrancheVault(_seniorTranche);
-        juniorTranche = ITrancheVault(_juniorTranche);
+    function setPoolConfig(PoolConfig _poolConfig) external {
+        poolConfig = _poolConfig;
+        // :set pool
+        // :set poolVault
+        // :set seniorTranche
+        // :set juniorTranche
     }
 
     // TODO migration function

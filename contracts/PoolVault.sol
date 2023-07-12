@@ -11,6 +11,14 @@ contract PoolVault is IPoolVault {
 
     uint256 public reserveAssets;
 
+    // TODO permission
+    function setPoolConfig(PoolConfig _poolConfig) external {
+        poolConfig = _poolConfig;
+        // :set asset
+    }
+
+    // TODO migration function
+
     function deposit(address from, uint256 amount) external {
         IERC20 asset = poolConfig.underlyingToken();
         asset.transferFrom(from, address(this), amount);

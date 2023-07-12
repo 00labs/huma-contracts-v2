@@ -8,35 +8,48 @@ import {ICredit} from "./credit/interfaces/ICredit.sol";
 import {ILossCoverer} from "./interfaces/ILossCoverer.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
 import {Constants} from "./Constants.sol";
-
-struct FeeInfo {
-    uint96 protocolFee;
-    uint96 ownerFee;
-    // todo add eaFee and firstLossCoverFee
-}
-
-struct TranchesInfo {
-    uint96 seniorTotalAssets; // total assets of senior tranche
-    uint96 juniorTotalAssets; // total assets of junior tranche
-    uint64 lastUpdatedTime; // the updated timestamp of seniorTotalAssets and juniorTotalAssets
-}
-
-struct TranchesLosses {
-    uint96 seniorLoss; // total losses of senior tranche
-    uint96 juniorLoss; // total losses of junior tranche
-}
+import {PoolConfig} from "./PoolConfig.sol";
 
 contract Pool is Constants, IPool {
-    ICredit public credit;
-    IPlatformFeeManager public feeManager;
+    struct FeeInfo {
+        uint96 protocolFee;
+        uint96 ownerFee;
+        // todo add eaFee and firstLossCoverFee
+    }
+
+    struct TranchesInfo {
+        uint96 seniorTotalAssets; // total assets of senior tranche
+        uint96 juniorTotalAssets; // total assets of junior tranche
+        uint64 lastUpdatedTime; // the updated timestamp of seniorTotalAssets and juniorTotalAssets
+    }
+
+    struct TranchesLosses {
+        uint96 seniorLoss; // total losses of senior tranche
+        uint96 juniorLoss; // total losses of junior tranche
+    }
+
+    PoolConfig public poolConfig;
+    IPoolVault public poolVault;
     ITranchesPolicy public tranchePolicy;
     ILossCoverer[] public lossCoverers;
-    IPoolVault public override poolVault;
-    address public override poolConfig;
+    ICredit public credit;
+    IPlatformFeeManager public feeManager;
 
     FeeInfo public feeInfo;
     TranchesInfo public tranches;
     TranchesLosses public tranchesLosses;
+
+    // TODO permission
+    function setPoolConfig(PoolConfig _poolConfig) external {
+        poolConfig = _poolConfig;
+        // :set poolVault
+        // :set tranchePolicy
+        // :set lossCoverers
+        // :set credit
+        // :set feeManager
+    }
+
+    // TODO migration function
 
     function refreshPool() external returns (uint96[2] memory) {
         // check permission

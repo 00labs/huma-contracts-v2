@@ -8,9 +8,7 @@ struct EpochInfo {
     uint96 totalAmountProcessed; // the total processed amounts(according to processed shares and price) of this epoch
 }
 
-interface ITrancheVault {
-    function totalSupply() external view returns (uint256);
-
+interface IEpoch {
     function unprocessedEpochInfos() external view returns (EpochInfo[] memory);
 
     function closeEpoch(

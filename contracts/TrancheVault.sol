@@ -3,14 +3,15 @@ pragma solidity ^0.8.0;
 
 import {Constants} from "./Constants.sol";
 import {IERC20MetadataUpgradeable, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-import {TrancheVaultStorage, IEpochManagerLike} from "./TrancheVaultStorage.sol";
-import {ITrancheVault, EpochInfo} from "./interfaces/ITrancheVault.sol";
+import {TrancheVaultStorage} from "./TrancheVaultStorage.sol";
+import {IEpoch, EpochInfo} from "./interfaces/IEpoch.sol";
+import {IEpochManager} from "./interfaces/IEpochManager.sol";
 import {Errors} from "./Errors.sol";
 import {PoolConfig} from "./PoolConfig.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
 
-contract TrancheVault is Constants, ERC20Upgradeable, TrancheVaultStorage, ITrancheVault {
+contract TrancheVault is Constants, ERC20Upgradeable, TrancheVaultStorage, IEpoch {
     constructor() {
         _disableInitializers();
     }
@@ -39,7 +40,7 @@ contract TrancheVault is Constants, ERC20Upgradeable, TrancheVaultStorage, ITran
         poolVault = IPoolVault(poolVaultAddress);
 
         if (epochManagerAddress == address(0)) revert Errors.zeroAddressProvided();
-        epochManager = IEpochManagerLike(epochManagerAddress);
+        epochManager = IEpochManager(epochManagerAddress);
 
         if (seniorTrancheOrJuniorTranche > 1) revert();
         trancheIndex = seniorTrancheOrJuniorTranche;
@@ -62,12 +63,7 @@ contract TrancheVault is Constants, ERC20Upgradeable, TrancheVaultStorage, ITran
         return _decimals;
     }
 
-    function totalSupply()
-        public
-        view
-        override(ERC20Upgradeable, ITrancheVault)
-        returns (uint256)
-    {
+    function totalSupply() public view override returns (uint256) {
         return ERC20Upgradeable.totalSupply();
     }
 
