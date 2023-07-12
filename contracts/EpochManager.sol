@@ -124,7 +124,9 @@ contract EpochManager is Constants {
         uint256 availableAmount = poolVault.getAvailableReservation();
         if (availableAmount <= 0) return (seniorResult, juniorResult);
 
-        uint256 flexPeriod = poolConfig.flexLoanPeriod();
+        //todo fix it
+        //uint256 flexPeriod = uint256(poolConfig.lpConfig().flexCallWindowInCalendarUnit());
+        uint256 flexPeriod = uint256(1);
         uint256 maxEpochId = currentEpochId;
 
         // process mature senior withdrawal requests
@@ -166,7 +168,9 @@ contract EpochManager is Constants {
             }
         }
 
-        uint256 maxSeniorRatio = poolConfig.maxSeniorRatio();
+        //todo fix it
+        //uint256 maxSeniorRatio = poolConfig.lpConfig().maxSeniorJuniorRatio()
+        uint256 maxSeniorRatio = 4;
         availableAmount = _processJuniorEpochs(
             tranches,
             juniorPrice,

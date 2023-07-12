@@ -5,7 +5,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ILossCoverer} from "./interfaces/ILossCoverer.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
-import {PoolConfig} from "./PoolConfig.sol";
+import {PoolConfig, LPConfig} from "./PoolConfig.sol";
 import {Constants} from "./Constants.sol";
 
 contract LossCoverer is Constants, ILossCoverer {
@@ -29,7 +29,9 @@ contract LossCoverer is Constants, ILossCoverer {
         if (assets == 0) return;
 
         Config memory cfg = config;
-        uint256 poolCap = poolConfig.liquidityCap();
+        //uint256 poolCap = poolConfig.lpConfig().liquidityCap();
+        // todo fix it
+        uint256 poolCap = 1;
         uint256 minFromPoolCap = (poolCap * cfg.poolCapPercent) / BPS_DECIMALS;
         uint256 poolValue = pool.totalAssets();
         uint256 minFromPoolValue = (poolValue * cfg.poolValuePercent) / BPS_DECIMALS;
@@ -71,7 +73,9 @@ contract LossCoverer is Constants, ILossCoverer {
         }
 
         Config memory cfg = config;
-        uint256 poolCap = poolConfig.liquidityCap();
+        //uint256 poolCap = poolConfig.liquidityCap();
+        // todo fix it
+        uint256 poolCap = 1;
         if (assets < (poolCap * cfg.poolCapPercent) / BPS_DECIMALS) {
             return false;
         }
