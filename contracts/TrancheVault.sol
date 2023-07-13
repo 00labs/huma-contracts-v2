@@ -19,34 +19,48 @@ contract TrancheVault is Constants, ERC20Upgradeable, TrancheVaultStorage, IEpoc
     function initialize(
         string memory name,
         string memory symbol,
-        address underlyingToken,
-        address poolConfigAddress,
-        address poolAddress,
-        address poolVaultAddress,
-        address epochManagerAddress,
+        PoolConfig _poolConfig,
         uint8 seniorTrancheOrJuniorTranche
     ) external initializer {
-        if (underlyingToken == address(0)) revert Errors.zeroAddressProvided();
         __ERC20_init(name, symbol);
+
+        poolConfig = _poolConfig;
+        address underlyingToken = address(_poolConfig.underlyingToken());
+        if (underlyingToken == address(0)) revert Errors.zeroAddressProvided();
         _decimals = IERC20MetadataUpgradeable(underlyingToken).decimals();
 
-        if (poolConfigAddress == address(0)) revert Errors.zeroAddressProvided();
-        poolConfig = PoolConfig(poolConfigAddress);
+        address addr = _poolConfig.pool();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        pool = IPool(addr);
 
-        if (poolAddress == address(0)) revert Errors.zeroAddressProvided();
-        pool = IPool(poolAddress);
+        addr = _poolConfig.poolVault();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        poolVault = IPoolVault(addr);
 
-        if (poolVaultAddress == address(0)) revert Errors.zeroAddressProvided();
-        poolVault = IPoolVault(poolVaultAddress);
-
-        if (epochManagerAddress == address(0)) revert Errors.zeroAddressProvided();
-        epochManager = IEpochManager(epochManagerAddress);
+        addr = _poolConfig.epochManager();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        epochManager = IEpochManager(addr);
 
         if (seniorTrancheOrJuniorTranche > 1) revert();
         trancheIndex = seniorTrancheOrJuniorTranche;
     }
 
-    //TODO set function/functions
+    // TODO permission
+    function setPoolConfig(PoolConfig _poolConfig) external {
+        poolConfig = _poolConfig;
+
+        address addr = _poolConfig.pool();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        pool = IPool(addr);
+
+        addr = _poolConfig.poolVault();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        poolVault = IPoolVault(addr);
+
+        addr = _poolConfig.epochManager();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        epochManager = IEpochManager(addr);
+    }
 
     /**
      * @notice Returns all unprocessed epochs.
@@ -117,7 +131,9 @@ contract TrancheVault is Constants, ERC20Upgradeable, TrancheVaultStorage, IEpoc
             uint256 maxRatio = 4;
             //uint256 maxRatio = poolConfig.lpConfig().maxSeniorJuniorRatio();
             if (
-                ((totalAssets + assets) / tranches[JUNIOR_TRANCHE_INDEX]) * BPS_DECIMALS > maxRatio
+                ((totalAssets + assets) / tranches[JUNIOR_TRANCHE_INDEX]) *
+                    HUNDRED_PERCENT_IN_BPS >
+                maxRatio
             ) revert(); // greater than max ratio
         }
 

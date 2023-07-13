@@ -9,6 +9,7 @@ import {ILossCoverer} from "./interfaces/ILossCoverer.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
 import {Constants} from "./Constants.sol";
 import {PoolConfig} from "./PoolConfig.sol";
+import {Errors} from "./Errors.sol";
 
 contract Pool is Constants, IPool {
     struct FeeInfo {
@@ -30,7 +31,7 @@ contract Pool is Constants, IPool {
 
     PoolConfig public poolConfig;
     IPoolVault public poolVault;
-    ITranchesPolicy public tranchePolicy;
+    ITranchesPolicy public tranchesPolicy;
     ILossCoverer[] public lossCoverers;
     ICredit public credit;
     IPlatformFeeManager public feeManager;
@@ -42,11 +43,27 @@ contract Pool is Constants, IPool {
     // TODO permission
     function setPoolConfig(PoolConfig _poolConfig) external {
         poolConfig = _poolConfig;
-        // :set poolVault
-        // :set tranchePolicy
-        // :set lossCoverers
-        // :set credit
-        // :set feeManager
+
+        address addr = _poolConfig.poolVault();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        poolVault = IPoolVault(addr);
+
+        addr = _poolConfig.tranchesPolicy();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        tranchesPolicy = ITranchesPolicy(addr);
+
+        address[] memory coverers = _poolConfig.getLossCoverers();
+        for (uint256 i = 0; i < coverers.length; i++) {
+            lossCoverers[i] = ILossCoverer(coverers[i]);
+        }
+
+        addr = _poolConfig.credit();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        credit = ICredit(addr);
+
+        addr = _poolConfig.feeManager();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        feeManager = IPlatformFeeManager(addr);
     }
 
     // TODO migration function
@@ -81,7 +98,7 @@ contract Pool is Constants, IPool {
                 tranchesInfo.seniorTotalAssets,
                 tranchesInfo.juniorTotalAssets
             ];
-            tranchePolicy.distributeProfit(remaining, assets, tranchesInfo.lastUpdatedTime);
+            tranchesPolicy.distributeProfit(remaining, assets, tranchesInfo.lastUpdatedTime);
 
             tranchesInfo.seniorTotalAssets = assets[SENIOR_TRANCHE_INDEX];
             tranchesInfo.juniorTotalAssets = assets[JUNIOR_TRANCHE_INDEX];
@@ -106,7 +123,7 @@ contract Pool is Constants, IPool {
                 tranchesInfo.seniorTotalAssets,
                 tranchesInfo.juniorTotalAssets
             ];
-            tranchePolicy.distributeLoss(loss, assets);
+            tranchesPolicy.distributeLoss(loss, assets);
 
             // store tranches info
             tranchesInfo.seniorTotalAssets = assets[SENIOR_TRANCHE_INDEX];
@@ -131,7 +148,7 @@ contract Pool is Constants, IPool {
             ];
             TranchesLosses memory tsLosses = tranchesLosses;
             uint96[2] memory losses = [tsLosses.seniorLoss, tsLosses.juniorLoss];
-            tranchePolicy.distributeLossRecovery(lossRecovery, assets, losses);
+            tranchesPolicy.distributeLossRecovery(lossRecovery, assets, losses);
 
             tranchesInfo.seniorTotalAssets = assets[SENIOR_TRANCHE_INDEX];
             tranchesInfo.juniorTotalAssets = assets[JUNIOR_TRANCHE_INDEX];
@@ -182,18 +199,18 @@ contract Pool is Constants, IPool {
         if (profit > 0) {
             uint256 remaining = feeManager.getRemaining(profit);
             if (remaining > 0) {
-                tranchePolicy.distributeProfit(remaining, trancheAssets, ti.lastUpdatedTime);
+                tranchesPolicy.distributeProfit(remaining, trancheAssets, ti.lastUpdatedTime);
             }
         }
 
         if (loss > 0) {
-            tranchePolicy.distributeLoss(loss, trancheAssets);
+            tranchesPolicy.distributeLoss(loss, trancheAssets);
         }
 
         if (lossRecovery > 0) {
             TranchesLosses memory tsLosses = tranchesLosses;
             uint96[2] memory losses = [tsLosses.seniorLoss, tsLosses.juniorLoss];
-            tranchePolicy.distributeLossRecovery(lossRecovery, trancheAssets, losses);
+            tranchesPolicy.distributeLossRecovery(lossRecovery, trancheAssets, losses);
         }
     }
 

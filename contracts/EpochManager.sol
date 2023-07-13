@@ -2,11 +2,12 @@
 pragma solidity ^0.8.0;
 
 import {IPool} from "./interfaces/IPool.sol";
-import {PoolConfig} from "./PoolConfig.sol";
+import {PoolConfig, LPConfig} from "./PoolConfig.sol";
 import {IEpoch, EpochInfo} from "./interfaces/IEpoch.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
 import {Constants} from "./Constants.sol";
 import {IEpochManager} from "./interfaces/IEpochManager.sol";
+import {Errors} from "./Errors.sol";
 
 interface ITrancheVaultLike {
     function totalSupply() external view returns (uint256);
@@ -32,8 +33,8 @@ contract EpochManager is Constants, IEpochManager {
         uint256 length;
     }
 
-    IPool public pool;
     PoolConfig public poolConfig;
+    IPool public pool;
     IPoolVault public poolVault;
     ITrancheVaultLike public seniorTranche;
     ITrancheVaultLike public juniorTranche;
@@ -43,10 +44,22 @@ contract EpochManager is Constants, IEpochManager {
     // TODO permission
     function setPoolConfig(PoolConfig _poolConfig) external {
         poolConfig = _poolConfig;
-        // :set pool
-        // :set poolVault
-        // :set seniorTranche
-        // :set juniorTranche
+
+        address addr = _poolConfig.poolVault();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        poolVault = IPoolVault(addr);
+
+        addr = _poolConfig.pool();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        pool = IPool(addr);
+
+        addr = _poolConfig.seniorTranche();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        seniorTranche = ITrancheVaultLike(addr);
+
+        addr = _poolConfig.juniorTranche();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        juniorTranche = ITrancheVaultLike(addr);
     }
 
     // TODO migration function
@@ -133,9 +146,8 @@ contract EpochManager is Constants, IEpochManager {
         uint256 availableAmount = poolVault.getAvailableReservation();
         if (availableAmount <= 0) return (seniorResult, juniorResult);
 
-        //todo fix it
-        //uint256 flexPeriod = uint256(poolConfig.lpConfig().flexCallWindowInCalendarUnit());
-        uint256 flexPeriod = uint256(1);
+        LPConfig memory lpConfig = poolConfig.getLPConfig();
+        uint256 flexPeriod = lpConfig.flexCallWindowInCalendarUnit;
         uint256 maxEpochId = currentEpochId;
 
         // process mature senior withdrawal requests
@@ -177,9 +189,7 @@ contract EpochManager is Constants, IEpochManager {
             }
         }
 
-        //todo fix it
-        //uint256 maxSeniorRatio = poolConfig.lpConfig().maxSeniorJuniorRatio()
-        uint256 maxSeniorRatio = 4;
+        uint256 maxSeniorRatio = lpConfig.maxSeniorJuniorRatio;
         availableAmount = _processJuniorEpochs(
             tranches,
             juniorPrice,
@@ -267,7 +277,7 @@ contract EpochManager is Constants, IEpochManager {
         uint256 availableAmount,
         TrancheProcessedResult memory trancheResult
     ) internal pure returns (uint256 remainingAmount) {
-        uint256 maxJuniorAmounts = (tranches[SENIOR_TRANCHE_INDEX] * BPS_DECIMALS) /
+        uint256 maxJuniorAmounts = (tranches[SENIOR_TRANCHE_INDEX] * HUNDRED_PERCENT_IN_BPS) /
             maxSeniorRatio;
         uint256 maxAmounts = maxJuniorAmounts > tranches[JUNIOR_TRANCHE_INDEX]
             ? maxJuniorAmounts - tranches[JUNIOR_TRANCHE_INDEX]

@@ -2,6 +2,8 @@
 pragma solidity ^0.8.0;
 
 import {BaseTranchesPolicy} from "./BaseTranchesPolicy.sol";
+import {PoolConfig, LPConfig} from "./PoolConfig.sol";
+import {Errors} from "./Errors.sol";
 
 /**
  * @notice This is fixed yield implementation. In the fixed yield mode,
@@ -11,7 +13,13 @@ import {BaseTranchesPolicy} from "./BaseTranchesPolicy.sol";
 contract FixedAprTranchesPolicy is BaseTranchesPolicy {
     uint256 public constant SECONDS_IN_A_YEAR = 365 days;
 
-    uint16 public seniorAprsInBps;
+    PoolConfig public poolConfig;
+
+    // TODO permission
+    function setPoolConfig(PoolConfig _poolConfig) external {
+        if (address(_poolConfig) == address(0)) revert Errors.zeroAddressProvided();
+        poolConfig = _poolConfig;
+    }
 
     function distributeProfit(
         uint256 profit,
@@ -21,10 +29,13 @@ contract FixedAprTranchesPolicy is BaseTranchesPolicy {
         uint256 seniorTotalAssets = assets[SENIOR_TRANCHE_INDEX];
         uint256 seniorProfit;
         if (block.timestamp > 0) {
+            LPConfig memory lpConfig = poolConfig.getLPConfig();
             seniorProfit =
-                (seniorTotalAssets * seniorAprsInBps * (block.timestamp - lastUpdatedTime)) /
+                (seniorTotalAssets *
+                    lpConfig.fixedSeniorYieldInBps *
+                    (block.timestamp - lastUpdatedTime)) /
                 SECONDS_IN_A_YEAR /
-                BPS_DECIMALS;
+                HUNDRED_PERCENT_IN_BPS;
         }
 
         seniorProfit = seniorProfit > profit ? profit : seniorProfit;

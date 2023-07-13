@@ -5,31 +5,33 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ILossCoverer} from "./interfaces/ILossCoverer.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
-import {PoolConfig, LPConfig} from "./PoolConfig.sol";
+import {PoolConfig, LPConfig, FirstLossCover} from "./PoolConfig.sol";
 import {Constants} from "./Constants.sol";
+import {Errors} from "./Errors.sol";
 
 contract LossCoverer is Constants, ILossCoverer {
-    struct Config {
-        uint16 poolCapPercent;
-        uint16 poolValuePercent;
-        uint16 lossCoverPercent;
-        uint96 lossCoverCap;
-    }
-
     PoolConfig public poolConfig;
     IPool public pool;
     IPoolVault public poolVault;
     IERC20 public asset;
 
-    Config public config;
     uint256 public processedLoss;
 
     // TODO permission
     function setPoolConfig(PoolConfig _poolConfig) external {
         poolConfig = _poolConfig;
-        // :set poolVault
-        // :set pool
-        // :set asset
+
+        address addr = _poolConfig.poolVault();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        poolVault = IPoolVault(addr);
+
+        addr = _poolConfig.pool();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        pool = IPool(addr);
+
+        addr = address(_poolConfig.underlyingToken());
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        asset = IERC20(addr);
     }
 
     // TODO migration function
@@ -38,13 +40,13 @@ contract LossCoverer is Constants, ILossCoverer {
         uint256 assets = asset.balanceOf(address(this));
         if (assets == 0) return;
 
-        Config memory cfg = config;
-        //uint256 poolCap = poolConfig.lpConfig().liquidityCap();
-        // todo fix it
-        uint256 poolCap = 1;
-        uint256 minFromPoolCap = (poolCap * cfg.poolCapPercent) / BPS_DECIMALS;
+        LPConfig memory lpConfig = poolConfig.getLPConfig();
+        FirstLossCover memory config = poolConfig.getFirstLossCover();
+        uint256 poolCap = lpConfig.liquidityCap;
+        uint256 minFromPoolCap = (poolCap * config.poolCapCoverageInBps) / HUNDRED_PERCENT_IN_BPS;
         uint256 poolValue = pool.totalAssets();
-        uint256 minFromPoolValue = (poolValue * cfg.poolValuePercent) / BPS_DECIMALS;
+        uint256 minFromPoolValue = (poolValue * config.poolValueCoverageInBps) /
+            HUNDRED_PERCENT_IN_BPS;
         uint256 min = minFromPoolCap > minFromPoolValue ? minFromPoolCap : minFromPoolValue;
 
         if (assets > min) {
@@ -53,9 +55,9 @@ contract LossCoverer is Constants, ILossCoverer {
     }
 
     function coverLoss(uint256 poolAssets, uint256 loss) external returns (uint256 remainingLoss) {
-        Config memory cfg = config;
-        uint256 processed = (poolAssets * cfg.lossCoverPercent) / BPS_DECIMALS;
-        processed = processed < cfg.lossCoverCap ? processed : cfg.lossCoverCap;
+        FirstLossCover memory config = poolConfig.getFirstLossCover();
+        uint256 processed = (poolAssets * config.coverRateInBps) / HUNDRED_PERCENT_IN_BPS;
+        processed = processed < config.coverCap ? processed : config.coverCap;
 
         uint256 assets = asset.balanceOf(address(this));
         processed = processed < assets ? processed : assets;
@@ -82,16 +84,15 @@ contract LossCoverer is Constants, ILossCoverer {
             return false;
         }
 
-        Config memory cfg = config;
-        //uint256 poolCap = poolConfig.liquidityCap();
-        // todo fix it
-        uint256 poolCap = 1;
-        if (assets < (poolCap * cfg.poolCapPercent) / BPS_DECIMALS) {
+        LPConfig memory lpConfig = poolConfig.getLPConfig();
+        FirstLossCover memory config = poolConfig.getFirstLossCover();
+        uint256 poolCap = lpConfig.liquidityCap;
+        if (assets < (poolCap * config.poolCapCoverageInBps) / HUNDRED_PERCENT_IN_BPS) {
             return false;
         }
 
         uint256 poolValue = pool.totalAssets();
-        if (assets < (poolValue * cfg.poolValuePercent) / BPS_DECIMALS) {
+        if (assets < (poolValue * config.poolValueCoverageInBps) / HUNDRED_PERCENT_IN_BPS) {
             return false;
         } else {
             return true;
