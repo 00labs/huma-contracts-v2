@@ -69,7 +69,7 @@ contract TrancheVault is Constants, ERC20Upgradeable, TrancheVaultStorage, IEpoc
         uint256 len = epochIds.length - currentEpochIdsIndex;
         result = new EpochInfo[](len);
         for (uint256 i; i < len; i++) {
-            result[i] = epochMapping[epochIds[currentEpochIdsIndex + i]];
+            result[i] = epochMap[epochIds[currentEpochIdsIndex + i]];
         }
     }
 
@@ -93,7 +93,7 @@ contract TrancheVault is Constants, ERC20Upgradeable, TrancheVaultStorage, IEpoc
         EpochInfo memory epoch;
         for (uint256 i; i < count; i++) {
             epoch = epochsProcessed[i];
-            epochMapping[epoch.epochId] = epoch;
+            epochMap[epoch.epochId] = epoch;
         }
 
         if (epoch.totalAmountProcessed >= epoch.totalShareRequested) {
@@ -162,7 +162,7 @@ contract TrancheVault is Constants, ERC20Upgradeable, TrancheVaultStorage, IEpoc
 
         // update global epochId array and EpochInfo mapping
         uint256 epochId = epochManager.currentEpochId();
-        EpochInfo memory epochInfo = epochMapping[epochId];
+        EpochInfo memory epochInfo = epochMap[epochId];
         if (epochInfo.totalShareRequested > 0) {
             epochInfo.totalShareRequested += uint96(shares);
         } else {
@@ -170,7 +170,7 @@ contract TrancheVault is Constants, ERC20Upgradeable, TrancheVaultStorage, IEpoc
             epochInfo.epochId = uint64(epochId);
             epochInfo.totalShareRequested = uint96(shares);
         }
-        epochMapping[epochId] = epochInfo;
+        epochMap[epochId] = epochInfo;
 
         // update user UserRedemptionRequest array
         UserRedemptionRequest[] storage requests = userRedemptionRequests[msg.sender];
@@ -216,12 +216,12 @@ contract TrancheVault is Constants, ERC20Upgradeable, TrancheVaultStorage, IEpoc
             delete requests[lastIndex];
         }
 
-        EpochInfo memory epochInfo = epochMapping[epochId];
+        EpochInfo memory epochInfo = epochMap[epochId];
         epochInfo.totalShareRequested -= uint96(shares);
         if (epochInfo.totalShareRequested > 0) {
-            epochMapping[epochId] = epochInfo;
+            epochMap[epochId] = epochInfo;
         } else {
-            delete epochMapping[epochId];
+            delete epochMap[epochId];
             lastIndex = epochIds.length - 1;
             assert(epochIds[lastIndex] == epochId);
             delete epochIds[lastIndex];
@@ -324,7 +324,7 @@ contract TrancheVault is Constants, ERC20Upgradeable, TrancheVaultStorage, IEpoc
             UserRedemptionRequest memory request = requests[i];
             if (request.epochId < lastEpochId) {
                 // fully processed
-                EpochInfo memory epoch = epochMapping[request.epochId];
+                EpochInfo memory epoch = epochMap[request.epochId];
                 uint256 shareProcessed = (request.shareRequested * epoch.totalShareProcessed) /
                     epoch.totalShareRequested;
                 uint256 amountProcessed = (request.shareRequested * epoch.totalAmountProcessed) /
@@ -341,7 +341,7 @@ contract TrancheVault is Constants, ERC20Upgradeable, TrancheVaultStorage, IEpoc
                 disburseInfo.requestsIndex += 1;
             } else if (request.epochId == lastEpochId) {
                 // partially processed
-                EpochInfo memory epoch = epochMapping[request.epochId];
+                EpochInfo memory epoch = epochMap[request.epochId];
                 if (epoch.totalShareProcessed > 0) {
                     uint256 shareProcessed = (request.shareRequested * epoch.totalShareProcessed) /
                         epoch.totalShareRequested;

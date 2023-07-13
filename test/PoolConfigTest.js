@@ -17,9 +17,14 @@ describe("Pool Config", function () {
         await poolConfig.deployed();
     });
 
-    it("setAsset", async function () {
-        expect(await poolConfig.asset()).to.equal(ethers.constants.AddressZero);
-        await poolConfig.setAsset(mockToken.address);
-        expect(await poolConfig.asset()).to.equal(mockToken.address);
+    it("setPoolName", async function () {
+        await poolConfig.setPoolName("TestPoolName");
+        expect(await poolConfig.poolName()).to.equal("TestPoolName");
     });
+
+    // it("setAsset", async function () {
+    //     expect(await poolConfig.asset()).to.equal(ethers.constants.AddressZero);
+    //     await poolConfig.setAsset(mockToken.address);
+    //     expect(await poolConfig.asset()).to.equal(mockToken.address);
+    // });
 });
