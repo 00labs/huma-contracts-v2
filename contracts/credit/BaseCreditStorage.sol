@@ -10,11 +10,11 @@ contract BaseCreditStorage {
     uint256 public totalAccruedLossRecovery;
 
     /// mapping from borrower to the credit limit at borrower-level
-    mapping(address => uint96) internal _borrowerCreditLimitMapping;
+    mapping(address => uint96) internal _borrowerCreditLimitMap;
     /// mapping from credit id to the credit config
-    mapping(bytes32 => CreditConfig) internal _creditConfigMapping;
+    mapping(bytes32 => CreditConfig) internal _creditConfigMap;
     /// mapping from credit id to the credit record
-    mapping(bytes32 => CreditRecord) internal _creditRecordMapping;
+    mapping(bytes32 => CreditRecord) internal _creditRecordMap;
 
     bytes32[] public activeCreditsHash;
     bytes32[] public overdueCreditsHash;

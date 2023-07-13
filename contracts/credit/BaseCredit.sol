@@ -130,7 +130,7 @@ contract BaseCredit is BaseCreditStorage, ICredit {
         _protocolAndPoolOn();
         onlyEAServiceAccount();
 
-        _borrowerCreditLimitMapping[borrower] = uint96(creditLimit);
+        _borrowerCreditLimitMap[borrower] = uint96(creditLimit);
 
         // :emit BorrowerCreditLimitUpdatedApproved(borrower, creditLimit);
     }
@@ -206,7 +206,7 @@ contract BaseCredit is BaseCreditStorage, ICredit {
         // // Borrowing amount needs to be lower than max for the pool.
         // _maxCreditLineCheck(newCreditLimit);
 
-        // uint256 oldCreditLimit = _creditRecordStaticMapping[borrower].creditLimit;
+        // uint256 oldCreditLimit = _creditRecordStaticMap[borrower].creditLimit;
 
         // // Only EA can increase credit line. Only EA or the borrower can reduce credit line.
         // if (newCreditLimit > oldCreditLimit) onlyEAServiceAccount();
@@ -215,7 +215,7 @@ contract BaseCredit is BaseCreditStorage, ICredit {
         //         revert Errors.onlyBorrowerOrEACanReduceCreditLine();
         // }
 
-        // _borrowerCreditLimitMapping[borrower] = creditLimit;
+        // _borrowerCreditLimitMap[borrower] = creditLimit;
 
         // emit CreditLineChanged(borrower, oldCreditLimit, newCreditLimit);
     }
@@ -248,11 +248,11 @@ contract BaseCredit is BaseCreditStorage, ICredit {
         // // it is good practice to bring the account current while we update one of the fields.
         // // Also, only if we call _updateDueInfo(), we can write proper tests.
         // _updateDueInfo(borrower, false, true);
-        // _creditRecordMapping[borrower].remainingPeriods += uint16(numOfPeriods);
+        // _creditRecordMap[borrower].remainingPeriods += uint16(numOfPeriods);
         // emit CreditLineExtended(
         //     creditHash,
         //     numOfPeriods,
-        //     _creditRecordMapping[borrower].remainingPeriods,
+        //     _creditRecordMap[borrower].remainingPeriods,
         //     msg.sender
         // );
     }
@@ -290,7 +290,7 @@ contract BaseCredit is BaseCreditStorage, ICredit {
      * and cognitive load to _updateDueInfo(...).
      */
     function refreshCredit(bytes32 creditHash) external virtual returns (CreditRecord memory cr) {
-        // if (_creditRecordMapping[borrower].state != BS.CreditState.Defaulted) {
+        // if (_creditRecordMap[borrower].state != BS.CreditState.Defaulted) {
         //     if (isDefaultReady(borrower)) return _updateDueInfo(borrower, false, false);
         //     else return _updateDueInfo(borrower, false, true);
         // }
@@ -322,9 +322,9 @@ contract BaseCredit is BaseCreditStorage, ICredit {
         // // default amount includes all outstanding principals
         // losses = cr.unbilledPrincipal + cr.totalDue - cr.feesAndInterestDue;
 
-        // _creditRecordMapping[borrower].state = BS.CreditState.Defaulted;
+        // _creditRecordMap[borrower].state = BS.CreditState.Defaulted;
 
-        // _creditRecordStaticMapping[borrower].defaultAmount = uint96(losses);
+        // _creditRecordStaticMap[borrower].defaultAmount = uint96(losses);
 
         // distributeLosses(losses);
 
@@ -333,16 +333,16 @@ contract BaseCredit is BaseCreditStorage, ICredit {
         // return losses;
     }
 
-    function creditRecordMapping(bytes32 creditHash) external view returns (CreditRecord memory) {
-        return _creditRecordMapping[creditHash];
+    function creditRecordMap(bytes32 creditHash) external view returns (CreditRecord memory) {
+        return _creditRecordMap[creditHash];
     }
 
-    function creditConfigMapping(bytes32 creditHash) external view returns (CreditConfig memory) {
-        return _creditConfigMapping[creditHash];
+    function creditConfigMap(bytes32 creditHash) external view returns (CreditConfig memory) {
+        return _creditConfigMap[creditHash];
     }
 
     function isApproved(bytes32 creditHash) external view virtual returns (bool) {
-        if ((_creditRecordMapping[creditHash].state >= CreditState.Approved)) return true;
+        if ((_creditRecordMap[creditHash].state >= CreditState.Approved)) return true;
         else return false;
     }
 
@@ -350,9 +350,9 @@ contract BaseCredit is BaseCreditStorage, ICredit {
      * @notice checks if the credit line is ready to be triggered as defaulted
      */
     function isDefaultReady(bytes32 creditHash) public view virtual returns (bool isDefault) {
-        // uint16 intervalInDays = _creditRecordStaticMapping[creditHash].intervalInDays;
+        // uint16 intervalInDays = _creditRecordStaticMap[creditHash].intervalInDays;
         // return
-        //     _creditRecordMapping[borrower].missedPeriods * intervalInDays * SECONDS_IN_A_DAY >
+        //     _creditRecordMap[borrower].missedPeriods * intervalInDays * SECONDS_IN_A_DAY >
         //         _poolConfig.poolDefaultGracePeriodInSeconds()
         //         ? true
         //         : false;
@@ -367,9 +367,9 @@ contract BaseCredit is BaseCreditStorage, ICredit {
      */
     function isLate(bytes32 creditHash) external view virtual returns (bool lateFlag) {
         // return
-        //     (_creditRecordMapping[creditHash].state > CreditState.Approved &&
-        //         (_creditRecordMapping[creditHash].missedPeriods > 0 ||
-        //             block.timestamp > _creditRecordMapping[creditHash].dueDate))
+        //     (_creditRecordMap[creditHash].state > CreditState.Approved &&
+        //         (_creditRecordMap[creditHash].missedPeriods > 0 ||
+        //             block.timestamp > _creditRecordMap[creditHash].dueDate))
         //         ? true
         //         : false;
     }
@@ -419,7 +419,7 @@ contract BaseCredit is BaseCreditStorage, ICredit {
         //     if (cr.dueDate > 0 && block.timestamp > cr.dueDate)
         //         revert Errors.creditExpiredDueToFirstDrawdownTooLate();
 
-        //     if (borrowAmount > _creditRecordStaticMapping[borrower].creditLimit)
+        //     if (borrowAmount > _creditRecordStaticMap[borrower].creditLimit)
         //         revert Errors.creditLineExceeded();
         // }
     }
@@ -437,7 +437,7 @@ contract BaseCredit is BaseCreditStorage, ICredit {
         // if (cr.state == BS.CreditState.Approved) {
         //     // Flow for first drawdown
         //     // Update total principal
-        //     _creditRecordMapping[borrower].unbilledPrincipal = uint96(borrowAmount);
+        //     _creditRecordMap[borrower].unbilledPrincipal = uint96(borrowAmount);
         //     // Generates the first bill
         //     // Note: the interest is calculated at the beginning of each pay period
         //     cr = _updateDueInfo(borrower, true, true);
@@ -453,7 +453,7 @@ contract BaseCredit is BaseCreditStorage, ICredit {
         //     }
         //     if (
         //         borrowAmount >
-        //         (_creditRecordStaticMapping[borrower].creditLimit -
+        //         (_creditRecordStaticMap[borrower].creditLimit -
         //             cr.unbilledPrincipal -
         //             (cr.totalDue - cr.feesAndInterestDue))
         //     ) revert Errors.creditLineExceeded();
@@ -468,7 +468,7 @@ contract BaseCredit is BaseCreditStorage, ICredit {
         //         uint96(
         //             _calcCorrection(
         //                 cr.dueDate,
-        //                 _creditRecordStaticMapping[borrower].aprInBps,
+        //                 _creditRecordStaticMap[borrower].aprInBps,
         //                 borrowAmount
         //             )
         //         )
@@ -520,7 +520,7 @@ contract BaseCredit is BaseCreditStorage, ICredit {
         // }
         // // Borrowing amount needs to be lower than max for the pool.
         // _maxCreditLineCheck(creditLimit);
-        // _creditRecordStaticMapping[borrower] = CreditRecordStatic({
+        // _creditRecordStaticMap[borrower] = CreditRecordStatic({
         //     creditLimit: uint96(creditLimit),
         //     aprInBps: uint16(aprInBps),
         //     intervalInDays: uint16(intervalInDays),
@@ -585,7 +585,7 @@ contract BaseCredit is BaseCreditStorage, ICredit {
         // // all outstanding principals.
         // uint256 payoffCorrection = _calcCorrection(
         //     cr.dueDate,
-        //     _creditRecordStaticMapping[borrower].aprInBps,
+        //     _creditRecordStaticMap[borrower].aprInBps,
         //     cr.unbilledPrincipal + cr.totalDue - cr.feesAndInterestDue
         // );
 
@@ -646,7 +646,7 @@ contract BaseCredit is BaseCreditStorage, ICredit {
         //             uint96(
         //                 _calcCorrection(
         //                     cr.dueDate,
-        //                     _creditRecordStaticMapping[borrower].aprInBps,
+        //                     _creditRecordStaticMap[borrower].aprInBps,
         //                     principalPayment
         //                 )
         //             )
@@ -716,7 +716,7 @@ contract BaseCredit is BaseCreditStorage, ICredit {
      * Only after the principal is fully recovered, it is applied towards fees & interest.
      */
     function _recoverDefaultedAmount(address borrower, uint256 amountToCollect) internal {
-        // uint96 _defaultAmount = _creditRecordStaticMapping[borrower].defaultAmount;
+        // uint96 _defaultAmount = _creditRecordStaticMap[borrower].defaultAmount;
         // if (_defaultAmount > 0) {
         //     uint256 recoveredPrincipal;
         //     if (_defaultAmount >= amountToCollect) {
@@ -727,7 +727,7 @@ contract BaseCredit is BaseCreditStorage, ICredit {
         //     }
         //     _totalPoolValue += recoveredPrincipal;
         //     _defaultAmount -= uint96(recoveredPrincipal);
-        //     _creditRecordStaticMapping[borrower].defaultAmount = _defaultAmount;
+        //     _creditRecordStaticMap[borrower].defaultAmount = _defaultAmount;
         // } else {
         //     // note The account is moved out of Defaulted state only if the entire due
         //     // including principals, fees&Interest are paid off. It is possible for
@@ -747,7 +747,7 @@ contract BaseCredit is BaseCreditStorage, ICredit {
      * @notice updates CreditRecord for `_borrower` using the most up to date information.
      * @dev this is used in both makePayment() and drawdown() to bring the account current
      * @dev getDueInfo() gets the due information of the most current cycle. This function
-     * updates the record in creditRecordMapping for `_borrower`
+     * updates the record in creditRecordMap for `_borrower`
      * @param creditHash the hash of the credit
      * @param isFirstDrawdown whether this request is for the first drawdown of the credit line
      */
@@ -779,7 +779,7 @@ contract BaseCredit is BaseCreditStorage, ICredit {
         //         if (newCharges > 0) distributeIncome(uint256(uint96(newCharges)));
         //         else if (newCharges < 0) reverseIncome(uint256(uint96(0 - newCharges)));
         //     }
-        //     uint16 intervalInDays = _creditRecordStaticMapping[borrower].intervalInDays;
+        //     uint16 intervalInDays = _creditRecordStaticMap[borrower].intervalInDays;
         //     if (cr.dueDate > 0)
         //         cr.dueDate = uint64(
         //             cr.dueDate + periodsPassed * intervalInDays * SECONDS_IN_A_DAY
@@ -804,22 +804,22 @@ contract BaseCredit is BaseCreditStorage, ICredit {
 
     /// Shared setter to the credit record mapping for contract size consideration
     function _setCreditRecord(bytes32 creditHash, CreditRecord memory cr) internal {
-        _creditRecordMapping[creditHash] = cr;
+        _creditRecordMap[creditHash] = cr;
     }
 
     /// Shared accessor to the credit record mapping for contract size consideration
     function _getCreditRecord(bytes32 creditHash) internal view returns (CreditRecord memory) {
-        return _creditRecordMapping[creditHash];
+        return _creditRecordMap[creditHash];
     }
 
     /// Shared accessor to the credit record static mapping for contract size consideration
     function _getCreditConfig(bytes32 creditHash) internal view returns (CreditConfig memory cc) {
-        return _creditConfigMapping[creditHash];
+        return _creditConfigMap[creditHash];
     }
 
     /// Shared setter to the credit config mapping
     function _setCreditConfig(bytes32 creditHash, CreditConfig memory cc) internal {
-        _creditConfigMapping[creditHash] = cc;
+        _creditConfigMap[creditHash] = cc;
     }
 
     /// "Modifier" function that limits access to pdsServiceAccount only.

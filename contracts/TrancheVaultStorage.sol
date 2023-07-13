@@ -30,7 +30,7 @@ contract TrancheVaultStorage {
     uint8 public trancheIndex; // senior index or junior index
 
     uint256[] public epochIds; // the epoch id array
-    mapping(uint256 => EpochInfo) public epochMapping; // key is epochId
+    mapping(uint256 => EpochInfo) public epochMap; // key is epochId
     uint256 public currentEpochIdsIndex; // the index of the epoch id currently being processed
 
     mapping(address => UserRedemptionRequest[]) public userRedemptionRequests; // user redemption request array
