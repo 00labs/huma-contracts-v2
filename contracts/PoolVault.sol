@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
 import {PoolConfig} from "./PoolConfig.sol";
+import {Errors} from "./Errors.sol";
 
 contract PoolVault is IPoolVault {
     PoolConfig public poolConfig;
@@ -11,13 +12,21 @@ contract PoolVault is IPoolVault {
 
     uint256 public reserveAssets;
 
+    // TODO permission
+    function setPoolConfig(PoolConfig _poolConfig) external {
+        poolConfig = _poolConfig;
+        address assetAddress = address(poolConfig.underlyingToken());
+        if (assetAddress == address(0)) revert Errors.zeroAddressProvided();
+        asset = IERC20(assetAddress);
+    }
+
+    // TODO migration function
+
     function deposit(address from, uint256 amount) external {
-        IERC20 asset = poolConfig.underlyingToken();
         asset.transferFrom(from, address(this), amount);
     }
 
     function withdraw(address to, uint256 amount) external {
-        IERC20 asset = poolConfig.underlyingToken();
         asset.transfer(to, amount);
     }
 
@@ -26,16 +35,12 @@ contract PoolVault is IPoolVault {
     }
 
     function getAvailableLiquidity() external view returns (uint256 assets) {
-        IERC20 asset = poolConfig.underlyingToken();
         assets = asset.balanceOf(address(this));
-
         assets = assets > reserveAssets ? assets - reserveAssets : 0;
     }
 
     function getAvailableReservation() external view returns (uint256 assets) {
-        IERC20 asset = poolConfig.underlyingToken();
         assets = asset.balanceOf(address(this));
-
         assets = assets < reserveAssets ? assets : reserveAssets;
     }
 }

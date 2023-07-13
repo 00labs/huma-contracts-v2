@@ -119,12 +119,16 @@ contract PoolConfig is Ownable {
     string public poolName;
 
     address public pool;
-
-    HumaConfig public humaConfig;
-
+    address public poolVault;
+    address public seniorTranche;
+    address public juniorTranche;
+    address public tranchesPolicy;
+    address public epochManager;
+    address[] internal _lossCoverers;
+    address public credit;
     address public feeManager;
 
-    IERC20 public poolToken;
+    HumaConfig public humaConfig;
 
     // The ERC20 token this pool manages
     IERC20 public underlyingToken;
@@ -135,8 +139,8 @@ contract PoolConfig is Ownable {
     uint256 public evaluationAgentId;
 
     PoolSettings public poolSettings;
-    LPConfig public lpConfig;
-    FirstLossCover public firstLossCover;
+    LPConfig internal _lpConfig;
+    FirstLossCover internal _firstLossCover;
     FeeStructure public feeStructure;
 
     AccruedIncome public accuredIncome;
@@ -199,7 +203,7 @@ contract PoolConfig is Ownable {
     event PoolOperatorRemoved(address indexed operator, address by);
 
     function getTrancheLiquidityCap(uint256 index) external returns (uint256 cap) {
-        LPConfig memory lpc = lpConfig;
+        LPConfig memory lpc = _lpConfig;
         if (index == SENIOR_TRANCHE_INDEX) {
             cap =
                 (lpc.liquidityCap * lpc.maxSeniorJuniorRatio) /
@@ -211,7 +215,7 @@ contract PoolConfig is Ownable {
 
     function initialize(
         string memory _poolName,
-        address _poolToken,
+        address _underlyingToken,
         address _humaConfig,
         address _feeManager
     )
@@ -220,21 +224,14 @@ contract PoolConfig is Ownable {
         onlyOwner
     {
         poolName = _poolName;
-        if (_poolToken == address(0)) revert Errors.zeroAddressProvided();
         if (_humaConfig == address(0)) revert Errors.zeroAddressProvided();
         if (_feeManager == address(0)) revert Errors.zeroAddressProvided();
-        //poolToken = HDT(_poolToken);
-        // todo change to use the new HDT
-        poolToken = IERC20(_poolToken);
 
         humaConfig = HumaConfig(_humaConfig);
 
-        // todo change to use the new HDT
-        address assetTokenAddress = _poolToken; //poolToken.assetToken();
-
-        if (!humaConfig.isAssetValid(assetTokenAddress))
+        if (!humaConfig.isAssetValid(_underlyingToken))
             revert Errors.underlyingTokenNotApprovedForHumaProtocol();
-        underlyingToken = IERC20(assetTokenAddress);
+        underlyingToken = IERC20(_underlyingToken);
 
         feeManager = _feeManager;
 
@@ -439,7 +436,7 @@ contract PoolConfig is Ownable {
     function setPoolLiquidityCap(uint256 liquidityCap) external {
         _onlyOwnerOrHumaMasterAdmin();
         if (liquidityCap == 0) revert Errors.zeroAmountProvided();
-        lpConfig.liquidityCap = uint96(liquidityCap);
+        _lpConfig.liquidityCap = uint96(liquidityCap);
         emit PoolLiquidityCapChanged(liquidityCap, msg.sender);
     }
 
@@ -509,7 +506,7 @@ contract PoolConfig is Ownable {
     function setWithdrawalLockoutPeriod(CalendarUnit unit, uint256 lockoutPeriod) external {
         _onlyOwnerOrHumaMasterAdmin();
         if (unit != poolSettings.calendarUnit) revert();
-        lpConfig.withdrawalLockoutInCalendarUnit = uint16(lockoutPeriod);
+        _lpConfig.withdrawalLockoutInCalendarUnit = uint16(lockoutPeriod);
         emit WithdrawalLockoutPeriodChanged(lockoutPeriod, msg.sender);
     }
 
@@ -575,7 +572,7 @@ contract PoolConfig is Ownable {
     function checkLiquidityRequirementForPoolOwner(uint256 balance) public view {
         if (
             balance <
-            (lpConfig.liquidityCap * poolSettings.liquidityRateInBpsByPoolOwner) /
+            (_lpConfig.liquidityCap * poolSettings.liquidityRateInBpsByPoolOwner) /
                 HUNDRED_PERCENT_IN_BPS
         ) revert Errors.poolOwnerNotEnoughLiquidity();
     }
@@ -583,7 +580,7 @@ contract PoolConfig is Ownable {
     function checkLiquidityRequirementForEA(uint256 balance) public view {
         if (
             balance <
-            (lpConfig.liquidityCap * poolSettings.liquidityRateInBpsByEA) / HUNDRED_PERCENT_IN_BPS
+            (_lpConfig.liquidityCap * poolSettings.liquidityRateInBpsByEA) / HUNDRED_PERCENT_IN_BPS
         ) revert Errors.evaluationAgentNotEnoughLiquidity();
     }
 
@@ -603,22 +600,6 @@ contract PoolConfig is Ownable {
             // note poolOwnerTreasury handles all thing financial-related for pool owner
             checkLiquidityRequirementForPoolOwner(newBalance);
         }
-    }
-
-    function getCoreData()
-        external
-        view
-        returns (
-            address underlyingToken_,
-            address poolToken_,
-            address humaConfig_,
-            address feeManager_
-        )
-    {
-        underlyingToken_ = address(underlyingToken);
-        poolToken_ = address(poolToken);
-        humaConfig_ = address(humaConfig);
-        feeManager_ = feeManager;
     }
 
     /**
@@ -650,13 +631,25 @@ contract PoolConfig is Ownable {
             feeStructure.yieldInBps,
             poolSettings.payPeriodInCalendarUnit,
             poolSettings.maxCreditLine,
-            lpConfig.liquidityCap,
+            _lpConfig.liquidityCap,
             erc20Contract.name(),
             erc20Contract.symbol(),
             erc20Contract.decimals(),
             evaluationAgentId,
             humaConfig.eaNFTContractAddress()
         );
+    }
+
+    function getLPConfig() external view returns (LPConfig memory) {
+        return _lpConfig;
+    }
+
+    function getFirstLossCover() external view returns (FirstLossCover memory) {
+        return _firstLossCover;
+    }
+
+    function getLossCoverers() external view returns (address[] memory) {
+        return _lossCoverers;
     }
 
     function isPoolOwnerTreasuryOrEA(address account) public view returns (bool) {

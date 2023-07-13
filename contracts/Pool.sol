@@ -8,35 +8,65 @@ import {ICredit} from "./credit/interfaces/ICredit.sol";
 import {ILossCoverer} from "./interfaces/ILossCoverer.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
 import {Constants} from "./Constants.sol";
-
-struct FeeInfo {
-    uint96 protocolFee;
-    uint96 ownerFee;
-    // todo add eaFee and firstLossCoverFee
-}
-
-struct TranchesInfo {
-    uint96 seniorTotalAssets; // total assets of senior tranche
-    uint96 juniorTotalAssets; // total assets of junior tranche
-    uint64 lastUpdatedTime; // the updated timestamp of seniorTotalAssets and juniorTotalAssets
-}
-
-struct TranchesLosses {
-    uint96 seniorLoss; // total losses of senior tranche
-    uint96 juniorLoss; // total losses of junior tranche
-}
+import {PoolConfig} from "./PoolConfig.sol";
+import {Errors} from "./Errors.sol";
 
 contract Pool is Constants, IPool {
+    struct FeeInfo {
+        uint96 protocolFee;
+        uint96 ownerFee;
+        // todo add eaFee and firstLossCoverFee
+    }
+
+    struct TranchesInfo {
+        uint96 seniorTotalAssets; // total assets of senior tranche
+        uint96 juniorTotalAssets; // total assets of junior tranche
+        uint64 lastUpdatedTime; // the updated timestamp of seniorTotalAssets and juniorTotalAssets
+    }
+
+    struct TranchesLosses {
+        uint96 seniorLoss; // total losses of senior tranche
+        uint96 juniorLoss; // total losses of junior tranche
+    }
+
+    PoolConfig public poolConfig;
+    IPoolVault public poolVault;
+    ITranchesPolicy public tranchesPolicy;
+    ILossCoverer[] public lossCoverers;
     ICredit public credit;
     IPlatformFeeManager public feeManager;
-    ITranchesPolicy public tranchePolicy;
-    ILossCoverer[] public lossCoverers;
-    IPoolVault public override poolVault;
-    address public override poolConfig;
 
     FeeInfo public feeInfo;
     TranchesInfo public tranches;
     TranchesLosses public tranchesLosses;
+
+    // TODO permission
+    function setPoolConfig(PoolConfig _poolConfig) external {
+        poolConfig = _poolConfig;
+
+        address addr = _poolConfig.poolVault();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        poolVault = IPoolVault(addr);
+
+        addr = _poolConfig.tranchesPolicy();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        tranchesPolicy = ITranchesPolicy(addr);
+
+        address[] memory coverers = _poolConfig.getLossCoverers();
+        for (uint256 i = 0; i < coverers.length; i++) {
+            lossCoverers[i] = ILossCoverer(coverers[i]);
+        }
+
+        addr = _poolConfig.credit();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        credit = ICredit(addr);
+
+        addr = _poolConfig.feeManager();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        feeManager = IPlatformFeeManager(addr);
+    }
+
+    // TODO migration function
 
     function refreshPool() external returns (uint96[2] memory) {
         // check permission
@@ -68,7 +98,7 @@ contract Pool is Constants, IPool {
                 tranchesInfo.seniorTotalAssets,
                 tranchesInfo.juniorTotalAssets
             ];
-            tranchePolicy.distributeProfit(remaining, assets, tranchesInfo.lastUpdatedTime);
+            tranchesPolicy.distributeProfit(remaining, assets, tranchesInfo.lastUpdatedTime);
 
             tranchesInfo.seniorTotalAssets = assets[SENIOR_TRANCHE_INDEX];
             tranchesInfo.juniorTotalAssets = assets[JUNIOR_TRANCHE_INDEX];
@@ -93,7 +123,7 @@ contract Pool is Constants, IPool {
                 tranchesInfo.seniorTotalAssets,
                 tranchesInfo.juniorTotalAssets
             ];
-            tranchePolicy.distributeLoss(loss, assets);
+            tranchesPolicy.distributeLoss(loss, assets);
 
             // store tranches info
             tranchesInfo.seniorTotalAssets = assets[SENIOR_TRANCHE_INDEX];
@@ -118,7 +148,7 @@ contract Pool is Constants, IPool {
             ];
             TranchesLosses memory tsLosses = tranchesLosses;
             uint96[2] memory losses = [tsLosses.seniorLoss, tsLosses.juniorLoss];
-            tranchePolicy.distributeLossRecovery(lossRecovery, assets, losses);
+            tranchesPolicy.distributeLossRecovery(lossRecovery, assets, losses);
 
             tranchesInfo.seniorTotalAssets = assets[SENIOR_TRANCHE_INDEX];
             tranchesInfo.juniorTotalAssets = assets[JUNIOR_TRANCHE_INDEX];
@@ -169,18 +199,18 @@ contract Pool is Constants, IPool {
         if (profit > 0) {
             uint256 remaining = feeManager.getRemaining(profit);
             if (remaining > 0) {
-                tranchePolicy.distributeProfit(remaining, trancheAssets, ti.lastUpdatedTime);
+                tranchesPolicy.distributeProfit(remaining, trancheAssets, ti.lastUpdatedTime);
             }
         }
 
         if (loss > 0) {
-            tranchePolicy.distributeLoss(loss, trancheAssets);
+            tranchesPolicy.distributeLoss(loss, trancheAssets);
         }
 
         if (lossRecovery > 0) {
             TranchesLosses memory tsLosses = tranchesLosses;
             uint96[2] memory losses = [tsLosses.seniorLoss, tsLosses.juniorLoss];
-            tranchePolicy.distributeLossRecovery(lossRecovery, trancheAssets, losses);
+            tranchesPolicy.distributeLossRecovery(lossRecovery, trancheAssets, losses);
         }
     }
 

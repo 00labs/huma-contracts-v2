@@ -2,12 +2,26 @@
 pragma solidity ^0.8.0;
 
 import {IPool} from "./interfaces/IPool.sol";
-import {PoolConfig} from "./PoolConfig.sol";
-import {ITrancheVault, EpochInfo} from "./interfaces/ITrancheVault.sol";
+import {PoolConfig, LPConfig} from "./PoolConfig.sol";
+import {IEpoch, EpochInfo} from "./interfaces/IEpoch.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
 import {Constants} from "./Constants.sol";
+import {IEpochManager} from "./interfaces/IEpochManager.sol";
+import {Errors} from "./Errors.sol";
 
-contract EpochManager is Constants {
+interface ITrancheVaultLike {
+    function totalSupply() external view returns (uint256);
+
+    function unprocessedEpochInfos() external view returns (EpochInfo[] memory);
+
+    function closeEpoch(
+        EpochInfo[] memory epochsProcessed,
+        uint256 sharesProcessed,
+        uint256 amountProcessed
+    ) external;
+}
+
+contract EpochManager is Constants, IEpochManager {
     struct TrancheProcessedResult {
         uint256 count;
         uint256 shares;
@@ -19,25 +33,33 @@ contract EpochManager is Constants {
         uint256 length;
     }
 
-    IPool public pool;
     PoolConfig public poolConfig;
+    IPool public pool;
     IPoolVault public poolVault;
-    ITrancheVault public seniorTranche;
-    ITrancheVault public juniorTranche;
+    ITrancheVaultLike public seniorTranche;
+    ITrancheVaultLike public juniorTranche;
 
     uint256 public currentEpochId;
 
     // TODO permission
-    function setPool(IPool _pool) external {
-        pool = _pool;
-        poolConfig = PoolConfig(_pool.poolConfig());
-        poolVault = _pool.poolVault();
-    }
+    function setPoolConfig(PoolConfig _poolConfig) external {
+        poolConfig = _poolConfig;
 
-    // TODO permission
-    function setTrancheVaults(address _seniorTranche, address _juniorTranche) external {
-        seniorTranche = ITrancheVault(_seniorTranche);
-        juniorTranche = ITrancheVault(_juniorTranche);
+        address addr = _poolConfig.poolVault();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        poolVault = IPoolVault(addr);
+
+        addr = _poolConfig.pool();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        pool = IPool(addr);
+
+        addr = _poolConfig.seniorTranche();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        seniorTranche = ITrancheVaultLike(addr);
+
+        addr = _poolConfig.juniorTranche();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        juniorTranche = ITrancheVaultLike(addr);
     }
 
     // TODO migration function
@@ -124,9 +146,8 @@ contract EpochManager is Constants {
         uint256 availableAmount = poolVault.getAvailableReservation();
         if (availableAmount <= 0) return (seniorResult, juniorResult);
 
-        //todo fix it
-        //uint256 flexPeriod = uint256(poolConfig.lpConfig().flexCallWindowInCalendarUnit());
-        uint256 flexPeriod = uint256(1);
+        LPConfig memory lpConfig = poolConfig.getLPConfig();
+        uint256 flexPeriod = lpConfig.flexCallWindowInCalendarUnit;
         uint256 maxEpochId = currentEpochId;
 
         // process mature senior withdrawal requests
@@ -168,9 +189,7 @@ contract EpochManager is Constants {
             }
         }
 
-        //todo fix it
-        //uint256 maxSeniorRatio = poolConfig.lpConfig().maxSeniorJuniorRatio()
-        uint256 maxSeniorRatio = 4;
+        uint256 maxSeniorRatio = lpConfig.maxSeniorJuniorRatio;
         availableAmount = _processJuniorEpochs(
             tranches,
             juniorPrice,
@@ -258,7 +277,7 @@ contract EpochManager is Constants {
         uint256 availableAmount,
         TrancheProcessedResult memory trancheResult
     ) internal pure returns (uint256 remainingAmount) {
-        uint256 maxJuniorAmounts = (tranches[SENIOR_TRANCHE_INDEX] * BPS_DECIMALS) /
+        uint256 maxJuniorAmounts = (tranches[SENIOR_TRANCHE_INDEX] * HUNDRED_PERCENT_IN_BPS) /
             maxSeniorRatio;
         uint256 maxAmounts = maxJuniorAmounts > tranches[JUNIOR_TRANCHE_INDEX]
             ? maxJuniorAmounts - tranches[JUNIOR_TRANCHE_INDEX]

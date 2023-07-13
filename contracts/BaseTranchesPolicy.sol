@@ -5,7 +5,7 @@ import {ITranchesPolicy} from "./interfaces/ITranchesPolicy.sol";
 import {Constants} from "./Constants.sol";
 
 abstract contract BaseTranchesPolicy is Constants, ITranchesPolicy {
-    function distributeLoss(uint256 loss, uint96[2] memory assets) external view {
+    function distributeLoss(uint256 loss, uint96[2] memory assets) external pure {
         uint256 juniorTotalAssets = assets[JUNIOR_TRANCHE_INDEX];
         uint256 juniorLoss = juniorTotalAssets >= loss ? loss : juniorTotalAssets;
         assets[JUNIOR_TRANCHE_INDEX] = uint96(assets[JUNIOR_TRANCHE_INDEX] - juniorLoss);
@@ -16,7 +16,7 @@ abstract contract BaseTranchesPolicy is Constants, ITranchesPolicy {
         uint256 lossRecovery,
         uint96[2] memory assets,
         uint96[2] memory losses
-    ) external view {
+    ) external pure {
         uint96 seniorLoss = losses[SENIOR_TRANCHE_INDEX];
         uint256 seniorLossRecovery = lossRecovery >= seniorLoss ? seniorLoss : lossRecovery;
         if (seniorLossRecovery > 0) {
