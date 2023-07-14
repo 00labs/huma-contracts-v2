@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {Constants} from "./Constants.sol";
+import "./Constants.sol";
 import {IERC20MetadataUpgradeable, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {TrancheVaultStorage} from "./TrancheVaultStorage.sol";
 import {IEpoch, EpochInfo} from "./interfaces/IEpoch.sol";
@@ -11,7 +11,7 @@ import {PoolConfig} from "./PoolConfig.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
 
-contract TrancheVault is Constants, ERC20Upgradeable, TrancheVaultStorage, IEpoch {
+contract TrancheVault is ERC20Upgradeable, TrancheVaultStorage, IEpoch {
     constructor() {
         _disableInitializers();
     }

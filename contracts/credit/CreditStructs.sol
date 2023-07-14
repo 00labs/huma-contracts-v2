@@ -1,14 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
+import {CalendarUnit} from "../SharedDefs.sol";
+
+// a CreditConfig is created after approval
 struct CreditConfig {
-    uint8 periodType;
+    CalendarUnit calendarUnit;
     uint8 periodDuration;
     uint16 numOfPeriods; // number of periods
-    uint16 yieldInBps;
+    uint16 apyInBps;
+    bool revolving;
     uint96 creditLimit;
+    address borrower;
 }
 
+// a CreditRecord is created after the first drawdown
 struct CreditRecord {
     uint96 unbilledPrincipal;
     uint64 nextDueDate; // the due date of the next payment
@@ -25,9 +31,14 @@ struct CreditProfit {
     uint64 lastProfitUpdateDate;
 }
 
-struct CreditLoss{
+struct CreditLoss {
     uint96 totalAccruedLoss;
     uint64 lastLossUpdateDate;
+}
+
+struct LimitAndCommitment {
+    uint96 creditLimit;
+    uint96 creditCommitment;
 }
 
 enum CreditState {

@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
+import {CalendarUnit} from "./SharedDefs.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 //import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {IERC20, IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import {Constants} from "./Constants.sol";
+import "./Constants.sol";
 
 //import "./HDT/HDT.sol";
 import "./HumaConfig.sol";
@@ -14,11 +15,6 @@ import "./HumaConfig.sol";
 import "./Errors.sol";
 
 import "hardhat/console.sol";
-
-enum CalendarUnit {
-    Day,
-    SemiMonth // half a month.
-}
 
 struct PoolSettings {
     // calendarType and numPerPeriod are used together to measure the duration
@@ -76,13 +72,16 @@ struct FirstLossCover {
     uint96 coverCap;
 }
 
-struct FeeStructure {
+struct FrontLoadingFeesStructure {
     /// Part of platform fee, charged as a flat amount when a borrow happens
     uint96 frontLoadingFeeFlat;
     /// Part of platform fee, charged as a % of the borrowing amount when a borrow happens
-    uint96 frontLoadingFeeBps;
+    uint16 frontLoadingFeeBps;
+}
+
+struct FeeStructure {
     // Expected yield in basis points
-    uint16 yieldInBps;
+    uint16 apyInBps;
     ///The min % of the outstanding principal to be paid in the statement for each each period
     uint16 minPrincipalRateInBps;
     /// Part of late fee, charged as a flat amount when a payment is late
@@ -141,6 +140,7 @@ contract PoolConfig is Ownable {
     PoolSettings public poolSettings;
     LPConfig internal _lpConfig;
     FirstLossCover internal _firstLossCover;
+    FrontLoadingFeesStructure public frontFees;
     FeeStructure public feeStructure;
 
     AccruedIncome public accuredIncome;
@@ -326,12 +326,12 @@ contract PoolConfig is Ownable {
 
     /**
      * @notice change the default APR for the pool
-     * @param _yieldInBps expected yield in basis points, use 500 for 5%
+     * @param _apyInBps expected yield in basis points, use 500 for 5%
      */
-    function setYield(uint256 _yieldInBps) external {
+    function setYield(uint256 _apyInBps) external {
         _onlyOwnerOrHumaMasterAdmin();
-        feeStructure.yieldInBps = uint16(_yieldInBps);
-        emit YieldChanged(_yieldInBps, msg.sender);
+        feeStructure.apyInBps = uint16(_apyInBps);
+        emit YieldChanged(_apyInBps, msg.sender);
     }
 
     function setCreditApprovalExpiration(uint256 durationInDays) external {
@@ -628,7 +628,7 @@ contract PoolConfig is Ownable {
         IERC20Metadata erc20Contract = IERC20Metadata(address(underlyingToken));
         return (
             address(underlyingToken),
-            feeStructure.yieldInBps,
+            feeStructure.apyInBps,
             poolSettings.payPeriodInCalendarUnit,
             poolSettings.maxCreditLine,
             _lpConfig.liquidityCap,
@@ -714,5 +714,25 @@ contract PoolConfig is Ownable {
     /// "Modifier" function that limits access to pool owner or Huma protocol owner
     function _onlyOwnerOrHumaMasterAdmin() internal view {
         onlyOwnerOrHumaMasterAdmin(msg.sender);
+    }
+
+    function getFrontLoadingFee() external view returns (uint256, uint256) {
+        return (frontFees.frontLoadingFeeFlat, frontFees.frontLoadingFeeBps);
+    }
+
+    /**
+     * @notice Gets the fee structure for the pool
+     */
+    function getFees()
+        external
+        view
+        virtual
+        returns (uint256 _lateFeeFlat, uint256 _lateFeeBps, uint256 _membershipFee)
+    {
+        return (feeStructure.lateFeeFlat, feeStructure.lateFeeBps, feeStructure.membershipFee);
+    }
+
+    function getMinPrincipalRateInBps() external view virtual returns (uint256 _minPrincipalRate) {
+        return feeStructure.minPrincipalRateInBps;
     }
 }

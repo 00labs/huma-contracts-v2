@@ -5,7 +5,7 @@ import {IPool} from "./interfaces/IPool.sol";
 import {PoolConfig, LPConfig} from "./PoolConfig.sol";
 import {IEpoch, EpochInfo} from "./interfaces/IEpoch.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
-import {Constants} from "./Constants.sol";
+import "./Constants.sol";
 import {IEpochManager} from "./interfaces/IEpochManager.sol";
 import {Errors} from "./Errors.sol";
 
@@ -21,7 +21,7 @@ interface ITrancheVaultLike {
     ) external;
 }
 
-contract EpochManager is Constants, IEpochManager {
+contract EpochManager is IEpochManager {
     struct TrancheProcessedResult {
         uint256 count;
         uint256 shares;

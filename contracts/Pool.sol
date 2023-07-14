@@ -7,11 +7,11 @@ import {ITranchesPolicy} from "./interfaces/ITranchesPolicy.sol";
 import {ICredit} from "./credit/interfaces/ICredit.sol";
 import {ILossCoverer} from "./interfaces/ILossCoverer.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
-import {Constants} from "./Constants.sol";
+import "./Constants.sol";
 import {PoolConfig} from "./PoolConfig.sol";
 import {Errors} from "./Errors.sol";
 
-contract Pool is Constants, IPool {
+contract Pool is IPool {
     struct FeeInfo {
         uint96 protocolFee;
         uint96 ownerFee;

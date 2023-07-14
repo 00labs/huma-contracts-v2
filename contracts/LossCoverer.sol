@@ -6,10 +6,10 @@ import {ILossCoverer} from "./interfaces/ILossCoverer.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
 import {PoolConfig, LPConfig, FirstLossCover} from "./PoolConfig.sol";
-import {Constants} from "./Constants.sol";
+import "./Constants.sol";
 import {Errors} from "./Errors.sol";
 
-contract LossCoverer is Constants, ILossCoverer {
+contract LossCoverer is ILossCoverer {
     PoolConfig public poolConfig;
     IPool public pool;
     IPoolVault public poolVault;
