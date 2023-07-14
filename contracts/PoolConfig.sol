@@ -106,12 +106,7 @@ struct AccruedWithdrawn {
 
 //contract PoolConfig is Ownable, Initializable {
 contract PoolConfig is Ownable {
-    uint256 public constant SENIOR_TRANCHE_INDEX = 0;
-    uint256 public constant JUNIOR_TRANCHE_INDEX = 1;
-    uint256 private constant HUNDRED_PERCENT_IN_BPS = 10000;
-    uint256 private constant SECONDS_IN_A_DAY = 1 days;
-    uint256 private constant SECONDS_IN_180_DAYS = 180 days;
-    uint256 private constant WITHDRAWAL_LOCKOUT_PERIOD_IN_SECONDS = SECONDS_IN_180_DAYS;
+    uint256 constant WITHDRAWAL_LOCKOUT_PERIOD_IN_SECONDS = SECONDS_IN_180_DAYS;
 
     //using SafeERC20 for IERC20;
 

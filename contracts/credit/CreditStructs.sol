@@ -20,7 +20,7 @@ struct CreditRecord {
     uint64 nextDueDate; // the due date of the next payment
     uint96 totalDue; // the due amount of the next payment
     uint96 feesAndInterestDue; // interest and fees due for the next payment
-    uint16 missedPeriod;
+    uint16 missedPeriods;
     uint16 remainingPeriods;
     CreditState state;
     address borrower;
