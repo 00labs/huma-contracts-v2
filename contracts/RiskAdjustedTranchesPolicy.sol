@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import {BaseTranchesPolicy} from "./BaseTranchesPolicy.sol";
 import {PoolConfig, LPConfig} from "./PoolConfig.sol";
 import {Errors} from "./Errors.sol";
+import "./Constants.sol";
 
 /**
  * @notice RiskAdjustedWaterfallPolicy is one tranche policy implementation. In this policy,

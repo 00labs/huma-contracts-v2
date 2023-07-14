@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {CreditConfig, CreditRecord} from "./CreditStructs.sol";
+import {CreditConfig, CreditRecord, LimitAndCommitment} from "./CreditStructs.sol";
 import {PoolConfig} from "../PoolConfig.sol";
 
 contract BaseCreditStorage {
@@ -10,7 +10,7 @@ contract BaseCreditStorage {
     uint256 public totalAccruedLossRecovery;
 
     /// mapping from borrower to the credit limit at borrower-level
-    mapping(address => uint96) internal _borrowerCreditLimitMap;
+    mapping(address => LimitAndCommitment) internal _borrowerLimitMap;
     /// mapping from credit id to the credit config
     mapping(bytes32 => CreditConfig) internal _creditConfigMap;
     /// mapping from credit id to the credit record

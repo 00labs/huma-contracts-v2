@@ -29,6 +29,7 @@ contract Errors {
     error drawdownFunctionUsedInsteadofDrawdownWithReceivable(); // 0x7e737537
     error notNFTOwner(); // 0x091a5762
     error notProcessor(); // 0x90409ca1
+    error notBorrower();
 
     // system config
     error defaultGracePeriodLessThanMinAllowed(); // 0xa733ff9c
@@ -66,6 +67,8 @@ contract Errors {
     error paymentIdNotUnderReview(); // 0xd1696aaa
     error creditLineTooHigh(); // 0x552b8377
     error creditLineOutstanding(); // 0xc64e338c
+    error creditLineNotInStateForUpdate();
+    error creditLineHasOutstandingBalance();
 
     // pool operation
     error exceededPoolLiquidityCap(); // 0x5642ebd4
@@ -91,4 +94,7 @@ contract Errors {
     error flowIsNotTerminated(); // 0xe9c5922f
     error invalidSuperfluidCallback(); // 0xd2747f83
     error invalidSuperfluidAction(); // 0x2f2cd9e9
+
+    error invalidCalendarUnit();
+    error zeroPayPeriods();
 }

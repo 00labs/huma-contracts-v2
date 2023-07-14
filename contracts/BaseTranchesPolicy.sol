@@ -2,9 +2,9 @@
 pragma solidity ^0.8.0;
 
 import {ITranchesPolicy} from "./interfaces/ITranchesPolicy.sol";
-import {Constants} from "./Constants.sol";
+import "./Constants.sol";
 
-abstract contract BaseTranchesPolicy is Constants, ITranchesPolicy {
+abstract contract BaseTranchesPolicy is ITranchesPolicy {
     function distributeLoss(uint256 loss, uint96[2] memory assets) external pure {
         uint256 juniorTotalAssets = assets[JUNIOR_TRANCHE_INDEX];
         uint256 juniorLoss = juniorTotalAssets >= loss ? loss : juniorTotalAssets;
