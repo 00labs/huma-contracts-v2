@@ -82,12 +82,12 @@ contract BaseCredit is BaseCreditStorage, ICredit {
     );
     /**
      * @notice The expiration (maturity) date of a credit line has been extended.
-     * @param borrower the address of the borrower
+     * @param creditHash the credit hash
      * @param numOfPeriods the number of pay periods to be extended
      * @param remainingPeriods the remaining number of pay periods after the extension
      */
     event CreditLineExtended(
-        address indexed borrower,
+        bytes32 indexed creditHash,
         uint256 numOfPeriods,
         uint256 remainingPeriods,
         address by
@@ -261,17 +261,17 @@ contract BaseCredit is BaseCreditStorage, ICredit {
      */
     function extendCreditLineDuration(bytes32 creditHash, uint256 numOfPeriods) external virtual {
         onlyEAServiceAccount();
-        // // Although it is not essential to call _updateDueInfo() to extend the credit line duration
-        // // it is good practice to bring the account current while we update one of the fields.
-        // // Also, only if we call _updateDueInfo(), we can write proper tests.
-        // _updateDueInfo(borrower, false, true);
-        // _creditRecordMap[borrower].remainingPeriods += uint16(numOfPeriods);
-        // emit CreditLineExtended(
-        //     creditHash,
-        //     numOfPeriods,
-        //     _creditRecordMap[borrower].remainingPeriods,
-        //     msg.sender
-        // );
+        // Although it is not essential to call _updateDueInfo() to extend the credit line duration
+        // it is good practice to bring the account current while we update one of the fields.
+        // Also, only if we call _updateDueInfo(), we can write proper tests.
+        _updateDueInfo(creditHash, false);
+        _creditRecordMap[creditHash].remainingPeriods += uint16(numOfPeriods);
+        emit CreditLineExtended(
+            creditHash,
+            numOfPeriods,
+            _creditRecordMap[creditHash].remainingPeriods,
+            msg.sender
+        );
     }
 
     /**
@@ -307,10 +307,9 @@ contract BaseCredit is BaseCreditStorage, ICredit {
      * and cognitive load to _updateDueInfo(...).
      */
     function refreshCredit(bytes32 creditHash) external virtual returns (CreditRecord memory cr) {
-        // if (_creditRecordMap[borrower].state != BS.CreditState.Defaulted) {
-        //     if (isDefaultReady(borrower)) return _updateDueInfo(borrower, false, false);
-        //     else return _updateDueInfo(borrower, false, true);
-        // }
+        if (_creditRecordMap[creditHash].state != CreditState.Defaulted) {
+            return _updateDueInfo(creditHash, false);
+        }
     }
 
     /**
@@ -319,7 +318,7 @@ contract BaseCredit is BaseCreditStorage, ICredit {
      * @dev It is possible for the borrower to payback even after default, especially in
      * receivable factoring cases.
      */
-    function triggerDefault(address borrower) external virtual returns (uint256 losses) {
+    function triggerDefault(bytes32 creditHash) external virtual returns (uint256 losses) {
         _protocolAndPoolOn();
 
         // // check to make sure the default grace period has passed.
@@ -369,7 +368,7 @@ contract BaseCredit is BaseCreditStorage, ICredit {
     function isDefaultReady(bytes32 creditHash) public view virtual returns (bool isDefault) {
         // uint16 intervalInDays = _creditRecordStaticMap[creditHash].intervalInDays;
         // return
-        //     _creditRecordMap[borrower].missedPeriods * intervalInDays * SECONDS_IN_A_DAY >
+        //     _creditRecordMap[creditHash].missedPeriods * intervalInDays * SECONDS_IN_A_DAY >
         //         _poolConfig.poolDefaultGracePeriodInSeconds()
         //         ? true
         //         : false;
@@ -383,12 +382,12 @@ contract BaseCredit is BaseCreditStorage, ICredit {
      // date is in the future, but if the bill refresh has set missedPeriods, the account is late.
      */
     function isLate(bytes32 creditHash) external view virtual returns (bool lateFlag) {
-        // return
-        //     (_creditRecordMap[creditHash].state > CreditState.Approved &&
-        //         (_creditRecordMap[creditHash].missedPeriods > 0 ||
-        //             block.timestamp > _creditRecordMap[creditHash].nextDueDate))
-        //         ? true
-        //         : false;
+        return
+            (_creditRecordMap[creditHash].state > CreditState.Approved &&
+                (_creditRecordMap[creditHash].missedPeriods > 0 ||
+                    block.timestamp > _creditRecordMap[creditHash].nextDueDate))
+                ? true
+                : false;
     }
 
     function _approveCredit(
