@@ -132,7 +132,7 @@ contract PoolConfig is Ownable {
 
     uint256 public evaluationAgentId;
 
-    PoolSettings public poolSettings;
+    PoolSettings internal _poolSettings;
     LPConfig internal _lpConfig;
     FirstLossCover internal _firstLossCover;
     FrontLoadingFeesStructure public frontFees;
@@ -234,7 +234,7 @@ contract PoolConfig is Ownable {
         // these values when setting up the pools. Setting these default values to avoid
         // strange behaviors when the pool owner missed setting up these configurations.
         // _liquidityCap, _maxCreditLine, _creditApprovalExpirationInSeconds are left at 0.
-        PoolSettings memory _pSettings = poolSettings;
+        PoolSettings memory _pSettings = _poolSettings;
         _pSettings.calendarUnit = CalendarUnit.SemiMonth;
         _pSettings.payPeriodInCalendarUnit = 2; // 1 month
         _pSettings.receivableRequiredInBps = 10000; // 100%
@@ -277,11 +277,11 @@ contract PoolConfig is Ownable {
 
         uint256 valueForPool = value - protocolFee;
 
-        uint256 ownerIncome = (valueForPool * poolSettings.rewardRateInBpsForPoolOwner) /
+        uint256 ownerIncome = (valueForPool * _poolSettings.rewardRateInBpsForPoolOwner) /
             HUNDRED_PERCENT_IN_BPS;
         tempIncome.poolOwnerIncome += uint96(ownerIncome);
 
-        uint256 eaIncome = (valueForPool * poolSettings.rewardRateInBpsForEA) /
+        uint256 eaIncome = (valueForPool * _poolSettings.rewardRateInBpsForEA) /
             HUNDRED_PERCENT_IN_BPS;
         tempIncome.eaIncome += uint96(eaIncome);
 
@@ -304,11 +304,11 @@ contract PoolConfig is Ownable {
 
         uint256 valueForPool = value - protocolFee;
 
-        uint256 ownerIncome = (valueForPool * poolSettings.rewardRateInBpsForPoolOwner) /
+        uint256 ownerIncome = (valueForPool * _poolSettings.rewardRateInBpsForPoolOwner) /
             HUNDRED_PERCENT_IN_BPS;
         tempIncome.poolOwnerIncome -= uint96(ownerIncome);
 
-        uint256 eaIncome = (valueForPool * poolSettings.rewardRateInBpsForEA) /
+        uint256 eaIncome = (valueForPool * _poolSettings.rewardRateInBpsForEA) /
             HUNDRED_PERCENT_IN_BPS;
         tempIncome.eaIncome -= uint96(eaIncome);
 
@@ -331,7 +331,7 @@ contract PoolConfig is Ownable {
 
     function setCreditApprovalExpiration(uint256 durationInDays) external {
         _onlyOwnerOrHumaMasterAdmin();
-        poolSettings.creditApprovalExpirationInDays = uint16(durationInDays);
+        _poolSettings.creditApprovalExpirationInDays = uint16(durationInDays);
         emit CreditApprovalExpirationChanged(durationInDays, msg.sender);
     }
 
@@ -340,8 +340,8 @@ contract PoolConfig is Ownable {
 
         if (rewardsRate > HUNDRED_PERCENT_IN_BPS || liquidityRate > HUNDRED_PERCENT_IN_BPS)
             revert Errors.invalidBasisPointHigherThan10000();
-        poolSettings.rewardRateInBpsForEA = uint16(rewardsRate);
-        poolSettings.liquidityRateInBpsByEA = uint16(liquidityRate);
+        _poolSettings.rewardRateInBpsForEA = uint16(rewardsRate);
+        _poolSettings.liquidityRateInBpsByEA = uint16(liquidityRate);
         emit EARewardsAndLiquidityChanged(rewardsRate, liquidityRate, msg.sender);
     }
 
@@ -402,7 +402,7 @@ contract PoolConfig is Ownable {
         _onlyOwnerOrHumaMasterAdmin();
         if (creditLine == 0) revert Errors.zeroAmountProvided();
         if (creditLine >= 2 ** 96) revert Errors.creditLineTooHigh();
-        poolSettings.maxCreditLine = uint96(creditLine);
+        _poolSettings.maxCreditLine = uint96(creditLine);
         emit MaxCreditLineChanged(creditLine, msg.sender);
     }
 
@@ -419,8 +419,8 @@ contract PoolConfig is Ownable {
      */
     function setPoolDefaultGracePeriod(CalendarUnit unit, uint256 gracePeriod) external {
         _onlyOwnerOrHumaMasterAdmin();
-        if (unit != poolSettings.calendarUnit) revert();
-        poolSettings.defaultGracePeriodInCalendarUnit = uint16(gracePeriod);
+        if (unit != _poolSettings.calendarUnit) revert();
+        _poolSettings.defaultGracePeriodInCalendarUnit = uint16(gracePeriod);
         emit PoolDefaultGracePeriodChanged(gracePeriod, msg.sender);
     }
 
@@ -440,18 +440,18 @@ contract PoolConfig is Ownable {
         if (rewardsRate > HUNDRED_PERCENT_IN_BPS || liquidityRate > HUNDRED_PERCENT_IN_BPS)
             revert Errors.invalidBasisPointHigherThan10000();
 
-        poolSettings.rewardRateInBpsForPoolOwner = uint16(rewardsRate);
-        poolSettings.liquidityRateInBpsByPoolOwner = uint16(liquidityRate);
+        _poolSettings.rewardRateInBpsForPoolOwner = uint16(rewardsRate);
+        _poolSettings.liquidityRateInBpsByPoolOwner = uint16(liquidityRate);
         emit PoolOwnerRewardsAndLiquidityChanged(rewardsRate, liquidityRate, msg.sender);
     }
 
     function setPoolPayPeriod(CalendarUnit unit, uint256 number) external {
         _onlyOwnerOrHumaMasterAdmin();
         if (number == 0) revert Errors.zeroAmountProvided();
-        PoolSettings memory _settings = poolSettings;
+        PoolSettings memory _settings = _poolSettings;
         _settings.calendarUnit = unit;
         _settings.payPeriodInCalendarUnit = uint16(number);
-        poolSettings = _settings;
+        _poolSettings = _settings;
         //emit PoolPayPeriodChanged(unit, number, msg.sender);
     }
 
@@ -490,7 +490,7 @@ contract PoolConfig is Ownable {
     function setReceivableRequiredInBps(uint256 receivableInBps) external {
         _onlyOwnerOrHumaMasterAdmin();
         // note: this rate can be over 10000 when it requires more backing than the credit limit
-        poolSettings.receivableRequiredInBps = uint16(receivableInBps);
+        _poolSettings.receivableRequiredInBps = uint16(receivableInBps);
         emit ReceivableRequiredInBpsChanged(receivableInBps, msg.sender);
     }
 
@@ -500,7 +500,7 @@ contract PoolConfig is Ownable {
      */
     function setWithdrawalLockoutPeriod(CalendarUnit unit, uint256 lockoutPeriod) external {
         _onlyOwnerOrHumaMasterAdmin();
-        if (unit != poolSettings.calendarUnit) revert();
+        if (unit != _poolSettings.calendarUnit) revert();
         _lpConfig.withdrawalLockoutInCalendarUnit = uint16(lockoutPeriod);
         emit WithdrawalLockoutPeriodChanged(lockoutPeriod, msg.sender);
     }
@@ -567,7 +567,7 @@ contract PoolConfig is Ownable {
     function checkLiquidityRequirementForPoolOwner(uint256 balance) public view {
         if (
             balance <
-            (_lpConfig.liquidityCap * poolSettings.liquidityRateInBpsByPoolOwner) /
+            (_lpConfig.liquidityCap * _poolSettings.liquidityRateInBpsByPoolOwner) /
                 HUNDRED_PERCENT_IN_BPS
         ) revert Errors.poolOwnerNotEnoughLiquidity();
     }
@@ -575,7 +575,8 @@ contract PoolConfig is Ownable {
     function checkLiquidityRequirementForEA(uint256 balance) public view {
         if (
             balance <
-            (_lpConfig.liquidityCap * poolSettings.liquidityRateInBpsByEA) / HUNDRED_PERCENT_IN_BPS
+            (_lpConfig.liquidityCap * _poolSettings.liquidityRateInBpsByEA) /
+                HUNDRED_PERCENT_IN_BPS
         ) revert Errors.evaluationAgentNotEnoughLiquidity();
     }
 
@@ -624,8 +625,8 @@ contract PoolConfig is Ownable {
         return (
             address(underlyingToken),
             feeStructure.apyInBps,
-            poolSettings.payPeriodInCalendarUnit,
-            poolSettings.maxCreditLine,
+            _poolSettings.payPeriodInCalendarUnit,
+            _poolSettings.maxCreditLine,
             _lpConfig.liquidityCap,
             erc20Contract.name(),
             erc20Contract.symbol(),
@@ -647,6 +648,10 @@ contract PoolConfig is Ownable {
         return _lossCoverers;
     }
 
+    function getPoolSettings() external view returns (PoolSettings memory) {
+        return _poolSettings;
+    }
+
     function isPoolOwnerTreasuryOrEA(address account) public view returns (bool) {
         return (account == poolOwnerTreasury || account == evaluationAgent);
     }
@@ -660,13 +665,15 @@ contract PoolConfig is Ownable {
         if (account != owner()) revert Errors.notPoolOwner();
     }
 
-    function onlyPoolOwnerTreasury(address account) public view {
+    function onlyPoolOwnerTreasury(address account) public view returns (address) {
         if (account != poolOwnerTreasury) revert Errors.notPoolOwnerTreasury();
+        return poolOwnerTreasury;
     }
 
     /// "Modifier" function that limits access to pool owner or EA.
-    function onlyPoolOwnerOrEA(address account) public view {
+    function onlyPoolOwnerOrEA(address account) public view returns (address) {
         if (account != owner() && account != evaluationAgent) revert Errors.notPoolOwnerOrEA();
+        return evaluationAgent;
     }
 
     /// "Modifier" function that limits access to pool owner treasury or EA.

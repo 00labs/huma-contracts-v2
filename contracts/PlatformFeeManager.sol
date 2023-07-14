@@ -1,33 +1,120 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-struct FeeInfo {
-    uint96 protocolFee;
-    uint96 ownerFee;
-    // todo add eaFee and firstLossCoverFee
-}
+import "./Constants.sol";
+import {PoolConfig, PoolSettings} from "./PoolConfig.sol";
+import {IPoolVault} from "./interfaces/IPoolVault.sol";
+import {HumaConfig} from "./HumaConfig.sol";
+import {Errors} from "./Errors.sol";
 
 contract PlatformFeeManager {
-    // :Add functions to configure rate for pool owner, ea, and first loss cover
+    struct AccruedIncomes {
+        uint96 protocolIncome;
+        uint96 poolOwnerIncome;
+        uint96 eaIncome;
+    }
+
+    PoolConfig public poolConfig;
+    HumaConfig public humaConfig;
+    IPoolVault public poolVault;
+
+    AccruedIncomes internal _accruedIncomes;
+    uint256 public protocolIncomeWithdrawn;
+    uint256 public poolOwnerIncomeWithdrawn;
+    uint256 public eaIncomeWithdrawn;
+
+    // TODO permission
+    function setPoolConfig(PoolConfig _poolConfig) external {
+        poolConfig = _poolConfig;
+
+        address addr = _poolConfig.poolVault();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        poolVault = IPoolVault(addr);
+
+        addr = address(_poolConfig.humaConfig());
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        humaConfig = HumaConfig(addr);
+    }
+
+    // TODO migration function
 
     function distributePlatformFees(uint256 profit) external {
-        // calculate fees and tranches assets
-        uint96[] memory fees = _getProfitDistribution(profit);
+        (AccruedIncomes memory incomes, ) = _getPlatformFees(profit);
+        AccruedIncomes memory accruedIncomes = _accruedIncomes;
 
-        // :reference v1 contract
+        accruedIncomes.protocolIncome += incomes.protocolIncome;
+        accruedIncomes.poolOwnerIncome += incomes.poolOwnerIncome;
+        accruedIncomes.eaIncome += incomes.eaIncome;
+
+        _accruedIncomes = accruedIncomes;
     }
 
-    function getRemaining(uint256 profit) external view returns (uint256 remaining) {}
-
-    function _getProfitDistribution(uint256 profit) internal view returns (uint96[] memory fees) {
-        // calculate fees
-        uint256[] memory feeParams = new uint256[](3);
-        feeParams[0] = profit;
-        (uint256 protocolFee, uint256 ownerFee, uint256 remaining) = (0, 0, 0); //feeManager.calculateFees(feeParams);
-        fees[0] = uint96(protocolFee);
-        fees[1] = uint96(ownerFee);
-        // :Need to support eaFee and firstLossCoverFee.
+    function getRemainingAfterPlatformFees(
+        uint256 profit
+    ) external view returns (uint256 remaining) {
+        (, remaining) = _getPlatformFees(profit);
     }
 
-    // :Reference v1 contracts and add functions for the admin accounts to withdraw their fees
+    function withdrawProtocolFee(uint256 amount) external {
+        if (msg.sender != humaConfig.owner()) revert Errors.notProtocolOwner();
+
+        AccruedIncomes memory incomes = _accruedIncomes;
+        uint256 incomeWithdrawn = protocolIncomeWithdrawn;
+        if (amount + incomeWithdrawn > incomes.protocolIncome)
+            revert Errors.withdrawnAmountHigherThanBalance();
+        protocolIncomeWithdrawn = incomeWithdrawn + amount;
+
+        address treasuryAddress = humaConfig.humaTreasury();
+        // It is possible that Huma protocolTreasury is missed in the setup. If that happens,
+        // the transaction is reverted. The protocol owner can still withdraw protocol fee
+        // after protocolTreasury is configured in HumaConfig.
+        assert(treasuryAddress != address(0));
+
+        poolVault.withdrawFees(treasuryAddress, amount);
+    }
+
+    function withdrawPoolOwnerFee(uint256 amount) external {
+        address treasury = poolConfig.onlyPoolOwnerTreasury(msg.sender);
+        if (amount == 0) revert Errors.zeroAmountProvided();
+        AccruedIncomes memory incomes = _accruedIncomes;
+        uint256 incomeWithdrawn = poolOwnerIncomeWithdrawn;
+        if (amount + incomeWithdrawn > incomes.poolOwnerIncome)
+            revert Errors.withdrawnAmountHigherThanBalance();
+
+        poolOwnerIncomeWithdrawn = incomeWithdrawn + amount;
+        poolVault.withdrawFees(treasury, amount);
+    }
+
+    function withdrawEAFee(uint256 amount) external {
+        // Either Pool owner or EA can trigger reward withdraw for EA.
+        // When it is triggered by pool owner, the fund still flows to the EA's account.
+        address treasury = poolConfig.onlyPoolOwnerOrEA(msg.sender);
+        if (amount == 0) revert Errors.zeroAmountProvided();
+        AccruedIncomes memory incomes = _accruedIncomes;
+        uint256 incomeWithdrawn = eaIncomeWithdrawn;
+        if (amount + incomeWithdrawn > incomes.eaIncome)
+            revert Errors.withdrawnAmountHigherThanBalance();
+
+        eaIncomeWithdrawn = incomeWithdrawn + amount;
+        poolVault.withdrawFees(treasury, amount);
+    }
+
+    function _getPlatformFees(
+        uint256 profit
+    ) internal view returns (AccruedIncomes memory incomes, uint256 remaining) {
+        PoolSettings memory settings = poolConfig.getPoolSettings();
+
+        uint256 income = (humaConfig.protocolFee() * profit) / HUNDRED_PERCENT_IN_BPS;
+        incomes.protocolIncome = uint96(income);
+
+        remaining = profit - income;
+
+        income = (remaining * settings.rewardRateInBpsForPoolOwner) / HUNDRED_PERCENT_IN_BPS;
+        incomes.poolOwnerIncome = uint96(income);
+
+        income = (remaining * settings.rewardRateInBpsForEA) / HUNDRED_PERCENT_IN_BPS;
+        incomes.eaIncome = uint96(income);
+
+        remaining -= incomes.poolOwnerIncome + incomes.eaIncome;
+    }
 }
