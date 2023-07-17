@@ -7,10 +7,15 @@ import {PoolConfig} from "./PoolConfig.sol";
 import {Errors} from "./Errors.sol";
 
 contract PoolVault is IPoolVault {
+    struct Reserves {
+        uint96 forRedemption;
+        uint96 forPlatformFees;
+    }
+
     PoolConfig public poolConfig;
     IERC20 public asset;
 
-    uint256 public reserveAssets;
+    Reserves public reserves;
 
     // TODO permission
     function setPoolConfig(PoolConfig _poolConfig) external {
@@ -30,17 +35,36 @@ contract PoolVault is IPoolVault {
         asset.transfer(to, amount);
     }
 
-    function setReserveAssets(uint256 assets) external {
-        reserveAssets = assets;
+    function addPlatformFeesReserve(uint256 reserve) external {
+        Reserves memory rs = reserves;
+        reserves.forPlatformFees += uint96(reserve);
+        reserves = rs;
+    }
+
+    function withdrawFees(address to, uint256 amount) external {
+        Reserves memory rs = reserves;
+        reserves.forPlatformFees -= uint96(amount);
+        reserves = rs;
+        asset.transfer(to, amount);
+    }
+
+    function setRedemptionReserve(uint256 reserve) external {
+        Reserves memory rs = reserves;
+        reserves.forRedemption = uint96(reserve);
+        reserves = rs;
     }
 
     function getAvailableLiquidity() external view returns (uint256 assets) {
         assets = asset.balanceOf(address(this));
-        assets = assets > reserveAssets ? assets - reserveAssets : 0;
+        Reserves memory rs = reserves;
+        uint256 reserve = rs.forRedemption + rs.forPlatformFees;
+        assets = assets > reserve ? assets - reserve : 0;
     }
 
     function getAvailableReservation() external view returns (uint256 assets) {
         assets = asset.balanceOf(address(this));
-        assets = assets < reserveAssets ? assets : reserveAssets;
+        Reserves memory rs = reserves;
+        uint256 reserve = rs.forRedemption + rs.forPlatformFees;
+        assets = assets < reserve ? assets : reserve;
     }
 }

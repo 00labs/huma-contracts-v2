@@ -197,7 +197,7 @@ contract Pool is IPool {
         trancheAssets = [ti.seniorTotalAssets, ti.juniorTotalAssets];
 
         if (profit > 0) {
-            uint256 remaining = feeManager.getRemaining(profit);
+            uint256 remaining = feeManager.getRemainingAfterPlatformFees(profit);
             if (remaining > 0) {
                 tranchesPolicy.distributeProfit(remaining, trancheAssets, ti.lastUpdatedTime);
             }
@@ -215,7 +215,7 @@ contract Pool is IPool {
     }
 
     function submitRedemptionRequest(uint256 amounts) external {
-        poolVault.setReserveAssets(amounts);
+        poolVault.setRedemptionReserve(amounts);
 
         // :handle redemption request for flex loan
     }
