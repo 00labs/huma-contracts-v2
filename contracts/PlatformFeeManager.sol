@@ -4,10 +4,11 @@ pragma solidity ^0.8.0;
 import "./Constants.sol";
 import {PoolConfig, PoolSettings} from "./PoolConfig.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
+import {IPlatformFeeManager} from "./interfaces/IPlatformFeeManager.sol";
 import {HumaConfig} from "./HumaConfig.sol";
 import {Errors} from "./Errors.sol";
 
-contract PlatformFeeManager {
+contract PlatformFeeManager is IPlatformFeeManager {
     struct AccruedIncomes {
         uint96 protocolIncome;
         uint96 poolOwnerIncome;
@@ -22,6 +23,17 @@ contract PlatformFeeManager {
     uint256 public protocolIncomeWithdrawn;
     uint256 public poolOwnerIncomeWithdrawn;
     uint256 public eaIncomeWithdrawn;
+
+    event IncomeDistributed(
+        uint256 protocolFee,
+        uint256 ownerIncome,
+        uint256 eaIncome,
+        uint256 poolIncome
+    );
+
+    event PoolRewardsWithdrawn(address receiver, uint256 amount, address by);
+    event ProtocolRewardsWithdrawn(address receiver, uint256 amount, address by);
+    event EvaluationAgentRewardsWithdrawn(address receiver, uint256 amount, address by);
 
     // TODO permission
     function setPoolConfig(PoolConfig _poolConfig) external {
@@ -38,8 +50,8 @@ contract PlatformFeeManager {
 
     // TODO migration function
 
-    function distributePlatformFees(uint256 profit) external {
-        (AccruedIncomes memory incomes, ) = _getPlatformFees(profit);
+    function distributePlatformFees(uint256 profit) external returns (uint256) {
+        (AccruedIncomes memory incomes, uint256 remaining) = _getPlatformFees(profit);
         AccruedIncomes memory accruedIncomes = _accruedIncomes;
 
         accruedIncomes.protocolIncome += incomes.protocolIncome;
@@ -47,6 +59,18 @@ contract PlatformFeeManager {
         accruedIncomes.eaIncome += incomes.eaIncome;
 
         _accruedIncomes = accruedIncomes;
+        poolVault.addPlatformFeesReserve(
+            incomes.protocolIncome + incomes.poolOwnerIncome + incomes.eaIncome
+        );
+
+        emit IncomeDistributed(
+            incomes.protocolIncome,
+            incomes.poolOwnerIncome,
+            incomes.eaIncome,
+            remaining
+        );
+
+        return remaining;
     }
 
     function getRemainingAfterPlatformFees(
@@ -55,48 +79,87 @@ contract PlatformFeeManager {
         (, remaining) = _getPlatformFees(profit);
     }
 
-    function withdrawProtocolFee(uint256 amount) external {
+    function withdrawProtocolFee() external {
         if (msg.sender != humaConfig.owner()) revert Errors.notProtocolOwner();
-
         AccruedIncomes memory incomes = _accruedIncomes;
         uint256 incomeWithdrawn = protocolIncomeWithdrawn;
-        if (amount + incomeWithdrawn > incomes.protocolIncome)
-            revert Errors.withdrawnAmountHigherThanBalance();
-        protocolIncomeWithdrawn = incomeWithdrawn + amount;
+        uint256 withdrawable = incomes.protocolIncome < incomeWithdrawn
+            ? 0
+            : incomes.protocolIncome - incomeWithdrawn;
 
-        address treasuryAddress = humaConfig.humaTreasury();
-        // It is possible that Huma protocolTreasury is missed in the setup. If that happens,
-        // the transaction is reverted. The protocol owner can still withdraw protocol fee
-        // after protocolTreasury is configured in HumaConfig.
-        assert(treasuryAddress != address(0));
+        if (withdrawable > 0) {
+            protocolIncomeWithdrawn = incomeWithdrawn + withdrawable;
 
-        poolVault.withdrawFees(treasuryAddress, amount);
+            address treasuryAddress = humaConfig.humaTreasury();
+            // It is possible that Huma protocolTreasury is missed in the setup. If that happens,
+            // the transaction is reverted. The protocol owner can still withdraw protocol fee
+            // after protocolTreasury is configured in HumaConfig.
+            assert(treasuryAddress != address(0));
+
+            poolVault.withdrawFees(treasuryAddress, withdrawable);
+            emit ProtocolRewardsWithdrawn(treasuryAddress, withdrawable, msg.sender);
+        }
     }
 
-    function withdrawPoolOwnerFee(uint256 amount) external {
+    function withdrawPoolOwnerFee() external {
         address treasury = poolConfig.onlyPoolOwnerTreasury(msg.sender);
-        if (amount == 0) revert Errors.zeroAmountProvided();
         AccruedIncomes memory incomes = _accruedIncomes;
         uint256 incomeWithdrawn = poolOwnerIncomeWithdrawn;
-        if (amount + incomeWithdrawn > incomes.poolOwnerIncome)
-            revert Errors.withdrawnAmountHigherThanBalance();
+        uint256 withdrawable = incomes.poolOwnerIncome < incomeWithdrawn
+            ? 0
+            : incomes.poolOwnerIncome - incomeWithdrawn;
 
-        poolOwnerIncomeWithdrawn = incomeWithdrawn + amount;
-        poolVault.withdrawFees(treasury, amount);
+        if (withdrawable > 0) {
+            poolOwnerIncomeWithdrawn = incomeWithdrawn + withdrawable;
+            poolVault.withdrawFees(treasury, withdrawable);
+            emit PoolRewardsWithdrawn(treasury, withdrawable, msg.sender);
+        }
     }
 
-    function withdrawEAFee(uint256 amount) external {
+    function withdrawEAFee() external {
         // Either Pool owner or EA can trigger reward withdraw for EA.
         // When it is triggered by pool owner, the fund still flows to the EA's account.
         address treasury = poolConfig.onlyPoolOwnerOrEA(msg.sender);
-        if (amount == 0) revert Errors.zeroAmountProvided();
         AccruedIncomes memory incomes = _accruedIncomes;
         uint256 incomeWithdrawn = eaIncomeWithdrawn;
-        if (amount + incomeWithdrawn > incomes.eaIncome)
-            revert Errors.withdrawnAmountHigherThanBalance();
+        uint256 withdrawable = incomes.eaIncome < incomeWithdrawn
+            ? 0
+            : incomes.eaIncome - incomeWithdrawn;
 
-        eaIncomeWithdrawn = incomeWithdrawn + amount;
-        poolVault.withdrawFees(treasury, amount);
+        if (withdrawable > 0) {
+            eaIncomeWithdrawn = incomeWithdrawn + withdrawable;
+            poolVault.withdrawFees(treasury, withdrawable);
+            emit EvaluationAgentRewardsWithdrawn(treasury, withdrawable, msg.sender);
+        }
+    }
+
+    function getAccruedIncomes() external view returns (AccruedIncomes memory) {
+        return _accruedIncomes;
+    }
+
+    function getWithdrawables()
+        external
+        view
+        returns (
+            uint256 protocolWithdrawable,
+            uint256 poolOwnerWithdrawable,
+            uint256 eaWithdrawable
+        )
+    {
+        AccruedIncomes memory incomes = _accruedIncomes;
+
+        uint256 protocolWithdrawn = protocolIncomeWithdrawn;
+        protocolWithdrawable = incomes.protocolIncome < protocolWithdrawn
+            ? 0
+            : incomes.protocolIncome - protocolWithdrawn;
+
+        uint256 poolOwnerWithdrawn = poolOwnerIncomeWithdrawn;
+        poolOwnerWithdrawable = incomes.poolOwnerIncome < poolOwnerWithdrawn
+            ? 0
+            : incomes.poolOwnerIncome - poolOwnerWithdrawn;
+
+        uint256 eaWithdrawn = eaIncomeWithdrawn;
+        eaWithdrawable = incomes.eaIncome < eaWithdrawn ? 0 : incomes.eaIncome - eaWithdrawn;
     }
 
     function _getPlatformFees(

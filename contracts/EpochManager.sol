@@ -9,16 +9,8 @@ import "./Constants.sol";
 import {IEpochManager} from "./interfaces/IEpochManager.sol";
 import {Errors} from "./Errors.sol";
 
-interface ITrancheVaultLike {
+interface ITrancheVaultLike is IEpoch {
     function totalSupply() external view returns (uint256);
-
-    function unprocessedEpochInfos() external view returns (EpochInfo[] memory);
-
-    function closeEpoch(
-        EpochInfo[] memory epochsProcessed,
-        uint256 sharesProcessed,
-        uint256 amountProcessed
-    ) external;
 }
 
 contract EpochManager is IEpochManager {

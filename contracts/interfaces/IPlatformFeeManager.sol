@@ -14,4 +14,19 @@ interface IPlatformFeeManager {
     function getRemainingAfterPlatformFees(
         uint256 profit
     ) external view returns (uint256 remaining);
+
+    function withdrawProtocolFee() external;
+
+    function withdrawPoolOwnerFee() external;
+
+    function withdrawEAFee() external;
+
+    function getWithdrawables()
+        external
+        view
+        returns (
+            uint256 protocolWithdrawable,
+            uint256 poolOwnerWithdrawable,
+            uint256 eaWithdrawable
+        );
 }

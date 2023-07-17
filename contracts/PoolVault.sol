@@ -35,11 +35,17 @@ contract PoolVault is IPoolVault {
         asset.transfer(to, amount);
     }
 
+    function addPlatformFeesReserve(uint256 reserve) external {
+        Reserves memory rs = reserves;
+        reserves.forPlatformFees += uint96(reserve);
+        reserves = rs;
+    }
+
     function withdrawFees(address to, uint256 amount) external {
-        asset.transfer(to, amount);
         Reserves memory rs = reserves;
         reserves.forPlatformFees -= uint96(amount);
         reserves = rs;
+        asset.transfer(to, amount);
     }
 
     function setRedemptionReserve(uint256 reserve) external {

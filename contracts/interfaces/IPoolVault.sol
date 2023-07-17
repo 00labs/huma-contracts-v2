@@ -20,6 +20,8 @@ interface IPoolVault {
      */
     function withdraw(address to, uint256 amount) external;
 
+    function addPlatformFeesReserve(uint256 reserve) external;
+
     function withdrawFees(address to, uint256 amount) external;
 
     function setRedemptionReserve(uint256 assets) external;
