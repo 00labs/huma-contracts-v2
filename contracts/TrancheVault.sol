@@ -25,7 +25,7 @@ contract TrancheVault is ERC20Upgradeable, TrancheVaultStorage, IEpoch {
         __ERC20_init(name, symbol);
 
         poolConfig = _poolConfig;
-        address underlyingToken = address(_poolConfig.underlyingToken());
+        address underlyingToken = _poolConfig.underlyingToken();
         if (underlyingToken == address(0)) revert Errors.zeroAddressProvided();
         _decimals = IERC20MetadataUpgradeable(underlyingToken).decimals();
 

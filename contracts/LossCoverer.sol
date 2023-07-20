@@ -29,7 +29,7 @@ contract LossCoverer is ILossCoverer {
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         pool = IPool(addr);
 
-        addr = address(_poolConfig.underlyingToken());
+        addr = _poolConfig.underlyingToken();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         asset = IERC20(addr);
     }
