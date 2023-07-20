@@ -20,7 +20,7 @@ contract PoolVault is IPoolVault {
     // TODO permission
     function setPoolConfig(PoolConfig _poolConfig) external {
         poolConfig = _poolConfig;
-        address assetAddress = address(poolConfig.underlyingToken());
+        address assetAddress = poolConfig.underlyingToken();
         if (assetAddress == address(0)) revert Errors.zeroAddressProvided();
         asset = IERC20(assetAddress);
     }

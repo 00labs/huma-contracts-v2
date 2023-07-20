@@ -114,7 +114,7 @@ contract PoolConfig is Ownable {
     HumaConfig public humaConfig;
 
     // The ERC20 token this pool manages
-    IERC20 public underlyingToken;
+    address public underlyingToken;
 
     // Evaluation Agents (EA) are the risk underwriting agents that associated with the pool.
     address public evaluationAgent;
@@ -124,8 +124,8 @@ contract PoolConfig is Ownable {
     PoolSettings internal _poolSettings;
     LPConfig internal _lpConfig;
     FirstLossCover internal _firstLossCover;
-    FrontLoadingFeesStructure public frontFees;
-    FeeStructure public feeStructure;
+    FrontLoadingFeesStructure internal _frontFees;
+    FeeStructure internal _feeStructure;
 
     /// Pool operators can add or remove lenders.
     mapping(address => bool) private poolOperators;
@@ -199,7 +199,7 @@ contract PoolConfig is Ownable {
 
         if (!humaConfig.isAssetValid(_underlyingToken))
             revert Errors.underlyingTokenNotApprovedForHumaProtocol();
-        underlyingToken = IERC20(_underlyingToken);
+        underlyingToken = _underlyingToken;
 
         feeManager = _feeManager;
 
@@ -244,7 +244,7 @@ contract PoolConfig is Ownable {
      */
     function setYield(uint256 _apyInBps) external {
         _onlyOwnerOrHumaMasterAdmin();
-        feeStructure.apyInBps = uint16(_apyInBps);
+        _feeStructure.apyInBps = uint16(_apyInBps);
         emit YieldChanged(_apyInBps, msg.sender);
     }
 
@@ -252,6 +252,16 @@ contract PoolConfig is Ownable {
         _onlyOwnerOrHumaMasterAdmin();
         _poolSettings.creditApprovalExpirationInDays = uint16(durationInDays);
         emit CreditApprovalExpirationChanged(durationInDays, msg.sender);
+    }
+
+    function setPoolOwnerRewardsAndLiquidity(uint256 rewardsRate, uint256 liquidityRate) external {
+        _onlyOwnerOrHumaMasterAdmin();
+        if (rewardsRate > HUNDRED_PERCENT_IN_BPS || liquidityRate > HUNDRED_PERCENT_IN_BPS)
+            revert Errors.invalidBasisPointHigherThan10000();
+
+        _poolSettings.rewardRateInBpsForPoolOwner = uint16(rewardsRate);
+        _poolSettings.liquidityRateInBpsByPoolOwner = uint16(liquidityRate);
+        emit PoolOwnerRewardsAndLiquidityChanged(rewardsRate, liquidityRate, msg.sender);
     }
 
     function setEARewardsAndLiquidity(uint256 rewardsRate, uint256 liquidityRate) external {
@@ -272,7 +282,7 @@ contract PoolConfig is Ownable {
         if (agent == address(0)) revert Errors.zeroAddressProvided();
         _onlyOwnerOrHumaMasterAdmin();
 
-        if (IERC721(HumaConfig(humaConfig).eaNFTContractAddress()).ownerOf(eaId) != agent)
+        if (IERC721(humaConfig.eaNFTContractAddress()).ownerOf(eaId) != agent)
             revert Errors.proposedEADoesNotOwnProvidedEANFT();
 
         address oldEA = evaluationAgent;
@@ -352,16 +362,6 @@ contract PoolConfig is Ownable {
         emit PoolLiquidityCapChanged(liquidityCap, msg.sender);
     }
 
-    function setPoolOwnerRewardsAndLiquidity(uint256 rewardsRate, uint256 liquidityRate) external {
-        _onlyOwnerOrHumaMasterAdmin();
-        if (rewardsRate > HUNDRED_PERCENT_IN_BPS || liquidityRate > HUNDRED_PERCENT_IN_BPS)
-            revert Errors.invalidBasisPointHigherThan10000();
-
-        _poolSettings.rewardRateInBpsForPoolOwner = uint16(rewardsRate);
-        _poolSettings.liquidityRateInBpsByPoolOwner = uint16(liquidityRate);
-        emit PoolOwnerRewardsAndLiquidityChanged(rewardsRate, liquidityRate, msg.sender);
-    }
-
     function setPoolPayPeriod(CalendarUnit unit, uint256 number) external {
         _onlyOwnerOrHumaMasterAdmin();
         if (number == 0) revert Errors.zeroAmountProvided();
@@ -388,14 +388,56 @@ contract PoolConfig is Ownable {
         emit PoolOwnerTreasuryChanged(_poolOwnerTreasury, msg.sender);
     }
 
-    function setPoolToken(address _poolToken) external {
+    function setPoolUnderlyingToken(address _underlyingToken) external {
         _onlyOwnerOrHumaMasterAdmin();
-        if (_poolToken == address(0)) revert Errors.zeroAddressProvided();
-        // todo use the new HDT.
-        // poolToken = HDT(_poolToken);
-        // address assetToken = poolToken.assetToken();
-        // underlyingToken = IERC20(poolToken.assetToken());
-        // emit HDTChanged(_poolToken, assetToken, msg.sender);
+        if (_underlyingToken == address(0)) revert Errors.zeroAddressProvided();
+        underlyingToken = _underlyingToken;
+        // todo emit event
+    }
+
+    function setTranches(address _seniorTranche, address _juniorTranche) external {
+        _onlyOwnerOrHumaMasterAdmin();
+        if (seniorTranche == address(0) || juniorTranche == address(0))
+            revert Errors.zeroAddressProvided();
+        seniorTranche = _seniorTranche;
+        juniorTranche = _juniorTranche;
+        // todo emit event
+    }
+
+    function setPoolVault(address _poolVault) external {
+        _onlyOwnerOrHumaMasterAdmin();
+        if (_poolVault == address(0)) revert Errors.zeroAddressProvided();
+        poolVault = _poolVault;
+        // todo emit event
+    }
+
+    function setTranchesPolicy(address _tranchesPolicy) external {
+        _onlyOwnerOrHumaMasterAdmin();
+        if (_tranchesPolicy == address(0)) revert Errors.zeroAddressProvided();
+        tranchesPolicy = _tranchesPolicy;
+        // todo emit event
+    }
+
+    function setEpochManager(address _epochManager) external {
+        _onlyOwnerOrHumaMasterAdmin();
+        if (_epochManager == address(0)) revert Errors.zeroAddressProvided();
+        epochManager = _epochManager;
+        // todo emit event
+    }
+
+    function setCredit(address _credit) external {
+        _onlyOwnerOrHumaMasterAdmin();
+        if (_credit == address(0)) revert Errors.zeroAddressProvided();
+        credit = _credit;
+        // todo emit event
+    }
+
+    function setLossCoverers(address[] calldata lossCoverers) external {
+        _onlyOwnerOrHumaMasterAdmin();
+        for (uint256 i = 0; i < lossCoverers.length; i++) {
+            _lossCoverers.push(lossCoverers[i]);
+        }
+        // todo emit event
     }
 
     /**
@@ -482,7 +524,7 @@ contract PoolConfig is Ownable {
         IERC20Metadata erc20Contract = IERC20Metadata(address(underlyingToken));
         return (
             address(underlyingToken),
-            feeStructure.apyInBps,
+            _feeStructure.apyInBps,
             _poolSettings.payPeriodInCalendarUnit,
             _poolSettings.maxCreditLine,
             _lpConfig.liquidityCap,
@@ -569,7 +611,7 @@ contract PoolConfig is Ownable {
     }
 
     function getFrontLoadingFee() external view returns (uint256, uint256) {
-        return (frontFees.frontLoadingFeeFlat, frontFees.frontLoadingFeeBps);
+        return (_frontFees.frontLoadingFeeFlat, _frontFees.frontLoadingFeeBps);
     }
 
     /**
@@ -581,10 +623,34 @@ contract PoolConfig is Ownable {
         virtual
         returns (uint256 _lateFeeFlat, uint256 _lateFeeBps, uint256 _membershipFee)
     {
-        return (feeStructure.lateFeeFlat, feeStructure.lateFeeBps, feeStructure.membershipFee);
+        return (_feeStructure.lateFeeFlat, _feeStructure.lateFeeBps, _feeStructure.membershipFee);
     }
 
     function getMinPrincipalRateInBps() external view virtual returns (uint256 _minPrincipalRate) {
-        return feeStructure.minPrincipalRateInBps;
+        return _feeStructure.minPrincipalRateInBps;
+    }
+
+    function setLPConfig(LPConfig calldata lpConfig) external {
+        _onlyOwnerOrHumaMasterAdmin();
+        _lpConfig = lpConfig;
+        // todo emit event
+    }
+
+    function setFirstLossCoverConfig(FirstLossCover calldata firstLossCover) external {
+        _onlyOwnerOrHumaMasterAdmin();
+        _firstLossCover = firstLossCover;
+        // todo emit event
+    }
+
+    function setFrontLoadingFees(FrontLoadingFeesStructure calldata frontFees) external {
+        _onlyOwnerOrHumaMasterAdmin();
+        _frontFees = frontFees;
+        // todo emit event
+    }
+
+    function setFees(FeeStructure calldata feeStructure) external {
+        _onlyOwnerOrHumaMasterAdmin();
+        _feeStructure = feeStructure;
+        // todo emit event
     }
 }
