@@ -5,13 +5,17 @@ import {CalendarUnit} from "../SharedDefs.sol";
 
 // a CreditConfig is created after approval
 struct CreditConfig {
-    CalendarUnit calendarUnit;
-    uint8 periodDuration;
-    uint16 numOfPeriods; // number of periods
-    uint16 apyInBps;
-    bool revolving;
     uint96 creditLimit;
-    address borrower;
+    CalendarUnit calendarUnit; // days or semimonth
+    uint16 periodDuration;
+    uint16 numOfPeriods; // number of periods
+    // Yield in BPs, mean different things for different credit types.
+    // For credit line, it is APR;
+    // for factoring, it is factoring fee for the given period;
+    // for dynamic yield credit, it is the estimated APY
+    uint16 yieldInBps;
+    bool revolving; // whether repeated borrowing is allowed
+    bool receivableRequired;
 }
 
 // a CreditRecord is created after the first drawdown
@@ -23,7 +27,9 @@ struct CreditRecord {
     uint16 missedPeriods;
     uint16 remainingPeriods;
     CreditState state;
+    bool revolving; // whether repeated borrowing is allowed
     address borrower;
+    uint96 availableCredit;
 }
 
 struct CreditProfit {
@@ -36,9 +42,9 @@ struct CreditLoss {
     uint64 lastLossUpdateDate;
 }
 
-struct LimitAndCommitment {
+struct CreditLimits {
     uint96 creditLimit;
-    uint96 creditCommitment;
+    uint96 availableCredit;
 }
 
 enum CreditState {
@@ -48,4 +54,17 @@ enum CreditState {
     GoodStanding,
     Delayed,
     Defaulted
+}
+
+struct ReceivableInfo {
+    address receivableAsset;
+    uint96 receivableAmount;
+    uint256 receivableId;
+}
+
+struct FacilityConfig {
+    // Percentage of receivable nominal amount to be available for drawdown.
+    uint16 advanceRateInBps;
+    uint96 committedCreditLine;
+    bool autoApproval;
 }

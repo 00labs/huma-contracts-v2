@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {CreditConfig, CreditRecord, CreditProfit, CreditLoss, CreditState, LimitAndCommitment} from "./CreditStructs.sol";
+import {CreditConfig, CreditRecord, CreditProfit, CreditLoss, CreditState} from "./CreditStructs.sol";
 import {ICreditFeeManager} from "./utils/interfaces/ICreditFeeManager.sol";
 import {ICredit} from "./interfaces/ICredit.sol";
 import {BaseCreditStorage} from "./BaseCreditStorage.sol";
@@ -9,10 +9,8 @@ import {Errors} from "../Errors.sol";
 import {PoolConfig} from "../PoolConfig.sol";
 import {HumaConfig} from "../HumaConfig.sol";
 import {CalendarUnit} from "../SharedDefs.sol";
-
-/**
- * @notice BaseCredit is the basic form of a credit.
- */
+import {IERC20, IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 // todo to remove this struct.
 struct CreditLimit {
@@ -20,15 +18,19 @@ struct CreditLimit {
     uint96 creditLimit; // the max borrowed amount
 }
 
-/// Key capabilities to be added: profilt & loss, credit-level action vs. wallet-level
-/// Credit limit: credit-level limit & borrower-level
-/// Design consideration:
-/// 1. separate lastUpdateDate for profit and loss
-/// 2. Refresh profit and loss by using an IProfitLossRefersher.
-/// approve, drawdown, makePayment, updateCreditLine, closeCreditLine
-/// refreshProfitAndLoss
-contract BaseCredit is BaseCreditStorage, ICredit {
-    ICreditFeeManager _feeManager;
+/**
+ * Credit is the basic borrowing entry in Huma Protocol.
+ * BaseCredit is the base form of a Credit.
+ * The key functions include: approve, drawdown, makePayment, refreshProfitAndLoss
+ * Supporting functions include: updateCreditLine, closeCreditLine,
+ *
+ * Key design considerations:
+ * 1) Refresh profit and loss by using an IProfitLossRefersher
+ * 2) separate lastUpdateDate for profit and loss
+ * 3) Mostly Credit-level limit, also supports borrower-level limit
+ */
+abstract contract BaseCredit is BaseCreditStorage, ICredit {
+    using SafeERC20 for IERC20;
 
     enum CreditLineClosureReason {
         Paidoff,
@@ -126,67 +128,103 @@ contract BaseCredit is BaseCreditStorage, ICredit {
     );
 
     /**
-     * @notice Change the limit at the borrower level.
+     * @notice approve a borrower with the
      * @param borrower the borrower address
      * @param creditLimit the credit limit at the borrower level
-     * @param committed the amount the borrower committed to use. If the borrowed amount is less than
-     * the committed amount, the yield will be computed using committed amount.
+     * @param calendarUnit calendar unit type: Day or Semimonth
+     * @param periodDuration period duration in calendarUnit
+     * @param numOfPeriods how many periods are approved for the borrower
+     * @param committedAmount the amount the borrower committed to use.
+     * The yield will be computed using the max of this amount and the acutal credit used.
      */
-    function setBorrowerLimit(
+    function approveBorrower(
         address borrower,
         uint96 creditLimit,
-        uint96 committed
-    ) public virtual {
+        CalendarUnit calendarUnit, // days or semimonth
+        uint16 periodDuration,
+        uint16 numOfPeriods, // number of periods
+        uint16 yieldInBps,
+        uint96 committedAmount,
+        bool revolving, // whether repeated borrowing is allowed
+        bool receivableRequired
+    ) external virtual override {
         _protocolAndPoolOn();
         onlyEAServiceAccount();
 
-        LimitAndCommitment memory lc = LimitAndCommitment(creditLimit, committed);
-        _borrowerLimitMap[borrower] = lc;
+        if (creditLimit <= 0) revert();
+        if (periodDuration <= 0) revert();
+        if (numOfPeriods <= 0) revert();
 
-        // :emit BorrowerCreditLimitUpdatedApproved(borrower, creditLimit);
+        _borrowerSettings[borrower] = CreditConfig(
+            creditLimit,
+            calendarUnit,
+            periodDuration,
+            numOfPeriods,
+            yieldInBps,
+            revolving,
+            receivableRequired
+        );
+
+        // :emit BorrowerApproved(borrower, creditLimit);
     }
+
+    function getCreditHash(address borrower) public view virtual returns (bytes32 creditHash);
+
+    // {
+    //     return keccak256(abi.encode(address(this), borrower));
+    // }
+
+    function getCreditHash(
+        address borrower,
+        address receivableAsset,
+        uint256 receivableId
+    ) external view virtual returns (bytes32 creditHash);
+
+    // {
+    //     return keccak256(abi.encode(address(this), borrower, receivableAsset, receivableId));
+    // }
 
     /**
      * @notice Approves the credit request with the terms provided.
-     * @param creditHash the hash of the credit
+     * @param borrower the borrower address
      * @param creditLimit the credit limit of the credit line
      * @param calendarUnit how the period is measured, by days or by semimonth
      * @param payPeriodInCalendarUnit the multiple of the calendarUnit
      * @param remainingPeriods how many cycles are there before the credit line expires
-     * @param apyInBps expected yield expressed in basis points, 1% is 100, 100% is 10000
+     * @param yieldInBps expected yield expressed in basis points, 1% is 100, 100% is 10000
      * @dev only Evaluation Agent can call
      */
     function approveCredit(
-        bytes32 creditHash,
         address borrower,
-        uint256 creditLimit,
-        uint256 calendarUnit,
-        uint256 payPeriodInCalendarUnit,
-        uint256 remainingPeriods,
-        uint256 apyInBps,
+        uint96 creditLimit,
+        CalendarUnit calendarUnit,
+        uint16 payPeriodInCalendarUnit,
+        uint16 remainingPeriods,
+        uint16 yieldInBps,
+        uint96 committedAmount,
         bool revolving
-    ) internal virtual {
+    ) external virtual override {
         _protocolAndPoolOn();
         onlyEAServiceAccount();
-        if (calendarUnit > 2) revert Errors.invalidCalendarUnit();
         if (payPeriodInCalendarUnit == 0) revert Errors.requestedCreditWithZeroDuration();
         if (remainingPeriods == 0) revert Errors.zeroPayPeriods();
+        if (creditLimit == 0) revert();
 
         // :Need to check both are credit level and borrower level
         _maxCreditLineCheck(creditLimit);
 
-        // We allow credit approval to be updated only if there is no drawdown happened
+        // Update to a credit record is disallowed if there is drawdown already
+        bytes32 creditHash = getCreditHash(borrower);
         CreditRecord memory cr = _getCreditRecord(creditHash);
         if (cr.state >= CreditState.Approved) revert Errors.creditLineNotInStateForUpdate();
 
         CreditConfig memory cc = _getCreditConfig(creditHash);
+        cc.creditLimit = uint96(creditLimit);
         cc.calendarUnit = CalendarUnit(calendarUnit);
         cc.periodDuration = uint8(payPeriodInCalendarUnit);
         cc.numOfPeriods = uint16(remainingPeriods);
-        cc.apyInBps = uint16(apyInBps);
+        cc.yieldInBps = uint16(yieldInBps);
         cc.revolving = revolving;
-        cc.creditLimit = uint96(creditLimit);
-        cc.borrower = borrower;
 
         _setCreditConfig(creditHash, cc);
 
@@ -199,7 +237,7 @@ contract BaseCredit is BaseCreditStorage, ICredit {
         if (cr.totalDue != 0 || cr.unbilledPrincipal != 0) {
             revert Errors.creditLineHasOutstandingBalance();
         }
-        // :revert if the pool the pool requires committed loan
+        // :revert if the pool requires committed loan
         else {
             // Close the credit by removing relevant record.
             cr.state = CreditState.Deleted;
@@ -213,26 +251,54 @@ contract BaseCredit is BaseCreditStorage, ICredit {
 
     /**
      * @notice changes borrower's credit limit
-     * @param creditHash the owner of the credit line
+     * @param borrower the borrower address
      * @param newCreditLimit the new limit of the line in the unit of pool token
      * @dev The credit line is marked as Deleted if 1) the new credit line is 0 AND
      * 2) there is no due or unbilled principals.
      * @dev only Evaluation Agent can call
      */
-    function updateCreditLimit(bytes32 creditHash, uint96 newCreditLimit) public virtual {
+    function updateBorrowerLimit(address borrower, uint96 newCreditLimit) public virtual {
         _protocolAndPoolOn();
         onlyEAServiceAccount();
-        // Borrowing amount needs to be lower than max for the pool.
+        // Credit limit needs to be lower than max for the pool.
         _maxCreditLineCheck(newCreditLimit);
-        _creditConfigMap[creditHash].creditLimit = newCreditLimit;
+        _borrowerSettings[borrower].creditLimit = newCreditLimit;
 
+        // todo Delete the credit record if the new limit is 0 and no outstanding balance
+        // if (newCreditLimit == 0) {
+        //     CreditRecord memory cr = _creditRecordMap[creditHash];
+        //     if (cr.unbilledPrincipal == 0 && cr.totalDue == 0) {
+        //         cr.state == CreditState.Deleted;
+        //     }
+        // }
+
+        // emit CreditLineChanged(borrower, oldCreditLimit, newCreditLimit);
+    }
+
+    /**
+     * @notice changes the available credit for a credit line. This is an administrative overwrite.
+     * @param creditHash the owner of the credit line
+     * @param newAvailableCredit the new available credit
+     * @dev The credit line is marked as Deleted if 1) the new credit line is 0 AND
+     * 2) there is no due or unbilled principals.
+     * @dev only Evaluation Agent can call
+     */
+    function updateAvailableCredit(bytes32 creditHash, uint96 newAvailableCredit) public virtual {
+        _protocolAndPoolOn();
+        onlyEAServiceAccount();
+        // Credit limit needs to be lower than max for the pool.
+        // :check against borrower credit limit
+        _maxCreditLineCheck(newAvailableCredit);
+
+        CreditRecord memory cr = _getCreditRecord(creditHash);
+        cr.availableCredit = newAvailableCredit;
         // Delete the credit record if the new limit is 0 and no outstanding balance
-        if (newCreditLimit == 0) {
-            CreditRecord memory cr = _creditRecordMap[creditHash];
+        if (newAvailableCredit == 0) {
             if (cr.unbilledPrincipal == 0 && cr.totalDue == 0) {
                 cr.state == CreditState.Deleted;
             }
         }
+        _setCreditRecord(creditHash, cr);
 
         // emit CreditLineChanged(borrower, oldCreditLimit, newCreditLimit);
     }
@@ -244,13 +310,12 @@ contract BaseCredit is BaseCreditStorage, ICredit {
      */
     function drawdown(bytes32 creditHash, uint256 borrowAmount) external virtual override {
         address borrower = msg.sender;
-        // Open access to the borrower
         if (borrowAmount == 0) revert Errors.zeroAmountProvided();
         CreditRecord memory cr = _getCreditRecord(creditHash);
         if (borrower != cr.borrower) revert Errors.notBorrower();
 
-        // _checkDrawdownEligibility(cr, borrowAmount);
-        // uint256 netAmountToBorrower = _drawdown(borrower, cr, borrowAmount);
+        _checkDrawdownEligibility(creditHash, cr, borrowAmount);
+        uint256 netAmountToBorrower = _drawdown(creditHash, cr, borrowAmount);
         // emit DrawdownMade(borrower, borrowAmount, netAmountToBorrower);
     }
 
@@ -409,12 +474,10 @@ contract BaseCredit is BaseCreditStorage, ICredit {
 
     /**
      * @notice Checks if drawdown is allowed for the credit line at this point of time
-     * @dev the requester can be the borrower or the EA
-     * @dev requires the credit line to be in Approved (first drawdown) or
-     * Good Standing (return drawdown) state.
-     * @dev for first drawdown, after the credit line is approved, it needs to happen within
-     * the expiration window configured by the pool
-     * @dev the drawdown should not put the account over the approved credit limit
+     * @dev Checks to make sure the following conditions are met:
+     * 1) In Approved or Goodstanding state
+     * 2) For first time drawdown, the approval is not expired
+     * 3) Drawdown amount is no less than available credit
      * @dev Please note cr.nextDueDate is the credit expiration date for the first drawdown.
      */
     function _checkDrawdownEligibility(
@@ -422,8 +485,6 @@ contract BaseCredit is BaseCreditStorage, ICredit {
         CreditRecord memory cr,
         uint256 borrowAmount
     ) internal view {
-        _protocolAndPoolOn();
-
         if (cr.state != CreditState.GoodStanding && cr.state != CreditState.Approved)
             revert Errors.creditLineNotInStateForDrawdown();
         else if (cr.state == CreditState.Approved) {
@@ -435,13 +496,12 @@ contract BaseCredit is BaseCreditStorage, ICredit {
             if (cr.nextDueDate > 0 && block.timestamp > cr.nextDueDate)
                 revert Errors.creditExpiredDueToFirstDrawdownTooLate();
 
-            if (borrowAmount > _creditConfigMap[creditHash].creditLimit)
-                revert Errors.creditLineExceeded();
+            if (borrowAmount > cr.availableCredit) revert Errors.creditLineExceeded();
         }
     }
 
     /**
-     * @notice helper function for drawdown
+     * @notice drawdown helper function. Eligibility check is done outside this function.
      * @param creditHash the credit hash
      * @param borrowAmount the amount to borrow
      */
@@ -461,19 +521,22 @@ contract BaseCredit is BaseCreditStorage, ICredit {
             cr.state = CreditState.GoodStanding;
         } else {
             // Return drawdown flow
-            // Bring the account current.
+            // Disallow repeated drawdown for non-revolving credit
+            if (!cr.revolving) revert Errors.todo();
+
+            // Bring the account current and check if it is still in good standing.
             if (block.timestamp > cr.nextDueDate) {
                 cr = _updateDueInfo(creditHash, false);
                 if (cr.state != CreditState.GoodStanding)
                     revert Errors.creditLineNotInGoodStandingState();
             }
-            // todo fix to check against credit limit
-            // if (
-            //     borrowAmount >
-            //     (_creditRecordStaticMap[borrower].creditLimit -
-            //         cr.unbilledPrincipal -
-            //         (cr.totalDue - cr.feesAndInterestDue))
-            // ) revert Errors.creditLineExceeded();
+
+            if (
+                // :This is not exactly right. need to check the maintenance of availableCredit logic
+                borrowAmount >
+                (cr.availableCredit - cr.unbilledPrincipal - (cr.totalDue - cr.feesAndInterestDue))
+            ) revert Errors.creditLineExceeded();
+
             // note Drawdown is not allowed in the final pay period since the payment due for
             // such drawdown will fall outside of the window of the credit line.
             // note since we bill at the beginning of a period, cr.remainingPeriods is zero
@@ -487,11 +550,12 @@ contract BaseCredit is BaseCreditStorage, ICredit {
         (uint256 netAmountToBorrower, uint256 platformFees) = _feeManager.distBorrowingAmount(
             borrowAmount
         );
-        // todo add distributeIncome function
+
+        // todo handle income distribution
         // if (platformFees > 0) distributeIncome(platformFees);
+
         // Transfer funds to the _borrower
-        // todo transfer.
-        //_underlyingToken.safeTransfer(borrower, netAmountToBorrower);
+        _underlyingToken.safeTransfer(cr.borrower, netAmountToBorrower);
         return netAmountToBorrower;
     }
 
@@ -1063,4 +1127,14 @@ contract BaseCredit is BaseCreditStorage, ICredit {
     function _isOverdue(uint256 dueDate) internal view returns (bool) {}
 
     // todo provide an external view function for credit payment due list ?
+
+    function updateYield(address borrower, uint yieldInBps) external {}
+
+    function refreshPnL(
+        bytes32 creditHash
+    ) external returns (uint256 profit, uint256 loss, uint256 lossRecovery) {}
+
+    function pauseCredit() external {}
+
+    function unpauseCredit() external {}
 }
