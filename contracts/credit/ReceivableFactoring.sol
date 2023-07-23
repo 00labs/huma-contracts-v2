@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import {BaseCredit, CreditLimit} from "./BaseCredit.sol";
 import {IReceivable} from "./interfaces/IReceivable.sol";
 import {IReceivableFactoring, ReceivableInfo, CreditConfig, ICredit} from "./interfaces/IReceivableFactoring.sol";
+import {Errors} from "../Errors.sol";
 
 contract ReceivableFactoring is BaseCredit, IReceivableFactoring {
     mapping(bytes32 => ReceivableInfo) public receivables;
@@ -50,5 +51,23 @@ contract ReceivableFactoring is BaseCredit, IReceivableFactoring {
         super.makePayment(hash, amount);
 
         // burn receivable?
+    }
+
+    function getCreditHash(
+        address /*borrower*/
+    ) public view virtual override returns (bytes32 /*creditHash*/) {
+        {
+            revert Errors.todo();
+        }
+    }
+
+    function getCreditHash(
+        address borrower,
+        address /*receivableAsset*/,
+        uint256 /*receivableId*/
+    ) external view virtual override returns (bytes32 creditHash) {
+        {
+            return keccak256(abi.encode(address(this), borrower));
+        }
     }
 }

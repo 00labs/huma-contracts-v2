@@ -159,7 +159,7 @@ contract BaseCreditFeeManager is ICreditFeeManager {
 
             // step 4. compute interest
             interest =
-                (_cr.unbilledPrincipal * _cc.apyInBps * _cc.periodDuration * SECONDS_IN_A_DAY) /
+                (_cr.unbilledPrincipal * _cc.yieldInBps * _cc.periodDuration * SECONDS_IN_A_DAY) /
                 SECONDS_IN_A_YEAR /
                 HUNDRED_PERCENT_IN_BPS;
 

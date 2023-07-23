@@ -97,4 +97,6 @@ contract Errors {
 
     error invalidCalendarUnit();
     error zeroPayPeriods();
+
+    error todo();
 }
