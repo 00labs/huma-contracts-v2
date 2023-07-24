@@ -7,7 +7,7 @@ import {ITranchesPolicy} from "./interfaces/ITranchesPolicy.sol";
 import {ICredit} from "./credit/interfaces/ICredit.sol";
 import {ILossCoverer} from "./interfaces/ILossCoverer.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
-import "./Constants.sol";
+import "./SharedDefs.sol";
 import {PoolConfig} from "./PoolConfig.sol";
 import {Errors} from "./Errors.sol";
 
@@ -90,16 +90,17 @@ contract Pool is IPool {
     }
 
     function _distributeProfit(uint256 profit) internal {
-        uint256 remaining = feeManager.distributePlatformFees(profit);
+        uint256 poolProfit = feeManager.distributePlatformFees(profit);
 
-        if (remaining > 0) {
+        if (poolProfit > 0) {
             TranchesInfo memory tranchesInfo = tranches;
             uint96[2] memory assets = [
                 tranchesInfo.seniorTotalAssets,
                 tranchesInfo.juniorTotalAssets
             ];
-            tranchesPolicy.distributeProfit(remaining, assets, tranchesInfo.lastUpdatedTime);
+            tranchesPolicy.distributeProfit(poolProfit, assets, tranchesInfo.lastUpdatedTime);
 
+            // review question should it be "+=" instead of "=" in the next two lines? 
             tranchesInfo.seniorTotalAssets = assets[SENIOR_TRANCHE_INDEX];
             tranchesInfo.juniorTotalAssets = assets[JUNIOR_TRANCHE_INDEX];
             tranchesInfo.lastUpdatedTime = uint64(block.timestamp);
@@ -135,6 +136,8 @@ contract Pool is IPool {
 
     function _distributeLossRecovery(uint256 lossRecovery) internal {
         if (lossRecovery > 0) {
+            //review question the recovery sequence is incorrect. It shall go back to the senior first,
+            // junior second, the first loss cover. The current implementation went back to the cover first.
             uint256 len = lossCoverers.length;
             for (uint256 i = 0; i < len; i++) {
                 ILossCoverer coverer = lossCoverers[len - i - 1];
@@ -161,6 +164,9 @@ contract Pool is IPool {
         }
     }
 
+    // review question it might be more beneificial to combine this and the next function.
+    // With one call to review total assets, senior assets and junior assets. The value
+    // for a function to just return one tranche is low. 
     function trancheTotalAssets(uint256 index) external view returns (uint256) {
         if (block.timestamp > tranches.lastUpdatedTime) {
             // need to update tranche assets
@@ -191,6 +197,9 @@ contract Pool is IPool {
     }
 
     function _currentTranches() internal view returns (uint96[2] memory trancheAssets) {
+        // review question. The function is labeled as view. The called functions are all view.
+        // however, the function names starting with "distribute," which seems to be actions.
+        // This is confusing. 
         (uint256 profit, uint256 loss, uint256 lossRecovery) = credit.currentPnL();
 
         TranchesInfo memory ti = tranches;

@@ -8,7 +8,7 @@ import {IERC20, IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.
 import {IPlatformFeeManager} from "./interfaces/IPlatformFeeManager.sol";
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "./Constants.sol";
+import "./SharedDefs.sol";
 
 //import "./HDT/HDT.sol";
 import "./HumaConfig.sol";

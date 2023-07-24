@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import {BaseTranchesPolicy} from "./BaseTranchesPolicy.sol";
 import {PoolConfig, LPConfig} from "./PoolConfig.sol";
 import {Errors} from "./Errors.sol";
-import "./Constants.sol";
+import "./SharedDefs.sol";
 
 /**
  * @notice This is fixed yield implementation. In the fixed yield mode,
@@ -12,11 +12,10 @@ import "./Constants.sol";
  */
 
 contract FixedAprTranchesPolicy is BaseTranchesPolicy {
-    uint256 public constant SECONDS_IN_A_YEAR = 365 days;
-
     PoolConfig public poolConfig;
 
     // TODO permission
+    // review question should this be in an initiazer? 
     function setPoolConfig(PoolConfig _poolConfig) external {
         if (address(_poolConfig) == address(0)) revert Errors.zeroAddressProvided();
         poolConfig = _poolConfig;
@@ -27,9 +26,10 @@ contract FixedAprTranchesPolicy is BaseTranchesPolicy {
         uint96[2] memory assets,
         uint256 lastUpdatedTime
     ) external view {
+        // review question the distribution should be based on total deployed asset instead of total asset 
         uint256 seniorTotalAssets = assets[SENIOR_TRANCHE_INDEX];
         uint256 seniorProfit;
-        if (block.timestamp > 0) {
+        if (block.timestamp > lastUpdatedTime) {
             LPConfig memory lpConfig = poolConfig.getLPConfig();
             seniorProfit =
                 (seniorTotalAssets *
