@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import "./Constants.sol";
+import "./SharedDefs.sol";
 import {PoolConfig, PoolSettings} from "./PoolConfig.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
 import {IPlatformFeeManager} from "./interfaces/IPlatformFeeManager.sol";
@@ -37,6 +37,7 @@ contract PlatformFeeManager is IPlatformFeeManager {
 
     // TODO permission
     function setPoolConfig(PoolConfig _poolConfig) external {
+        // review question we might want to put this in a library to be shared by multiple contracts
         poolConfig = _poolConfig;
 
         address addr = _poolConfig.poolVault();
@@ -79,6 +80,8 @@ contract PlatformFeeManager is IPlatformFeeManager {
         (, remaining) = _getPlatformFees(profit);
     }
 
+    // review question we should allow amount to be specified in the parameter. Please
+    // refer to v1 implementation. 
     function withdrawProtocolFee() external {
         if (msg.sender != humaConfig.owner()) revert Errors.notProtocolOwner();
         AccruedIncomes memory incomes = _accruedIncomes;

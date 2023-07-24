@@ -5,7 +5,7 @@ import {IPool} from "./interfaces/IPool.sol";
 import {PoolConfig, LPConfig} from "./PoolConfig.sol";
 import {IEpoch, EpochInfo} from "./interfaces/IEpoch.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
-import "./Constants.sol";
+import "./SharedDefs.sol";
 import {IEpochManager} from "./interfaces/IEpochManager.sol";
 import {Errors} from "./Errors.sol";
 
@@ -35,6 +35,8 @@ contract EpochManager is IEpochManager {
 
     // TODO permission
     function setPoolConfig(PoolConfig _poolConfig) external {
+        // question should this be in the initialize function
+        // question do we need to worry about changes? 
         poolConfig = _poolConfig;
 
         address addr = _poolConfig.poolVault();
@@ -129,6 +131,7 @@ contract EpochManager is IEpochManager {
     )
         internal
         view
+        virtual 
         returns (
             TrancheProcessedResult memory seniorResult,
             TrancheProcessedResult memory juniorResult

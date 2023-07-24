@@ -6,7 +6,7 @@ import {ILossCoverer} from "./interfaces/ILossCoverer.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
 import {PoolConfig, LPConfig, FirstLossCover} from "./PoolConfig.sol";
-import "./Constants.sol";
+import "./SharedDefs.sol";
 import {Errors} from "./Errors.sol";
 
 contract LossCoverer is ILossCoverer {
@@ -18,6 +18,7 @@ contract LossCoverer is ILossCoverer {
     uint256 public processedLoss;
 
     // TODO permission
+    // review question We need this block of code in multiple contracts. Shall we put it in a library?
     function setPoolConfig(PoolConfig _poolConfig) external {
         poolConfig = _poolConfig;
 
@@ -36,7 +37,11 @@ contract LossCoverer is ILossCoverer {
 
     // TODO migration function
 
+    // review question Please explain what this function does. It seems the function tries
+    // to figure out the min coverage and transfer asset to a receiver.
+    // The name removeLiquidity is confusing.It does not match with the logic in the function.
     function removeLiquidity(address receiver) external {
+        // review question access control?
         uint256 assets = asset.balanceOf(address(this));
         if (assets == 0) return;
 
@@ -68,9 +73,12 @@ contract LossCoverer is ILossCoverer {
         }
     }
 
+    // review question need to add function for replenishFirstLossCover.
+
     function recoverLoss(uint256 recovery) external returns (uint256 remainingRecovery) {
         uint256 processed = processedLoss;
         uint256 recovered = processed < recovery ? processed : recovery;
+        // review question under which situation, remainingRecovery can be positive?
         remainingRecovery = recovery - recovered;
         if (recovered > 0) {
             processedLoss = processed - recovered;
@@ -92,10 +100,6 @@ contract LossCoverer is ILossCoverer {
         }
 
         uint256 poolValue = pool.totalAssets();
-        if (assets < (poolValue * config.poolValueCoverageInBps) / HUNDRED_PERCENT_IN_BPS) {
-            return false;
-        } else {
-            return true;
-        }
+        return assets >= (poolValue * config.poolValueCoverageInBps) / HUNDRED_PERCENT_IN_BPS;
     }
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import "./Constants.sol";
+import "./SharedDefs.sol";
 import {IERC20MetadataUpgradeable, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {TrancheVaultStorage} from "./TrancheVaultStorage.sol";
 import {IEpoch, EpochInfo} from "./interfaces/IEpoch.sol";
