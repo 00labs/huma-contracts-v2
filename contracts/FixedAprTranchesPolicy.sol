@@ -12,21 +12,14 @@ import "./SharedDefs.sol";
  */
 
 contract FixedAprTranchesPolicy is BaseTranchesPolicy {
-    PoolConfig public poolConfig;
-
-    // TODO permission
-    // review question should this be in an initiazer? 
-    function setPoolConfig(PoolConfig _poolConfig) external {
-        if (address(_poolConfig) == address(0)) revert Errors.zeroAddressProvided();
-        poolConfig = _poolConfig;
-    }
+    constructor(PoolConfig _poolConfig) BaseTranchesPolicy(_poolConfig) {}
 
     function distributeProfit(
         uint256 profit,
         uint96[2] memory assets,
         uint256 lastUpdatedTime
     ) external view {
-        // review question the distribution should be based on total deployed asset instead of total asset 
+        // review question the distribution should be based on total deployed asset instead of total asset
         uint256 seniorTotalAssets = assets[SENIOR_TRANCHE_INDEX];
         uint256 seniorProfit;
         if (block.timestamp > lastUpdatedTime) {

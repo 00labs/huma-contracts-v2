@@ -40,8 +40,9 @@ contract Pool is IPool {
     TranchesInfo public tranches;
     TranchesLosses public tranchesLosses;
 
-    // TODO permission
     function setPoolConfig(PoolConfig _poolConfig) external {
+        poolConfig.onlyPoolOwner(msg.sender);
+
         poolConfig = _poolConfig;
 
         address addr = _poolConfig.poolVault();
@@ -66,10 +67,8 @@ contract Pool is IPool {
         feeManager = IPlatformFeeManager(addr);
     }
 
-    // TODO migration function
-
     function refreshPool() external returns (uint96[2] memory) {
-        // check permission
+        poolConfig.onlyTrancheVaultOrEpochManager(msg.sender);
 
         (uint256 profit, uint256 loss, uint256 lossRecovery) = credit.refreshPnL();
 
@@ -224,12 +223,16 @@ contract Pool is IPool {
     }
 
     function submitRedemptionRequest(uint256 amounts) external {
+        poolConfig.onlyEpochManager(msg.sender);
+
         poolVault.setRedemptionReserve(amounts);
 
         // :handle redemption request for flex loan
     }
 
     function updateTranchesAssets(uint96[2] memory assets) external {
+        poolConfig.onlyTrancheVaultOrEpochManager(msg.sender);
+
         TranchesInfo memory ti = tranches;
         ti.seniorTotalAssets = assets[SENIOR_TRANCHE_INDEX];
         ti.juniorTotalAssets = assets[JUNIOR_TRANCHE_INDEX];

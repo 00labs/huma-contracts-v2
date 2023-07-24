@@ -30,6 +30,10 @@ contract Errors {
     error notNFTOwner(); // 0x091a5762
     error notProcessor(); // 0x90409ca1
     error notBorrower();
+    error notEpochManager();
+    error notPlatformFeeManager();
+    error notTrancheVaultOrLossCoverer();
+    error notTrancheVaultOrEpochManager();
 
     // system config
     error defaultGracePeriodLessThanMinAllowed(); // 0xa733ff9c
