@@ -34,8 +34,6 @@ contract EpochManager is IEpochManager {
     uint256 public currentEpochId;
 
     function setPoolConfig(PoolConfig _poolConfig) external {
-        // question should this be in the initialize function
-        // question do we need to worry about changes?
         poolConfig.onlyPoolOwner(msg.sender);
 
         poolConfig = _poolConfig;
@@ -61,6 +59,8 @@ contract EpochManager is IEpochManager {
      * @notice Closes current epoch and handle senior tranch orders and junior tranch orders
      */
     function closeEpoch() public virtual {
+        // TODO add logic to validate if current epoch is expired.
+
         // update tranches assets to current timestamp
         uint96[2] memory tranches = pool.refreshPool();
 

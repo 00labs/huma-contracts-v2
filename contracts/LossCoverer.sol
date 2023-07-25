@@ -17,7 +17,6 @@ contract LossCoverer is ILossCoverer {
 
     uint256 public processedLoss;
 
-    // review question We need this block of code in multiple contracts. Shall we put it in a library?
     function setPoolConfig(PoolConfig _poolConfig) external {
         poolConfig.onlyPoolOwner(msg.sender);
 

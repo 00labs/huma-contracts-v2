@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import {BaseTranchesPolicy} from "./BaseTranchesPolicy.sol";
 import {PoolConfig, LPConfig} from "./PoolConfig.sol";
+import {IPoolVault} from "./interfaces/IPoolVault.sol";
 import {Errors} from "./Errors.sol";
 import "./SharedDefs.sol";
 
@@ -18,14 +19,18 @@ contract FixedAprTranchesPolicy is BaseTranchesPolicy {
         uint256 profit,
         uint96[2] memory assets,
         uint256 lastUpdatedTime
-    ) external view {
-        // review question the distribution should be based on total deployed asset instead of total asset
-        uint256 seniorTotalAssets = assets[SENIOR_TRANCHE_INDEX];
+    ) external view returns (uint96[2] memory newAssets) {
+        uint256 poolVaultAssets = IPoolVault(poolConfig.poolVault()).totalAssets();
+        uint256 totalAssets = assets[SENIOR_TRANCHE_INDEX] + assets[JUNIOR_TRANCHE_INDEX];
+        uint256 deployedTotalAssets = totalAssets - poolVaultAssets;
+        uint256 deployedSeniorAssets = (deployedTotalAssets * assets[SENIOR_TRANCHE_INDEX]) /
+            deployedTotalAssets;
+
         uint256 seniorProfit;
         if (block.timestamp > lastUpdatedTime) {
             LPConfig memory lpConfig = poolConfig.getLPConfig();
             seniorProfit =
-                (seniorTotalAssets *
+                (deployedSeniorAssets *
                     lpConfig.fixedSeniorYieldInBps *
                     (block.timestamp - lastUpdatedTime)) /
                 SECONDS_IN_A_YEAR /
@@ -35,7 +40,7 @@ contract FixedAprTranchesPolicy is BaseTranchesPolicy {
         seniorProfit = seniorProfit > profit ? profit : seniorProfit;
         uint256 juniorProfit = profit - seniorProfit;
 
-        assets[SENIOR_TRANCHE_INDEX] = assets[SENIOR_TRANCHE_INDEX] + uint96(seniorProfit);
-        assets[JUNIOR_TRANCHE_INDEX] = assets[JUNIOR_TRANCHE_INDEX] + uint96(juniorProfit);
+        newAssets[SENIOR_TRANCHE_INDEX] = assets[SENIOR_TRANCHE_INDEX] + uint96(seniorProfit);
+        newAssets[JUNIOR_TRANCHE_INDEX] = assets[JUNIOR_TRANCHE_INDEX] + uint96(juniorProfit);
     }
 }
