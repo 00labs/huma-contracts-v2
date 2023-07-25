@@ -33,4 +33,6 @@ interface IPoolVault {
     function getAvailableLiquidity() external view returns (uint256);
 
     function getAvailableReservation() external view returns (uint256);
+
+    function totalAssets() external view returns (uint256);
 }

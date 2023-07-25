@@ -7,7 +7,7 @@ import {TrancheVaultStorage} from "./TrancheVaultStorage.sol";
 import {IEpoch, EpochInfo} from "./interfaces/IEpoch.sol";
 import {IEpochManager} from "./interfaces/IEpochManager.sol";
 import {Errors} from "./Errors.sol";
-import {PoolConfig} from "./PoolConfig.sol";
+import {PoolConfig, LPConfig} from "./PoolConfig.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
 
@@ -116,7 +116,7 @@ contract TrancheVault is ERC20Upgradeable, TrancheVaultStorage, IEpoch {
             revert(); // assets is 0
         }
 
-        // :validate receiver permission
+        // TODO validate receiver permission
 
         uint256 cap = poolConfig.getTrancheLiquidityCap(trancheIndex);
         if (assets > cap) {
@@ -130,13 +130,12 @@ contract TrancheVault is ERC20Upgradeable, TrancheVaultStorage, IEpoch {
 
         if (trancheIndex == SENIOR_TRANCHE_INDEX) {
             // validate maxRatio for senior tranche
-            // todo fix it
-            uint256 maxRatio = 4;
-            //uint256 maxRatio = poolConfig.lpConfig().maxSeniorJuniorRatio();
+
+            LPConfig memory lpConfig = poolConfig.getLPConfig();
             if (
                 ((totalAssets + assets) / tranches[JUNIOR_TRANCHE_INDEX]) *
                     HUNDRED_PERCENT_IN_BPS >
-                maxRatio
+                lpConfig.maxSeniorJuniorRatio
             ) revert(); // greater than max ratio
         }
 

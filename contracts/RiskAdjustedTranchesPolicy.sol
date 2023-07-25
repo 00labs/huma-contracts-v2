@@ -16,11 +16,11 @@ contract RiskAdjustedTranchesPolicy is BaseTranchesPolicy {
     /**
      * @notice Distribute profit between tranches.
      */
-    function distributeProfit(
+    function calcTranchesAssetsForProfit(
         uint256 profit,
         uint96[2] memory assets,
-        uint256 lastUpdatedTime
-    ) external view {
+        uint256
+    ) external view returns (uint96[2] memory newAssets) {
         uint256 seniorAssets = assets[SENIOR_TRANCHE_INDEX];
         uint256 juniorAssets = assets[JUNIOR_TRANCHE_INDEX];
         uint256 seniorProfit = (profit * seniorAssets) / (seniorAssets + juniorAssets);
@@ -29,7 +29,8 @@ contract RiskAdjustedTranchesPolicy is BaseTranchesPolicy {
         uint256 adjustProfit = (seniorProfit * lpConfig.tranchesRiskAdjustmentInBps) /
             HUNDRED_PERCENT_IN_BPS;
         seniorProfit = seniorProfit - adjustProfit;
-        assets[SENIOR_TRANCHE_INDEX] = uint96(seniorAssets + seniorProfit);
-        assets[JUNIOR_TRANCHE_INDEX] = uint96(juniorAssets + profit - seniorProfit);
+
+        newAssets[SENIOR_TRANCHE_INDEX] = uint96(seniorAssets + seniorProfit);
+        newAssets[JUNIOR_TRANCHE_INDEX] = uint96(juniorAssets + profit - seniorProfit);
     }
 }

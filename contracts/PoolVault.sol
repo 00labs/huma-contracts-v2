@@ -76,4 +76,8 @@ contract PoolVault is IPoolVault {
         uint256 reserve = rs.forRedemption + rs.forPlatformFees;
         assets = assets < reserve ? assets : reserve;
     }
+
+    function totalAssets() external view returns (uint256 assets) {
+        return asset.balanceOf(address(this));
+    }
 }

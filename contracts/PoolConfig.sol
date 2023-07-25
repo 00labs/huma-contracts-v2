@@ -287,7 +287,9 @@ contract PoolConfig is Ownable {
 
         address oldEA = evaluationAgent;
         if (oldEA != address(0)) {
-            IPlatformFeeManager(feeManager).withdrawEAFee();
+            IPlatformFeeManager fm = IPlatformFeeManager(feeManager);
+            (, , uint256 eaWithdrawable) = fm.getWithdrawables();
+            fm.withdrawEAFee(eaWithdrawable);
         }
 
         // Make sure the new EA has met the liquidity requirements
