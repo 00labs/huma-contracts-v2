@@ -14,7 +14,7 @@ abstract contract BaseTranchesPolicy is ITranchesPolicy {
         poolConfig = _poolConfig;
     }
 
-    function distributeLoss(
+    function calcTranchesAssetsForLoss(
         uint256 loss,
         uint96[2] memory assets
     ) external pure returns (uint96[2] memory newAssets) {
@@ -25,7 +25,7 @@ abstract contract BaseTranchesPolicy is ITranchesPolicy {
         newAssets[SENIOR_TRANCHE_INDEX] = uint96(assets[SENIOR_TRANCHE_INDEX] + juniorLoss - loss);
     }
 
-    function distributeLossRecovery(
+    function calcTranchesAssetsForLossRecovery(
         uint256 lossRecovery,
         uint96[2] memory assets,
         uint96[2] memory losses

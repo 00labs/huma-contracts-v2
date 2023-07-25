@@ -2,7 +2,18 @@
 pragma solidity ^0.8.0;
 
 interface ILossCoverer {
-    function removeLiquidity(address receiver) external;
+    /**
+     * @notice Adds assets in the loss coverer
+     * @param amount the asset amount
+     */
+    function addCover(uint256 amount) external;
+
+    /**
+     * @notice Withdraws excess assets from the loss coverer,
+     * the left assets should meet poolCapCoverageInBps and poolValueCoverageInBps settings
+     * @param receiver the address to receive the withdrawn assets
+     */
+    function removeCover(address receiver) external;
 
     function coverLoss(uint256 poolAssets, uint256 loss) external returns (uint256 remainingLoss);
 

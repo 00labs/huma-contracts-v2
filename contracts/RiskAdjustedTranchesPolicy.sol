@@ -16,7 +16,7 @@ contract RiskAdjustedTranchesPolicy is BaseTranchesPolicy {
     /**
      * @notice Distribute profit between tranches.
      */
-    function distributeProfit(
+    function calcTranchesAssetsForProfit(
         uint256 profit,
         uint96[2] memory assets,
         uint256

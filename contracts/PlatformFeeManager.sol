@@ -36,7 +36,6 @@ contract PlatformFeeManager is IPlatformFeeManager {
     event EvaluationAgentRewardsWithdrawn(address receiver, uint256 amount, address by);
 
     function setPoolConfig(PoolConfig _poolConfig) external {
-        // review question we might want to put this in a library to be shared by multiple contracts
         poolConfig.onlyPoolOwner(msg.sender);
 
         poolConfig = _poolConfig;
@@ -81,60 +80,49 @@ contract PlatformFeeManager is IPlatformFeeManager {
         (, remaining) = _getPlatformFees(profit);
     }
 
-    // review question we should allow amount to be specified in the parameter. Please
-    // refer to v1 implementation.
-    function withdrawProtocolFee() external {
+    function withdrawProtocolFee(uint256 amount) external {
         if (msg.sender != humaConfig.owner()) revert Errors.notProtocolOwner();
         AccruedIncomes memory incomes = _accruedIncomes;
         uint256 incomeWithdrawn = protocolIncomeWithdrawn;
-        uint256 withdrawable = incomes.protocolIncome < incomeWithdrawn
-            ? 0
-            : incomes.protocolIncome - incomeWithdrawn;
+        if (incomeWithdrawn + amount > incomes.protocolIncome)
+            revert Errors.withdrawnAmountHigherThanBalance();
 
-        if (withdrawable > 0) {
-            protocolIncomeWithdrawn = incomeWithdrawn + withdrawable;
+        protocolIncomeWithdrawn = incomeWithdrawn + amount;
 
-            address treasuryAddress = humaConfig.humaTreasury();
-            // It is possible that Huma protocolTreasury is missed in the setup. If that happens,
-            // the transaction is reverted. The protocol owner can still withdraw protocol fee
-            // after protocolTreasury is configured in HumaConfig.
-            assert(treasuryAddress != address(0));
+        address treasuryAddress = humaConfig.humaTreasury();
+        // It is possible that Huma protocolTreasury is missed in the setup. If that happens,
+        // the transaction is reverted. The protocol owner can still withdraw protocol fee
+        // after protocolTreasury is configured in HumaConfig.
+        assert(treasuryAddress != address(0));
 
-            poolVault.withdrawFees(treasuryAddress, withdrawable);
-            emit ProtocolRewardsWithdrawn(treasuryAddress, withdrawable, msg.sender);
-        }
+        poolVault.withdrawFees(treasuryAddress, amount);
+        emit ProtocolRewardsWithdrawn(treasuryAddress, amount, msg.sender);
     }
 
-    function withdrawPoolOwnerFee() external {
+    function withdrawPoolOwnerFee(uint256 amount) external {
         address treasury = poolConfig.onlyPoolOwnerTreasury(msg.sender);
         AccruedIncomes memory incomes = _accruedIncomes;
         uint256 incomeWithdrawn = poolOwnerIncomeWithdrawn;
-        uint256 withdrawable = incomes.poolOwnerIncome < incomeWithdrawn
-            ? 0
-            : incomes.poolOwnerIncome - incomeWithdrawn;
+        if (incomeWithdrawn + amount > incomes.poolOwnerIncome)
+            revert Errors.withdrawnAmountHigherThanBalance();
 
-        if (withdrawable > 0) {
-            poolOwnerIncomeWithdrawn = incomeWithdrawn + withdrawable;
-            poolVault.withdrawFees(treasury, withdrawable);
-            emit PoolRewardsWithdrawn(treasury, withdrawable, msg.sender);
-        }
+        poolOwnerIncomeWithdrawn = incomeWithdrawn + amount;
+        poolVault.withdrawFees(treasury, amount);
+        emit PoolRewardsWithdrawn(treasury, amount, msg.sender);
     }
 
-    function withdrawEAFee() external {
+    function withdrawEAFee(uint256 amount) external {
         // Either Pool owner or EA can trigger reward withdraw for EA.
         // When it is triggered by pool owner, the fund still flows to the EA's account.
         address treasury = poolConfig.onlyPoolOwnerOrEA(msg.sender);
         AccruedIncomes memory incomes = _accruedIncomes;
         uint256 incomeWithdrawn = eaIncomeWithdrawn;
-        uint256 withdrawable = incomes.eaIncome < incomeWithdrawn
-            ? 0
-            : incomes.eaIncome - incomeWithdrawn;
+        if (incomeWithdrawn + amount > incomes.eaIncome)
+            revert Errors.withdrawnAmountHigherThanBalance();
 
-        if (withdrawable > 0) {
-            eaIncomeWithdrawn = incomeWithdrawn + withdrawable;
-            poolVault.withdrawFees(treasury, withdrawable);
-            emit EvaluationAgentRewardsWithdrawn(treasury, withdrawable, msg.sender);
-        }
+        eaIncomeWithdrawn = incomeWithdrawn + amount;
+        poolVault.withdrawFees(treasury, amount);
+        emit EvaluationAgentRewardsWithdrawn(treasury, amount, msg.sender);
     }
 
     function getAccruedIncomes() external view returns (AccruedIncomes memory) {

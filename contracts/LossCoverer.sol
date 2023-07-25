@@ -9,6 +9,8 @@ import {PoolConfig, LPConfig, FirstLossCover} from "./PoolConfig.sol";
 import "./SharedDefs.sol";
 import {Errors} from "./Errors.sol";
 
+// TODO design first loss cover fee
+
 contract LossCoverer is ILossCoverer {
     PoolConfig public poolConfig;
     IPool public pool;
@@ -35,11 +37,12 @@ contract LossCoverer is ILossCoverer {
         asset = IERC20(addr);
     }
 
-    // review question Please explain what this function does. It seems the function tries
-    // to figure out the min coverage and transfer asset to a receiver.
-    // The name removeLiquidity is confusing.It does not match with the logic in the function.
-    function removeLiquidity(address receiver) external {
-        // review question access control?
+    function addCover(uint256 amount) external {
+        // TODO only owner?
+        asset.transferFrom(msg.sender, address(this), amount);
+    }
+
+    function removeCover(address receiver) external {
         // TODO only owner?
 
         uint256 assets = asset.balanceOf(address(this));
@@ -75,14 +78,12 @@ contract LossCoverer is ILossCoverer {
         }
     }
 
-    // review question need to add function for replenishFirstLossCover.
-
     function recoverLoss(uint256 recovery) external returns (uint256 remainingRecovery) {
         poolConfig.onlyPool(msg.sender);
 
         uint256 processed = processedLoss;
         uint256 recovered = processed < recovery ? processed : recovery;
-        // review question under which situation, remainingRecovery can be positive?
+        // There may be multiple loss coverers, the remainingRecovery may be positive.
         remainingRecovery = recovery - recovered;
         if (recovered > 0) {
             processedLoss = processed - recovered;

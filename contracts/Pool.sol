@@ -90,7 +90,7 @@ contract Pool is IPool {
                 tranchesInfo.seniorTotalAssets,
                 tranchesInfo.juniorTotalAssets
             ];
-            assets = tranchesPolicy.distributeProfit(
+            assets = tranchesPolicy.calcTranchesAssetsForProfit(
                 poolProfit,
                 assets,
                 tranchesInfo.lastUpdatedTime
@@ -119,7 +119,7 @@ contract Pool is IPool {
                 tranchesInfo.seniorTotalAssets,
                 tranchesInfo.juniorTotalAssets
             ];
-            assets = tranchesPolicy.distributeLoss(loss, assets);
+            assets = tranchesPolicy.calcTranchesAssetsForLoss(loss, assets);
 
             // store tranches info
             tranchesInfo.seniorTotalAssets = assets[SENIOR_TRANCHE_INDEX];
@@ -138,7 +138,7 @@ contract Pool is IPool {
             ];
             TranchesLosses memory tsLosses = tranchesLosses;
             uint96[2] memory losses = [tsLosses.seniorLoss, tsLosses.juniorLoss];
-            (lossRecovery, assets, losses) = tranchesPolicy.distributeLossRecovery(
+            (lossRecovery, assets, losses) = tranchesPolicy.calcTranchesAssetsForLossRecovery(
                 lossRecovery,
                 assets,
                 losses
@@ -161,51 +161,29 @@ contract Pool is IPool {
         }
     }
 
-    // review question it might be more beneificial to combine this and the next function.
-    // With one call to review total assets, senior assets and junior assets. The value
-    // for a function to just return one tranche is low.
     function trancheTotalAssets(uint256 index) external view returns (uint256) {
-        if (block.timestamp > tranches.lastUpdatedTime) {
-            // need to update tranche assets
-
-            // update tranche assets to current time
-            uint96[2] memory assets = _currentTranches();
-
-            return assets[index];
-        } else {
-            return
-                index == SENIOR_TRANCHE_INDEX
-                    ? tranches.seniorTotalAssets
-                    : tranches.juniorTotalAssets;
-        }
+        uint96[2] memory assets = currentTranchesAssets();
+        return assets[index];
     }
 
     function totalAssets() external view returns (uint256) {
-        if (block.timestamp > tranches.lastUpdatedTime) {
-            // need to update tranche assets
-
-            // update tranche assets to current time
-            uint96[2] memory assets = _currentTranches();
-
-            return assets[SENIOR_TRANCHE_INDEX] + assets[JUNIOR_TRANCHE_INDEX];
-        } else {
-            return tranches.seniorTotalAssets + tranches.juniorTotalAssets;
-        }
+        uint96[2] memory assets = currentTranchesAssets();
+        return assets[SENIOR_TRANCHE_INDEX] + assets[JUNIOR_TRANCHE_INDEX];
     }
 
-    function _currentTranches() internal view returns (uint96[2] memory trancheAssets) {
-        // review question. The function is labeled as view. The called functions are all view.
-        // however, the function names starting with "distribute," which seems to be actions.
-        // This is confusing.
-        (uint256 profit, uint256 loss, uint256 lossRecovery) = credit.currentPnL();
-
+    function currentTranchesAssets() public view returns (uint96[2] memory trancheAssets) {
         TranchesInfo memory ti = tranches;
         trancheAssets = [ti.seniorTotalAssets, ti.juniorTotalAssets];
+        if (block.timestamp <= ti.lastUpdatedTime) {
+            return trancheAssets;
+        }
+
+        (uint256 profit, uint256 loss, uint256 lossRecovery) = credit.currentPnL();
 
         if (profit > 0) {
             uint256 remaining = feeManager.getRemainingAfterPlatformFees(profit);
             if (remaining > 0) {
-                trancheAssets = tranchesPolicy.distributeProfit(
+                trancheAssets = tranchesPolicy.calcTranchesAssetsForProfit(
                     remaining,
                     trancheAssets,
                     ti.lastUpdatedTime
@@ -214,13 +192,13 @@ contract Pool is IPool {
         }
 
         if (loss > 0) {
-            trancheAssets = tranchesPolicy.distributeLoss(loss, trancheAssets);
+            trancheAssets = tranchesPolicy.calcTranchesAssetsForLoss(loss, trancheAssets);
         }
 
         if (lossRecovery > 0) {
             TranchesLosses memory tsLosses = tranchesLosses;
             uint96[2] memory losses = [tsLosses.seniorLoss, tsLosses.juniorLoss];
-            tranchesPolicy.distributeLossRecovery(lossRecovery, trancheAssets, losses);
+            tranchesPolicy.calcTranchesAssetsForLossRecovery(lossRecovery, trancheAssets, losses);
         }
     }
 

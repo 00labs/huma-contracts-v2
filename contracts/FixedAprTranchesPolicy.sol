@@ -15,7 +15,7 @@ import "./SharedDefs.sol";
 contract FixedAprTranchesPolicy is BaseTranchesPolicy {
     constructor(PoolConfig _poolConfig) BaseTranchesPolicy(_poolConfig) {}
 
-    function distributeProfit(
+    function calcTranchesAssetsForProfit(
         uint256 profit,
         uint96[2] memory assets,
         uint256 lastUpdatedTime
