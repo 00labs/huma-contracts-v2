@@ -45,8 +45,9 @@ contract TrancheVault is ERC20Upgradeable, TrancheVaultStorage, IEpoch {
         trancheIndex = seniorTrancheOrJuniorTranche;
     }
 
-    // TODO permission
     function setPoolConfig(PoolConfig _poolConfig) external {
+        poolConfig.onlyPoolOwner(msg.sender);
+
         poolConfig = _poolConfig;
 
         address addr = _poolConfig.pool();
@@ -89,6 +90,8 @@ contract TrancheVault is ERC20Upgradeable, TrancheVaultStorage, IEpoch {
         uint256 sharesProcessed,
         uint256 amountProcessed
     ) external {
+        poolConfig.onlyEpochManager(msg.sender);
+
         uint256 count = epochsProcessed.length;
         EpochInfo memory epoch;
         for (uint256 i; i < count; i++) {

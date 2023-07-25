@@ -35,9 +35,10 @@ contract PlatformFeeManager is IPlatformFeeManager {
     event ProtocolRewardsWithdrawn(address receiver, uint256 amount, address by);
     event EvaluationAgentRewardsWithdrawn(address receiver, uint256 amount, address by);
 
-    // TODO permission
     function setPoolConfig(PoolConfig _poolConfig) external {
         // review question we might want to put this in a library to be shared by multiple contracts
+        poolConfig.onlyPoolOwner(msg.sender);
+
         poolConfig = _poolConfig;
 
         address addr = _poolConfig.poolVault();
@@ -49,9 +50,9 @@ contract PlatformFeeManager is IPlatformFeeManager {
         humaConfig = HumaConfig(addr);
     }
 
-    // TODO migration function
-
     function distributePlatformFees(uint256 profit) external returns (uint256) {
+        poolConfig.onlyPool(msg.sender);
+
         (AccruedIncomes memory incomes, uint256 remaining) = _getPlatformFees(profit);
         AccruedIncomes memory accruedIncomes = _accruedIncomes;
 
@@ -81,7 +82,7 @@ contract PlatformFeeManager is IPlatformFeeManager {
     }
 
     // review question we should allow amount to be specified in the parameter. Please
-    // refer to v1 implementation. 
+    // refer to v1 implementation.
     function withdrawProtocolFee() external {
         if (msg.sender != humaConfig.owner()) revert Errors.notProtocolOwner();
         AccruedIncomes memory incomes = _accruedIncomes;

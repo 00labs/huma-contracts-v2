@@ -17,31 +17,38 @@ contract PoolVault is IPoolVault {
 
     Reserves public reserves;
 
-    // TODO permission
     function setPoolConfig(PoolConfig _poolConfig) external {
+        poolConfig.onlyPoolOwner(msg.sender);
+
         poolConfig = _poolConfig;
         address assetAddress = poolConfig.underlyingToken();
         if (assetAddress == address(0)) revert Errors.zeroAddressProvided();
         asset = IERC20(assetAddress);
     }
 
-    // TODO migration function
-
     function deposit(address from, uint256 amount) external {
+        poolConfig.onlyTrancheVaultOrLossCoverer(msg.sender);
+
         asset.transferFrom(from, address(this), amount);
     }
 
     function withdraw(address to, uint256 amount) external {
+        poolConfig.onlyTrancheVaultOrLossCoverer(msg.sender);
+
         asset.transfer(to, amount);
     }
 
     function addPlatformFeesReserve(uint256 reserve) external {
+        poolConfig.onlyPlatformFeeManager(msg.sender);
+
         Reserves memory rs = reserves;
         reserves.forPlatformFees += uint96(reserve);
         reserves = rs;
     }
 
     function withdrawFees(address to, uint256 amount) external {
+        poolConfig.onlyPlatformFeeManager(msg.sender);
+
         Reserves memory rs = reserves;
         reserves.forPlatformFees -= uint96(amount);
         reserves = rs;
@@ -49,6 +56,8 @@ contract PoolVault is IPoolVault {
     }
 
     function setRedemptionReserve(uint256 reserve) external {
+        poolConfig.onlyPool(msg.sender);
+
         Reserves memory rs = reserves;
         reserves.forRedemption = uint96(reserve);
         reserves = rs;

@@ -17,9 +17,10 @@ contract LossCoverer is ILossCoverer {
 
     uint256 public processedLoss;
 
-    // TODO permission
     // review question We need this block of code in multiple contracts. Shall we put it in a library?
     function setPoolConfig(PoolConfig _poolConfig) external {
+        poolConfig.onlyPoolOwner(msg.sender);
+
         poolConfig = _poolConfig;
 
         address addr = _poolConfig.poolVault();
@@ -35,13 +36,13 @@ contract LossCoverer is ILossCoverer {
         asset = IERC20(addr);
     }
 
-    // TODO migration function
-
     // review question Please explain what this function does. It seems the function tries
     // to figure out the min coverage and transfer asset to a receiver.
     // The name removeLiquidity is confusing.It does not match with the logic in the function.
     function removeLiquidity(address receiver) external {
         // review question access control?
+        // TODO only owner?
+
         uint256 assets = asset.balanceOf(address(this));
         if (assets == 0) return;
 
@@ -60,6 +61,8 @@ contract LossCoverer is ILossCoverer {
     }
 
     function coverLoss(uint256 poolAssets, uint256 loss) external returns (uint256 remainingLoss) {
+        poolConfig.onlyPool(msg.sender);
+
         FirstLossCover memory config = poolConfig.getFirstLossCover();
         uint256 processed = (poolAssets * config.coverRateInBps) / HUNDRED_PERCENT_IN_BPS;
         processed = processed < config.coverCap ? processed : config.coverCap;
@@ -76,6 +79,8 @@ contract LossCoverer is ILossCoverer {
     // review question need to add function for replenishFirstLossCover.
 
     function recoverLoss(uint256 recovery) external returns (uint256 remainingRecovery) {
+        poolConfig.onlyPool(msg.sender);
+
         uint256 processed = processedLoss;
         uint256 recovered = processed < recovery ? processed : recovery;
         // review question under which situation, remainingRecovery can be positive?

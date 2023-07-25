@@ -33,10 +33,11 @@ contract EpochManager is IEpochManager {
 
     uint256 public currentEpochId;
 
-    // TODO permission
     function setPoolConfig(PoolConfig _poolConfig) external {
         // question should this be in the initialize function
-        // question do we need to worry about changes? 
+        // question do we need to worry about changes?
+        poolConfig.onlyPoolOwner(msg.sender);
+
         poolConfig = _poolConfig;
 
         address addr = _poolConfig.poolVault();
@@ -55,8 +56,6 @@ contract EpochManager is IEpochManager {
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         juniorTranche = ITrancheVaultLike(addr);
     }
-
-    // TODO migration function
 
     /**
      * @notice Closes current epoch and handle senior tranch orders and junior tranch orders
@@ -131,7 +130,7 @@ contract EpochManager is IEpochManager {
     )
         internal
         view
-        virtual 
+        virtual
         returns (
             TrancheProcessedResult memory seniorResult,
             TrancheProcessedResult memory juniorResult

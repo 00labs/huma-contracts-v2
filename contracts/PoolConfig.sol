@@ -653,4 +653,32 @@ contract PoolConfig is Ownable {
         _feeStructure = feeStructure;
         // todo emit event
     }
+
+    function onlyEpochManager(address account) external view {
+        if (account != epochManager) revert Errors.notEpochManager();
+    }
+
+    function onlyPlatformFeeManager(address account) external view {
+        if (account != feeManager) revert Errors.notPlatformFeeManager();
+    }
+
+    function onlyPool(address account) external view {
+        if (account != pool) revert Errors.notPool();
+    }
+
+    function onlyTrancheVaultOrLossCoverer(address account) external view {
+        bool valid;
+        if (account == seniorTranche || account == juniorTranche) return;
+        uint256 len = _lossCoverers.length;
+        for (uint256 i; i < len; i++) {
+            if (account == _lossCoverers[i]) return;
+        }
+
+        if (!valid) revert Errors.notTrancheVaultOrLossCoverer();
+    }
+
+    function onlyTrancheVaultOrEpochManager(address account) external view {
+        if (account != seniorTranche && account != seniorTranche && account != epochManager)
+            revert Errors.notTrancheVaultOrEpochManager();
+    }
 }

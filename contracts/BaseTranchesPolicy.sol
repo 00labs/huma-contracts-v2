@@ -2,9 +2,18 @@
 pragma solidity ^0.8.0;
 
 import {ITranchesPolicy} from "./interfaces/ITranchesPolicy.sol";
+import {PoolConfig} from "./PoolConfig.sol";
+import {Errors} from "./Errors.sol";
 import "./SharedDefs.sol";
 
 abstract contract BaseTranchesPolicy is ITranchesPolicy {
+    PoolConfig public poolConfig;
+
+    constructor(PoolConfig _poolConfig) {
+        if (address(_poolConfig) == address(0)) revert Errors.zeroAddressProvided();
+        poolConfig = _poolConfig;
+    }
+
     function distributeLoss(uint256 loss, uint96[2] memory assets) external pure {
         // question assume this is more of libaray, no need to worry about access control?
         uint256 juniorTotalAssets = assets[JUNIOR_TRANCHE_INDEX];
