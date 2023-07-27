@@ -33,6 +33,9 @@ contract BaseCreditStorage {
     bytes32[] public activeCreditsHash;
     bytes32[] public overdueCreditsHash;
 
+    uint256 numOfBorrowers;
+    bytes32 firstCreditHash;
+
     /**
      * @dev This empty reserved space is put in place to allow future versions to add new
      * variables without shifting down storage in the inheritance chain.
