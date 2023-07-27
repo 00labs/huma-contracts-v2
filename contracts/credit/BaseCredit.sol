@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import {CreditConfig, CreditRecord, CreditProfit, CreditLoss, CreditState} from "./CreditStructs.sol";
 import {ICreditFeeManager} from "./utils/interfaces/ICreditFeeManager.sol";
 import {ICredit} from "./interfaces/ICredit.sol";
+import {IFlexCredit} from "./interfaces/IFlexCredit.sol";
 import {BaseCreditStorage} from "./BaseCreditStorage.sol";
 import {Errors} from "../Errors.sol";
 import {PoolConfig} from "../PoolConfig.sol";
@@ -29,7 +30,7 @@ struct CreditLimit {
  * 2) separate lastUpdateDate for profit and loss
  * 3) Mostly Credit-level limit, also supports borrower-level limit
  */
-abstract contract BaseCredit is BaseCreditStorage, ICredit {
+contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
     using SafeERC20 for IERC20;
 
     enum CreditLineClosureReason {
@@ -304,6 +305,21 @@ abstract contract BaseCredit is BaseCreditStorage, ICredit {
         _setCreditRecord(creditHash, cr);
 
         // emit CreditLineChanged(borrower, oldCreditLimit, newCreditLimit);
+    }
+
+    /**
+     * @notice Request the borrower to make extra principal payment in the next bill
+     * @param amount the extra amount of principal to be paid
+     * @dev the BaseCredit contract increases the due immediately, it is the caller's job
+     * to call this function at the right time.
+     * todo Add a new storage to record the extra principal due. We include it when calculate
+     * the next bill so that the caller of this function does not have to time the request.
+     */
+    function requestEarlyPrincipalWithdrawal(uint96 amount) external virtual override returns (bool availability) {
+        // todo Only allows the Pool(?) contract to call
+        // todo Check against poolConfig to make sure FlexCredit is allowed by this pool
+        if (numOfBorrowers > 1) revert Errors.todo();
+        _getCreditRecord(firstCreditHash).totalDue += amount;
     }
 
     /**
