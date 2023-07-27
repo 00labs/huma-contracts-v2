@@ -10,12 +10,17 @@ import {Errors} from "../../Errors.sol";
 contract BaseCreditFeeManager is ICreditFeeManager {
     PoolConfig public poolConfig;
 
+    /**
+     * @notice Compute interest and principal 
+     */
     function accruedDebt(
         uint256 principal,
         uint256 startTime,
         uint256 lastUpdatedTime,
-        CreditConfig memory dealConfig
-    ) external view virtual returns (uint256 accruedInterest, uint256 accruedPrincipal) {}
+        CreditRecord memory dealRecord
+    ) external view virtual returns (uint256 accruedInterest, uint256 accruedPrincipal) {
+
+    }
 
     /**
      * @notice Computes the late fee including both the flat fee and percentage fee
@@ -71,6 +76,30 @@ contract BaseCreditFeeManager is ICreditFeeManager {
 
         return (amtToBorrower, platformFees);
     }
+
+    /**
+     * @notice Sets the standard front loading and late fee policy for the fee manager
+     * @param _frontLoadingFeeFlat flat fee portion of the front loading fee
+     * @param _frontLoadingFeeBps a fee in the percentage of a new borrowing
+     * @param _lateFeeFlat flat fee portion of the late
+     * @param _lateFeeBps a fee in the percentage of the outstanding balance
+     * @dev Only owner can make this setting
+     */
+    function setFees(
+        uint256 _frontLoadingFeeFlat,
+        uint256 _frontLoadingFeeBps,
+        uint256 _lateFeeFlat,
+        uint256 _lateFeeBps,
+        uint256 _membershipFee
+    ) external {}
+
+    /**
+     * @notice Sets the min percentage of principal to be paid in each billing period
+     * @param _minPrincipalRateInBps the min % in unit of bps. For example, 5% will be 500
+     * @dev Only owner can make this setting
+     * @dev This is a global limit of 5000 bps (50%).
+     */
+    function setMinPrincipalRateInBps(uint256 _minPrincipalRateInBps) external {}
 
     /**
      * @notice Gets the current total due, fees and interest due, and payoff amount.
