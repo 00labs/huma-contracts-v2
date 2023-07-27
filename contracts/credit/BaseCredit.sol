@@ -146,7 +146,8 @@ abstract contract BaseCredit is BaseCreditStorage, ICredit {
         uint16 yieldInBps,
         uint96 committedAmount,
         bool revolving, // whether repeated borrowing is allowed
-        bool receivableRequired
+        bool receivableRequired,
+        bool borrowerLevelCredit
     ) external virtual override {
         _protocolAndPoolOn();
         onlyEAServiceAccount();
@@ -155,20 +156,22 @@ abstract contract BaseCredit is BaseCreditStorage, ICredit {
         if (periodDuration <= 0) revert();
         if (numOfPeriods <= 0) revert();
 
-        _borrowerSettings[borrower] = CreditConfig(
+        _borrowerConfigMap[borrower] = CreditConfig(
             creditLimit,
             calendarUnit,
             periodDuration,
             numOfPeriods,
             yieldInBps,
             revolving,
-            receivableRequired
+            receivableRequired,
+            borrowerLevelCredit,
+            false
         );
 
         // :emit BorrowerApproved(borrower, creditLimit);
     }
 
-    function getCreditHash(address borrower) public view virtual returns (bytes32 creditHash);
+    function getCreditHash(address borrower) public view virtual returns (bytes32 creditHash) {}
 
     // {
     //     return keccak256(abi.encode(address(this), borrower));
@@ -178,7 +181,7 @@ abstract contract BaseCredit is BaseCreditStorage, ICredit {
         address borrower,
         address receivableAsset,
         uint256 receivableId
-    ) external view virtual returns (bytes32 creditHash);
+    ) public view virtual returns (bytes32 creditHash) {}
 
     // {
     //     return keccak256(abi.encode(address(this), borrower, receivableAsset, receivableId));
@@ -203,7 +206,7 @@ abstract contract BaseCredit is BaseCreditStorage, ICredit {
         uint16 yieldInBps,
         uint96 committedAmount,
         bool revolving
-    ) external virtual override {
+    ) external virtual {
         _protocolAndPoolOn();
         onlyEAServiceAccount();
         if (payPeriodInCalendarUnit == 0) revert Errors.requestedCreditWithZeroDuration();
@@ -262,7 +265,7 @@ abstract contract BaseCredit is BaseCreditStorage, ICredit {
         onlyEAServiceAccount();
         // Credit limit needs to be lower than max for the pool.
         _maxCreditLineCheck(newCreditLimit);
-        _borrowerSettings[borrower].creditLimit = newCreditLimit;
+        _borrowerConfigMap[borrower].creditLimit = newCreditLimit;
 
         // todo Delete the credit record if the new limit is 0 and no outstanding balance
         // if (newCreditLimit == 0) {
@@ -882,13 +885,18 @@ abstract contract BaseCredit is BaseCreditStorage, ICredit {
     }
 
     /// Shared accessor to the credit record mapping for contract size consideration
-    function _getCreditRecord(bytes32 creditHash) internal view returns (CreditRecord memory) {
-        return _creditRecordMap[creditHash];
+    function _getBorrowerRecord(address borrower) internal view returns (CreditConfig memory) {
+        return _borrowerConfigMap[borrower];
     }
 
-    /// Shared accessor to the credit record static mapping for contract size consideration
-    function _getCreditConfig(bytes32 creditHash) internal view returns (CreditConfig memory cc) {
+    /// Shared accessor to the credit config mapping for contract size consideration
+    function _getCreditConfig(bytes32 creditHash) internal view returns (CreditConfig memory) {
         return _creditConfigMap[creditHash];
+    }
+
+    /// Shared accessor to the credit record mapping for contract size consideration
+    function _getCreditRecord(bytes32 creditHash) internal view returns (CreditRecord memory) {
+        return _creditRecordMap[creditHash];
     }
 
     /// Shared setter to the credit config mapping

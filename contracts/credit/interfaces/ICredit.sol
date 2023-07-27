@@ -13,19 +13,20 @@ interface ICredit {
         uint16 yieldInBps,
         uint96 committedAmount,
         bool revolving, // whether repeated borrowing is allowed
-        bool receivableRequired
+        bool receivableRequired,
+        bool borrowerLevelCredit
     ) external;
 
-    function approveCredit(
-        address borrower,
-        uint96 creditLimit,
-        CalendarUnit calendarUnit, // days or semimonth
-        uint16 periodDuration,
-        uint16 numOfPeriods, // number of periods
-        uint16 yieldInBps,
-        uint96 committedAmount,
-        bool revolving // whether repeated borrowing is allowed
-    ) external;
+    // function approveCredit(
+    //     address borrower,
+    //     uint96 creditLimit,
+    //     CalendarUnit calendarUnit, // days or semimonth
+    //     uint16 periodDuration,
+    //     uint16 numOfPeriods, // number of periods
+    //     uint16 yieldInBps,
+    //     uint96 committedAmount,
+    //     bool revolving // whether repeated borrowing is allowed
+    // ) external;
 
     function closeCredit(bytes32 creditHash) external;
 

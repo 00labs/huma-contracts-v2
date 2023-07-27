@@ -7,6 +7,14 @@ import {CreditRecord} from "../CreditStructs.sol";
  */
 
 interface IValuator {
+    function getCreditPresentProfit(
+        CreditRecord memory cr
+    ) external view returns (uint256 creditValue);
+
+    function getCreditPresentLoss(
+        CreditRecord memory cr
+    ) external view returns (uint256 creditValue);
+
     function getCreditPresentValue(
         CreditRecord memory cr
     ) external view returns (uint256 creditValue);

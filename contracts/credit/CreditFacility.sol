@@ -1,56 +1,35 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {CreditConfig, CreditRecord, ReceivableInfo, FacilityConfig} from "./CreditStructs.sol";
-import {BaseCredit} from "./BaseCredit.sol";
+import {CreditConfig, CreditRecord, ReceivableInfo, FacilityConfig, ReceivableState} from "./CreditStructs.sol";
+import {ReceivableCredit} from "./ReceivableCredit.sol";
 import {ICreditFacility} from "./interfaces/ICreditFacility.sol";
+import {Receivable} from "./Receivable.sol";
+import {Errors} from "../Errors.sol";
 
 /**
- * CreditFacility provides a debt facility for the borrowers to sell their receivabels to the
- * facility to gain access to credit.
+ * ReceivableCredit is a credit backed by receivables.
  */
-abstract contract CreditFacility is BaseCredit, ICreditFacility {
-    // creditHash => (receivableHash => receivableInfo)
-    mapping(bytes32 => mapping(bytes32 => ReceivableInfo)) receivables;
-    mapping(bytes32 => bool) approvedReceivables;
+contract CreditFacility is ReceivableCredit, ICreditFacility {
+    function addReceivable(uint256 receivableId) public virtual override {
+        // todo onlyBorrower
+        // todo makes sure the borrower owns the receivable
+        bytes32 creditHash = _getCreditHash(receivableId);
 
-    mapping(bytes32 => FacilityConfig) facilityConfig;
+        if (facilityConfig[creditHash].autoApproval) _approveReceivable(creditHash, receivableId);
 
-    function addReceivable(bytes32 creditHash, ReceivableInfo memory receivableInfo) public {
-        bytes32 receivableHash = _genReceivableHash(receivableInfo);
-        mapping(bytes32 => ReceivableInfo) storage tempReceivableMap = receivables[creditHash];
-        tempReceivableMap[receivableHash] = receivableInfo;
-
-        // todo read facilityConfig twice when if is true, need to improve efficiency.
-        if (facilityConfig[creditHash].autoApproval) approveReceivable(creditHash, receivableInfo);
+        receivableMap[creditHash][receivableId] = receivableId;
     }
 
-    function approveReceivable(bytes32 creditHash, ReceivableInfo memory receivableInfo) public {
-        bytes32 receivableHash = _genReceivableHash(receivableInfo);
-        approvedReceivables[receivableHash] = true;
-        _creditRecordMap[creditHash].availableCredit +=
-            receivableInfo.receivableAmount *
-            facilityConfig[creditHash].advanceRateInBps;
-    }
-
-    function bookReceivablePayment(ReceivableInfo memory receivableInfo) external {}
-
-    function closeReceivable(ReceivableInfo memory receivableInfo) external {}
-
-    function drawdownWithReceivable(
-        bytes32 creditHash,
-        uint256 amount,
-        ReceivableInfo memory receivableInfo
-    ) external {
-        addReceivable(creditHash, receivableInfo);
-        //super.drawdown(creditHash, amount);
-    }
-
-    function _genReceivableHash(
-        ReceivableInfo memory receivableInfo
-    ) internal view returns (bytes32 receivableHash) {
-        receivableHash = keccak256(
-            abi.encode(address(receivableInfo.receivableAsset), receivableInfo.receivableId)
-        );
+    function declarePayment(uint256 receivableId, uint256 amount) external virtual override {
+        ReceivableInfo memory receivableInfo = receivable.getReceivable(receivableId);
+        if (
+            receivableInfo.state == ReceivableState.Approved ||
+            receivableInfo.state == ReceivableState.PartiallyPaid
+        ) {
+            receivableInfo.paidAmount += uint96(amount);
+            if (receivableInfo.paidAmount >= receivableInfo.receivableAmount)
+                receivableInfo.state = ReceivableState.Paid;
+        } else revert Errors.todo();
     }
 }
