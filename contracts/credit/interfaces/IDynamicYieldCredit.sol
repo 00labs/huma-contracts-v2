@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import {CreditConfig} from "../CreditStructs.sol";
 import {ICredit} from "./ICredit.sol";
 
-interface ICreditFacility is ICredit {
+interface IDynamicYieldCredit is ICredit {
     function getEstimatedYield() external;
     function declareYield() external;
 }

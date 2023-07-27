@@ -14,8 +14,10 @@ struct CreditConfig {
     // for factoring, it is factoring fee for the given period;
     // for dynamic yield credit, it is the estimated APY
     uint16 yieldInBps;
-    bool revolving; // whether repeated borrowing is allowed
-    bool receivableRequired;
+    bool revolving;         // if repeated borrowing is allowed
+    bool receivableBacked;    // if the credit is receivable-backed
+    bool borrowerLevelCredit; // borrower-level vs receivable-level
+    bool exclusive;    // if the credit pool exclusive to a borrower
 }
 
 // a CreditRecord is created after the first drawdown
@@ -56,10 +58,29 @@ enum CreditState {
     Defaulted
 }
 
+enum ReceivableState {
+    Deleted,
+    Minted,
+    Approved,
+    PartiallyPaid,
+    Paid,
+    Rejected,
+    Delayed,
+    Defaulted
+}
+
 struct ReceivableInfo {
-    address receivableAsset;
+    // The total expected payment amount of the receivable
     uint96 receivableAmount;
-    uint256 receivableId;
+    // The amount of the receivable that has been paid so far
+    uint64 creationDate;
+    // The date at which the receivable is expected to be fully paid
+    uint96 paidAmount;
+    // The ISO 4217 currency code that the receivable is denominated in
+    uint16 currencyCode;
+    // The date at which the receivable is created
+    uint64 maturityDate;
+    ReceivableState state;
 }
 
 struct FacilityConfig {

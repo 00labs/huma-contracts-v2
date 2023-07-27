@@ -20,7 +20,7 @@ contract BaseCreditStorage {
     uint256 public totalAccruedLoss;
     uint256 public totalAccruedLossRecovery;
 
-    mapping(address => CreditConfig) internal _borrowerSettings;
+    mapping(address => CreditConfig) internal _borrowerConfigMap;
     /// mapping from credit id to the credit config
     mapping(bytes32 => CreditConfig) internal _creditConfigMap;
     /// mapping from credit id to the credit record
