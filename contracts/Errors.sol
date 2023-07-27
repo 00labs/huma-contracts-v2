@@ -85,6 +85,7 @@ contract Errors {
     error paymentAlreadyProcessed(); // 0xfd6754cf
     error settlementTooSoon(); // 0x0453e75e
     error receivableIdMismatch(); // 0x97be2b67
+    error exceededMaxSeniorJuniorRatio();
 
     error defaultTriggeredTooEarly(); // 0x7872424e
     error defaultHasAlreadyBeenTriggered(); // 0xeb8d2ccc

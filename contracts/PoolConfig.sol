@@ -6,14 +6,13 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 //import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {IERC20, IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IPlatformFeeManager} from "./interfaces/IPlatformFeeManager.sol";
+import {IPool} from "./interfaces/IPool.sol";
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "./SharedDefs.sol";
 
-//import "./HDT/HDT.sol";
-import "./HumaConfig.sol";
-//import "./BasePool.sol";
-import "./Errors.sol";
+import {HumaConfig} from "./HumaConfig.sol";
+import {Errors} from "./Errors.sol";
 
 import "hardhat/console.sol";
 
@@ -141,6 +140,7 @@ contract PoolConfig is Ownable {
     FrontLoadingFeesStructure internal _frontFees;
     FeeStructure internal _feeStructure;
 
+    // TODO replace to openzeppelin access control?
     /// Pool operators can add or remove lenders.
     mapping(address => bool) private poolOperators;
 
@@ -590,7 +590,8 @@ contract PoolConfig is Ownable {
 
     /// "Modifier" function that limits access to pool owner or EA.
     function onlyPoolOwnerOrEA(address account) public view returns (address) {
-        if (account != owner() && account != evaluationAgent) revert Errors.notPoolOwnerOrEA();
+        if (account != owner() && account != evaluationAgent && account != address(this))
+            revert Errors.notPoolOwnerOrEA();
         return evaluationAgent;
     }
 
@@ -698,5 +699,14 @@ contract PoolConfig is Ownable {
     function onlyTrancheVaultOrEpochManager(address account) external view {
         if (account != seniorTranche && account != seniorTranche && account != epochManager)
             revert Errors.notTrancheVaultOrEpochManager();
+    }
+
+    function onlyPoolOperator(address account) external view {
+        if (!poolOperators[account]) revert Errors.poolOperatorRequired();
+    }
+
+    function onlyProtocolAndPoolOn() external view {
+        if (humaConfig.paused()) revert Errors.protocolIsPaused();
+        if (IPool(pool).isPoolOn()) revert Errors.poolIsNotOn();
     }
 }
