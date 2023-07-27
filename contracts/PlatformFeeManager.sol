@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import "./SharedDefs.sol";
-import {PoolConfig, PoolSettings} from "./PoolConfig.sol";
+import {PoolConfig, PoolSettings, AdminRnR} from "./PoolConfig.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
 import {IPlatformFeeManager} from "./interfaces/IPlatformFeeManager.sol";
 import {HumaConfig} from "./HumaConfig.sol";
@@ -158,16 +158,17 @@ contract PlatformFeeManager is IPlatformFeeManager {
         uint256 profit
     ) internal view returns (AccruedIncomes memory incomes, uint256 remaining) {
         PoolSettings memory settings = poolConfig.getPoolSettings();
+        AdminRnR memory adminRnR = poolConfig.getAdminRnR();
 
         uint256 income = (humaConfig.protocolFee() * profit) / HUNDRED_PERCENT_IN_BPS;
         incomes.protocolIncome = uint96(income);
 
         remaining = profit - income;
 
-        income = (remaining * settings.rewardRateInBpsForPoolOwner) / HUNDRED_PERCENT_IN_BPS;
+        income = (remaining * adminRnR.rewardRateInBpsForPoolOwner) / HUNDRED_PERCENT_IN_BPS;
         incomes.poolOwnerIncome = uint96(income);
 
-        income = (remaining * settings.rewardRateInBpsForEA) / HUNDRED_PERCENT_IN_BPS;
+        income = (remaining * adminRnR.rewardRateInBpsForEA) / HUNDRED_PERCENT_IN_BPS;
         incomes.eaIncome = uint96(income);
 
         remaining -= incomes.poolOwnerIncome + incomes.eaIncome;

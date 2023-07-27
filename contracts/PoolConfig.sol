@@ -18,21 +18,32 @@ import "./Errors.sol";
 import "hardhat/console.sol";
 
 struct PoolSettings {
+    // the maximum credit line for an address in terms of the amount of poolTokens
+    uint96 maxCreditLine;
     // calendarType and numPerPeriod are used together to measure the duration
     // of a pay period. For example, 14 days, 2 SemiMonth (1 month), 6 SemiMonth (1 quarter)
     CalendarUnit calendarUnit;
-    uint16 payPeriodInCalendarUnit;
-    // the maximum credit line for an address in terms of the amount of poolTokens
-    uint96 maxCreditLine;
+    uint8 payPeriodInCalendarUnit;
     // the duration of a credit line without an initial drawdown
     uint16 creditApprovalExpirationInDays;
-    // Percentage of receivable required for credits in this pool in terms of basis points
-    // For over receivableization, use more than 100%, for no receivable, use 0.
-    uint16 receivableRequiredInBps;
     // the grace period before a late fee can be charged, in the unit of number of days
-    uint16 latePaymentGracePeriodInDays;
+    uint8 latePaymentGracePeriodInDays;
     // the grace period before a default can be triggered, in the unit of the pool's CalendarUnit
     uint16 defaultGracePeriodInCalendarUnit;
+    // percentage of the receivable amount applied towards available credit
+    uint16 advanceRateInBps;
+    // if the pool is exclusive to one borrower
+    bool exclusiveForBorrower;
+    // if the dues are combined into one credit if the borrower has multiple receivables
+    bool singleCreditPerBorrower;
+    // if flexCredit is enabled
+    bool flexCreditEnabled;
+}
+
+/**
+ * @notice Rewards and Responsibilities for various admins
+ */
+struct AdminRnR {
     // Percentage of pool income allocated to EA
     uint16 rewardRateInBpsForEA;
     // Percentage of pool income allocated to Pool Owner
@@ -41,6 +52,8 @@ struct PoolSettings {
     uint16 liquidityRateInBpsByEA;
     // Percentage of the _liquidityCap to be contributed by Pool Owner
     uint16 liquidityRateInBpsByPoolOwner;
+    uint16 rewardRateInBpsForPoolCover;
+    uint16 liquidityRateInBpsByPoolCover;
 }
 
 struct LPConfig {
@@ -49,14 +62,14 @@ struct LPConfig {
     // The max liquidity allowed for the pool.
     uint96 liquidityCap;
     // How long a lender has to wait after the last deposit before they can withdraw
-    uint16 withdrawalLockoutInCalendarUnit;
+    uint8 withdrawalLockoutInCalendarUnit;
     // The upper bound of senior-to-junior ratio allowed
     uint8 maxSeniorJuniorRatio;
     // The fixed yield for senior tranche. Either this or tranchesRiskAdjustmentInBps is non-zero
     uint16 fixedSeniorYieldInBps;
     // Percentage of yield to be shifted from senior to junior. Either this or fixedSeniorYieldInBps is non-zero
     uint16 tranchesRiskAdjustmentInBps;
-    // The duration of an epoch, in the unit of full CycleType
+    // The duration of an epoch, in the unit of full CalendarUnit
     uint8 epochWindowInCalendarUnit;
     // The duration between a capital withdraw request and capital availability, in the unit of full CycleType.
     uint8 flexCallWindowInCalendarUnit;
@@ -82,7 +95,7 @@ struct FrontLoadingFeesStructure {
 
 struct FeeStructure {
     // Expected yield in basis points
-    uint16 apyInBps;
+    uint16 yieldInBps;
     ///The min % of the outstanding principal to be paid in the statement for each each period
     uint16 minPrincipalRateInBps;
     /// Part of late fee, charged as a flat amount when a payment is late
@@ -123,6 +136,7 @@ contract PoolConfig is Ownable {
 
     PoolSettings internal _poolSettings;
     LPConfig internal _lpConfig;
+    AdminRnR internal _adminRnR;
     FirstLossCover internal _firstLossCover;
     FrontLoadingFeesStructure internal _frontFees;
     FeeStructure internal _feeStructure;
@@ -210,14 +224,14 @@ contract PoolConfig is Ownable {
         PoolSettings memory _pSettings = _poolSettings;
         _pSettings.calendarUnit = CalendarUnit.SemiMonth;
         _pSettings.payPeriodInCalendarUnit = 2; // 1 month
-        _pSettings.receivableRequiredInBps = 10000; // 100%
+        _pSettings.advanceRateInBps = 10000; // 100%
         _pSettings.latePaymentGracePeriodInDays = 5;
         _pSettings.defaultGracePeriodInCalendarUnit = 6; // 3 months
 
-        _pSettings.rewardRateInBpsForEA = 300; //3%
-        _pSettings.rewardRateInBpsForPoolOwner = 200; //2%
-        _pSettings.liquidityRateInBpsByEA = 200; // 2%
-        _pSettings.liquidityRateInBpsByPoolOwner = 200; // 2%
+        _adminRnR.rewardRateInBpsForEA = 300; //3%
+        _adminRnR.rewardRateInBpsForPoolOwner = 200; //2%
+        _adminRnR.liquidityRateInBpsByEA = 200; // 2%
+        _adminRnR.liquidityRateInBpsByPoolOwner = 200; // 2%
     }
 
     /**
@@ -240,12 +254,12 @@ contract PoolConfig is Ownable {
 
     /**
      * @notice change the default APR for the pool
-     * @param _apyInBps expected yield in basis points, use 500 for 5%
+     * @param _yieldInBps expected yield in basis points, use 500 for 5%
      */
-    function setYield(uint256 _apyInBps) external {
+    function setYield(uint256 _yieldInBps) external {
         _onlyOwnerOrHumaMasterAdmin();
-        _feeStructure.apyInBps = uint16(_apyInBps);
-        emit YieldChanged(_apyInBps, msg.sender);
+        _feeStructure.yieldInBps = uint16(_yieldInBps);
+        emit YieldChanged(_yieldInBps, msg.sender);
     }
 
     function setCreditApprovalExpiration(uint256 durationInDays) external {
@@ -259,8 +273,8 @@ contract PoolConfig is Ownable {
         if (rewardsRate > HUNDRED_PERCENT_IN_BPS || liquidityRate > HUNDRED_PERCENT_IN_BPS)
             revert Errors.invalidBasisPointHigherThan10000();
 
-        _poolSettings.rewardRateInBpsForPoolOwner = uint16(rewardsRate);
-        _poolSettings.liquidityRateInBpsByPoolOwner = uint16(liquidityRate);
+        _adminRnR.rewardRateInBpsForPoolOwner = uint16(rewardsRate);
+        _adminRnR.liquidityRateInBpsByPoolOwner = uint16(liquidityRate);
         emit PoolOwnerRewardsAndLiquidityChanged(rewardsRate, liquidityRate, msg.sender);
     }
 
@@ -269,8 +283,8 @@ contract PoolConfig is Ownable {
 
         if (rewardsRate > HUNDRED_PERCENT_IN_BPS || liquidityRate > HUNDRED_PERCENT_IN_BPS)
             revert Errors.invalidBasisPointHigherThan10000();
-        _poolSettings.rewardRateInBpsForEA = uint16(rewardsRate);
-        _poolSettings.liquidityRateInBpsByEA = uint16(liquidityRate);
+        _adminRnR.rewardRateInBpsForEA = uint16(rewardsRate);
+        _adminRnR.liquidityRateInBpsByEA = uint16(liquidityRate);
         emit EARewardsAndLiquidityChanged(rewardsRate, liquidityRate, msg.sender);
     }
 
@@ -369,7 +383,7 @@ contract PoolConfig is Ownable {
         if (number == 0) revert Errors.zeroAmountProvided();
         PoolSettings memory _settings = _poolSettings;
         _settings.calendarUnit = unit;
-        _settings.payPeriodInCalendarUnit = uint16(number);
+        _settings.payPeriodInCalendarUnit = uint8(number);
         _poolSettings = _settings;
         //emit PoolPayPeriodChanged(unit, number, msg.sender);
     }
@@ -451,7 +465,7 @@ contract PoolConfig is Ownable {
     function setReceivableRequiredInBps(uint256 receivableInBps) external {
         _onlyOwnerOrHumaMasterAdmin();
         // note: this rate can be over 10000 when it requires more backing than the credit limit
-        _poolSettings.receivableRequiredInBps = uint16(receivableInBps);
+        _poolSettings.advanceRateInBps = uint16(receivableInBps);
         emit ReceivableRequiredInBpsChanged(receivableInBps, msg.sender);
     }
 
@@ -462,23 +476,21 @@ contract PoolConfig is Ownable {
     function setWithdrawalLockoutPeriod(CalendarUnit unit, uint256 lockoutPeriod) external {
         _onlyOwnerOrHumaMasterAdmin();
         if (unit != _poolSettings.calendarUnit) revert();
-        _lpConfig.withdrawalLockoutInCalendarUnit = uint16(lockoutPeriod);
+        _lpConfig.withdrawalLockoutInCalendarUnit = uint8(lockoutPeriod);
         emit WithdrawalLockoutPeriodChanged(lockoutPeriod, msg.sender);
     }
 
     function checkLiquidityRequirementForPoolOwner(uint256 balance) public view {
         if (
             balance <
-            (_lpConfig.liquidityCap * _poolSettings.liquidityRateInBpsByPoolOwner) /
-                HUNDRED_PERCENT_IN_BPS
+            (_lpConfig.liquidityCap * _poolSettings.advanceRateInBps) / HUNDRED_PERCENT_IN_BPS
         ) revert Errors.poolOwnerNotEnoughLiquidity();
     }
 
     function checkLiquidityRequirementForEA(uint256 balance) public view {
         if (
             balance <
-            (_lpConfig.liquidityCap * _poolSettings.liquidityRateInBpsByEA) /
-                HUNDRED_PERCENT_IN_BPS
+            (_lpConfig.liquidityCap * _poolSettings.advanceRateInBps) / HUNDRED_PERCENT_IN_BPS
         ) revert Errors.evaluationAgentNotEnoughLiquidity();
     }
 
@@ -526,7 +538,7 @@ contract PoolConfig is Ownable {
         IERC20Metadata erc20Contract = IERC20Metadata(address(underlyingToken));
         return (
             address(underlyingToken),
-            _feeStructure.apyInBps,
+            _feeStructure.yieldInBps,
             _poolSettings.payPeriodInCalendarUnit,
             _poolSettings.maxCreditLine,
             _lpConfig.liquidityCap,
@@ -540,6 +552,10 @@ contract PoolConfig is Ownable {
 
     function getLPConfig() external view returns (LPConfig memory) {
         return _lpConfig;
+    }
+
+    function getAdminRnR() external view returns (AdminRnR memory) {
+        return _adminRnR;
     }
 
     function getFirstLossCover() external view returns (FirstLossCover memory) {

@@ -4,10 +4,12 @@ pragma solidity ^0.8.0;
 import {ICreditFeeManager} from "./interfaces/ICreditFeeManager.sol";
 import {CreditConfig, CreditRecord} from "../CreditStructs.sol";
 import {PoolConfig} from "../../PoolConfig.sol";
+import {ICalendar} from "../interfaces/ICalendar.sol";
 import "../../SharedDefs.sol";
 import {Errors} from "../../Errors.sol";
 
 contract BaseCreditFeeManager is ICreditFeeManager {
+    ICalendar public calendar;
     PoolConfig public poolConfig;
 
     /**
