@@ -7,6 +7,26 @@ pragma solidity ^0.8.0;
 
 interface ICalendar {
     /**
+     * @notice Get the beginning of today
+     */
+    function getStartOfToday() external view returns (uint256 today);
+
+    /**
+     * @notice Get the beginning of the next day
+     */
+    function getStartOfNextDay() external view returns (uint256 nextDay);
+
+    /**
+     * @notice Get the beginning of the next month
+     */
+    function getStartOfNextMonth() external view returns (uint256 nextDay);
+
+    /**
+     * @notice Get the beginning of the next quarter
+     */
+    function getStartOfNextQuarter() external view returns (uint256 nextDay);
+
+    /**
      * @notice Get next due date.
      * @param params params
      * params[0] - the loan start timestamp
