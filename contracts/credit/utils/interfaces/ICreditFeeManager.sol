@@ -13,7 +13,7 @@ interface ICreditFeeManager {
      * @param principal the principal amount
      * @param startTime the loan start timestamp
      * @param lastUpdatedTime the last updated timestamp
-     * @param creditInfo the schedule and payment parameters for this loan
+     * @param creditRecord the schedule and payment parameters for this loan
      * @return accruedInterest the accrued interest from last updated timestamp to current timestamp,
      * accruedPrincipal the accrued principal from last updated timestamp to current timestamp,
      */
@@ -21,7 +21,7 @@ interface ICreditFeeManager {
         uint256 principal,
         uint256 startTime,
         uint256 lastUpdatedTime,
-        CreditConfig memory creditInfo
+        CreditRecord memory creditRecord
     ) external view returns (uint256 accruedInterest, uint256 accruedPrincipal);
 
     function distBorrowingAmount(
@@ -76,27 +76,27 @@ interface ICreditFeeManager {
             int96 totalCharges
         );
 
-    // /**
-    //  * @notice Sets the standard front loading and late fee policy for the fee manager
-    //  * @param _frontLoadingFeeFlat flat fee portion of the front loading fee
-    //  * @param _frontLoadingFeeBps a fee in the percentage of a new borrowing
-    //  * @param _lateFeeFlat flat fee portion of the late
-    //  * @param _lateFeeBps a fee in the percentage of the outstanding balance
-    //  * @dev Only owner can make this setting
-    //  */
-    // function setFees(
-    //     uint256 _frontLoadingFeeFlat,
-    //     uint256 _frontLoadingFeeBps,
-    //     uint256 _lateFeeFlat,
-    //     uint256 _lateFeeBps,
-    //     uint256 _membershipFee
-    // ) external;
+    /**
+     * @notice Sets the standard front loading and late fee policy for the fee manager
+     * @param _frontLoadingFeeFlat flat fee portion of the front loading fee
+     * @param _frontLoadingFeeBps a fee in the percentage of a new borrowing
+     * @param _lateFeeFlat flat fee portion of the late
+     * @param _lateFeeBps a fee in the percentage of the outstanding balance
+     * @dev Only owner can make this setting
+     */
+    function setFees(
+        uint256 _frontLoadingFeeFlat,
+        uint256 _frontLoadingFeeBps,
+        uint256 _lateFeeFlat,
+        uint256 _lateFeeBps,
+        uint256 _membershipFee
+    ) external;
 
-    // /**
-    //  * @notice Sets the min percentage of principal to be paid in each billing period
-    //  * @param _minPrincipalRateInBps the min % in unit of bps. For example, 5% will be 500
-    //  * @dev Only owner can make this setting
-    //  * @dev This is a global limit of 5000 bps (50%).
-    //  */
-    // function setMinPrincipalRateInBps(uint256 _minPrincipalRateInBps) external;
+    /**
+     * @notice Sets the min percentage of principal to be paid in each billing period
+     * @param _minPrincipalRateInBps the min % in unit of bps. For example, 5% will be 500
+     * @dev Only owner can make this setting
+     * @dev This is a global limit of 5000 bps (50%).
+     */
+    function setMinPrincipalRateInBps(uint256 _minPrincipalRateInBps) external;
 }
