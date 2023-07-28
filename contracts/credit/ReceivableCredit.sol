@@ -57,6 +57,6 @@ contract ReceivableCredit is BaseCredit, IReceivableCredit {
     function _getCreditHash(uint256 receivableId) internal view returns (bytes32 creditHash) {
         if (_getBorrowerRecord(msg.sender).borrowerLevelCredit)
             creditHash = getCreditHash(msg.sender);
-        else creditHash = getCreditHash(msg.sender, address(receivable), receivableId);
+        else creditHash = keccak256(abi.encode(address(this), address(receivable), receivableId));
     }
 }

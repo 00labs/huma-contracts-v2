@@ -4,5 +4,5 @@ import {CreditConfig} from "../CreditStructs.sol";
 import {CalendarUnit} from "../../SharedDefs.sol";
 
 interface IFlexCredit {
-    function requestEarlyPrincipalWithdrawal(uint96 amount) external returns (bool availability);
+    function requestEarlyPrincipalWithdrawal(uint96 amount) external;
 }

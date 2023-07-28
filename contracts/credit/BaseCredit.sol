@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {CreditConfig, CreditRecord, CreditProfit, CreditLoss, CreditState} from "./CreditStructs.sol";
+import {CreditConfig, CreditRecord, CreditProfit, CreditLoss, CreditState, PaymentStatus} from "./CreditStructs.sol";
 import {ICreditFeeManager} from "./utils/interfaces/ICreditFeeManager.sol";
 import {ICredit} from "./interfaces/ICredit.sol";
 import {IFlexCredit} from "./interfaces/IFlexCredit.sol";
+import {ICalendar} from "./interfaces/ICalendar.sol";
 import {BaseCreditStorage} from "./BaseCreditStorage.sol";
 import {Errors} from "../Errors.sol";
 import {PoolConfig} from "../PoolConfig.sol";
@@ -32,6 +33,7 @@ struct CreditLimit {
  */
 contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
     using SafeERC20 for IERC20;
+    ICalendar calendar;
 
     enum CreditLineClosureReason {
         Paidoff,
@@ -159,6 +161,7 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
 
         _borrowerConfigMap[borrower] = CreditConfig(
             creditLimit,
+            committedAmount,
             calendarUnit,
             periodDuration,
             numOfPeriods,
@@ -166,27 +169,21 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
             revolving,
             receivableRequired,
             borrowerLevelCredit,
-            false
+            true
         );
 
         // :emit BorrowerApproved(borrower, creditLimit);
     }
 
-    function getCreditHash(address borrower) public view virtual returns (bytes32 creditHash) {}
-
-    // {
-    //     return keccak256(abi.encode(address(this), borrower));
-    // }
+    function getCreditHash(address borrower) public view virtual returns (bytes32 creditHash) {
+        return keccak256(abi.encode(address(this), borrower));
+    }
 
     function getCreditHash(
         address borrower,
         address receivableAsset,
         uint256 receivableId
     ) public view virtual returns (bytes32 creditHash) {}
-
-    // {
-    //     return keccak256(abi.encode(address(this), borrower, receivableAsset, receivableId));
-    // }
 
     /**
      * @notice Approves the credit request with the terms provided.
@@ -268,14 +265,6 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         _maxCreditLineCheck(newCreditLimit);
         _borrowerConfigMap[borrower].creditLimit = newCreditLimit;
 
-        // todo Delete the credit record if the new limit is 0 and no outstanding balance
-        // if (newCreditLimit == 0) {
-        //     CreditRecord memory cr = _creditRecordMap[creditHash];
-        //     if (cr.unbilledPrincipal == 0 && cr.totalDue == 0) {
-        //         cr.state == CreditState.Deleted;
-        //     }
-        // }
-
         // emit CreditLineChanged(borrower, oldCreditLimit, newCreditLimit);
     }
 
@@ -315,7 +304,7 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
      * todo Add a new storage to record the extra principal due. We include it when calculate
      * the next bill so that the caller of this function does not have to time the request.
      */
-    function requestEarlyPrincipalWithdrawal(uint96 amount) external virtual override returns (bool availability) {
+    function requestEarlyPrincipalWithdrawal(uint96 amount) external virtual override {
         // todo Only allows the Pool(?) contract to call
         // todo Check against poolConfig to make sure FlexCredit is allowed by this pool
         if (numOfBorrowers > 1) revert Errors.todo();
@@ -333,9 +322,9 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         CreditRecord memory cr = _getCreditRecord(creditHash);
         if (borrower != cr.borrower) revert Errors.notBorrower();
 
-        _checkDrawdownEligibility(creditHash, cr, borrowAmount);
+        _checkDrawdownEligibility(cr, borrowAmount);
         uint256 netAmountToBorrower = _drawdown(creditHash, cr, borrowAmount);
-        // emit DrawdownMade(borrower, borrowAmount, netAmountToBorrower);
+        emit DrawdownMade(borrower, borrowAmount, netAmountToBorrower);
     }
 
     /**
@@ -372,11 +361,12 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         bytes32 creditHash,
         uint256 amount
     ) public virtual override returns (uint256 amountPaid, bool paidoff) {
-        // if (msg.sender != borrower) onlyPDSServiceAccount();
-        // (amountPaid, paidoff, ) = _makePayment(borrower, amount, BS.PaymentStatus.NotReceived);
-        // CreditLimit memory creditLimit = creditLimits[creditHash];
-        // _payToCredit(creditHash, amount);
-        // // transfer amount from msg.sender
+        address borrower = _getCreditRecord(creditHash).borrower;
+        if (msg.sender != borrower) onlyPDSServiceAccount();
+        (amountPaid, paidoff, ) = _makePayment(creditHash, amount);
+
+        _payToCredit(creditHash, amount);
+        // transfer amount from msg.sender
     }
 
     /**
@@ -500,7 +490,6 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
      * @dev Please note cr.nextDueDate is the credit expiration date for the first drawdown.
      */
     function _checkDrawdownEligibility(
-        bytes32 creditHash,
         CreditRecord memory cr,
         uint256 borrowAmount
     ) internal view {
@@ -639,7 +628,7 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
     /**
      * @notice Borrower makes one payment. If this is the final payment,
      * it automatically triggers the payoff process.
-     * @param borrower the address of the borrower
+     * @param creditHash the hashcode of the credit
      * @param amount the payment amount
      * @return amountPaid the actual amount paid to the contract. When the tendered
      * amount is larger than the payoff amount, the contract only accepts the payoff amount.
@@ -648,32 +637,28 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
      * flagged for review.
      */
     function _makePayment(
-        address borrower,
+        bytes32 creditHash,
         uint256 amount
     ) internal returns (uint256 amountPaid, bool paidoff, bool isReviewRequired) {
-        _protocolAndPoolOn();
-
+        // _protocolAndPoolOn();
         // if (amount == 0) revert Errors.zeroAmountProvided();
-
-        // CreditRecord memory cr = _getCreditRecord(borrower);
-
-        // if (
-        //     cr.state == BS.CreditState.Requested ||
-        //     cr.state == BS.CreditState.Approved ||
-        //     cr.state == BS.CreditState.Deleted
-        // ) {
-        //     if (paymentStatus == BS.PaymentStatus.NotReceived)
-        //         revert Errors.creditLineNotInStateForMakingPayment();
-        //     else if (paymentStatus == BS.PaymentStatus.ReceivedNotVerified)
-        //         return (0, false, true);
-        // }
-
+        // CreditRecord memory cr = _getCreditRecord(creditHash);
+        // // note keep it in case we need to bring back paymentStatus
+        // // if (
+        // //     cr.state == CreditState.Requested ||
+        // //     cr.state == CreditState.Approved ||
+        // //     cr.state == CreditState.Deleted
+        // // ) {
+        // //     if (paymentStatus == PaymentStatus.NotReceived)
+        // //         revert Errors.creditLineNotInStateForMakingPayment();
+        // //     else if (paymentStatus == PaymentStatus.ReceivedNotVerified)
+        // //         return (0, false, true);
+        // // }
         // if (block.timestamp > cr.nextDueDate) {
         //     // Bring the account current. This is necessary since the account might have been dormant for
         //     // several cycles.
         //     cr = _updateDueInfo(borrower, false, true);
         // }
-
         // // Computes the final payoff amount. Needs to consider the correction associated with
         // // all outstanding principals.
         // uint256 payoffCorrection = _calcCorrection(
@@ -681,11 +666,9 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         //     _creditRecordStaticMap[borrower].aprInBps,
         //     cr.unbilledPrincipal + cr.totalDue - cr.feesAndInterestDue
         // );
-
         // uint256 payoffAmount = uint256(
         //     int256(int96(cr.totalDue + cr.unbilledPrincipal)) + int256(cr.correction)
         // ) - payoffCorrection;
-
         // // If the reported received payment amount is far higher than the invoice amount,
         // // flags the transaction for review.
         // if (paymentStatus == BS.PaymentStatus.ReceivedNotVerified) {
@@ -698,19 +681,15 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         //         ) return (0, false, true);
         //     }
         // }
-
         // // The amount to be collected from the borrower. When _amount is more than what is needed
         // // for payoff, only the payoff amount will be transferred
         // uint256 amountToCollect;
-
         // // The amount to be applied towards principal
         // uint256 principalPayment = 0;
-
         // if (amount < payoffAmount) {
         //     if (amount < cr.totalDue) {
         //         amountToCollect = amount;
         //         cr.totalDue = uint96(cr.totalDue - amount);
-
         //         if (amount <= cr.feesAndInterestDue) {
         //             cr.feesAndInterestDue = uint96(cr.feesAndInterestDue - amount);
         //         } else {
@@ -719,19 +698,15 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         //         }
         //     } else {
         //         amountToCollect = amount;
-
         //         // Apply extra payments towards principal, reduce unbilledPrincipal amount
         //         cr.unbilledPrincipal -= uint96(amount - cr.totalDue);
-
         //         principalPayment = amount - cr.feesAndInterestDue;
         //         cr.totalDue = 0;
         //         cr.feesAndInterestDue = 0;
         //         cr.missedPeriods = 0;
-
         //         // Moves account to GoodStanding if it was delayed.
         //         if (cr.state == BS.CreditState.Delayed) cr.state = BS.CreditState.GoodStanding;
         //     }
-
         //     // Gets the correction.
         //     if (principalPayment > 0) {
         //         // If there is principal payment, calculate new correction
@@ -745,7 +720,6 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         //             )
         //         );
         //     }
-
         //     // Recovers funds to the pool if the account is Defaulted.
         //     // Only moves it to GoodStanding only after payoff, handled in the payoff branch
         //     if (cr.state == BS.CreditState.Defaulted)
@@ -754,7 +728,6 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         //     // Payoff logic
         //     principalPayment = cr.unbilledPrincipal + cr.totalDue - cr.feesAndInterestDue;
         //     amountToCollect = payoffAmount;
-
         //     if (cr.state == BS.CreditState.Defaulted) {
         //         _recoverDefaultedAmount(borrower, amountToCollect);
         //     } else {
@@ -770,22 +743,18 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         //         if (cr.correction > 0) distributeIncome(uint256(uint96(cr.correction)));
         //         else if (cr.correction < 0) reverseIncome(uint256(uint96(0 - cr.correction)));
         //     }
-
         //     cr.correction = 0;
         //     cr.unbilledPrincipal = 0;
         //     cr.feesAndInterestDue = 0;
         //     cr.totalDue = 0;
         //     cr.missedPeriods = 0;
-
         //     // Closes the credit line if it is in the final period
         //     if (cr.remainingPeriods == 0) {
         //         cr.state = BS.CreditState.Deleted;
         //         emit CreditLineClosed(borrower, msg.sender, CreditLineClosureReason.Paidoff);
         //     } else cr.state = BS.CreditState.GoodStanding;
         // }
-
         // _setCreditRecord(borrower, cr);
-
         // if (amountToCollect > 0 && paymentStatus == BS.PaymentStatus.NotReceived) {
         //     // Transfer assets from the _borrower to pool locker
         //     _underlyingToken.safeTransferFrom(borrower, address(this), amountToCollect);
@@ -797,7 +766,6 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         //         msg.sender
         //     );
         // }
-
         // // amountToCollect == payoffAmount indicates whether it is paid off or not.
         // // Use >= as a safe practice
         // return (amountToCollect, amountToCollect >= payoffAmount, false);
@@ -837,10 +805,10 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
     }
 
     /**
-     * @notice updates CreditRecord for `_borrower` using the most up to date information.
+     * @notice updates CreditRecord for `creditHash` using the most up to date information.
      * @dev this is used in both makePayment() and drawdown() to bring the account current
      * @dev getDueInfo() gets the due information of the most current cycle. This function
-     * updates the record in creditRecordMap for `_borrower`
+     * updates the record in creditRecordMap
      * @param creditHash the hash of the credit
      * @param isFirstDrawdown whether this request is for the first drawdown of the credit line
      */
@@ -849,6 +817,7 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         bool isFirstDrawdown
     ) internal virtual returns (CreditRecord memory cr) {
         // cr = _getCreditRecord(creditHash);
+        // CreditConfig memory cc = _getCreditConfig(creditHash);
         // if (isFirstDrawdown) cr.nextDueDate = 0;
         // bool alreadyLate = cr.totalDue > 0 ? true : false;
         // // Gets the up-to-date due information for the borrower. If the account has been
@@ -862,16 +831,10 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         //     cr.totalDue,
         //     cr.unbilledPrincipal,
         //     newCharges
-        // ) = _feeManager.getDueInfo(cr, _getCreditRecordStatic(borrower));
+        // ) = _feeManager.getDueInfo(cr, cc);
         // if (periodsPassed > 0) {
-        //     cr.correction = 0;
-        //     // Distribute income
-        //     if (cr.state != BS.CreditState.Defaulted) {
-        //         if (!distributeChargesForLastCycle)
-        //             newCharges = newCharges - int96(cr.feesAndInterestDue);
-        //         if (newCharges > 0) distributeIncome(uint256(uint96(newCharges)));
-        //         else if (newCharges < 0) reverseIncome(uint256(uint96(0 - newCharges)));
-        //     }
+        //     // update nextDueDate
+        //     calendar.getNextDueDate(cc);
         //     uint16 intervalInDays = _creditRecordStaticMap[borrower].intervalInDays;
         //     if (cr.nextDueDate > 0)
         //         cr.nextDueDate = uint64(
