@@ -42,7 +42,12 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
     }
 
     /// Account billing info refreshed with the updated due amount and date
-    event BillRefreshed(address indexed borrower, uint256 newDueDate, address by);
+    event BillRefreshed(
+        bytes32 indexed creditHash,
+        uint256 newDueDate,
+        uint256 amountDue,
+        address borrower
+    );
     /// Credit line request has been approved
     event CreditApproved(
         address indexed borrower,
@@ -816,46 +821,49 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         bytes32 creditHash,
         bool isFirstDrawdown
     ) internal virtual returns (CreditRecord memory cr) {
-        // cr = _getCreditRecord(creditHash);
-        // CreditConfig memory cc = _getCreditConfig(creditHash);
-        // if (isFirstDrawdown) cr.nextDueDate = 0;
-        // bool alreadyLate = cr.totalDue > 0 ? true : false;
-        // // Gets the up-to-date due information for the borrower. If the account has been
-        // // late or dormant for multiple cycles, getDueInfo() will bring it current and
-        // // return the most up-to-date due information.
-        // uint256 periodsPassed = 0;
-        // int96 newCharges;
-        // (
-        //     periodsPassed,
-        //     cr.feesAndInterestDue,
-        //     cr.totalDue,
-        //     cr.unbilledPrincipal,
-        //     newCharges
-        // ) = _feeManager.getDueInfo(cr, cc);
-        // if (periodsPassed > 0) {
-        //     // update nextDueDate
-        //     calendar.getNextDueDate(cc);
-        //     uint16 intervalInDays = _creditRecordStaticMap[borrower].intervalInDays;
-        //     if (cr.nextDueDate > 0)
-        //         cr.nextDueDate = uint64(
-        //             cr.nextDueDate + periodsPassed * intervalInDays * SECONDS_IN_A_DAY
-        //         );
-        //     else cr.nextDueDate = uint64(block.timestamp + intervalInDays * SECONDS_IN_A_DAY);
-        //     // Adjusts remainingPeriods, special handling when reached the maturity of the credit line
-        //     if (cr.remainingPeriods > periodsPassed) {
-        //         cr.remainingPeriods = uint16(cr.remainingPeriods - periodsPassed);
-        //     } else {
-        //         cr.remainingPeriods = 0;
-        //     }
-        //     // Sets the right missedPeriods and state for the credit record
-        //     if (alreadyLate) cr.missedPeriods = uint16(cr.missedPeriods + periodsPassed);
-        //     else cr.missedPeriods = 0;
-        //     if (cr.missedPeriods > 0) {
-        //         if (cr.state != BS.CreditState.Defaulted) cr.state = BS.CreditState.Delayed;
-        //     } else cr.state = BS.CreditState.GoodStanding;
-        //     _setCreditRecord(borrower, cr);
-        //     emit BillRefreshed(borrower, cr.nextDueDate, msg.sender);
-        // }
+        cr = _getCreditRecord(creditHash);
+        CreditConfig memory cc = _getCreditConfig(creditHash);
+        if (isFirstDrawdown) cr.nextDueDate = 0;
+        bool alreadyLate = cr.totalDue > 0 ? true : false;
+        // Gets the up-to-date due information for the borrower. If the account has been
+        // late or dormant for multiple cycles, getDueInfo() will bring it current and
+        // return the most up-to-date due information.
+        uint256 periodsPassed = 0;
+        int96 newCharges;
+        (
+            periodsPassed,
+            cr.feesAndInterestDue,
+            cr.totalDue,
+            cr.unbilledPrincipal,
+            newCharges
+        ) = _feeManager.getDueInfo(cr, cc);
+        if (periodsPassed > 0) {
+            // update nextDueDate
+            (uint256 dueDate, ) = calendar.getNextDueDate(
+                cc.calendarUnit,
+                cc.periodDuration,
+                cr.nextDueDate
+            );
+            cr.nextDueDate = uint64(dueDate);
+
+            // Adjusts remainingPeriods, special handling when reached the maturity of the credit line
+            if (cr.remainingPeriods > periodsPassed) {
+                cr.remainingPeriods = uint16(cr.remainingPeriods - periodsPassed);
+            } else {
+                cr.remainingPeriods = 0;
+            }
+            // Sets the right missedPeriods and state for the credit record
+            if (alreadyLate) cr.missedPeriods = uint16(cr.missedPeriods + periodsPassed);
+            else cr.missedPeriods = 0;
+
+            if (cr.missedPeriods > 0) {
+                if (cr.state != CreditState.Defaulted) cr.state = CreditState.Delayed;
+            } else cr.state = CreditState.GoodStanding;
+
+            _setCreditRecord(creditHash, cr);
+
+            emit BillRefreshed(creditHash, cr.nextDueDate, cr.totalDue, cr.borrower);
+        }
     }
 
     /// Shared setter to the credit record mapping for contract size consideration
