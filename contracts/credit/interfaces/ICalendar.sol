@@ -39,5 +39,5 @@ interface ICalendar {
         CalendarUnit unit,
         uint256 periodDuration,
         uint256 lastDueDate
-    ) external pure returns (uint256 dueDate, uint256 numberOfPeriodsPassed);
+    ) external view returns (uint256 dueDate, uint256 numberOfPeriodsPassed);
 }
