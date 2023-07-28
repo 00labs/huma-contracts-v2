@@ -839,9 +839,12 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         ) = _feeManager.getDueInfo(cr, cc);
         if (periodsPassed > 0) {
             // update nextDueDate
-            cr.nextDueDate = uint64(
-                calendar.getNextDueDate(cr.nextDueDate, cc.calendarUnit, cc.periodDuration)
+            (uint256 dueDate, ) = calendar.getNextDueDate(
+                cc.calendarUnit,
+                cc.periodDuration,
+                cr.nextDueDate
             );
+            cr.nextDueDate = uint64(dueDate);
 
             // Adjusts remainingPeriods, special handling when reached the maturity of the credit line
             if (cr.remainingPeriods > periodsPassed) {

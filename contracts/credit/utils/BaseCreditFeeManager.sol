@@ -13,16 +13,14 @@ contract BaseCreditFeeManager is ICreditFeeManager {
     PoolConfig public poolConfig;
 
     /**
-     * @notice Compute interest and principal 
+     * @notice Compute interest and principal
      */
     function accruedDebt(
         uint256 principal,
         uint256 startTime,
         uint256 lastUpdatedTime,
         CreditRecord memory dealRecord
-    ) external view virtual returns (uint256 accruedInterest, uint256 accruedPrincipal) {
-
-    }
+    ) external view virtual returns (uint256 accruedInterest, uint256 accruedPrincipal) {}
 
     /**
      * @notice Computes the late fee including both the flat fee and percentage fee
@@ -149,11 +147,15 @@ contract BaseCreditFeeManager is ICreditFeeManager {
         // Computes how many billing periods have passed. 1+ is needed since Solidity always
         // round to zero. When it is exactly at a billing cycle, it is desirable to 1+ as well
         if (_cr.nextDueDate > 0) {
-            periodsPassed =
-                1 + calendar.getNumberOfPeriodsPassed(_cc.calendarUnit, _cc.periodDuration, _cr.nextDueDate);
+            (, periodsPassed) = calendar.getNextDueDate(
+                _cc.calendarUnit,
+                _cc.periodDuration,
+                _cr.nextDueDate
+            );
+            periodsPassed += 1;
             // No credit line has more than 360 periods. If it is longer than that, something
             // is wrong. Set it to 361 so that the non view function can emit an event.
-            if (periodsPassed >= MAX_PERIODS)  periodsPassed = MAX_PERIODS;
+            if (periodsPassed >= MAX_PERIODS) periodsPassed = MAX_PERIODS;
         } else {
             periodsPassed = 1;
         }
@@ -182,7 +184,7 @@ contract BaseCreditFeeManager is ICreditFeeManager {
 
             // step 2. membership fee
             // todo change to share reading fees with late fee
-            (,, uint256 membershipFee) = poolConfig.getFees();
+            (, , uint256 membershipFee) = poolConfig.getFees();
             fees += membershipFee;
 
             // step 3. adding dues to principal

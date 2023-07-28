@@ -28,31 +28,16 @@ interface ICalendar {
     function getStartOfNextQuarter() external view returns (uint256 nextDay);
 
     /**
-     * @notice Get the number of pay period passed
+     * @notice Get the next due date and the number of periods passed.
+     * When lastDueDate is zero, always returns the due date after a full period from
+     * the current time. For example, for a monthly period, if the first drawdown
+     * happens on 7/27, the due date is 9/1 00:00:00.
+     * @dev For bimonthly, the beginning is always 1st & 15th
+     * @dev Timezone: always UTC
      */
-    function getNumberOfPeriodsPassed(
-        CalendarUnit calendarUnit,
-        uint16 periodDuration,
-        uint64 nextDueDate
-    ) external view returns (uint256 nextDay);
-
     function getNextDueDate(
-        uint256 lastDueDate,
         CalendarUnit unit,
-        uint256 periodDuration
-    ) external pure returns (uint256 dueDate);
-
-    /**
-     * @notice Get next due date.
-     * @param params params
-     * params[0] - the loan start timestamp
-     * params[1] - last updated timestamp
-     * params[2] - number of period
-     * params[3] - optional, the duraion of one period in days
-     * @return dueDate next due date
-     */
-    function getNextDueDate(uint256[] memory params) external view returns (uint256 dueDate);
-    //todo .We may want to include both due date and the date with grace period.
-
-    //todo We may want to add a getDefaultEligibleDate() to return the first date that a default can be triggered
+        uint256 periodDuration,
+        uint256 lastDueDate
+    ) external pure returns (uint256 dueDate, uint256 numberOfPeriodsPassed);
 }

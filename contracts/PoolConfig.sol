@@ -33,7 +33,7 @@ struct PoolSettings {
     // percentage of the receivable amount applied towards available credit
     uint16 advanceRateInBps;
     // if the pool is exclusive to one borrower
-    bool exclusiveForBorrower;
+    bool singleBorrower;
     // if the dues are combined into one credit if the borrower has multiple receivables
     bool singleCreditPerBorrower;
     // if flexCredit is enabled
