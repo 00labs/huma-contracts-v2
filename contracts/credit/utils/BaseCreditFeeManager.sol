@@ -150,12 +150,10 @@ contract BaseCreditFeeManager is ICreditFeeManager {
         // round to zero. When it is exactly at a billing cycle, it is desirable to 1+ as well
         if (_cr.nextDueDate > 0) {
             periodsPassed =
-                1 +
-                (block.timestamp - _cr.nextDueDate) /
-                (_cc.periodDuration * SECONDS_IN_A_DAY);
+                1 + calendar.getNumberOfPeriodsPassed(_cc.calendarUnit, _cc.periodDuration, _cr.nextDueDate);
             // No credit line has more than 360 periods. If it is longer than that, something
             // is wrong. Set it to 361 so that the non view function can emit an event.
-            assert(periodsPassed <= MAX_PERIODS);
+            if (periodsPassed >= MAX_PERIODS)  periodsPassed = MAX_PERIODS;
         } else {
             periodsPassed = 1;
         }
@@ -183,7 +181,9 @@ contract BaseCreditFeeManager is ICreditFeeManager {
                 );
 
             // step 2. membership fee
-            // fees += membershipFee;
+            // todo change to share reading fees with late fee
+            (,, uint256 membershipFee) = poolConfig.getFees();
+            fees += membershipFee;
 
             // step 3. adding dues to principal
             _cr.unbilledPrincipal += _cr.totalDue;

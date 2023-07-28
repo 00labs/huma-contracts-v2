@@ -6,6 +6,7 @@ import {CalendarUnit} from "../SharedDefs.sol";
 // a CreditConfig is created after approval
 struct CreditConfig {
     uint96 creditLimit;
+    uint96 committedAmount;
     CalendarUnit calendarUnit; // days or semimonth
     uint16 periodDuration;
     uint16 numOfPeriods; // number of periods
@@ -14,10 +15,10 @@ struct CreditConfig {
     // for factoring, it is factoring fee for the given period;
     // for dynamic yield credit, it is the estimated APY
     uint16 yieldInBps;
-    bool revolving;         // if repeated borrowing is allowed
-    bool receivableBacked;    // if the credit is receivable-backed
+    bool revolving; // if repeated borrowing is allowed
+    bool receivableBacked; // if the credit is receivable-backed
     bool borrowerLevelCredit; // borrower-level vs receivable-level
-    bool exclusive;    // if the credit pool exclusive to a borrower
+    bool exclusive; // if the credit pool exclusive to a borrower
 }
 
 // a CreditRecord is created after the first drawdown
@@ -67,6 +68,12 @@ enum ReceivableState {
     Rejected,
     Delayed,
     Defaulted
+}
+
+enum PaymentStatus {
+    NotReceived,
+    ReceivedNotVerified,
+    ReceivedAndVerified
 }
 
 struct ReceivableInfo {
