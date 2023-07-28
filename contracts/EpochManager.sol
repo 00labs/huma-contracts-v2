@@ -25,13 +25,18 @@ contract EpochManager is IEpochManager {
         uint256 length;
     }
 
+    struct CurrentEpoch {
+        uint64 id;
+        uint64 nextStartTime;
+    }
+
     PoolConfig public poolConfig;
     IPool public pool;
     IPoolVault public poolVault;
     ITrancheVaultLike public seniorTranche;
     ITrancheVaultLike public juniorTranche;
 
-    uint256 public currentEpochId;
+    CurrentEpoch internal _currentEpoch;
 
     function setPoolConfig(PoolConfig _poolConfig) external {
         poolConfig.onlyPoolOwner(msg.sender);
@@ -56,10 +61,14 @@ contract EpochManager is IEpochManager {
     }
 
     /**
-     * @notice Closes current epoch and handle senior tranch orders and junior tranch orders
+     * @notice Closes current epoch and handle senior tranch orders and junior tranch orders,
+     * anyone can call it, an auto task calls it by default.
      */
     function closeEpoch() public virtual {
-        // TODO add logic to validate if current epoch is expired.
+        poolConfig.onlyProtocolAndPoolOn();
+
+        CurrentEpoch memory ce = _currentEpoch;
+        if (block.timestamp <= ce.nextStartTime) revert Errors.closeTooSoon();
 
         // update tranches assets to current timestamp
         uint96[2] memory tranches = pool.refreshPool();
@@ -111,8 +120,30 @@ contract EpochManager is IEpochManager {
 
         pool.submitRedemptionRequest(unprocessedAmounts);
 
-        uint256 epochId = currentEpochId;
-        currentEpochId = epochId + 1;
+        ce.id += 1;
+        // TODO ce.nextStartTime = ?
+        _currentEpoch = ce;
+
+        // TODO send event
+    }
+
+    function startNewEpoch() external {
+        poolConfig.onlyPool(msg.sender);
+
+        CurrentEpoch memory ce = _currentEpoch;
+        ce.id += 1;
+        // TODO ce.nextStartTime = ?
+        _currentEpoch = ce;
+
+        // TODO send event
+    }
+
+    function currentEpochId() external view returns (uint256) {
+        return _currentEpoch.id;
+    }
+
+    function currentEpoch() external view returns (CurrentEpoch memory) {
+        return _currentEpoch;
     }
 
     /**
@@ -142,7 +173,7 @@ contract EpochManager is IEpochManager {
 
         LPConfig memory lpConfig = poolConfig.getLPConfig();
         uint256 flexPeriod = lpConfig.flexCallWindowInCalendarUnit;
-        uint256 maxEpochId = currentEpochId;
+        uint256 maxEpochId = _currentEpoch.id;
 
         // process mature senior withdrawal requests
         uint256 availableCount = seniorEpochs.length;

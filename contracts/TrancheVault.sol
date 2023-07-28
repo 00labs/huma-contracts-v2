@@ -46,7 +46,7 @@ contract TrancheVault is ERC20Upgradeable, TrancheVaultStorage, IEpoch {
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         epochManager = IEpochManager(addr);
 
-        if (seniorTrancheOrJuniorTranche > 1) revert();
+        if (seniorTrancheOrJuniorTranche > 1) revert Errors.invalidTrancheIndex();
         trancheIndex = seniorTrancheOrJuniorTranche;
     }
 
@@ -137,6 +137,8 @@ contract TrancheVault is ERC20Upgradeable, TrancheVaultStorage, IEpoch {
 
         // withdraw underlying tokens from reserve
         poolVault.withdraw(address(this), amountProcessed);
+
+        // TODO send event
     }
 
     /**
@@ -212,7 +214,7 @@ contract TrancheVault is ERC20Upgradeable, TrancheVaultStorage, IEpoch {
 
         uint256 userShares = ERC20Upgradeable.balanceOf(msg.sender);
         if (shares < userShares) {
-            revert(); // assets is too big
+            revert Errors.withdrawnAmountHigherThanBalance(); // assets is too big
         }
 
         // update global epochId array and EpochInfo mapping
@@ -258,9 +260,12 @@ contract TrancheVault is ERC20Upgradeable, TrancheVaultStorage, IEpoch {
         uint256 lastIndex = requests.length - 1;
         UserRedemptionRequest memory request = requests[lastIndex];
         uint256 epochId = epochManager.currentEpochId();
-        if (request.epochId < epochId || request.shareRequested < shares) {
+        if (request.epochId < epochId) {
             // only remove from current Redemption request
-            revert();
+            revert Errors.notCurrentEpoch();
+        }
+        if (request.shareRequested < shares) {
+            revert Errors.shareHigherThanRequested();
         }
 
         request.shareRequested -= uint96(shares);
@@ -283,7 +288,7 @@ contract TrancheVault is ERC20Upgradeable, TrancheVaultStorage, IEpoch {
 
         ERC20Upgradeable._transfer(address(this), msg.sender, shares);
 
-        // :send an event
+        // TODO send an event
     }
 
     /**
@@ -295,7 +300,7 @@ contract TrancheVault is ERC20Upgradeable, TrancheVaultStorage, IEpoch {
         uint256 withdrawable = _updateUserWithdrawable(msg.sender);
         poolVault.withdraw(receiver, withdrawable);
 
-        // :send an event
+        // TODO send an event
     }
 
     /**
