@@ -222,7 +222,7 @@ contract PoolConfig is Ownable {
         // strange behaviors when the pool owner missed setting up these configurations.
         // _liquidityCap, _maxCreditLine, _creditApprovalExpirationInSeconds are left at 0.
         PoolSettings memory _pSettings = _poolSettings;
-        _pSettings.calendarUnit = CalendarUnit.SemiMonth;
+        _pSettings.calendarUnit = CalendarUnit.Month;
         _pSettings.payPeriodInCalendarUnit = 2; // 1 month
         _pSettings.advanceRateInBps = 10000; // 100%
         _pSettings.latePaymentGracePeriodInDays = 5;
