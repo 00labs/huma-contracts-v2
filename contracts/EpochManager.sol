@@ -2,12 +2,13 @@
 pragma solidity ^0.8.0;
 
 import {IPool} from "./interfaces/IPool.sol";
-import {PoolConfig, LPConfig} from "./PoolConfig.sol";
+import {PoolConfig, LPConfig, PoolSettings} from "./PoolConfig.sol";
 import {IEpoch, EpochInfo} from "./interfaces/IEpoch.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
 import "./SharedDefs.sol";
 import {IEpochManager} from "./interfaces/IEpochManager.sol";
 import {Errors} from "./Errors.sol";
+import {ICalendar} from "./credit/interfaces/ICalendar.sol";
 
 interface ITrancheVaultLike is IEpoch {
     function totalSupply() external view returns (uint256);
@@ -27,7 +28,7 @@ contract EpochManager is IEpochManager {
 
     struct CurrentEpoch {
         uint64 id;
-        uint64 nextStartTime;
+        uint64 nextEndTime;
     }
 
     PoolConfig public poolConfig;
@@ -35,6 +36,7 @@ contract EpochManager is IEpochManager {
     IPoolVault public poolVault;
     ITrancheVaultLike public seniorTranche;
     ITrancheVaultLike public juniorTranche;
+    ICalendar public calendar;
 
     CurrentEpoch internal _currentEpoch;
 
@@ -58,6 +60,10 @@ contract EpochManager is IEpochManager {
         addr = _poolConfig.juniorTranche();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         juniorTranche = ITrancheVaultLike(addr);
+
+        addr = _poolConfig.calendar();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        calendar = ICalendar(addr);
     }
 
     /**
@@ -68,7 +74,7 @@ contract EpochManager is IEpochManager {
         poolConfig.onlyProtocolAndPoolOn();
 
         CurrentEpoch memory ce = _currentEpoch;
-        if (block.timestamp <= ce.nextStartTime) revert Errors.closeTooSoon();
+        if (block.timestamp <= ce.nextEndTime) revert Errors.closeTooSoon();
 
         // update tranches assets to current timestamp
         uint96[2] memory tranches = pool.refreshPool();
@@ -132,7 +138,15 @@ contract EpochManager is IEpochManager {
 
         CurrentEpoch memory ce = _currentEpoch;
         ce.id += 1;
-        // TODO ce.nextStartTime = ?
+
+        PoolSettings memory poolSettings = poolConfig.getPoolSettings();
+        LPConfig memory lpConfig = poolConfig.getLPConfig();
+        (uint256 nextEndTime, ) = calendar.getNextDueDate(
+            poolSettings.calendarUnit,
+            lpConfig.epochWindowInCalendarUnit,
+            0
+        );
+        ce.nextEndTime = uint64(nextEndTime);
         _currentEpoch = ce;
 
         // TODO send event

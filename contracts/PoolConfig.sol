@@ -122,6 +122,7 @@ contract PoolConfig is Ownable {
     address[] internal _lossCoverers;
     address public credit;
     address public feeManager;
+    address public calendar;
 
     HumaConfig public humaConfig;
 
@@ -453,6 +454,13 @@ contract PoolConfig is Ownable {
         for (uint256 i = 0; i < lossCoverers.length; i++) {
             _lossCoverers.push(lossCoverers[i]);
         }
+        // todo emit event
+    }
+
+    function setCalendar(address _calendar) external {
+        _onlyOwnerOrHumaMasterAdmin();
+        if (_calendar == address(0)) revert Errors.zeroAddressProvided();
+        calendar = _calendar;
         // todo emit event
     }
 
