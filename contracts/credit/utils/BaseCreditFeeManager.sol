@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {ICreditFeeManager} from "./interfaces/ICreditFeeManager.sol";
-import {CreditConfig, CreditRecord} from "../CreditStructs.sol";
+import {CreditConfig, CreditRecord, CreditState} from "../CreditStructs.sol";
 import {PoolConfig} from "../../PoolConfig.sol";
 import {ICalendar} from "../interfaces/ICalendar.sol";
 import "../../SharedDefs.sol";
@@ -116,12 +116,6 @@ contract BaseCreditFeeManager is ICreditFeeManager {
      * @dev please note the first due date is set after the initial drawdown. All the future due
      * dates are computed by adding multiples of the payment interval to the first due date.
      * @param _cr the credit record associated the account
-     * @return periodsPassed the number of billing periods has passed since the last statement.
-     * If it is within the same period, it will be 0.
-     * @return feesAndInterestDue the sum of fees and interest due. If multiple cycles have passed,
-     * this amount is not necessarily the total fees and interest charged. It only returns the amount
-     * that is due currently.
-     * @return totalDue amount due in this period, it includes fees, interest, and min principal
      */
     function getDueInfo(
         CreditRecord memory _cr,
@@ -133,90 +127,116 @@ contract BaseCreditFeeManager is ICreditFeeManager {
         override
         returns (
             uint256 periodsPassed,
-            uint96 feesAndInterestDue,
+            uint96 feesDue,
+            uint96 interestDue,
             uint96 totalDue,
             uint96 unbilledPrincipal,
-            int96 totalCharges
+            uint96 pnlImpact,
+            uint96 principalDifference
         )
     {
         // Directly returns if it is still within the current period
         if (block.timestamp <= _cr.nextDueDate) {
-            return (0, _cr.feesAndInterestDue, _cr.totalDue, _cr.unbilledPrincipal, 0);
+            return (0, _cr.feesDue, _cr.yieldDue, _cr.totalDue, _cr.unbilledPrincipal, 0, 0);
         }
 
-        // Computes how many billing periods have passed. 1+ is needed since Solidity always
-        // round to zero. When it is exactly at a billing cycle, it is desirable to 1+ as well
-        if (_cr.nextDueDate > 0) {
-            (, periodsPassed) = calendar.getNextDueDate(
-                _cc.calendarUnit,
-                _cc.periodDuration,
-                _cr.nextDueDate
-            );
-            periodsPassed += 1;
-            // No credit line has more than 360 periods. If it is longer than that, something
-            // is wrong. Set it to 361 so that the non view function can emit an event.
-            if (periodsPassed >= MAX_PERIODS) periodsPassed = MAX_PERIODS;
-        } else {
-            periodsPassed = 1;
-        }
+        // // Computes how many billing periods have passed. 1+ is needed since Solidity always
+        // // round to zero. When it is exactly at a billing cycle, it is desirable to 1+ as well
+        // // In reality, periodsPassed will always be 1 since the bill will be updated in Epoch
+        // // for each period. Kept this logic so that the system does not break down in extreme
+        // // cases, e.g. the protocol is paused for longer than one period.
+        // if (_cr.state == CreditState.Approved) {
+        //     // todo call calendar to get periodsPassed.
+        //     // (, periodsPassed) = calendar.getNextDueDate(
+        //     //     _cc.calendarUnit,
+        //     //     _cc.periodDuration,
+        //     //     _cr.nextDueDate
+        //     // );
+        //     periodsPassed += 1;
+        //     // No credit line has more than 360 periods. If it is longer than that, something
+        //     // is wrong. Set it to 361 so that the non view function can emit an event.
+        //     if (periodsPassed >= MAX_PERIODS) periodsPassed = MAX_PERIODS;
+        // } else {
+        //     periodsPassed = 1;
+        // }
 
-        /**
-         * Loops through the cycles as we would generate statements for each cycle.
-         * The logic for each iteration is as follows:
-         * 1. Calcuate late fee if it is past due based on outstanding principal and due
-         * 2. Add membership fee
-         * 3  Add outstanding due amount and corrections to the unbilled principal
-         *    as the new base for principal
-         * 4. Calcuate interest for this new cycle using the new principal
-         * 5. Calculate the principal due, and minus it from the unbilled principal amount
-         */
-        uint256 fees = 0;
-        uint256 interest = 0;
+        // /**
+        //  * Loops through the cycles as we would generate statements for each cycle.
+        //  * The logic for each iteration is as follows:
+        //  * 1. Calcuate late fee if it is past due based on outstanding principal and due
+        //  * 2. Add membership fee
+        //  * 3  Add outstanding due amount and corrections to the unbilled principal
+        //  *    as the new base for principal
+        //  * 4. Calcuate interest for this new cycle using the new principal
+        //  * 5. Calculate the principal due, and minus it from the unbilled principal amount
+        //  */
+        // uint256 fees = 0;
+        // uint256 yield = 0;
+        // uint256 oldPrincipal = _cr.unbilledPrincipal + _cr.totalDue - _cr.yieldDue - _cr.feesDue;
 
-        for (uint256 i = 0; i < periodsPassed; i++) {
-            // step 1. late fee calculation
-            if (_cr.totalDue > 0)
-                fees = calcLateFee(
-                    _cr.nextDueDate + i * _cc.periodDuration * SECONDS_IN_A_DAY,
-                    _cr.totalDue,
-                    _cr.unbilledPrincipal + _cr.totalDue
-                );
+        // for (uint256 i = 0; i < periodsPassed; i++) {
+        //     // step 0. Calculate undercounted PnL. By default, the system uses oldPrinipal to compute
+        //     // profitRate. If this period's principal is different from oldPrinicpal, need to capture
+        //     // the extra profit if the actual principal is used:
+        //     uint256 principalDiff = _cr.unbilledPrincipal +
+        //         _cr.totalDue -
+        //         _cr.yieldDue -
+        //         _cr.feesDue -
+        //         oldPrincipal;
+        //     // pnlImpact += principalDiff * _cc.yieldInBps * seconds in the last period / SECONDS_IN_A_YEAR
 
-            // step 2. membership fee
-            // todo change to share reading fees with late fee
-            (, , uint256 membershipFee) = poolConfig.getFees();
-            fees += membershipFee;
+        //     // step 1. late fee calculation
+        //     // todo _cc.periodDuration is not right, need to call Calendar to figure out seconds passed
+        //     if (_cr.totalDue > 0)
+        //         fees = calcLateFee(
+        //             _cr.nextDueDate + i * _cc.periodDuration * SECONDS_IN_A_DAY,
+        //             _cr.totalDue,
+        //             _cr.unbilledPrincipal + _cr.totalDue
+        //         );
 
-            // step 3. adding dues to principal
-            _cr.unbilledPrincipal += _cr.totalDue;
+        //     // step 2. adding dues to principal
+        //     _cr.unbilledPrincipal += _cr.totalDue;
+        //     // todo because of
 
-            // step 4. compute interest
-            interest =
-                (_cr.unbilledPrincipal * _cc.yieldInBps * _cc.periodDuration * SECONDS_IN_A_DAY) /
-                SECONDS_IN_A_YEAR /
-                HUNDRED_PERCENT_IN_BPS;
+        //     // step 3. compute yield
+        //     // todo _cc.periodDuration is not right. Need to use Calendar to figure out seconds passed
+        //     yield =
+        //         (_cr.unbilledPrincipal * _cc.yieldInBps * _cc.periodDuration * SECONDS_IN_A_DAY) /
+        //         SECONDS_IN_A_YEAR /
+        //         HUNDRED_PERCENT_IN_BPS;
 
-            // step 5. compute principal due and adjust unbilled principal
-            uint256 principalToBill = (_cr.unbilledPrincipal *
-                poolConfig.getMinPrincipalRateInBps()) / HUNDRED_PERCENT_IN_BPS;
-            _cr.feesAndInterestDue = uint96(fees + interest);
-            totalCharges += int96(uint96(fees + interest));
-            _cr.totalDue = uint96(fees + interest + principalToBill);
-            _cr.unbilledPrincipal = uint96(_cr.unbilledPrincipal - principalToBill);
-        }
+        //     // step 4. membership fee.
+        //     // todo change to share reading fees with late fee
+        //     (, , uint256 membershipFee) = poolConfig.getFees();
+        //     yield += membershipFee;
 
-        // If passed final period, all principal is due
-        if (periodsPassed >= _cr.remainingPeriods) {
-            _cr.totalDue += _cr.unbilledPrincipal;
-            _cr.unbilledPrincipal = 0;
-        }
+        //     // step 5. compute principal due and adjust unbilled principal
+        //     uint256 principalToBill = (_cr.unbilledPrincipal *
+        //         poolConfig.getMinPrincipalRateInBps()) / HUNDRED_PERCENT_IN_BPS;
+        //     _cr.feesDue = uint96(fees);
+        //     _cr.yieldDue = uint96(yield);
+        //     _cr.totalDue = uint96(fees + yield + principalToBill);
+        //     _cr.unbilledPrincipal = uint96(_cr.unbilledPrincipal - principalToBill);
+        // }
 
-        return (
-            periodsPassed,
-            _cr.feesAndInterestDue,
-            _cr.totalDue,
-            _cr.unbilledPrincipal,
-            totalCharges
-        );
+        // // If passed final period, all principal is due
+        // if (periodsPassed >= _cr.remainingPeriods) {
+        //     _cr.totalDue += _cr.unbilledPrincipal;
+        //     _cr.unbilledPrincipal = 0;
+        // }
+
+        // principalDifference = uint96(
+        //     _cr.unbilledPrincipal + _cr.totalDue - _cr.yieldDue - _cr.feesDue - oldPrincipal
+        // );
+
+        // return (
+        //     periodsPassed,
+        //     _cr.feesDue,
+        //     _cr.yieldDue,
+        //     _cr.totalDue,
+        //     _cr.unbilledPrincipal,
+        //     pnlImpact,
+        //     principalDifference
+        // );
     }
 }

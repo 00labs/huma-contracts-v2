@@ -57,10 +57,9 @@ interface ICreditFeeManager {
      * @param _cr the credit record associated the account
      * @return periodsPassed the number of billing periods has passed since the last statement.
      * If it is within the same period, it will be 0.
-     * @return feesAndInterestDue the sum of fees and interest due. If multiple cycles have passed,
+     * @return feesDue the sum of fees and interest due. If multiple cycles have passed,
      * this amount is not necessarily the stotal fees and interest charged. It only returns the amount
      * that is due currently.
-     * @return totalDue amount due in this period, it includes fees, interest, and min principal
      */
     function getDueInfo(
         CreditRecord memory _cr,
@@ -70,10 +69,12 @@ interface ICreditFeeManager {
         view
         returns (
             uint256 periodsPassed,
-            uint96 feesAndInterestDue,
+            uint96 feesDue,
+            uint96 interestDue,
             uint96 totalDue,
             uint96 unbilledPrincipal,
-            int96 totalCharges
+            uint96 pnlImpact,
+            uint96 principalDifference
         );
 
     /**
