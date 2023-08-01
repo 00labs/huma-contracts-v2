@@ -40,6 +40,16 @@ contract EpochManager is IEpochManager {
 
     CurrentEpoch internal _currentEpoch;
 
+    event EpochClosed(
+        uint256 epochId,
+        uint256 seniorTrancheAssets,
+        uint256 seniorTranchePrice,
+        uint256 juniorTrancheAssets,
+        uint256 juniorTranchePrice,
+        uint256 unprocessedAmount
+    );
+    event NewEpochStarted(uint256 epochId, uint256 endTime);
+
     function setPoolConfig(PoolConfig _poolConfig) external {
         poolConfig.onlyPoolOwner(msg.sender);
 
@@ -126,30 +136,36 @@ contract EpochManager is IEpochManager {
 
         pool.submitRedemptionRequest(unprocessedAmounts);
 
-        ce.id += 1;
-        // TODO ce.nextStartTime = ?
-        _currentEpoch = ce;
-
-        // TODO send event
+        emit EpochClosed(
+            ce.id,
+            tranches[SENIOR_TRANCHE_INDEX],
+            seniorPrice,
+            tranches[JUNIOR_TRANCHE_INDEX],
+            juniorPrice,
+            unprocessedAmounts
+        );
+        _createNextEpoch(ce);
     }
 
     function startNewEpoch() external {
         poolConfig.onlyPool(msg.sender);
 
         CurrentEpoch memory ce = _currentEpoch;
-        ce.id += 1;
+        _createNextEpoch(ce);
+    }
 
+    function _createNextEpoch(CurrentEpoch memory epoch) internal {
+        epoch.id += 1;
         PoolSettings memory poolSettings = poolConfig.getPoolSettings();
-        LPConfig memory lpConfig = poolConfig.getLPConfig();
         (uint256 nextEndTime, ) = calendar.getNextDueDate(
             poolSettings.calendarUnit,
-            lpConfig.epochWindowInCalendarUnit,
-            0
+            poolSettings.epochWindowInCalendarUnit,
+            epoch.nextEndTime
         );
-        ce.nextEndTime = uint64(nextEndTime);
-        _currentEpoch = ce;
+        epoch.nextEndTime = uint64(nextEndTime);
+        _currentEpoch = epoch;
 
-        // TODO send event
+        emit NewEpochStarted(epoch.id, epoch.nextEndTime);
     }
 
     function currentEpochId() external view returns (uint256) {

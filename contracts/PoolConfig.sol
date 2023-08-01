@@ -31,6 +31,8 @@ struct PoolSettings {
     uint16 defaultGracePeriodInCalendarUnit;
     // percentage of the receivable amount applied towards available credit
     uint16 advanceRateInBps;
+    // The duration of an epoch, in the unit of full CalendarUnit
+    uint8 epochWindowInCalendarUnit;
     // if the pool is exclusive to one borrower
     bool singleBorrower;
     // if the dues are combined into one credit if the borrower has multiple receivables
@@ -68,8 +70,6 @@ struct LPConfig {
     uint16 fixedSeniorYieldInBps;
     // Percentage of yield to be shifted from senior to junior. Either this or fixedSeniorYieldInBps is non-zero
     uint16 tranchesRiskAdjustmentInBps;
-    // The duration of an epoch, in the unit of full CalendarUnit
-    uint8 epochWindowInCalendarUnit;
     // The duration between a capital withdraw request and capital availability, in the unit of full CycleType.
     uint8 flexCallWindowInCalendarUnit;
 }
