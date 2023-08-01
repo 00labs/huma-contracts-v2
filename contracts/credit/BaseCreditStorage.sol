@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {HumaConfig} from "../HumaConfig.sol";
-import {CreditConfig, CreditRecord, CreditProfit, CreditLoss, CreditLimits} from "./CreditStructs.sol";
+import {CreditConfig, CreditRecord, CreditProfit, CreditLoss, CreditLimits, PnLTracker} from "./CreditStructs.sol";
 import {PoolConfig} from "../PoolConfig.sol";
 import {ICreditFeeManager} from "./utils/interfaces/ICreditFeeManager.sol";
 
@@ -16,9 +16,7 @@ contract BaseCreditStorage {
     // Reference to the fee manager contract
     ICreditFeeManager internal _feeManager;
 
-    uint256 public totalAccruedProfit;
-    uint256 public totalAccruedLoss;
-    uint256 public totalAccruedLossRecovery;
+    PnLTracker public pnlTracker;
 
     mapping(address => CreditConfig) internal _borrowerConfigMap;
     /// mapping from credit id to the credit config
@@ -32,9 +30,6 @@ contract BaseCreditStorage {
 
     bytes32[] public activeCreditsHash;
     bytes32[] public overdueCreditsHash;
-
-    uint256 numOfBorrowers;
-    bytes32 firstCreditHash;
 
     /**
      * @dev This empty reserved space is put in place to allow future versions to add new

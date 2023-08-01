@@ -26,7 +26,8 @@ struct CreditRecord {
     uint96 unbilledPrincipal;
     uint64 nextDueDate; // the due date of the next payment
     uint96 totalDue; // the due amount of the next payment
-    uint96 feesAndInterestDue; // interest and fees due for the next payment
+    uint96 yieldDue; // yield and fees due for the next payment
+    uint96 feesDue;
     uint16 missedPeriods;
     uint16 remainingPeriods;
     CreditState state;
@@ -95,4 +96,13 @@ struct FacilityConfig {
     uint16 advanceRateInBps;
     uint96 committedCreditLine;
     bool autoApproval;
+}
+
+struct PnLTracker {
+    uint96 profitRate;
+    uint96 lossRate;
+    uint64 pnlLastUpdated;
+    uint96 totalProfit;
+    uint96 totalLoss;
+    uint96 totalLossRecovery;
 }
