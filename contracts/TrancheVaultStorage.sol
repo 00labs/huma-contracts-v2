@@ -36,9 +36,6 @@ contract TrancheVaultStorage {
     mapping(address => UserRedemptionRequest[]) public userRedemptionRequests; // user redemption request array
     mapping(address => UserDisburseInfo) public userDisburseInfos;
 
-    // The addresses that are allowed to lend to this pool. Configurable only by the pool owner
-    mapping(address => bool) internal _approvedLenders;
-
     /**
      * @dev This empty reserved space is put in place to allow future versions to add new
      * variables without shifting down storage in the inheritance chain.

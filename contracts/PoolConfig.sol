@@ -2,8 +2,8 @@
 pragma solidity ^0.8.0;
 
 import {CalendarUnit} from "./SharedDefs.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-//import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {IERC20, IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IPlatformFeeManager} from "./interfaces/IPlatformFeeManager.sol";
 import {IPool} from "./interfaces/IPool.sol";
@@ -105,9 +105,8 @@ struct FeeStructure {
     uint96 membershipFee;
 }
 
-//contract PoolConfig is Ownable, Initializable {
-contract PoolConfig is Ownable {
-    uint256 constant WITHDRAWAL_LOCKOUT_PERIOD_IN_SECONDS = SECONDS_IN_180_DAYS;
+contract PoolConfig is AccessControl, Initializable {
+    bytes32 public constant POOL_OPERATOR_ROLE = keccak256("POOL_OPERATOR");
 
     //using SafeERC20 for IERC20;
 
@@ -140,10 +139,6 @@ contract PoolConfig is Ownable {
     FirstLossCover internal _firstLossCover;
     FrontLoadingFeesStructure internal _frontFees;
     FeeStructure internal _feeStructure;
-
-    // TODO replace to openzeppelin access control?
-    /// Pool operators can add or remove lenders.
-    mapping(address => bool) private poolOperators;
 
     // Address for the account that handles the treasury functions for the pool owner:
     // liquidity deposits, liquidity withdrawls, and reward withdrawals
@@ -179,21 +174,8 @@ contract PoolConfig is Ownable {
     event ReceivableRequiredInBpsChanged(uint256 receivableInBps, address by);
     event WithdrawalLockoutPeriodChanged(uint256 lockoutPeriodInDays, address by);
 
-    /// An operator has been added. An operator is someone who can add or remove approved lenders.
-    event PoolOperatorAdded(address indexed operator, address by);
-
-    /// A operator has been removed
-    event PoolOperatorRemoved(address indexed operator, address by);
-
-    function getTrancheLiquidityCap(uint256 index) external view returns (uint256 cap) {
-        LPConfig memory lpc = _lpConfig;
-        if (index == SENIOR_TRANCHE_INDEX) {
-            cap =
-                (lpc.liquidityCap * lpc.maxSeniorJuniorRatio) /
-                (lpc.maxSeniorJuniorRatio + HUNDRED_PERCENT_IN_BPS);
-        } else if (index == JUNIOR_TRANCHE_INDEX) {
-            cap = lpc.liquidityCap / (lpc.maxSeniorJuniorRatio + HUNDRED_PERCENT_IN_BPS);
-        }
+    constructor() {
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
     function initialize(
@@ -201,11 +183,9 @@ contract PoolConfig is Ownable {
         address _underlyingToken,
         address _humaConfig,
         address _feeManager
-    )
-        public
-        //) public onlyOwner initializer {
-        onlyOwner
-    {
+    ) public initializer {
+        onlyPoolOwner(msg.sender);
+
         poolName = _poolName;
         if (_humaConfig == address(0)) revert Errors.zeroAddressProvided();
         if (_feeManager == address(0)) revert Errors.zeroAddressProvided();
@@ -235,22 +215,15 @@ contract PoolConfig is Ownable {
         _adminRnR.liquidityRateInBpsByPoolOwner = 200; // 2%
     }
 
-    /**
-     * @notice Adds a pool operator, who can perform operational tasks for the pool, such as
-     * add or remove approved lenders, and disable the pool in eurgent situations. All signers
-     * in the pool owner multisig are expected to be pool operators.
-     * @param _operator Address to be added to the operator list
-     * @dev If address(0) is provided, revert with "zeroAddressProvided()"
-     * @dev If the address is already an operator, revert w/ "alreadyAnOperator"
-     * @dev Emits a PoolOperatorAdded event.
-     */
-    function addPoolOperator(address _operator) external onlyOwner {
-        if (_operator == address(0)) revert Errors.zeroAddressProvided();
-        if (poolOperators[_operator]) revert Errors.alreadyAnOperator();
-
-        poolOperators[_operator] = true;
-
-        emit PoolOperatorAdded(_operator, msg.sender);
+    function getTrancheLiquidityCap(uint256 index) external view returns (uint256 cap) {
+        LPConfig memory lpc = _lpConfig;
+        if (index == SENIOR_TRANCHE_INDEX) {
+            cap =
+                (lpc.liquidityCap * lpc.maxSeniorJuniorRatio) /
+                (lpc.maxSeniorJuniorRatio + HUNDRED_PERCENT_IN_BPS);
+        } else if (index == JUNIOR_TRANCHE_INDEX) {
+            cap = lpc.liquidityCap / (lpc.maxSeniorJuniorRatio + HUNDRED_PERCENT_IN_BPS);
+        }
     }
 
     /**
@@ -582,13 +555,8 @@ contract PoolConfig is Ownable {
         return (account == poolOwnerTreasury || account == evaluationAgent);
     }
 
-    /// Reports if a given user account is an approved operator or not
-    function isOperator(address account) external view returns (bool) {
-        return poolOperators[account];
-    }
-
     function onlyPoolOwner(address account) public view {
-        if (account != owner()) revert Errors.notPoolOwner();
+        if (!hasRole(DEFAULT_ADMIN_ROLE, account)) revert Errors.notPoolOwner();
     }
 
     function onlyPoolOwnerTreasury(address account) public view returns (address) {
@@ -598,8 +566,11 @@ contract PoolConfig is Ownable {
 
     /// "Modifier" function that limits access to pool owner or EA.
     function onlyPoolOwnerOrEA(address account) public view returns (address) {
-        if (account != owner() && account != evaluationAgent && account != address(this))
-            revert Errors.notPoolOwnerOrEA();
+        if (
+            !hasRole(DEFAULT_ADMIN_ROLE, account) &&
+            account != evaluationAgent &&
+            account != address(this)
+        ) revert Errors.notPoolOwnerOrEA();
         return evaluationAgent;
     }
 
@@ -608,26 +579,10 @@ contract PoolConfig is Ownable {
         if (!isPoolOwnerTreasuryOrEA(account)) revert Errors.notPoolOwnerTreasuryOrEA();
     }
 
-    /**
-     * @notice Removes a pool operator.
-     * @param _operator Address to be removed from the operator list
-     * @dev If address(0) is provided, revert with "zeroAddressProvided()"
-     * @dev If the address is not currently a operator, revert w/ "notOperator()"
-     * @dev Emits a PoolOperatorRemoved event.
-     */
-    function removePoolOperator(address _operator) external onlyOwner {
-        if (_operator == address(0)) revert Errors.zeroAddressProvided();
-        if (!poolOperators[_operator]) revert Errors.notOperator();
-
-        poolOperators[_operator] = false;
-
-        emit PoolOperatorRemoved(_operator, msg.sender);
-    }
-
     // Allow for sensitive pool functions only to be called by
     // the pool owner and the huma master admin
     function onlyOwnerOrHumaMasterAdmin(address account) public view {
-        if (account != owner() && account != humaConfig.owner()) {
+        if (!hasRole(DEFAULT_ADMIN_ROLE, account) && account != humaConfig.owner()) {
             revert Errors.permissionDeniedNotAdmin();
         }
     }
@@ -709,12 +664,12 @@ contract PoolConfig is Ownable {
             revert Errors.notTrancheVaultOrEpochManager();
     }
 
-    function onlyPoolOperator(address account) external view {
-        if (!poolOperators[account]) revert Errors.poolOperatorRequired();
-    }
-
     function onlyProtocolAndPoolOn() external view {
         if (humaConfig.paused()) revert Errors.protocolIsPaused();
         if (IPool(pool).isPoolOn()) revert Errors.poolIsNotOn();
+    }
+
+    function onlyPoolOperator(address account) external view {
+        if (!hasRole(POOL_OPERATOR_ROLE, account)) revert Errors.poolOperatorRequired();
     }
 }
