@@ -11,5 +11,5 @@ uint256 constant SECONDS_IN_A_YEAR = 365 days;
 
 enum CalendarUnit {
     Day,
-    SemiMonth // half a month.
+    Month
 }

@@ -30,4 +30,6 @@ interface IPool {
     function submitRedemptionRequest(uint256 amounts) external;
 
     function updateTranchesAssets(uint96[2] memory assets) external;
+
+    function isPoolOn() external view returns (bool status);
 }

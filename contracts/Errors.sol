@@ -10,6 +10,7 @@ contract Errors {
     error invalidBasisPointHigherThan10000(); // 0x07982d85
     error withdrawnAmountHigherThanBalance(); // 0x477c0ab2
     error allowanceTooLow(); // 0xcd8ef369
+    error shareHigherThanRequested();
 
     // security
     error permissionDeniedNotAdmin(); // 0xf2c5b6a7
@@ -34,6 +35,8 @@ contract Errors {
     error notPlatformFeeManager();
     error notTrancheVaultOrLossCoverer();
     error notTrancheVaultOrEpochManager();
+    error notCurrentEpoch();
+    error notDefaultAdmin();
 
     // system config
     error defaultGracePeriodLessThanMinAllowed(); // 0xa733ff9c
@@ -55,7 +58,14 @@ contract Errors {
     error protocolIsPaused(); // 0x8f6fa2d4
     error poolIsNotOn(); // 0x69b355df
 
-    // pool credit line
+    // tranche operation
+    error exceededPoolLiquidityCap(); // 0x5642ebd4
+    error withdrawTooSoon(); // 0x67982472
+    error exceededMaxSeniorJuniorRatio();
+    error invalidTrancheIndex();
+    error closeTooSoon();
+
+    // credit operation
     error creditExpiredDueToFirstDrawdownTooLate(); // 0x9fac7390
     error creditExpiredDueToMaturity(); // 0xa52f3c3f
     error creditLineNotInGoodStandingState(); // 0x96e79474
@@ -73,21 +83,18 @@ contract Errors {
     error creditLineOutstanding(); // 0xc64e338c
     error creditLineNotInStateForUpdate();
     error creditLineHasOutstandingBalance();
+    error borrowingAmountLessThanPlatformFees(); // 0x97fde118
+    error paymentAlreadyProcessed(); // 0xfd6754cf
+    error settlementTooSoon(); // 0x0453e75e
+    error defaultTriggeredTooEarly(); // 0x7872424e
+    error defaultHasAlreadyBeenTriggered(); // 0xeb8d2ccc
 
-    // pool operation
-    error exceededPoolLiquidityCap(); // 0x5642ebd4
+    // receivable operation
     error receivableAssetMismatch(); // 0x41dbeec1
+    error receivableIdMismatch(); // 0x97be2b67
     error unsupportedReceivableAsset(); // 0xe60c383e
     error receivableAssetParamMismatch(); // 0x1400a0b4
     error insufficientReceivableAmount(); // 0xf7f34854
-    error borrowingAmountLessThanPlatformFees(); // 0x97fde118
-    error withdrawTooSoon(); // 0x67982472
-    error paymentAlreadyProcessed(); // 0xfd6754cf
-    error settlementTooSoon(); // 0x0453e75e
-    error receivableIdMismatch(); // 0x97be2b67
-
-    error defaultTriggeredTooEarly(); // 0x7872424e
-    error defaultHasAlreadyBeenTriggered(); // 0xeb8d2ccc
 
     // superfluid
     error durationTooLong(); // 0xf1dd53a8

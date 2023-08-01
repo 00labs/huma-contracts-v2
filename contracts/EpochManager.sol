@@ -2,12 +2,13 @@
 pragma solidity ^0.8.0;
 
 import {IPool} from "./interfaces/IPool.sol";
-import {PoolConfig, LPConfig} from "./PoolConfig.sol";
+import {PoolConfig, LPConfig, PoolSettings} from "./PoolConfig.sol";
 import {IEpoch, EpochInfo} from "./interfaces/IEpoch.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
 import "./SharedDefs.sol";
 import {IEpochManager} from "./interfaces/IEpochManager.sol";
 import {Errors} from "./Errors.sol";
+import {ICalendar} from "./credit/interfaces/ICalendar.sol";
 
 interface ITrancheVaultLike is IEpoch {
     function totalSupply() external view returns (uint256);
@@ -25,13 +26,29 @@ contract EpochManager is IEpochManager {
         uint256 length;
     }
 
+    struct CurrentEpoch {
+        uint64 id;
+        uint64 nextEndTime;
+    }
+
     PoolConfig public poolConfig;
     IPool public pool;
     IPoolVault public poolVault;
     ITrancheVaultLike public seniorTranche;
     ITrancheVaultLike public juniorTranche;
+    ICalendar public calendar;
 
-    uint256 public currentEpochId;
+    CurrentEpoch internal _currentEpoch;
+
+    event EpochClosed(
+        uint256 epochId,
+        uint256 seniorTrancheAssets,
+        uint256 seniorTranchePrice,
+        uint256 juniorTrancheAssets,
+        uint256 juniorTranchePrice,
+        uint256 unprocessedAmount
+    );
+    event NewEpochStarted(uint256 epochId, uint256 endTime);
 
     function setPoolConfig(PoolConfig _poolConfig) external {
         poolConfig.onlyPoolOwner(msg.sender);
@@ -53,13 +70,21 @@ contract EpochManager is IEpochManager {
         addr = _poolConfig.juniorTranche();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         juniorTranche = ITrancheVaultLike(addr);
+
+        addr = _poolConfig.calendar();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        calendar = ICalendar(addr);
     }
 
     /**
-     * @notice Closes current epoch and handle senior tranch orders and junior tranch orders
+     * @notice Closes current epoch and handle senior tranch orders and junior tranch orders,
+     * anyone can call it, an auto task calls it by default.
      */
     function closeEpoch() public virtual {
-        // TODO add logic to validate if current epoch is expired.
+        poolConfig.onlyProtocolAndPoolOn();
+
+        CurrentEpoch memory ce = _currentEpoch;
+        if (block.timestamp <= ce.nextEndTime) revert Errors.closeTooSoon();
 
         // update tranches assets to current timestamp
         uint96[2] memory tranches = pool.refreshPool();
@@ -111,8 +136,44 @@ contract EpochManager is IEpochManager {
 
         pool.submitRedemptionRequest(unprocessedAmounts);
 
-        uint256 epochId = currentEpochId;
-        currentEpochId = epochId + 1;
+        emit EpochClosed(
+            ce.id,
+            tranches[SENIOR_TRANCHE_INDEX],
+            seniorPrice,
+            tranches[JUNIOR_TRANCHE_INDEX],
+            juniorPrice,
+            unprocessedAmounts
+        );
+        _createNextEpoch(ce);
+    }
+
+    function startNewEpoch() external {
+        poolConfig.onlyPool(msg.sender);
+
+        CurrentEpoch memory ce = _currentEpoch;
+        _createNextEpoch(ce);
+    }
+
+    function _createNextEpoch(CurrentEpoch memory epoch) internal {
+        epoch.id += 1;
+        PoolSettings memory poolSettings = poolConfig.getPoolSettings();
+        (uint256 nextEndTime, ) = calendar.getNextDueDate(
+            poolSettings.calendarUnit,
+            poolSettings.epochWindowInCalendarUnit,
+            epoch.nextEndTime
+        );
+        epoch.nextEndTime = uint64(nextEndTime);
+        _currentEpoch = epoch;
+
+        emit NewEpochStarted(epoch.id, epoch.nextEndTime);
+    }
+
+    function currentEpochId() external view returns (uint256) {
+        return _currentEpoch.id;
+    }
+
+    function currentEpoch() external view returns (CurrentEpoch memory) {
+        return _currentEpoch;
     }
 
     /**
@@ -142,7 +203,7 @@ contract EpochManager is IEpochManager {
 
         LPConfig memory lpConfig = poolConfig.getLPConfig();
         uint256 flexPeriod = lpConfig.flexCallWindowInCalendarUnit;
-        uint256 maxEpochId = currentEpochId;
+        uint256 maxEpochId = _currentEpoch.id;
 
         // process mature senior withdrawal requests
         uint256 availableCount = seniorEpochs.length;

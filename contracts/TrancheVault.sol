@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
+import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "./SharedDefs.sol";
 import {IERC20MetadataUpgradeable, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {TrancheVaultStorage} from "./TrancheVaultStorage.sol";
@@ -11,7 +12,13 @@ import {PoolConfig, LPConfig} from "./PoolConfig.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
 
-contract TrancheVault is ERC20Upgradeable, TrancheVaultStorage, IEpoch {
+contract TrancheVault is AccessControlUpgradeable, ERC20Upgradeable, TrancheVaultStorage, IEpoch {
+    bytes32 public constant LENDER_ROLE = keccak256("LENDER");
+
+    event AddApprovedLender(address indexed lender, address by);
+    event RemoveApprovedLender(address indexed lender, address by);
+    event LiquidityDeposited(address indexed account, uint256 assetAmount, uint256 shareAmount);
+
     constructor() {
         _disableInitializers();
     }
@@ -23,6 +30,7 @@ contract TrancheVault is ERC20Upgradeable, TrancheVaultStorage, IEpoch {
         uint8 seniorTrancheOrJuniorTranche
     ) external initializer {
         __ERC20_init(name, symbol);
+        __AccessControl_init();
 
         poolConfig = _poolConfig;
         address underlyingToken = _poolConfig.underlyingToken();
@@ -41,7 +49,7 @@ contract TrancheVault is ERC20Upgradeable, TrancheVaultStorage, IEpoch {
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         epochManager = IEpochManager(addr);
 
-        if (seniorTrancheOrJuniorTranche > 1) revert();
+        if (seniorTrancheOrJuniorTranche > 1) revert Errors.invalidTrancheIndex();
         trancheIndex = seniorTrancheOrJuniorTranche;
     }
 
@@ -61,6 +69,27 @@ contract TrancheVault is ERC20Upgradeable, TrancheVaultStorage, IEpoch {
         addr = _poolConfig.epochManager();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         epochManager = IEpochManager(addr);
+    }
+
+    /**
+     * @notice Lenders need to pass compliance requirements. Pool operator will administer off-chain
+     * to make sure potential lenders meet the requirements. Afterwords, the pool operator will
+     * call this function to mark a lender as approved.
+     */
+    function addApprovedLender(address lender) external {
+        poolConfig.onlyPoolOperator(msg.sender);
+        if (lender == address(0)) revert Errors.zeroAddressProvided();
+        _grantRole(LENDER_ROLE, lender);
+    }
+
+    /**
+     * @notice Disables a lender. This prevents the lender from making more deposits.
+     * The capital that the lender has contributed can continue to work as normal.
+     */
+    function removeApprovedLender(address lender) external {
+        poolConfig.onlyPoolOperator(msg.sender);
+        if (lender == address(0)) revert Errors.zeroAddressProvided();
+        _revokeRole(LENDER_ROLE, lender);
     }
 
     /**
@@ -109,57 +138,85 @@ contract TrancheVault is ERC20Upgradeable, TrancheVaultStorage, IEpoch {
 
         // withdraw underlying tokens from reserve
         poolVault.withdraw(address(this), amountProcessed);
+
+        // TODO send event
     }
 
+    /**
+     * @notice LP deposits to the pool to earn interest, and share losses
+     *
+     * @notice All deposits should be made by calling this function and
+     * makeInitialDeposit() (for pool owner and EA's initial deposit) only.
+     * Please do NOT directly transfer any digital assets to the contracts,
+     * which will cause a permanent loss and we cannot help reverse transactions
+     * or retrieve assets from the contracts.
+     *
+     * @param assets the number of underlyingToken to be deposited
+     * @param receiver the address to receive the minted tranche token
+     * @return shares the number of tranche token to be minted
+     */
     function deposit(uint256 assets, address receiver) external returns (uint256 shares) {
-        if (shares <= 0) {
-            revert(); // assets is 0
-        }
+        if (receiver == address(0)) revert Errors.zeroAddressProvided();
+        poolConfig.onlyProtocolAndPoolOn();
+        return _deposit(assets, receiver);
+    }
 
-        // TODO validate receiver permission
+    /**
+     * @notice Allows the pool owner and EA to make initial deposit before the pool goes live
+     * @param assets the number of `poolToken` to be deposited
+     * @return shares the number of tranche token to be minted
+     */
+    function makeInitialDeposit(uint256 assets) external returns (uint256 shares) {
+        poolConfig.onlyPoolOwnerTreasuryOrEA(msg.sender);
+        return _deposit(assets, msg.sender);
+    }
+
+    function _deposit(
+        uint256 assets,
+        address receiver
+    ) internal onlyRole(LENDER_ROLE) returns (uint256 shares) {
+        if (assets == 0) revert Errors.zeroAmountProvided();
 
         uint256 cap = poolConfig.getTrancheLiquidityCap(trancheIndex);
         if (assets > cap) {
-            revert();
+            revert Errors.exceededPoolLiquidityCap();
         }
         uint96[2] memory tranches = pool.refreshPool();
-        uint256 totalAssets = tranches[trancheIndex];
-        if (totalAssets + assets > cap) {
-            revert(); // greater than cap
+        uint256 ta = tranches[trancheIndex];
+        if (ta + assets > cap) {
+            revert Errors.exceededPoolLiquidityCap();
         }
 
         if (trancheIndex == SENIOR_TRANCHE_INDEX) {
             // validate maxRatio for senior tranche
-
             LPConfig memory lpConfig = poolConfig.getLPConfig();
             if (
-                ((totalAssets + assets) / tranches[JUNIOR_TRANCHE_INDEX]) *
-                    HUNDRED_PERCENT_IN_BPS >
+                ((ta + assets) / tranches[JUNIOR_TRANCHE_INDEX]) * HUNDRED_PERCENT_IN_BPS >
                 lpConfig.maxSeniorJuniorRatio
-            ) revert(); // greater than max ratio
+            ) revert Errors.exceededMaxSeniorJuniorRatio(); // greater than max ratio
         }
 
         poolVault.deposit(msg.sender, assets);
 
-        shares = _convertToShares(assets, totalAssets);
+        shares = _convertToShares(assets, ta);
         ERC20Upgradeable._mint(receiver, shares);
 
         tranches[trancheIndex] += uint96(assets);
         pool.updateTranchesAssets(tranches);
 
-        // :send an event
+        emit LiquidityDeposited(receiver, assets, shares);
     }
 
     /**
      * @notice Adds Redemption assets(underlying token amount) in current Redemption request
      */
     function addRedemptionRequest(uint256 shares) external {
-        if (shares <= 0) {
-            revert(); // assets is 0
-        }
+        if (shares == 0) revert Errors.zeroAmountProvided();
+        poolConfig.onlyProtocolAndPoolOn();
+
         uint256 userShares = ERC20Upgradeable.balanceOf(msg.sender);
         if (shares < userShares) {
-            revert(); // assets is too big
+            revert Errors.withdrawnAmountHigherThanBalance(); // assets is too big
         }
 
         // update global epochId array and EpochInfo mapping
@@ -198,17 +255,19 @@ contract TrancheVault is ERC20Upgradeable, TrancheVaultStorage, IEpoch {
      * @notice Removes Redemption assets(underlying token amount) from current Redemption request
      */
     function removeRedemptionRequest(uint256 shares) external {
-        if (shares <= 0) {
-            revert(); // assets is 0
-        }
+        if (shares == 0) revert Errors.zeroAmountProvided();
+        poolConfig.onlyProtocolAndPoolOn();
 
         UserRedemptionRequest[] storage requests = userRedemptionRequests[msg.sender];
         uint256 lastIndex = requests.length - 1;
         UserRedemptionRequest memory request = requests[lastIndex];
         uint256 epochId = epochManager.currentEpochId();
-        if (request.epochId < epochId || request.shareRequested < shares) {
+        if (request.epochId < epochId) {
             // only remove from current Redemption request
-            revert();
+            revert Errors.notCurrentEpoch();
+        }
+        if (request.shareRequested < shares) {
+            revert Errors.shareHigherThanRequested();
         }
 
         request.shareRequested -= uint96(shares);
@@ -231,17 +290,19 @@ contract TrancheVault is ERC20Upgradeable, TrancheVaultStorage, IEpoch {
 
         ERC20Upgradeable._transfer(address(this), msg.sender, shares);
 
-        // :send an event
+        // TODO send an event
     }
 
     /**
      * @notice Transfers processed underlying tokens to the user
      */
     function disburse(address receiver) external {
+        poolConfig.onlyProtocolAndPoolOn();
+
         uint256 withdrawable = _updateUserWithdrawable(msg.sender);
         poolVault.withdraw(receiver, withdrawable);
 
-        // :send an event
+        // TODO send an event
     }
 
     /**
@@ -277,12 +338,12 @@ contract TrancheVault is ERC20Upgradeable, TrancheVaultStorage, IEpoch {
     }
 
     function _convertToShares(
-        uint256 assets,
-        uint256 totalAssets
+        uint256 _assets,
+        uint256 _totalAssets
     ) internal view returns (uint256 shares) {
         uint256 supply = ERC20Upgradeable.totalSupply();
 
-        return supply == 0 ? assets : (assets * supply) / totalAssets;
+        return supply == 0 ? _assets : (_assets * supply) / _totalAssets;
     }
 
     /**
