@@ -36,6 +36,7 @@ contract Errors {
     error notTrancheVaultOrLossCoverer();
     error notTrancheVaultOrEpochManager();
     error notCurrentEpoch();
+    error notDefaultAdmin();
 
     // system config
     error defaultGracePeriodLessThanMinAllowed(); // 0xa733ff9c

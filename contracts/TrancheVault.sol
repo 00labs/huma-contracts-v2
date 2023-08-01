@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
+import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "./SharedDefs.sol";
 import {IERC20MetadataUpgradeable, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {TrancheVaultStorage} from "./TrancheVaultStorage.sol";
@@ -11,10 +12,11 @@ import {PoolConfig, LPConfig} from "./PoolConfig.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
 
-contract TrancheVault is ERC20Upgradeable, TrancheVaultStorage, IEpoch {
+contract TrancheVault is AccessControlUpgradeable, ERC20Upgradeable, TrancheVaultStorage, IEpoch {
+    bytes32 public constant LENDER_ROLE = keccak256("LENDER");
+
     event AddApprovedLender(address indexed lender, address by);
     event RemoveApprovedLender(address indexed lender, address by);
-
     event LiquidityDeposited(address indexed account, uint256 assetAmount, uint256 shareAmount);
 
     constructor() {
@@ -28,6 +30,7 @@ contract TrancheVault is ERC20Upgradeable, TrancheVaultStorage, IEpoch {
         uint8 seniorTrancheOrJuniorTranche
     ) external initializer {
         __ERC20_init(name, symbol);
+        __AccessControl_init();
 
         poolConfig = _poolConfig;
         address underlyingToken = _poolConfig.underlyingToken();
@@ -76,8 +79,7 @@ contract TrancheVault is ERC20Upgradeable, TrancheVaultStorage, IEpoch {
     function addApprovedLender(address lender) external {
         poolConfig.onlyPoolOperator(msg.sender);
         if (lender == address(0)) revert Errors.zeroAddressProvided();
-        _approvedLenders[lender] = true;
-        emit AddApprovedLender(lender, msg.sender);
+        _grantRole(LENDER_ROLE, lender);
     }
 
     /**
@@ -87,8 +89,7 @@ contract TrancheVault is ERC20Upgradeable, TrancheVaultStorage, IEpoch {
     function removeApprovedLender(address lender) external {
         poolConfig.onlyPoolOperator(msg.sender);
         if (lender == address(0)) revert Errors.zeroAddressProvided();
-        _approvedLenders[lender] = false;
-        emit RemoveApprovedLender(lender, msg.sender);
+        _revokeRole(LENDER_ROLE, lender);
     }
 
     /**
@@ -157,7 +158,6 @@ contract TrancheVault is ERC20Upgradeable, TrancheVaultStorage, IEpoch {
     function deposit(uint256 assets, address receiver) external returns (uint256 shares) {
         if (receiver == address(0)) revert Errors.zeroAddressProvided();
         poolConfig.onlyProtocolAndPoolOn();
-
         return _deposit(assets, receiver);
     }
 
@@ -171,9 +171,11 @@ contract TrancheVault is ERC20Upgradeable, TrancheVaultStorage, IEpoch {
         return _deposit(assets, msg.sender);
     }
 
-    function _deposit(uint256 assets, address receiver) internal returns (uint256 shares) {
+    function _deposit(
+        uint256 assets,
+        address receiver
+    ) internal onlyRole(LENDER_ROLE) returns (uint256 shares) {
         if (assets == 0) revert Errors.zeroAmountProvided();
-        if (!_approvedLenders[receiver]) revert Errors.permissionDeniedNotLender();
 
         uint256 cap = poolConfig.getTrancheLiquidityCap(trancheIndex);
         if (assets > cap) {
@@ -333,11 +335,6 @@ contract TrancheVault is ERC20Upgradeable, TrancheVaultStorage, IEpoch {
 
     function convertToShares(uint256 assets) external view returns (uint256 shares) {
         shares = _convertToShares(assets, totalAssets());
-    }
-
-    /// Reports if the given account has been approved as a lender for this pool
-    function isApprovedLender(address account) external view returns (bool) {
-        return _approvedLenders[account];
     }
 
     function _convertToShares(
