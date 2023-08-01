@@ -157,7 +157,6 @@ contract PlatformFeeManager is IPlatformFeeManager {
     function _getPlatformFees(
         uint256 profit
     ) internal view returns (AccruedIncomes memory incomes, uint256 remaining) {
-        PoolSettings memory settings = poolConfig.getPoolSettings();
         AdminRnR memory adminRnR = poolConfig.getAdminRnR();
 
         uint256 income = (humaConfig.protocolFee() * profit) / HUNDRED_PERCENT_IN_BPS;

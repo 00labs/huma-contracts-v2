@@ -6,14 +6,13 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 //import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {IERC20, IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IPlatformFeeManager} from "./interfaces/IPlatformFeeManager.sol";
+import {IPool} from "./interfaces/IPool.sol";
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "./SharedDefs.sol";
 
-//import "./HDT/HDT.sol";
-import "./HumaConfig.sol";
-//import "./BasePool.sol";
-import "./Errors.sol";
+import {HumaConfig} from "./HumaConfig.sol";
+import {Errors} from "./Errors.sol";
 
 import "hardhat/console.sol";
 
@@ -32,6 +31,8 @@ struct PoolSettings {
     uint16 defaultGracePeriodInCalendarUnit;
     // percentage of the receivable amount applied towards available credit
     uint16 advanceRateInBps;
+    // The duration of an epoch, in the unit of full CalendarUnit
+    uint8 epochWindowInCalendarUnit;
     // if the pool is exclusive to one borrower
     bool singleBorrower;
     // if the dues are combined into one credit if the borrower has multiple receivables
@@ -69,8 +70,6 @@ struct LPConfig {
     uint16 fixedSeniorYieldInBps;
     // Percentage of yield to be shifted from senior to junior. Either this or fixedSeniorYieldInBps is non-zero
     uint16 tranchesRiskAdjustmentInBps;
-    // The duration of an epoch, in the unit of full CalendarUnit
-    uint8 epochWindowInCalendarUnit;
     // The duration between a capital withdraw request and capital availability, in the unit of full CycleType.
     uint8 flexCallWindowInCalendarUnit;
 }
@@ -123,6 +122,7 @@ contract PoolConfig is Ownable {
     address[] internal _lossCoverers;
     address public credit;
     address public feeManager;
+    address public calendar;
 
     HumaConfig public humaConfig;
 
@@ -141,6 +141,7 @@ contract PoolConfig is Ownable {
     FrontLoadingFeesStructure internal _frontFees;
     FeeStructure internal _feeStructure;
 
+    // TODO replace to openzeppelin access control?
     /// Pool operators can add or remove lenders.
     mapping(address => bool) private poolOperators;
 
@@ -456,6 +457,13 @@ contract PoolConfig is Ownable {
         // todo emit event
     }
 
+    function setCalendar(address _calendar) external {
+        _onlyOwnerOrHumaMasterAdmin();
+        if (_calendar == address(0)) revert Errors.zeroAddressProvided();
+        calendar = _calendar;
+        // todo emit event
+    }
+
     /**
      * @notice Set the receivable rate in terms of basis points.
      * When the rate is higher than 10000, it means the backing is higher than the borrow amount,
@@ -590,7 +598,8 @@ contract PoolConfig is Ownable {
 
     /// "Modifier" function that limits access to pool owner or EA.
     function onlyPoolOwnerOrEA(address account) public view returns (address) {
-        if (account != owner() && account != evaluationAgent) revert Errors.notPoolOwnerOrEA();
+        if (account != owner() && account != evaluationAgent && account != address(this))
+            revert Errors.notPoolOwnerOrEA();
         return evaluationAgent;
     }
 
@@ -698,5 +707,14 @@ contract PoolConfig is Ownable {
     function onlyTrancheVaultOrEpochManager(address account) external view {
         if (account != seniorTranche && account != seniorTranche && account != epochManager)
             revert Errors.notTrancheVaultOrEpochManager();
+    }
+
+    function onlyPoolOperator(address account) external view {
+        if (!poolOperators[account]) revert Errors.poolOperatorRequired();
+    }
+
+    function onlyProtocolAndPoolOn() external view {
+        if (humaConfig.paused()) revert Errors.protocolIsPaused();
+        if (IPool(pool).isPoolOn()) revert Errors.poolIsNotOn();
     }
 }

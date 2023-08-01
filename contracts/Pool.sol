@@ -33,6 +33,17 @@ contract Pool is IPool {
     TranchesInfo public tranches;
     TranchesLosses public tranchesLosses;
 
+    enum PoolStatus {
+        Off,
+        On
+    }
+
+    // Whether the pool is ON or OFF
+    PoolStatus internal _status;
+
+    event PoolDisabled(address indexed by);
+    event PoolEnabled(address indexed by);
+
     function setPoolConfig(PoolConfig _poolConfig) external {
         poolConfig.onlyPoolOwner(msg.sender);
 
@@ -58,6 +69,33 @@ contract Pool is IPool {
         addr = _poolConfig.feeManager();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         feeManager = IPlatformFeeManager(addr);
+    }
+
+    /**
+     * @notice turns on the pool. Only the pool owner or protocol owner can enable a pool.
+     */
+    function enablePool() external {
+        poolConfig.onlyOwnerOrHumaMasterAdmin(msg.sender);
+
+        poolConfig.checkLiquidityRequirement();
+
+        _status = PoolStatus.On;
+        emit PoolEnabled(msg.sender);
+    }
+
+    /**
+     * @notice turns off the pool. Any pool operator can do so when they see abnormalities.
+     */
+    function disablePool() external {
+        poolConfig.onlyPoolOperator(msg.sender);
+        _status = PoolStatus.Off;
+        emit PoolDisabled(msg.sender);
+    }
+
+    /// Gets the on/off status of the pool
+    function isPoolOn() external view returns (bool status) {
+        if (_status == PoolStatus.On) return true;
+        else return false;
     }
 
     function refreshPool() external returns (uint96[2] memory) {
