@@ -77,7 +77,7 @@ contract Pool is IPool {
     function enablePool() external {
         poolConfig.onlyOwnerOrHumaMasterAdmin(msg.sender);
 
-        poolConfig.checkLiquidityRequirement();
+        poolConfig.checkFirstLossCoverRequirement();
 
         _status = PoolStatus.On;
         emit PoolEnabled(msg.sender);
