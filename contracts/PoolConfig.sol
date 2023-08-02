@@ -7,6 +7,7 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {IERC20, IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IPlatformFeeManager} from "./interfaces/IPlatformFeeManager.sol";
 import {IPool} from "./interfaces/IPool.sol";
+import {ILossCoverer} from "./interfaces/ILossCoverer.sol";
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "./SharedDefs.sol";
@@ -118,6 +119,7 @@ contract PoolConfig is AccessControl, Initializable {
     address public juniorTranche;
     address public tranchesPolicy;
     address public epochManager;
+    address public poolOwnerOrEALossCoverer;
     address[] internal _lossCoverers;
     address public credit;
     address public feeManager;
@@ -281,10 +283,9 @@ contract PoolConfig is AccessControl, Initializable {
         }
 
         // Make sure the new EA has met the liquidity requirements
-        // todo uncomment and fix it
-        // if (BasePool(pool).isPoolOn()) {
-        // checkLiquidityRequirementForEA(poolToken.withdrawableFundsOf(agent));
-        // }
+        if (IPool(pool).isPoolOn()) {
+            ILossCoverer(poolOwnerOrEALossCoverer).isSufficient(agent);
+        }
 
         // Transfer the accrued EA income to the old EA's wallet.
         // Decided not to check if there is enough balance in the pool. If there is
@@ -430,6 +431,11 @@ contract PoolConfig is AccessControl, Initializable {
         // todo emit event
     }
 
+    function setPoolOwnerOrEALossCoverer(address coverer) external {
+        _onlyOwnerOrHumaMasterAdmin();
+        poolOwnerOrEALossCoverer = coverer;
+    }
+
     function setCalendar(address _calendar) external {
         _onlyOwnerOrHumaMasterAdmin();
         if (_calendar == address(0)) revert Errors.zeroAddressProvided();
@@ -461,36 +467,10 @@ contract PoolConfig is AccessControl, Initializable {
         emit WithdrawalLockoutPeriodChanged(lockoutPeriod, msg.sender);
     }
 
-    function checkLiquidityRequirementForPoolOwner(uint256 balance) public view {
-        if (
-            balance <
-            (_lpConfig.liquidityCap * _poolSettings.advanceRateInBps) / HUNDRED_PERCENT_IN_BPS
-        ) revert Errors.poolOwnerNotEnoughLiquidity();
-    }
-
-    function checkLiquidityRequirementForEA(uint256 balance) public view {
-        if (
-            balance <
-            (_lpConfig.liquidityCap * _poolSettings.advanceRateInBps) / HUNDRED_PERCENT_IN_BPS
-        ) revert Errors.evaluationAgentNotEnoughLiquidity();
-    }
-
-    /// Checks to make sure both EA and pool owner treasury meet the pool's liquidity requirements
-    function checkLiquidityRequirement() public view {
-        // todo fix ti
-        // checkLiquidityRequirementForPoolOwner(poolToken.withdrawableFundsOf(poolOwnerTreasury));
-        // checkLiquidityRequirementForEA(poolToken.withdrawableFundsOf(evaluationAgent));
-    }
-
-    /// When the pool owner treasury or EA wants to withdraw liquidity from the pool,
-    /// checks to make sure the remaining liquidity meets the pool's requirements
-    function checkWithdrawLiquidityRequirement(address lender, uint256 newBalance) public view {
-        if (lender == evaluationAgent) {
-            checkLiquidityRequirementForEA(newBalance);
-        } else if (lender == poolOwnerTreasury) {
-            // note poolOwnerTreasury handles all thing financial-related for pool owner
-            checkLiquidityRequirementForPoolOwner(newBalance);
-        }
+    /// Checks to make sure both EA and pool owner treasury meet the pool's first loss cover requirements
+    function checkFirstLossCoverRequirement() public view {
+        ILossCoverer(poolOwnerOrEALossCoverer).isSufficient(poolOwnerTreasury);
+        ILossCoverer(poolOwnerOrEALossCoverer).isSufficient(evaluationAgent);
     }
 
     /**

@@ -11,6 +11,8 @@ contract Errors {
     error withdrawnAmountHigherThanBalance(); // 0x477c0ab2
     error allowanceTooLow(); // 0xcd8ef369
     error shareHigherThanRequested();
+    error insufficientTotalBalance();
+    error lessThanRequiredCover();
 
     // security
     error permissionDeniedNotAdmin(); // 0xf2c5b6a7
@@ -36,7 +38,6 @@ contract Errors {
     error notTrancheVaultOrLossCoverer();
     error notTrancheVaultOrEpochManager();
     error notCurrentEpoch();
-    error notDefaultAdmin();
 
     // system config
     error defaultGracePeriodLessThanMinAllowed(); // 0xa733ff9c

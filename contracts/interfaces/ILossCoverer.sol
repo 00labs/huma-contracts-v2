@@ -11,13 +11,14 @@ interface ILossCoverer {
     /**
      * @notice Withdraws excess assets from the loss coverer,
      * the left assets should meet poolCapCoverageInBps and poolValueCoverageInBps settings
+     * @param amount the asset amount
      * @param receiver the address to receive the withdrawn assets
      */
-    function removeCover(address receiver) external;
+    function removeCover(uint256 amount, address receiver) external;
 
     function coverLoss(uint256 poolAssets, uint256 loss) external returns (uint256 remainingLoss);
 
     function recoverLoss(uint256 recovery) external returns (uint256 remainingRecovery);
 
-    function isSufficient() external view returns (bool sufficient);
+    function isSufficient(address account) external view returns (bool sufficient);
 }
