@@ -6,6 +6,8 @@ import {ICalendar, CalendarUnit} from "./interfaces/ICalendar.sol";
 
 import {BokkyPooBahsDateTimeLibrary as DTL} from "./utils/BokkyPooBahsDateTimeLibrary.sol";
 
+import "hardhat/console.sol";
+
 contract Calendar is ICalendar {
     function getStartOfToday() external view returns (uint256 today) {}
 
@@ -33,7 +35,7 @@ contract Calendar is ICalendar {
     ) internal view returns (uint256 dueDate, uint256 numberOfPeriodsPassed) {
         uint256 periodCount;
         if (lastDueDate == 0) {
-            (uint256 year, uint256 month, uint256 day) = DTL.timestampToDate(dueDate);
+            (uint256 year, uint256 month, uint256 day) = DTL.timestampToDate(block.timestamp);
             lastDueDate = DTL.timestampFromDate(year, month, day);
             periodCount = 1;
         } else {
@@ -49,7 +51,7 @@ contract Calendar is ICalendar {
     ) internal view returns (uint256 dueDate, uint256 numberOfPeriodsPassed) {
         uint256 periodCount;
         if (lastDueDate == 0) {
-            (uint256 year, uint256 month, ) = DTL.timestampToDate(dueDate);
+            (uint256 year, uint256 month, ) = DTL.timestampToDate(block.timestamp);
             lastDueDate = DTL.timestampFromDate(year, month, 1);
             periodCount = 1;
         } else {
