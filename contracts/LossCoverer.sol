@@ -6,12 +6,13 @@ import {ILossCoverer} from "./interfaces/ILossCoverer.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
 import {PoolConfig, LPConfig} from "./PoolConfig.sol";
+import {PoolConfigCache} from "./PoolConfigCache.sol";
 import "./SharedDefs.sol";
 import {Errors} from "./Errors.sol";
 
 // TODO design first loss cover fee
 
-contract LossCoverer is ILossCoverer {
+contract LossCoverer is PoolConfigCache, ILossCoverer {
     struct LossCoverFund {
         // percentage of the pool cap required to be covered by first loss cover
         uint16 poolCapCoverageInBps;
@@ -26,7 +27,6 @@ contract LossCoverer is ILossCoverer {
         uint96 coverCap;
     }
 
-    PoolConfig public poolConfig;
     IPool public pool;
     IPoolVault public poolVault;
     IERC20 public asset;
@@ -50,11 +50,9 @@ contract LossCoverer is ILossCoverer {
     event LossCovered(uint256 covered, uint256 remaining);
     event LossRecovered(uint256 recovered, uint256 remaining);
 
-    function setPoolConfig(PoolConfig _poolConfig) external {
-        poolConfig.onlyPoolOwner(msg.sender);
+    constructor(address poolConfigAddress) PoolConfigCache(poolConfigAddress) {}
 
-        poolConfig = _poolConfig;
-
+    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = _poolConfig.poolVault();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         poolVault = IPoolVault(addr);

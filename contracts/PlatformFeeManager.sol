@@ -3,22 +3,21 @@ pragma solidity ^0.8.0;
 
 import "./SharedDefs.sol";
 import {PoolConfig, PoolSettings, AdminRnR} from "./PoolConfig.sol";
+import {PoolConfigCache} from "./PoolConfigCache.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
 import {IPlatformFeeManager} from "./interfaces/IPlatformFeeManager.sol";
 import {HumaConfig} from "./HumaConfig.sol";
 import {Errors} from "./Errors.sol";
 
-contract PlatformFeeManager is IPlatformFeeManager {
+contract PlatformFeeManager is PoolConfigCache, IPlatformFeeManager {
     struct AccruedIncomes {
         uint96 protocolIncome;
         uint96 poolOwnerIncome;
         uint96 eaIncome;
     }
 
-    PoolConfig public poolConfig;
     HumaConfig public humaConfig;
     IPoolVault public poolVault;
-
     AccruedIncomes internal _accruedIncomes;
     uint256 public protocolIncomeWithdrawn;
     uint256 public poolOwnerIncomeWithdrawn;
@@ -35,16 +34,9 @@ contract PlatformFeeManager is IPlatformFeeManager {
     event ProtocolRewardsWithdrawn(address receiver, uint256 amount, address by);
     event EvaluationAgentRewardsWithdrawn(address receiver, uint256 amount, address by);
 
-    constructor(address poolConfigAddress) {
-        poolConfig = PoolConfig(poolConfigAddress);
-    }
+    constructor(address poolConfigAddress) PoolConfigCache(poolConfigAddress) {}
 
-    function updatePoolConfigData() external {
-        poolConfig.onlyPoolOwner(msg.sender);
-        _updatePoolConfigData(poolConfig);
-    }
-
-    function _updatePoolConfigData(PoolConfig _poolConfig) internal {
+    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = _poolConfig.poolVault();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         poolVault = IPoolVault(addr);
@@ -52,12 +44,6 @@ contract PlatformFeeManager is IPlatformFeeManager {
         addr = address(_poolConfig.humaConfig());
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         humaConfig = HumaConfig(addr);
-    }
-
-    function setPoolConfig(PoolConfig _poolConfig) external {
-        poolConfig.onlyPoolOwner(msg.sender);
-        poolConfig = _poolConfig;
-        _updatePoolConfigData(_poolConfig);
     }
 
     function distributePlatformFees(uint256 profit) external returns (uint256) {

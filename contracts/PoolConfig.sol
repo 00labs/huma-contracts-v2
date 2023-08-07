@@ -536,6 +536,7 @@ contract PoolConfig is AccessControl, Initializable {
     }
 
     function onlyPoolOwner(address account) public view {
+        // Treat DEFAULT_ADMIN_ROLE role as owner role
         if (!hasRole(DEFAULT_ADMIN_ROLE, account)) revert Errors.notPoolOwner();
     }
 

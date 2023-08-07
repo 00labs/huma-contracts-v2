@@ -4,38 +4,24 @@ pragma solidity ^0.8.0;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
 import {PoolConfig} from "./PoolConfig.sol";
+import {PoolConfigCache} from "./PoolConfigCache.sol";
 import {Errors} from "./Errors.sol";
 
-contract PoolVault is IPoolVault {
+contract PoolVault is PoolConfigCache, IPoolVault {
     struct Reserves {
         uint96 forRedemption;
         uint96 forPlatformFees;
     }
 
-    PoolConfig public poolConfig;
     IERC20 public asset;
-
     Reserves public reserves;
 
-    constructor(address poolConfigAddress) {
-        poolConfig = PoolConfig(poolConfigAddress);
-    }
+    constructor(address poolConfigAddress) PoolConfigCache(poolConfigAddress) {}
 
-    function updatePoolConfigData() external {
-        poolConfig.onlyPoolOwner(msg.sender);
-        _updatePoolConfigData(poolConfig);
-    }
-
-    function _updatePoolConfigData(PoolConfig _poolConfig) internal {
+    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address assetAddress = _poolConfig.underlyingToken();
         if (assetAddress == address(0)) revert Errors.zeroAddressProvided();
         asset = IERC20(assetAddress);
-    }
-
-    function setPoolConfig(PoolConfig _poolConfig) external {
-        poolConfig.onlyPoolOwner(msg.sender);
-        poolConfig = _poolConfig;
-        _updatePoolConfigData(_poolConfig);
     }
 
     function deposit(address from, uint256 amount) external {
