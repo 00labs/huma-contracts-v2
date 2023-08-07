@@ -180,25 +180,80 @@ contract PoolConfig is AccessControl, Initializable {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
+    /**
+     * @notice Initialize the pool configuration
+     * @param _poolName The name of the pool
+     * @param _contracts The addresses of the contracts that are used by the pool
+     *   _contracts[0]: address of HumaConfig
+     *   _contracts[1]: address of underlyingToken
+     *   _contracts[2]: address of platformFeeManager
+     *   _contracts[3]: address of poolVault
+     *   _contracts[4]: address of calendar
+     *   _contracts[5]: address of poolOwnerOrEALossCoverer
+     *   _contracts[6]: address of tranchesPolicy
+     *   _contracts[7]: address of pool
+     *   _contracts[8]: address of epochManager
+     *   _contracts[9]: address of seniorTranche
+     *   _contracts[10]: address of juniorTranche
+     *   _contracts[11]: address of credit
+     */
+
     function initialize(
         string memory _poolName,
-        address _underlyingToken,
-        address _humaConfig,
-        address _platformFeeManager
+        address[] calldata _contracts
     ) public initializer {
         onlyPoolOwner(msg.sender);
 
         poolName = _poolName;
-        if (_humaConfig == address(0)) revert Errors.zeroAddressProvided();
-        if (_platformFeeManager == address(0)) revert Errors.zeroAddressProvided();
 
-        humaConfig = HumaConfig(_humaConfig);
+        address addr = _contracts[0];
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        humaConfig = HumaConfig(addr);
 
-        if (!humaConfig.isAssetValid(_underlyingToken))
+        addr = _contracts[1];
+        if (!humaConfig.isAssetValid(addr))
             revert Errors.underlyingTokenNotApprovedForHumaProtocol();
-        underlyingToken = _underlyingToken;
+        underlyingToken = addr;
 
-        platformFeeManager = _platformFeeManager;
+        addr = _contracts[2];
+        if (_contracts[2] == address(0)) revert Errors.zeroAddressProvided();
+        platformFeeManager = _contracts[2];
+
+        addr = _contracts[3];
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        poolVault = addr;
+
+        addr = _contracts[4];
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        calendar = addr;
+
+        addr = _contracts[5];
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        poolOwnerOrEALossCoverer = addr;
+
+        addr = _contracts[6];
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        tranchesPolicy = addr;
+
+        addr = _contracts[7];
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        pool = addr;
+
+        addr = _contracts[8];
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        epochManager = addr;
+
+        addr = _contracts[9];
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        seniorTranche = addr;
+
+        addr = _contracts[10];
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        juniorTranche = addr;
+
+        addr = _contracts[11];
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        credit = addr;
 
         // Default values for the pool configurations. The pool owners are expected to reset
         // these values when setting up the pools. Setting these default values to avoid

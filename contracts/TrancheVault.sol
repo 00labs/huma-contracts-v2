@@ -27,7 +27,7 @@ contract TrancheVault is
     event LiquidityDeposited(address indexed account, uint256 assetAmount, uint256 shareAmount);
 
     constructor() {
-        _disableInitializers();
+        // _disableInitializers();
     }
 
     function initialize(

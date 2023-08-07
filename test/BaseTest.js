@@ -50,9 +50,11 @@ async function deployContracts(
 }
 
 async function deployAndSetupPool(
+    humaConfigContract,
     mockTokenContract,
     eaNFTContract,
-    humaConfigContract,
+    TranchesPolicyContractName,
+    deployer,
     poolOwner,
     evaluationAgent
 ) {
@@ -67,130 +69,80 @@ async function deployAndSetupPool(
     const PoolVault = await ethers.getContractFactory("PoolVault");
     const poolVault = await PoolVault.deploy(poolConfig.address);
     await poolVault.deployed();
-}
 
-async function deployAndSetupPool(
-    poolOwner,
-    proxyOwner,
-    evaluationAgent,
-    lender,
-    humaConfigContract,
-    feeManagerContract,
-    testTokenContract,
-    principalRateInBps,
-    eaNFTContract,
-    isReceivableContractFlag,
-    poolOperator,
-    poolOwnerTreasury
-) {
-    await testTokenContract.mint(lender.address, toToken(10_000_000));
-    await testTokenContract.mint(poolOwnerTreasury.address, toToken(10_000_000));
-    await testTokenContract.mint(evaluationAgent.address, toToken(10_000_000));
+    const LossCoverer = await ethers.getContractFactory("LossCoverer");
+    const lossCoverer = await LossCoverer.deploy(poolConfig.address);
+    await lossCoverer.deployed();
 
-    await feeManagerContract.connect(poolOwner).setMinPrincipalRateInBps(principalRateInBps);
+    const TranchesPolicy = await ethers.getContractFactory(TranchesPolicyContractName);
+    const tranchesPolicy = await TranchesPolicy.deploy(poolConfig.address);
+    await tranchesPolicy.deployed();
 
-    const TransparentUpgradeableProxy = await ethers.getContractFactory(
-        "TransparentUpgradeableProxy"
-    );
+    const Pool = await ethers.getContractFactory("Pool");
+    const pool = await Pool.deploy(poolConfig.address);
+    await pool.deployed();
 
-    const HDT = await ethers.getContractFactory("HDT");
-    const hdtImpl = await HDT.deploy();
-    await hdtImpl.deployed();
-    const hdtProxy = await TransparentUpgradeableProxy.deploy(
-        hdtImpl.address,
-        proxyOwner.address,
-        []
-    );
-    await hdtProxy.deployed();
-    hdtContract = HDT.attach(hdtProxy.address);
-    await hdtContract.initialize("Base Credit HDT", "CHDT", testTokenContract.address);
+    const EpochManager = await ethers.getContractFactory("EpochManager");
+    const epochManager = await EpochManager.deploy(poolConfig.address);
+    await epochManager.deployed();
 
-    const BasePoolConfig = await ethers.getContractFactory("BasePoolConfig");
-    const poolConfig = await BasePoolConfig.deploy();
-    await poolConfig.deployed();
-    await poolConfig.initialize(
-        "Base Credit Pool",
-        hdtContract.address,
+    const TrancheVault = await ethers.getContractFactory("TrancheVault");
+    const seniorTrancheVault = await TrancheVault.deploy();
+    await seniorTrancheVault.deployed();
+    const juniorTrancheVault = await TrancheVault.deploy();
+    await juniorTrancheVault.deployed();
+
+    const Calendar = await ethers.getContractFactory("Calendar");
+    const calendar = await Calendar.deploy();
+    await calendar.deployed();
+
+    const MockCredit = await ethers.getContractFactory("MockCredit");
+    const mockCredit = await MockCredit.deploy();
+    await mockCredit.deployed();
+
+    await poolConfig.initialize("Test Pool", [
         humaConfigContract.address,
-        feeManagerContract.address
-    );
+        mockTokenContract.address,
+        platformFeeManager.address,
+        poolVault.address,
+        calendar.address,
+        lossCoverer.address,
+        tranchesPolicy.address,
+        pool.address,
+        epochManager.address,
+        seniorTrancheVault.address,
+        juniorTrancheVault.address,
+        mockCredit.address,
+    ]);
 
-    // Deploy pool contract
-    let poolContractFactory;
-    if (isReceivableContractFlag)
-        poolContractFactory = await ethers.getContractFactory("ReceivableFactoringPool");
-    else poolContractFactory = await ethers.getContractFactory("BaseCreditPool");
+    await poolConfig.grantRole(await poolConfig.DEFAULT_ADMIN_ROLE(), poolOwner.address);
+    await poolConfig.renounceRole(await poolConfig.DEFAULT_ADMIN_ROLE(), deployer.address);
 
-    const poolImpl = await poolContractFactory.deploy();
-    //const BaseCreditPool = await ethers.getContractFactory("BaseCreditPool");
-    //const poolImpl = await BaseCreditPool.deploy();
-    await poolImpl.deployed();
-    const poolProxy = await TransparentUpgradeableProxy.deploy(
-        poolImpl.address,
-        proxyOwner.address,
-        []
-    );
-    await poolProxy.deployed();
+    await platformFeeManager.connect(poolOwner).updatePoolConfigData();
+    await poolVault.connect(poolOwner).updatePoolConfigData();
+    await lossCoverer.connect(poolOwner).updatePoolConfigData();
+    await pool.connect(poolOwner).updatePoolConfigData();
+    await epochManager.connect(poolOwner).updatePoolConfigData();
+    await seniorTrancheVault
+        .connect(poolOwner)
+        .initialize("Senior Tranche Vault", "STV", poolConfig.address, 0);
+    await juniorTrancheVault
+        .connect(poolOwner)
+        .initialize("Junior Tranche Vault", "JTV", poolConfig.address, 1);
 
-    const poolContract = poolContractFactory.attach(poolProxy.address);
-    await poolContract.initialize(poolConfig.address);
-    await poolContract.deployed();
-
-    await poolConfig.setPool(poolContract.address);
-    await hdtContract.setPool(poolContract.address);
-
-    // Pool setup
-    await poolConfig.transferOwnership(poolOwner.address);
-
-    // Config rewards and requirements for poolOwner and EA, make initial deposit, and enable pool
-    await poolConfig.connect(poolOwner).setPoolLiquidityCap(toToken(1_000_000_000));
-    await poolConfig.connect(poolOwner).setPoolOwnerRewardsAndLiquidity(625, 10);
-
-    let eaNFTTokenId;
-    // Mint EANFT to the ea
-    const tx = await eaNFTContract.mintNFT(evaluationAgent.address);
-    const receipt = await tx.wait();
-    for (const evt of receipt.events) {
-        if (evt.event === "NFTGenerated") {
-            eaNFTTokenId = evt.args.tokenId;
-        }
-    }
-
-    await poolConfig.connect(poolOwner).setEvaluationAgent(eaNFTTokenId, evaluationAgent.address);
-    let s = await poolConfig.getPoolSummary();
-
-    await poolConfig.connect(poolOwner).setEARewardsAndLiquidity(1875, 10);
-
-    await poolConfig.connect(poolOwner).setPoolOwnerTreasury(poolOwnerTreasury.address);
-    await poolConfig.connect(poolOwner).addPoolOperator(poolOwner.address);
-    await poolConfig.connect(poolOwner).addPoolOperator(poolOperator.address);
-
-    await poolContract.connect(poolOperator).addApprovedLender(poolOwnerTreasury.address);
-    await poolContract.connect(poolOperator).addApprovedLender(evaluationAgent.address);
-    await poolContract.connect(poolOperator).addApprovedLender(lender.address);
-
-    await testTokenContract
-        .connect(poolOwnerTreasury)
-        .approve(poolContract.address, toToken(1_000_000));
-    await poolContract.connect(poolOwnerTreasury).makeInitialDeposit(toToken(1_000_000));
-
-    await testTokenContract
-        .connect(evaluationAgent)
-        .approve(poolContract.address, toToken(2_000_000));
-    await poolContract.connect(evaluationAgent).makeInitialDeposit(toToken(2_000_000));
-
-    await expect(poolContract.connect(poolOwner).enablePool()).to.emit(
-        poolContract,
-        "PoolEnabled"
-    );
-
-    await poolConfig.connect(poolOwner).setAPR(1217);
-    await poolConfig.connect(poolOwner).setMaxCreditLine(toToken(10_000_000));
-
-    await testTokenContract.connect(lender).approve(poolContract.address, toToken(2_000_000));
-    await poolContract.connect(lender).deposit(toToken(2_000_000));
-
-    return [hdtContract, poolConfig, poolContract, poolImpl, poolProxy];
+    return [
+        poolConfig,
+        platformFeeManager,
+        poolVault,
+        calendar,
+        lossCoverer,
+        tranchesPolicy,
+        pool,
+        epochManager,
+        seniorTrancheVault,
+        juniorTrancheVault,
+        mockCredit,
+    ];
 }
 
 module.exports = {

@@ -27,6 +27,7 @@ contract Pool is PoolConfigCache, IPool {
     IPoolVault public poolVault;
     ITranchesPolicy public tranchesPolicy;
     ILossCoverer[] public lossCoverers;
+    ILossCoverer public poolOwnerOrEALossCoverer;
     ICredit public credit;
     IPlatformFeeManager public feeManager;
 
@@ -55,11 +56,6 @@ contract Pool is PoolConfigCache, IPool {
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         tranchesPolicy = ITranchesPolicy(addr);
 
-        address[] memory coverers = _poolConfig.getLossCoverers();
-        for (uint256 i = 0; i < coverers.length; i++) {
-            lossCoverers[i] = ILossCoverer(coverers[i]);
-        }
-
         addr = _poolConfig.credit();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         credit = ICredit(addr);
@@ -67,6 +63,15 @@ contract Pool is PoolConfigCache, IPool {
         addr = _poolConfig.platformFeeManager();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         feeManager = IPlatformFeeManager(addr);
+
+        addr = _poolConfig.poolOwnerOrEALossCoverer();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        poolOwnerOrEALossCoverer = ILossCoverer(addr);
+
+        address[] memory coverers = _poolConfig.getLossCoverers();
+        for (uint256 i = 0; i < coverers.length; i++) {
+            lossCoverers[i] = ILossCoverer(coverers[i]);
+        }
     }
 
     /**
