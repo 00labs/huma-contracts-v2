@@ -161,16 +161,6 @@ contract TrancheVault is AccessControlUpgradeable, ERC20Upgradeable, TrancheVaul
         return _deposit(assets, receiver);
     }
 
-    /**
-     * @notice Allows the pool owner and EA to make initial deposit before the pool goes live
-     * @param assets the number of `poolToken` to be deposited
-     * @return shares the number of tranche token to be minted
-     */
-    function makeInitialDeposit(uint256 assets) external returns (uint256 shares) {
-        poolConfig.onlyPoolOwnerTreasuryOrEA(msg.sender);
-        return _deposit(assets, msg.sender);
-    }
-
     function _deposit(
         uint256 assets,
         address receiver

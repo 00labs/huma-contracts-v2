@@ -122,7 +122,7 @@ contract PoolConfig is AccessControl, Initializable {
     address public poolOwnerOrEALossCoverer;
     address[] internal _lossCoverers;
     address public credit;
-    address public feeManager;
+    address public platformFeeManager;
     address public calendar;
 
     HumaConfig public humaConfig;
@@ -155,7 +155,7 @@ contract PoolConfig is AccessControl, Initializable {
     );
     event EvaluationAgentChanged(address oldEA, address newEA, uint256 newEAId, address by);
     event EvaluationAgentRewardsWithdrawn(address receiver, uint256 amount, address by);
-    event FeeManagerChanged(address feeManager, address by);
+    event PlatformFeeManagerChanged(address platformFeeManager, address by);
     event HDTChanged(address hdt, address udnerlyingToken, address by);
     event HumaConfigChanged(address humaConfig, address by);
 
@@ -184,13 +184,13 @@ contract PoolConfig is AccessControl, Initializable {
         string memory _poolName,
         address _underlyingToken,
         address _humaConfig,
-        address _feeManager
+        address _platformFeeManager
     ) public initializer {
         onlyPoolOwner(msg.sender);
 
         poolName = _poolName;
         if (_humaConfig == address(0)) revert Errors.zeroAddressProvided();
-        if (_feeManager == address(0)) revert Errors.zeroAddressProvided();
+        if (_platformFeeManager == address(0)) revert Errors.zeroAddressProvided();
 
         humaConfig = HumaConfig(_humaConfig);
 
@@ -198,7 +198,7 @@ contract PoolConfig is AccessControl, Initializable {
             revert Errors.underlyingTokenNotApprovedForHumaProtocol();
         underlyingToken = _underlyingToken;
 
-        feeManager = _feeManager;
+        platformFeeManager = _platformFeeManager;
 
         // Default values for the pool configurations. The pool owners are expected to reset
         // these values when setting up the pools. Setting these default values to avoid
@@ -277,7 +277,7 @@ contract PoolConfig is AccessControl, Initializable {
 
         address oldEA = evaluationAgent;
         if (oldEA != address(0)) {
-            IPlatformFeeManager fm = IPlatformFeeManager(feeManager);
+            IPlatformFeeManager fm = IPlatformFeeManager(platformFeeManager);
             (, , uint256 eaWithdrawable) = fm.getWithdrawables();
             fm.withdrawEAFee(eaWithdrawable);
         }
@@ -298,11 +298,11 @@ contract PoolConfig is AccessControl, Initializable {
         emit EvaluationAgentChanged(oldEA, agent, eaId, msg.sender);
     }
 
-    function setFeeManager(address _feeManager) external {
+    function setPlatformFeeManager(address _platformFeeManager) external {
         _onlyOwnerOrHumaMasterAdmin();
-        if (_feeManager == address(0)) revert Errors.zeroAddressProvided();
-        feeManager = _feeManager;
-        emit FeeManagerChanged(_feeManager, msg.sender);
+        if (_platformFeeManager == address(0)) revert Errors.zeroAddressProvided();
+        platformFeeManager = _platformFeeManager;
+        emit PlatformFeeManagerChanged(_platformFeeManager, msg.sender);
     }
 
     function setHumaConfig(address _humaConfig) external {
@@ -621,7 +621,7 @@ contract PoolConfig is AccessControl, Initializable {
     }
 
     function onlyPlatformFeeManager(address account) external view {
-        if (account != feeManager) revert Errors.notPlatformFeeManager();
+        if (account != platformFeeManager) revert Errors.notPlatformFeeManager();
     }
 
     function onlyPool(address account) external view {

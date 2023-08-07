@@ -66,7 +66,7 @@ contract Pool is IPool {
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         credit = ICredit(addr);
 
-        addr = _poolConfig.feeManager();
+        addr = _poolConfig.platformFeeManager();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         feeManager = IPlatformFeeManager(addr);
     }

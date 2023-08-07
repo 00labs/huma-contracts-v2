@@ -17,13 +17,25 @@ contract PoolVault is IPoolVault {
 
     Reserves public reserves;
 
-    function setPoolConfig(PoolConfig _poolConfig) external {
-        poolConfig.onlyPoolOwner(msg.sender);
+    constructor(address poolConfigAddress) {
+        poolConfig = PoolConfig(poolConfigAddress);
+    }
 
-        poolConfig = _poolConfig;
-        address assetAddress = poolConfig.underlyingToken();
+    function updatePoolConfigData() external {
+        poolConfig.onlyPoolOwner(msg.sender);
+        _updatePoolConfigData(poolConfig);
+    }
+
+    function _updatePoolConfigData(PoolConfig _poolConfig) internal {
+        address assetAddress = _poolConfig.underlyingToken();
         if (assetAddress == address(0)) revert Errors.zeroAddressProvided();
         asset = IERC20(assetAddress);
+    }
+
+    function setPoolConfig(PoolConfig _poolConfig) external {
+        poolConfig.onlyPoolOwner(msg.sender);
+        poolConfig = _poolConfig;
+        _updatePoolConfigData(_poolConfig);
     }
 
     function deposit(address from, uint256 amount) external {
