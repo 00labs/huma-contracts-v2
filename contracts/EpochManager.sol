@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import {IPool} from "./interfaces/IPool.sol";
 import {PoolConfig, LPConfig, PoolSettings} from "./PoolConfig.sol";
+import {PoolConfigCache} from "./PoolConfigCache.sol";
 import {IEpoch, EpochInfo} from "./interfaces/IEpoch.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
 import "./SharedDefs.sol";
@@ -14,7 +15,7 @@ interface ITrancheVaultLike is IEpoch {
     function totalSupply() external view returns (uint256);
 }
 
-contract EpochManager is IEpochManager {
+contract EpochManager is PoolConfigCache, IEpochManager {
     struct TrancheProcessedResult {
         uint256 count;
         uint256 shares;
@@ -31,7 +32,6 @@ contract EpochManager is IEpochManager {
         uint64 nextEndTime;
     }
 
-    PoolConfig public poolConfig;
     IPool public pool;
     IPoolVault public poolVault;
     ITrancheVaultLike public seniorTranche;
@@ -50,11 +50,9 @@ contract EpochManager is IEpochManager {
     );
     event NewEpochStarted(uint256 epochId, uint256 endTime);
 
-    function setPoolConfig(PoolConfig _poolConfig) external {
-        poolConfig.onlyPoolOwner(msg.sender);
+    constructor(address poolConfigAddress) PoolConfigCache(poolConfigAddress) {}
 
-        poolConfig = _poolConfig;
-
+    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = _poolConfig.poolVault();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         poolVault = IPoolVault(addr);

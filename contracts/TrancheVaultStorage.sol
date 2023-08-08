@@ -21,10 +21,8 @@ contract TrancheVaultStorage {
         uint96 partialAmountProcessed;
     }
 
-    PoolConfig public poolConfig;
     IPool public pool;
     IPoolVault public poolVault;
-
     IEpochManager public epochManager;
     uint8 internal _decimals;
     uint8 public trancheIndex; // senior index or junior index

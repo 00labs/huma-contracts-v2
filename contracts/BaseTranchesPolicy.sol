@@ -3,16 +3,14 @@ pragma solidity ^0.8.0;
 
 import {ITranchesPolicy} from "./interfaces/ITranchesPolicy.sol";
 import {PoolConfig} from "./PoolConfig.sol";
+import {PoolConfigCache} from "./PoolConfigCache.sol";
 import {Errors} from "./Errors.sol";
 import "./SharedDefs.sol";
 
-abstract contract BaseTranchesPolicy is ITranchesPolicy {
-    PoolConfig public poolConfig;
+abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
+    constructor(address poolConfigAddress) PoolConfigCache(poolConfigAddress) {}
 
-    constructor(PoolConfig _poolConfig) {
-        if (address(_poolConfig) == address(0)) revert Errors.zeroAddressProvided();
-        poolConfig = _poolConfig;
-    }
+    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {}
 
     function calcTranchesAssetsForLoss(
         uint256 loss,

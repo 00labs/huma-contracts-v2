@@ -9,9 +9,10 @@ import {ILossCoverer} from "./interfaces/ILossCoverer.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
 import "./SharedDefs.sol";
 import {PoolConfig} from "./PoolConfig.sol";
+import {PoolConfigCache} from "./PoolConfigCache.sol";
 import {Errors} from "./Errors.sol";
 
-contract Pool is IPool {
+contract Pool is PoolConfigCache, IPool {
     struct TranchesInfo {
         uint96 seniorTotalAssets; // total assets of senior tranche
         uint96 juniorTotalAssets; // total assets of junior tranche
@@ -23,10 +24,10 @@ contract Pool is IPool {
         uint96 juniorLoss; // total losses of junior tranche
     }
 
-    PoolConfig public poolConfig;
     IPoolVault public poolVault;
     ITranchesPolicy public tranchesPolicy;
     ILossCoverer[] public lossCoverers;
+    ILossCoverer public poolOwnerOrEALossCoverer;
     ICredit public credit;
     IPlatformFeeManager public feeManager;
 
@@ -44,11 +45,9 @@ contract Pool is IPool {
     event PoolDisabled(address indexed by);
     event PoolEnabled(address indexed by);
 
-    function setPoolConfig(PoolConfig _poolConfig) external {
-        poolConfig.onlyPoolOwner(msg.sender);
+    constructor(address poolConfigAddress) PoolConfigCache(poolConfigAddress) {}
 
-        poolConfig = _poolConfig;
-
+    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = _poolConfig.poolVault();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         poolVault = IPoolVault(addr);
@@ -57,18 +56,22 @@ contract Pool is IPool {
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         tranchesPolicy = ITranchesPolicy(addr);
 
-        address[] memory coverers = _poolConfig.getLossCoverers();
-        for (uint256 i = 0; i < coverers.length; i++) {
-            lossCoverers[i] = ILossCoverer(coverers[i]);
-        }
-
         addr = _poolConfig.credit();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         credit = ICredit(addr);
 
-        addr = _poolConfig.feeManager();
+        addr = _poolConfig.platformFeeManager();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         feeManager = IPlatformFeeManager(addr);
+
+        addr = _poolConfig.poolOwnerOrEALossCoverer();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        poolOwnerOrEALossCoverer = ILossCoverer(addr);
+
+        address[] memory coverers = _poolConfig.getLossCoverers();
+        for (uint256 i = 0; i < coverers.length; i++) {
+            lossCoverers[i] = ILossCoverer(coverers[i]);
+        }
     }
 
     /**
