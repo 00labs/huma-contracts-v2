@@ -2,7 +2,7 @@
 const {ethers} = require("hardhat");
 const {expect} = require("chai");
 
-describe("Huma Config", function () {
+describe("HumaConfig Test", function () {
     let configContract, mockTokenContract;
     let origOwner,
         pauser,

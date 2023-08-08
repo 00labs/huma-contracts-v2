@@ -45,7 +45,7 @@ function getNextMonth(lastDate, currentDate, periodDuration) {
     return [date.unix(), numberOfPeriodsPassed];
 }
 
-describe("Calendar", function () {
+describe("Calendar Test", function () {
     before(async function () {
         [defaultDeployer] = await ethers.getSigners();
     });

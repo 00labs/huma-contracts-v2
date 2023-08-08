@@ -8,7 +8,7 @@ function toToken(number, decimals = 6) {
     return toBN(number, decimals);
 }
 
-async function deployContracts(
+async function deployProtocolContracts(
     protocolOwner,
     treasury,
     eaServiceAccount,
@@ -49,7 +49,7 @@ async function deployContracts(
     return [eaNFTContract, humaConfigContract, mockTokenContract];
 }
 
-async function deployAndSetupPool(
+async function deployPoolContracts(
     humaConfigContract,
     mockTokenContract,
     eaNFTContract,
@@ -146,6 +146,6 @@ async function deployAndSetupPool(
 }
 
 module.exports = {
-    deployContracts,
-    deployAndSetupPool,
+    deployProtocolContracts,
+    deployPoolContracts,
 };

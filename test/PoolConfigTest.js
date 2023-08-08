@@ -4,7 +4,7 @@ const {expect} = require("chai");
 let mockToken;
 let poolConfig;
 
-describe("Pool Config", function () {
+describe("PoolConfig Test", function () {
     before(async function () {
         [defaultDeployer] = await ethers.getSigners();
 

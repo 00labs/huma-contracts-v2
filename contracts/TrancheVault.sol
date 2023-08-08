@@ -22,8 +22,6 @@ contract TrancheVault is
 {
     bytes32 public constant LENDER_ROLE = keccak256("LENDER");
 
-    event AddApprovedLender(address indexed lender, address by);
-    event RemoveApprovedLender(address indexed lender, address by);
     event LiquidityDeposited(address indexed account, uint256 assetAmount, uint256 shareAmount);
 
     constructor() {
