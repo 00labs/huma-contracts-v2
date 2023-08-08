@@ -1,13 +1,3 @@
-const {BigNumber: BN} = require("ethers");
-
-function toBN(number, decimals) {
-    return BN.from(number).mul(BN.from(10).pow(BN.from(decimals)));
-}
-
-function toToken(number, decimals = 6) {
-    return toBN(number, decimals);
-}
-
 async function deployProtocolContracts(
     protocolOwner,
     treasury,
