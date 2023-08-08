@@ -122,7 +122,7 @@ contract PoolConfig is AccessControl, Initializable {
     address public poolOwnerOrEALossCoverer;
     address[] internal _lossCoverers;
     address public credit;
-    address public feeManager;
+    address public platformFeeManager;
     address public calendar;
 
     HumaConfig public humaConfig;
@@ -155,7 +155,7 @@ contract PoolConfig is AccessControl, Initializable {
     );
     event EvaluationAgentChanged(address oldEA, address newEA, uint256 newEAId, address by);
     event EvaluationAgentRewardsWithdrawn(address receiver, uint256 amount, address by);
-    event FeeManagerChanged(address feeManager, address by);
+    event PlatformFeeManagerChanged(address platformFeeManager, address by);
     event HDTChanged(address hdt, address udnerlyingToken, address by);
     event HumaConfigChanged(address humaConfig, address by);
 
@@ -180,25 +180,80 @@ contract PoolConfig is AccessControl, Initializable {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
+    /**
+     * @notice Initialize the pool configuration
+     * @param _poolName The name of the pool
+     * @param _contracts The addresses of the contracts that are used by the pool
+     *   _contracts[0]: address of HumaConfig
+     *   _contracts[1]: address of underlyingToken
+     *   _contracts[2]: address of platformFeeManager
+     *   _contracts[3]: address of poolVault
+     *   _contracts[4]: address of calendar
+     *   _contracts[5]: address of poolOwnerOrEALossCoverer
+     *   _contracts[6]: address of tranchesPolicy
+     *   _contracts[7]: address of pool
+     *   _contracts[8]: address of epochManager
+     *   _contracts[9]: address of seniorTranche
+     *   _contracts[10]: address of juniorTranche
+     *   _contracts[11]: address of credit
+     */
+
     function initialize(
         string memory _poolName,
-        address _underlyingToken,
-        address _humaConfig,
-        address _feeManager
+        address[] calldata _contracts
     ) public initializer {
         onlyPoolOwner(msg.sender);
 
         poolName = _poolName;
-        if (_humaConfig == address(0)) revert Errors.zeroAddressProvided();
-        if (_feeManager == address(0)) revert Errors.zeroAddressProvided();
 
-        humaConfig = HumaConfig(_humaConfig);
+        address addr = _contracts[0];
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        humaConfig = HumaConfig(addr);
 
-        if (!humaConfig.isAssetValid(_underlyingToken))
+        addr = _contracts[1];
+        if (!humaConfig.isAssetValid(addr))
             revert Errors.underlyingTokenNotApprovedForHumaProtocol();
-        underlyingToken = _underlyingToken;
+        underlyingToken = addr;
 
-        feeManager = _feeManager;
+        addr = _contracts[2];
+        if (_contracts[2] == address(0)) revert Errors.zeroAddressProvided();
+        platformFeeManager = _contracts[2];
+
+        addr = _contracts[3];
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        poolVault = addr;
+
+        addr = _contracts[4];
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        calendar = addr;
+
+        addr = _contracts[5];
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        poolOwnerOrEALossCoverer = addr;
+
+        addr = _contracts[6];
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        tranchesPolicy = addr;
+
+        addr = _contracts[7];
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        pool = addr;
+
+        addr = _contracts[8];
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        epochManager = addr;
+
+        addr = _contracts[9];
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        seniorTranche = addr;
+
+        addr = _contracts[10];
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        juniorTranche = addr;
+
+        addr = _contracts[11];
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        credit = addr;
 
         // Default values for the pool configurations. The pool owners are expected to reset
         // these values when setting up the pools. Setting these default values to avoid
@@ -277,7 +332,7 @@ contract PoolConfig is AccessControl, Initializable {
 
         address oldEA = evaluationAgent;
         if (oldEA != address(0)) {
-            IPlatformFeeManager fm = IPlatformFeeManager(feeManager);
+            IPlatformFeeManager fm = IPlatformFeeManager(platformFeeManager);
             (, , uint256 eaWithdrawable) = fm.getWithdrawables();
             fm.withdrawEAFee(eaWithdrawable);
         }
@@ -298,11 +353,11 @@ contract PoolConfig is AccessControl, Initializable {
         emit EvaluationAgentChanged(oldEA, agent, eaId, msg.sender);
     }
 
-    function setFeeManager(address _feeManager) external {
+    function setPlatformFeeManager(address _platformFeeManager) external {
         _onlyOwnerOrHumaMasterAdmin();
-        if (_feeManager == address(0)) revert Errors.zeroAddressProvided();
-        feeManager = _feeManager;
-        emit FeeManagerChanged(_feeManager, msg.sender);
+        if (_platformFeeManager == address(0)) revert Errors.zeroAddressProvided();
+        platformFeeManager = _platformFeeManager;
+        emit PlatformFeeManagerChanged(_platformFeeManager, msg.sender);
     }
 
     function setHumaConfig(address _humaConfig) external {
@@ -536,6 +591,7 @@ contract PoolConfig is AccessControl, Initializable {
     }
 
     function onlyPoolOwner(address account) public view {
+        // Treat DEFAULT_ADMIN_ROLE role as owner role
         if (!hasRole(DEFAULT_ADMIN_ROLE, account)) revert Errors.notPoolOwner();
     }
 
@@ -621,7 +677,7 @@ contract PoolConfig is AccessControl, Initializable {
     }
 
     function onlyPlatformFeeManager(address account) external view {
-        if (account != feeManager) revert Errors.notPlatformFeeManager();
+        if (account != platformFeeManager) revert Errors.notPlatformFeeManager();
     }
 
     function onlyPool(address account) external view {

@@ -9,18 +9,23 @@ import {IEpoch, EpochInfo} from "./interfaces/IEpoch.sol";
 import {IEpochManager} from "./interfaces/IEpochManager.sol";
 import {Errors} from "./Errors.sol";
 import {PoolConfig, LPConfig} from "./PoolConfig.sol";
+import {PoolConfigCacheUpgradeable} from "./PoolConfigCacheUpgradeable.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
 
-contract TrancheVault is AccessControlUpgradeable, ERC20Upgradeable, TrancheVaultStorage, IEpoch {
+contract TrancheVault is
+    AccessControlUpgradeable,
+    ERC20Upgradeable,
+    PoolConfigCacheUpgradeable,
+    TrancheVaultStorage,
+    IEpoch
+{
     bytes32 public constant LENDER_ROLE = keccak256("LENDER");
 
-    event AddApprovedLender(address indexed lender, address by);
-    event RemoveApprovedLender(address indexed lender, address by);
     event LiquidityDeposited(address indexed account, uint256 assetAmount, uint256 shareAmount);
 
     constructor() {
-        _disableInitializers();
+        // _disableInitializers();
     }
 
     function initialize(
@@ -37,27 +42,13 @@ contract TrancheVault is AccessControlUpgradeable, ERC20Upgradeable, TrancheVaul
         if (underlyingToken == address(0)) revert Errors.zeroAddressProvided();
         _decimals = IERC20MetadataUpgradeable(underlyingToken).decimals();
 
-        address addr = _poolConfig.pool();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
-        pool = IPool(addr);
-
-        addr = _poolConfig.poolVault();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
-        poolVault = IPoolVault(addr);
-
-        addr = _poolConfig.epochManager();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
-        epochManager = IEpochManager(addr);
-
         if (seniorTrancheOrJuniorTranche > 1) revert Errors.invalidTrancheIndex();
         trancheIndex = seniorTrancheOrJuniorTranche;
+
+        _updatePoolConfigData(_poolConfig);
     }
 
-    function setPoolConfig(PoolConfig _poolConfig) external {
-        poolConfig.onlyPoolOwner(msg.sender);
-
-        poolConfig = _poolConfig;
-
+    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = _poolConfig.pool();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         pool = IPool(addr);
@@ -159,16 +150,6 @@ contract TrancheVault is AccessControlUpgradeable, ERC20Upgradeable, TrancheVaul
         if (receiver == address(0)) revert Errors.zeroAddressProvided();
         poolConfig.onlyProtocolAndPoolOn();
         return _deposit(assets, receiver);
-    }
-
-    /**
-     * @notice Allows the pool owner and EA to make initial deposit before the pool goes live
-     * @param assets the number of `poolToken` to be deposited
-     * @return shares the number of tranche token to be minted
-     */
-    function makeInitialDeposit(uint256 assets) external returns (uint256 shares) {
-        poolConfig.onlyPoolOwnerTreasuryOrEA(msg.sender);
-        return _deposit(assets, msg.sender);
     }
 
     function _deposit(
