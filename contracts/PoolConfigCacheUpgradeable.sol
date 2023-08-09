@@ -14,6 +14,9 @@ import {Errors} from "./Errors.sol";
 abstract contract PoolConfigCacheUpgradeable {
     PoolConfig public poolConfig;
 
+    event PoolConfigCacheUpdated(address indexed poolConfig);
+    event PoolConfigChanged(address indexed newPoolConfig, address indexed oldPoolConfig);
+
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual;
 
     /**
@@ -22,6 +25,7 @@ abstract contract PoolConfigCacheUpgradeable {
     function updatePoolConfigData() external {
         poolConfig.onlyPoolOwner(msg.sender);
         _updatePoolConfigData(poolConfig);
+        emit PoolConfigCacheUpdated(address(poolConfig));
     }
 
     /**
@@ -30,8 +34,10 @@ abstract contract PoolConfigCacheUpgradeable {
      */
     function setPoolConfig(PoolConfig _poolConfig) external {
         if (address(_poolConfig) == address(0)) revert Errors.zeroAddressProvided();
-        poolConfig.onlyPoolOwner(msg.sender);
+        PoolConfig oldPoolConfig = poolConfig;
+        oldPoolConfig.onlyPoolOwner(msg.sender);
         poolConfig = _poolConfig;
         _updatePoolConfigData(_poolConfig);
+        emit PoolConfigChanged(address(_poolConfig), address(oldPoolConfig));
     }
 }

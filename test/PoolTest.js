@@ -42,40 +42,6 @@ describe("Pool Test", function () {
         ] = await ethers.getSigners();
     });
 
-    async function prepare() {
-        [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
-            protocolOwner,
-            treasury,
-            eaServiceAccount,
-            pdsServiceAccount,
-            poolOwner
-        );
-
-        [
-            poolConfigContract,
-            platformFeeManagerContract,
-            poolVaultContract,
-            calendarContract,
-            poolOwnerAndEAlossCovererContract,
-            tranchesPolicyContract,
-            poolContract,
-            epochManagerContract,
-            seniorTrancheVaultContract,
-            juniorTrancheVaultContract,
-            creditContract,
-        ] = await deployPoolContracts(
-            humaConfigContract,
-            mockTokenContract,
-            "RiskAdjustedTranchesPolicy",
-            defaultDeployer,
-            poolOwner
-        );
-    }
-
-    beforeEach(async function () {
-        await loadFixture(prepare);
-    });
-
     describe("Tests before Pool is enabled", function () {
         async function prepare() {
             [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
