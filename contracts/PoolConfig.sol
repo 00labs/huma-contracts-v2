@@ -343,7 +343,8 @@ contract PoolConfig is AccessControl, Initializable {
 
         // Make sure the new EA has met the liquidity requirements
         if (IPool(pool).isPoolOn()) {
-            ILossCoverer(poolOwnerOrEALossCoverer).isSufficient(agent);
+            if (!ILossCoverer(poolOwnerOrEALossCoverer).isSufficient(agent))
+                revert Errors.lessThanRequiredCover();
         }
 
         evaluationAgent = agent;
