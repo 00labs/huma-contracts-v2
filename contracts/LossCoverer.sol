@@ -10,6 +10,8 @@ import {PoolConfigCache} from "./PoolConfigCache.sol";
 import "./SharedDefs.sol";
 import {Errors} from "./Errors.sol";
 
+import "hardhat/console.sol";
+
 // TODO design first loss cover fee
 
 contract LossCoverer is PoolConfigCache, ILossCoverer {
@@ -145,7 +147,7 @@ contract LossCoverer is PoolConfigCache, ILossCoverer {
     function isSufficient(address account) external view returns (bool) {
         _onlyOperator(account);
 
-        uint256 userBalance = amounts[msg.sender];
+        uint256 userBalance = amounts[account];
         uint256 min = _getMinAmount(account);
         return userBalance >= min;
     }
