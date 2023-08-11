@@ -62,7 +62,7 @@ contract Errors {
     // tranche operation
     error exceededPoolLiquidityCap(); // 0x5642ebd4
     error withdrawTooSoon(); // 0x67982472
-    error exceededMaxSeniorJuniorRatio();
+    error exceededMaxJuniorSeniorRatio();
     error invalidTrancheIndex();
     error closeTooSoon();
 

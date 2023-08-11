@@ -1,3 +1,4 @@
+const {expect} = require("chai");
 const {toToken} = require("./TestUtils");
 
 async function deployProtocolContracts(
@@ -209,6 +210,11 @@ async function setupPoolContracts(
     await seniorTrancheVaultContract.connect(poolOperator).addApprovedLender(lender.address);
 
     await poolContract.connect(poolOwner).enablePool();
+    expect(await poolContract.totalAssets()).to.equal(0);
+    expect(await juniorTrancheVaultContract.totalAssets()).to.equal(0);
+    expect(await juniorTrancheVaultContract.totalSupply()).to.equal(0);
+    expect(await seniorTrancheVaultContract.totalAssets()).to.equal(0);
+    expect(await seniorTrancheVaultContract.totalSupply()).to.equal(0);
 
     await mockTokenContract
         .connect(lender)

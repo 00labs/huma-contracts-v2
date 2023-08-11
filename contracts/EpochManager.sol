@@ -242,11 +242,11 @@ contract EpochManager is PoolConfigCache, IEpochManager {
             }
         }
 
-        uint256 maxSeniorRatio = lpConfig.maxSeniorJuniorRatio;
+        uint256 maxJuniorSeniorRatio = lpConfig.maxJuniorSeniorRatio;
         availableAmount = _processJuniorEpochs(
             tranches,
             juniorPrice,
-            maxSeniorRatio,
+            maxJuniorSeniorRatio,
             juniorEpochs,
             EpochsRange(0, availableCount),
             availableAmount,
@@ -278,7 +278,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
             availableAmount = _processJuniorEpochs(
                 tranches,
                 juniorPrice,
-                maxSeniorRatio,
+                maxJuniorSeniorRatio,
                 juniorEpochs,
                 EpochsRange(juniorResult.count, availableCount),
                 availableAmount,
@@ -324,14 +324,13 @@ contract EpochManager is PoolConfigCache, IEpochManager {
     function _processJuniorEpochs(
         uint96[2] memory tranches,
         uint256 price,
-        uint256 maxSeniorRatio,
+        uint256 maxJuniorSeniorRatio,
         EpochInfo[] memory epochs,
         EpochsRange memory epochsRange,
         uint256 availableAmount,
         TrancheProcessedResult memory trancheResult
     ) internal pure returns (uint256 remainingAmount) {
-        uint256 maxJuniorAmounts = (tranches[SENIOR_TRANCHE_INDEX] * HUNDRED_PERCENT_IN_BPS) /
-            maxSeniorRatio;
+        uint256 maxJuniorAmounts = tranches[SENIOR_TRANCHE_INDEX] * maxJuniorSeniorRatio;
         uint256 maxAmounts = maxJuniorAmounts > tranches[JUNIOR_TRANCHE_INDEX]
             ? maxJuniorAmounts - tranches[JUNIOR_TRANCHE_INDEX]
             : 0;

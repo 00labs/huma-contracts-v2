@@ -66,7 +66,7 @@ struct LPConfig {
     // How long a lender has to wait after the last deposit before they can withdraw
     uint8 withdrawalLockoutInCalendarUnit;
     // The upper bound of senior-to-junior ratio allowed
-    uint8 maxSeniorJuniorRatio;
+    uint8 maxJuniorSeniorRatio;
     // The fixed yield for senior tranche. Either this or tranchesRiskAdjustmentInBps is non-zero
     uint16 fixedSeniorYieldInBps;
     // Percentage of yield to be shifted from senior to junior. Either this or fixedSeniorYieldInBps is non-zero
@@ -265,21 +265,26 @@ contract PoolConfig is AccessControl, Initializable {
         _pSettings.advanceRateInBps = 10000; // 100%
         _pSettings.latePaymentGracePeriodInDays = 5;
         _pSettings.defaultGracePeriodInCalendarUnit = 6; // 3 months
+        _poolSettings = _pSettings;
 
-        _adminRnR.rewardRateInBpsForEA = 300; //3%
-        _adminRnR.rewardRateInBpsForPoolOwner = 200; //2%
-        _adminRnR.liquidityRateInBpsByEA = 200; // 2%
-        _adminRnR.liquidityRateInBpsByPoolOwner = 200; // 2%
+        AdminRnR memory adminRnRConfig = _adminRnR;
+        adminRnRConfig.rewardRateInBpsForEA = 300; //3%
+        adminRnRConfig.rewardRateInBpsForPoolOwner = 200; //2%
+        adminRnRConfig.liquidityRateInBpsByEA = 200; // 2%
+        adminRnRConfig.liquidityRateInBpsByPoolOwner = 200; // 2%
+        _adminRnR = adminRnRConfig;
+
+        LPConfig memory lpConfig = _lpConfig;
+        lpConfig.maxJuniorSeniorRatio = 4; // senior : junior = 1:4
+        _lpConfig = lpConfig;
     }
 
     function getTrancheLiquidityCap(uint256 index) external view returns (uint256 cap) {
         LPConfig memory lpc = _lpConfig;
         if (index == SENIOR_TRANCHE_INDEX) {
-            cap =
-                (lpc.liquidityCap * lpc.maxSeniorJuniorRatio) /
-                (lpc.maxSeniorJuniorRatio + HUNDRED_PERCENT_IN_BPS);
+            cap = (lpc.liquidityCap) / (lpc.maxJuniorSeniorRatio + 1);
         } else if (index == JUNIOR_TRANCHE_INDEX) {
-            cap = lpc.liquidityCap / (lpc.maxSeniorJuniorRatio + HUNDRED_PERCENT_IN_BPS);
+            cap = (lpc.liquidityCap * lpc.maxJuniorSeniorRatio) / (lpc.maxJuniorSeniorRatio + 1);
         }
     }
 
@@ -705,7 +710,7 @@ contract PoolConfig is AccessControl, Initializable {
 
     function onlyProtocolAndPoolOn() external view {
         if (humaConfig.paused()) revert Errors.protocolIsPaused();
-        if (IPool(pool).isPoolOn()) revert Errors.poolIsNotOn();
+        if (!IPool(pool).isPoolOn()) revert Errors.poolIsNotOn();
     }
 
     function onlyPoolOperator(address account) external view {
