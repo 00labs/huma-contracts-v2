@@ -147,6 +147,7 @@ async function setupPoolContracts(
     eaNFTContract,
     mockTokenContract,
     poolOwnerAndEAlossCovererContract,
+    poolVaultContract,
     poolContract,
     juniorTrancheVaultContract,
     seniorTrancheVaultContract,
@@ -218,10 +219,7 @@ async function setupPoolContracts(
 
     await mockTokenContract
         .connect(lender)
-        .approve(juniorTrancheVaultContract.address, ethers.constants.MaxUint256);
-    await mockTokenContract
-        .connect(lender)
-        .approve(seniorTrancheVaultContract.address, ethers.constants.MaxUint256);
+        .approve(poolVaultContract.address, ethers.constants.MaxUint256);
     await mockTokenContract.mint(lender.address, toToken(100_000_000));
 }
 
@@ -262,6 +260,7 @@ async function deployAndSetupPoolContracts(
         eaNFTContract,
         mockTokenContract,
         poolOwnerAndEAlossCovererContract,
+        poolVaultContract,
         poolContract,
         juniorTrancheVaultContract,
         seniorTrancheVaultContract,

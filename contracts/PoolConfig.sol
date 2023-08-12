@@ -704,7 +704,7 @@ contract PoolConfig is AccessControl, Initializable {
     }
 
     function onlyTrancheVaultOrEpochManager(address account) external view {
-        if (account != seniorTranche && account != seniorTranche && account != epochManager)
+        if (account != juniorTranche && account != seniorTranche && account != epochManager)
             revert Errors.notTrancheVaultOrEpochManager();
     }
 

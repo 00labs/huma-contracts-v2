@@ -147,17 +147,15 @@ contract TrancheVault is
      * @return shares the number of tranche token to be minted
      */
     function deposit(uint256 assets, address receiver) external returns (uint256 shares) {
+        if (assets == 0) revert Errors.zeroAmountProvided();
         if (receiver == address(0)) revert Errors.zeroAddressProvided();
+        _onlyLender(msg.sender);
+        _onlyLender(receiver);
         poolConfig.onlyProtocolAndPoolOn();
         return _deposit(assets, receiver);
     }
 
-    function _deposit(
-        uint256 assets,
-        address receiver
-    ) internal onlyRole(LENDER_ROLE) returns (uint256 shares) {
-        if (assets == 0) revert Errors.zeroAmountProvided();
-
+    function _deposit(uint256 assets, address receiver) internal returns (uint256 shares) {
         uint256 cap = poolConfig.getTrancheLiquidityCap(trancheIndex);
         if (assets > cap) {
             revert Errors.exceededPoolLiquidityCap();
@@ -194,7 +192,7 @@ contract TrancheVault is
         poolConfig.onlyProtocolAndPoolOn();
 
         uint256 userShares = ERC20Upgradeable.balanceOf(msg.sender);
-        if (shares < userShares) {
+        if (shares > userShares) {
             revert Errors.withdrawnAmountHigherThanBalance(); // assets is too big
         }
 
@@ -320,6 +318,8 @@ contract TrancheVault is
         uint256 _assets,
         uint256 _totalAssets
     ) internal view returns (uint256 shares) {
+        // TODO solve the first tiny deposit vector - https://github.com/spearbit/portfolio/blob/master/pdfs/MapleV2.pdf
+
         uint256 supply = ERC20Upgradeable.totalSupply();
 
         return supply == 0 ? _assets : (_assets * supply) / _totalAssets;
@@ -397,5 +397,9 @@ contract TrancheVault is
                 break;
             }
         }
+    }
+
+    function _onlyLender(address account) internal view {
+        if (!hasRole(LENDER_ROLE, account)) revert Errors.permissionDeniedNotLender();
     }
 }

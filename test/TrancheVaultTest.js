@@ -77,20 +77,6 @@ describe("TrancheVault Test", function () {
         await loadFixture(prepare);
     });
 
-    // it("test", async function () {
-    //     console.log(`poolConfigContract: ${poolConfigContract.address}`);
-    //     console.log(`platformFeeManagerContract: ${platformFeeManagerContract.address}`);
-    //     console.log(`poolVaultContract: ${poolVaultContract.address}`);
-    //     console.log(`calendarContract: ${calendarContract.address}`);
-    //     console.log(`lossCovererContract: ${lossCovererContract.address}`);
-    //     console.log(`tranchesPolicyContract: ${tranchesPolicyContract.address}`);
-    //     console.log(`poolContract: ${poolContract.address}`);
-    //     console.log(`epochManagerContract: ${epochManagerContract.address}`);
-    //     console.log(`seniorTrancheVaultContract: ${seniorTrancheVaultContract.address}`);
-    //     console.log(`juniorTrancheVaultContract: ${juniorTrancheVaultContract.address}`);
-    //     console.log(`creditContract: ${creditContract.address}`);
-    // });
-
     describe("Operation Tests", function () {
         it("Should not allow non-Operator to add a lender", async function () {
             await expect(
@@ -145,36 +131,48 @@ describe("TrancheVault Test", function () {
     });
 
     describe("Depost Tests", function () {
+        it("Should not deposit 0 amount", async function () {
+            await expect(
+                juniorTrancheVaultContract.connect(lender).deposit(0, lender.address)
+            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "zeroAmountProvided");
+        });
+
         it("Should not input zero address receiver", async function () {
             await expect(
-                juniorTrancheVaultContract.deposit(0, ethers.constants.AddressZero)
+                juniorTrancheVaultContract.deposit(toToken(1), ethers.constants.AddressZero)
             ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "zeroAddressProvided");
+        });
+
+        it("Should not allow non-Lender to deposit", async function () {
+            await expect(
+                juniorTrancheVaultContract.deposit(toToken(1), lender.address)
+            ).to.be.revertedWithCustomError(
+                juniorTrancheVaultContract,
+                "permissionDeniedNotLender"
+            );
+
+            await expect(
+                juniorTrancheVaultContract
+                    .connect(lender)
+                    .deposit(toToken(1), defaultDeployer.address)
+            ).to.be.revertedWithCustomError(
+                juniorTrancheVaultContract,
+                "permissionDeniedNotLender"
+            );
         });
 
         it("Should not deposit while protocol is paused or pool is not on", async function () {
             await humaConfigContract.connect(protocolOwner).pause();
             await expect(
-                juniorTrancheVaultContract.deposit(0, lender.address)
+                juniorTrancheVaultContract.connect(lender).deposit(toToken(1), lender.address)
             ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
             await humaConfigContract.connect(protocolOwner).unpause();
 
             await poolContract.connect(poolOwner).disablePool();
             await expect(
-                juniorTrancheVaultContract.deposit(0, lender.address)
+                juniorTrancheVaultContract.connect(lender).deposit(toToken(1), lender.address)
             ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
             await poolContract.connect(poolOwner).enablePool();
-        });
-
-        it("Should not allow non-Lender to deposit", async function () {
-            await expect(juniorTrancheVaultContract.deposit(0, lender.address)).to.be.revertedWith(
-                /AccessControl: account .*/
-            );
-        });
-
-        it("Should not deposit 0 amount", async function () {
-            await expect(
-                juniorTrancheVaultContract.connect(lender).deposit(0, lender.address)
-            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "zeroAmountProvided");
         });
 
         it("Should not deposit the amount exceeding cap", async function () {
@@ -198,10 +196,86 @@ describe("TrancheVault Test", function () {
             );
         });
 
-        // it.only("Should deposit successfully", async function () {
-        //     await juniorTrancheVaultContract
-        //         .connect(lender)
-        //         .deposit(toToken(10_000), lender.address);
-        // });
+        it("Should deposit successfully", async function () {
+            let amount = toToken(40_000);
+            await expect(
+                juniorTrancheVaultContract.connect(lender).deposit(amount, lender.address)
+            )
+                .to.emit(juniorTrancheVaultContract, "LiquidityDeposited")
+                .withArgs(lender.address, amount, amount);
+
+            expect(await poolContract.totalAssets()).to.equal(amount);
+            let poolAssets = await poolContract.totalAssets();
+            expect(await juniorTrancheVaultContract.totalAssets()).to.equal(amount);
+            expect(await juniorTrancheVaultContract.totalSupply()).to.equal(amount);
+            expect(await juniorTrancheVaultContract.balanceOf(lender.address)).to.equal(amount);
+
+            amount = toToken(10_000);
+            await expect(
+                seniorTrancheVaultContract.connect(lender).deposit(amount, lender.address)
+            )
+                .to.emit(seniorTrancheVaultContract, "LiquidityDeposited")
+                .withArgs(lender.address, amount, amount);
+            expect(await poolContract.totalAssets()).to.equal(poolAssets.add(amount));
+            expect(await seniorTrancheVaultContract.totalAssets()).to.equal(amount);
+            expect(await seniorTrancheVaultContract.totalSupply()).to.equal(amount);
+            expect(await seniorTrancheVaultContract.balanceOf(lender.address)).to.equal(amount);
+        });
+    });
+
+    describe("Withdraw Tests", function () {
+        let juniorDepositAmount, seniorDepositAmount;
+
+        async function prepareForWithdrawTests() {
+            juniorDepositAmount = toToken(400_000);
+            await juniorTrancheVaultContract
+                .connect(lender)
+                .deposit(juniorDepositAmount, lender.address);
+            seniorDepositAmount = toToken(10_000);
+            await seniorTrancheVaultContract
+                .connect(lender)
+                .deposit(seniorDepositAmount, lender.address);
+        }
+
+        beforeEach(async function () {
+            await loadFixture(prepareForWithdrawTests);
+        });
+
+        it("Should not request 0 redemption", async function () {
+            await expect(
+                juniorTrancheVaultContract.connect(lender).addRedemptionRequest(0)
+            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "zeroAmountProvided");
+        });
+
+        it("Should not request redemption while protocol is paused or pool is not on", async function () {
+            await humaConfigContract.connect(protocolOwner).pause();
+            await expect(
+                juniorTrancheVaultContract.connect(lender).addRedemptionRequest(1)
+            ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+            await humaConfigContract.connect(protocolOwner).unpause();
+
+            await poolContract.connect(poolOwner).disablePool();
+            await expect(
+                juniorTrancheVaultContract.connect(lender).addRedemptionRequest(1)
+            ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+            await poolContract.connect(poolOwner).enablePool();
+        });
+
+        it("Should not request redemptions greater than user's shares", async function () {
+            let shares = await juniorTrancheVaultContract.balanceOf(lender.address);
+            await expect(
+                juniorTrancheVaultContract
+                    .connect(lender)
+                    .addRedemptionRequest(shares.add(BN.from(1)))
+            ).to.be.revertedWithCustomError(
+                juniorTrancheVaultContract,
+                "withdrawnAmountHigherThanBalance"
+            );
+        });
+
+        it.only("Should request redemptions successfully", async function () {
+            let shares = toToken(10_000);
+            await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
+        });
     });
 });
