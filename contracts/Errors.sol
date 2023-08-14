@@ -13,6 +13,7 @@ contract Errors {
     error shareHigherThanRequested();
     error insufficientTotalBalance();
     error lessThanRequiredCover();
+    error emptyArray();
 
     // security
     error permissionDeniedNotAdmin(); // 0xf2c5b6a7

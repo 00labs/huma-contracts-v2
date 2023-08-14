@@ -11,6 +11,8 @@ import {IEpochManager} from "./interfaces/IEpochManager.sol";
 import {Errors} from "./Errors.sol";
 import {ICalendar} from "./credit/interfaces/ICalendar.sol";
 
+import "hardhat/console.sol";
+
 interface ITrancheVaultLike is IEpoch {
     function totalSupply() external view returns (uint256);
 }
@@ -134,6 +136,8 @@ contract EpochManager is PoolConfigCache, IEpochManager {
 
         pool.submitRedemptionRequest(unprocessedAmounts);
 
+        console.log("Epoch closed: %s", ce.id);
+
         emit EpochClosed(
             ce.id,
             tranches[SENIOR_TRANCHE_INDEX],
@@ -149,6 +153,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         poolConfig.onlyPool(msg.sender);
 
         CurrentEpoch memory ce = _currentEpoch;
+        ce.nextEndTime = 0;
         _createNextEpoch(ce);
     }
 

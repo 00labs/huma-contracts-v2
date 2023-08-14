@@ -261,10 +261,11 @@ contract PoolConfig is AccessControl, Initializable {
         // _liquidityCap, _maxCreditLine, _creditApprovalExpirationInSeconds are left at 0.
         PoolSettings memory _pSettings = _poolSettings;
         _pSettings.calendarUnit = CalendarUnit.Month;
-        _pSettings.payPeriodInCalendarUnit = 2; // 1 month
+        _pSettings.payPeriodInCalendarUnit = 1; // 1 month
         _pSettings.advanceRateInBps = 10000; // 100%
         _pSettings.latePaymentGracePeriodInDays = 5;
-        _pSettings.defaultGracePeriodInCalendarUnit = 6; // 3 months
+        _pSettings.defaultGracePeriodInCalendarUnit = 3; // 3 months
+        _pSettings.epochWindowInCalendarUnit = 1; // 1 month
         _poolSettings = _pSettings;
 
         AdminRnR memory adminRnRConfig = _adminRnR;
@@ -421,6 +422,15 @@ contract PoolConfig is AccessControl, Initializable {
         _settings.payPeriodInCalendarUnit = uint8(number);
         _poolSettings = _settings;
         //emit PoolPayPeriodChanged(unit, number, msg.sender);
+    }
+
+    function setPoolEpochWindow(CalendarUnit unit, uint256 number) external {
+        _onlyOwnerOrHumaMasterAdmin();
+        if (number == 0) revert Errors.zeroAmountProvided();
+        PoolSettings memory _settings = _poolSettings;
+        _settings.calendarUnit = unit;
+        _settings.epochWindowInCalendarUnit = uint8(number);
+        _poolSettings = _settings;
     }
 
     /**

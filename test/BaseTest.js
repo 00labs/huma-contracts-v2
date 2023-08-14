@@ -1,6 +1,18 @@
 const {expect} = require("chai");
 const {toToken} = require("./TestUtils");
 
+const CALENDAR_UNIT_DAY = 0;
+const CALENDAR_UNIT_MONTH = 1;
+const SENIOR_TRANCHE_INDEX = 0;
+const JUNIOR_TRANCHE_INDEX = 1;
+
+const CONSTANTS = {
+    CALENDAR_UNIT_DAY,
+    CALENDAR_UNIT_MONTH,
+    SENIOR_TRANCHE_INDEX,
+    JUNIOR_TRANCHE_INDEX,
+};
+
 async function deployProtocolContracts(
     protocolOwner,
     treasury,
@@ -122,10 +134,20 @@ async function deployPoolContracts(
     await epochManagerContract.connect(poolOwner).updatePoolConfigData();
     await seniorTrancheVaultContract
         .connect(poolOwner)
-        .initialize("Senior Tranche Vault", "STV", poolConfigContract.address, 0);
+        .initialize(
+            "Senior Tranche Vault",
+            "STV",
+            poolConfigContract.address,
+            SENIOR_TRANCHE_INDEX
+        );
     await juniorTrancheVaultContract
         .connect(poolOwner)
-        .initialize("Junior Tranche Vault", "JTV", poolConfigContract.address, 1);
+        .initialize(
+            "Junior Tranche Vault",
+            "JTV",
+            poolConfigContract.address,
+            JUNIOR_TRANCHE_INDEX
+        );
 
     return [
         poolConfigContract,
@@ -210,6 +232,9 @@ async function setupPoolContracts(
     await juniorTrancheVaultContract.connect(poolOperator).addApprovedLender(lender.address);
     await seniorTrancheVaultContract.connect(poolOperator).addApprovedLender(lender.address);
 
+    // Set pool epoch window to 3 days for testing purposes
+    await poolConfigContract.connect(poolOwner).setPoolEpochWindow(CONSTANTS.CALENDAR_UNIT_DAY, 3);
+
     await poolContract.connect(poolOwner).enablePool();
     expect(await poolContract.totalAssets()).to.equal(0);
     expect(await juniorTrancheVaultContract.totalAssets()).to.equal(0);
@@ -291,4 +316,5 @@ module.exports = {
     deployPoolContracts,
     setupPoolContracts,
     deployAndSetupPoolContracts,
+    CONSTANTS,
 };

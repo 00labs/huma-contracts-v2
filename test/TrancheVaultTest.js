@@ -2,8 +2,8 @@ const {ethers} = require("hardhat");
 const {expect} = require("chai");
 const {BigNumber: BN} = require("ethers");
 const {loadFixture} = require("@nomicfoundation/hardhat-network-helpers");
-const {deployProtocolContracts, deployAndSetupPoolContracts} = require("./BaseTest");
-const {toToken} = require("./TestUtils");
+const {deployProtocolContracts, deployAndSetupPoolContracts, CONSTANTS} = require("./BaseTest");
+const {toToken, mineNextBlockWithTimestamp} = require("./TestUtils");
 
 let defaultDeployer, protocolOwner, treasury, eaServiceAccount, pdsServiceAccount;
 let poolOwner, poolOwnerTreasury, evaluationAgent, poolOperator;
@@ -261,7 +261,7 @@ describe("TrancheVault Test", function () {
             await poolContract.connect(poolOwner).enablePool();
         });
 
-        it("Should not request redemptions greater than user's shares", async function () {
+        it("Should not request redemption greater than user's shares", async function () {
             let shares = await juniorTrancheVaultContract.balanceOf(lender.address);
             await expect(
                 juniorTrancheVaultContract
@@ -273,9 +273,112 @@ describe("TrancheVault Test", function () {
             );
         });
 
-        it.only("Should request redemptions successfully", async function () {
+        it.only("Should request redemption in a same epoch successfully", async function () {
+            let shares = toToken(10_000);
+            let currentEpochId = await epochManagerContract.currentEpochId();
+            // console.log(`currentEpochId: ${currentEpochId}`);
+            let balance = await juniorTrancheVaultContract.balanceOf(lender.address);
+            await expect(juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares))
+                .to.emit(juniorTrancheVaultContract, "RedemptionRequested")
+                .withArgs(lender.address, shares, currentEpochId);
+
+            expect(await juniorTrancheVaultContract.balanceOf(lender.address)).to.equal(
+                balance.sub(shares)
+            );
+
+            let userRedemptionRequest = await juniorTrancheVaultContract.userRedemptionRequests(
+                lender.address,
+                0
+            );
+            expect(userRedemptionRequest.epochId).to.equal(currentEpochId);
+            expect(userRedemptionRequest.shareRequested).to.equal(shares);
+
+            let epochId = await juniorTrancheVaultContract.epochIds(0);
+            expect(epochId).to.equal(currentEpochId);
+            let epoch = await juniorTrancheVaultContract.epochMap(epochId);
+            expect(epoch.epochId).to.equal(currentEpochId);
+            expect(epoch.totalShareRequested).to.equal(shares);
+
+            // Close current epoch
+            let currentEpoch = await epochManagerContract.currentEpoch();
+            await mineNextBlockWithTimestamp(
+                currentEpoch.nextEndTime.add(BN.from(60 * 5)).toNumber()
+            );
+            await epochManagerContract.closeEpoch();
+
+            // // Call addRedemptionRequest in next epoch
+            // await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
+        });
+
+        it("Should get removable redemption shares correctly", async function () {
+            expect(
+                await juniorTrancheVaultContract.removableRedemptionShares(lender.address)
+            ).to.equal(0);
             let shares = toToken(10_000);
             await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
+            expect(
+                await juniorTrancheVaultContract.removableRedemptionShares(lender.address)
+            ).to.equal(shares);
+        });
+
+        it("Should not remove 0 redemption request", async function () {
+            await expect(
+                juniorTrancheVaultContract.connect(lender).removeRedemptionRequest(0)
+            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "zeroAmountProvided");
+        });
+
+        it("Should not remove redemption request while protocol is paused or pool is not on", async function () {
+            await humaConfigContract.connect(protocolOwner).pause();
+            await expect(
+                juniorTrancheVaultContract.connect(lender).removeRedemptionRequest(1)
+            ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+            await humaConfigContract.connect(protocolOwner).unpause();
+
+            await poolContract.connect(poolOwner).disablePool();
+            await expect(
+                juniorTrancheVaultContract.connect(lender).removeRedemptionRequest(1)
+            ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+            await poolContract.connect(poolOwner).enablePool();
+        });
+
+        it("Should not remove redemption request while no any redemption was requested", async function () {
+            await expect(
+                juniorTrancheVaultContract.connect(lender).removeRedemptionRequest(1)
+            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "emptyArray");
+        });
+
+        it("Should not remove redemption request after requested epochs", async function () {
+            let shares = toToken(10_000);
+            await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
+
+            let nextDate = Math.ceil(Date.now() / 1000) + 60 * 60 * 24;
+            await mineNextBlockWithTimestamp(nextDate);
+            await poolContract.connect(poolOwner).enablePool();
+
+            await expect(
+                juniorTrancheVaultContract.connect(lender).removeRedemptionRequest(1)
+            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "notCurrentEpoch");
+        });
+
+        it("Should not remove redemption request greater than requested shares", async function () {
+            let shares = toToken(10_000);
+            await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
+            await expect(
+                juniorTrancheVaultContract
+                    .connect(lender)
+                    .removeRedemptionRequest(shares.mul(BN.from(2)))
+            ).to.be.revertedWithCustomError(
+                juniorTrancheVaultContract,
+                "shareHigherThanRequested"
+            );
+        });
+
+        it("Should remove redemption request successfully", async function () {
+            let shares = toToken(10_000);
+            await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
+            await juniorTrancheVaultContract
+                .connect(lender)
+                .removeRedemptionRequest(toToken(1000));
         });
     });
 });

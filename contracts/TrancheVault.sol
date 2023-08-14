@@ -24,6 +24,8 @@ contract TrancheVault is
 
     event LiquidityDeposited(address indexed account, uint256 assetAmount, uint256 shareAmount);
 
+    event RedemptionRequested(address indexed account, uint256 shareAmount, uint256 epochId);
+
     constructor() {
         // _disableInitializers();
     }
@@ -210,12 +212,15 @@ contract TrancheVault is
 
         // update user UserRedemptionRequest array
         UserRedemptionRequest[] storage requests = userRedemptionRequests[msg.sender];
-        uint256 lastIndex = requests.length - 1;
-        UserRedemptionRequest memory request = requests[lastIndex];
+        uint256 length = requests.length;
+        UserRedemptionRequest memory request;
+        if (length > 0) {
+            request = requests[length - 1];
+        }
         if (request.epochId == epochId) {
             // add assets in current Redemption request
             request.shareRequested += uint96(shares);
-            requests[lastIndex] = request;
+            requests[length - 1] = request;
         } else {
             // no Redemption request, create a new one
             request.epochId = uint64(epochId);
@@ -225,7 +230,7 @@ contract TrancheVault is
 
         ERC20Upgradeable._transfer(msg.sender, address(this), shares);
 
-        // :send an event
+        emit RedemptionRequested(msg.sender, shares, epochId);
     }
 
     /**
@@ -236,7 +241,9 @@ contract TrancheVault is
         poolConfig.onlyProtocolAndPoolOn();
 
         UserRedemptionRequest[] storage requests = userRedemptionRequests[msg.sender];
-        uint256 lastIndex = requests.length - 1;
+        uint256 length = requests.length;
+        if (length == 0) revert Errors.emptyArray();
+        uint256 lastIndex = length - 1;
         UserRedemptionRequest memory request = requests[lastIndex];
         uint256 epochId = epochManager.currentEpochId();
         if (request.epochId < epochId) {
@@ -291,17 +298,21 @@ contract TrancheVault is
 
     function removableRedemptionShares(address account) external view returns (uint256 shares) {
         UserRedemptionRequest[] storage requests = userRedemptionRequests[account];
-        uint256 lastIndex = requests.length - 1;
-        UserRedemptionRequest memory request = requests[lastIndex];
-        uint256 epochId = epochManager.currentEpochId();
-        if (request.epochId == epochId) {
-            UserDisburseInfo memory disburseInfo = userDisburseInfos[account];
-            if (
-                disburseInfo.requestsIndex == lastIndex && disburseInfo.partialShareProcessed > 0
-            ) {
-                // shares = 0;
-            } else {
-                shares = request.shareRequested;
+        uint256 length = requests.length;
+        if (length > 0) {
+            uint256 lastIndex = requests.length - 1;
+            UserRedemptionRequest memory request = requests[lastIndex];
+            uint256 epochId = epochManager.currentEpochId();
+            if (request.epochId == epochId) {
+                UserDisburseInfo memory disburseInfo = userDisburseInfos[account];
+                if (
+                    disburseInfo.requestsIndex == lastIndex &&
+                    disburseInfo.partialShareProcessed > 0
+                ) {
+                    // shares = 0;
+                } else {
+                    shares = request.shareRequested;
+                }
             }
         }
     }
