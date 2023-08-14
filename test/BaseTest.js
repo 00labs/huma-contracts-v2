@@ -177,7 +177,7 @@ async function setupPoolContracts(
     evaluationAgent,
     poolOwnerTreasury,
     poolOperator,
-    lender
+    lenders
 ) {
     await poolConfigContract.connect(poolOwner).setPoolLiquidityCap(toToken(1_000_000_000));
     await poolConfigContract.connect(poolOwner).setMaxCreditLine(toToken(10_000_000));
@@ -229,9 +229,6 @@ async function setupPoolContracts(
     await mockTokenContract.mint(evaluationAgent.address, toToken(100_000_000));
     await poolOwnerAndEAlossCovererContract.connect(evaluationAgent).addCover(toToken(10_000_000));
 
-    await juniorTrancheVaultContract.connect(poolOperator).addApprovedLender(lender.address);
-    await seniorTrancheVaultContract.connect(poolOperator).addApprovedLender(lender.address);
-
     // Set pool epoch window to 3 days for testing purposes
     await poolConfigContract.connect(poolOwner).setPoolEpochWindow(CONSTANTS.CALENDAR_UNIT_DAY, 3);
 
@@ -242,10 +239,18 @@ async function setupPoolContracts(
     expect(await seniorTrancheVaultContract.totalAssets()).to.equal(0);
     expect(await seniorTrancheVaultContract.totalSupply()).to.equal(0);
 
-    await mockTokenContract
-        .connect(lender)
-        .approve(poolVaultContract.address, ethers.constants.MaxUint256);
-    await mockTokenContract.mint(lender.address, toToken(100_000_000));
+    for (let i = 0; i < lenders.length; i++) {
+        await juniorTrancheVaultContract
+            .connect(poolOperator)
+            .addApprovedLender(lenders[i].address);
+        await seniorTrancheVaultContract
+            .connect(poolOperator)
+            .addApprovedLender(lenders[i].address);
+        await mockTokenContract
+            .connect(lenders[i])
+            .approve(poolVaultContract.address, ethers.constants.MaxUint256);
+        await mockTokenContract.mint(lenders[i].address, toToken(100_000_000));
+    }
 }
 
 async function deployAndSetupPoolContracts(
@@ -258,7 +263,7 @@ async function deployAndSetupPoolContracts(
     evaluationAgent,
     poolOwnerTreasury,
     poolOperator,
-    lender
+    lenders
 ) {
     let [
         poolConfigContract,
@@ -293,7 +298,7 @@ async function deployAndSetupPoolContracts(
         evaluationAgent,
         poolOwnerTreasury,
         poolOperator,
-        lender
+        lenders
     );
 
     return [

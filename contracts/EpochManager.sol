@@ -136,7 +136,19 @@ contract EpochManager is PoolConfigCache, IEpochManager {
 
         pool.submitRedemptionRequest(unprocessedAmounts);
 
-        console.log("Epoch closed: %s", ce.id);
+        console.log(
+            "id: %s, juniorTotalAssets: %s, seniorTotalAssets: %s",
+            uint256(ce.id),
+            tranches[JUNIOR_TRANCHE_INDEX],
+            tranches[JUNIOR_TRANCHE_INDEX]
+        );
+
+        console.log(
+            "seniorPrice: %s, juniorPrice: %s, unprocessedAmounts: %s",
+            seniorPrice,
+            juniorPrice,
+            unprocessedAmounts
+        );
 
         emit EpochClosed(
             ce.id,
@@ -201,7 +213,8 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         )
     {
         // get available underlying token amount
-        uint256 availableAmount = poolVault.getAvailableReservation();
+        uint256 availableAmount = poolVault.totalAssets();
+        console.log("availableAmount: %s", availableAmount);
         if (availableAmount <= 0) return (seniorResult, juniorResult);
 
         LPConfig memory lpConfig = poolConfig.getLPConfig();
