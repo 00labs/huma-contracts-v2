@@ -7,7 +7,7 @@ import {CalendarUnit} from "../SharedDefs.sol";
 struct CreditConfig {
     uint96 creditLimit;
     uint96 committedAmount;
-    CalendarUnit calendarUnit; // days or semimonth
+    CalendarUnit calendarUnit; // day or month
     uint16 periodDuration;
     uint16 numOfPeriods; // number of periods
     // Yield in BPs, mean different things for different credit types.

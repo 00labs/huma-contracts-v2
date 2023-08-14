@@ -14,6 +14,7 @@ import {HumaConfig} from "../HumaConfig.sol";
 import {CalendarUnit} from "../SharedDefs.sol";
 import {IERC20, IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {PnLManager} from "./PnLManager.sol";
 
 /**
  * Credit is the basic borrowing entry in Huma Protocol.
@@ -29,6 +30,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
     using SafeERC20 for IERC20;
     ICalendar calendar;
+    PnLManager pnlManager;
 
     enum CreditLineClosureReason {
         Paidoff,
