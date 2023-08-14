@@ -330,6 +330,10 @@ contract PoolConfig is AccessControl, Initializable {
         if (IERC721(humaConfig.eaNFTContractAddress()).ownerOf(eaId) != agent)
             revert Errors.proposedEADoesNotOwnProvidedEANFT();
 
+        // Transfer the accrued EA income to the old EA's wallet.
+        // Decided not to check if there is enough balance in the pool. If there is
+        // not enough balance, the transaction will fail. PoolOwner has to find enough
+        // liquidity to pay the EA before replacing it.
         address oldEA = evaluationAgent;
         if (oldEA != address(0)) {
             IPlatformFeeManager fm = IPlatformFeeManager(platformFeeManager);
@@ -339,13 +343,9 @@ contract PoolConfig is AccessControl, Initializable {
 
         // Make sure the new EA has met the liquidity requirements
         if (IPool(pool).isPoolOn()) {
-            ILossCoverer(poolOwnerOrEALossCoverer).isSufficient(agent);
+            if (!ILossCoverer(poolOwnerOrEALossCoverer).isSufficient(agent))
+                revert Errors.lessThanRequiredCover();
         }
-
-        // Transfer the accrued EA income to the old EA's wallet.
-        // Decided not to check if there is enough balance in the pool. If there is
-        // not enough balance, the transaction will fail. PoolOwner has to find enough
-        // liquidity to pay the EA before replacing it.
 
         evaluationAgent = agent;
         evaluationAgentId = eaId;
@@ -524,8 +524,11 @@ contract PoolConfig is AccessControl, Initializable {
 
     /// Checks to make sure both EA and pool owner treasury meet the pool's first loss cover requirements
     function checkFirstLossCoverRequirement() public view {
-        ILossCoverer(poolOwnerOrEALossCoverer).isSufficient(poolOwnerTreasury);
-        ILossCoverer(poolOwnerOrEALossCoverer).isSufficient(evaluationAgent);
+        if (!ILossCoverer(poolOwnerOrEALossCoverer).isSufficient(poolOwnerTreasury))
+            revert Errors.lessThanRequiredCover();
+
+        if (!ILossCoverer(poolOwnerOrEALossCoverer).isSufficient(evaluationAgent))
+            revert Errors.lessThanRequiredCover();
     }
 
     /**

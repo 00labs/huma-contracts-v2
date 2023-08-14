@@ -56,11 +56,9 @@ describe("TrancheVault Test", function () {
         ] = await deployPoolContracts(
             humaConfigContract,
             mockTokenContract,
-            eaNFTContract,
             "RiskAdjustedTranchesPolicy",
             defaultDeployer,
-            poolOwner,
-            eaServiceAccount
+            poolOwner
         );
     }
 
