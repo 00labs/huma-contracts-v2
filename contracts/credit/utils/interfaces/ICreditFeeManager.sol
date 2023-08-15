@@ -37,17 +37,11 @@ interface ICreditFeeManager {
 
     /**
      * @notice Computes the late fee including both the flat fee and percentage fee
-     * @param dueDate the due date of the payment
-     * @param totalDue the amount that is due
      * @param balance the total balance including amount due and unbilled principal
      * @return fees the amount of late fees to be charged
      * @dev Charges only if 1) there is outstanding due, 2) the due date has passed
      */
-    function calcLateFee(
-        uint256 dueDate,
-        uint256 totalDue,
-        uint256 balance
-    ) external view returns (uint256 fees);
+    function calcLateFee(uint256 balance) external view returns (uint256 fees);
 
     /**
      * @notice Gets the current total due, fees and interest due, and payoff amount.

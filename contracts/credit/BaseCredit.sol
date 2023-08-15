@@ -339,7 +339,7 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         // Although it is not essential to call _updateDueInfo() to extend the credit line duration
         // it is good practice to bring the account current while we update one of the fields.
         // Also, only if we call _updateDueInfo(), we can write proper tests.
-        _updateDueInfo(creditHash, false);
+        _updateDueInfo(creditHash);
         _creditRecordMap[creditHash].remainingPeriods += uint16(numOfPeriods);
         emit CreditLineExtended(
             creditHash,
@@ -384,7 +384,7 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
      */
     function refreshCredit(bytes32 creditHash) external virtual returns (CreditRecord memory cr) {
         if (_creditRecordMap[creditHash].state != CreditState.Defaulted) {
-            return _updateDueInfo(creditHash, false);
+            return _updateDueInfo(creditHash);
         }
     }
 
@@ -530,7 +530,7 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
             _creditRecordMap[creditHash].unbilledPrincipal = uint96(borrowAmount);
             // Generates the first bill
             // Note: the interest is calculated at the beginning of each pay period
-            cr = _updateDueInfo(creditHash, true);
+            cr = _updateDueInfo(creditHash);
             // Set account status in good standing
             cr.state = CreditState.GoodStanding;
         } else {
@@ -540,7 +540,7 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
 
             // Bring the account current and check if it is still in good standing.
             if (block.timestamp > cr.nextDueDate) {
-                cr = _updateDueInfo(creditHash, false);
+                cr = _updateDueInfo(creditHash);
                 if (cr.state != CreditState.GoodStanding)
                     revert Errors.creditLineNotInGoodStandingState();
             }
@@ -663,7 +663,7 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
 
         if (block.timestamp > cr.nextDueDate) {
             // Bring the account current in case it is dormant for several periods.
-            cr = _updateDueInfo(creditHash, false);
+            cr = _updateDueInfo(creditHash);
         }
 
         // Reverse late charge if it is paid before the late fee grace period
@@ -825,19 +825,19 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
      * @dev getDueInfo() gets the due information of the most current cycle. This function
      * updates the record in creditRecordMap
      * @param creditHash the hash of the credit
-     * @param isFirstDrawdown whether this request is for the first drawdown of the credit line
      */
-    function _updateDueInfo(
-        bytes32 creditHash,
-        bool isFirstDrawdown
-    ) internal virtual returns (CreditRecord memory cr) {
+    function _updateDueInfo(bytes32 creditHash) internal virtual returns (CreditRecord memory cr) {
         cr = _getCreditRecord(creditHash);
 
         // Do not update dueInfo for accounts already in default state
         if (cr.state == CreditState.Defaulted) return cr;
+        
+        // Before the first drawdown, cr.nextDueDate is used to capture credit expiration
+        // date. It is validated in the precheck logic for the first drawdown, thus safe
+        // to reset cr.nextDueDate to 0 so that a proper due date can be set.  
+        if (cr.state == CreditState.Approved) cr.nextDueDate = 0;
 
         CreditConfig memory cc = _getCreditConfig(creditHash);
-        if (isFirstDrawdown) cr.nextDueDate = 0;
         bool alreadyLate = cr.totalDue > 0 ? true : false;
         // Gets the up-to-date due information for the borrower. If the account has been
         // late or dormant for multiple cycles, getDueInfo() will bring it current and

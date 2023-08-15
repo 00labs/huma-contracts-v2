@@ -17,19 +17,25 @@ contract Calendar is ICalendar {
 
     function getStartOfNextQuarter() external view returns (uint256 nextDay) {}
 
+    function getNextPeriod(
+        CalendarUnit unit,
+        uint256 periodDuration,
+        uint256 lastDueDate
+    ) external view returns (uint256 dueDateInNextPeriod) {}
+
     function getNextDueDate(
         CalendarUnit unit,
         uint256 periodDuration,
         uint256 lastDueDate
     ) external view returns (uint256 dueDate, uint256 numberOfPeriodsPassed) {
         if (unit == CalendarUnit.Day) {
-            return getNextDay(periodDuration, lastDueDate);
+            return getNextDueDateInDays(periodDuration, lastDueDate);
         } else if (unit == CalendarUnit.Month) {
-            return getNextMonth(periodDuration, lastDueDate);
+            return getNextDueDateInMonths(periodDuration, lastDueDate);
         }
     }
 
-    function getNextDay(
+    function getNextDueDateInDays(
         uint256 periodDuration,
         uint256 lastDueDate
     ) internal view returns (uint256 dueDate, uint256 numberOfPeriodsPassed) {
@@ -45,7 +51,7 @@ contract Calendar is ICalendar {
         dueDate = DTL.addDays(lastDueDate, periodCount);
     }
 
-    function getNextMonth(
+    function getNextDueDateInMonths(
         uint256 periodDuration,
         uint256 lastDueDate
     ) internal view returns (uint256 dueDate, uint256 numberOfPeriodsPassed) {
@@ -59,5 +65,16 @@ contract Calendar is ICalendar {
         }
         periodCount += (numberOfPeriodsPassed + 1) * periodDuration;
         dueDate = DTL.addMonths(lastDueDate, periodCount);
+    }
+
+    function getSecondsPerPeriod(
+        CalendarUnit unit,
+        uint256 periodDuration
+    ) external pure returns (uint256 secondsPerPeriod) {
+        if (unit == CalendarUnit.Day) {
+            return SECONDS_IN_A_DAY * periodDuration;
+        } else if (unit == CalendarUnit.Month) {
+            return (SECONDS_IN_A_YEAR / 12) * periodDuration;
+        }
     }
 }
