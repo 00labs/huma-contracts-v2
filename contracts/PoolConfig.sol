@@ -261,25 +261,31 @@ contract PoolConfig is AccessControl, Initializable {
         // _liquidityCap, _maxCreditLine, _creditApprovalExpirationInSeconds are left at 0.
         PoolSettings memory _pSettings = _poolSettings;
         _pSettings.calendarUnit = CalendarUnit.Month;
-        _pSettings.payPeriodInCalendarUnit = 2; // 1 month
+        _pSettings.payPeriodInCalendarUnit = 1; // 1 month
         _pSettings.advanceRateInBps = 10000; // 100%
         _pSettings.latePaymentGracePeriodInDays = 5;
-        _pSettings.defaultGracePeriodInCalendarUnit = 6; // 3 months
+        _pSettings.defaultGracePeriodInCalendarUnit = 3; // 3 months
+        _pSettings.epochWindowInCalendarUnit = 1; // 1 month
+        _poolSettings = _pSettings;
 
-        _adminRnR.rewardRateInBpsForEA = 300; //3%
-        _adminRnR.rewardRateInBpsForPoolOwner = 200; //2%
-        _adminRnR.liquidityRateInBpsByEA = 200; // 2%
-        _adminRnR.liquidityRateInBpsByPoolOwner = 200; // 2%
+        AdminRnR memory adminRnRConfig = _adminRnR;
+        adminRnRConfig.rewardRateInBpsForEA = 300; //3%
+        adminRnRConfig.rewardRateInBpsForPoolOwner = 200; //2%
+        adminRnRConfig.liquidityRateInBpsByEA = 200; // 2%
+        adminRnRConfig.liquidityRateInBpsByPoolOwner = 200; // 2%
+        _adminRnR = adminRnRConfig;
+
+        LPConfig memory lpConfig = _lpConfig;
+        lpConfig.maxSeniorJuniorRatio = 4; // senior : junior = 4:1
+        _lpConfig = lpConfig;
     }
 
     function getTrancheLiquidityCap(uint256 index) external view returns (uint256 cap) {
         LPConfig memory lpc = _lpConfig;
         if (index == SENIOR_TRANCHE_INDEX) {
-            cap =
-                (lpc.liquidityCap * lpc.maxSeniorJuniorRatio) /
-                (lpc.maxSeniorJuniorRatio + HUNDRED_PERCENT_IN_BPS);
+            cap = (lpc.liquidityCap * lpc.maxSeniorJuniorRatio) / (lpc.maxSeniorJuniorRatio + 1);
         } else if (index == JUNIOR_TRANCHE_INDEX) {
-            cap = lpc.liquidityCap / (lpc.maxSeniorJuniorRatio + HUNDRED_PERCENT_IN_BPS);
+            cap = lpc.liquidityCap / (lpc.maxSeniorJuniorRatio + 1);
         }
     }
 
@@ -416,6 +422,15 @@ contract PoolConfig is AccessControl, Initializable {
         _settings.payPeriodInCalendarUnit = uint8(number);
         _poolSettings = _settings;
         //emit PoolPayPeriodChanged(unit, number, msg.sender);
+    }
+
+    function setPoolEpochWindow(CalendarUnit unit, uint256 number) external {
+        _onlyOwnerOrHumaMasterAdmin();
+        if (number == 0) revert Errors.zeroAmountProvided();
+        PoolSettings memory _settings = _poolSettings;
+        _settings.calendarUnit = unit;
+        _settings.epochWindowInCalendarUnit = uint8(number);
+        _poolSettings = _settings;
     }
 
     /**
@@ -699,13 +714,13 @@ contract PoolConfig is AccessControl, Initializable {
     }
 
     function onlyTrancheVaultOrEpochManager(address account) external view {
-        if (account != seniorTranche && account != seniorTranche && account != epochManager)
+        if (account != juniorTranche && account != seniorTranche && account != epochManager)
             revert Errors.notTrancheVaultOrEpochManager();
     }
 
     function onlyProtocolAndPoolOn() external view {
         if (humaConfig.paused()) revert Errors.protocolIsPaused();
-        if (IPool(pool).isPoolOn()) revert Errors.poolIsNotOn();
+        if (!IPool(pool).isPoolOn()) revert Errors.poolIsNotOn();
     }
 
     function onlyPoolOperator(address account) external view {

@@ -1,4 +1,17 @@
+const {expect} = require("chai");
 const {toToken} = require("./TestUtils");
+
+const CALENDAR_UNIT_DAY = 0;
+const CALENDAR_UNIT_MONTH = 1;
+const SENIOR_TRANCHE_INDEX = 0;
+const JUNIOR_TRANCHE_INDEX = 1;
+
+const CONSTANTS = {
+    CALENDAR_UNIT_DAY,
+    CALENDAR_UNIT_MONTH,
+    SENIOR_TRANCHE_INDEX,
+    JUNIOR_TRANCHE_INDEX,
+};
 
 async function deployProtocolContracts(
     protocolOwner,
@@ -121,10 +134,20 @@ async function deployPoolContracts(
     await epochManagerContract.connect(poolOwner).updatePoolConfigData();
     await seniorTrancheVaultContract
         .connect(poolOwner)
-        .initialize("Senior Tranche Vault", "STV", poolConfigContract.address, 0);
+        .initialize(
+            "Senior Tranche Vault",
+            "STV",
+            poolConfigContract.address,
+            SENIOR_TRANCHE_INDEX
+        );
     await juniorTrancheVaultContract
         .connect(poolOwner)
-        .initialize("Junior Tranche Vault", "JTV", poolConfigContract.address, 1);
+        .initialize(
+            "Junior Tranche Vault",
+            "JTV",
+            poolConfigContract.address,
+            JUNIOR_TRANCHE_INDEX
+        );
 
     return [
         poolConfigContract,
@@ -146,6 +169,7 @@ async function setupPoolContracts(
     eaNFTContract,
     mockTokenContract,
     poolOwnerAndEAlossCovererContract,
+    poolVaultContract,
     poolContract,
     juniorTrancheVaultContract,
     seniorTrancheVaultContract,
@@ -153,7 +177,7 @@ async function setupPoolContracts(
     evaluationAgent,
     poolOwnerTreasury,
     poolOperator,
-    lender
+    lenders
 ) {
     await poolConfigContract.connect(poolOwner).setPoolLiquidityCap(toToken(1_000_000_000));
     await poolConfigContract.connect(poolOwner).setMaxCreditLine(toToken(10_000_000));
@@ -205,18 +229,28 @@ async function setupPoolContracts(
     await mockTokenContract.mint(evaluationAgent.address, toToken(100_000_000));
     await poolOwnerAndEAlossCovererContract.connect(evaluationAgent).addCover(toToken(10_000_000));
 
-    await juniorTrancheVaultContract.connect(poolOperator).addApprovedLender(lender.address);
-    await seniorTrancheVaultContract.connect(poolOperator).addApprovedLender(lender.address);
+    // Set pool epoch window to 3 days for testing purposes
+    await poolConfigContract.connect(poolOwner).setPoolEpochWindow(CONSTANTS.CALENDAR_UNIT_DAY, 3);
 
     await poolContract.connect(poolOwner).enablePool();
+    expect(await poolContract.totalAssets()).to.equal(0);
+    expect(await juniorTrancheVaultContract.totalAssets()).to.equal(0);
+    expect(await juniorTrancheVaultContract.totalSupply()).to.equal(0);
+    expect(await seniorTrancheVaultContract.totalAssets()).to.equal(0);
+    expect(await seniorTrancheVaultContract.totalSupply()).to.equal(0);
 
-    await mockTokenContract
-        .connect(lender)
-        .approve(juniorTrancheVaultContract.address, ethers.constants.MaxUint256);
-    await mockTokenContract
-        .connect(lender)
-        .approve(seniorTrancheVaultContract.address, ethers.constants.MaxUint256);
-    await mockTokenContract.mint(lender.address, toToken(100_000_000));
+    for (let i = 0; i < lenders.length; i++) {
+        await juniorTrancheVaultContract
+            .connect(poolOperator)
+            .addApprovedLender(lenders[i].address);
+        await seniorTrancheVaultContract
+            .connect(poolOperator)
+            .addApprovedLender(lenders[i].address);
+        await mockTokenContract
+            .connect(lenders[i])
+            .approve(poolVaultContract.address, ethers.constants.MaxUint256);
+        await mockTokenContract.mint(lenders[i].address, toToken(100_000_000));
+    }
 }
 
 async function deployAndSetupPoolContracts(
@@ -229,7 +263,7 @@ async function deployAndSetupPoolContracts(
     evaluationAgent,
     poolOwnerTreasury,
     poolOperator,
-    lender
+    lenders
 ) {
     let [
         poolConfigContract,
@@ -256,6 +290,7 @@ async function deployAndSetupPoolContracts(
         eaNFTContract,
         mockTokenContract,
         poolOwnerAndEAlossCovererContract,
+        poolVaultContract,
         poolContract,
         juniorTrancheVaultContract,
         seniorTrancheVaultContract,
@@ -263,7 +298,7 @@ async function deployAndSetupPoolContracts(
         evaluationAgent,
         poolOwnerTreasury,
         poolOperator,
-        lender
+        lenders
     );
 
     return [
@@ -286,4 +321,5 @@ module.exports = {
     deployPoolContracts,
     setupPoolContracts,
     deployAndSetupPoolContracts,
+    CONSTANTS,
 };

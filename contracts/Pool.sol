@@ -7,6 +7,7 @@ import {ITranchesPolicy} from "./interfaces/ITranchesPolicy.sol";
 import {ICredit} from "./credit/interfaces/ICredit.sol";
 import {ILossCoverer} from "./interfaces/ILossCoverer.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
+import {IEpochManager} from "./interfaces/IEpochManager.sol";
 import "./SharedDefs.sol";
 import {PoolConfig} from "./PoolConfig.sol";
 import {PoolConfigCache} from "./PoolConfigCache.sol";
@@ -30,6 +31,7 @@ contract Pool is PoolConfigCache, IPool {
     ILossCoverer public poolOwnerOrEALossCoverer;
     ICredit public credit;
     IPlatformFeeManager public feeManager;
+    IEpochManager public epochManager;
 
     TranchesInfo public tranches;
     TranchesLosses public tranchesLosses;
@@ -68,6 +70,10 @@ contract Pool is PoolConfigCache, IPool {
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         poolOwnerOrEALossCoverer = ILossCoverer(addr);
 
+        addr = _poolConfig.epochManager();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        epochManager = IEpochManager(addr);
+
         address[] memory coverers = _poolConfig.getLossCoverers();
         for (uint256 i = 0; i < coverers.length; i++) {
             lossCoverers[i] = ILossCoverer(coverers[i]);
@@ -81,6 +87,7 @@ contract Pool is PoolConfigCache, IPool {
         poolConfig.onlyOwnerOrHumaMasterAdmin(msg.sender);
         poolConfig.checkFirstLossCoverRequirement();
 
+        epochManager.startNewEpoch();
         _status = PoolStatus.On;
         emit PoolEnabled(msg.sender);
     }

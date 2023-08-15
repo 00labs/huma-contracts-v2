@@ -11,6 +11,8 @@ import {IEpochManager} from "./interfaces/IEpochManager.sol";
 import {Errors} from "./Errors.sol";
 import {ICalendar} from "./credit/interfaces/ICalendar.sol";
 
+import "hardhat/console.sol";
+
 interface ITrancheVaultLike is IEpoch {
     function totalSupply() external view returns (uint256);
 }
@@ -88,6 +90,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         uint96[2] memory tranches = pool.refreshPool();
 
         // calculate senior/junior token price
+        // TODO add price decimals
         uint256 seniorPrice = tranches[SENIOR_TRANCHE_INDEX] / seniorTranche.totalSupply();
         uint256 juniorPrice = tranches[JUNIOR_TRANCHE_INDEX] / juniorTranche.totalSupply();
 
@@ -134,6 +137,20 @@ contract EpochManager is PoolConfigCache, IEpochManager {
 
         pool.submitRedemptionRequest(unprocessedAmounts);
 
+        console.log(
+            "id: %s, juniorTotalAssets: %s, seniorTotalAssets: %s",
+            uint256(ce.id),
+            tranches[JUNIOR_TRANCHE_INDEX],
+            tranches[SENIOR_TRANCHE_INDEX]
+        );
+
+        console.log(
+            "seniorPrice: %s, juniorPrice: %s, unprocessedAmounts: %s",
+            seniorPrice,
+            juniorPrice,
+            unprocessedAmounts
+        );
+
         emit EpochClosed(
             ce.id,
             tranches[SENIOR_TRANCHE_INDEX],
@@ -149,6 +166,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         poolConfig.onlyPool(msg.sender);
 
         CurrentEpoch memory ce = _currentEpoch;
+        ce.nextEndTime = 0;
         _createNextEpoch(ce);
     }
 
@@ -196,7 +214,8 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         )
     {
         // get available underlying token amount
-        uint256 availableAmount = poolVault.getAvailableReservation();
+        uint256 availableAmount = poolVault.totalAssets();
+        console.log("availableAmount: %s", availableAmount);
         if (availableAmount <= 0) return (seniorResult, juniorResult);
 
         LPConfig memory lpConfig = poolConfig.getLPConfig();
@@ -224,6 +243,13 @@ contract EpochManager is PoolConfigCache, IEpochManager {
             availableAmount,
             seniorResult
         );
+        console.log("availableAmount: %s", availableAmount);
+        console.log(
+            "seniorResult.count: %s, seniorResult.shares: %s, seniorResult.amounts: %s",
+            seniorResult.count,
+            seniorResult.shares,
+            seniorResult.amounts
+        );
         if (availableAmount <= 0) {
             return (seniorResult, juniorResult);
         }
@@ -241,16 +267,24 @@ contract EpochManager is PoolConfigCache, IEpochManager {
                 }
             }
         }
+        console.log("availableCount: %s", availableCount);
 
-        uint256 maxSeniorRatio = lpConfig.maxSeniorJuniorRatio;
+        uint256 maxSeniorJuniorRatio = lpConfig.maxSeniorJuniorRatio;
         availableAmount = _processJuniorEpochs(
             tranches,
             juniorPrice,
-            maxSeniorRatio,
+            maxSeniorJuniorRatio,
             juniorEpochs,
             EpochsRange(0, availableCount),
             availableAmount,
             juniorResult
+        );
+        console.log("availableAmount: %s", availableAmount);
+        console.log(
+            "juniorResult.count: %s, juniorResult.shares: %s, juniorResult.amounts: %s",
+            juniorResult.count,
+            juniorResult.shares,
+            juniorResult.amounts
         );
         if (availableAmount <= 0 || flexPeriod <= 0) {
             return (seniorResult, juniorResult);
@@ -278,7 +312,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
             availableAmount = _processJuniorEpochs(
                 tranches,
                 juniorPrice,
-                maxSeniorRatio,
+                maxSeniorJuniorRatio,
                 juniorEpochs,
                 EpochsRange(juniorResult.count, availableCount),
                 availableAmount,
@@ -324,16 +358,16 @@ contract EpochManager is PoolConfigCache, IEpochManager {
     function _processJuniorEpochs(
         uint96[2] memory tranches,
         uint256 price,
-        uint256 maxSeniorRatio,
+        uint256 maxSeniorJuniorRatio,
         EpochInfo[] memory epochs,
         EpochsRange memory epochsRange,
         uint256 availableAmount,
         TrancheProcessedResult memory trancheResult
     ) internal pure returns (uint256 remainingAmount) {
-        uint256 maxJuniorAmounts = (tranches[SENIOR_TRANCHE_INDEX] * HUNDRED_PERCENT_IN_BPS) /
-            maxSeniorRatio;
-        uint256 maxAmounts = maxJuniorAmounts > tranches[JUNIOR_TRANCHE_INDEX]
-            ? maxJuniorAmounts - tranches[JUNIOR_TRANCHE_INDEX]
+        // Round up to meet maxSeniorJuniorRatio
+        uint256 minJuniorAmounts = tranches[SENIOR_TRANCHE_INDEX] / maxSeniorJuniorRatio + 1;
+        uint256 maxAmounts = tranches[JUNIOR_TRANCHE_INDEX] > minJuniorAmounts
+            ? tranches[JUNIOR_TRANCHE_INDEX] - minJuniorAmounts
             : 0;
 
         if (maxAmounts <= 0) return availableAmount;
