@@ -8,7 +8,10 @@ import {PnLTracker} from "./CreditStructs.sol";
 contract PnLManager {
     PnLTracker pnlTracker;
 
-    function processDrawdown() external {}
+    function processDrawdown(uint96 poolIncome, uint96 profitRateDiff) external {
+        pnlTracker.totalProfit += poolIncome;
+        pnlTracker.profitRate += profitRateDiff;
+    }
 
     function processPayback() external {}
 

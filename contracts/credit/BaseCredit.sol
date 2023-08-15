@@ -315,12 +315,13 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
 
     /**
      * @notice allows the borrower to borrow against an approved credit line.
-     * The borrower can borrow and pay back as many times as they would like.
+     * @param creditHash hash of the credit record
      * @param borrowAmount the amount to borrow
+     * @dev Only the owner of the credit line can drawdown.
      */
     function drawdown(bytes32 creditHash, uint256 borrowAmount) external virtual override {
-        address borrower = msg.sender;
         if (borrowAmount == 0) revert Errors.zeroAmountProvided();
+        address borrower = msg.sender;
         CreditRecord memory cr = _getCreditRecord(creditHash);
         if (borrower != cr.borrower) revert Errors.notBorrower();
 
@@ -520,21 +521,15 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         CreditRecord memory cr,
         uint256 borrowAmount
     ) internal virtual returns (uint256) {
-        //pnl impact:
-        // if there is frontloading fee, add to totalProfit
-        // increase profitRate
+        CreditConfig memory cc = _getCreditConfig(creditHash);
 
         if (cr.state == CreditState.Approved) {
             // Flow for first drawdown
-            // Update total principal
+            // Sets the prinicpal, then generates the first bill and sets credit status
             _creditRecordMap[creditHash].unbilledPrincipal = uint96(borrowAmount);
-            // Generates the first bill
-            // Note: the interest is calculated at the beginning of each pay period
             cr = _updateDueInfo(creditHash);
-            // Set account status in good standing
             cr.state = CreditState.GoodStanding;
         } else {
-            // Return drawdown flow
             // Disallow repeated drawdown for non-revolving credit
             if (!cr.revolving) revert Errors.todo();
 
@@ -545,21 +540,32 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
                     revert Errors.creditLineNotInGoodStandingState();
             }
 
+            // note Drawdown is not allowed in the final pay period since the payment due for
+            // such drawdown will fall outside of the window of the credit line.
+            // note since we bill at the beginning of a period, cr.remainingPeriods is zero
+            // in the final period.
+            if (cr.remainingPeriods == 0) revert Errors.creditExpiredDueToMaturity();
+
+            // todo This is not exactly right. need to check the maintenance of availableCredit logic
             if (
-                // :This is not exactly right. need to check the maintenance of availableCredit logic
                 borrowAmount >
                 (cr.availableCredit -
                     cr.unbilledPrincipal -
                     (cr.totalDue - cr.feesDue - cr.yieldDue))
             ) revert Errors.creditLineExceeded();
 
-            // note Drawdown is not allowed in the final pay period since the payment due for
-            // such drawdown will fall outside of the window of the credit line.
-            // note since we bill at the beginning of a period, cr.remainingPeriods is zero
-            // in the final period.
-            if (cr.remainingPeriods == 0) revert Errors.creditExpiredDueToMaturity();
-            // For non-first bill, we do not update the current bill, the interest for the rest of
-            // this pay period is accrued in correction and will be added to the next bill.
+            (uint256 nextDueDate, ) = calendar.getNextDueDate(
+                cc.calendarUnit,
+                cc.periodDuration,
+                cr.nextDueDate
+            );
+
+            // Adds the interest for the rest of this period to the balance due
+            cr.yieldDue += uint96(
+                (borrowAmount * cc.yieldInBps * (nextDueDate - block.timestamp)) /
+                    SECONDS_IN_A_YEAR
+            );
+
             cr.unbilledPrincipal = uint96(cr.unbilledPrincipal + borrowAmount);
         }
         _setCreditRecord(creditHash, cr);
@@ -567,14 +573,13 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
             borrowAmount
         );
 
-        // todo handle income distribution
-        // if (platformFees > 0) distributeIncome(platformFees);
+        uint256 poolIncome = 0;
+        if (platformFees > 0) poolIncome = distributeIncome(platformFees);
 
-        PnLTracker memory tracker = pnlTracker;
-        // todo uncomment these two lines with the real code.
-        // tracker.totalProfit += (portion belongs to the pool);
-        // tracker.totalProfitprofitRate += borrowAmount * _cc.yieldInBps / SECONDS_IN_A_YEAR;
-        pnlTracker = tracker;
+        pnlManager.processDrawdown(
+            uint96(poolIncome),
+            uint96((borrowAmount * cc.yieldInBps) / SECONDS_IN_A_YEAR)
+        );
 
         // Transfer funds to the _borrower
         _underlyingToken.safeTransfer(cr.borrower, netAmountToBorrower);
@@ -1178,5 +1183,13 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         pnlTracker = _tempPnlTracker;
 
         // todo handle lossRecovery
+    }
+
+    /**
+     * @notice Distributes income to token holders.
+     */
+    function distributeIncome(uint256 value) internal virtual returns (uint256 poolIncome) {
+        // uint256 poolIncome = _poolConfig.distributeIncome(value);
+        // _totalPoolValue += poolIncome;
     }
 }
