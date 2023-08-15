@@ -822,8 +822,8 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
     /**
      * @notice updates CreditRecord for `creditHash` using the most up to date information.
      * @dev this is used in both makePayment() and drawdown() to bring the account current
-     * @dev getDueInfo() gets the due information of the most current cycle. This function
-     * updates the record in creditRecordMap
+     * @dev getDueInfo() is a view function to get the due information of the most current cycle.
+     * This function reflects the due info in creditRecordMap
      * @param creditHash the hash of the credit
      */
     function _updateDueInfo(bytes32 creditHash) internal virtual returns (CreditRecord memory cr) {
@@ -831,17 +831,16 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
 
         // Do not update dueInfo for accounts already in default state
         if (cr.state == CreditState.Defaulted) return cr;
-        
+
         // Before the first drawdown, cr.nextDueDate is used to capture credit expiration
         // date. It is validated in the precheck logic for the first drawdown, thus safe
-        // to reset cr.nextDueDate to 0 so that a proper due date can be set.  
+        // to reset cr.nextDueDate to 0 to remove special handling in getDueInfo().
         if (cr.state == CreditState.Approved) cr.nextDueDate = 0;
 
-        CreditConfig memory cc = _getCreditConfig(creditHash);
-        bool alreadyLate = cr.totalDue > 0 ? true : false;
         // Gets the up-to-date due information for the borrower. If the account has been
         // late or dormant for multiple cycles, getDueInfo() will bring it current and
         // return the most up-to-date due information.
+        CreditConfig memory cc = _getCreditConfig(creditHash);
         uint256 periodsPassed = 0;
         uint96 pnlImpact = 0;
         uint96 principalDifference = 0;
@@ -855,11 +854,10 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
             principalDifference
         ) = _feeManager.getDueInfo(cr, cc);
 
-        // Update PNL by adding missed profit and reflect new profitRate if
-        // the principal has changed.
-        // todo change pnl
-        // totalProfit += pnlImpact;
-        // profitRate += (principalDifference * cc.yieldInBps) / SECONDS_IN_A_YEAR;
+        pnlManager.processDueUpdate(
+            pnlImpact,
+            uint96((principalDifference * cc.yieldInBps) / SECONDS_IN_A_YEAR)
+        );
 
         if (periodsPassed > 0) {
             // update nextDueDate
@@ -876,8 +874,10 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
             } else {
                 cr.remainingPeriods = 0;
             }
-            // Sets the right missedPeriods and state for the credit record
-            if (alreadyLate) cr.missedPeriods = uint16(cr.missedPeriods + periodsPassed);
+
+            // Sets the correct missedPeriods. If totalDue is non zero, the totalDue must be
+            // nonZero for each of the passed period, thus add periodsPassed to cr.missedPeriods
+            if (cr.totalDue > 0) cr.missedPeriods = uint16(cr.missedPeriods + periodsPassed);
             else cr.missedPeriods = 0;
 
             if (cr.missedPeriods > 0) {
