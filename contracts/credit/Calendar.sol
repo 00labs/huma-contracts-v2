@@ -17,6 +17,11 @@ contract Calendar is ICalendar {
 
     function getStartOfNextQuarter() external view returns (uint256 nextDay) {}
 
+    /**
+     * @notice Gets the immediate next due date following lastDueDate. If multiple periods have
+     * passed since lastDueDate, this function returns the due date that is only one period after
+     * lastDueDate. In contract, getNextDueDate() gets the next due date based on block.timestamp.
+     */
     function getNextPeriod(
         CalendarUnit unit,
         uint256 periodDuration,
