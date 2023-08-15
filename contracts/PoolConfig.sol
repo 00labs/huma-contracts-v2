@@ -66,7 +66,7 @@ struct LPConfig {
     // How long a lender has to wait after the last deposit before they can withdraw
     uint8 withdrawalLockoutInCalendarUnit;
     // The upper bound of senior-to-junior ratio allowed
-    uint8 maxJuniorSeniorRatio;
+    uint8 maxSeniorJuniorRatio;
     // The fixed yield for senior tranche. Either this or tranchesRiskAdjustmentInBps is non-zero
     uint16 fixedSeniorYieldInBps;
     // Percentage of yield to be shifted from senior to junior. Either this or fixedSeniorYieldInBps is non-zero
@@ -276,16 +276,16 @@ contract PoolConfig is AccessControl, Initializable {
         _adminRnR = adminRnRConfig;
 
         LPConfig memory lpConfig = _lpConfig;
-        lpConfig.maxJuniorSeniorRatio = 4; // senior : junior = 1:4
+        lpConfig.maxSeniorJuniorRatio = 4; // senior : junior = 4:1
         _lpConfig = lpConfig;
     }
 
     function getTrancheLiquidityCap(uint256 index) external view returns (uint256 cap) {
         LPConfig memory lpc = _lpConfig;
         if (index == SENIOR_TRANCHE_INDEX) {
-            cap = (lpc.liquidityCap) / (lpc.maxJuniorSeniorRatio + 1);
+            cap = (lpc.liquidityCap * lpc.maxSeniorJuniorRatio) / (lpc.maxSeniorJuniorRatio + 1);
         } else if (index == JUNIOR_TRANCHE_INDEX) {
-            cap = (lpc.liquidityCap * lpc.maxJuniorSeniorRatio) / (lpc.maxJuniorSeniorRatio + 1);
+            cap = lpc.liquidityCap / (lpc.maxSeniorJuniorRatio + 1);
         }
     }
 

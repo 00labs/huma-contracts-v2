@@ -24,7 +24,8 @@ contract TrancheVault is
 
     event LiquidityDeposited(address indexed account, uint256 assetAmount, uint256 shareAmount);
 
-    event RedemptionRequested(address indexed account, uint256 shareAmount, uint256 epochId);
+    event RedemptionRequestAdded(address indexed account, uint256 shareAmount, uint256 epochId);
+    event RedemptionRequestRemoved(address indexed account, uint256 shareAmount, uint256 epochId);
 
     constructor() {
         // _disableInitializers();
@@ -171,7 +172,7 @@ contract TrancheVault is
         if (trancheIndex == SENIOR_TRANCHE_INDEX) {
             // validate maxRatio for senior tranche
             LPConfig memory lpConfig = poolConfig.getLPConfig();
-            if ((ta + assets) * lpConfig.maxJuniorSeniorRatio > tranches[JUNIOR_TRANCHE_INDEX])
+            if ((ta + assets) > tranches[JUNIOR_TRANCHE_INDEX] * lpConfig.maxSeniorJuniorRatio)
                 revert Errors.exceededMaxJuniorSeniorRatio(); // greater than max ratio
         }
 
@@ -199,16 +200,16 @@ contract TrancheVault is
         }
 
         // update global epochId array and EpochInfo mapping
-        uint256 epochId = epochManager.currentEpochId();
-        EpochInfo memory epochInfo = epochMap[epochId];
-        if (epochInfo.totalShareRequested > 0) {
-            epochInfo.totalShareRequested += uint96(shares);
+        uint256 currentEpochId = epochManager.currentEpochId();
+        EpochInfo memory currentEpochInfo = epochMap[currentEpochId];
+        if (currentEpochInfo.totalShareRequested > 0) {
+            currentEpochInfo.totalShareRequested += uint96(shares);
         } else {
-            epochIds.push(epochId);
-            epochInfo.epochId = uint64(epochId);
-            epochInfo.totalShareRequested = uint96(shares);
+            epochIds.push(currentEpochId);
+            currentEpochInfo.epochId = uint64(currentEpochId);
+            currentEpochInfo.totalShareRequested = uint96(shares);
         }
-        epochMap[epochId] = epochInfo;
+        epochMap[currentEpochId] = currentEpochInfo;
 
         // update user UserRedemptionRequest array
         UserRedemptionRequest[] storage requests = userRedemptionRequests[msg.sender];
@@ -217,20 +218,20 @@ contract TrancheVault is
         if (length > 0) {
             request = requests[length - 1];
         }
-        if (request.epochId == epochId) {
+        if (request.epochId == currentEpochId) {
             // add assets in current Redemption request
             request.shareRequested += uint96(shares);
             requests[length - 1] = request;
         } else {
             // no Redemption request, create a new one
-            request.epochId = uint64(epochId);
+            request.epochId = uint64(currentEpochId);
             request.shareRequested = uint96(shares);
             requests.push(request);
         }
 
         ERC20Upgradeable._transfer(msg.sender, address(this), shares);
 
-        emit RedemptionRequested(msg.sender, shares, epochId);
+        emit RedemptionRequestAdded(msg.sender, shares, currentEpochId);
     }
 
     /**
@@ -245,8 +246,8 @@ contract TrancheVault is
         if (length == 0) revert Errors.emptyArray();
         uint256 lastIndex = length - 1;
         UserRedemptionRequest memory request = requests[lastIndex];
-        uint256 epochId = epochManager.currentEpochId();
-        if (request.epochId < epochId) {
+        uint256 currentEpochId = epochManager.currentEpochId();
+        if (request.epochId < currentEpochId) {
             // only remove from current Redemption request
             revert Errors.notCurrentEpoch();
         }
@@ -261,20 +262,20 @@ contract TrancheVault is
             delete requests[lastIndex];
         }
 
-        EpochInfo memory epochInfo = epochMap[epochId];
-        epochInfo.totalShareRequested -= uint96(shares);
-        if (epochInfo.totalShareRequested > 0) {
-            epochMap[epochId] = epochInfo;
+        EpochInfo memory currentEpochInfo = epochMap[currentEpochId];
+        currentEpochInfo.totalShareRequested -= uint96(shares);
+        if (currentEpochInfo.totalShareRequested > 0) {
+            epochMap[currentEpochId] = currentEpochInfo;
         } else {
-            delete epochMap[epochId];
+            delete epochMap[currentEpochId];
             lastIndex = epochIds.length - 1;
-            assert(epochIds[lastIndex] == epochId);
+            assert(epochIds[lastIndex] == currentEpochId);
             delete epochIds[lastIndex];
         }
 
         ERC20Upgradeable._transfer(address(this), msg.sender, shares);
 
-        // TODO send an event
+        emit RedemptionRequestRemoved(msg.sender, shares, currentEpochId);
     }
 
     /**

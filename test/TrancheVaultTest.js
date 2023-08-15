@@ -188,7 +188,7 @@ describe("TrancheVault Test", function () {
             );
         });
 
-        it("Should not deposit while new senior total assets exceeds maxJuniorSeniorRatio", async function () {
+        it("Should not deposit while new senior total assets exceeds maxSeniorJuniorRatio", async function () {
             await expect(
                 seniorTrancheVaultContract.connect(lender).deposit(toToken(1), lender.address)
             ).to.be.revertedWithCustomError(
@@ -289,7 +289,7 @@ describe("TrancheVault Test", function () {
             // console.log(`currentEpochId: ${currentEpochId}`);
             let balance = await juniorTrancheVaultContract.balanceOf(lender.address);
             await expect(juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares))
-                .to.emit(juniorTrancheVaultContract, "RedemptionRequested")
+                .to.emit(juniorTrancheVaultContract, "RedemptionRequestAdded")
                 .withArgs(lender.address, shares, currentEpochId);
             expect(await juniorTrancheVaultContract.balanceOf(lender.address)).to.equal(
                 balance.sub(shares)
@@ -316,7 +316,7 @@ describe("TrancheVault Test", function () {
 
             balance = await juniorTrancheVaultContract.balanceOf(lender.address);
             await expect(juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares))
-                .to.emit(juniorTrancheVaultContract, "RedemptionRequested")
+                .to.emit(juniorTrancheVaultContract, "RedemptionRequestAdded")
                 .withArgs(lender.address, shares, currentEpochId);
             expect(await juniorTrancheVaultContract.balanceOf(lender.address)).to.equal(
                 balance.sub(shares)
@@ -341,7 +341,7 @@ describe("TrancheVault Test", function () {
 
             balance = await juniorTrancheVaultContract.balanceOf(lender2.address);
             await expect(juniorTrancheVaultContract.connect(lender2).addRedemptionRequest(shares))
-                .to.emit(juniorTrancheVaultContract, "RedemptionRequested")
+                .to.emit(juniorTrancheVaultContract, "RedemptionRequestAdded")
                 .withArgs(lender2.address, shares, currentEpochId);
             expect(await juniorTrancheVaultContract.balanceOf(lender2.address)).to.equal(
                 balance.sub(shares)
@@ -375,7 +375,7 @@ describe("TrancheVault Test", function () {
             // console.log(`currentEpochId: ${currentEpochId}`);
             let balance = await juniorTrancheVaultContract.balanceOf(lender.address);
             await expect(juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares))
-                .to.emit(juniorTrancheVaultContract, "RedemptionRequested")
+                .to.emit(juniorTrancheVaultContract, "RedemptionRequestAdded")
                 .withArgs(lender.address, shares, currentEpochId);
             expect(await juniorTrancheVaultContract.balanceOf(lender.address)).to.equal(
                 balance.sub(shares)
@@ -409,7 +409,7 @@ describe("TrancheVault Test", function () {
             // Lender requests redemption in next epoch
             balance = await juniorTrancheVaultContract.balanceOf(lender.address);
             await expect(juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares))
-                .to.emit(juniorTrancheVaultContract, "RedemptionRequested")
+                .to.emit(juniorTrancheVaultContract, "RedemptionRequestAdded")
                 .withArgs(lender.address, shares, currentEpochId);
             expect(await juniorTrancheVaultContract.balanceOf(lender.address)).to.equal(
                 balance.sub(shares)
@@ -435,7 +435,7 @@ describe("TrancheVault Test", function () {
 
             balance = await juniorTrancheVaultContract.balanceOf(lender2.address);
             await expect(juniorTrancheVaultContract.connect(lender2).addRedemptionRequest(shares))
-                .to.emit(juniorTrancheVaultContract, "RedemptionRequested")
+                .to.emit(juniorTrancheVaultContract, "RedemptionRequestAdded")
                 .withArgs(lender2.address, shares, currentEpochId);
             expect(await juniorTrancheVaultContract.balanceOf(lender2.address)).to.equal(
                 balance.sub(shares)
@@ -532,9 +532,113 @@ describe("TrancheVault Test", function () {
         it("Should remove redemption request successfully", async function () {
             let shares = toToken(10_000);
             await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
-            await juniorTrancheVaultContract
-                .connect(lender)
-                .removeRedemptionRequest(toToken(1000));
+
+            // Lender removes redemption request
+            shares = toToken(1000);
+            let currentEpochId = await epochManagerContract.currentEpochId();
+            let balance = await juniorTrancheVaultContract.balanceOf(lender.address);
+            let userRedemptionRequestBefore =
+                await juniorTrancheVaultContract.userRedemptionRequests(lender.address, 0);
+            let epochBefore = await juniorTrancheVaultContract.epochMap(currentEpochId);
+            let removableRedemptionSharesBefore =
+                await juniorTrancheVaultContract.removableRedemptionShares(lender.address);
+            await expect(
+                juniorTrancheVaultContract.connect(lender).removeRedemptionRequest(shares)
+            )
+                .to.emit(juniorTrancheVaultContract, "RedemptionRequestRemoved")
+                .withArgs(lender.address, shares, currentEpochId);
+            let userRedemptionRequestAfter =
+                await juniorTrancheVaultContract.userRedemptionRequests(lender.address, 0);
+            let epochAfter = await juniorTrancheVaultContract.epochMap(currentEpochId);
+            let removableRedemptionSharesAfter =
+                await juniorTrancheVaultContract.removableRedemptionShares(lender.address);
+
+            expect(await juniorTrancheVaultContract.balanceOf(lender.address)).to.equal(
+                balance.add(shares)
+            );
+            expect(userRedemptionRequestAfter.epochId).to.equal(currentEpochId);
+            expect(
+                userRedemptionRequestBefore.shareRequested.sub(
+                    userRedemptionRequestAfter.shareRequested
+                )
+            ).to.equal(shares);
+            expect(epochBefore.totalShareRequested.sub(epochAfter.totalShareRequested)).to.equal(
+                shares
+            );
+            expect(removableRedemptionSharesBefore.sub(removableRedemptionSharesAfter)).to.equal(
+                shares
+            );
+
+            // Close current epoch
+            let currentEpoch = await epochManagerContract.currentEpoch();
+            await mineNextBlockWithTimestamp(
+                currentEpoch.nextEndTime.add(BN.from(60 * 5)).toNumber()
+            );
+            await epochManagerContract.closeEpoch();
+            currentEpochId = await epochManagerContract.currentEpochId();
+
+            // Lender and Lender2 add redemption requests
+            shares = toToken(10_000);
+            await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
+            await juniorTrancheVaultContract.connect(lender2).addRedemptionRequest(shares);
+
+            // Lender removes redemption request
+            balance = await juniorTrancheVaultContract.balanceOf(lender.address);
+            epochBefore = await juniorTrancheVaultContract.epochMap(currentEpochId);
+            removableRedemptionSharesBefore =
+                await juniorTrancheVaultContract.removableRedemptionShares(lender.address);
+            await expect(
+                juniorTrancheVaultContract.connect(lender).removeRedemptionRequest(shares)
+            )
+                .to.emit(juniorTrancheVaultContract, "RedemptionRequestRemoved")
+                .withArgs(lender.address, shares, currentEpochId);
+            epochAfter = await juniorTrancheVaultContract.epochMap(currentEpochId);
+            removableRedemptionSharesAfter =
+                await juniorTrancheVaultContract.removableRedemptionShares(lender.address);
+            userRedemptionRequestAfter = await juniorTrancheVaultContract.userRedemptionRequests(
+                lender.address,
+                1
+            );
+
+            expect(await juniorTrancheVaultContract.balanceOf(lender.address)).to.equal(
+                balance.add(shares)
+            );
+            expect(epochBefore.totalShareRequested.sub(epochAfter.totalShareRequested)).to.equal(
+                shares
+            );
+            expect(removableRedemptionSharesBefore.sub(removableRedemptionSharesAfter)).to.equal(
+                shares
+            );
+            expect(userRedemptionRequestAfter.epochId).to.equal(0);
+            expect(userRedemptionRequestAfter.shareRequested).to.equal(0);
+
+            // Lender2 removes redemption request
+            balance = await juniorTrancheVaultContract.balanceOf(lender2.address);
+            removableRedemptionSharesBefore =
+                await juniorTrancheVaultContract.removableRedemptionShares(lender2.address);
+            await expect(
+                juniorTrancheVaultContract.connect(lender2).removeRedemptionRequest(shares)
+            )
+                .to.emit(juniorTrancheVaultContract, "RedemptionRequestRemoved")
+                .withArgs(lender2.address, shares, currentEpochId);
+            removableRedemptionSharesAfter =
+                await juniorTrancheVaultContract.removableRedemptionShares(lender2.address);
+            userRedemptionRequestAfter = await juniorTrancheVaultContract.userRedemptionRequests(
+                lender2.address,
+                0
+            );
+            epochAfter = await juniorTrancheVaultContract.epochMap(currentEpochId);
+
+            expect(await juniorTrancheVaultContract.balanceOf(lender2.address)).to.equal(
+                balance.add(shares)
+            );
+            expect(removableRedemptionSharesBefore.sub(removableRedemptionSharesAfter)).to.equal(
+                shares
+            );
+            expect(userRedemptionRequestAfter.epochId).to.equal(0);
+            expect(userRedemptionRequestAfter.shareRequested).to.equal(0);
+            expect(epochAfter.epochId).to.equal(0);
+            expect(epochAfter.totalShareRequested).to.equal(0);
         });
     });
 });
