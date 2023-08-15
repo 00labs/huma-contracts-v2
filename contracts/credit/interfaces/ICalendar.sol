@@ -41,6 +41,12 @@ interface ICalendar {
         uint256 lastDueDate
     ) external view returns (uint256 dueDate, uint256 numberOfPeriodsPassed);
 
+    function getBeginOfPeriod(
+        CalendarUnit unit,
+        uint256 periodDuration,
+        uint256 lastDueDate
+    ) external view returns (uint256 dueDate, uint256 numberOfPeriodsPassed);
+
     function getSecondsPerPeriod(
         CalendarUnit unit,
         uint256 periodDuration

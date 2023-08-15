@@ -94,4 +94,9 @@ interface ICreditFeeManager {
      * @dev This is a global limit of 5000 bps (50%).
      */
     function setMinPrincipalRateInBps(uint256 _minPrincipalRateInBps) external;
+
+    function getPayoffAmount(
+        CreditRecord memory cr,
+        uint256 yieldInBps
+    ) external view returns (uint256 payoffAmount);
 }

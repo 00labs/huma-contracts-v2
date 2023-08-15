@@ -351,7 +351,7 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
     }
 
     /**
-     * @notice Makes one payment for the borrower. This can be initiated by the borrower
+     * @notice Makes one payment for the credit line. This can be initiated by the borrower
      * or by PDSServiceAccount with the allowance approval from the borrower.
      * If this is the final payment, it automatically triggers the payoff process.
      * @return amountPaid the actual amount paid to the contract. When the tendered
@@ -672,35 +672,27 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         }
 
         // Reverse late charge if it is paid before the late fee grace period
-        // todo cr.nextDueDate is already updated to the next cycle. Next to check
-        // against the previous cycle's due date. Need to add a function in Calendar
-        // to find previous dueDate.
         if (cr.state == CreditState.Delayed) {
+            (uint256 beginOfPeriod, ) = calendar.getBeginOfPeriod(
+                cc.calendarUnit,
+                cc.periodDuration,
+                cr.nextDueDate
+            );
             if (
                 block.timestamp <
-                cr.nextDueDate +
+                (beginOfPeriod +
                     _poolConfig.getPoolSettings().latePaymentGracePeriodInDays *
-                    SECONDS_IN_A_DAY
+                    SECONDS_IN_A_DAY)
             ) {
-                // Setting feesDue is safe since the fees for the previous cycles should have been rolled into principals.
-                // todo review this carefully.
+                // Safe to set feesDue to zero since the fees for the previous cycles should have been rolled into principals.
                 cr.feesDue = 0;
             }
         }
 
-        // Compute the payoffAmount. Need to exclude the interest
-        // from now to the end of the period
-        uint256 payoffAmount = uint256(cr.totalDue + cr.unbilledPrincipal);
-        //todo move this to a function in feeManager for better readability
-        uint256 remainingInterest = (cc.yieldInBps *
-            (cr.totalDue - cr.yieldDue - cr.feesDue) *
-            (cr.nextDueDate - block.timestamp)) / SECONDS_IN_A_YEAR;
-        assert(payoffAmount >= remainingInterest);
-        payoffAmount -= remainingInterest;
+        uint256 payoffAmount = _feeManager.getPayoffAmount(cr, cc.yieldInBps);
 
         // The amount to collect from the payer's wallet.
         uint256 amountToCollect;
-        // The amount to be applied towards principal
         uint256 principalPaid = 0;
         uint256 yieldPaid = 0;
         uint256 feesPaid = 0;
@@ -710,8 +702,9 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
             amountToCollect = amount;
             if (amount < cr.totalDue) {
                 // Handle principal payment
-                if (amount < cr.totalDue - cr.feesDue - cr.yieldDue) principalPaid = amount;
-                else principalPaid = cr.totalDue - cr.feesDue - cr.yieldDue;
+                principalPaid = (amount <= cr.totalDue - cr.feesDue - cr.yieldDue)
+                    ? amount
+                    : cr.totalDue - cr.feesDue - cr.yieldDue;
                 amount -= principalPaid;
 
                 // Handle interest payment.
@@ -727,7 +720,7 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
                     cr.feesDue -= uint96(feesPaid);
                 }
 
-                cr.totalDue = uint96(cr.totalDue - principalPaid - yieldPaid - feesPaid);
+                cr.totalDue = uint96(cr.totalDue - amount);
             } else {
                 // Apply extra payments towards principal, reduce unbilledPrincipal amount
                 cr.unbilledPrincipal -= uint96(amount - cr.totalDue);
@@ -770,7 +763,7 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
             // Add all payments to
         }
 
-        _updatePnl(principalPaid, yieldPaid, feesPaid, cc.yieldInBps);
+        pnlManager.processPayback(uint96(principalPaid), uint96(feesPaid), uint16(cc.yieldInBps));
 
         _setCreditRecord(creditHash, cr);
 
@@ -861,7 +854,7 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
 
         pnlManager.processDueUpdate(
             pnlImpact,
-            uint96((principalDifference * cc.yieldInBps) / SECONDS_IN_A_YEAR)
+            int96(uint96((principalDifference * cc.yieldInBps) / SECONDS_IN_A_YEAR))
         );
 
         if (periodsPassed > 0) {

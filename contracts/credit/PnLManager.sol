@@ -13,14 +13,35 @@ contract PnLManager {
         pnlTracker.profitRate += profitRateDiff;
     }
 
-    function processPayback() external {}
+    function processPayback(uint96 principalPaid, uint96 feesPaid, uint16 yield) external {
+        int96 profitRateDiff = -int96(
+            uint96((principalPaid * yield) / HUNDRED_PERCENT_IN_BPS / SECONDS_IN_A_YEAR)
+        );
+        updateTracker(profitRateDiff, 0, uint96(feesPaid), 0, 0);
+    }
 
     function processDefault() external {}
 
     function processRecovery() external {}
 
-    function processDueUpdate(uint96 missedProfit, uint96 profitRateDiff) external {
-        pnlTracker.totalProfit += missedProfit;
-        pnlTracker.profitRate += profitRateDiff;
+    function processDueUpdate(uint96 missedProfit, int96 profitRateDiff) external {
+        updateTracker(profitRateDiff, 0, missedProfit, 0, 0);
+    }
+
+    function updateTracker(
+        int96 profitRateDiff,
+        int96 lossRateDiff,
+        uint96 feesDiff,
+        uint96 lossDiff,
+        uint96 recoveryDiff
+    ) internal {
+        PnLTracker memory _tempTracker = pnlTracker;
+        uint256 timeLapsed = block.timestamp - _tempTracker.pnlLastUpdated;
+        _tempTracker.totalProfit += (feesDiff + uint96(_tempTracker.profitRate * timeLapsed));
+        _tempTracker.totalLoss += (lossDiff + uint96(_tempTracker.lossRate * timeLapsed));
+        _tempTracker.profitRate = uint96(int96(_tempTracker.profitRate) + profitRateDiff);
+        _tempTracker.lossRate = uint96(int96(_tempTracker.lossRate) + lossRateDiff);
+        _tempTracker.totalLossRecovery += recoveryDiff;
+        pnlTracker = _tempTracker;
     }
 }
