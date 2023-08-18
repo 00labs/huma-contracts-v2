@@ -31,7 +31,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
 
     struct CurrentEpoch {
         uint64 id;
-        uint64 nextEndTime;
+        uint64 endTime;
     }
 
     IPool public pool;
@@ -84,7 +84,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         poolConfig.onlyProtocolAndPoolOn();
 
         CurrentEpoch memory ce = _currentEpoch;
-        if (block.timestamp <= ce.nextEndTime) revert Errors.closeTooSoon();
+        if (block.timestamp <= ce.endTime) revert Errors.closeTooSoon();
 
         // update tranches assets to current timestamp
         uint96[2] memory tranches = pool.refreshPool();
@@ -109,7 +109,11 @@ contract EpochManager is PoolConfigCache, IEpochManager {
             for (uint256 i; i < seniorResult.count; i++) {
                 processedEpochs[i] = seniorEpochs[i];
             }
-            seniorTranche.closeEpoch(processedEpochs, seniorResult.shares, seniorResult.amounts);
+            seniorTranche.processEpochs(
+                processedEpochs,
+                seniorResult.shares,
+                seniorResult.amounts
+            );
         }
 
         if (juniorResult.count > 0) {
@@ -117,7 +121,11 @@ contract EpochManager is PoolConfigCache, IEpochManager {
             for (uint256 i; i < juniorResult.count; i++) {
                 processedEpochs[i] = juniorEpochs[i];
             }
-            juniorTranche.closeEpoch(processedEpochs, juniorResult.shares, juniorResult.amounts);
+            juniorTranche.processEpochs(
+                processedEpochs,
+                juniorResult.shares,
+                juniorResult.amounts
+            );
         }
 
         pool.updateTranchesAssets(tranches);
@@ -166,7 +174,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         poolConfig.onlyPool(msg.sender);
 
         CurrentEpoch memory ce = _currentEpoch;
-        ce.nextEndTime = 0;
+        ce.endTime = 0;
         _createNextEpoch(ce);
     }
 
@@ -176,12 +184,12 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         (uint256 nextEndTime, ) = calendar.getNextDueDate(
             poolSettings.calendarUnit,
             poolSettings.epochWindowInCalendarUnit,
-            epoch.nextEndTime
+            epoch.endTime
         );
-        epoch.nextEndTime = uint64(nextEndTime);
+        epoch.endTime = uint64(nextEndTime);
         _currentEpoch = epoch;
 
-        emit NewEpochStarted(epoch.id, epoch.nextEndTime);
+        emit NewEpochStarted(epoch.id, epoch.endTime);
     }
 
     function currentEpochId() external view returns (uint256) {
@@ -331,9 +339,20 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         EpochsRange memory epochsRange,
         uint256 availableAmount,
         TrancheProcessedResult memory trancheResult
-    ) internal pure returns (uint256 remainingAmount) {
+    ) internal view returns (uint256 remainingAmount) {
         for (uint256 i = epochsRange.startIndex; i < epochsRange.length; i++) {
             EpochInfo memory epochInfo = epochs[i];
+            console.log(
+                "epochInfo.epochId: %s, epochInfo.totalShareRequested: %s, epochInfo.totalShareProcessed: %s",
+                uint256(epochInfo.epochId),
+                uint256(epochInfo.totalShareRequested),
+                uint256(epochInfo.totalShareProcessed)
+            );
+            console.log(
+                "epochInfo.epochId: %s, epochInfo.totalAmountProcessed: %s",
+                uint256(epochInfo.epochId),
+                uint256(epochInfo.totalAmountProcessed)
+            );
             uint256 shares = epochInfo.totalShareRequested - epochInfo.totalShareProcessed;
             uint256 amounts = shares * price;
             if (availableAmount < amounts) {
@@ -344,9 +363,22 @@ contract EpochManager is PoolConfigCache, IEpochManager {
             epochInfo.totalAmountProcessed += uint96(amounts);
             availableAmount -= amounts;
 
+            console.log(
+                "epochInfo.totalShareProcessed: %s, epochInfo.totalAmountProcessed: %s",
+                uint256(epochInfo.totalShareProcessed),
+                uint256(epochInfo.totalAmountProcessed)
+            );
+
             trancheResult.count += 1;
             trancheResult.shares += shares;
             trancheResult.amounts += amounts;
+
+            console.log(
+                "trancheResult.count: %s, trancheResult.shares: %s, trancheResult.amounts: %s",
+                uint256(trancheResult.count),
+                uint256(trancheResult.shares),
+                uint256(trancheResult.amounts)
+            );
 
             if (availableAmount == 0) break;
         }

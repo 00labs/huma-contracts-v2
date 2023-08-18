@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {PoolConfig} from "./PoolConfig.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
@@ -21,6 +21,7 @@ contract TrancheVaultStorage {
         uint96 partialAmountProcessed;
     }
 
+    IERC20 public underlyingToken;
     IPool public pool;
     IPoolVault public poolVault;
     IEpochManager public epochManager;
@@ -29,7 +30,7 @@ contract TrancheVaultStorage {
 
     uint256[] public epochIds; // the epoch id array
     mapping(uint256 => EpochInfo) public epochMap; // key is epochId
-    uint256 public currentEpochIdsIndex; // the index of the epoch id currently being processed
+    uint256 public unprocessedIndexOfEpochIds; // the index of the epoch id from which is not fully processed
 
     mapping(address => UserRedemptionRequest[]) public userRedemptionRequests; // user redemption request array
     mapping(address => UserDisburseInfo) public userDisburseInfos;

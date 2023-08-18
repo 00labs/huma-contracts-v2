@@ -1,5 +1,5 @@
 const {expect} = require("chai");
-const {toToken} = require("./TestUtils");
+const {toToken, getNextDate, getNextMonth} = require("./TestUtils");
 
 const CALENDAR_UNIT_DAY = 0;
 const CALENDAR_UNIT_MONTH = 1;
@@ -100,7 +100,7 @@ async function deployPoolContracts(
     await calendarContract.deployed();
 
     const MockCredit = await ethers.getContractFactory("MockCredit");
-    const mockCreditContract = await MockCredit.deploy();
+    const mockCreditContract = await MockCredit.deploy(poolConfigContract.address);
     await mockCreditContract.deployed();
 
     await poolConfigContract.initialize("Test Pool", [
@@ -148,6 +148,7 @@ async function deployPoolContracts(
             poolConfigContract.address,
             JUNIOR_TRANCHE_INDEX
         );
+    await mockCreditContract.connect(poolOwner).updatePoolConfigData();
 
     return [
         poolConfigContract,
@@ -316,10 +317,33 @@ async function deployAndSetupPoolContracts(
     ];
 }
 
+function getNextDueDate(calendarUnit, lastDate, currentDate, periodDuration) {
+    if (calendarUnit === CONSTANTS.CALENDAR_UNIT_DAY) {
+        return getNextDate(lastDate, currentDate, periodDuration);
+    } else if (calendarUnit === CONSTANTS.CALENDAR_UNIT_MONTH) {
+        return getNextMonth(lastDate, currentDate, periodDuration);
+    }
+}
+
+function checkEpochInfo(
+    epochInfo,
+    epochId,
+    totalShareRequested,
+    totalShareProcessed = 0,
+    totalAmountProcessed = 0
+) {
+    expect(epochInfo.epochId).to.equal(epochId);
+    expect(epochInfo.totalShareRequested).to.equal(totalShareRequested);
+    expect(epochInfo.totalShareProcessed).to.equal(totalShareProcessed);
+    expect(epochInfo.totalAmountProcessed).to.equal(totalAmountProcessed);
+}
+
 module.exports = {
     deployProtocolContracts,
     deployPoolContracts,
     setupPoolContracts,
     deployAndSetupPoolContracts,
+    getNextDueDate,
+    checkEpochInfo,
     CONSTANTS,
 };

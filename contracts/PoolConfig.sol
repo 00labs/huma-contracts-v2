@@ -702,9 +702,9 @@ contract PoolConfig is AccessControl, Initializable {
         if (account != pool) revert Errors.notPool();
     }
 
-    function onlyTrancheVaultOrLossCoverer(address account) external view {
+    function onlyTrancheVaultOrLossCovererOrCredit(address account) external view {
         bool valid;
-        if (account == seniorTranche || account == juniorTranche) return;
+        if (account == seniorTranche || account == juniorTranche || account == credit) return;
         uint256 len = _lossCoverers.length;
         for (uint256 i; i < len; i++) {
             if (account == _lossCoverers[i]) return;
