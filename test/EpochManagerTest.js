@@ -2,7 +2,13 @@ const {ethers} = require("hardhat");
 const {expect} = require("chai");
 const {BigNumber: BN} = require("ethers");
 const {loadFixture} = require("@nomicfoundation/hardhat-network-helpers");
-const {deployProtocolContracts, deployAndSetupPoolContracts, CONSTANTS} = require("./BaseTest");
+const {
+    deployProtocolContracts,
+    deployAndSetupPoolContracts,
+    CONSTANTS,
+    getNextDueDate,
+    checkEpochInfo,
+} = require("./BaseTest");
 const {toToken, mineNextBlockWithTimestamp} = require("./TestUtils");
 const moment = require("moment");
 
@@ -23,17 +29,17 @@ let poolConfigContract,
     juniorTrancheVaultContract,
     creditContract;
 
-function getNextEpochEndTime(currentDate, calendarUnit, countInCalendarUnit) {
-    let date;
-    if (calendarUnit === 0) {
-        date = moment.utc(moment.unix(currentDate).utc().format("YYYY-MM-DD"));
-        date = date.add(countInCalendarUnit + 1, "days");
-    } else if (calendarUnit === 1) {
-        date = moment.utc(moment.unix(currentDate).utc().format("YYYY-MM-01"));
-        date = date.add(countInCalendarUnit + 1, "months");
-    }
-    return date.unix();
-}
+// function getNextEpochEndTime(currentDate, calendarUnit, countInCalendarUnit) {
+//     let date;
+//     if (calendarUnit === 0) {
+//         date = moment.utc(moment.unix(currentDate).utc().format("YYYY-MM-DD"));
+//         date = date.add(countInCalendarUnit + 1, "days");
+//     } else if (calendarUnit === 1) {
+//         date = moment.utc(moment.unix(currentDate).utc().format("YYYY-MM-01"));
+//         date = date.add(countInCalendarUnit + 1, "months");
+//     }
+//     return date.unix();
+// }
 
 describe("EpochManager Test", function () {
     before(async function () {
@@ -127,66 +133,118 @@ describe("EpochManager Test", function () {
         let settings = await poolConfigContract.getPoolSettings();
 
         // Starts a new epoch
-        await expect(poolContract.connect(poolOwner).enablePool()).to.emit(
-            epochManagerContract,
-            "NewEpochStarted"
-        );
-        let block = await ethers.provider.getBlock();
-        let ts = block.timestamp;
-
-        let currentEpoch = await epochManagerContract.currentEpoch();
-        let endTime = getNextEpochEndTime(
-            ts,
+        let lastEpoch = await epochManagerContract.currentEpoch();
+        let [endTime] = getNextDueDate(
             settings.calendarUnit,
+            0,
+            Math.ceil(Date.now() / 1000),
             settings.epochWindowInCalendarUnit
         );
-        expect(currentEpoch.id).to.equal(2);
-        expect(currentEpoch.nextEndTime).to.equal(endTime);
+        await expect(poolContract.connect(poolOwner).enablePool())
+            .to.emit(epochManagerContract, "NewEpochStarted")
+            .withArgs(lastEpoch.id.toNumber() + 1, endTime);
 
         // Goes forward one day and start a new epoch
-        await mineNextBlockWithTimestamp(ts + 60 * 60 * 24);
-        await expect(poolContract.connect(poolOwner).enablePool()).to.emit(
-            epochManagerContract,
-            "NewEpochStarted"
-        );
-        block = await ethers.provider.getBlock();
-        ts = block.timestamp;
-
-        currentEpoch = await epochManagerContract.currentEpoch();
-        endTime = getNextEpochEndTime(
-            ts,
+        let ts = endTime + 60 * 5;
+        await mineNextBlockWithTimestamp(ts);
+        lastEpoch = await epochManagerContract.currentEpoch();
+        [endTime] = getNextDueDate(
             settings.calendarUnit,
+            0,
+            ts,
             settings.epochWindowInCalendarUnit
         );
-        expect(currentEpoch.id).to.equal(3);
-        expect(currentEpoch.nextEndTime).to.equal(endTime);
+        await expect(poolContract.connect(poolOwner).enablePool())
+            .to.emit(epochManagerContract, "NewEpochStarted")
+            .withArgs(lastEpoch.id.toNumber() + 1, endTime);
     });
 
-    it("Should not close epoch while protocol is paused or pool is not on", async function () {});
+    it("Should not close epoch while protocol is paused or pool is not on", async function () {
+        await humaConfigContract.connect(protocolOwner).pause();
+        await expect(epochManagerContract.closeEpoch()).to.be.revertedWithCustomError(
+            poolConfigContract,
+            "protocolIsPaused"
+        );
+        await humaConfigContract.connect(protocolOwner).unpause();
 
-    it("Should not close epoch before end time", async function () {});
+        await poolContract.connect(poolOwner).disablePool();
+        await expect(epochManagerContract.closeEpoch()).to.be.revertedWithCustomError(
+            poolConfigContract,
+            "poolIsNotOn"
+        );
+        await poolContract.connect(poolOwner).enablePool();
+    });
 
-    it("Should close epoch successfully", async function () {
+    it("Should not close epoch before end time", async function () {
+        await expect(epochManagerContract.closeEpoch()).to.be.revertedWithCustomError(
+            epochManagerContract,
+            "closeTooSoon"
+        );
+    });
+
+    it("Should close epoch successfully while processing one epoch fully", async function () {
+        let settings = await poolConfigContract.getPoolSettings();
+
         let withdrawalShares = toToken(1000);
         await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(withdrawalShares);
         await seniorTrancheVaultContract.connect(lender2).addRedemptionRequest(withdrawalShares);
 
-        let currentEpoch = await epochManagerContract.currentEpoch();
-        await mineNextBlockWithTimestamp(currentEpoch.nextEndTime.toNumber() + 60 * 5);
+        let lastEpoch = await epochManagerContract.currentEpoch();
+        let ts = lastEpoch.endTime.toNumber() + 60 * 5;
+        await mineNextBlockWithTimestamp(ts);
+        let [endTime] = getNextDueDate(
+            settings.calendarUnit,
+            lastEpoch.endTime.toNumber(),
+            ts,
+            settings.epochWindowInCalendarUnit
+        );
 
         let juniorTotalAssets = await juniorTrancheVaultContract.totalAssets();
+        let juniorTotalSupply = await juniorTrancheVaultContract.totalSupply();
+        let juniorBalance = await mockTokenContract.balanceOf(juniorTrancheVaultContract.address);
+
         let seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
+        let seniorTotalSupply = await seniorTrancheVaultContract.totalSupply();
+        let seniorBalance = await mockTokenContract.balanceOf(seniorTrancheVaultContract.address);
 
         await expect(epochManagerContract.closeEpoch())
             .to.emit(epochManagerContract, "EpochClosed")
             .withArgs(
-                currentEpoch.id,
+                lastEpoch.id,
                 seniorTotalAssets.sub(withdrawalShares),
                 1,
                 juniorTotalAssets.sub(withdrawalShares),
                 1,
                 0
             )
-            .to.emit(epochManagerContract, "NewEpochStarted");
+            .to.emit(epochManagerContract, "NewEpochStarted")
+            .withArgs(lastEpoch.id.toNumber() + 1, endTime)
+            .to.emit(seniorTrancheVaultContract, "EpochsProcessed")
+            .withArgs(1, withdrawalShares, withdrawalShares, 1)
+            .to.emit(juniorTrancheVaultContract, "EpochsProcessed")
+            .withArgs(1, withdrawalShares, withdrawalShares, 1);
+
+        expect(await juniorTrancheVaultContract.totalSupply()).to.equal(
+            juniorTotalSupply.sub(withdrawalShares)
+        );
+        expect(await mockTokenContract.balanceOf(juniorTrancheVaultContract.address)).to.equal(
+            juniorBalance.add(withdrawalShares)
+        );
+        expect(await seniorTrancheVaultContract.totalSupply()).to.equal(
+            seniorTotalSupply.sub(withdrawalShares)
+        );
+        expect(await mockTokenContract.balanceOf(seniorTrancheVaultContract.address)).to.equal(
+            seniorBalance.add(withdrawalShares)
+        );
+
+        let epoch = await seniorTrancheVaultContract.epochMap(1);
+        checkEpochInfo(epoch, 1, withdrawalShares, withdrawalShares, withdrawalShares);
+        epoch = await juniorTrancheVaultContract.epochMap(1);
+        checkEpochInfo(epoch, 1, withdrawalShares, withdrawalShares, withdrawalShares);
+
+        let res = await seniorTrancheVaultContract.unprocessedEpochInfos();
+        expect(res.length).to.equal(0);
+        res = await juniorTrancheVaultContract.unprocessedEpochInfos();
+        expect(res.length).to.equal(0);
     });
 });

@@ -25,13 +25,13 @@ contract PoolVault is PoolConfigCache, IPoolVault {
     }
 
     function deposit(address from, uint256 amount) external {
-        poolConfig.onlyTrancheVaultOrLossCoverer(msg.sender);
+        poolConfig.onlyTrancheVaultOrLossCovererOrCredit(msg.sender);
 
         asset.transferFrom(from, address(this), amount);
     }
 
     function withdraw(address to, uint256 amount) external {
-        poolConfig.onlyTrancheVaultOrLossCoverer(msg.sender);
+        poolConfig.onlyTrancheVaultOrLossCovererOrCredit(msg.sender);
 
         asset.transfer(to, amount);
     }
