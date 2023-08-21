@@ -9,7 +9,7 @@ const {
     getNextDueDate,
     checkEpochInfo,
 } = require("./BaseTest");
-const {toToken, mineNextBlockWithTimestamp} = require("./TestUtils");
+const {toToken, mineNextBlockWithTimestamp, setNextBlockTimestamp} = require("./TestUtils");
 const moment = require("moment");
 
 let defaultDeployer, protocolOwner, treasury, eaServiceAccount, pdsServiceAccount;
@@ -28,18 +28,6 @@ let poolConfigContract,
     seniorTrancheVaultContract,
     juniorTrancheVaultContract,
     creditContract;
-
-// function getNextEpochEndTime(currentDate, calendarUnit, countInCalendarUnit) {
-//     let date;
-//     if (calendarUnit === 0) {
-//         date = moment.utc(moment.unix(currentDate).utc().format("YYYY-MM-DD"));
-//         date = date.add(countInCalendarUnit + 1, "days");
-//     } else if (calendarUnit === 1) {
-//         date = moment.utc(moment.unix(currentDate).utc().format("YYYY-MM-01"));
-//         date = date.add(countInCalendarUnit + 1, "months");
-//     }
-//     return date.unix();
-// }
 
 describe("EpochManager Test", function () {
     before(async function () {
@@ -182,7 +170,606 @@ describe("EpochManager Test", function () {
         );
     });
 
-    it("Should close epoch successfully while processing one epoch fully", async function () {
+    it("Should close epoch successfully while processing one senior fully", async function () {
+        let settings = await poolConfigContract.getPoolSettings();
+
+        let withdrawalShares = toToken(2539);
+        await seniorTrancheVaultContract.connect(lender2).addRedemptionRequest(withdrawalShares);
+
+        let lastEpoch = await epochManagerContract.currentEpoch();
+        let ts = lastEpoch.endTime.toNumber() + 60 * 5;
+        await setNextBlockTimestamp(ts);
+        let [endTime] = getNextDueDate(
+            settings.calendarUnit,
+            lastEpoch.endTime.toNumber(),
+            ts,
+            settings.epochWindowInCalendarUnit
+        );
+
+        let seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
+        let juniorTotalAssets = await juniorTrancheVaultContract.totalAssets();
+
+        await expect(epochManagerContract.closeEpoch())
+            .to.emit(epochManagerContract, "EpochClosed")
+            .withArgs(
+                lastEpoch.id,
+                seniorTotalAssets.sub(withdrawalShares),
+                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                juniorTotalAssets,
+                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                0
+            )
+            .to.emit(epochManagerContract, "NewEpochStarted")
+            .withArgs(lastEpoch.id.toNumber() + 1, endTime);
+
+        expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(0);
+        expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
+            seniorTotalAssets.sub(withdrawalShares)
+        );
+        expect(await juniorTrancheVaultContract.totalAssets()).to.equal(juniorTotalAssets);
+    });
+
+    it("Should close epoch successfully while processing multi senior fully", async function () {
+        let settings = await poolConfigContract.getPoolSettings();
+
+        // Epoch1
+
+        let shares = toToken(236);
+        let allShares = shares;
+        await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
+
+        // Move all assets out of pool vault
+
+        let availableAssets = await poolVaultContract.totalAssets();
+        await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
+
+        // Close epoch1
+
+        let lastEpoch = await epochManagerContract.currentEpoch();
+        let ts = lastEpoch.endTime.toNumber() + 60 * 5;
+        await setNextBlockTimestamp(ts);
+        let [endTime] = getNextDueDate(
+            settings.calendarUnit,
+            lastEpoch.endTime.toNumber(),
+            ts,
+            settings.epochWindowInCalendarUnit
+        );
+
+        let seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
+        let juniorTotalAssets = await juniorTrancheVaultContract.totalAssets();
+
+        await expect(epochManagerContract.closeEpoch())
+            .to.emit(epochManagerContract, "EpochClosed")
+            .withArgs(
+                lastEpoch.id,
+                seniorTotalAssets,
+                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                juniorTotalAssets,
+                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                allShares
+            )
+            .to.emit(epochManagerContract, "NewEpochStarted")
+            .withArgs(lastEpoch.id.toNumber() + 1, endTime);
+
+        // Epoch2
+
+        shares = toToken(1357);
+        allShares = allShares.add(shares);
+        await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
+
+        await creditContract.makePayment(ethers.constants.HashZero, allShares);
+
+        // Close epoch2
+
+        lastEpoch = await epochManagerContract.currentEpoch();
+        ts = lastEpoch.endTime.toNumber() + 60 * 5;
+        await setNextBlockTimestamp(ts);
+        [endTime] = getNextDueDate(
+            settings.calendarUnit,
+            lastEpoch.endTime.toNumber(),
+            ts,
+            settings.epochWindowInCalendarUnit
+        );
+
+        seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
+        juniorTotalAssets = await juniorTrancheVaultContract.totalAssets();
+
+        await expect(epochManagerContract.closeEpoch())
+            .to.emit(epochManagerContract, "EpochClosed")
+            .withArgs(
+                lastEpoch.id,
+                seniorTotalAssets.sub(allShares),
+                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                juniorTotalAssets,
+                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                0
+            )
+            .to.emit(epochManagerContract, "NewEpochStarted")
+            .withArgs(lastEpoch.id.toNumber() + 1, endTime);
+
+        expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(0);
+        expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
+            seniorTotalAssets.sub(allShares)
+        );
+        expect(await juniorTrancheVaultContract.totalAssets()).to.equal(juniorTotalAssets);
+    });
+
+    it("Should close epoch successfully while processing multi senior epochs(\
+    some are processed fully, some are processed partially and some are unprocessed)", async function () {
+        let settings = await poolConfigContract.getPoolSettings();
+
+        // Epoch1
+
+        let shares = toToken(376);
+        let partialPaid = shares;
+        let allShares = shares;
+        await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
+
+        // Move all assets out of pool vault
+
+        let availableAssets = await poolVaultContract.totalAssets();
+        await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
+
+        // Close epoch1
+
+        let lastEpoch = await epochManagerContract.currentEpoch();
+        let ts = lastEpoch.endTime.toNumber() + 60 * 5;
+        await setNextBlockTimestamp(ts);
+        let [endTime] = getNextDueDate(
+            settings.calendarUnit,
+            lastEpoch.endTime.toNumber(),
+            ts,
+            settings.epochWindowInCalendarUnit
+        );
+
+        let seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
+        let juniorTotalAssets = await juniorTrancheVaultContract.totalAssets();
+
+        await expect(epochManagerContract.closeEpoch())
+            .to.emit(epochManagerContract, "EpochClosed")
+            .withArgs(
+                lastEpoch.id,
+                seniorTotalAssets,
+                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                juniorTotalAssets,
+                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                allShares
+            )
+            .to.emit(epochManagerContract, "NewEpochStarted")
+            .withArgs(lastEpoch.id.toNumber() + 1, endTime);
+
+        // Epoch2
+
+        shares = toToken(865);
+        allShares = allShares.add(shares);
+        partialPaid = partialPaid.add(shares);
+        await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
+
+        // Close epoch2
+
+        lastEpoch = await epochManagerContract.currentEpoch();
+        ts = lastEpoch.endTime.toNumber() + 60 * 5;
+        await setNextBlockTimestamp(ts);
+        [endTime] = getNextDueDate(
+            settings.calendarUnit,
+            lastEpoch.endTime.toNumber(),
+            ts,
+            settings.epochWindowInCalendarUnit
+        );
+
+        seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
+        juniorTotalAssets = await juniorTrancheVaultContract.totalAssets();
+
+        await expect(epochManagerContract.closeEpoch())
+            .to.emit(epochManagerContract, "EpochClosed")
+            .withArgs(
+                lastEpoch.id,
+                seniorTotalAssets,
+                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                juniorTotalAssets,
+                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                allShares
+            )
+            .to.emit(epochManagerContract, "NewEpochStarted")
+            .withArgs(lastEpoch.id.toNumber() + 1, endTime);
+
+        // Epoch3
+
+        shares = toToken(637);
+        partialPaid = partialPaid.add(toToken(169));
+        allShares = allShares.add(shares);
+        await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
+
+        // Close epoch3
+
+        lastEpoch = await epochManagerContract.currentEpoch();
+        ts = lastEpoch.endTime.toNumber() + 60 * 5;
+        await setNextBlockTimestamp(ts);
+        [endTime] = getNextDueDate(
+            settings.calendarUnit,
+            lastEpoch.endTime.toNumber(),
+            ts,
+            settings.epochWindowInCalendarUnit
+        );
+
+        seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
+        juniorTotalAssets = await juniorTrancheVaultContract.totalAssets();
+
+        await expect(epochManagerContract.closeEpoch())
+            .to.emit(epochManagerContract, "EpochClosed")
+            .withArgs(
+                lastEpoch.id,
+                seniorTotalAssets,
+                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                juniorTotalAssets,
+                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                allShares
+            )
+            .to.emit(epochManagerContract, "NewEpochStarted")
+            .withArgs(lastEpoch.id.toNumber() + 1, endTime);
+
+        // Epoch4
+
+        shares = toToken(497);
+        allShares = allShares.add(shares);
+        await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
+
+        await creditContract.makePayment(ethers.constants.HashZero, partialPaid);
+
+        // Close epoch4
+
+        lastEpoch = await epochManagerContract.currentEpoch();
+        ts = lastEpoch.endTime.toNumber() + 60 * 5;
+        await setNextBlockTimestamp(ts);
+        [endTime] = getNextDueDate(
+            settings.calendarUnit,
+            lastEpoch.endTime.toNumber(),
+            ts,
+            settings.epochWindowInCalendarUnit
+        );
+
+        seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
+        juniorTotalAssets = await juniorTrancheVaultContract.totalAssets();
+
+        await expect(epochManagerContract.closeEpoch())
+            .to.emit(epochManagerContract, "EpochClosed")
+            .withArgs(
+                lastEpoch.id,
+                seniorTotalAssets.sub(partialPaid),
+                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                juniorTotalAssets,
+                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                allShares.sub(partialPaid)
+            )
+            .to.emit(epochManagerContract, "NewEpochStarted")
+            .withArgs(lastEpoch.id.toNumber() + 1, endTime);
+
+        expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(2);
+        expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(2);
+        expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
+            seniorTotalAssets.sub(partialPaid)
+        );
+        expect(await juniorTrancheVaultContract.totalAssets()).to.equal(juniorTotalAssets);
+    });
+
+    it("Should close epoch successfully while processing one junior fully", async function () {
+        let settings = await poolConfigContract.getPoolSettings();
+
+        let withdrawalShares = toToken(7363);
+        await juniorTrancheVaultContract.connect(lender2).addRedemptionRequest(withdrawalShares);
+
+        let lastEpoch = await epochManagerContract.currentEpoch();
+        let ts = lastEpoch.endTime.toNumber() + 60 * 5;
+        await setNextBlockTimestamp(ts);
+        let [endTime] = getNextDueDate(
+            settings.calendarUnit,
+            lastEpoch.endTime.toNumber(),
+            ts,
+            settings.epochWindowInCalendarUnit
+        );
+
+        let seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
+        let juniorTotalAssets = await juniorTrancheVaultContract.totalAssets();
+
+        await expect(epochManagerContract.closeEpoch())
+            .to.emit(epochManagerContract, "EpochClosed")
+            .withArgs(
+                lastEpoch.id,
+                seniorTotalAssets,
+                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                juniorTotalAssets.sub(withdrawalShares),
+                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                0
+            )
+            .to.emit(epochManagerContract, "NewEpochStarted")
+            .withArgs(lastEpoch.id.toNumber() + 1, endTime);
+
+        expect((await juniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(0);
+        expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
+            juniorTotalAssets.sub(withdrawalShares)
+        );
+        expect(await seniorTrancheVaultContract.totalAssets()).to.equal(seniorTotalAssets);
+    });
+
+    it("Should close epoch successfully while processing multi junior fully", async function () {
+        let settings = await poolConfigContract.getPoolSettings();
+
+        // Epoch1
+
+        let shares = toToken(396);
+        let allShares = shares;
+        await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
+
+        // Move all assets out of pool vault
+
+        let availableAssets = await poolVaultContract.totalAssets();
+        await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
+
+        // Close epoch1
+
+        let lastEpoch = await epochManagerContract.currentEpoch();
+        let ts = lastEpoch.endTime.toNumber() + 60 * 5;
+        await setNextBlockTimestamp(ts);
+        let [endTime] = getNextDueDate(
+            settings.calendarUnit,
+            lastEpoch.endTime.toNumber(),
+            ts,
+            settings.epochWindowInCalendarUnit
+        );
+
+        let seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
+        let juniorTotalAssets = await juniorTrancheVaultContract.totalAssets();
+
+        await expect(epochManagerContract.closeEpoch())
+            .to.emit(epochManagerContract, "EpochClosed")
+            .withArgs(
+                lastEpoch.id,
+                seniorTotalAssets,
+                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                juniorTotalAssets,
+                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                allShares
+            )
+            .to.emit(epochManagerContract, "NewEpochStarted")
+            .withArgs(lastEpoch.id.toNumber() + 1, endTime);
+        expect((await juniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(1);
+
+        // Epoch2
+
+        shares = toToken(873);
+        allShares = allShares.add(shares);
+        await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
+
+        // Close epoch2
+
+        lastEpoch = await epochManagerContract.currentEpoch();
+        ts = lastEpoch.endTime.toNumber() + 60 * 5;
+        await setNextBlockTimestamp(ts);
+        [endTime] = getNextDueDate(
+            settings.calendarUnit,
+            lastEpoch.endTime.toNumber(),
+            ts,
+            settings.epochWindowInCalendarUnit
+        );
+
+        seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
+        juniorTotalAssets = await juniorTrancheVaultContract.totalAssets();
+
+        await expect(epochManagerContract.closeEpoch())
+            .to.emit(epochManagerContract, "EpochClosed")
+            .withArgs(
+                lastEpoch.id,
+                seniorTotalAssets,
+                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                juniorTotalAssets,
+                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                allShares
+            )
+            .to.emit(epochManagerContract, "NewEpochStarted")
+            .withArgs(lastEpoch.id.toNumber() + 1, endTime);
+        expect((await juniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(2);
+
+        // Epoch3
+
+        shares = toToken(4865);
+        allShares = allShares.add(shares);
+        await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
+
+        await creditContract.makePayment(ethers.constants.HashZero, allShares);
+
+        // Close epoch3
+
+        lastEpoch = await epochManagerContract.currentEpoch();
+        ts = lastEpoch.endTime.toNumber() + 60 * 5;
+        await setNextBlockTimestamp(ts);
+        [endTime] = getNextDueDate(
+            settings.calendarUnit,
+            lastEpoch.endTime.toNumber(),
+            ts,
+            settings.epochWindowInCalendarUnit
+        );
+
+        seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
+        juniorTotalAssets = await juniorTrancheVaultContract.totalAssets();
+
+        await expect(epochManagerContract.closeEpoch())
+            .to.emit(epochManagerContract, "EpochClosed")
+            .withArgs(
+                lastEpoch.id,
+                seniorTotalAssets,
+                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                juniorTotalAssets.sub(allShares),
+                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                0
+            )
+            .to.emit(epochManagerContract, "NewEpochStarted")
+            .withArgs(lastEpoch.id.toNumber() + 1, endTime);
+
+        expect((await juniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(0);
+        expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
+            juniorTotalAssets.sub(allShares)
+        );
+        expect(await seniorTrancheVaultContract.totalAssets()).to.equal(seniorTotalAssets);
+    });
+
+    it("Should close epoch successfully while processing multi junior epochs(\
+    some are processed fully, some are processed partially and some are unprocessed)", async function () {
+        let settings = await poolConfigContract.getPoolSettings();
+
+        // Epoch1
+
+        let shares = toToken(1628);
+        let partialPaid = shares;
+        let allShares = shares;
+        await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
+
+        // Move all assets out of pool vault
+
+        let availableAssets = await poolVaultContract.totalAssets();
+        await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
+
+        // Close epoch1
+
+        let lastEpoch = await epochManagerContract.currentEpoch();
+        let ts = lastEpoch.endTime.toNumber() + 60 * 5;
+        await setNextBlockTimestamp(ts);
+        let [endTime] = getNextDueDate(
+            settings.calendarUnit,
+            lastEpoch.endTime.toNumber(),
+            ts,
+            settings.epochWindowInCalendarUnit
+        );
+
+        let seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
+        let juniorTotalAssets = await juniorTrancheVaultContract.totalAssets();
+
+        await expect(epochManagerContract.closeEpoch())
+            .to.emit(epochManagerContract, "EpochClosed")
+            .withArgs(
+                lastEpoch.id,
+                seniorTotalAssets,
+                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                juniorTotalAssets,
+                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                allShares
+            )
+            .to.emit(epochManagerContract, "NewEpochStarted")
+            .withArgs(lastEpoch.id.toNumber() + 1, endTime);
+
+        // Epoch2
+
+        shares = toToken(3748);
+        allShares = allShares.add(shares);
+        partialPaid = partialPaid.add(toToken(2637));
+        await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
+
+        // Close epoch2
+
+        lastEpoch = await epochManagerContract.currentEpoch();
+        ts = lastEpoch.endTime.toNumber() + 60 * 5;
+        await setNextBlockTimestamp(ts);
+        [endTime] = getNextDueDate(
+            settings.calendarUnit,
+            lastEpoch.endTime.toNumber(),
+            ts,
+            settings.epochWindowInCalendarUnit
+        );
+
+        seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
+        juniorTotalAssets = await juniorTrancheVaultContract.totalAssets();
+
+        await expect(epochManagerContract.closeEpoch())
+            .to.emit(epochManagerContract, "EpochClosed")
+            .withArgs(
+                lastEpoch.id,
+                seniorTotalAssets,
+                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                juniorTotalAssets,
+                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                allShares
+            )
+            .to.emit(epochManagerContract, "NewEpochStarted")
+            .withArgs(lastEpoch.id.toNumber() + 1, endTime);
+
+        // Epoch3
+
+        shares = toToken(8474);
+        allShares = allShares.add(shares);
+        await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
+
+        // Close epoch3
+
+        lastEpoch = await epochManagerContract.currentEpoch();
+        ts = lastEpoch.endTime.toNumber() + 60 * 5;
+        await setNextBlockTimestamp(ts);
+        [endTime] = getNextDueDate(
+            settings.calendarUnit,
+            lastEpoch.endTime.toNumber(),
+            ts,
+            settings.epochWindowInCalendarUnit
+        );
+
+        seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
+        juniorTotalAssets = await juniorTrancheVaultContract.totalAssets();
+
+        await expect(epochManagerContract.closeEpoch())
+            .to.emit(epochManagerContract, "EpochClosed")
+            .withArgs(
+                lastEpoch.id,
+                seniorTotalAssets,
+                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                juniorTotalAssets,
+                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                allShares
+            )
+            .to.emit(epochManagerContract, "NewEpochStarted")
+            .withArgs(lastEpoch.id.toNumber() + 1, endTime);
+
+        // Epoch4
+
+        shares = toToken(7463);
+        allShares = allShares.add(shares);
+        await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
+
+        await creditContract.makePayment(ethers.constants.HashZero, partialPaid);
+
+        // Close epoch4
+
+        lastEpoch = await epochManagerContract.currentEpoch();
+        ts = lastEpoch.endTime.toNumber() + 60 * 5;
+        await setNextBlockTimestamp(ts);
+        [endTime] = getNextDueDate(
+            settings.calendarUnit,
+            lastEpoch.endTime.toNumber(),
+            ts,
+            settings.epochWindowInCalendarUnit
+        );
+
+        seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
+        juniorTotalAssets = await juniorTrancheVaultContract.totalAssets();
+
+        await expect(epochManagerContract.closeEpoch())
+            .to.emit(epochManagerContract, "EpochClosed")
+            .withArgs(
+                lastEpoch.id,
+                seniorTotalAssets,
+                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                juniorTotalAssets.sub(partialPaid),
+                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                allShares.sub(partialPaid)
+            )
+            .to.emit(epochManagerContract, "NewEpochStarted")
+            .withArgs(lastEpoch.id.toNumber() + 1, endTime);
+
+        expect((await juniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(3);
+        expect(await juniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(1);
+        expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
+            juniorTotalAssets.sub(partialPaid)
+        );
+        expect(await seniorTrancheVaultContract.totalAssets()).to.equal(seniorTotalAssets);
+    });
+
+    it("Should close epoch successfully while processing one senior and one junior epoch fully", async function () {
         let settings = await poolConfigContract.getPoolSettings();
 
         let withdrawalShares = toToken(1000);
@@ -246,5 +833,55 @@ describe("EpochManager Test", function () {
         expect(res.length).to.equal(0);
         res = await juniorTrancheVaultContract.unprocessedEpochInfos();
         expect(res.length).to.equal(0);
+    });
+
+    it("Should close epoch successfully while processing multi epochs, \
+    multi senior epochs are processed fully, \
+    multi junior epochs are processed fully", async function () {});
+
+    it("Should close epoch successfully while processing multi epochs, \
+    multi senior epochs are processed fully, \
+    multi junior epochs are processed partially(\
+    some are processed fully, some are processed partially and some are unprocessed)", async function () {});
+
+    describe("Flex Loan Tests", function () {
+        it("Should close epoch successfully while processing one immature senior fully", async function () {});
+
+        it("Should close epoch successfully while processing multi immature senior fully", async function () {});
+
+        it("Should close epoch successfully while processing multi immature senior(\
+        some are processed fully, some are processed partially and some are unprocessed)", async function () {});
+
+        it("Should close epoch successfully while processing one immature junior fully", async function () {});
+
+        it("Should close epoch successfully while processing multi immature junior fully", async function () {});
+
+        it("Should close epoch successfully while processing multi immature junior(\
+        some are processed fully, some are processed partially and some are unprocessed)", async function () {});
+
+        it("Should close epoch successfully while processing one mature senior, one mature junior, \
+        one immature senior and one immature junior fully", async function () {});
+
+        it("Should close epoch successfully while processing multi epochs, \
+        multi mature senior epochs are processed fully, \
+        multi mature junior epochs are processed fully, \
+        multi immature senior epochs are processed fully, \
+        multi immature junior epochs are processed fully", async function () {});
+
+        it("Should close epoch successfully while processing multi epochs, \
+        multi mature senior epochs are processed fully, \
+        multi mature junior epochs are processed partially(\
+        some are processed fully, some are processed partially and some are unprocessed), \
+        multi immature senior epochs are processed partially(\
+        some are processed fully, some are processed partially and some are unprocessed), \
+        multi immature junior epochs are unprocessed", async function () {});
+
+        it("Should close epoch successfully while processing multi epochs, \
+        multi mature senior epochs are processed fully, \
+        multi mature junior epochs are processed partially(\
+        some are processed fully, some are processed partially and some are unprocessed), \
+        multi immature senior epochs are processed fully, \
+        multi immature junior epochs are processed partially(\
+        some are processed fully, some are processed partially and some are unprocessed)", async function () {});
     });
 });
