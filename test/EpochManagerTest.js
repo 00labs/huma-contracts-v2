@@ -212,9 +212,9 @@ describe("EpochManager Test", function () {
             .withArgs(
                 lastEpoch.id,
                 seniorTotalAssets.sub(withdrawalShares),
-                1,
+                CONSTANTS.PRICE_DECIMALS_FACTOR,
                 juniorTotalAssets.sub(withdrawalShares),
-                1,
+                CONSTANTS.PRICE_DECIMALS_FACTOR,
                 0
             )
             .to.emit(epochManagerContract, "NewEpochStarted")

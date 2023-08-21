@@ -91,8 +91,10 @@ contract EpochManager is PoolConfigCache, IEpochManager {
 
         // calculate senior/junior token price
         // TODO add price decimals
-        uint256 seniorPrice = tranches[SENIOR_TRANCHE_INDEX] / seniorTranche.totalSupply();
-        uint256 juniorPrice = tranches[JUNIOR_TRANCHE_INDEX] / juniorTranche.totalSupply();
+        uint256 seniorPrice = (tranches[SENIOR_TRANCHE_INDEX] * DEFAULT_DECIMALS_FACTOR) /
+            seniorTranche.totalSupply();
+        uint256 juniorPrice = (tranches[JUNIOR_TRANCHE_INDEX] * DEFAULT_DECIMALS_FACTOR) /
+            juniorTranche.totalSupply();
 
         // get unprocessed withdrawal requests
         EpochInfo[] memory seniorEpochs = seniorTranche.unprocessedEpochInfos();
@@ -135,13 +137,13 @@ contract EpochManager is PoolConfigCache, IEpochManager {
             EpochInfo memory epoch = seniorEpochs[i];
             unprocessedShares += epoch.totalShareRequested - epoch.totalShareProcessed;
         }
-        uint256 unprocessedAmounts = unprocessedShares * seniorPrice;
+        uint256 unprocessedAmounts = (unprocessedShares * seniorPrice) / DEFAULT_DECIMALS_FACTOR;
         unprocessedShares = 0;
         for (uint256 i = juniorResult.count; i < juniorEpochs.length; i++) {
             EpochInfo memory epoch = juniorEpochs[i];
             unprocessedShares += epoch.totalShareRequested - epoch.totalShareProcessed;
         }
-        unprocessedAmounts = unprocessedShares * juniorPrice;
+        unprocessedAmounts = (unprocessedShares * juniorPrice) / DEFAULT_DECIMALS_FACTOR;
 
         pool.submitRedemptionRequest(unprocessedAmounts);
 
@@ -354,10 +356,10 @@ contract EpochManager is PoolConfigCache, IEpochManager {
                 uint256(epochInfo.totalAmountProcessed)
             );
             uint256 shares = epochInfo.totalShareRequested - epochInfo.totalShareProcessed;
-            uint256 amounts = shares * price;
+            uint256 amounts = (shares * price) / DEFAULT_DECIMALS_FACTOR;
             if (availableAmount < amounts) {
                 amounts = availableAmount;
-                shares = amounts / price;
+                shares = (amounts * DEFAULT_DECIMALS_FACTOR) / price;
             }
             epochInfo.totalShareProcessed += uint96(shares);
             epochInfo.totalAmountProcessed += uint96(amounts);
@@ -407,7 +409,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         for (uint256 i = epochsRange.startIndex; i < epochsRange.length; i++) {
             EpochInfo memory epochInfo = epochs[i];
             uint256 shares = epochInfo.totalShareRequested - epochInfo.totalShareProcessed;
-            uint256 amounts = shares * price;
+            uint256 amounts = (shares * price) / DEFAULT_DECIMALS_FACTOR;
             if (availableAmount < amounts) {
                 amounts = availableAmount;
             }
@@ -415,7 +417,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
                 amounts = maxAmounts;
             }
 
-            shares = amounts / price;
+            shares = (amounts * DEFAULT_DECIMALS_FACTOR) / price;
             epochInfo.totalShareProcessed += uint96(shares);
             epochInfo.totalAmountProcessed += uint96(amounts);
             availableAmount -= amounts;
