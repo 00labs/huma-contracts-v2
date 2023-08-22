@@ -234,7 +234,7 @@ async function setupPoolContracts(
     await poolOwnerAndEAlossCovererContract.connect(evaluationAgent).addCover(toToken(10_000_000));
 
     // Set pool epoch window to 3 days for testing purposes
-    await poolConfigContract.connect(poolOwner).setPoolEpochWindow(CONSTANTS.CALENDAR_UNIT_DAY, 3);
+    await poolConfigContract.connect(poolOwner).setPoolPayPeriod(CONSTANTS.CALENDAR_UNIT_DAY, 3);
 
     await poolContract.connect(poolOwner).enablePool();
     expect(await poolContract.totalAssets()).to.equal(0);

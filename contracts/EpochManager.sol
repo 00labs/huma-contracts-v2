@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {IPool} from "./interfaces/IPool.sol";
-import {PoolConfig, LPConfig, PoolSettings} from "./PoolConfig.sol";
+import {PoolConfig, PoolSettings, LPConfig} from "./PoolConfig.sol";
 import {PoolConfigCache} from "./PoolConfigCache.sol";
 import {IEpoch, EpochInfo} from "./interfaces/IEpoch.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
@@ -195,7 +195,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         PoolSettings memory poolSettings = poolConfig.getPoolSettings();
         (uint256 nextEndTime, ) = calendar.getNextDueDate(
             poolSettings.calendarUnit,
-            poolSettings.epochWindowInCalendarUnit,
+            poolSettings.payPeriodInCalendarUnit,
             epoch.endTime
         );
         epoch.endTime = uint64(nextEndTime);
@@ -238,81 +238,99 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         console.log("availableAmount: %s", availableAmount);
         if (availableAmount <= 0) return (seniorResult, juniorResult);
 
+        PoolSettings memory settings = poolConfig.getPoolSettings();
         LPConfig memory lpConfig = poolConfig.getLPConfig();
-        uint256 flexPeriod = lpConfig.flexCallWindowInCalendarUnit;
         uint256 maxEpochId = _currentEpoch.id;
 
         // process mature senior withdrawal requests
         uint256 availableCount = seniorEpochs.length;
-        if (flexPeriod > 0) {
+        if (settings.flexCreditEnabled) {
             // get mature senior epochs count
-            uint256 maxMatureEpochId = maxEpochId - flexPeriod;
-            for (uint256 i; i < seniorEpochs.length; i++) {
-                if (seniorEpochs[i].epochId <= maxMatureEpochId) {
-                    availableCount += 1;
-                } else {
-                    break;
+            availableCount = 0;
+            if (maxEpochId > settings.flexCallWindowInEpoch) {
+                uint256 maxMatureEpochId = maxEpochId - settings.flexCallWindowInEpoch;
+                for (uint256 i; i < seniorEpochs.length; i++) {
+                    if (seniorEpochs[i].epochId <= maxMatureEpochId) {
+                        availableCount += 1;
+                    } else {
+                        break;
+                    }
                 }
             }
         }
-        availableAmount = _processSeniorEpochs(
-            tranches,
-            seniorPrice,
-            seniorEpochs,
-            EpochsRange(0, availableCount),
-            availableAmount,
-            seniorResult
-        );
-        console.log("availableAmount: %s", availableAmount);
-        console.log(
-            "seniorResult.count: %s, seniorResult.shares: %s, seniorResult.amounts: %s",
-            seniorResult.count,
-            seniorResult.shares,
-            seniorResult.amounts
-        );
-        if (availableAmount <= 0) {
-            return (seniorResult, juniorResult);
+
+        if (availableCount > 0) {
+            console.log("processing mature senior withdrawal requests...");
+            availableAmount = _processSeniorEpochs(
+                tranches,
+                seniorPrice,
+                seniorEpochs,
+                EpochsRange(0, availableCount),
+                availableAmount,
+                seniorResult
+            );
+            console.log("availableAmount: %s", availableAmount);
+            console.log(
+                "seniorResult.count: %s, seniorResult.shares: %s, seniorResult.amounts: %s",
+                seniorResult.count,
+                seniorResult.shares,
+                seniorResult.amounts
+            );
+            if (availableAmount == 0) {
+                return (seniorResult, juniorResult);
+            }
         }
 
         // process mature junior withdrawal requests
         availableCount = juniorEpochs.length;
-        if (flexPeriod > 0) {
+        if (settings.flexCreditEnabled) {
             // get mature junior epochs count
-            uint256 maxMatureEpochId = maxEpochId - flexPeriod;
-            for (uint256 i; i < juniorEpochs.length; i++) {
-                if (juniorEpochs[i].epochId <= maxMatureEpochId) {
-                    availableCount += 1;
-                } else {
-                    break;
+            availableCount = 0;
+            if (maxEpochId > settings.flexCallWindowInEpoch) {
+                uint256 maxMatureEpochId = maxEpochId - settings.flexCallWindowInEpoch;
+                for (uint256 i; i < juniorEpochs.length; i++) {
+                    if (juniorEpochs[i].epochId <= maxMatureEpochId) {
+                        availableCount += 1;
+                    } else {
+                        break;
+                    }
                 }
             }
         }
         console.log("availableCount: %s", availableCount);
 
         uint256 maxSeniorJuniorRatio = lpConfig.maxSeniorJuniorRatio;
-        availableAmount = _processJuniorEpochs(
-            tranches,
-            juniorPrice,
-            maxSeniorJuniorRatio,
-            juniorEpochs,
-            EpochsRange(0, availableCount),
-            availableAmount,
-            juniorResult
-        );
-        console.log("availableAmount: %s", availableAmount);
-        console.log(
-            "juniorResult.count: %s, juniorResult.shares: %s, juniorResult.amounts: %s",
-            juniorResult.count,
-            juniorResult.shares,
-            juniorResult.amounts
-        );
-        if (availableAmount <= 0 || flexPeriod <= 0) {
+        if (availableCount > 0) {
+            console.log("processing mature junior withdrawal requests...");
+            availableAmount = _processJuniorEpochs(
+                tranches,
+                juniorPrice,
+                maxSeniorJuniorRatio,
+                juniorEpochs,
+                EpochsRange(0, availableCount),
+                availableAmount,
+                juniorResult
+            );
+            console.log("availableAmount: %s", availableAmount);
+            console.log(
+                "juniorResult.count: %s, juniorResult.shares: %s, juniorResult.amounts: %s",
+                juniorResult.count,
+                juniorResult.shares,
+                juniorResult.amounts
+            );
+            if (availableAmount == 0) {
+                return (seniorResult, juniorResult);
+            }
+        }
+
+        if (!settings.flexCreditEnabled) {
             return (seniorResult, juniorResult);
         }
 
         // process immature senior withdrawal requests
         availableCount = seniorEpochs.length - seniorResult.count;
         if (availableCount > 0) {
+            console.log("processing immature senior withdrawal requests...");
             availableAmount = _processSeniorEpochs(
                 tranches,
                 seniorPrice,
@@ -321,7 +339,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
                 availableAmount,
                 seniorResult
             );
-            if (availableAmount <= 0) {
+            if (availableAmount == 0) {
                 return (seniorResult, juniorResult);
             }
         }
@@ -329,6 +347,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         // process immature junior withdrawal requests
         availableCount = juniorEpochs.length - juniorResult.count;
         if (availableCount > 0) {
+            console.log("processing immature junior withdrawal requests...");
             availableAmount = _processJuniorEpochs(
                 tranches,
                 juniorPrice,
@@ -338,7 +357,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
                 availableAmount,
                 juniorResult
             );
-            if (availableAmount <= 0) {
+            if (availableAmount == 0) {
                 return (seniorResult, juniorResult);
             }
         }
