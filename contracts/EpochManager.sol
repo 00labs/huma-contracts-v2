@@ -331,6 +331,11 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         availableCount = seniorEpochs.length - seniorResult.count;
         if (availableCount > 0) {
             console.log("processing immature senior withdrawal requests...");
+            console.log(
+                "seniorResult.count: %s, availableCount: %s",
+                seniorResult.count,
+                availableCount
+            );
             availableAmount = _processSeniorEpochs(
                 tranches,
                 seniorPrice,
@@ -338,6 +343,13 @@ contract EpochManager is PoolConfigCache, IEpochManager {
                 EpochsRange(seniorResult.count, availableCount),
                 availableAmount,
                 seniorResult
+            );
+            console.log("availableAmount: %s", availableAmount);
+            console.log(
+                "seniorResult.count: %s, seniorResult.shares: %s, seniorResult.amounts: %s",
+                seniorResult.count,
+                seniorResult.shares,
+                seniorResult.amounts
             );
             if (availableAmount == 0) {
                 return (seniorResult, juniorResult);
@@ -357,6 +369,13 @@ contract EpochManager is PoolConfigCache, IEpochManager {
                 availableAmount,
                 juniorResult
             );
+            console.log("availableAmount: %s", availableAmount);
+            console.log(
+                "juniorResult.count: %s, juniorResult.shares: %s, juniorResult.amounts: %s",
+                juniorResult.count,
+                juniorResult.shares,
+                juniorResult.amounts
+            );
             if (availableAmount == 0) {
                 return (seniorResult, juniorResult);
             }
@@ -371,7 +390,8 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         uint256 availableAmount,
         TrancheProcessedResult memory trancheResult
     ) internal view returns (uint256 remainingAmount) {
-        for (uint256 i = epochsRange.startIndex; i < epochsRange.length; i++) {
+        uint256 endIndex = epochsRange.startIndex + epochsRange.length;
+        for (uint256 i = epochsRange.startIndex; i < endIndex; i++) {
             EpochInfo memory epochInfo = epochs[i];
             console.log(
                 "epochInfo.epochId: %s, epochInfo.totalShareRequested: %s, epochInfo.totalShareProcessed: %s",
@@ -403,6 +423,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
             trancheResult.count += 1;
             trancheResult.shares += shares;
             trancheResult.amounts += amounts;
+            tranches[SENIOR_TRANCHE_INDEX] -= uint96(amounts);
 
             console.log(
                 "trancheResult.count: %s, trancheResult.shares: %s, trancheResult.amounts: %s",
@@ -415,7 +436,6 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         }
 
         remainingAmount = availableAmount;
-        tranches[SENIOR_TRANCHE_INDEX] -= uint96(trancheResult.amounts);
     }
 
     function _processJuniorEpochs(
@@ -426,16 +446,25 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         EpochsRange memory epochsRange,
         uint256 availableAmount,
         TrancheProcessedResult memory trancheResult
-    ) internal pure returns (uint256 remainingAmount) {
+    ) internal view returns (uint256 remainingAmount) {
         // Round up to meet maxSeniorJuniorRatio
-        uint256 minJuniorAmounts = tranches[SENIOR_TRANCHE_INDEX] / maxSeniorJuniorRatio + 1;
+        uint256 minJuniorAmounts = tranches[SENIOR_TRANCHE_INDEX] / maxSeniorJuniorRatio;
+        if (minJuniorAmounts * maxSeniorJuniorRatio < tranches[SENIOR_TRANCHE_INDEX])
+            minJuniorAmounts += 1;
+        console.log(
+            "minJuniorAmounts: %s, tranches[SENIOR_TRANCHE_INDEX]: %s",
+            minJuniorAmounts,
+            tranches[SENIOR_TRANCHE_INDEX]
+        );
+
         uint256 maxAmounts = tranches[JUNIOR_TRANCHE_INDEX] > minJuniorAmounts
             ? tranches[JUNIOR_TRANCHE_INDEX] - minJuniorAmounts
             : 0;
 
         if (maxAmounts <= 0) return availableAmount;
 
-        for (uint256 i = epochsRange.startIndex; i < epochsRange.length; i++) {
+        uint256 endIndex = epochsRange.startIndex + epochsRange.length;
+        for (uint256 i = epochsRange.startIndex; i < endIndex; i++) {
             EpochInfo memory epochInfo = epochs[i];
             uint256 shares = epochInfo.totalShareRequested - epochInfo.totalShareProcessed;
             uint256 amounts = (shares * price) / DEFAULT_DECIMALS_FACTOR;
