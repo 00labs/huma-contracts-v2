@@ -155,6 +155,12 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         }
         unprocessedAmounts += (unprocessedShares * juniorPrice) / DEFAULT_DECIMALS_FACTOR;
 
+        // uint256 availableAmount = poolVault.totalAssets();
+        // if (unprocessedAmounts > availableAmount) {
+        //     // Some unprocessedAmounts may be caused by maxSeniorJuniorRatio
+        //     pool.submitRedemptionRequest(unprocessedAmounts - availableAmount);
+        // }
+        // TODO choose one option, discuss with Richard
         pool.submitRedemptionRequest(unprocessedAmounts);
 
         console.log(
@@ -243,7 +249,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         uint256 maxEpochId = _currentEpoch.id;
 
         // process mature senior withdrawal requests
-        uint256 availableCount = seniorEpochs.length;
+        uint256 availableCount = seniorEpochs.length; // all junior epochs are mature for non flex loan pool
         if (settings.flexCreditEnabled) {
             // get mature senior epochs count
             availableCount = 0;
@@ -282,7 +288,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         }
 
         // process mature junior withdrawal requests
-        availableCount = juniorEpochs.length;
+        availableCount = juniorEpochs.length; // all junior epochs are mature for non flex loan pool
         if (settings.flexCreditEnabled) {
             // get mature junior epochs count
             availableCount = 0;
@@ -356,16 +362,26 @@ contract EpochManager is PoolConfigCache, IEpochManager {
             }
         }
 
-        // process immature junior withdrawal requests
+        // process left junior withdrawal requests(mature and immature)
         availableCount = juniorEpochs.length - juniorResult.count;
+        uint256 startIndex = juniorResult.count;
+        if (
+            juniorResult.count > 0 &&
+            juniorEpochs[juniorResult.count - 1].totalShareRequested >
+            juniorEpochs[juniorResult.count - 1].totalShareProcessed
+        ) {
+            startIndex -= 1;
+            availableCount += 1;
+        }
+
         if (availableCount > 0) {
-            console.log("processing immature junior withdrawal requests...");
+            console.log("processing left junior withdrawal requests...");
             availableAmount = _processJuniorEpochs(
                 tranches,
                 juniorPrice,
                 maxSeniorJuniorRatio,
                 juniorEpochs,
-                EpochsRange(juniorResult.count, availableCount),
+                EpochsRange(startIndex, availableCount),
                 availableAmount,
                 juniorResult
             );
@@ -482,7 +498,8 @@ contract EpochManager is PoolConfigCache, IEpochManager {
             maxAmounts -= amounts;
             tranches[JUNIOR_TRANCHE_INDEX] -= uint96(amounts);
 
-            trancheResult.count += 1;
+            // One junior epoch may be processed twice, 1st time for mature junior epochs, 2nd time for left junior epochs
+            if (i + 1 > trancheResult.count) trancheResult.count += 1;
             trancheResult.shares += shares;
             trancheResult.amounts += amounts;
 
