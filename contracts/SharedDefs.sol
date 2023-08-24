@@ -8,6 +8,7 @@ uint256 constant MAX_PERIODS = 361;
 uint256 constant SECONDS_IN_A_DAY = 1 days;
 uint256 constant SECONDS_IN_180_DAYS = 180 days;
 uint256 constant SECONDS_IN_A_YEAR = 365 days;
+uint256 constant DEFAULT_DECIMALS_FACTOR = 1e18;
 
 enum CalendarUnit {
     Day,

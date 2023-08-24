@@ -23,6 +23,8 @@ struct PoolSettings {
     // calendarType and numPerPeriod are used together to measure the duration
     // of a pay period. For example, 14 days, 2 SemiMonth (1 month), 6 SemiMonth (1 quarter)
     CalendarUnit calendarUnit;
+    // It is the pay period in terms of the calendar unit for borrowers.
+    // It is the duration of an epoch for lenders withdrawing.
     uint8 payPeriodInCalendarUnit;
     // the duration of a credit line without an initial drawdown
     uint16 creditApprovalExpirationInDays;
@@ -32,8 +34,8 @@ struct PoolSettings {
     uint16 defaultGracePeriodInCalendarUnit;
     // percentage of the receivable amount applied towards available credit
     uint16 advanceRateInBps;
-    // The duration of an epoch, in the unit of full CalendarUnit
-    uint8 epochWindowInCalendarUnit;
+    // The duration between a capital withdraw request and capital availability, in the unit of full CycleType.
+    uint8 flexCallWindowInEpoch;
     // if the pool is exclusive to one borrower
     bool singleBorrower;
     // if the dues are combined into one credit if the borrower has multiple receivables
@@ -71,8 +73,6 @@ struct LPConfig {
     uint16 fixedSeniorYieldInBps;
     // Percentage of yield to be shifted from senior to junior. Either this or fixedSeniorYieldInBps is non-zero
     uint16 tranchesRiskAdjustmentInBps;
-    // The duration between a capital withdraw request and capital availability, in the unit of full CycleType.
-    uint8 flexCallWindowInCalendarUnit;
 }
 
 struct FirstLossCover {
@@ -265,7 +265,6 @@ contract PoolConfig is AccessControl, Initializable {
         _pSettings.advanceRateInBps = 10000; // 100%
         _pSettings.latePaymentGracePeriodInDays = 5;
         _pSettings.defaultGracePeriodInCalendarUnit = 3; // 3 months
-        _pSettings.epochWindowInCalendarUnit = 1; // 1 month
         _poolSettings = _pSettings;
 
         AdminRnR memory adminRnRConfig = _adminRnR;
@@ -424,13 +423,14 @@ contract PoolConfig is AccessControl, Initializable {
         //emit PoolPayPeriodChanged(unit, number, msg.sender);
     }
 
-    function setPoolEpochWindow(CalendarUnit unit, uint256 number) external {
+    function setPoolFlexCall(bool enabled, uint256 windowInEpoch) external {
         _onlyOwnerOrHumaMasterAdmin();
-        if (number == 0) revert Errors.zeroAmountProvided();
+        if (windowInEpoch == 0) revert Errors.zeroAmountProvided();
         PoolSettings memory _settings = _poolSettings;
-        _settings.calendarUnit = unit;
-        _settings.epochWindowInCalendarUnit = uint8(number);
+        _settings.flexCreditEnabled = enabled;
+        _settings.flexCallWindowInEpoch = uint8(windowInEpoch);
         _poolSettings = _settings;
+        // TODO emit event
     }
 
     /**

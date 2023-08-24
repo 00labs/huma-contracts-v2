@@ -1,16 +1,19 @@
 const {expect} = require("chai");
+const {BigNumber: BN} = require("ethers");
 const {toToken, getNextDate, getNextMonth} = require("./TestUtils");
 
 const CALENDAR_UNIT_DAY = 0;
 const CALENDAR_UNIT_MONTH = 1;
 const SENIOR_TRANCHE_INDEX = 0;
 const JUNIOR_TRANCHE_INDEX = 1;
+const PRICE_DECIMALS_FACTOR = BN.from(10).pow(BN.from(18));
 
 const CONSTANTS = {
     CALENDAR_UNIT_DAY,
     CALENDAR_UNIT_MONTH,
     SENIOR_TRANCHE_INDEX,
     JUNIOR_TRANCHE_INDEX,
+    PRICE_DECIMALS_FACTOR,
 };
 
 async function deployProtocolContracts(
@@ -231,7 +234,7 @@ async function setupPoolContracts(
     await poolOwnerAndEAlossCovererContract.connect(evaluationAgent).addCover(toToken(10_000_000));
 
     // Set pool epoch window to 3 days for testing purposes
-    await poolConfigContract.connect(poolOwner).setPoolEpochWindow(CONSTANTS.CALENDAR_UNIT_DAY, 3);
+    await poolConfigContract.connect(poolOwner).setPoolPayPeriod(CONSTANTS.CALENDAR_UNIT_DAY, 3);
 
     await poolContract.connect(poolOwner).enablePool();
     expect(await poolContract.totalAssets()).to.equal(0);
