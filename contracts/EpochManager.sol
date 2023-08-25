@@ -155,12 +155,6 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         }
         unprocessedAmounts += (unprocessedShares * juniorPrice) / DEFAULT_DECIMALS_FACTOR;
 
-        // uint256 availableAmount = poolVault.totalAssets();
-        // if (unprocessedAmounts > availableAmount) {
-        //     // Some unprocessedAmounts may be caused by maxSeniorJuniorRatio
-        //     pool.submitRedemptionRequest(unprocessedAmounts - availableAmount);
-        // }
-        // TODO choose one option, discuss with Richard
         pool.submitRedemptionRequest(unprocessedAmounts);
 
         console.log(
