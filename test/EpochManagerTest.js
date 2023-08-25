@@ -2620,5 +2620,133 @@ describe("EpochManager Test", function () {
                 seniorTotalAssets.sub(unprocessedS)
             );
         });
+
+        it.only("Should reserve balance in pool vault while mature junior epochs are processed partially because of maxSeniorJuniorRatio", async function () {
+            await poolConfigContract.connect(poolOwner).setPoolFlexCall(true, 1);
+
+            let settings = await poolConfigContract.getPoolSettings();
+            let lpConfig = await poolConfigContract.getLPConfig();
+
+            let seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
+            let juniorTotalAssets = await juniorTrancheVaultContract.totalAssets();
+
+            let availableSeniorAmount = juniorTotalAssets
+                .mul(lpConfig.maxSeniorJuniorRatio)
+                .sub(seniorTotalAssets);
+            await seniorTrancheVaultContract
+                .connect(lender)
+                .deposit(availableSeniorAmount, lender.address);
+
+            // Epoch1
+
+            let shares = toToken(73645);
+            let unprocessedJ = shares;
+            await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
+            shares = toToken(164738);
+            let unprocessedS = shares;
+            await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
+
+            // Move all assets out of pool vault
+
+            let totalAssets = await poolVaultContract.totalAssets();
+            await creditContract.drawdown(ethers.constants.HashZero, totalAssets);
+
+            // Close epoch1
+
+            let lastEpoch = await epochManagerContract.currentEpoch();
+            let ts = lastEpoch.endTime.toNumber() + 60 * 5;
+            await setNextBlockTimestamp(ts);
+            let [endTime] = getNextDueDate(
+                settings.calendarUnit,
+                lastEpoch.endTime.toNumber(),
+                ts,
+                settings.payPeriodInCalendarUnit
+            );
+
+            seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
+            juniorTotalAssets = await juniorTrancheVaultContract.totalAssets();
+
+            await expect(epochManagerContract.closeEpoch())
+                .to.emit(epochManagerContract, "EpochClosed")
+                .withArgs(
+                    lastEpoch.id,
+                    seniorTotalAssets,
+                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    juniorTotalAssets,
+                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    unprocessedS.add(unprocessedJ)
+                )
+                .to.emit(epochManagerContract, "NewEpochStarted")
+                .withArgs(lastEpoch.id.toNumber() + 1, endTime);
+
+            expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(1);
+            expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(0);
+            expect((await juniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(1);
+            expect(await juniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(0);
+            expect(await seniorTrancheVaultContract.totalAssets()).to.equal(seniorTotalAssets);
+            expect(await juniorTrancheVaultContract.totalAssets()).to.equal(juniorTotalAssets);
+
+            // Epoch2
+
+            shares = toToken(27468);
+            unprocessedJ = unprocessedJ.add(shares);
+            await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
+            let processedS = unprocessedS;
+            shares = toToken(3647);
+            unprocessedS = unprocessedS.add(shares);
+            await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
+
+            let processedJ = await getMaxJuniorProcessed(
+                unprocessedS,
+                lpConfig.maxSeniorJuniorRatio
+            );
+            let leftAssets = toToken(36485);
+            await creditContract.makePayment(
+                ethers.constants.HashZero,
+                unprocessedS.add(processedJ).add(leftAssets)
+            );
+
+            // Close epoch2
+
+            lastEpoch = await epochManagerContract.currentEpoch();
+            ts = lastEpoch.endTime.toNumber() + 60 * 5;
+            await setNextBlockTimestamp(ts);
+            [endTime] = getNextDueDate(
+                settings.calendarUnit,
+                lastEpoch.endTime.toNumber(),
+                ts,
+                settings.payPeriodInCalendarUnit
+            );
+
+            seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
+            juniorTotalAssets = await juniorTrancheVaultContract.totalAssets();
+
+            await expect(epochManagerContract.closeEpoch())
+                .to.emit(epochManagerContract, "EpochClosed")
+                .withArgs(
+                    lastEpoch.id,
+                    seniorTotalAssets.sub(unprocessedS),
+                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    juniorTotalAssets.sub(processedJ),
+                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    unprocessedJ.sub(processedJ)
+                )
+                .to.emit(epochManagerContract, "NewEpochStarted")
+                .withArgs(lastEpoch.id.toNumber() + 1, endTime);
+
+            expect((await juniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(2);
+            expect(await juniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(0);
+            expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(0);
+            expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(2);
+            expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
+                juniorTotalAssets.sub(processedJ)
+            );
+            expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
+                seniorTotalAssets.sub(unprocessedS)
+            );
+
+            expect(await poolVaultContract.getAvailableLiquidity()).to.equal(0);
+            expect(await poolVaultContract.getAvailableReservation()).to.equal(leftAssets);
+        });
     });
 });
