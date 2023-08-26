@@ -51,6 +51,18 @@ contract BaseCreditFeeManager is ICreditFeeManager {
             fees += (_amount * frontLoadingFeeBps) / HUNDRED_PERCENT_IN_BPS;
     }
 
+    function getPayoffAmount(
+        CreditRecord memory cr,
+        uint256 yieldInBps
+    ) external view virtual override returns (uint256 payoffAmount) {
+        payoffAmount = uint256(cr.totalDue + cr.unbilledPrincipal);
+        uint256 remainingInterest = (yieldInBps *
+            (cr.unbilledPrincipal + cr.totalDue - cr.yieldDue - cr.feesDue) *
+            (cr.nextDueDate - block.timestamp)) / SECONDS_IN_A_YEAR;
+        assert(payoffAmount >= remainingInterest);
+        payoffAmount -= remainingInterest;
+    }
+
     /**
      * @notice Apply front loading fee, distribute the total amount to borrower, pool, & protocol
      * @param borrowAmount the amount of the borrowing
@@ -129,8 +141,16 @@ contract BaseCreditFeeManager is ICreditFeeManager {
             uint96 principalDifference
         )
     {
-        // Directly returns if it is still within the current period
-        if (block.timestamp <= _cr.nextDueDate) {
+        // If the due is nonzero and has passed late payment grace period, the account is considered late
+        bool isLate = (_cr.totalDue != 0 &&
+            block.timestamp >
+            _cr.nextDueDate +
+                poolConfig.getPoolSettings().latePaymentGracePeriodInDays *
+                SECONDS_IN_A_DAY);
+
+        // Directly returns if it is still within the current period or within late payment grace
+        // period when there is still a balance due
+        if ((block.timestamp <= _cr.nextDueDate) || (_cr.totalDue != 0 && !isLate)) {
             return (0, _cr.feesDue, _cr.yieldDue, _cr.totalDue, _cr.unbilledPrincipal, 0, 0);
         }
 

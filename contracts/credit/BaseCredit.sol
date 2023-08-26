@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {CreditConfig, CreditRecord, CreditProfit, CreditLoss, CreditState, PaymentStatus, PnLTracker} from "./CreditStructs.sol";
+import {CreditConfig, CreditRecord, CreditLoss, CreditState, PaymentStatus, PnLTracker, Payment} from "./CreditStructs.sol";
 import {ICreditFeeManager} from "./utils/interfaces/ICreditFeeManager.sol";
 import {ICredit} from "./interfaces/ICredit.sol";
 import {IFlexCredit} from "./interfaces/IFlexCredit.sol";
 import {ICalendar} from "./interfaces/ICalendar.sol";
 import {BaseCreditStorage} from "./BaseCreditStorage.sol";
 import {Errors} from "../Errors.sol";
-import {PoolConfig} from "../PoolConfig.sol";
+import {PoolConfig, PoolSettings} from "../PoolConfig.sol";
 import "../SharedDefs.sol";
 import {HumaConfig} from "../HumaConfig.sol";
 import {CalendarUnit} from "../SharedDefs.sol";
 import {IERC20, IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {PnLManager} from "./PnLManager.sol";
+import {IPnLManager} from "./interfaces/IPnLManager.sol";
 
 /**
  * Credit is the basic borrowing entry in Huma Protocol.
@@ -30,7 +30,8 @@ import {PnLManager} from "./PnLManager.sol";
 contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
     using SafeERC20 for IERC20;
     ICalendar calendar;
-    PnLManager pnlManager;
+    // todo pass pnlManager as a parameter in the initianizer
+    IPnLManager pnlManager;
 
     enum CreditLineClosureReason {
         Paidoff,
@@ -45,6 +46,18 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         uint256 amountDue,
         address borrower
     );
+
+    event BorrowerApproved(
+        address borrower,
+        uint96 creditLimit,
+        uint16 numOfPeriods,
+        uint16 yieldInBps,
+        uint96 committedAmount,
+        bool revolving,
+        bool receivableRequired,
+        bool borrowerLevelCredit
+    );
+
     /// Credit line request has been approved
     event CreditApproved(
         address indexed borrower,
@@ -136,8 +149,6 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
      * @notice approve a borrower with the
      * @param borrower the borrower address
      * @param creditLimit the credit limit at the borrower level
-     * @param calendarUnit calendar unit type: Day or Semimonth
-     * @param periodDuration period duration in calendarUnit
      * @param numOfPeriods how many periods are approved for the borrower
      * @param committedAmount the amount the borrower committed to use.
      * The yield will be computed using the max of this amount and the acutal credit used.
@@ -145,8 +156,6 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
     function approveBorrower(
         address borrower,
         uint96 creditLimit,
-        CalendarUnit calendarUnit, // days or semimonth
-        uint16 periodDuration,
         uint16 numOfPeriods, // number of periods
         uint16 yieldInBps,
         uint96 committedAmount,
@@ -158,14 +167,14 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         onlyEAServiceAccount();
 
         if (creditLimit <= 0) revert();
-        if (periodDuration <= 0) revert();
         if (numOfPeriods <= 0) revert();
 
+        PoolSettings memory ps = _poolConfig.getPoolSettings();
         _borrowerConfigMap[borrower] = CreditConfig(
             creditLimit,
             committedAmount,
-            calendarUnit,
-            periodDuration,
+            ps.calendarUnit,
+            ps.payPeriodInCalendarUnit,
             numOfPeriods,
             yieldInBps,
             revolving,
@@ -174,7 +183,16 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
             true
         );
 
-        // :emit BorrowerApproved(borrower, creditLimit);
+        emit BorrowerApproved(
+            borrower,
+            creditLimit,
+            numOfPeriods,
+            yieldInBps,
+            committedAmount,
+            revolving,
+            receivableRequired,
+            borrowerLevelCredit
+        );
     }
 
     function getCreditHash(address borrower) public view virtual returns (bytes32 creditHash) {
@@ -187,69 +205,77 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         uint256 receivableId
     ) public view virtual returns (bytes32 creditHash) {}
 
-    // /**
-    //  * @notice Approves the credit request with the terms provided.
-    //  * @param borrower the borrower address
-    //  * @param creditLimit the credit limit of the credit line
-    //  * @param calendarUnit how the period is measured, by days or by semimonth
-    //  * @param payPeriodInCalendarUnit the multiple of the calendarUnit
-    //  * @param remainingPeriods how many cycles are there before the credit line expires
-    //  * @param yieldInBps expected yield expressed in basis points, 1% is 100, 100% is 10000
-    //  * @dev only Evaluation Agent can call
-    //  */
-    // function approveCredit(
-    //     address borrower,
-    //     uint96 creditLimit,
-    //     CalendarUnit calendarUnit,
-    //     uint16 payPeriodInCalendarUnit,
-    //     uint16 remainingPeriods,
-    //     uint16 yieldInBps,
-    //     uint96 committedAmount,
-    //     bool revolving
-    // ) external virtual {
-    //     _protocolAndPoolOn();
-    //     onlyEAServiceAccount();
-    //     if (payPeriodInCalendarUnit == 0) revert Errors.requestedCreditWithZeroDuration();
-    //     if (remainingPeriods == 0) revert Errors.zeroPayPeriods();
-    //     if (creditLimit == 0) revert();
+    /**
+     * @notice Approves the credit request with the terms provided.
+     * @param borrower the borrower address
+     * @param creditLimit the credit limit of the credit line
+     * @param remainingPeriods how many cycles are there before the credit line expires
+     * @param yieldInBps expected yield expressed in basis points, 1% is 100, 100% is 10000
+     * @dev only Evaluation Agent can call
+     */
+    function approveCredit(
+        address borrower,
+        uint96 creditLimit,
+        uint16 remainingPeriods,
+        uint16 yieldInBps,
+        uint96 committedAmount,
+        bool revolving
+    ) external virtual {
+        _protocolAndPoolOn();
+        onlyEAServiceAccount();
 
-    //     // :Need to check both are credit level and borrower level
-    //     _maxCreditLineCheck(creditLimit);
+        // todo To keep these two checks, we have to add functions to allow remainingPeriods
+        // or creditLimit set to 0.
+        if (remainingPeriods == 0) revert Errors.zeroPayPeriods();
+        if (creditLimit == 0) revert();
 
-    //     // Update to a credit record is disallowed if there is drawdown already
-    //     bytes32 creditHash = getCreditHash(borrower);
-    //     CreditRecord memory cr = _getCreditRecord(creditHash);
-    //     if (cr.state >= CreditState.Approved) revert Errors.creditLineNotInStateForUpdate();
+        PoolSettings memory ps = _poolConfig.getPoolSettings();
 
-    //     CreditConfig memory cc = _getCreditConfig(creditHash);
-    //     cc.creditLimit = uint96(creditLimit);
-    //     cc.calendarUnit = CalendarUnit(calendarUnit);
-    //     cc.periodDuration = uint8(payPeriodInCalendarUnit);
-    //     cc.numOfPeriods = uint16(remainingPeriods);
-    //     cc.yieldInBps = uint16(yieldInBps);
-    //     cc.revolving = revolving;
+        // todo check both are credit level and borrower level
+        _maxCreditLineCheck(borrower, creditLimit);
 
-    //     _setCreditConfig(creditHash, cc);
-
-    //     // :emit CreditApproved(borrower, creditLimit, intervalInDays, remainingPeriods, aprInBps);
-    // }
-
-    function closeCredit(bytes32 creditHash) public virtual {
-        // :only borrower or EA
+        // Update to a credit record is disallowed if there is drawdown already
+        bytes32 creditHash = getCreditHash(borrower);
         CreditRecord memory cr = _getCreditRecord(creditHash);
+        if (cr.state >= CreditState.Approved) revert Errors.creditLineNotInStateForUpdate();
+
+        CreditConfig memory cc = _getCreditConfig(creditHash);
+        cc.creditLimit = uint96(creditLimit);
+        cc.calendarUnit = ps.calendarUnit;
+        cc.periodDuration = ps.payPeriodInCalendarUnit;
+        cc.numOfPeriods = uint16(remainingPeriods);
+        cc.yieldInBps = uint16(yieldInBps);
+        cc.revolving = revolving;
+
+        _setCreditConfig(creditHash, cc);
+
+        // :emit CreditApproved(borrower, creditLimit, intervalInDays, remainingPeriods, aprInBps);
+    }
+
+    /**
+     * @notice Closes a credit record.
+     * @dev Revert if there is still balance due
+     * @dev Revert if the committed amount is non-zero and there are periods remaining
+     */
+    function closeCredit(bytes32 creditHash) public virtual {
+        CreditRecord memory cr = _getCreditRecord(creditHash);
+        onlyBorrowerOrEAServiceAccount(cr.borrower);
+        // :only borrower or EA
+        CreditConfig memory cc = _getCreditConfig(creditHash);
         if (cr.totalDue != 0 || cr.unbilledPrincipal != 0) {
             revert Errors.creditLineHasOutstandingBalance();
-        }
-        // :revert if the pool requires committed loan
-        else {
+        } else {
+            if (cc.committedAmount > 0 && cr.remainingPeriods > 0) revert Errors.todo();
+
             // Close the credit by removing relevant record.
             cr.state = CreditState.Deleted;
+            cr.remainingPeriods = 0;
             _setCreditRecord(creditHash, cr);
 
-            CreditConfig memory cc = _getCreditConfig(creditHash);
             cc.creditLimit = 0;
             _setCreditConfig(creditHash, cc);
         }
+        //todo emit event
     }
 
     /**
@@ -264,7 +290,7 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         _protocolAndPoolOn();
         onlyEAServiceAccount();
         // Credit limit needs to be lower than max for the pool.
-        _maxCreditLineCheck(newCreditLimit);
+        _maxCreditLineCheck(borrower, newCreditLimit);
         _borrowerConfigMap[borrower].creditLimit = newCreditLimit;
 
         // emit CreditLineChanged(borrower, oldCreditLimit, newCreditLimit);
@@ -281,12 +307,12 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
     function updateAvailableCredit(bytes32 creditHash, uint96 newAvailableCredit) public virtual {
         _protocolAndPoolOn();
         onlyEAServiceAccount();
-        // Credit limit needs to be lower than max for the pool.
-        // :check against borrower credit limit
-        _maxCreditLineCheck(newAvailableCredit);
-
         CreditRecord memory cr = _getCreditRecord(creditHash);
+
+        _maxCreditLineCheck(cr.borrower, newAvailableCredit);
+
         cr.availableCredit = newAvailableCredit;
+
         // Delete the credit record if the new limit is 0 and no outstanding balance
         if (newAvailableCredit == 0) {
             if (cr.unbilledPrincipal == 0 && cr.totalDue == 0) {
@@ -315,22 +341,25 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
 
     /**
      * @notice allows the borrower to borrow against an approved credit line.
-     * The borrower can borrow and pay back as many times as they would like.
+     * @param creditHash hash of the credit record
      * @param borrowAmount the amount to borrow
+     * @dev Only the owner of the credit line can drawdown.
      */
     function drawdown(bytes32 creditHash, uint256 borrowAmount) external virtual override {
         address borrower = msg.sender;
-        if (borrowAmount == 0) revert Errors.zeroAmountProvided();
         CreditRecord memory cr = _getCreditRecord(creditHash);
         if (borrower != cr.borrower) revert Errors.notBorrower();
 
+        if (borrowAmount == 0) revert Errors.zeroAmountProvided();
+
         _checkDrawdownEligibility(cr, borrowAmount);
+
         uint256 netAmountToBorrower = _drawdown(creditHash, cr, borrowAmount);
         emit DrawdownMade(borrower, borrowAmount, netAmountToBorrower);
     }
 
     /**
-     * @notice The expiration (maturity) date of a credit line has been extended.
+     * @notice Extend the expiration (maturity) date of a credit line
      * @param creditHash the hashcode of the credit
      * @param numOfPeriods the number of pay periods to be extended
      */
@@ -350,7 +379,7 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
     }
 
     /**
-     * @notice Makes one payment for the borrower. This can be initiated by the borrower
+     * @notice Makes one payment for the credit line. This can be initiated by the borrower
      * or by PDSServiceAccount with the allowance approval from the borrower.
      * If this is the final payment, it automatically triggers the payoff process.
      * @return amountPaid the actual amount paid to the contract. When the tendered
@@ -366,9 +395,6 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         address borrower = _getCreditRecord(creditHash).borrower;
         if (msg.sender != borrower) onlyPDSServiceAccount();
         (amountPaid, paidoff, ) = _makePayment(creditHash, amount);
-
-        _payToCredit(creditHash, amount);
-        // transfer amount from msg.sender
     }
 
     /**
@@ -397,18 +423,18 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
     function triggerDefault(bytes32 creditHash) external virtual returns (uint256 losses) {
         _protocolAndPoolOn();
 
-        // // check to make sure the default grace period has passed.
-        // CreditRecord memory cr = _getCreditRecord(borrower);
+        // check to make sure the default grace period has passed.
+        CreditRecord memory cr = _getCreditRecord(creditHash);
 
-        // if (cr.state == BS.CreditState.Defaulted) revert Errors.defaultHasAlreadyBeenTriggered();
+        if (cr.state == CreditState.Defaulted) revert Errors.defaultHasAlreadyBeenTriggered();
 
-        // if (block.timestamp > cr.nextDueDate) {
-        //     cr = _updateDueInfo(borrower, false, false);
-        // }
+        if (block.timestamp > cr.nextDueDate) {
+            cr = _updateDueInfo(creditHash);
+        }
 
-        // // Check if grace period has exceeded. Please note it takes a full pay period
-        // // before the account is considered to be late. The time passed should be one pay period
-        // // plus the grace period.
+        // Check if grace period has exceeded. Please note it takes a full pay period
+        // before the account is considered to be late. The time passed should be one pay period
+        // plus the grace period.
         // if (!isDefaultReady(borrower)) revert Errors.defaultTriggeredTooEarly();
 
         // // default amount includes all outstanding principals
@@ -422,7 +448,7 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
 
         // emit DefaultTriggered(borrower, losses, msg.sender);
 
-        // return losses;
+        return losses;
     }
 
     function creditRecordMap(bytes32 creditHash) external view returns (CreditRecord memory) {
@@ -511,30 +537,25 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
     }
 
     /**
-     * @notice drawdown helper function. Eligibility check is done outside this function.
+     * @notice drawdown helper function.
      * @param creditHash the credit hash
      * @param borrowAmount the amount to borrow
+     * @dev Eligibility check is done outside this function.
      */
     function _drawdown(
         bytes32 creditHash,
         CreditRecord memory cr,
         uint256 borrowAmount
     ) internal virtual returns (uint256) {
-        //pnl impact:
-        // if there is frontloading fee, add to totalProfit
-        // increase profitRate
+        CreditConfig memory cc = _getCreditConfig(creditHash);
 
         if (cr.state == CreditState.Approved) {
             // Flow for first drawdown
-            // Update total principal
+            // Sets the prinicpal, then generates the first bill and sets credit status
             _creditRecordMap[creditHash].unbilledPrincipal = uint96(borrowAmount);
-            // Generates the first bill
-            // Note: the interest is calculated at the beginning of each pay period
             cr = _updateDueInfo(creditHash);
-            // Set account status in good standing
             cr.state = CreditState.GoodStanding;
         } else {
-            // Return drawdown flow
             // Disallow repeated drawdown for non-revolving credit
             if (!cr.revolving) revert Errors.todo();
 
@@ -545,36 +566,47 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
                     revert Errors.creditLineNotInGoodStandingState();
             }
 
+            // note Drawdown is not allowed in the final pay period since the payment due for
+            // such drawdown will fall outside of the window of the credit line.
+            // note since we bill at the beginning of a period, cr.remainingPeriods is zero
+            // in the final period.
+            if (cr.remainingPeriods == 0) revert Errors.creditExpiredDueToMaturity();
+
             if (
-                // :This is not exactly right. need to check the maintenance of availableCredit logic
                 borrowAmount >
                 (cr.availableCredit -
                     cr.unbilledPrincipal -
                     (cr.totalDue - cr.feesDue - cr.yieldDue))
             ) revert Errors.creditLineExceeded();
 
-            // note Drawdown is not allowed in the final pay period since the payment due for
-            // such drawdown will fall outside of the window of the credit line.
-            // note since we bill at the beginning of a period, cr.remainingPeriods is zero
-            // in the final period.
-            if (cr.remainingPeriods == 0) revert Errors.creditExpiredDueToMaturity();
-            // For non-first bill, we do not update the current bill, the interest for the rest of
-            // this pay period is accrued in correction and will be added to the next bill.
+            (uint256 nextDueDate, ) = calendar.getNextDueDate(
+                cc.calendarUnit,
+                cc.periodDuration,
+                cr.nextDueDate
+            );
+
+            // Adjust the new due amount due to the yield generated because of the drawdown
+            // amount for the rest of this period
+            cr.yieldDue += uint96(
+                (borrowAmount * cc.yieldInBps * (nextDueDate - block.timestamp)) /
+                    SECONDS_IN_A_YEAR
+            );
+
             cr.unbilledPrincipal = uint96(cr.unbilledPrincipal + borrowAmount);
         }
         _setCreditRecord(creditHash, cr);
+
         (uint256 netAmountToBorrower, uint256 platformFees) = _feeManager.distBorrowingAmount(
             borrowAmount
         );
 
-        // todo handle income distribution
-        // if (platformFees > 0) distributeIncome(platformFees);
+        uint256 poolIncome = 0;
+        if (platformFees > 0) poolIncome = distributeIncome(platformFees);
 
-        PnLTracker memory tracker = pnlTracker;
-        // todo uncomment these two lines with the real code.
-        // tracker.totalProfit += (portion belongs to the pool);
-        // tracker.totalProfitprofitRate += borrowAmount * _cc.yieldInBps / SECONDS_IN_A_YEAR;
-        pnlTracker = tracker;
+        pnlManager.processDrawdown(
+            uint96(poolIncome),
+            uint96((borrowAmount * cc.yieldInBps) / SECONDS_IN_A_YEAR)
+        );
 
         // Transfer funds to the _borrower
         _underlyingToken.safeTransfer(cr.borrower, netAmountToBorrower);
@@ -582,66 +614,9 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
     }
 
     /**
-     * @notice initiation of a credit line
-     * @param borrower the address of the borrower
-     * @param creditLimit the amount of the liquidity asset that the borrower obtains
-     */
-    function _initiateCredit(
-        address borrower,
-        uint256 creditLimit,
-        uint256 aprInBps,
-        uint256 intervalInDays,
-        uint256 remainingPeriods,
-        bool preApproved
-    ) internal virtual {
-        // if (remainingPeriods == 0) revert Errors.requestedCreditWithZeroDuration();
-        // _protocolAndPoolOn();
-        // // Borrowers cannot have two credit lines in one pool. They can request to increase line.
-        // CreditRecord memory cr = _getCreditRecord(borrower);
-        // if (cr.state != BS.CreditState.Deleted) {
-        //     // If the user has an existing line, but there is no balance, close the old one
-        //     // and initiate the new one automatically.
-        //     cr = _updateDueInfo(borrower, false, true);
-        //     if (cr.totalDue == 0 && cr.unbilledPrincipal == 0) {
-        //         cr.state = BS.CreditState.Deleted;
-        //         cr.remainingPeriods = 0;
-        //         emit CreditLineClosed(
-        //             borrower,
-        //             msg.sender,
-        //             CreditLineClosureReason.OverwrittenByNewLine
-        //         );
-        //     } else {
-        //         revert Errors.creditLineAlreadyExists();
-        //     }
-        // }
-        // // Borrowing amount needs to be lower than max for the pool.
-        // _maxCreditLineCheck(creditLimit);
-        // _creditRecordStaticMap[borrower] = CreditRecordStatic({
-        //     creditLimit: uint96(creditLimit),
-        //     aprInBps: uint16(aprInBps),
-        //     intervalInDays: uint16(intervalInDays),
-        //     defaultAmount: uint96(0)
-        // });
-        // CreditRecord memory ncr;
-        // ncr.remainingPeriods = uint16(remainingPeriods);
-        // if (preApproved) {
-        //     ncr = _approveCredit(ncr);
-        //     emit CreditApproved(borrower, creditLimit, intervalInDays, remainingPeriods, aprInBps);
-        // } else ncr.state = BS.CreditState.Requested;
-        // _setCreditRecord(borrower, ncr);
-        // emit CreditInitiated(
-        //     borrower,
-        //     creditLimit,
-        //     aprInBps,
-        //     intervalInDays,
-        //     remainingPeriods,
-        //     preApproved
-        // );
-    }
-
-    /**
-     * @notice Borrower makes one payment. If this is the final payment,
-     * it automatically triggers the payoff process.
+     * @notice Borrower makes one payment. If the payment amount equals to or is higher
+     * than the payoff amount, it automatically triggers the payoff process. The protocol
+     * never accepts payment amount that is higher than the payoff amount.
      * @param creditHash the hashcode of the credit
      * @param amount the payment amount
      * @return amountPaid the actual amount paid to the contract. When the tendered
@@ -659,74 +634,64 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         CreditRecord memory cr = _getCreditRecord(creditHash);
         CreditConfig memory cc = _getCreditConfig(creditHash);
 
-        address borrower = cr.borrower;
-
         if (block.timestamp > cr.nextDueDate) {
-            // Bring the account current in case it is dormant for several periods.
             cr = _updateDueInfo(creditHash);
         }
 
+        // todo this is not the ideal place for this logic. Ideally, updateDueInfo() should handle this
         // Reverse late charge if it is paid before the late fee grace period
-        // todo cr.nextDueDate is already updated to the next cycle. Next to check
-        // against the previous cycle's due date. Need to add a function in Calendar
-        // to find previous dueDate.
-        if (cr.state == CreditState.Delayed) {
-            if (
-                block.timestamp <
-                cr.nextDueDate +
-                    _poolConfig.getPoolSettings().latePaymentGracePeriodInDays *
-                    SECONDS_IN_A_DAY
-            ) {
-                // Setting feesDue is safe since the fees for the previous cycles should have been rolled into principals.
-                // todo review this carefully.
-                cr.feesDue = 0;
+        {
+            if (cr.state == CreditState.Delayed) {
+                (uint256 beginOfPeriod, ) = calendar.getBeginOfPeriod(
+                    cc.calendarUnit,
+                    cc.periodDuration,
+                    cr.nextDueDate
+                );
+                if (
+                    block.timestamp <
+                    (beginOfPeriod +
+                        _poolConfig.getPoolSettings().latePaymentGracePeriodInDays *
+                        SECONDS_IN_A_DAY)
+                ) {
+                    // todo cr.totalDue should be updated as well, cr.state might need to be updated too.
+                    // Safe to set feesDue to zero since the fees for the previous cycles should have been rolled into principals.
+                    cr.feesDue = 0;
+                }
             }
         }
 
-        // Compute the payoffAmount. Need to exclude the interest
-        // from now to the end of the period
-        uint256 payoffAmount = uint256(cr.totalDue + cr.unbilledPrincipal);
-        //todo move this to a function in feeManager for better readability
-        uint256 remainingInterest = (cc.yieldInBps *
-            (cr.totalDue - cr.yieldDue - cr.feesDue) *
-            (cr.nextDueDate - block.timestamp)) / SECONDS_IN_A_YEAR;
-        assert(payoffAmount >= remainingInterest);
-        payoffAmount -= remainingInterest;
+        uint256 payoffAmount = _feeManager.getPayoffAmount(cr, cc.yieldInBps);
 
         // The amount to collect from the payer's wallet.
-        uint256 amountToCollect;
-        // The amount to be applied towards principal
-        uint256 principalPaid = 0;
-        uint256 yieldPaid = 0;
-        uint256 feesPaid = 0;
-        CreditState oldState = cr.state;
+        Payment memory p = Payment(0, 0, 0, 0, cr.state == CreditState.GoodStanding, false);
 
         if (amount < payoffAmount) {
-            amountToCollect = amount;
+            p.amountToCollect = uint96(amount);
             if (amount < cr.totalDue) {
                 // Handle principal payment
-                if (amount < cr.totalDue - cr.feesDue - cr.yieldDue) principalPaid = amount;
-                else principalPaid = cr.totalDue - cr.feesDue - cr.yieldDue;
-                amount -= principalPaid;
+                p.principalPaid = (amount <= cr.totalDue - cr.feesDue - cr.yieldDue)
+                    ? uint96(amount)
+                    : cr.totalDue - cr.feesDue - cr.yieldDue;
+                amount -= p.principalPaid;
 
                 // Handle interest payment.
                 if (amount > 0) {
-                    yieldPaid = amount <= cr.yieldDue ? amount : cr.yieldDue;
-                    cr.yieldDue -= uint96(yieldPaid);
-                    amount -= yieldPaid;
+                    p.yieldPaid = amount <= cr.yieldDue ? uint96(amount) : cr.yieldDue;
+                    cr.yieldDue -= uint96(p.yieldPaid);
+                    amount -= p.yieldPaid;
                 }
 
                 // Handle fee payment.
                 if (amount > 0) {
-                    feesPaid = amount;
-                    cr.feesDue -= uint96(feesPaid);
+                    p.feesPaid = uint96(amount);
+                    cr.feesDue -= uint96(p.feesPaid);
                 }
 
-                cr.totalDue = uint96(cr.totalDue - principalPaid - yieldPaid - feesPaid);
+                cr.totalDue = uint96(cr.totalDue - amount);
             } else {
                 // Apply extra payments towards principal, reduce unbilledPrincipal amount
                 cr.unbilledPrincipal -= uint96(amount - cr.totalDue);
-                principalPaid = amount - cr.feesDue - cr.yieldDue;
+                p.principalPaid = uint96(amount - cr.feesDue - cr.yieldDue);
                 cr.totalDue = 0;
                 cr.feesDue = 0;
                 cr.yieldDue = 0;
@@ -734,19 +699,12 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
                 // Moves account to GoodStanding if it was delayed.
                 if (cr.state == CreditState.Delayed) cr.state = CreditState.GoodStanding;
             }
-
-            // PnL change
-            // todo feesPaid should be applied towards totalProfit.
-            // todo if principalPaid > 0,  update profitRate
-            if (cr.state == CreditState.Delayed) {
-                // todo principalPaid and yieldPaid should be used to decrease totalMarkdown,
-            }
         } else {
             // Payoff
-            principalPaid = cr.unbilledPrincipal + cr.totalDue - cr.feesDue - cr.yieldDue;
-            feesPaid = cr.feesDue;
-            yieldPaid = cr.yieldDue;
-            amountToCollect = payoffAmount;
+            p.principalPaid = cr.unbilledPrincipal + cr.totalDue - cr.feesDue - cr.yieldDue;
+            p.feesPaid = cr.feesDue;
+            p.yieldPaid = cr.yieldDue;
+            p.amountToCollect = uint96(payoffAmount);
 
             cr.unbilledPrincipal = 0;
             cr.feesDue = 0;
@@ -756,74 +714,52 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
             // Closes the credit line if it is in the final period
             if (cr.remainingPeriods == 0) {
                 cr.state = CreditState.Deleted;
-                emit CreditLineClosed(borrower, msg.sender, CreditLineClosureReason.Paidoff);
+                emit CreditLineClosed(cr.borrower, msg.sender, CreditLineClosureReason.Paidoff);
             } else cr.state = CreditState.GoodStanding;
         }
 
-        // Handle default recovery
-        if (oldState > CreditState.GoodStanding) {
-            // Add all payments to
-        }
-
-        _updatePnl(principalPaid, yieldPaid, feesPaid, cc.yieldInBps);
-
-        _setCreditRecord(creditHash, cr);
-
-        if (amountToCollect > 0) {
-            // Transfer assets from the _borrower to pool locker
-            _underlyingToken.safeTransferFrom(borrower, address(this), amountToCollect);
+        if (p.amountToCollect > 0) {
+            _underlyingToken.safeTransferFrom(cr.borrower, address(this), p.amountToCollect);
             emit PaymentMade(
-                borrower,
-                amountToCollect,
+                cr.borrower,
+                p.amountToCollect,
                 cr.totalDue,
                 cr.unbilledPrincipal,
                 msg.sender
             );
         }
-        // amountToCollect == payoffAmount indicates whether it is paid off or not.
-        // Use >= as a safe practice
-        return (amountToCollect, amountToCollect >= payoffAmount, false);
-    }
+        _setCreditRecord(creditHash, cr);
 
-    /**
-     * @notice Recovers amount when a payment is paid towards a defaulted account.
-     * @dev For any payment after a default, it is applied towards principal losses first.
-     * Only after the principal is fully recovered, it is applied towards fees & interest.
-     */
-    function _recoverDefaultedAmount(bytes32 creditHash, uint256 amountToCollect) internal {
-        //
-        // uint96 _defaultAmount = _creditRecordStaticMap[borrower].defaultAmount;
-        // if (_defaultAmount > 0) {
-        //     uint256 recoveredPrincipal;
-        //     if (_defaultAmount >= amountToCollect) {
-        //         recoveredPrincipal = amountToCollect;
-        //     } else {
-        //         recoveredPrincipal = _defaultAmount;
-        //         distributeIncome(amountToCollect - recoveredPrincipal);
-        //     }
-        //     _totalPoolValue += recoveredPrincipal;
-        //     _defaultAmount -= uint96(recoveredPrincipal);
-        //     _creditRecordStaticMap[borrower].defaultAmount = _defaultAmount;
-        // } else {
-        //     // note The account is moved out of Defaulted state only if the entire due
-        //     // including principals, fees&Interest are paid off. It is possible for
-        //     // the account to owe fees&Interest after _defaultAmount becomes zero.
-        //     distributeIncome(amountToCollect);
-        // }
+        pnlManager.processPayback(
+            creditHash,
+            p.principalPaid,
+            p.yieldPaid,
+            p.feesPaid,
+            uint16(cc.yieldInBps),
+            p.oldLateFlag,
+            cr.state == CreditState.GoodStanding
+        );
+
+        // p.amountToCollect == payoffAmount indicates payoff or not. >= is a safe practice
+        return (p.amountToCollect, p.amountToCollect >= payoffAmount, false);
     }
 
     /// Checks if the given amount is higher than what is allowed by the pool
-    function _maxCreditLineCheck(uint256 amount) internal view {
-        // if (amount > _poolConfig.maxCreditLine()) {
-        //     revert Errors.greaterThanMaxCreditLine();
-        // }
+    function _maxCreditLineCheck(address borrower, uint256 amount) internal view {
+        if (amount > _poolConfig.getPoolSettings().maxCreditLine) {
+            revert Errors.greaterThanMaxCreditLine();
+        }
+
+        if (amount > _borrowerConfigMap[borrower].creditLimit) {
+            revert Errors.greaterThanMaxCreditLine();
+        }
     }
 
     /**
      * @notice updates CreditRecord for `creditHash` using the most up to date information.
      * @dev this is used in both makePayment() and drawdown() to bring the account current
-     * @dev getDueInfo() gets the due information of the most current cycle. This function
-     * updates the record in creditRecordMap
+     * @dev getDueInfo() is a view function to get the due information of the most current cycle.
+     * This function reflects the due info in creditRecordMap
      * @param creditHash the hash of the credit
      */
     function _updateDueInfo(bytes32 creditHash) internal virtual returns (CreditRecord memory cr) {
@@ -831,37 +767,39 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
 
         // Do not update dueInfo for accounts already in default state
         if (cr.state == CreditState.Defaulted) return cr;
-        
+
         // Before the first drawdown, cr.nextDueDate is used to capture credit expiration
         // date. It is validated in the precheck logic for the first drawdown, thus safe
-        // to reset cr.nextDueDate to 0 so that a proper due date can be set.  
+        // to reset cr.nextDueDate to 0 to remove special handling in getDueInfo().
         if (cr.state == CreditState.Approved) cr.nextDueDate = 0;
 
-        CreditConfig memory cc = _getCreditConfig(creditHash);
-        bool alreadyLate = cr.totalDue > 0 ? true : false;
         // Gets the up-to-date due information for the borrower. If the account has been
         // late or dormant for multiple cycles, getDueInfo() will bring it current and
         // return the most up-to-date due information.
+        CreditConfig memory cc = _getCreditConfig(creditHash);
         uint256 periodsPassed = 0;
-        uint96 pnlImpact = 0;
-        uint96 principalDifference = 0;
+        uint96 missedProfit = 0;
+        uint96 principalDiff = 0;
+        // If the due is nonzero and has passed late payment grace period, the account is considered late
+        bool lateFlag = (cr.totalDue != 0 &&
+            block.timestamp >
+            cr.nextDueDate +
+                _poolConfig.getPoolSettings().latePaymentGracePeriodInDays *
+                SECONDS_IN_A_DAY);
+
         (
             periodsPassed,
             cr.feesDue,
             cr.yieldDue,
             cr.totalDue,
             cr.unbilledPrincipal,
-            pnlImpact,
-            principalDifference
+            missedProfit,
+            principalDiff
         ) = _feeManager.getDueInfo(cr, cc);
 
-        // Update PNL by adding missed profit and reflect new profitRate if
-        // the principal has changed.
-        // todo change pnl
-        // totalProfit += pnlImpact;
-        // profitRate += (principalDifference * cc.yieldInBps) / SECONDS_IN_A_YEAR;
-
         if (periodsPassed > 0) {
+            pnlManager.processDueUpdate(principalDiff, missedProfit, lateFlag, creditHash, cc, cr);
+
             // update nextDueDate
             (uint256 dueDate, ) = calendar.getNextDueDate(
                 cc.calendarUnit,
@@ -876,8 +814,10 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
             } else {
                 cr.remainingPeriods = 0;
             }
-            // Sets the right missedPeriods and state for the credit record
-            if (alreadyLate) cr.missedPeriods = uint16(cr.missedPeriods + periodsPassed);
+
+            // Sets the correct missedPeriods. If totalDue is non zero, the totalDue must be
+            // nonZero for each of the passed period, thus add periodsPassed to cr.missedPeriods
+            if (cr.totalDue > 0) cr.missedPeriods = uint16(cr.missedPeriods + periodsPassed);
             else cr.missedPeriods = 0;
 
             if (cr.missedPeriods > 0) {
@@ -888,11 +828,6 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
 
             emit BillRefreshed(creditHash, cr.nextDueDate, cr.totalDue, cr.borrower);
         }
-    }
-
-    /// Shared setter to the credit record mapping for contract size consideration
-    function _setCreditRecord(bytes32 creditHash, CreditRecord memory cr) internal {
-        _creditRecordMap[creditHash] = cr;
     }
 
     /// Shared accessor to the credit record mapping for contract size consideration
@@ -915,198 +850,49 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         _creditConfigMap[creditHash] = cc;
     }
 
+    /// Shared setter to the credit record mapping for contract size consideration
+    function _setCreditRecord(bytes32 creditHash, CreditRecord memory cr) internal {
+        _creditRecordMap[creditHash] = cr;
+    }
+
     /// "Modifier" function that limits access to pdsServiceAccount only.
     function onlyPDSServiceAccount() internal view {
-        // if (msg.sender != HumaConfig(_humaConfig).pdsServiceAccount())
-        //     revert Errors.paymentDetectionServiceAccountRequired();
+        if (msg.sender != HumaConfig(_humaConfig).pdsServiceAccount())
+            revert Errors.paymentDetectionServiceAccountRequired();
     }
 
     /// "Modifier" function that limits access to eaServiceAccount only
     function onlyEAServiceAccount() internal view {
-        // if (msg.sender != _humaConfig.eaServiceAccount())
-        //     revert Errors.evaluationAgentServiceAccountRequired();
+        if (msg.sender != _humaConfig.eaServiceAccount())
+            revert Errors.evaluationAgentServiceAccountRequired();
     }
 
-    function submitPrincipalWithdrawal(uint256 amount) external {}
+    /// "Modifier" function that limits access to eaServiceAccount only
+    function onlyBorrowerOrEAServiceAccount(address borrower) internal view {
+        if (msg.sender != borrower && msg.sender != _humaConfig.eaServiceAccount())
+            revert Errors.evaluationAgentServiceAccountRequired();
+    }
+
+    /**
+     * @notice Requests additional principal payment in the upcoming period.
+     * @param creditHash - the hash of the credit record
+     * @param amount - the extra principal that becomes due
+     */
+    function requestExtraPrincipalPayment(bytes32 creditHash, uint256 amount) external {
+        // todo decide whether this function is called by service account or a contract
+        onlyPDSServiceAccount();
+        CreditRecord memory cr = _getCreditRecord(creditHash);
+        if (amount > cr.unbilledPrincipal) revert Errors.todo();
+        cr.totalDue = uint96(cr.totalDue + amount);
+        cr.unbilledPrincipal = uint96(cr.unbilledPrincipal - amount);
+        _setCreditRecord(creditHash, cr);
+    }
 
     /// "Modifier" function that limits access only when both protocol and pool are on.
     /// Did not use modifier for contract size consideration.
     function _protocolAndPoolOn() internal view {
-        // if (_humaConfig.paused()) revert Errors.protocolIsPaused();
+        if (_humaConfig.paused()) revert Errors.protocolIsPaused();
         // if (_status != PoolStatus.On) revert Errors.poolIsNotOn();
-    }
-
-    /**
-     * @notice Updates loan data when borrowers borrow
-     * @param creditHash a unique hash for the loan
-     * @param amount borrowed amount
-     */
-    function _borrowFromCredit(bytes32 creditHash, uint256 amount) internal {
-        // check parameters & permission
-        // CreditInfo memory creditInfo = credits[creditHash];
-        // if (creditInfo.startTime == 0) {
-        //     // the first drawdown
-        //     // initialize a loan
-        //     creditInfo.startTime = uint64(block.timestamp);
-        //     creditInfo.checkPoint.totalPrincipal = uint96(amount);
-        //     creditInfo.state = CreditState.GoodStanding;
-        //     creditInfo.checkPoint.lastProfitUpdatedTime = uint64(block.timestamp);
-        // } else {
-        //     // drawdown for an existing loan
-        //     uint256 accruedInterest;
-        //     uint256 accruedPrincipalLoss;
-        //     // update loan data(interest, principal) to current time
-        //     (accruedInterest, accruedPrincipalLoss) = _refreshCredit(creditHash, creditInfo);
-        //     if (accruedInterest > 0) totalAccruedProfit += accruedInterest;
-        //     if (accruedPrincipalLoss > 0) totalAccruedLoss += accruedPrincipalLoss;
-        //     // update the drawdown amount
-        //     // creditInfo.checkPoint.totalPrincipal += uint96(amount);
-        // }
-        // // store loan data
-        // credits[creditHash] = creditInfo;
-        // // :update credit due to current time
-        // // :update totalDue and unbilledPrincipal
-    }
-
-    function _refreshCredit(
-        bytes32 creditHash,
-        CreditRecord memory creditRecord
-    ) internal view returns (uint256 accruedInterest, uint256 accruedPrincipalLoss) {
-        // CreditConfig memory creditConfig = creditConfigs[creditHash];
-        // CreditDueInfo memory creditDue = creditDues[creditHash];
-        // if (creditInfo.state == CreditState.GoodStanding && _isOverdue(creditDue.nextDueDate)) {
-        //     // :move credit from active array to overdue array
-        //     // :update credit state to overdue
-        // }
-        // // :if credit is active(GoodStanding?)
-        // accruedInterest = _refreshCreditProfit(creditInfo, creditConfig);
-        // // :return
-        // // :if credit is overdue(delayed?)
-        // accruedPrincipalLoss = _refreshCreditLoss(creditInfo, creditConfig);
-        // // :return
-    }
-
-    /**
-     * Refresh profit for a credit
-     */
-    function _refreshCreditProfit(
-        CreditRecord memory cr,
-        CreditConfig memory cc
-    ) internal view returns (uint256 accruedInterest) {
-        // (uint256 accruedInterest, uint256 accruedPrincipal) = _feeManager.accruedDebt(
-        //     creditInfo.checkPoint.totalPrincipal - creditInfo.checkPoint.totalPaidPrincipal,
-        //     creditInfo.startTime,
-        //     creditInfo.checkPoint.lastProfitUpdatedTime,
-        //     creditConfig
-        // );
-        // creditInfo.checkPoint.totalAccruedInterest += uint96(accruedInterest);
-        // creditInfo.checkPoint.totalAccruedPrincipal += uint96(accruedPrincipal);
-        // creditInfo.checkPoint.lastProfitUpdatedTime = uint64(block.timestamp);
-        // return accruedInterest;
-    }
-
-    function _refreshCreditLoss(
-        CreditRecord memory creditRecord,
-        CreditConfig memory creditConfig
-    ) internal view returns (uint256 loss) {
-        // uint256 loss;
-        // // :calculate accrued credit loss
-        // creditInfo.checkPoint.totalAccruedLoss += uint96(loss);
-        // creditInfo.checkPoint.lastLossUpdatedTime = uint64(block.timestamp);
-        // return loss;
-    }
-
-    /**
-     * @notice Updates loan data when borrowers pay
-     * @param creditHash a unique hash for the loan
-     * @param amount paid amount
-     */
-    function _payToCredit(bytes32 creditHash, uint256 amount) internal {
-        // check parameters & permission
-        // CreditRecord memory creditRecord = credits[creditHash];
-        // // :update due info
-        // // update loan data(interest, principal) to current time
-        // (uint256 accruedInterest, uint256 accruedPrincipalLoss) = _refreshCredit(
-        //     creditHash,
-        //     creditInfo
-        // );
-        // if (creditInfo.state == CreditState.GoodStanding) {
-        //     totalAccruedProfit += accruedInterest;
-        // } else if (creditInfo.state == CreditState.Delayed) {
-        //     totalAccruedLoss += accruedPrincipalLoss;
-        //     CreditConfig memory creditConfig = creditConfigs[creditHash];
-        //     accruedInterest = _refreshCreditProfit(creditInfo, creditConfig);
-        //     totalAccruedProfit += accruedInterest;
-        // }
-        // // update paid interest
-        // uint256 interestPart = creditInfo.checkPoint.totalAccruedInterest -
-        //     creditInfo.checkPoint.totalPaidInterest;
-        // interestPart = amount > interestPart ? interestPart : amount;
-        // creditInfo.checkPoint.totalPaidInterest += uint96(interestPart);
-        // // update paid principal
-        // uint256 remaining = amount - interestPart;
-        // uint256 principalPart = creditInfo.checkPoint.totalAccruedPrincipal >
-        //     creditInfo.checkPoint.totalPaidPrincipal
-        //     ? creditInfo.checkPoint.totalAccruedPrincipal -
-        //         creditInfo.checkPoint.totalPaidPrincipal
-        //     : 0;
-        // // :handle payoff
-        // // :if payoff remove credit from active/overdue array and set recovered to true
-        // bool fullPayment;
-        // if (remaining >= principalPart) {
-        //     // :if credit is overdue, move credit to active array
-        //     fullPayment = true;
-        // }
-        // creditInfo.checkPoint.totalPaidPrincipal += uint96(remaining);
-        // if (fullPayment) {
-        //     // :generate next due info
-        //     uint256 lossPart = creditInfo.checkPoint.totalAccruedLoss > totalAccruedLoss
-        //         ? totalAccruedLoss
-        //         : creditInfo.checkPoint.totalAccruedLoss;
-        //     totalAccruedLoss -= lossPart;
-        //     creditInfo.checkPoint.totalAccruedLoss -= uint96(lossPart);
-        //     if (creditInfo.checkPoint.totalAccruedLoss > 0) {
-        //         totalAccruedLossRecovery += creditInfo.checkPoint.totalAccruedLoss;
-        //         creditInfo.checkPoint.totalAccruedLoss = 0;
-        //     }
-        // }
-    }
-
-    function refreshPnL() external returns (uint256 profit, uint256 loss, uint256 lossRecovery) {
-        // profit = totalAccruedProfit;
-        // loss = totalAccruedLoss;
-        // lossRecovery = totalAccruedLossRecovery;
-        // uint256 activeHashCount = activeCreditsHash.length;
-        // uint256 overdueHashCount = overdueCreditsHash.length;
-        // bytes32[] memory hashs = new bytes32[](activeHashCount + overdueHashCount);
-        // for (uint256 i; i < activeHashCount; i++) {
-        //     hashs[i] = activeCreditsHash[i];
-        // }
-        // for (uint256 i; i < overdueHashCount; i++) {
-        //     hashs[activeHashCount + i] = overdueCreditsHash[i];
-        // }
-        // // Iterate all active credits to get the total profit
-        // for (uint256 i; i < activeHashCount + overdueHashCount; i++) {
-        //     bytes32 hash = hashs[i];
-        //     CreditInfo memory creditInfo = credits[hash];
-        //     (uint256 accruedInterest, uint256 accruedPrincipalLoss) = _refreshCredit(
-        //         hash,
-        //         creditInfo
-        //     );
-        //     credits[hash] = creditInfo;
-        //     if (accruedInterest > 0) profit += accruedInterest;
-        //     if (accruedPrincipalLoss > 0) loss += accruedPrincipalLoss;
-        // }
-        // if (loss >= lossRecovery) {
-        //     loss -= lossRecovery;
-        //     lossRecovery = 0;
-        // } else {
-        //     lossRecovery -= loss;
-        //     loss = 0;
-        // }
-        // totalAccruedProfit = 0;
-        // totalAccruedLoss = 0;
-        // totalAccruedLossRecovery = 0;
     }
 
     function currentPnL()
@@ -1114,36 +900,7 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         view
         returns (uint256 profit, uint256 loss, uint256 lossRecovery)
     {
-        // profit = totalAccruedProfit;
-        // loss = totalAccruedLoss;
-        // lossRecovery = totalAccruedLossRecovery;
-        // uint256 activeHashCount = activeCreditsHash.length;
-        // uint256 overdueHashCount = overdueCreditsHash.length;
-        // bytes32[] memory hashs = new bytes32[](activeHashCount + overdueHashCount);
-        // for (uint256 i; i < activeHashCount; i++) {
-        //     hashs[i] = activeCreditsHash[i];
-        // }
-        // for (uint256 i; i < overdueHashCount; i++) {
-        //     hashs[activeHashCount + i] = overdueCreditsHash[i];
-        // }
-        // // Iterate all active credits to get the total profit
-        // for (uint256 i; i < activeHashCount + overdueHashCount; i++) {
-        //     bytes32 hash = activeCreditsHash[i];
-        //     CreditInfo memory creditInfo = credits[hash];
-        //     (uint256 accruedInterest, uint256 accruedPrincipalLoss) = _refreshCredit(
-        //         hash,
-        //         creditInfo
-        //     );
-        //     if (accruedInterest > 0) profit += accruedInterest;
-        //     if (accruedPrincipalLoss > 0) loss += accruedPrincipalLoss;
-        // }
-        // if (loss >= lossRecovery) {
-        //     loss -= lossRecovery;
-        //     lossRecovery = 0;
-        // } else {
-        //     lossRecovery -= loss;
-        //     loss = 0;
-        // }
+        return pnlManager.getPnLSum();
     }
 
     function _isOverdue(uint256 dueDate) internal view returns (bool) {}
@@ -1152,31 +909,31 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
 
     function updateYield(address borrower, uint yieldInBps) external {}
 
-    function refreshPnL(
-        bytes32 creditHash
-    ) external returns (uint256 profit, uint256 loss, uint256 lossRecovery) {}
+    function refreshPnL() external returns (uint256 profit, uint256 loss, uint256 lossRecovery) {
+        return pnlManager.refreshPnL();
+    }
 
-    function pauseCredit() external {}
+    function pauseCredit(bytes32 creditHash) external {
+        CreditRecord memory cr = _getCreditRecord(creditHash);
+        if (cr.state == CreditState.GoodStanding) {
+            cr.state = CreditState.Paused;
+            _setCreditRecord(creditHash, cr);
+        }
+    }
 
-    function unpauseCredit() external {}
+    function unpauseCredit(bytes32 creditHash) external {
+        CreditRecord memory cr = _getCreditRecord(creditHash);
+        if (cr.state == CreditState.Paused) {
+            cr.state = CreditState.GoodStanding;
+            _setCreditRecord(creditHash, cr);
+        }
+    }
 
-    function _updatePnl(
-        uint256 principalPaid,
-        uint256 yieldPaid,
-        uint256 feesPaid,
-        uint256 yield
-    ) internal {
-        PnLTracker memory _tempPnlTracker = pnlTracker;
-        _tempPnlTracker.totalProfit += uint96(feesPaid);
-        _tempPnlTracker.totalProfit += uint96(
-            _tempPnlTracker.profitRate * uint64((block.timestamp - _tempPnlTracker.pnlLastUpdated))
-        );
-        _tempPnlTracker.profitRate -= uint96(
-            (principalPaid * yield) / HUNDRED_PERCENT_IN_BPS / SECONDS_IN_A_YEAR
-        );
-        _tempPnlTracker.pnlLastUpdated = uint64(block.timestamp);
-        pnlTracker = _tempPnlTracker;
-
-        // todo handle lossRecovery
+    /**
+     * @notice Distributes income to token holders.
+     */
+    function distributeIncome(uint256 value) internal virtual returns (uint256 poolIncome) {
+        // uint256 poolIncome = _poolConfig.distributeIncome(value);
+        // _totalPoolValue += poolIncome;
     }
 }

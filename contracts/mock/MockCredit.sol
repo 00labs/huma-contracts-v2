@@ -25,8 +25,6 @@ contract MockCredit is PoolConfigCache, ICredit {
     function approveBorrower(
         address borrower,
         uint96 creditLimit,
-        CalendarUnit calendarUnit, // days or semimonth
-        uint16 periodDuration,
         uint16 numOfPeriods, // number of periods
         uint16 yieldInBps,
         uint96 committedAmount,
@@ -56,13 +54,9 @@ contract MockCredit is PoolConfigCache, ICredit {
         returns (uint256 profit, uint256 loss, uint256 lossRecovery)
     {}
 
-    function refreshPnL(
-        bytes32 creditHash
-    ) external returns (uint256 profit, uint256 loss, uint256 lossRecovery) {}
-
     function refreshPnL() external returns (uint256 profit, uint256 loss, uint256 lossRecovery) {}
 
-    function pauseCredit() external {}
+    function pauseCredit(bytes32 creditHash) external {}
 
-    function unpauseCredit() external {}
+    function unpauseCredit(bytes32 creditHash) external {}
 }
