@@ -13,6 +13,7 @@ contract Errors {
     error shareHigherThanRequested();
     error insufficientTotalBalance();
     error lessThanRequiredCover();
+    error emptyArray();
 
     // security
     error permissionDeniedNotAdmin(); // 0xf2c5b6a7
@@ -62,7 +63,7 @@ contract Errors {
     // tranche operation
     error exceededPoolLiquidityCap(); // 0x5642ebd4
     error withdrawTooSoon(); // 0x67982472
-    error exceededMaxSeniorJuniorRatio();
+    error exceededMaxJuniorSeniorRatio();
     error invalidTrancheIndex();
     error closeTooSoon();
 

@@ -23,6 +23,8 @@ struct PoolSettings {
     // calendarType and numPerPeriod are used together to measure the duration
     // of a pay period. For example, 14 days, 2 SemiMonth (1 month), 6 SemiMonth (1 quarter)
     CalendarUnit calendarUnit;
+    // It is the pay period in terms of the calendar unit for borrowers.
+    // It is the duration of an epoch for lenders withdrawing.
     uint8 payPeriodInCalendarUnit;
     // the duration of a credit line without an initial drawdown
     uint16 creditApprovalExpirationInDays;
@@ -32,8 +34,8 @@ struct PoolSettings {
     uint16 defaultGracePeriodInCalendarUnit;
     // percentage of the receivable amount applied towards available credit
     uint16 advanceRateInBps;
-    // The duration of an epoch, in the unit of full CalendarUnit
-    uint8 epochWindowInCalendarUnit;
+    // The duration between a capital withdraw request and capital availability, in the unit of full CycleType.
+    uint8 flexCallWindowInEpoch;
     // if the pool is exclusive to one borrower
     bool singleBorrower;
     // if the dues are combined into one credit if the borrower has multiple receivables
@@ -71,8 +73,6 @@ struct LPConfig {
     uint16 fixedSeniorYieldInBps;
     // Percentage of yield to be shifted from senior to junior. Either this or fixedSeniorYieldInBps is non-zero
     uint16 tranchesRiskAdjustmentInBps;
-    // The duration between a capital withdraw request and capital availability, in the unit of full CycleType.
-    uint8 flexCallWindowInCalendarUnit;
 }
 
 struct FirstLossCover {
@@ -261,25 +261,30 @@ contract PoolConfig is AccessControl, Initializable {
         // _liquidityCap, _maxCreditLine, _creditApprovalExpirationInSeconds are left at 0.
         PoolSettings memory _pSettings = _poolSettings;
         _pSettings.calendarUnit = CalendarUnit.Month;
-        _pSettings.payPeriodInCalendarUnit = 2; // 1 month
+        _pSettings.payPeriodInCalendarUnit = 1; // 1 month
         _pSettings.advanceRateInBps = 10000; // 100%
         _pSettings.latePaymentGracePeriodInDays = 5;
-        _pSettings.defaultGracePeriodInCalendarUnit = 6; // 3 months
+        _pSettings.defaultGracePeriodInCalendarUnit = 3; // 3 months
+        _poolSettings = _pSettings;
 
-        _adminRnR.rewardRateInBpsForEA = 300; //3%
-        _adminRnR.rewardRateInBpsForPoolOwner = 200; //2%
-        _adminRnR.liquidityRateInBpsByEA = 200; // 2%
-        _adminRnR.liquidityRateInBpsByPoolOwner = 200; // 2%
+        AdminRnR memory adminRnRConfig = _adminRnR;
+        adminRnRConfig.rewardRateInBpsForEA = 300; //3%
+        adminRnRConfig.rewardRateInBpsForPoolOwner = 200; //2%
+        adminRnRConfig.liquidityRateInBpsByEA = 200; // 2%
+        adminRnRConfig.liquidityRateInBpsByPoolOwner = 200; // 2%
+        _adminRnR = adminRnRConfig;
+
+        LPConfig memory lpConfig = _lpConfig;
+        lpConfig.maxSeniorJuniorRatio = 4; // senior : junior = 4:1
+        _lpConfig = lpConfig;
     }
 
     function getTrancheLiquidityCap(uint256 index) external view returns (uint256 cap) {
         LPConfig memory lpc = _lpConfig;
         if (index == SENIOR_TRANCHE_INDEX) {
-            cap =
-                (lpc.liquidityCap * lpc.maxSeniorJuniorRatio) /
-                (lpc.maxSeniorJuniorRatio + HUNDRED_PERCENT_IN_BPS);
+            cap = (lpc.liquidityCap * lpc.maxSeniorJuniorRatio) / (lpc.maxSeniorJuniorRatio + 1);
         } else if (index == JUNIOR_TRANCHE_INDEX) {
-            cap = lpc.liquidityCap / (lpc.maxSeniorJuniorRatio + HUNDRED_PERCENT_IN_BPS);
+            cap = lpc.liquidityCap / (lpc.maxSeniorJuniorRatio + 1);
         }
     }
 
@@ -416,6 +421,16 @@ contract PoolConfig is AccessControl, Initializable {
         _settings.payPeriodInCalendarUnit = uint8(number);
         _poolSettings = _settings;
         //emit PoolPayPeriodChanged(unit, number, msg.sender);
+    }
+
+    function setPoolFlexCall(bool enabled, uint256 windowInEpoch) external {
+        _onlyOwnerOrHumaMasterAdmin();
+        if (windowInEpoch == 0) revert Errors.zeroAmountProvided();
+        PoolSettings memory _settings = _poolSettings;
+        _settings.flexCreditEnabled = enabled;
+        _settings.flexCallWindowInEpoch = uint8(windowInEpoch);
+        _poolSettings = _settings;
+        // TODO emit event
     }
 
     /**
@@ -687,9 +702,9 @@ contract PoolConfig is AccessControl, Initializable {
         if (account != pool) revert Errors.notPool();
     }
 
-    function onlyTrancheVaultOrLossCoverer(address account) external view {
+    function onlyTrancheVaultOrLossCovererOrCredit(address account) external view {
         bool valid;
-        if (account == seniorTranche || account == juniorTranche) return;
+        if (account == seniorTranche || account == juniorTranche || account == credit) return;
         uint256 len = _lossCoverers.length;
         for (uint256 i; i < len; i++) {
             if (account == _lossCoverers[i]) return;
@@ -699,13 +714,13 @@ contract PoolConfig is AccessControl, Initializable {
     }
 
     function onlyTrancheVaultOrEpochManager(address account) external view {
-        if (account != seniorTranche && account != seniorTranche && account != epochManager)
+        if (account != juniorTranche && account != seniorTranche && account != epochManager)
             revert Errors.notTrancheVaultOrEpochManager();
     }
 
     function onlyProtocolAndPoolOn() external view {
         if (humaConfig.paused()) revert Errors.protocolIsPaused();
-        if (IPool(pool).isPoolOn()) revert Errors.poolIsNotOn();
+        if (!IPool(pool).isPoolOn()) revert Errors.poolIsNotOn();
     }
 
     function onlyPoolOperator(address account) external view {

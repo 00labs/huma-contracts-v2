@@ -25,13 +25,13 @@ contract PoolVault is PoolConfigCache, IPoolVault {
     }
 
     function deposit(address from, uint256 amount) external {
-        poolConfig.onlyTrancheVaultOrLossCoverer(msg.sender);
+        poolConfig.onlyTrancheVaultOrLossCovererOrCredit(msg.sender);
 
         asset.transferFrom(from, address(this), amount);
     }
 
     function withdraw(address to, uint256 amount) external {
-        poolConfig.onlyTrancheVaultOrLossCoverer(msg.sender);
+        poolConfig.onlyTrancheVaultOrLossCovererOrCredit(msg.sender);
 
         asset.transfer(to, amount);
     }
@@ -40,7 +40,7 @@ contract PoolVault is PoolConfigCache, IPoolVault {
         poolConfig.onlyPlatformFeeManager(msg.sender);
 
         Reserves memory rs = reserves;
-        reserves.forPlatformFees += uint96(reserve);
+        rs.forPlatformFees += uint96(reserve);
         reserves = rs;
     }
 
@@ -48,7 +48,7 @@ contract PoolVault is PoolConfigCache, IPoolVault {
         poolConfig.onlyPlatformFeeManager(msg.sender);
 
         Reserves memory rs = reserves;
-        reserves.forPlatformFees -= uint96(amount);
+        rs.forPlatformFees -= uint96(amount);
         reserves = rs;
         asset.transfer(to, amount);
     }
@@ -57,7 +57,7 @@ contract PoolVault is PoolConfigCache, IPoolVault {
         poolConfig.onlyPool(msg.sender);
 
         Reserves memory rs = reserves;
-        reserves.forRedemption = uint96(reserve);
+        rs.forRedemption = uint96(reserve);
         reserves = rs;
     }
 

@@ -236,7 +236,7 @@ describe("Pool Test", function () {
                 evaluationAgent,
                 poolOwnerTreasury,
                 poolOperator,
-                lender
+                [lender]
             );
         }
 

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {IPool} from "./interfaces/IPool.sol";
-import {PoolConfig, LPConfig, PoolSettings} from "./PoolConfig.sol";
+import {PoolConfig, PoolSettings, LPConfig} from "./PoolConfig.sol";
 import {PoolConfigCache} from "./PoolConfigCache.sol";
 import {IEpoch, EpochInfo} from "./interfaces/IEpoch.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
@@ -10,6 +10,8 @@ import "./SharedDefs.sol";
 import {IEpochManager} from "./interfaces/IEpochManager.sol";
 import {Errors} from "./Errors.sol";
 import {ICalendar} from "./credit/interfaces/ICalendar.sol";
+
+import "hardhat/console.sol";
 
 interface ITrancheVaultLike is IEpoch {
     function totalSupply() external view returns (uint256);
@@ -29,7 +31,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
 
     struct CurrentEpoch {
         uint64 id;
-        uint64 nextEndTime;
+        uint64 endTime;
     }
 
     IPool public pool;
@@ -82,14 +84,16 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         poolConfig.onlyProtocolAndPoolOn();
 
         CurrentEpoch memory ce = _currentEpoch;
-        if (block.timestamp <= ce.nextEndTime) revert Errors.closeTooSoon();
+        if (block.timestamp <= ce.endTime) revert Errors.closeTooSoon();
 
         // update tranches assets to current timestamp
         uint96[2] memory tranches = pool.refreshPool();
 
         // calculate senior/junior token price
-        uint256 seniorPrice = tranches[SENIOR_TRANCHE_INDEX] / seniorTranche.totalSupply();
-        uint256 juniorPrice = tranches[JUNIOR_TRANCHE_INDEX] / juniorTranche.totalSupply();
+        uint256 seniorPrice = (tranches[SENIOR_TRANCHE_INDEX] * DEFAULT_DECIMALS_FACTOR) /
+            seniorTranche.totalSupply();
+        uint256 juniorPrice = (tranches[JUNIOR_TRANCHE_INDEX] * DEFAULT_DECIMALS_FACTOR) /
+            juniorTranche.totalSupply();
 
         // get unprocessed withdrawal requests
         EpochInfo[] memory seniorEpochs = seniorTranche.unprocessedEpochInfos();
@@ -106,7 +110,11 @@ contract EpochManager is PoolConfigCache, IEpochManager {
             for (uint256 i; i < seniorResult.count; i++) {
                 processedEpochs[i] = seniorEpochs[i];
             }
-            seniorTranche.closeEpoch(processedEpochs, seniorResult.shares, seniorResult.amounts);
+            seniorTranche.processEpochs(
+                processedEpochs,
+                seniorResult.shares,
+                seniorResult.amounts
+            );
         }
 
         if (juniorResult.count > 0) {
@@ -114,25 +122,54 @@ contract EpochManager is PoolConfigCache, IEpochManager {
             for (uint256 i; i < juniorResult.count; i++) {
                 processedEpochs[i] = juniorEpochs[i];
             }
-            juniorTranche.closeEpoch(processedEpochs, juniorResult.shares, juniorResult.amounts);
+            juniorTranche.processEpochs(
+                processedEpochs,
+                juniorResult.shares,
+                juniorResult.amounts
+            );
         }
 
         pool.updateTranchesAssets(tranches);
 
         uint256 unprocessedShares;
+        if (seniorResult.count > 0) {
+            unprocessedShares =
+                seniorEpochs[seniorResult.count - 1].totalShareRequested -
+                seniorEpochs[seniorResult.count - 1].totalShareProcessed;
+        }
         for (uint256 i = seniorResult.count; i < seniorEpochs.length; i++) {
             EpochInfo memory epoch = seniorEpochs[i];
             unprocessedShares += epoch.totalShareRequested - epoch.totalShareProcessed;
         }
-        uint256 unprocessedAmounts = unprocessedShares * seniorPrice;
+        uint256 unprocessedAmounts = (unprocessedShares * seniorPrice) / DEFAULT_DECIMALS_FACTOR;
+
         unprocessedShares = 0;
+        if (juniorResult.count > 0) {
+            unprocessedShares =
+                juniorEpochs[juniorResult.count - 1].totalShareRequested -
+                juniorEpochs[juniorResult.count - 1].totalShareProcessed;
+        }
         for (uint256 i = juniorResult.count; i < juniorEpochs.length; i++) {
             EpochInfo memory epoch = juniorEpochs[i];
             unprocessedShares += epoch.totalShareRequested - epoch.totalShareProcessed;
         }
-        unprocessedAmounts = unprocessedShares * juniorPrice;
+        unprocessedAmounts += (unprocessedShares * juniorPrice) / DEFAULT_DECIMALS_FACTOR;
 
         pool.submitRedemptionRequest(unprocessedAmounts);
+
+        console.log(
+            "id: %s, juniorTotalAssets: %s, seniorTotalAssets: %s",
+            uint256(ce.id),
+            tranches[JUNIOR_TRANCHE_INDEX],
+            tranches[SENIOR_TRANCHE_INDEX]
+        );
+
+        console.log(
+            "seniorPrice: %s, juniorPrice: %s, unprocessedAmounts: %s",
+            seniorPrice,
+            juniorPrice,
+            unprocessedAmounts
+        );
 
         emit EpochClosed(
             ce.id,
@@ -149,6 +186,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         poolConfig.onlyPool(msg.sender);
 
         CurrentEpoch memory ce = _currentEpoch;
+        ce.endTime = 0;
         _createNextEpoch(ce);
     }
 
@@ -157,13 +195,13 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         PoolSettings memory poolSettings = poolConfig.getPoolSettings();
         (uint256 nextEndTime, ) = calendar.getNextDueDate(
             poolSettings.calendarUnit,
-            poolSettings.epochWindowInCalendarUnit,
-            epoch.nextEndTime
+            poolSettings.payPeriodInCalendarUnit,
+            epoch.endTime
         );
-        epoch.nextEndTime = uint64(nextEndTime);
+        epoch.endTime = uint64(nextEndTime);
         _currentEpoch = epoch;
 
-        emit NewEpochStarted(epoch.id, epoch.nextEndTime);
+        emit NewEpochStarted(epoch.id, epoch.endTime);
     }
 
     function currentEpochId() external view returns (uint256) {
@@ -196,69 +234,108 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         )
     {
         // get available underlying token amount
-        uint256 availableAmount = poolVault.getAvailableReservation();
+        uint256 availableAmount = poolVault.totalAssets();
+        console.log("availableAmount: %s", availableAmount);
         if (availableAmount <= 0) return (seniorResult, juniorResult);
 
+        PoolSettings memory settings = poolConfig.getPoolSettings();
         LPConfig memory lpConfig = poolConfig.getLPConfig();
-        uint256 flexPeriod = lpConfig.flexCallWindowInCalendarUnit;
         uint256 maxEpochId = _currentEpoch.id;
 
         // process mature senior withdrawal requests
-        uint256 availableCount = seniorEpochs.length;
-        if (flexPeriod > 0) {
+        uint256 availableCount = seniorEpochs.length; // all junior epochs are mature for non flex loan pool
+        if (settings.flexCreditEnabled) {
             // get mature senior epochs count
-            uint256 maxMatureEpochId = maxEpochId - flexPeriod;
-            for (uint256 i; i < seniorEpochs.length; i++) {
-                if (seniorEpochs[i].epochId <= maxMatureEpochId) {
-                    availableCount += 1;
-                } else {
-                    break;
+            availableCount = 0;
+            if (maxEpochId > settings.flexCallWindowInEpoch) {
+                uint256 maxMatureEpochId = maxEpochId - settings.flexCallWindowInEpoch;
+                for (uint256 i; i < seniorEpochs.length; i++) {
+                    if (seniorEpochs[i].epochId <= maxMatureEpochId) {
+                        availableCount += 1;
+                    } else {
+                        break;
+                    }
                 }
             }
         }
-        availableAmount = _processSeniorEpochs(
-            tranches,
-            seniorPrice,
-            seniorEpochs,
-            EpochsRange(0, availableCount),
-            availableAmount,
-            seniorResult
-        );
-        if (availableAmount <= 0) {
-            return (seniorResult, juniorResult);
+
+        if (availableCount > 0) {
+            console.log("processing mature senior withdrawal requests...");
+            availableAmount = _processSeniorEpochs(
+                tranches,
+                seniorPrice,
+                seniorEpochs,
+                EpochsRange(0, availableCount),
+                availableAmount,
+                seniorResult
+            );
+            console.log("availableAmount: %s", availableAmount);
+            console.log(
+                "seniorResult.count: %s, seniorResult.shares: %s, seniorResult.amounts: %s",
+                seniorResult.count,
+                seniorResult.shares,
+                seniorResult.amounts
+            );
+            if (availableAmount == 0) {
+                return (seniorResult, juniorResult);
+            }
         }
 
         // process mature junior withdrawal requests
-        availableCount = juniorEpochs.length;
-        if (flexPeriod > 0) {
+        availableCount = juniorEpochs.length; // all junior epochs are mature for non flex loan pool
+        if (settings.flexCreditEnabled) {
             // get mature junior epochs count
-            uint256 maxMatureEpochId = maxEpochId - flexPeriod;
-            for (uint256 i; i < juniorEpochs.length; i++) {
-                if (juniorEpochs[i].epochId <= maxMatureEpochId) {
-                    availableCount += 1;
-                } else {
-                    break;
+            availableCount = 0;
+            if (maxEpochId > settings.flexCallWindowInEpoch) {
+                uint256 maxMatureEpochId = maxEpochId - settings.flexCallWindowInEpoch;
+                for (uint256 i; i < juniorEpochs.length; i++) {
+                    if (juniorEpochs[i].epochId <= maxMatureEpochId) {
+                        availableCount += 1;
+                    } else {
+                        break;
+                    }
                 }
             }
         }
+        console.log("availableCount: %s", availableCount);
 
-        uint256 maxSeniorRatio = lpConfig.maxSeniorJuniorRatio;
-        availableAmount = _processJuniorEpochs(
-            tranches,
-            juniorPrice,
-            maxSeniorRatio,
-            juniorEpochs,
-            EpochsRange(0, availableCount),
-            availableAmount,
-            juniorResult
-        );
-        if (availableAmount <= 0 || flexPeriod <= 0) {
+        uint256 maxSeniorJuniorRatio = lpConfig.maxSeniorJuniorRatio;
+        if (availableCount > 0) {
+            console.log("processing mature junior withdrawal requests...");
+            availableAmount = _processJuniorEpochs(
+                tranches,
+                juniorPrice,
+                maxSeniorJuniorRatio,
+                juniorEpochs,
+                EpochsRange(0, availableCount),
+                availableAmount,
+                juniorResult
+            );
+            console.log("availableAmount: %s", availableAmount);
+            console.log(
+                "juniorResult.count: %s, juniorResult.shares: %s, juniorResult.amounts: %s",
+                juniorResult.count,
+                juniorResult.shares,
+                juniorResult.amounts
+            );
+            if (availableAmount == 0) {
+                return (seniorResult, juniorResult);
+            }
+        }
+
+        if (!settings.flexCreditEnabled) {
             return (seniorResult, juniorResult);
         }
 
         // process immature senior withdrawal requests
         availableCount = seniorEpochs.length - seniorResult.count;
         if (availableCount > 0) {
+            console.log("processing immature senior withdrawal requests...");
+            console.log(
+                "seniorResult.count: %s, availableCount: %s",
+                seniorResult.count,
+                availableCount
+            );
             availableAmount = _processSeniorEpochs(
                 tranches,
                 seniorPrice,
@@ -267,24 +344,49 @@ contract EpochManager is PoolConfigCache, IEpochManager {
                 availableAmount,
                 seniorResult
             );
-            if (availableAmount <= 0) {
+            console.log("availableAmount: %s", availableAmount);
+            console.log(
+                "seniorResult.count: %s, seniorResult.shares: %s, seniorResult.amounts: %s",
+                seniorResult.count,
+                seniorResult.shares,
+                seniorResult.amounts
+            );
+            if (availableAmount == 0) {
                 return (seniorResult, juniorResult);
             }
         }
 
-        // process immature junior withdrawal requests
+        // process left junior withdrawal requests(mature and immature)
         availableCount = juniorEpochs.length - juniorResult.count;
+        uint256 startIndex = juniorResult.count;
+        if (
+            juniorResult.count > 0 &&
+            juniorEpochs[juniorResult.count - 1].totalShareRequested >
+            juniorEpochs[juniorResult.count - 1].totalShareProcessed
+        ) {
+            startIndex -= 1;
+            availableCount += 1;
+        }
+
         if (availableCount > 0) {
+            console.log("processing left junior withdrawal requests...");
             availableAmount = _processJuniorEpochs(
                 tranches,
                 juniorPrice,
-                maxSeniorRatio,
+                maxSeniorJuniorRatio,
                 juniorEpochs,
-                EpochsRange(juniorResult.count, availableCount),
+                EpochsRange(startIndex, availableCount),
                 availableAmount,
                 juniorResult
             );
-            if (availableAmount <= 0) {
+            console.log("availableAmount: %s", availableAmount);
+            console.log(
+                "juniorResult.count: %s, juniorResult.shares: %s, juniorResult.amounts: %s",
+                juniorResult.count,
+                juniorResult.shares,
+                juniorResult.amounts
+            );
+            if (availableAmount == 0) {
                 return (seniorResult, juniorResult);
             }
         }
@@ -297,51 +399,85 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         EpochsRange memory epochsRange,
         uint256 availableAmount,
         TrancheProcessedResult memory trancheResult
-    ) internal pure returns (uint256 remainingAmount) {
-        for (uint256 i = epochsRange.startIndex; i < epochsRange.length; i++) {
+    ) internal view returns (uint256 remainingAmount) {
+        uint256 endIndex = epochsRange.startIndex + epochsRange.length;
+        for (uint256 i = epochsRange.startIndex; i < endIndex; i++) {
             EpochInfo memory epochInfo = epochs[i];
+            console.log(
+                "epochInfo.epochId: %s, epochInfo.totalShareRequested: %s, epochInfo.totalShareProcessed: %s",
+                uint256(epochInfo.epochId),
+                uint256(epochInfo.totalShareRequested),
+                uint256(epochInfo.totalShareProcessed)
+            );
+            console.log(
+                "epochInfo.epochId: %s, epochInfo.totalAmountProcessed: %s",
+                uint256(epochInfo.epochId),
+                uint256(epochInfo.totalAmountProcessed)
+            );
             uint256 shares = epochInfo.totalShareRequested - epochInfo.totalShareProcessed;
-            uint256 amounts = shares * price;
+            uint256 amounts = (shares * price) / DEFAULT_DECIMALS_FACTOR;
             if (availableAmount < amounts) {
                 amounts = availableAmount;
-                shares = amounts / price;
+                shares = (amounts * DEFAULT_DECIMALS_FACTOR) / price;
             }
             epochInfo.totalShareProcessed += uint96(shares);
             epochInfo.totalAmountProcessed += uint96(amounts);
             availableAmount -= amounts;
 
+            console.log(
+                "epochInfo.totalShareProcessed: %s, epochInfo.totalAmountProcessed: %s",
+                uint256(epochInfo.totalShareProcessed),
+                uint256(epochInfo.totalAmountProcessed)
+            );
+
             trancheResult.count += 1;
             trancheResult.shares += shares;
             trancheResult.amounts += amounts;
+            tranches[SENIOR_TRANCHE_INDEX] -= uint96(amounts);
+
+            console.log(
+                "trancheResult.count: %s, trancheResult.shares: %s, trancheResult.amounts: %s",
+                uint256(trancheResult.count),
+                uint256(trancheResult.shares),
+                uint256(trancheResult.amounts)
+            );
 
             if (availableAmount == 0) break;
         }
 
         remainingAmount = availableAmount;
-        tranches[SENIOR_TRANCHE_INDEX] -= uint96(trancheResult.amounts);
     }
 
     function _processJuniorEpochs(
         uint96[2] memory tranches,
         uint256 price,
-        uint256 maxSeniorRatio,
+        uint256 maxSeniorJuniorRatio,
         EpochInfo[] memory epochs,
         EpochsRange memory epochsRange,
         uint256 availableAmount,
         TrancheProcessedResult memory trancheResult
-    ) internal pure returns (uint256 remainingAmount) {
-        uint256 maxJuniorAmounts = (tranches[SENIOR_TRANCHE_INDEX] * HUNDRED_PERCENT_IN_BPS) /
-            maxSeniorRatio;
-        uint256 maxAmounts = maxJuniorAmounts > tranches[JUNIOR_TRANCHE_INDEX]
-            ? maxJuniorAmounts - tranches[JUNIOR_TRANCHE_INDEX]
+    ) internal view returns (uint256 remainingAmount) {
+        // Round up to meet maxSeniorJuniorRatio
+        uint256 minJuniorAmounts = tranches[SENIOR_TRANCHE_INDEX] / maxSeniorJuniorRatio;
+        if (minJuniorAmounts * maxSeniorJuniorRatio < tranches[SENIOR_TRANCHE_INDEX])
+            minJuniorAmounts += 1;
+        console.log(
+            "minJuniorAmounts: %s, tranches[SENIOR_TRANCHE_INDEX]: %s",
+            minJuniorAmounts,
+            tranches[SENIOR_TRANCHE_INDEX]
+        );
+
+        uint256 maxAmounts = tranches[JUNIOR_TRANCHE_INDEX] > minJuniorAmounts
+            ? tranches[JUNIOR_TRANCHE_INDEX] - minJuniorAmounts
             : 0;
 
         if (maxAmounts <= 0) return availableAmount;
 
-        for (uint256 i = epochsRange.startIndex; i < epochsRange.length; i++) {
+        uint256 endIndex = epochsRange.startIndex + epochsRange.length;
+        for (uint256 i = epochsRange.startIndex; i < endIndex; i++) {
             EpochInfo memory epochInfo = epochs[i];
             uint256 shares = epochInfo.totalShareRequested - epochInfo.totalShareProcessed;
-            uint256 amounts = shares * price;
+            uint256 amounts = (shares * price) / DEFAULT_DECIMALS_FACTOR;
             if (availableAmount < amounts) {
                 amounts = availableAmount;
             }
@@ -349,14 +485,15 @@ contract EpochManager is PoolConfigCache, IEpochManager {
                 amounts = maxAmounts;
             }
 
-            shares = amounts / price;
+            shares = (amounts * DEFAULT_DECIMALS_FACTOR) / price;
             epochInfo.totalShareProcessed += uint96(shares);
             epochInfo.totalAmountProcessed += uint96(amounts);
             availableAmount -= amounts;
             maxAmounts -= amounts;
             tranches[JUNIOR_TRANCHE_INDEX] -= uint96(amounts);
 
-            trancheResult.count += 1;
+            // One junior epoch may be processed twice, 1st time for mature junior epochs, 2nd time for left junior epochs
+            if (i + 1 > trancheResult.count) trancheResult.count += 1;
             trancheResult.shares += shares;
             trancheResult.amounts += amounts;
 

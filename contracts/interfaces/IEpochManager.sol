@@ -5,4 +5,6 @@ interface IEpochManager {
     function currentEpochId() external view returns (uint256);
 
     function closeEpoch() external;
+
+    function startNewEpoch() external;
 }
