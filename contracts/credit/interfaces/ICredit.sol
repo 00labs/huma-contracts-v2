@@ -42,13 +42,9 @@ interface ICredit {
         view
         returns (uint256 profit, uint256 loss, uint256 lossRecovery);
 
-    function refreshPnL(
-        bytes32 creditHash
-    ) external returns (uint256 profit, uint256 loss, uint256 lossRecovery);
-
     function refreshPnL() external returns (uint256 profit, uint256 loss, uint256 lossRecovery);
 
-    function pauseCredit() external;
+    function pauseCredit(bytes32 creditHash) external;
 
-    function unpauseCredit() external;
+    function unpauseCredit(bytes32 creditHash) external;
 }

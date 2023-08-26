@@ -5,8 +5,9 @@ import "../SharedDefs.sol";
 import {Errors} from "../Errors.sol";
 import {PoolConfig} from "../PoolConfig.sol";
 import {PnLTracker, CreditLoss, CreditRecord, CreditConfig} from "./CreditStructs.sol";
+import {IPnLManager} from "./interfaces/IPnLManager.sol";
 
-contract LinearMarkdownPnLManager {
+contract LinearMarkdownPnLManager is IPnLManager {
     PoolConfig internal _poolConfig;
 
     PnLTracker pnlTracker;
@@ -81,14 +82,8 @@ contract LinearMarkdownPnLManager {
         _creditLossMap[creditHash] = tempCreditLoss;
 
         // Write off any remaining principal and dues. Stop profitRate and lossRate
-        PnLTracker memory _tempTracker = pnlTracker;
-        updateTracker(
-            int96(0 - _tempTracker.profitRate),
-            int96(0 - _tempTracker.lossRate),
-            0,
-            0,
-            0
-        );
+        PnLTracker memory t = pnlTracker;
+        updateTracker(int96(0 - t.profitRate), int96(0 - t.lossRate), 0, 0, 0);
     }
 
     function processDueUpdate(
@@ -137,19 +132,68 @@ contract LinearMarkdownPnLManager {
         uint96 profitDiff,
         uint96 lossDiff,
         uint96 recoveryDiff
-    ) internal {
-        PnLTracker memory _tempTracker = pnlTracker;
-        uint256 timeLapsed = block.timestamp - _tempTracker.pnlLastUpdated;
-        _tempTracker.totalProfit += (profitDiff + uint96(_tempTracker.profitRate * timeLapsed));
-        _tempTracker.totalLoss += (lossDiff + uint96(_tempTracker.lossRate * timeLapsed));
-        _tempTracker.profitRate = uint96(int96(_tempTracker.profitRate) + profitRateDiff);
-        _tempTracker.lossRate = uint96(int96(_tempTracker.lossRate) + lossRateDiff);
-        _tempTracker.totalLossRecovery += recoveryDiff;
-        _tempTracker.pnlLastUpdated = uint64(block.timestamp);
-        pnlTracker = _tempTracker;
+    ) public returns (uint256 totalProfit, uint256 totalLoss, uint256 totalLossRecovery) {
+        PnLTracker memory t = pnlTracker;
+        uint256 timeLapsed = block.timestamp - t.pnlLastUpdated;
+        t.totalProfit += (profitDiff + uint96(t.profitRate * timeLapsed));
+        t.totalLoss += (lossDiff + uint96(t.lossRate * timeLapsed));
+        t.profitRate = uint96(int96(t.profitRate) + profitRateDiff);
+        t.lossRate = uint96(int96(t.lossRate) + lossRateDiff);
+        t.totalLossRecovery += recoveryDiff;
+        t.pnlLastUpdated = uint64(block.timestamp);
+        pnlTracker = t;
+        return (uint256(t.totalProfit), uint256(t.totalLoss), uint256(t.totalLossRecovery));
     }
 
     function getLastUpdated() external view returns (uint256 lastUpdated) {
         return pnlTracker.pnlLastUpdated;
+    }
+
+    /**
+     * @notice
+     */
+    function refreshPnL()
+        external
+        virtual
+        override
+        returns (uint256 totalProfit, uint256 totalLoss, uint256 totalLossRecovery)
+    {
+        return updateTracker(0, 0, 0, 0, 0);
+    }
+
+    function getPnL()
+        external
+        view
+        virtual
+        override
+        returns (
+            uint96 totalProfit,
+            uint96 totalLoss,
+            uint96 totalLossRecovery,
+            uint96 profitRate,
+            uint96 lossRate,
+            uint64 pnlLastUpdated
+        )
+    {
+        PnLTracker memory _t = pnlTracker;
+        return (
+            _t.totalProfit,
+            _t.totalLoss,
+            _t.totalLossRecovery,
+            _t.profitRate,
+            _t.lossRate,
+            _t.pnlLastUpdated
+        );
+    }
+
+    function getPnLSum()
+        external
+        view
+        virtual
+        override
+        returns (uint256 totalProfit, uint256 totalLoss, uint256 totalLossRecovery)
+    {
+        PnLTracker memory _t = pnlTracker;
+        return (uint256(_t.totalProfit), uint256(_t.totalLoss), uint256(_t.totalLossRecovery));
     }
 }

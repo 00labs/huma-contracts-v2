@@ -395,10 +395,6 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         address borrower = _getCreditRecord(creditHash).borrower;
         if (msg.sender != borrower) onlyPDSServiceAccount();
         (amountPaid, paidoff, ) = _makePayment(creditHash, amount);
-
-        _payToCredit(creditHash, amount);
-
-        // emit event
     }
 
     /**
@@ -895,181 +891,8 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
     /// "Modifier" function that limits access only when both protocol and pool are on.
     /// Did not use modifier for contract size consideration.
     function _protocolAndPoolOn() internal view {
-        // if (_humaConfig.paused()) revert Errors.protocolIsPaused();
+        if (_humaConfig.paused()) revert Errors.protocolIsPaused();
         // if (_status != PoolStatus.On) revert Errors.poolIsNotOn();
-    }
-
-    /**
-     * @notice Updates loan data when borrowers borrow
-     * @param creditHash a unique hash for the loan
-     * @param amount borrowed amount
-     */
-    function _borrowFromCredit(bytes32 creditHash, uint256 amount) internal {
-        // check parameters & permission
-        // CreditInfo memory creditInfo = credits[creditHash];
-        // if (creditInfo.startTime == 0) {
-        //     // the first drawdown
-        //     // initialize a loan
-        //     creditInfo.startTime = uint64(block.timestamp);
-        //     creditInfo.checkPoint.totalPrincipal = uint96(amount);
-        //     creditInfo.state = CreditState.GoodStanding;
-        //     creditInfo.checkPoint.lastProfitUpdatedTime = uint64(block.timestamp);
-        // } else {
-        //     // drawdown for an existing loan
-        //     uint256 accruedInterest;
-        //     uint256 accruedPrincipalLoss;
-        //     // update loan data(interest, principal) to current time
-        //     (accruedInterest, accruedPrincipalLoss) = _refreshCredit(creditHash, creditInfo);
-        //     if (accruedInterest > 0) totalAccruedProfit += accruedInterest;
-        //     if (accruedPrincipalLoss > 0) totalAccruedLoss += accruedPrincipalLoss;
-        //     // update the drawdown amount
-        //     // creditInfo.checkPoint.totalPrincipal += uint96(amount);
-        // }
-        // // store loan data
-        // credits[creditHash] = creditInfo;
-        // // :update credit due to current time
-        // // :update totalDue and unbilledPrincipal
-    }
-
-    function _refreshCredit(
-        bytes32 creditHash,
-        CreditRecord memory creditRecord
-    ) internal view returns (uint256 accruedInterest, uint256 accruedPrincipalLoss) {
-        // CreditConfig memory creditConfig = creditConfigs[creditHash];
-        // CreditDueInfo memory creditDue = creditDues[creditHash];
-        // if (creditInfo.state == CreditState.GoodStanding && _isOverdue(creditDue.nextDueDate)) {
-        //     // :move credit from active array to overdue array
-        //     // :update credit state to overdue
-        // }
-        // // :if credit is active(GoodStanding?)
-        // accruedInterest = _refreshCreditProfit(creditInfo, creditConfig);
-        // // :return
-        // // :if credit is overdue(delayed?)
-        // accruedPrincipalLoss = _refreshCreditLoss(creditInfo, creditConfig);
-        // // :return
-    }
-
-    /**
-     * Refresh profit for a credit
-     */
-    function _refreshCreditProfit(
-        CreditRecord memory cr,
-        CreditConfig memory cc
-    ) internal view returns (uint256 accruedInterest) {
-        // (uint256 accruedInterest, uint256 accruedPrincipal) = _feeManager.accruedDebt(
-        //     creditInfo.checkPoint.totalPrincipal - creditInfo.checkPoint.totalPaidPrincipal,
-        //     creditInfo.startTime,
-        //     creditInfo.checkPoint.lastProfitUpdatedTime,
-        //     creditConfig
-        // );
-        // creditInfo.checkPoint.totalAccruedInterest += uint96(accruedInterest);
-        // creditInfo.checkPoint.totalAccruedPrincipal += uint96(accruedPrincipal);
-        // creditInfo.checkPoint.lastProfitUpdatedTime = uint64(block.timestamp);
-        // return accruedInterest;
-    }
-
-    function _refreshCreditLoss(
-        CreditRecord memory creditRecord,
-        CreditConfig memory creditConfig
-    ) internal view returns (uint256 loss) {
-        // uint256 loss;
-        // // :calculate accrued credit loss
-        // creditInfo.checkPoint.totalAccruedLoss += uint96(loss);
-        // creditInfo.checkPoint.lastLossUpdatedTime = uint64(block.timestamp);
-        // return loss;
-    }
-
-    /**
-     * @notice Updates loan data when borrowers pay
-     * @param creditHash a unique hash for the loan
-     * @param amount paid amount
-     */
-    function _payToCredit(bytes32 creditHash, uint256 amount) internal {
-        // check parameters & permission
-        // CreditRecord memory creditRecord = credits[creditHash];
-        // // :update due info
-        // // update loan data(interest, principal) to current time
-        // (uint256 accruedInterest, uint256 accruedPrincipalLoss) = _refreshCredit(
-        //     creditHash,
-        //     creditInfo
-        // );
-        // if (creditInfo.state == CreditState.GoodStanding) {
-        //     totalAccruedProfit += accruedInterest;
-        // } else if (creditInfo.state == CreditState.Delayed) {
-        //     totalAccruedLoss += accruedPrincipalLoss;
-        //     CreditConfig memory creditConfig = creditConfigs[creditHash];
-        //     accruedInterest = _refreshCreditProfit(creditInfo, creditConfig);
-        //     totalAccruedProfit += accruedInterest;
-        // }
-        // // update paid interest
-        // uint256 interestPart = creditInfo.checkPoint.totalAccruedInterest -
-        //     creditInfo.checkPoint.totalPaidInterest;
-        // interestPart = amount > interestPart ? interestPart : amount;
-        // creditInfo.checkPoint.totalPaidInterest += uint96(interestPart);
-        // // update paid principal
-        // uint256 remaining = amount - interestPart;
-        // uint256 principalPart = creditInfo.checkPoint.totalAccruedPrincipal >
-        //     creditInfo.checkPoint.totalPaidPrincipal
-        //     ? creditInfo.checkPoint.totalAccruedPrincipal -
-        //         creditInfo.checkPoint.totalPaidPrincipal
-        //     : 0;
-        // // :handle payoff
-        // // :if payoff remove credit from active/overdue array and set recovered to true
-        // bool fullPayment;
-        // if (remaining >= principalPart) {
-        //     // :if credit is overdue, move credit to active array
-        //     fullPayment = true;
-        // }
-        // creditInfo.checkPoint.totalPaidPrincipal += uint96(remaining);
-        // if (fullPayment) {
-        //     // :generate next due info
-        //     uint256 lossPart = creditInfo.checkPoint.totalAccruedLoss > totalAccruedLoss
-        //         ? totalAccruedLoss
-        //         : creditInfo.checkPoint.totalAccruedLoss;
-        //     totalAccruedLoss -= lossPart;
-        //     creditInfo.checkPoint.totalAccruedLoss -= uint96(lossPart);
-        //     if (creditInfo.checkPoint.totalAccruedLoss > 0) {
-        //         totalAccruedLossRecovery += creditInfo.checkPoint.totalAccruedLoss;
-        //         creditInfo.checkPoint.totalAccruedLoss = 0;
-        //     }
-        // }
-    }
-
-    function refreshPnL() external returns (uint256 profit, uint256 loss, uint256 lossRecovery) {
-        // profit = totalAccruedProfit;
-        // loss = totalAccruedLoss;
-        // lossRecovery = totalAccruedLossRecovery;
-        // uint256 activeHashCount = activeCreditsHash.length;
-        // uint256 overdueHashCount = overdueCreditsHash.length;
-        // bytes32[] memory hashs = new bytes32[](activeHashCount + overdueHashCount);
-        // for (uint256 i; i < activeHashCount; i++) {
-        //     hashs[i] = activeCreditsHash[i];
-        // }
-        // for (uint256 i; i < overdueHashCount; i++) {
-        //     hashs[activeHashCount + i] = overdueCreditsHash[i];
-        // }
-        // // Iterate all active credits to get the total profit
-        // for (uint256 i; i < activeHashCount + overdueHashCount; i++) {
-        //     bytes32 hash = hashs[i];
-        //     CreditInfo memory creditInfo = credits[hash];
-        //     (uint256 accruedInterest, uint256 accruedPrincipalLoss) = _refreshCredit(
-        //         hash,
-        //         creditInfo
-        //     );
-        //     credits[hash] = creditInfo;
-        //     if (accruedInterest > 0) profit += accruedInterest;
-        //     if (accruedPrincipalLoss > 0) loss += accruedPrincipalLoss;
-        // }
-        // if (loss >= lossRecovery) {
-        //     loss -= lossRecovery;
-        //     lossRecovery = 0;
-        // } else {
-        //     lossRecovery -= loss;
-        //     loss = 0;
-        // }
-        // totalAccruedProfit = 0;
-        // totalAccruedLoss = 0;
-        // totalAccruedLossRecovery = 0;
     }
 
     function currentPnL()
@@ -1077,36 +900,7 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         view
         returns (uint256 profit, uint256 loss, uint256 lossRecovery)
     {
-        // profit = totalAccruedProfit;
-        // loss = totalAccruedLoss;
-        // lossRecovery = totalAccruedLossRecovery;
-        // uint256 activeHashCount = activeCreditsHash.length;
-        // uint256 overdueHashCount = overdueCreditsHash.length;
-        // bytes32[] memory hashs = new bytes32[](activeHashCount + overdueHashCount);
-        // for (uint256 i; i < activeHashCount; i++) {
-        //     hashs[i] = activeCreditsHash[i];
-        // }
-        // for (uint256 i; i < overdueHashCount; i++) {
-        //     hashs[activeHashCount + i] = overdueCreditsHash[i];
-        // }
-        // // Iterate all active credits to get the total profit
-        // for (uint256 i; i < activeHashCount + overdueHashCount; i++) {
-        //     bytes32 hash = activeCreditsHash[i];
-        //     CreditInfo memory creditInfo = credits[hash];
-        //     (uint256 accruedInterest, uint256 accruedPrincipalLoss) = _refreshCredit(
-        //         hash,
-        //         creditInfo
-        //     );
-        //     if (accruedInterest > 0) profit += accruedInterest;
-        //     if (accruedPrincipalLoss > 0) loss += accruedPrincipalLoss;
-        // }
-        // if (loss >= lossRecovery) {
-        //     loss -= lossRecovery;
-        //     lossRecovery = 0;
-        // } else {
-        //     lossRecovery -= loss;
-        //     loss = 0;
-        // }
+        return pnlManager.getPnLSum();
     }
 
     function _isOverdue(uint256 dueDate) internal view returns (bool) {}
@@ -1115,32 +909,24 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
 
     function updateYield(address borrower, uint yieldInBps) external {}
 
-    function refreshPnL(
-        bytes32 creditHash
-    ) external returns (uint256 profit, uint256 loss, uint256 lossRecovery) {}
+    function refreshPnL() external returns (uint256 profit, uint256 loss, uint256 lossRecovery) {
+        return pnlManager.refreshPnL();
+    }
 
-    function pauseCredit() external {}
+    function pauseCredit(bytes32 creditHash) external {
+        CreditRecord memory cr = _getCreditRecord(creditHash);
+        if (cr.state == CreditState.GoodStanding) {
+            cr.state = CreditState.Paused;
+            _setCreditRecord(creditHash, cr);
+        }
+    }
 
-    function unpauseCredit() external {}
-
-    function _updatePnl(
-        uint256 principalPaid,
-        uint256 yieldPaid,
-        uint256 feesPaid,
-        uint256 yield
-    ) internal {
-        PnLTracker memory _tempPnlTracker = pnlTracker;
-        _tempPnlTracker.totalProfit += uint96(feesPaid);
-        _tempPnlTracker.totalProfit += uint96(
-            _tempPnlTracker.profitRate * uint64((block.timestamp - _tempPnlTracker.pnlLastUpdated))
-        );
-        _tempPnlTracker.profitRate -= uint96(
-            (principalPaid * yield) / HUNDRED_PERCENT_IN_BPS / SECONDS_IN_A_YEAR
-        );
-        _tempPnlTracker.pnlLastUpdated = uint64(block.timestamp);
-        pnlTracker = _tempPnlTracker;
-
-        // todo handle lossRecovery
+    function unpauseCredit(bytes32 creditHash) external {
+        CreditRecord memory cr = _getCreditRecord(creditHash);
+        if (cr.state == CreditState.Paused) {
+            cr.state = CreditState.GoodStanding;
+            _setCreditRecord(creditHash, cr);
+        }
     }
 
     /**

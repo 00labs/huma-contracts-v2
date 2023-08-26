@@ -52,6 +52,7 @@ struct CreditLimits {
 enum CreditState {
     Deleted,
     Requested,
+    Paused,
     Approved,
     GoodStanding,
     Delayed,
