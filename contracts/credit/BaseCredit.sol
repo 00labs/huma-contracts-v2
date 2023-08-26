@@ -195,16 +195,6 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         );
     }
 
-    function getCreditHash(address borrower) public view virtual returns (bytes32 creditHash) {
-        return keccak256(abi.encode(address(this), borrower));
-    }
-
-    function getCreditHash(
-        address borrower,
-        address receivableAsset,
-        uint256 receivableId
-    ) public view virtual returns (bytes32 creditHash) {}
-
     /**
      * @notice Approves the credit request with the terms provided.
      * @param borrower the borrower address
@@ -279,64 +269,11 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
     }
 
     /**
-     * @notice changes borrower's credit limit
-     * @param borrower the borrower address
-     * @param newCreditLimit the new limit of the line in the unit of pool token
-     * @dev The credit line is marked as Deleted if 1) the new credit line is 0 AND
-     * 2) there is no due or unbilled principals.
-     * @dev only Evaluation Agent can call
+     * @notice Distributes income to token holders.
      */
-    function updateBorrowerLimit(address borrower, uint96 newCreditLimit) public virtual {
-        _protocolAndPoolOn();
-        onlyEAServiceAccount();
-        // Credit limit needs to be lower than max for the pool.
-        _maxCreditLineCheck(borrower, newCreditLimit);
-        _borrowerConfigMap[borrower].creditLimit = newCreditLimit;
-
-        // emit CreditLineChanged(borrower, oldCreditLimit, newCreditLimit);
-    }
-
-    /**
-     * @notice changes the available credit for a credit line. This is an administrative overwrite.
-     * @param creditHash the owner of the credit line
-     * @param newAvailableCredit the new available credit
-     * @dev The credit line is marked as Deleted if 1) the new credit line is 0 AND
-     * 2) there is no due or unbilled principals.
-     * @dev only Evaluation Agent can call
-     */
-    function updateAvailableCredit(bytes32 creditHash, uint96 newAvailableCredit) public virtual {
-        _protocolAndPoolOn();
-        onlyEAServiceAccount();
-        CreditRecord memory cr = _getCreditRecord(creditHash);
-
-        _maxCreditLineCheck(cr.borrower, newAvailableCredit);
-
-        cr.availableCredit = newAvailableCredit;
-
-        // Delete the credit record if the new limit is 0 and no outstanding balance
-        if (newAvailableCredit == 0) {
-            if (cr.unbilledPrincipal == 0 && cr.totalDue == 0) {
-                cr.state == CreditState.Deleted;
-            }
-        }
-        _setCreditRecord(creditHash, cr);
-
-        // emit CreditLineChanged(borrower, oldCreditLimit, newCreditLimit);
-    }
-
-    /**
-     * @notice Request the borrower to make extra principal payment in the next bill
-     * @param amount the extra amount of principal to be paid
-     * @dev the BaseCredit contract increases the due immediately, it is the caller's job
-     * to call this function at the right time.
-     * todo Add a new storage to record the extra principal due. We include it when calculate
-     * the next bill so that the caller of this function does not have to time the request.
-     */
-    function requestEarlyPrincipalWithdrawal(uint96 amount) external virtual override {
-        // todo Only allows the Pool(?) contract to call
-        // todo Check against poolConfig to make sure FlexCredit is allowed by this pool
-        if (activeCreditsHash.length != 1) revert Errors.todo();
-        _getCreditRecord(activeCreditsHash[0]).totalDue += amount;
+    function distributeIncome(uint256 value) internal virtual returns (uint256 poolIncome) {
+        // uint256 poolIncome = _poolConfig.distributeIncome(value);
+        // _totalPoolValue += poolIncome;
     }
 
     /**
@@ -397,6 +334,14 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         (amountPaid, paidoff, ) = _makePayment(creditHash, amount);
     }
 
+    function pauseCredit(bytes32 creditHash) external {
+        CreditRecord memory cr = _getCreditRecord(creditHash);
+        if (cr.state == CreditState.GoodStanding) {
+            cr.state = CreditState.Paused;
+            _setCreditRecord(creditHash, cr);
+        }
+    }
+
     /**
      * @notice Updates the account and brings its billing status current
      * @dev If the account is defaulted, no need to update the account anymore.
@@ -412,6 +357,40 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         if (_creditRecordMap[creditHash].state != CreditState.Defaulted) {
             return _updateDueInfo(creditHash);
         }
+    }
+
+    function refreshPnL() external returns (uint256 profit, uint256 loss, uint256 lossRecovery) {
+        return pnlManager.refreshPnL();
+    }
+
+    /**
+     * @notice Request the borrower to make extra principal payment in the next bill
+     * @param amount the extra amount of principal to be paid
+     * @dev the BaseCredit contract increases the due immediately, it is the caller's job
+     * to call this function at the right time.
+     * todo Add a new storage to record the extra principal due. We include it when calculate
+     * the next bill so that the caller of this function does not have to time the request.
+     */
+    function requestEarlyPrincipalWithdrawal(uint96 amount) external virtual override {
+        // todo Only allows the Pool(?) contract to call
+        // todo Check against poolConfig to make sure FlexCredit is allowed by this pool
+        if (activeCreditsHash.length != 1) revert Errors.todo();
+        _getCreditRecord(activeCreditsHash[0]).totalDue += amount;
+    }
+
+    /**
+     * @notice Requests additional principal payment in the upcoming period.
+     * @param creditHash - the hash of the credit record
+     * @param amount - the extra principal that becomes due
+     */
+    function requestExtraPrincipalPayment(bytes32 creditHash, uint256 amount) external {
+        // todo decide whether this function is called by service account or a contract
+        onlyPDSServiceAccount();
+        CreditRecord memory cr = _getCreditRecord(creditHash);
+        if (amount > cr.unbilledPrincipal) revert Errors.todo();
+        cr.totalDue = uint96(cr.totalDue + amount);
+        cr.unbilledPrincipal = uint96(cr.unbilledPrincipal - amount);
+        _setCreditRecord(creditHash, cr);
     }
 
     /**
@@ -451,6 +430,62 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         return losses;
     }
 
+    function unpauseCredit(bytes32 creditHash) external {
+        CreditRecord memory cr = _getCreditRecord(creditHash);
+        if (cr.state == CreditState.Paused) {
+            cr.state = CreditState.GoodStanding;
+            _setCreditRecord(creditHash, cr);
+        }
+    }
+
+    /**
+     * @notice changes the available credit for a credit line. This is an administrative overwrite.
+     * @param creditHash the owner of the credit line
+     * @param newAvailableCredit the new available credit
+     * @dev The credit line is marked as Deleted if 1) the new credit line is 0 AND
+     * 2) there is no due or unbilled principals.
+     * @dev only Evaluation Agent can call
+     */
+    function updateAvailableCredit(bytes32 creditHash, uint96 newAvailableCredit) public virtual {
+        _protocolAndPoolOn();
+        onlyEAServiceAccount();
+        CreditRecord memory cr = _getCreditRecord(creditHash);
+
+        _maxCreditLineCheck(cr.borrower, newAvailableCredit);
+
+        cr.availableCredit = newAvailableCredit;
+
+        // Delete the credit record if the new limit is 0 and no outstanding balance
+        if (newAvailableCredit == 0) {
+            if (cr.unbilledPrincipal == 0 && cr.totalDue == 0) {
+                cr.state == CreditState.Deleted;
+            }
+        }
+        _setCreditRecord(creditHash, cr);
+
+        // emit CreditLineChanged(borrower, oldCreditLimit, newCreditLimit);
+    }
+
+    /**
+     * @notice changes borrower's credit limit
+     * @param borrower the borrower address
+     * @param newCreditLimit the new limit of the line in the unit of pool token
+     * @dev The credit line is marked as Deleted if 1) the new credit line is 0 AND
+     * 2) there is no due or unbilled principals.
+     * @dev only Evaluation Agent can call
+     */
+    function updateBorrowerLimit(address borrower, uint96 newCreditLimit) public virtual {
+        _protocolAndPoolOn();
+        onlyEAServiceAccount();
+        // Credit limit needs to be lower than max for the pool.
+        _maxCreditLineCheck(borrower, newCreditLimit);
+        _borrowerConfigMap[borrower].creditLimit = newCreditLimit;
+
+        // emit CreditLineChanged(borrower, oldCreditLimit, newCreditLimit);
+    }
+
+    function updateYield(address borrower, uint yieldInBps) external {}
+
     function creditRecordMap(bytes32 creditHash) external view returns (CreditRecord memory) {
         return _creditRecordMap[creditHash];
     }
@@ -458,6 +493,24 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
     function creditConfigMap(bytes32 creditHash) external view returns (CreditConfig memory) {
         return _creditConfigMap[creditHash];
     }
+
+    function currentPnL()
+        external
+        view
+        returns (uint256 profit, uint256 loss, uint256 lossRecovery)
+    {
+        return pnlManager.getPnLSum();
+    }
+
+    function getCreditHash(address borrower) public view virtual returns (bytes32 creditHash) {
+        return keccak256(abi.encode(address(this), borrower));
+    }
+
+    function getCreditHash(
+        address borrower,
+        address receivableAsset,
+        uint256 receivableId
+    ) public view virtual returns (bytes32 creditHash) {}
 
     function isApproved(bytes32 creditHash) external view virtual returns (bool) {
         if ((_creditRecordMap[creditHash].state >= CreditState.Approved)) return true;
@@ -755,6 +808,16 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         }
     }
 
+    /// Shared setter to the credit config mapping
+    function _setCreditConfig(bytes32 creditHash, CreditConfig memory cc) internal {
+        _creditConfigMap[creditHash] = cc;
+    }
+
+    /// Shared setter to the credit record mapping for contract size consideration
+    function _setCreditRecord(bytes32 creditHash, CreditRecord memory cr) internal {
+        _creditRecordMap[creditHash] = cr;
+    }
+
     /**
      * @notice updates CreditRecord for `creditHash` using the most up to date information.
      * @dev this is used in both makePayment() and drawdown() to bring the account current
@@ -845,20 +908,12 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         return _creditRecordMap[creditHash];
     }
 
-    /// Shared setter to the credit config mapping
-    function _setCreditConfig(bytes32 creditHash, CreditConfig memory cc) internal {
-        _creditConfigMap[creditHash] = cc;
-    }
+    function _isOverdue(uint256 dueDate) internal view returns (bool) {}
 
-    /// Shared setter to the credit record mapping for contract size consideration
-    function _setCreditRecord(bytes32 creditHash, CreditRecord memory cr) internal {
-        _creditRecordMap[creditHash] = cr;
-    }
-
-    /// "Modifier" function that limits access to pdsServiceAccount only.
-    function onlyPDSServiceAccount() internal view {
-        if (msg.sender != HumaConfig(_humaConfig).pdsServiceAccount())
-            revert Errors.paymentDetectionServiceAccountRequired();
+    /// "Modifier" function that limits access to eaServiceAccount only
+    function onlyBorrowerOrEAServiceAccount(address borrower) internal view {
+        if (msg.sender != borrower && msg.sender != _humaConfig.eaServiceAccount())
+            revert Errors.evaluationAgentServiceAccountRequired();
     }
 
     /// "Modifier" function that limits access to eaServiceAccount only
@@ -867,25 +922,10 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
             revert Errors.evaluationAgentServiceAccountRequired();
     }
 
-    /// "Modifier" function that limits access to eaServiceAccount only
-    function onlyBorrowerOrEAServiceAccount(address borrower) internal view {
-        if (msg.sender != borrower && msg.sender != _humaConfig.eaServiceAccount())
-            revert Errors.evaluationAgentServiceAccountRequired();
-    }
-
-    /**
-     * @notice Requests additional principal payment in the upcoming period.
-     * @param creditHash - the hash of the credit record
-     * @param amount - the extra principal that becomes due
-     */
-    function requestExtraPrincipalPayment(bytes32 creditHash, uint256 amount) external {
-        // todo decide whether this function is called by service account or a contract
-        onlyPDSServiceAccount();
-        CreditRecord memory cr = _getCreditRecord(creditHash);
-        if (amount > cr.unbilledPrincipal) revert Errors.todo();
-        cr.totalDue = uint96(cr.totalDue + amount);
-        cr.unbilledPrincipal = uint96(cr.unbilledPrincipal - amount);
-        _setCreditRecord(creditHash, cr);
+    /// "Modifier" function that limits access to pdsServiceAccount only.
+    function onlyPDSServiceAccount() internal view {
+        if (msg.sender != HumaConfig(_humaConfig).pdsServiceAccount())
+            revert Errors.paymentDetectionServiceAccountRequired();
     }
 
     /// "Modifier" function that limits access only when both protocol and pool are on.
@@ -895,45 +935,5 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         // if (_status != PoolStatus.On) revert Errors.poolIsNotOn();
     }
 
-    function currentPnL()
-        external
-        view
-        returns (uint256 profit, uint256 loss, uint256 lossRecovery)
-    {
-        return pnlManager.getPnLSum();
-    }
-
-    function _isOverdue(uint256 dueDate) internal view returns (bool) {}
-
     // todo provide an external view function for credit payment due list ?
-
-    function updateYield(address borrower, uint yieldInBps) external {}
-
-    function refreshPnL() external returns (uint256 profit, uint256 loss, uint256 lossRecovery) {
-        return pnlManager.refreshPnL();
-    }
-
-    function pauseCredit(bytes32 creditHash) external {
-        CreditRecord memory cr = _getCreditRecord(creditHash);
-        if (cr.state == CreditState.GoodStanding) {
-            cr.state = CreditState.Paused;
-            _setCreditRecord(creditHash, cr);
-        }
-    }
-
-    function unpauseCredit(bytes32 creditHash) external {
-        CreditRecord memory cr = _getCreditRecord(creditHash);
-        if (cr.state == CreditState.Paused) {
-            cr.state = CreditState.GoodStanding;
-            _setCreditRecord(creditHash, cr);
-        }
-    }
-
-    /**
-     * @notice Distributes income to token holders.
-     */
-    function distributeIncome(uint256 value) internal virtual returns (uint256 poolIncome) {
-        // uint256 poolIncome = _poolConfig.distributeIncome(value);
-        // _totalPoolValue += poolIncome;
-    }
 }
