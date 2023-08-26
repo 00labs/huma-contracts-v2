@@ -141,8 +141,16 @@ contract BaseCreditFeeManager is ICreditFeeManager {
             uint96 principalDifference
         )
     {
-        // Directly returns if it is still within the current period
-        if (block.timestamp <= _cr.nextDueDate) {
+        // If the due is nonzero and has passed late payment grace period, the account is considered late
+        bool isLate = (_cr.totalDue != 0 &&
+            block.timestamp >
+            _cr.nextDueDate +
+                poolConfig.getPoolSettings().latePaymentGracePeriodInDays *
+                SECONDS_IN_A_DAY);
+
+        // Directly returns if it is still within the current period or within late payment grace
+        // period when there is still a balance due
+        if ((block.timestamp <= _cr.nextDueDate) || (_cr.totalDue != 0 && !isLate)) {
             return (0, _cr.feesDue, _cr.yieldDue, _cr.totalDue, _cr.unbilledPrincipal, 0, 0);
         }
 

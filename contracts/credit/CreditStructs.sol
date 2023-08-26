@@ -36,14 +36,12 @@ struct CreditRecord {
     uint96 availableCredit;
 }
 
-struct CreditProfit {
-    uint96 totalAccruedProfit; // total accrued interest from tha loan start
-    uint64 lastProfitUpdateDate;
-}
-
 struct CreditLoss {
     uint96 totalAccruedLoss;
+    uint96 totalLossRecovery;
+    uint96 lossRate;
     uint64 lastLossUpdateDate;
+    uint64 lossExpiringDate;
 }
 
 struct CreditLimits {
@@ -106,3 +104,14 @@ struct PnLTracker {
     uint96 totalLoss;
     uint96 totalLossRecovery;
 }
+
+struct Payment {
+    uint96 principalPaid;
+    uint96 yieldPaid;
+    uint96 feesPaid;
+    uint96 amountToCollect;
+    bool oldLateFlag;
+    bool newLateFlag;
+}
+
+
