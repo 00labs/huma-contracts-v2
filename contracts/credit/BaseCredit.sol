@@ -877,7 +877,20 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
             revert Errors.evaluationAgentServiceAccountRequired();
     }
 
-    function submitPrincipalWithdrawal(uint256 amount) external {}
+    /**
+     * @notice Requests additional principal payment in the upcoming period.
+     * @param creditHash - the hash of the credit record
+     * @param amount - the extra principal that becomes due
+     */
+    function requestExtraPrincipalPayment(bytes32 creditHash, uint256 amount) external {
+        // todo decide whether this function is called by service account or a contract
+        onlyPDSServiceAccount();
+        CreditRecord memory cr = _getCreditRecord(creditHash);
+        if (amount > cr.unbilledPrincipal) revert Errors.todo();
+        cr.totalDue = uint96(cr.totalDue + amount);
+        cr.unbilledPrincipal = uint96(cr.unbilledPrincipal - amount);
+        _setCreditRecord(creditHash, cr);
+    }
 
     /// "Modifier" function that limits access only when both protocol and pool are on.
     /// Did not use modifier for contract size consideration.
