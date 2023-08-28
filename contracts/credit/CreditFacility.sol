@@ -11,17 +11,21 @@ import {Errors} from "../Errors.sol";
  * ReceivableCredit is a credit backed by receivables.
  */
 contract CreditFacility is ReceivableCredit, ICreditFacility {
-    function addReceivable(uint256 receivableId) public virtual override {
+    function addReceivable(address borrower, uint256 receivableId) public virtual override {
         // todo onlyBorrower
         // todo makes sure the borrower owns the receivable
-        bytes32 creditHash = _getCreditHash(receivableId);
+        bytes32 creditHash = _getCreditHash(borrower, receivableId);
 
-        if (facilityConfig[creditHash].autoApproval) _approveReceivable(creditHash, receivableId);
+        if (facilityConfig[creditHash].autoApproval) _approveReceivable(borrower, receivableId);
 
         receivableMap[creditHash][receivableId] = receivableId;
     }
 
-    function declarePayment(uint256 receivableId, uint256 amount) external virtual override {
+    function declarePayment(
+        address borrower,
+        uint256 receivableId,
+        uint256 amount
+    ) external virtual override {
         ReceivableInfo memory receivableInfo = receivable.getReceivable(receivableId);
         if (
             receivableInfo.state == ReceivableState.Approved ||

@@ -300,7 +300,7 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
      * @param borrowAmount the amount to borrow
      * @dev Only the owner of the credit line can drawdown.
      */
-    function drawdown(bytes32 creditHash, uint256 borrowAmount) external virtual override {
+    function drawdown(bytes32 creditHash, uint256 borrowAmount) public virtual override {
         address borrower = msg.sender;
         CreditRecord memory cr = _getCreditRecord(creditHash);
         if (borrower != cr.borrower) revert Errors.notBorrower();

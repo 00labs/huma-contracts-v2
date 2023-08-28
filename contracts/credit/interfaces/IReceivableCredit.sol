@@ -4,12 +4,13 @@ pragma solidity ^0.8.0;
 import {CreditConfig, ReceivableInfo} from "../CreditStructs.sol";
 
 interface IReceivableCredit {
-    function approveReceivable(bytes32 creditHash, uint256 receivableId) external;
+    function approveReceivable(address borrower, uint256 receivableId) external;
 
-    function rejectReceivable(bytes32 creditHash, uint256 receivableId) external;
+    function rejectReceivable(address borrower, uint256 receivableId) external;
 
     function drawdownWithReceivable(
-        bytes32 creditHash,
+        address borrower,
+        address receivableAddress,
         uint256 receivableId,
         uint256 amount,
         ReceivableInfo memory receivableInfo
