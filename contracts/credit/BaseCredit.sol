@@ -146,12 +146,20 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
     );
 
     /**
-     * @notice approve a borrower with the
+     * @notice approve a borrower with set of terms. These terms will be referenced by EA
+     * when credits are created for this borrower.
      * @param borrower the borrower address
      * @param creditLimit the credit limit at the borrower level
      * @param numOfPeriods how many periods are approved for the borrower
+     * @param yieldInBps expected yields in basis points
      * @param committedAmount the amount the borrower committed to use.
+     * @param revolving indicates if the underlying credit line is revolving or not
+     * @param receivableRequired whether receivable is required as collateral before a drawdown
+     * @param borrowerLevelCredit indicates whether the borrower is allowed to have one or
+     * multiple credit line
      * The yield will be computed using the max of this amount and the acutal credit used.
+     * @dev Please note CalendarUnit and durationPerPeriodInCalendarUnit are defined at the
+     * pool level, managed by PoolConfig. They cannot be customized for each borrower or credit.
      */
     function approveBorrower(
         address borrower,
@@ -159,7 +167,7 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         uint16 numOfPeriods, // number of periods
         uint16 yieldInBps,
         uint96 committedAmount,
-        bool revolving, // whether repeated borrowing is allowed
+        bool revolving,
         bool receivableRequired,
         bool borrowerLevelCredit
     ) external virtual override {
@@ -196,11 +204,14 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
     }
 
     /**
-     * @notice Approves the credit request with the terms provided.
+     * @notice Approves the credit with the terms provided.
      * @param borrower the borrower address
      * @param creditLimit the credit limit of the credit line
-     * @param remainingPeriods how many cycles are there before the credit line expires
+     * @param remainingPeriods the number of periods before the credit line expires
      * @param yieldInBps expected yield expressed in basis points, 1% is 100, 100% is 10000
+     * @param committedAmount the credit that the borrower has committed to use. If the used credit
+     * is less than this amount, the borrower will charged yield using this amount.
+     * @param revolving indicates if the underlying credit line is revolving or not
      * @dev only Evaluation Agent can call
      */
     function approveCredit(
@@ -214,23 +225,24 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         _protocolAndPoolOn();
         onlyEAServiceAccount();
 
-        // todo To keep these two checks, we have to add functions to allow remainingPeriods
-        // or creditLimit set to 0.
         if (remainingPeriods == 0) revert Errors.zeroPayPeriods();
         if (creditLimit == 0) revert();
 
         PoolSettings memory ps = _poolConfig.getPoolSettings();
 
-        // todo check both are credit level and borrower level
         _maxCreditLineCheck(borrower, creditLimit);
 
-        // Update to a credit record is disallowed if there is drawdown already
         bytes32 creditHash = getCreditHash(borrower);
+
+        // Before a drawdown happens, it is allowed to re-approve a credit to change ther terms.
+        // Once a drawdown has happened, it is disallowed to re-approve a credit. One has call
+        // other functions to change the terms of the credit.
         CreditRecord memory cr = _getCreditRecord(creditHash);
         if (cr.state >= CreditState.Approved) revert Errors.creditLineNotInStateForUpdate();
 
         CreditConfig memory cc = _getCreditConfig(creditHash);
         cc.creditLimit = uint96(creditLimit);
+        cc.committedAmount = committedAmount;
         cc.calendarUnit = ps.calendarUnit;
         cc.periodDuration = ps.payPeriodInCalendarUnit;
         cc.numOfPeriods = uint16(remainingPeriods);
@@ -239,22 +251,26 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
 
         _setCreditConfig(creditHash, cc);
 
+        cr.revolving = revolving;
+        _setCreditRecord(creditHash, cr);
+
         // :emit CreditApproved(borrower, creditLimit, intervalInDays, remainingPeriods, aprInBps);
     }
 
     /**
      * @notice Closes a credit record.
+     * @dev Only borrower or EA Service account can call this function
      * @dev Revert if there is still balance due
      * @dev Revert if the committed amount is non-zero and there are periods remaining
      */
     function closeCredit(bytes32 creditHash) public virtual {
         CreditRecord memory cr = _getCreditRecord(creditHash);
         onlyBorrowerOrEAServiceAccount(cr.borrower);
-        // :only borrower or EA
-        CreditConfig memory cc = _getCreditConfig(creditHash);
+
         if (cr.totalDue != 0 || cr.unbilledPrincipal != 0) {
             revert Errors.creditLineHasOutstandingBalance();
         } else {
+            CreditConfig memory cc = _getCreditConfig(creditHash);
             if (cc.committedAmount > 0 && cr.remainingPeriods > 0) revert Errors.todo();
 
             // Close the credit by removing relevant record.
@@ -264,16 +280,18 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
 
             cc.creditLimit = 0;
             _setCreditConfig(creditHash, cc);
+            //todo emit event
         }
-        //todo emit event
     }
 
     /**
      * @notice Distributes income to token holders.
+     * todo get rid of this function once we know where we have the distributeIncome() function that
+     * splits income between poolOwner, EA, firstLossCover provider and the pool. The caller of this
+     * function is responsible for updating PnL.
      */
     function distributeIncome(uint256 value) internal virtual returns (uint256 poolIncome) {
         // uint256 poolIncome = _poolConfig.distributeIncome(value);
-        // _totalPoolValue += poolIncome;
     }
 
     /**
