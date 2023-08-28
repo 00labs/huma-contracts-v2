@@ -159,8 +159,7 @@ contract PoolConfig is AccessControl, Initializable {
     event HDTChanged(address hdt, address udnerlyingToken, address by);
     event HumaConfigChanged(address humaConfig, address by);
 
-    event MaxCreditLineChanged(uint256 maxCreditLine, address by);
-    event PoolChanged(address pool, address by);
+    event MaxCreditLineChanged(uint256 maxCreditLine, address by);    event PoolChanged(address pool, address by);
     event PoolDefaultGracePeriodChanged(uint256 gracePeriodInDays, address by);
     event PoolLiquidityCapChanged(uint256 liquidityCap, address by);
     event PoolNameChanged(string name, address by);

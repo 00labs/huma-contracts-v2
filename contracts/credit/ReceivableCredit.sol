@@ -23,40 +23,53 @@ contract ReceivableCredit is BaseCredit, IReceivableCredit {
     // creditHash => FacilityConfig, the facility config for the credit
     mapping(bytes32 => FacilityConfig) facilityConfig;
 
-    function approveReceivable(bytes32 creditHash, uint256 receivableId) public {
-        // todo onlyEA
-        _approveReceivable(creditHash, receivableId);
+    function approveReceivable(address borrower, uint256 receivableId) public {
+        onlyEAServiceAccount();
+        _approveReceivable(borrower, receivableId);
     }
 
-    /**
-     * @notice Approves a receivable and adjusts available credit
-     */
-    function _approveReceivable(bytes32 creditHash, uint256 receivableId) internal {
+    function _approveReceivable(address borrower, uint256 receivableId) public {
         receivable.approveOrRejectReceivable(receivableId, true);
+        bytes32 creditHash = _getCreditHash(borrower, receivableId);
 
         _creditRecordMap[creditHash].availableCredit +=
             receivable.getReceivable(receivableId).receivableAmount *
             facilityConfig[creditHash].advanceRateInBps;
+
+        // todo emit event
     }
 
-    function rejectReceivable(bytes32 creditHash, uint256 receivableId) public {
-        // todo onlyEA
+    function rejectReceivable(address borrower, uint256 receivableId) public {
+        onlyEAServiceAccount();
         receivable.approveOrRejectReceivable(receivableId, false);
+        // todo emit event
     }
 
     function drawdownWithReceivable(
-        bytes32 creditHash,
+        address borrower,
+        address receivableAddress,
         uint256 receivableId,
         uint256 amount,
         ReceivableInfo memory receivableInfo
     ) external {
-        // todo check receivable has been approved and owned by the borrower
-        //super.drawdown(creditHash, amount);
+        if (receivableAddress != address(receivable)) revert Errors.todo();
+        if (receivable.ownerOf(receivableId) != borrower) revert Errors.todo();
+        if (receivable.getStatus(receivableId) != ReceivableState.Approved) revert Errors.todo();
+
+        bytes32 creditHash = _getCreditHash(borrower, receivableId);
+        CreditRecord memory cr = _getCreditRecord(creditHash);
+
+        receivable.transferFrom(borrower, address(this), receivableId);
+        _drawdown(creditHash, cr, amount);
+        // todo emit evnet
     }
 
-    function _getCreditHash(uint256 receivableId) internal view returns (bytes32 creditHash) {
+    function _getCreditHash(
+        address borrower,
+        uint256 receivableId
+    ) internal view returns (bytes32 creditHash) {
         if (_getBorrowerRecord(msg.sender).borrowerLevelCredit)
             creditHash = getCreditHash(msg.sender);
-        else creditHash = keccak256(abi.encode(address(this), address(receivable), receivableId));
+        else creditHash = keccak256(abi.encode(borrower, address(receivable), receivableId));
     }
 }
