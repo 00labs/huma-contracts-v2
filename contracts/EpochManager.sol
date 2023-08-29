@@ -157,19 +157,19 @@ contract EpochManager is PoolConfigCache, IEpochManager {
 
         pool.submitRedemptionRequest(unprocessedAmounts);
 
-        console.log(
-            "id: %s, juniorTotalAssets: %s, seniorTotalAssets: %s",
-            uint256(ce.id),
-            tranches[JUNIOR_TRANCHE_INDEX],
-            tranches[SENIOR_TRANCHE_INDEX]
-        );
+        // console.log(
+        //     "id: %s, juniorTotalAssets: %s, seniorTotalAssets: %s",
+        //     uint256(ce.id),
+        //     tranches[JUNIOR_TRANCHE_INDEX],
+        //     tranches[SENIOR_TRANCHE_INDEX]
+        // );
 
-        console.log(
-            "seniorPrice: %s, juniorPrice: %s, unprocessedAmounts: %s",
-            seniorPrice,
-            juniorPrice,
-            unprocessedAmounts
-        );
+        // console.log(
+        //     "seniorPrice: %s, juniorPrice: %s, unprocessedAmounts: %s",
+        //     seniorPrice,
+        //     juniorPrice,
+        //     unprocessedAmounts
+        // );
 
         emit EpochClosed(
             ce.id,
@@ -235,7 +235,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
     {
         // get available underlying token amount
         uint256 availableAmount = poolVault.totalAssets();
-        console.log("availableAmount: %s", availableAmount);
+        // console.log("availableAmount: %s", availableAmount);
         if (availableAmount <= 0) return (seniorResult, juniorResult);
 
         PoolSettings memory settings = poolConfig.getPoolSettings();
@@ -260,7 +260,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         }
 
         if (availableCount > 0) {
-            console.log("processing mature senior withdrawal requests...");
+            // console.log("processing mature senior withdrawal requests...");
             availableAmount = _processSeniorEpochs(
                 tranches,
                 seniorPrice,
@@ -269,13 +269,13 @@ contract EpochManager is PoolConfigCache, IEpochManager {
                 availableAmount,
                 seniorResult
             );
-            console.log("availableAmount: %s", availableAmount);
-            console.log(
-                "seniorResult.count: %s, seniorResult.shares: %s, seniorResult.amounts: %s",
-                seniorResult.count,
-                seniorResult.shares,
-                seniorResult.amounts
-            );
+            // console.log("availableAmount: %s", availableAmount);
+            // console.log(
+            //     "seniorResult.count: %s, seniorResult.shares: %s, seniorResult.amounts: %s",
+            //     seniorResult.count,
+            //     seniorResult.shares,
+            //     seniorResult.amounts
+            // );
             if (availableAmount == 0) {
                 return (seniorResult, juniorResult);
             }
@@ -297,11 +297,11 @@ contract EpochManager is PoolConfigCache, IEpochManager {
                 }
             }
         }
-        console.log("availableCount: %s", availableCount);
+        // console.log("availableCount: %s", availableCount);
 
         uint256 maxSeniorJuniorRatio = lpConfig.maxSeniorJuniorRatio;
         if (availableCount > 0) {
-            console.log("processing mature junior withdrawal requests...");
+            // console.log("processing mature junior withdrawal requests...");
             availableAmount = _processJuniorEpochs(
                 tranches,
                 juniorPrice,
@@ -311,13 +311,13 @@ contract EpochManager is PoolConfigCache, IEpochManager {
                 availableAmount,
                 juniorResult
             );
-            console.log("availableAmount: %s", availableAmount);
-            console.log(
-                "juniorResult.count: %s, juniorResult.shares: %s, juniorResult.amounts: %s",
-                juniorResult.count,
-                juniorResult.shares,
-                juniorResult.amounts
-            );
+            // console.log("availableAmount: %s", availableAmount);
+            // console.log(
+            //     "juniorResult.count: %s, juniorResult.shares: %s, juniorResult.amounts: %s",
+            //     juniorResult.count,
+            //     juniorResult.shares,
+            //     juniorResult.amounts
+            // );
             if (availableAmount == 0) {
                 return (seniorResult, juniorResult);
             }
@@ -330,12 +330,12 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         // process immature senior withdrawal requests
         availableCount = seniorEpochs.length - seniorResult.count;
         if (availableCount > 0) {
-            console.log("processing immature senior withdrawal requests...");
-            console.log(
-                "seniorResult.count: %s, availableCount: %s",
-                seniorResult.count,
-                availableCount
-            );
+            // console.log("processing immature senior withdrawal requests...");
+            // console.log(
+            //     "seniorResult.count: %s, availableCount: %s",
+            //     seniorResult.count,
+            //     availableCount
+            // );
             availableAmount = _processSeniorEpochs(
                 tranches,
                 seniorPrice,
@@ -344,13 +344,13 @@ contract EpochManager is PoolConfigCache, IEpochManager {
                 availableAmount,
                 seniorResult
             );
-            console.log("availableAmount: %s", availableAmount);
-            console.log(
-                "seniorResult.count: %s, seniorResult.shares: %s, seniorResult.amounts: %s",
-                seniorResult.count,
-                seniorResult.shares,
-                seniorResult.amounts
-            );
+            // console.log("availableAmount: %s", availableAmount);
+            // console.log(
+            //     "seniorResult.count: %s, seniorResult.shares: %s, seniorResult.amounts: %s",
+            //     seniorResult.count,
+            //     seniorResult.shares,
+            //     seniorResult.amounts
+            // );
             if (availableAmount == 0) {
                 return (seniorResult, juniorResult);
             }
@@ -369,7 +369,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         }
 
         if (availableCount > 0) {
-            console.log("processing left junior withdrawal requests...");
+            // console.log("processing left junior withdrawal requests...");
             availableAmount = _processJuniorEpochs(
                 tranches,
                 juniorPrice,
@@ -379,13 +379,13 @@ contract EpochManager is PoolConfigCache, IEpochManager {
                 availableAmount,
                 juniorResult
             );
-            console.log("availableAmount: %s", availableAmount);
-            console.log(
-                "juniorResult.count: %s, juniorResult.shares: %s, juniorResult.amounts: %s",
-                juniorResult.count,
-                juniorResult.shares,
-                juniorResult.amounts
-            );
+            // console.log("availableAmount: %s", availableAmount);
+            // console.log(
+            //     "juniorResult.count: %s, juniorResult.shares: %s, juniorResult.amounts: %s",
+            //     juniorResult.count,
+            //     juniorResult.shares,
+            //     juniorResult.amounts
+            // );
             if (availableAmount == 0) {
                 return (seniorResult, juniorResult);
             }
@@ -403,17 +403,17 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         uint256 endIndex = epochsRange.startIndex + epochsRange.length;
         for (uint256 i = epochsRange.startIndex; i < endIndex; i++) {
             EpochInfo memory epochInfo = epochs[i];
-            console.log(
-                "epochInfo.epochId: %s, epochInfo.totalShareRequested: %s, epochInfo.totalShareProcessed: %s",
-                uint256(epochInfo.epochId),
-                uint256(epochInfo.totalShareRequested),
-                uint256(epochInfo.totalShareProcessed)
-            );
-            console.log(
-                "epochInfo.epochId: %s, epochInfo.totalAmountProcessed: %s",
-                uint256(epochInfo.epochId),
-                uint256(epochInfo.totalAmountProcessed)
-            );
+            // console.log(
+            //     "epochInfo.epochId: %s, epochInfo.totalShareRequested: %s, epochInfo.totalShareProcessed: %s",
+            //     uint256(epochInfo.epochId),
+            //     uint256(epochInfo.totalShareRequested),
+            //     uint256(epochInfo.totalShareProcessed)
+            // );
+            // console.log(
+            //     "epochInfo.epochId: %s, epochInfo.totalAmountProcessed: %s",
+            //     uint256(epochInfo.epochId),
+            //     uint256(epochInfo.totalAmountProcessed)
+            // );
             uint256 shares = epochInfo.totalShareRequested - epochInfo.totalShareProcessed;
             uint256 amounts = (shares * price) / DEFAULT_DECIMALS_FACTOR;
             if (availableAmount < amounts) {
@@ -424,23 +424,23 @@ contract EpochManager is PoolConfigCache, IEpochManager {
             epochInfo.totalAmountProcessed += uint96(amounts);
             availableAmount -= amounts;
 
-            console.log(
-                "epochInfo.totalShareProcessed: %s, epochInfo.totalAmountProcessed: %s",
-                uint256(epochInfo.totalShareProcessed),
-                uint256(epochInfo.totalAmountProcessed)
-            );
+            // console.log(
+            //     "epochInfo.totalShareProcessed: %s, epochInfo.totalAmountProcessed: %s",
+            //     uint256(epochInfo.totalShareProcessed),
+            //     uint256(epochInfo.totalAmountProcessed)
+            // );
 
             trancheResult.count += 1;
             trancheResult.shares += shares;
             trancheResult.amounts += amounts;
             tranches[SENIOR_TRANCHE_INDEX] -= uint96(amounts);
 
-            console.log(
-                "trancheResult.count: %s, trancheResult.shares: %s, trancheResult.amounts: %s",
-                uint256(trancheResult.count),
-                uint256(trancheResult.shares),
-                uint256(trancheResult.amounts)
-            );
+            // console.log(
+            //     "trancheResult.count: %s, trancheResult.shares: %s, trancheResult.amounts: %s",
+            //     uint256(trancheResult.count),
+            //     uint256(trancheResult.shares),
+            //     uint256(trancheResult.amounts)
+            // );
 
             if (availableAmount == 0) break;
         }
@@ -461,11 +461,11 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         uint256 minJuniorAmounts = tranches[SENIOR_TRANCHE_INDEX] / maxSeniorJuniorRatio;
         if (minJuniorAmounts * maxSeniorJuniorRatio < tranches[SENIOR_TRANCHE_INDEX])
             minJuniorAmounts += 1;
-        console.log(
-            "minJuniorAmounts: %s, tranches[SENIOR_TRANCHE_INDEX]: %s",
-            minJuniorAmounts,
-            tranches[SENIOR_TRANCHE_INDEX]
-        );
+        // console.log(
+        //     "minJuniorAmounts: %s, tranches[SENIOR_TRANCHE_INDEX]: %s",
+        //     minJuniorAmounts,
+        //     tranches[SENIOR_TRANCHE_INDEX]
+        // );
 
         uint256 maxAmounts = tranches[JUNIOR_TRANCHE_INDEX] > minJuniorAmounts
             ? tranches[JUNIOR_TRANCHE_INDEX] - minJuniorAmounts
