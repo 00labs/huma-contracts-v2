@@ -39,9 +39,9 @@ struct CreditRecord {
 struct CreditLoss {
     uint96 totalAccruedLoss;
     uint96 totalLossRecovery;
-    uint96 lossRate;
     uint64 lastLossUpdateDate;
     uint64 lossExpiringDate;
+    uint96 lossRate;
 }
 
 struct CreditLimits {

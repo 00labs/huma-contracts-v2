@@ -611,7 +611,7 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
      * @notice drawdown helper function.
      * @param creditHash the credit hash
      * @param borrowAmount the amount to borrow
-     * @dev Eligibility check is done outside this function.
+     * @dev Access control and eligibility check is done outside this function.
      */
     function _drawdown(
         bytes32 creditHash,
