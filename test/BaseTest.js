@@ -7,6 +7,8 @@ const CALENDAR_UNIT_MONTH = 1;
 const SENIOR_TRANCHE_INDEX = 0;
 const JUNIOR_TRANCHE_INDEX = 1;
 const PRICE_DECIMALS_FACTOR = BN.from(10).pow(BN.from(18));
+const BP_FACTOR = BN.from(10000);
+const SECONDS_IN_YEAR = BN.from(60 * 60 * 24 * 365);
 
 const CONSTANTS = {
     CALENDAR_UNIT_DAY,
@@ -14,6 +16,8 @@ const CONSTANTS = {
     SENIOR_TRANCHE_INDEX,
     JUNIOR_TRANCHE_INDEX,
     PRICE_DECIMALS_FACTOR,
+    BP_FACTOR,
+    SECONDS_IN_YEAR,
 };
 
 async function deployProtocolContracts(

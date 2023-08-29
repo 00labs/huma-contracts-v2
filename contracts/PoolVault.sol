@@ -75,6 +75,12 @@ contract PoolVault is PoolConfigCache, IPoolVault {
         assets = assets < reserve ? assets : reserve;
     }
 
+    function getPoolAssets() external view returns (uint256 assets) {
+        assets = asset.balanceOf(address(this));
+        Reserves memory rs = reserves;
+        assets = assets > rs.forPlatformFees ? assets - rs.forPlatformFees : 0;
+    }
+
     function totalAssets() external view returns (uint256 assets) {
         return asset.balanceOf(address(this));
     }

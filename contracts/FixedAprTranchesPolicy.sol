@@ -7,6 +7,8 @@ import {IPoolVault} from "./interfaces/IPoolVault.sol";
 import {Errors} from "./Errors.sol";
 import "./SharedDefs.sol";
 
+import "hardhat/console.sol";
+
 /**
  * @notice This is fixed yield implementation. In the fixed yield mode,
  * the yield for the senior tranches is fixed as long as the risk loss does not make this impossible.
@@ -20,11 +22,11 @@ contract FixedAprTranchesPolicy is BaseTranchesPolicy {
         uint96[2] memory assets,
         uint256 lastUpdatedTime
     ) external view returns (uint96[2] memory newAssets) {
-        uint256 poolVaultAssets = IPoolVault(poolConfig.poolVault()).totalAssets();
+        uint256 poolVaultAssets = IPoolVault(poolConfig.poolVault()).getPoolAssets();
         uint256 totalAssets = assets[SENIOR_TRANCHE_INDEX] + assets[JUNIOR_TRANCHE_INDEX];
         uint256 deployedTotalAssets = totalAssets - poolVaultAssets;
         uint256 deployedSeniorAssets = (deployedTotalAssets * assets[SENIOR_TRANCHE_INDEX]) /
-            deployedTotalAssets;
+            totalAssets;
 
         uint256 seniorProfit;
         if (block.timestamp > lastUpdatedTime) {
@@ -37,8 +39,11 @@ contract FixedAprTranchesPolicy is BaseTranchesPolicy {
                 HUNDRED_PERCENT_IN_BPS;
         }
 
+        // TODO calculate senior apr last updated timestamp if profit < seniorProfit?
         seniorProfit = seniorProfit > profit ? profit : seniorProfit;
         uint256 juniorProfit = profit - seniorProfit;
+
+        console.log("seniorProfit: %s, juniorProfit: %s", seniorProfit, juniorProfit);
 
         newAssets[SENIOR_TRANCHE_INDEX] = assets[SENIOR_TRANCHE_INDEX] + uint96(seniorProfit);
         newAssets[JUNIOR_TRANCHE_INDEX] = assets[JUNIOR_TRANCHE_INDEX] + uint96(juniorProfit);
