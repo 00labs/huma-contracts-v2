@@ -36,7 +36,7 @@ async function getMinJuniorAssets(seniorMatureRedemptionInThisEpoch, maxSeniorJu
     if (minJuniorAssets.mul(maxSeniorJuniorRatio).lt(seniorTotalAssets)) {
         minJuniorAssets = minJuniorAssets.add(1);
     }
-    console.log(`seniorTotalAssets: ${seniorTotalAssets}, minJuniorAssets: ${minJuniorAssets}`);
+    // console.log(`seniorTotalAssets: ${seniorTotalAssets}, minJuniorAssets: ${minJuniorAssets}`);
     return minJuniorAssets;
 }
 
@@ -1935,9 +1935,9 @@ describe("EpochManager Test", function () {
 
             seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
             juniorTotalAssets = await juniorTrancheVaultContract.totalAssets();
-            console.log(`seniorTotalAssets: ${seniorTotalAssets}, unprocessedS: ${unprocessedS}`);
-            console.log(`juniorTotalAssets: ${juniorTotalAssets}, unprocessedJ: ${unprocessedJ}`);
-            console.log(`unprocessed: ${unprocessed}`);
+            // console.log(`seniorTotalAssets: ${seniorTotalAssets}, unprocessedS: ${unprocessedS}`);
+            // console.log(`juniorTotalAssets: ${juniorTotalAssets}, unprocessedJ: ${unprocessedJ}`);
+            // console.log(`unprocessed: ${unprocessed}`);
 
             await expect(epochManagerContract.closeEpoch())
                 .to.emit(epochManagerContract, "EpochClosed")
@@ -2187,9 +2187,9 @@ describe("EpochManager Test", function () {
             let availableSeniorAmount = juniorTotalAssets
                 .mul(lpConfig.maxSeniorJuniorRatio)
                 .sub(seniorTotalAssets);
-            console.log(
-                `availableSeniorAmount: ${availableSeniorAmount}, lpConfig.maxSeniorJuniorRatio: ${lpConfig.maxSeniorJuniorRatio}, seniorTotalAssets: ${seniorTotalAssets}, juniorTotalAssets: ${juniorTotalAssets}`
-            );
+            // console.log(
+            //     `availableSeniorAmount: ${availableSeniorAmount}, lpConfig.maxSeniorJuniorRatio: ${lpConfig.maxSeniorJuniorRatio}, seniorTotalAssets: ${seniorTotalAssets}, juniorTotalAssets: ${juniorTotalAssets}`
+            // );
             await seniorTrancheVaultContract
                 .connect(lender)
                 .deposit(availableSeniorAmount, lender.address);
@@ -2412,9 +2412,9 @@ describe("EpochManager Test", function () {
             let availableSeniorAmount = juniorTotalAssets
                 .mul(lpConfig.maxSeniorJuniorRatio)
                 .sub(seniorTotalAssets);
-            console.log(
-                `availableSeniorAmount: ${availableSeniorAmount}, lpConfig.maxSeniorJuniorRatio: ${lpConfig.maxSeniorJuniorRatio}, seniorTotalAssets: ${seniorTotalAssets}, juniorTotalAssets: ${juniorTotalAssets}`
-            );
+            // console.log(
+            //     `availableSeniorAmount: ${availableSeniorAmount}, lpConfig.maxSeniorJuniorRatio: ${lpConfig.maxSeniorJuniorRatio}, seniorTotalAssets: ${seniorTotalAssets}, juniorTotalAssets: ${juniorTotalAssets}`
+            // );
             await seniorTrancheVaultContract
                 .connect(lender)
                 .deposit(availableSeniorAmount, lender.address);
@@ -2621,7 +2621,7 @@ describe("EpochManager Test", function () {
             );
         });
 
-        it.only("Should reserve balance in pool vault while mature junior epochs are processed partially because of maxSeniorJuniorRatio", async function () {
+        it("Should reserve balance in pool vault while mature junior epochs are processed partially because of maxSeniorJuniorRatio", async function () {
             await poolConfigContract.connect(poolOwner).setPoolFlexCall(true, 1);
 
             let settings = await poolConfigContract.getPoolSettings();

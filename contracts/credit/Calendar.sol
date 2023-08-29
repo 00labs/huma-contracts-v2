@@ -66,7 +66,7 @@ contract Calendar is ICalendar {
             numberOfPeriodsPassed = DTL.diffDays(lastDueDate, block.timestamp) / periodDuration;
         }
         if (isNext) periodCount += (numberOfPeriodsPassed + 1) * periodDuration;
-        periodCount += numberOfPeriodsPassed * periodDuration;
+        else periodCount += numberOfPeriodsPassed * periodDuration;
         dueDate = DTL.addDays(lastDueDate, periodCount);
     }
 
@@ -88,7 +88,6 @@ contract Calendar is ICalendar {
         }
         if (isNext) periodCount += (numberOfPeriodsPassed + 1) * periodDuration;
         else periodCount += numberOfPeriodsPassed * periodDuration;
-
         dueDate = DTL.addMonths(lastDueDate, periodCount);
     }
 
