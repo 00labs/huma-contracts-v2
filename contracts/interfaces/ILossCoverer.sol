@@ -18,7 +18,14 @@ interface ILossCoverer {
 
     function coverLoss(uint256 poolAssets, uint256 loss) external returns (uint256 remainingLoss);
 
+    function calcLossCover(
+        uint256 poolAssets,
+        uint256 loss
+    ) external view returns (uint256 remainingLoss);
+
     function recoverLoss(uint256 recovery) external returns (uint256 remainingRecovery);
+
+    function calcLossRecover(uint256 recovery) external view returns (uint256 remainingRecovery);
 
     function isSufficient(address account) external view returns (bool sufficient);
 }
