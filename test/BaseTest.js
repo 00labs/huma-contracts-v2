@@ -332,6 +332,97 @@ function getNextDueDate(calendarUnit, lastDate, currentDate, periodDuration) {
     }
 }
 
+function calcProfitForFixedAprPolicy(
+    profit,
+    assets,
+    lastUpdateTS,
+    currentTS,
+    deployedAssets,
+    apr
+) {
+    let totalAssets = assets[CONSTANTS.SENIOR_TRANCHE_INDEX].add(
+        assets[CONSTANTS.JUNIOR_TRANCHE_INDEX]
+    );
+    let seniorDeployedAssets = deployedAssets
+        .mul(assets[CONSTANTS.SENIOR_TRANCHE_INDEX])
+        .div(totalAssets);
+    let seniorProfit = 0;
+    if (currentTS > lastUpdateTS) {
+        seniorProfit = seniorDeployedAssets
+            .mul(currentTS - lastUpdateTS)
+            .mul(apr)
+            .div(CONSTANTS.SECONDS_IN_YEAR)
+            .div(CONSTANTS.BP_FACTOR);
+    }
+    seniorProfit = seniorProfit.gt(profit) ? profit : seniorProfit;
+    let juniorProfit = profit.sub(seniorProfit);
+
+    return [
+        assets[CONSTANTS.SENIOR_TRANCHE_INDEX].add(seniorProfit),
+        assets[CONSTANTS.JUNIOR_TRANCHE_INDEX].add(juniorProfit),
+    ];
+}
+
+function calcProfitForRiskAdjustedPolicy(profit, assets, riskAdjustment) {
+    let totalAssets = assets[CONSTANTS.SENIOR_TRANCHE_INDEX].add(
+        assets[CONSTANTS.JUNIOR_TRANCHE_INDEX]
+    );
+
+    let seniorProfit = profit.mul(assets[CONSTANTS.SENIOR_TRANCHE_INDEX]).div(totalAssets);
+    let adjustedProfit = seniorProfit.mul(riskAdjustment).div(CONSTANTS.BP_FACTOR);
+    seniorProfit = seniorProfit.sub(adjustedProfit);
+
+    return [
+        assets[CONSTANTS.SENIOR_TRANCHE_INDEX].add(seniorProfit),
+        assets[CONSTANTS.JUNIOR_TRANCHE_INDEX].add(profit.sub(seniorProfit)),
+    ];
+}
+
+function calcLoss(loss, assets) {
+    let juniorLoss = loss.gt(assets[CONSTANTS.JUNIOR_TRANCHE_INDEX])
+        ? assets[CONSTANTS.JUNIOR_TRANCHE_INDEX]
+        : loss;
+    let seniorLoss = loss.sub(juniorLoss);
+
+    return [
+        [
+            assets[CONSTANTS.SENIOR_TRANCHE_INDEX].sub(seniorLoss),
+            assets[CONSTANTS.JUNIOR_TRANCHE_INDEX].sub(juniorLoss),
+        ],
+        [seniorLoss, juniorLoss],
+    ];
+}
+
+function calcLossRecovery(lossRecovery, assets, losses) {
+    let seniorRecovery = lossRecovery.gt(losses[CONSTANTS.SENIOR_TRANCHE_INDEX])
+        ? losses[CONSTANTS.SENIOR_TRANCHE_INDEX]
+        : lossRecovery;
+    lossRecovery = lossRecovery.sub(seniorRecovery);
+    let juniorRecovery = lossRecovery.gt(losses[CONSTANTS.JUNIOR_TRANCHE_INDEX])
+        ? losses[CONSTANTS.JUNIOR_TRANCHE_INDEX]
+        : lossRecovery;
+    lossRecovery = lossRecovery.sub(juniorRecovery);
+
+    return [
+        lossRecovery,
+        [
+            assets[CONSTANTS.SENIOR_TRANCHE_INDEX].add(seniorRecovery),
+            assets[CONSTANTS.JUNIOR_TRANCHE_INDEX].add(juniorRecovery),
+        ],
+        [
+            losses[CONSTANTS.SENIOR_TRANCHE_INDEX].sub(seniorRecovery),
+            losses[CONSTANTS.JUNIOR_TRANCHE_INDEX].sub(juniorRecovery),
+        ],
+    ];
+}
+
+const PnLCalculator = {
+    calcProfitForFixedAprPolicy,
+    calcProfitForRiskAdjustedPolicy,
+    calcLoss,
+    calcLossRecovery,
+};
+
 function checkEpochInfo(
     epochInfo,
     epochId,
@@ -353,4 +444,5 @@ module.exports = {
     getNextDueDate,
     checkEpochInfo,
     CONSTANTS,
+    PnLCalculator,
 };

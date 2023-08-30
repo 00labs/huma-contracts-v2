@@ -54,7 +54,24 @@ contract MockCredit is PoolConfigCache, ICredit {
         returns (uint256 profit, uint256 loss, uint256 lossRecovery)
     {}
 
-    function refreshPnL() external returns (uint256 profit, uint256 loss, uint256 lossRecovery) {}
+    function setRefreshPnLReturns(uint256 _profit, uint256 _loss, uint256 _lossRecovery) external {
+        profit = _profit;
+        loss = _loss;
+        lossRecovery = _lossRecovery;
+    }
+
+    uint256 public profit;
+    uint256 public loss;
+    uint256 public lossRecovery;
+
+    function refreshPnL()
+        external
+        returns (uint256 profit_, uint256 loss_, uint256 lossRecovery_)
+    {
+        profit_ = profit;
+        loss_ = loss;
+        lossRecovery_ = lossRecovery;
+    }
 
     function pauseCredit(bytes32 creditHash) external {}
 

@@ -47,6 +47,17 @@ contract Pool is PoolConfigCache, IPool {
     event PoolDisabled(address indexed by);
     event PoolEnabled(address indexed by);
 
+    event PoolAssetsRefreshed(
+        uint256 refreshedTimestamp,
+        uint256 profit,
+        uint256 loss,
+        uint256 lossRecovery,
+        uint256 seniorTotalAssets,
+        uint256 juniorTotalAssets,
+        uint256 seniorTotalLoss,
+        uint256 juniorTotalLoss
+    );
+
     constructor(address poolConfigAddress) PoolConfigCache(poolConfigAddress) {}
 
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
@@ -143,6 +154,17 @@ contract Pool is PoolConfigCache, IPool {
             tl.juniorLoss = losses[JUNIOR_TRANCHE_INDEX];
             tranchesLosses = tl;
         }
+
+        emit PoolAssetsRefreshed(
+            block.timestamp,
+            profit,
+            loss,
+            lossRecovery,
+            assets[SENIOR_TRANCHE_INDEX],
+            assets[JUNIOR_TRANCHE_INDEX],
+            losses[SENIOR_TRANCHE_INDEX],
+            losses[JUNIOR_TRANCHE_INDEX]
+        );
     }
 
     function _distributeProfit(
@@ -316,7 +338,7 @@ contract Pool is PoolConfigCache, IPool {
         TranchesAssets memory ta = tranchesAssets;
         ta.seniorTotalAssets = assets[SENIOR_TRANCHE_INDEX];
         ta.juniorTotalAssets = assets[JUNIOR_TRANCHE_INDEX];
-        // assert(ta.lastUpdatedTime == block.timestamp);
+        assert(ta.lastUpdatedTime == block.timestamp);
         tranchesAssets = ta;
     }
 }

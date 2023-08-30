@@ -7,8 +7,7 @@ const {
     deployProtocolContracts,
     deployAndSetupPoolContracts,
     CONSTANTS,
-    getNextDueDate,
-    checkEpochInfo,
+    PnLCalculator,
 } = require("./BaseTest");
 const {toToken, mineNextBlockWithTimestamp, setNextBlockTimestamp} = require("./TestUtils");
 
@@ -28,44 +27,6 @@ let poolConfigContract,
     seniorTrancheVaultContract,
     juniorTrancheVaultContract,
     creditContract;
-
-function calcTranchesAssetsForLoss(loss, assets) {
-    let juniorLoss = loss.gt(assets[CONSTANTS.JUNIOR_TRANCHE_INDEX])
-        ? assets[CONSTANTS.JUNIOR_TRANCHE_INDEX]
-        : loss;
-    let seniorLoss = loss.sub(juniorLoss);
-
-    return [
-        [
-            assets[CONSTANTS.SENIOR_TRANCHE_INDEX].sub(seniorLoss),
-            assets[CONSTANTS.JUNIOR_TRANCHE_INDEX].sub(juniorLoss),
-        ],
-        [seniorLoss, juniorLoss],
-    ];
-}
-
-function calcTranchesAssetsForLossRecovery(lossRecovery, assets, losses) {
-    let seniorRecovery = lossRecovery.gt(losses[CONSTANTS.SENIOR_TRANCHE_INDEX])
-        ? losses[CONSTANTS.SENIOR_TRANCHE_INDEX]
-        : lossRecovery;
-    lossRecovery = lossRecovery.sub(seniorRecovery);
-    let juniorRecovery = lossRecovery.gt(losses[CONSTANTS.JUNIOR_TRANCHE_INDEX])
-        ? losses[CONSTANTS.JUNIOR_TRANCHE_INDEX]
-        : lossRecovery;
-    lossRecovery = lossRecovery.sub(juniorRecovery);
-
-    return [
-        lossRecovery,
-        [
-            assets[CONSTANTS.SENIOR_TRANCHE_INDEX].add(seniorRecovery),
-            assets[CONSTANTS.JUNIOR_TRANCHE_INDEX].add(juniorRecovery),
-        ],
-        [
-            losses[CONSTANTS.SENIOR_TRANCHE_INDEX].sub(seniorRecovery),
-            losses[CONSTANTS.JUNIOR_TRANCHE_INDEX].sub(juniorRecovery),
-        ],
-    ];
-}
 
 describe("BaseTranchesPolicy Test", function () {
     before(async function () {
@@ -135,7 +96,7 @@ describe("BaseTranchesPolicy Test", function () {
         let assets = await poolContract.currentTranchesAssets();
         let loss = toToken(27937);
 
-        let [newAssets, newLosses] = calcTranchesAssetsForLoss(loss, assets);
+        let [newAssets, newLosses] = PnLCalculator.calcLoss(loss, assets);
         let result = await tranchesPolicyContract.calcTranchesAssetsForLoss(loss, assets);
 
         expect(result[0][CONSTANTS.SENIOR_TRANCHE_INDEX]).to.equal(
@@ -156,7 +117,7 @@ describe("BaseTranchesPolicy Test", function () {
         let assets = await poolContract.currentTranchesAssets();
         let loss = toToken(153648);
 
-        let [newAssets, newLosses] = calcTranchesAssetsForLoss(loss, assets);
+        let [newAssets, newLosses] = PnLCalculator.calcLoss(loss, assets);
         let result = await tranchesPolicyContract.calcTranchesAssetsForLoss(loss, assets);
 
         expect(result[0][CONSTANTS.SENIOR_TRANCHE_INDEX]).to.equal(
@@ -181,7 +142,7 @@ describe("BaseTranchesPolicy Test", function () {
         let assets = await poolContract.currentTranchesAssets();
         let loss = toToken(128356);
 
-        let [newAssets, newLosses] = calcTranchesAssetsForLoss(loss, assets);
+        let [newAssets, newLosses] = PnLCalculator.calcLoss(loss, assets);
         let result = await tranchesPolicyContract.calcTranchesAssetsForLoss(loss, assets);
 
         expect(result[0][CONSTANTS.SENIOR_TRANCHE_INDEX]).to.equal(
@@ -202,11 +163,7 @@ describe("BaseTranchesPolicy Test", function () {
         );
 
         let recovery = toToken(17937);
-        [, newAssets, newLosses] = calcTranchesAssetsForLossRecovery(
-            recovery,
-            result[0],
-            result[1]
-        );
+        [, newAssets, newLosses] = PnLCalculator.calcLossRecovery(recovery, result[0], result[1]);
         result = await tranchesPolicyContract.calcTranchesAssetsForLossRecovery(
             recovery,
             result[0],
@@ -235,7 +192,7 @@ describe("BaseTranchesPolicy Test", function () {
         let assets = await poolContract.currentTranchesAssets();
         let loss = toToken(113638);
 
-        let [newAssets, newLosses] = calcTranchesAssetsForLoss(loss, assets);
+        let [newAssets, newLosses] = PnLCalculator.calcLoss(loss, assets);
         let result = await tranchesPolicyContract.calcTranchesAssetsForLoss(loss, assets);
 
         expect(result[0][CONSTANTS.SENIOR_TRANCHE_INDEX]).to.equal(
@@ -256,11 +213,7 @@ describe("BaseTranchesPolicy Test", function () {
         );
 
         let recovery = toToken(38566);
-        [, newAssets, newLosses] = calcTranchesAssetsForLossRecovery(
-            recovery,
-            result[0],
-            result[1]
-        );
+        [, newAssets, newLosses] = PnLCalculator.calcLossRecovery(recovery, result[0], result[1]);
         result = await tranchesPolicyContract.calcTranchesAssetsForLossRecovery(
             recovery,
             result[0],

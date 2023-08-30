@@ -7,8 +7,7 @@ const {
     deployProtocolContracts,
     deployAndSetupPoolContracts,
     CONSTANTS,
-    getNextDueDate,
-    checkEpochInfo,
+    PnLCalculator,
 } = require("./BaseTest");
 const {toToken, mineNextBlockWithTimestamp, setNextBlockTimestamp} = require("./TestUtils");
 
@@ -28,37 +27,6 @@ let poolConfigContract,
     seniorTrancheVaultContract,
     juniorTrancheVaultContract,
     creditContract;
-
-function calcTranchesAssetsForProfit(
-    profit,
-    assets,
-    lastUpdateTS,
-    currentTS,
-    deployedAssets,
-    apr
-) {
-    let totalAssets = assets[CONSTANTS.SENIOR_TRANCHE_INDEX].add(
-        assets[CONSTANTS.JUNIOR_TRANCHE_INDEX]
-    );
-    let seniorDeployedAssets = deployedAssets
-        .mul(assets[CONSTANTS.SENIOR_TRANCHE_INDEX])
-        .div(totalAssets);
-    let seniorProfit = 0;
-    if (currentTS > lastUpdateTS) {
-        seniorProfit = seniorDeployedAssets
-            .mul(currentTS - lastUpdateTS)
-            .mul(apr)
-            .div(CONSTANTS.SECONDS_IN_YEAR)
-            .div(CONSTANTS.BP_FACTOR);
-    }
-    seniorProfit = seniorProfit.gt(profit) ? profit : seniorProfit;
-    let juniorProfit = profit.sub(seniorProfit);
-
-    return [
-        assets[CONSTANTS.SENIOR_TRANCHE_INDEX].add(seniorProfit),
-        assets[CONSTANTS.JUNIOR_TRANCHE_INDEX].add(juniorProfit),
-    ];
-}
 
 describe("FixedAprTranchesPolicy Test", function () {
     before(async function () {
@@ -143,7 +111,7 @@ describe("FixedAprTranchesPolicy Test", function () {
         let nextDate = lastBlock.timestamp + 10;
         await mineNextBlockWithTimestamp(nextDate);
 
-        let newAssets = calcTranchesAssetsForProfit(
+        let newAssets = PnLCalculator.calcProfitForFixedAprPolicy(
             profit,
             assets,
             lastDate,
