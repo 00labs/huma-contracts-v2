@@ -11,9 +11,7 @@ interface IPlatformFeeManager {
     /**
      * @notice Gets remaining profit after deducting various fees
      */
-    function getRemainingAfterPlatformFees(
-        uint256 profit
-    ) external view returns (uint256 remaining);
+    function calcPlatformFeeDistribution(uint256 profit) external view returns (uint256 remaining);
 
     function withdrawProtocolFee(uint256 amount) external;
 

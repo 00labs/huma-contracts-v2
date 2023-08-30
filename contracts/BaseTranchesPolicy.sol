@@ -15,12 +15,15 @@ abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
     function calcTranchesAssetsForLoss(
         uint256 loss,
         uint96[2] memory assets
-    ) external pure returns (uint96[2] memory newAssets) {
+    ) external pure returns (uint96[2] memory newAssets, uint96[2] memory newLosses) {
         // The junior tranches covers the loss first
         uint256 juniorTotalAssets = assets[JUNIOR_TRANCHE_INDEX];
         uint256 juniorLoss = juniorTotalAssets >= loss ? loss : juniorTotalAssets;
+        uint256 seniorLoss = loss - juniorLoss;
         newAssets[JUNIOR_TRANCHE_INDEX] = uint96(assets[JUNIOR_TRANCHE_INDEX] - juniorLoss);
-        newAssets[SENIOR_TRANCHE_INDEX] = uint96(assets[SENIOR_TRANCHE_INDEX] + juniorLoss - loss);
+        newAssets[SENIOR_TRANCHE_INDEX] = uint96(assets[SENIOR_TRANCHE_INDEX] - seniorLoss);
+        newLosses[JUNIOR_TRANCHE_INDEX] = uint96(juniorLoss);
+        newLosses[SENIOR_TRANCHE_INDEX] = uint96(seniorLoss);
     }
 
     function calcTranchesAssetsForLossRecovery(
@@ -32,16 +35,13 @@ abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
         pure
         returns (uint256 newLossRecovery, uint96[2] memory newAssets, uint96[2] memory newLosses)
     {
-        newAssets = assets;
-        newLosses = losses;
-
         uint96 seniorLoss = losses[SENIOR_TRANCHE_INDEX];
         uint256 seniorLossRecovery = lossRecovery >= seniorLoss ? seniorLoss : lossRecovery;
         if (seniorLossRecovery > 0) {
-            newAssets[SENIOR_TRANCHE_INDEX] =
+            assets[SENIOR_TRANCHE_INDEX] =
                 assets[SENIOR_TRANCHE_INDEX] +
                 uint96(seniorLossRecovery);
-            newLosses[SENIOR_TRANCHE_INDEX] =
+            losses[SENIOR_TRANCHE_INDEX] =
                 losses[SENIOR_TRANCHE_INDEX] -
                 uint96(seniorLossRecovery);
         }
@@ -51,13 +51,15 @@ abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
             uint256 juniorLossRecovery = newLossRecovery >= juniorLoss
                 ? juniorLoss
                 : newLossRecovery;
-            newAssets[JUNIOR_TRANCHE_INDEX] =
+            assets[JUNIOR_TRANCHE_INDEX] =
                 assets[JUNIOR_TRANCHE_INDEX] +
                 uint96(juniorLossRecovery);
-            newLosses[JUNIOR_TRANCHE_INDEX] =
+            losses[JUNIOR_TRANCHE_INDEX] =
                 losses[JUNIOR_TRANCHE_INDEX] -
                 uint96(juniorLossRecovery);
             newLossRecovery = newLossRecovery - juniorLossRecovery;
         }
+
+        return (newLossRecovery, assets, losses);
     }
 }

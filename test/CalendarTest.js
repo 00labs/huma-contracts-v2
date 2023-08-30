@@ -25,6 +25,10 @@ describe("Calendar Test", function () {
     describe("getNextDueDate", function () {
         it("getNextDueDate while unit is Day and lastDueDate is 0", async function () {
             let nextDate = Math.ceil(Date.now() / 1000) + 2;
+            let block = await ethers.provider.getBlock();
+            if (block.timestamp > nextDate) {
+                nextDate = block.timestamp + 2;
+            }
             await mineNextBlockWithTimestamp(nextDate);
 
             let period = 2;
@@ -45,6 +49,10 @@ describe("Calendar Test", function () {
 
         it("getNextDueDate while unit is Day and lastDueDate is not 0", async function () {
             let nextDate = Math.ceil(Date.now() / 1000) + 2;
+            let block = await ethers.provider.getBlock();
+            if (block.timestamp > nextDate) {
+                nextDate = block.timestamp + 2;
+            }
             await mineNextBlockWithTimestamp(nextDate);
 
             let lastDate = moment.utc("2023-07-01").unix();
@@ -68,6 +76,10 @@ describe("Calendar Test", function () {
 
         it("getNextDueDate while unit is Month and lastDueDate is 0", async function () {
             let nextDate = Math.ceil(Date.now() / 1000) + 2;
+            let block = await ethers.provider.getBlock();
+            if (block.timestamp > nextDate) {
+                nextDate = block.timestamp + 2;
+            }
             await mineNextBlockWithTimestamp(nextDate);
 
             let period = 1;
@@ -89,6 +101,10 @@ describe("Calendar Test", function () {
 
         it("getNextDueDate while unit is Month and lastDueDate is not 0", async function () {
             let nextDate = Math.ceil(Date.now() / 1000) + 2;
+            let block = await ethers.provider.getBlock();
+            if (block.timestamp > nextDate) {
+                nextDate = block.timestamp + 2;
+            }
             await mineNextBlockWithTimestamp(nextDate);
 
             let lastDate = moment.utc("2023-02-01").unix();

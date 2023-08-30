@@ -71,7 +71,7 @@ contract PlatformFeeManager is PoolConfigCache, IPlatformFeeManager {
         return remaining;
     }
 
-    function getRemainingAfterPlatformFees(
+    function calcPlatformFeeDistribution(
         uint256 profit
     ) external view returns (uint256 remaining) {
         (, remaining) = _getPlatformFees(profit);

@@ -129,6 +129,11 @@ contract LossCoverer is PoolConfigCache, ILossCoverer {
         emit LossCovered(processed, remainingLoss);
     }
 
+    function calcLossCover(
+        uint256 poolAssets,
+        uint256 loss
+    ) external view returns (uint256 remainingLoss) {}
+
     function recoverLoss(uint256 recovery) external returns (uint256 remainingRecovery) {
         poolConfig.onlyPool(msg.sender);
 
@@ -143,6 +148,8 @@ contract LossCoverer is PoolConfigCache, ILossCoverer {
 
         emit LossRecovered(recovered, remainingRecovery);
     }
+
+    function calcLossRecover(uint256 recovery) external view returns (uint256 remainingRecovery) {}
 
     function isSufficient(address account) external view returns (bool) {
         _onlyOperator(account);

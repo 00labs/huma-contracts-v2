@@ -117,13 +117,6 @@ describe("EpochManager Test", function () {
         await seniorTrancheVaultContract
             .connect(lender2)
             .deposit(seniorDepositAmount, lender2.address);
-
-        // console.log(
-        //     `juniorTrancheVaultContract.totalAssets: ${await juniorTrancheVaultContract.totalAssets()}`
-        // );
-        // console.log(
-        //     `seniorTrancheVaultContract.totalAssets: ${await seniorTrancheVaultContract.totalAssets()}`
-        // );
     }
 
     beforeEach(async function () {

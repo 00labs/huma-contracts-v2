@@ -30,7 +30,7 @@ interface ITranchesPolicy {
     function calcTranchesAssetsForLoss(
         uint256 loss,
         uint96[2] memory assets
-    ) external view returns (uint96[2] memory newAssets);
+    ) external view returns (uint96[2] memory newAssets, uint96[2] memory newLosses);
 
     /**
      * @notice Calculates loss recovery distributions among tranches
