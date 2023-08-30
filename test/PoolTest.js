@@ -6,8 +6,10 @@ const {
     deployProtocolContracts,
     deployPoolContracts,
     deployAndSetupPoolContracts,
+    CONSTANTS,
+    PnLCalculator,
 } = require("./BaseTest");
-const {toToken} = require("./TestUtils");
+const {toToken, mineNextBlockWithTimestamp, setNextBlockTimestamp} = require("./TestUtils");
 
 let defaultDeployer, protocolOwner, treasury, eaServiceAccount, pdsServiceAccount;
 let poolOwner, poolOwnerTreasury, evaluationAgent, poolOperator;
@@ -255,6 +257,83 @@ describe("Pool Test", function () {
             await expect(poolContract.connect(poolOperator).disablePool())
                 .to.emit(poolContract, "PoolDisabled")
                 .withArgs(poolOperator.address);
+        });
+
+        describe("PnL Tests", function () {
+            async function prepareForPnL() {
+                let juniorDepositAmount = toToken(250_000);
+                await juniorTrancheVaultContract
+                    .connect(lender)
+                    .deposit(juniorDepositAmount, lender.address);
+                let seniorDepositAmount = toToken(800_000);
+                await seniorTrancheVaultContract
+                    .connect(lender)
+                    .deposit(seniorDepositAmount, lender.address);
+            }
+
+            beforeEach(async function () {
+                await loadFixture(prepareForPnL);
+            });
+
+            it("Should distribute profit correctly", async function () {});
+
+            it("Should distribute loss correctly while first loss can cover loss", async function () {});
+
+            it("Should distribute loss correctly while junior assets can cover loss", async function () {});
+
+            it("Should distribute loss correctly while junior assets can not cover loss", async function () {});
+
+            it("Should distribute loss recovery correctly while senior loss can be recovered", async function () {});
+
+            it("Should distribute loss recovery correctly while junior loss can be recovered", async function () {});
+
+            it("Should distribute loss recovery correctly while first loss can be recovered", async function () {});
+
+            it("Should distribute profit, loss and loss recovery correctly", async function () {
+                let profit = toToken(12387);
+                let loss = toToken(8493);
+                let recovery = toToken(3485);
+
+                await creditContract.setRefreshPnLReturns(profit, loss, recovery);
+                await poolConfigContract
+                    .connect(poolOwner)
+                    .setEpochManager(defaultDeployer.address);
+                const adjustment = BN.from(8000);
+                let lpConfig = await poolConfigContract.getLPConfig();
+                let newLpConfig = {...lpConfig, tranchesRiskAdjustmentInBps: adjustment};
+                await poolConfigContract.connect(poolOwner).setLPConfig(newLpConfig);
+
+                let block = await ethers.provider.getBlock();
+                let nextTS = block.timestamp + 5;
+                await setNextBlockTimestamp(nextTS);
+
+                let assets = await poolContract.currentTranchesAssets();
+                let profitAfterFees = await platformFeeManagerContract.calcPlatformFeeDistribution(
+                    profit
+                );
+                assets = PnLCalculator.calcProfitForRiskAdjustedPolicy(
+                    profitAfterFees,
+                    assets,
+                    adjustment
+                );
+                let losses;
+                [assets, losses] = PnLCalculator.calcLoss(loss, assets);
+                [, assets, losses] = PnLCalculator.calcLossRecovery(recovery, assets, losses);
+
+                await expect(await poolContract.refreshPool())
+                    .to.emit(poolContract, "PoolAssetsRefreshed")
+                    .withArgs(
+                        nextTS,
+                        profit,
+                        loss,
+                        recovery,
+                        // 0,
+                        assets[CONSTANTS.SENIOR_TRANCHE_INDEX],
+                        assets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                        losses[CONSTANTS.SENIOR_TRANCHE_INDEX],
+                        losses[CONSTANTS.JUNIOR_TRANCHE_INDEX]
+                    );
+            });
         });
     });
 });

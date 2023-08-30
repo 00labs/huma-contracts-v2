@@ -6,8 +6,7 @@ const {
     deployProtocolContracts,
     deployAndSetupPoolContracts,
     CONSTANTS,
-    getNextDueDate,
-    checkEpochInfo,
+    PnLCalculator,
 } = require("./BaseTest");
 const {toToken, mineNextBlockWithTimestamp, setNextBlockTimestamp} = require("./TestUtils");
 
@@ -27,21 +26,6 @@ let poolConfigContract,
     seniorTrancheVaultContract,
     juniorTrancheVaultContract,
     creditContract;
-
-function calcTranchesAssetsForProfit(profit, assets, deployedAssets, riskAdjustment) {
-    let totalAssets = assets[CONSTANTS.SENIOR_TRANCHE_INDEX].add(
-        assets[CONSTANTS.JUNIOR_TRANCHE_INDEX]
-    );
-
-    let seniorProfit = profit.mul(assets[CONSTANTS.SENIOR_TRANCHE_INDEX]).div(totalAssets);
-    let adjustedProfit = seniorProfit.mul(riskAdjustment).div(CONSTANTS.BP_FACTOR);
-    seniorProfit = seniorProfit.sub(adjustedProfit);
-
-    return [
-        assets[CONSTANTS.SENIOR_TRANCHE_INDEX].add(seniorProfit),
-        assets[CONSTANTS.JUNIOR_TRANCHE_INDEX].add(profit.sub(seniorProfit)),
-    ];
-}
 
 describe("RiskAdjustedTranchesPolicy Test", function () {
     before(async function () {
@@ -114,13 +98,10 @@ describe("RiskAdjustedTranchesPolicy Test", function () {
         let newLpConfig = {...lpConfig, tranchesRiskAdjustmentInBps: adjustment};
         await poolConfigContract.connect(poolOwner).setLPConfig(newLpConfig);
 
-        let deployedAssets = toToken(350_000);
-        await creditContract.drawdown(ethers.constants.HashZero, deployedAssets);
-
         let assets = await poolContract.currentTranchesAssets();
         let profit = toToken(14837);
 
-        let newAssets = calcTranchesAssetsForProfit(profit, assets, deployedAssets, adjustment);
+        let newAssets = PnLCalculator.calcProfitForRiskAdjustedPolicy(profit, assets, adjustment);
         let result = await tranchesPolicyContract.calcTranchesAssetsForProfit(profit, assets, 0);
         expect(result[CONSTANTS.SENIOR_TRANCHE_INDEX]).to.equal(
             newAssets[CONSTANTS.SENIOR_TRANCHE_INDEX]
