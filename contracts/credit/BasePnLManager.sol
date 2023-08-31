@@ -34,17 +34,28 @@ abstract contract BasePnLManager is IPnLManager {
         uint96 profitDiff,
         uint96 lossDiff,
         uint96 recoveryDiff
-    ) public returns (uint256 totalProfit, uint256 totalLoss, uint256 totalLossRecovery) {
+    )
+        public
+        returns (
+            uint256 incrementalProfit,
+            uint256 incrementalLoss,
+            uint256 incrementalLossRecovery
+        )
+    {
         PnLTracker memory t = pnlTracker;
         uint256 timeLapsed = block.timestamp - t.pnlLastUpdated;
-        t.totalProfit += (profitDiff + uint96(t.profitRate * timeLapsed));
-        t.totalLoss += (lossDiff + uint96(t.lossRate * timeLapsed));
+
+        incrementalProfit = uint256(profitDiff + uint96(t.profitRate * timeLapsed));
+        incrementalLoss = uint256(lossDiff + uint96(t.lossRate * timeLapsed));
+        incrementalLossRecovery = uint256(recoveryDiff);
+
         t.profitRate = uint96(int96(t.profitRate) + profitRateDiff);
         t.lossRate = uint96(int96(t.lossRate) + lossRateDiff);
-        t.totalLossRecovery += recoveryDiff;
+        t.totalProfit = uint96(t.totalProfit + incrementalProfit);
+        t.totalLoss = uint96(t.totalLoss + incrementalLoss);
+        t.totalLossRecovery = uint96(t.totalLossRecovery + incrementalLossRecovery);
         t.pnlLastUpdated = uint64(block.timestamp);
         pnlTracker = t;
-        return (uint256(t.totalProfit), uint256(t.totalLoss), uint256(t.totalLossRecovery));
     }
 
     function getLastUpdated() external view returns (uint256 lastUpdated) {
