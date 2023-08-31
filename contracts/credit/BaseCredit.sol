@@ -227,16 +227,6 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
     }
 
     /**
-     * @notice Distributes income to token holders.
-     * todo get rid of this function once we know where we have the distributeIncome() function that
-     * splits income between poolOwner, EA, firstLossCover provider and the pool. The caller of this
-     * function is responsible for updating PnL.
-     */
-    function distributeIncome(uint256 value) internal virtual returns (uint256 poolIncome) {
-        // uint256 poolIncome = _poolConfig.distributeIncome(value);
-    }
-
-    /**
      * @notice allows the borrower to borrow against an approved credit line.
      * @param creditHash hash of the credit record
      * @param borrowAmount the amount to borrow
@@ -609,15 +599,12 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         }
         _setCreditRecord(creditHash, cr);
 
-        (uint256 netAmountToBorrower, uint256 platformFees) = _feeManager.distBorrowingAmount(
+        (uint256 netAmountToBorrower, uint256 platformProfit) = _feeManager.distBorrowingAmount(
             borrowAmount
         );
 
-        uint256 poolIncome = 0;
-        if (platformFees > 0) poolIncome = distributeIncome(platformFees);
-
         pnlManager.processDrawdown(
-            uint96(poolIncome),
+            uint96(platformProfit),
             uint96((borrowAmount * cc.yieldInBps) / SECONDS_IN_A_YEAR)
         );
 
