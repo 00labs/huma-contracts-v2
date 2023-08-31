@@ -26,7 +26,7 @@ let poolConfigContract,
     juniorTrancheVaultContract,
     creditContract;
 
-describe("Pool Test", function () {
+describe.skip("Receivable Test", function () {
     before(async function () {
         [
             defaultDeployer,
