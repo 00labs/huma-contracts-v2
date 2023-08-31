@@ -146,64 +146,6 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
     );
 
     /**
-     * @notice approve a borrower with set of terms. These terms will be referenced by EA
-     * when credits are created for this borrower.
-     * @param borrower the borrower address
-     * @param creditLimit the credit limit at the borrower level
-     * @param numOfPeriods how many periods are approved for the borrower
-     * @param yieldInBps expected yields in basis points
-     * @param committedAmount the amount the borrower committed to use.
-     * @param revolving indicates if the underlying credit line is revolving or not
-     * @param receivableRequired whether receivable is required as collateral before a drawdown
-     * @param borrowerLevelCredit indicates whether the borrower is allowed to have one or
-     * multiple credit line
-     * The yield will be computed using the max of this amount and the acutal credit used.
-     * @dev Please note CalendarUnit and durationPerPeriodInCalendarUnit are defined at the
-     * pool level, managed by PoolConfig. They cannot be customized for each borrower or credit.
-     */
-    function approveBorrower(
-        address borrower,
-        uint96 creditLimit,
-        uint16 numOfPeriods, // number of periods
-        uint16 yieldInBps,
-        uint96 committedAmount,
-        bool revolving,
-        bool receivableRequired,
-        bool borrowerLevelCredit
-    ) external virtual override {
-        _protocolAndPoolOn();
-        onlyEAServiceAccount();
-
-        if (creditLimit <= 0) revert();
-        if (numOfPeriods <= 0) revert();
-
-        PoolSettings memory ps = _poolConfig.getPoolSettings();
-        _borrowerConfigMap[borrower] = CreditConfig(
-            creditLimit,
-            committedAmount,
-            ps.calendarUnit,
-            ps.payPeriodInCalendarUnit,
-            numOfPeriods,
-            yieldInBps,
-            revolving,
-            receivableRequired,
-            borrowerLevelCredit,
-            true
-        );
-
-        emit BorrowerApproved(
-            borrower,
-            creditLimit,
-            numOfPeriods,
-            yieldInBps,
-            committedAmount,
-            revolving,
-            receivableRequired,
-            borrowerLevelCredit
-        );
-    }
-
-    /**
      * @notice Approves the credit with the terms provided.
      * @param borrower the borrower address
      * @param creditLimit the credit limit of the credit line
