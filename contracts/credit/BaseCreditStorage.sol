@@ -6,17 +6,20 @@ import {HumaConfig} from "../HumaConfig.sol";
 import {CreditConfig, CreditRecord, CreditLimits, PnLTracker} from "./CreditStructs.sol";
 import {PoolConfig} from "../PoolConfig.sol";
 import {ICreditFeeManager} from "./utils/interfaces/ICreditFeeManager.sol";
+import {ICalendar} from "./interfaces/ICalendar.sol";
+import {IPnLManager} from "./interfaces/IPnLManager.sol";
 
 contract BaseCreditStorage {
     // The ERC20 token this pool manages
     IERC20 internal _underlyingToken;
 
-    PoolConfig internal _poolConfig;
-
     HumaConfig internal _humaConfig;
 
     // Reference to the fee manager contract
     ICreditFeeManager internal _feeManager;
+
+    ICalendar public calendar;
+    IPnLManager public pnlManager;
 
     PnLTracker public pnlTracker;
 

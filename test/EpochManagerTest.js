@@ -27,7 +27,9 @@ let poolConfigContract,
     epochManagerContract,
     seniorTrancheVaultContract,
     juniorTrancheVaultContract,
-    creditContract;
+    creditContract,
+    creditFeeManagerContract,
+    creditPnlManagerContract;
 
 async function getMinJuniorAssets(seniorMatureRedemptionInThisEpoch, maxSeniorJuniorRatio) {
     let seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -87,6 +89,8 @@ describe("EpochManager Test", function () {
             seniorTrancheVaultContract,
             juniorTrancheVaultContract,
             creditContract,
+            creditFeeManagerContract,
+            creditPnlManagerContract,
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
@@ -94,6 +98,7 @@ describe("EpochManager Test", function () {
             "RiskAdjustedTranchesPolicy",
             defaultDeployer,
             poolOwner,
+            "MockCredit",
             evaluationAgent,
             poolOwnerTreasury,
             poolOperator,

@@ -7,10 +7,18 @@ import {PoolConfig} from "../../PoolConfig.sol";
 import {ICalendar} from "../interfaces/ICalendar.sol";
 import "../../SharedDefs.sol";
 import {Errors} from "../../Errors.sol";
+import {PoolConfigCache} from "../../PoolConfigCache.sol";
 
-contract BaseCreditFeeManager is ICreditFeeManager {
+contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
     ICalendar public calendar;
-    PoolConfig public poolConfig;
+
+    constructor(address poolConfigAddress) PoolConfigCache(poolConfigAddress) {}
+
+    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
+        address addr = _poolConfig.calendar();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        calendar = ICalendar(addr);
+    }
 
     /**
      * @notice Compute interest and principal

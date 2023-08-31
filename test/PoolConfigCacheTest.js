@@ -18,7 +18,9 @@ let poolConfigContract,
     epochManagerContract,
     seniorTrancheVaultContract,
     juniorTrancheVaultContract,
-    creditContract;
+    creditContract,
+    creditFeeManagerContract,
+    creditPnlManagerContract;
 
 describe("PoolConfigCache Test", function () {
     before(async function () {
@@ -57,12 +59,15 @@ describe("PoolConfigCache Test", function () {
             seniorTrancheVaultContract,
             juniorTrancheVaultContract,
             creditContract,
+            creditFeeManagerContract,
+            creditPnlManagerContract,
         ] = await deployPoolContracts(
             humaConfigContract,
             mockTokenContract,
             "RiskAdjustedTranchesPolicy",
             defaultDeployer,
-            poolOwner
+            poolOwner,
+            "MockCredit"
         );
     }
 

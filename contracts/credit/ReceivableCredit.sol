@@ -56,7 +56,7 @@ contract ReceivableCredit is BaseCredit, IReceivableCredit {
         if (creditLimit <= 0) revert();
         if (numOfPeriods <= 0) revert();
 
-        PoolSettings memory ps = _poolConfig.getPoolSettings();
+        PoolSettings memory ps = poolConfig.getPoolSettings();
         _borrowerConfigMap[borrower] = CreditConfig(
             creditLimit,
             committedAmount,
