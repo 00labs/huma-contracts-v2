@@ -15,8 +15,7 @@ contract LinearMarkdownPnLManager is IPnLManager {
 
     function processDrawdown(uint96 poolIncome, uint96 profitRateDiff) external {
         // todo access control
-        pnlTracker.totalProfit += poolIncome;
-        pnlTracker.profitRate += profitRateDiff;
+        updateTracker(int96(uint96(profitRateDiff)), 0, poolIncome, 0, 0);
     }
 
     function processPayback(
