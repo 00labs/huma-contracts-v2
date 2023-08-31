@@ -121,6 +121,8 @@ describe("PoolConfigCache Test", function () {
             seniorTrancheVaultContract.address,
             juniorTrancheVaultContract.address,
             creditContract.address,
+            creditFeeManagerContract.address,
+            creditPnlManagerContract.address,
         ]);
 
         await expect(
