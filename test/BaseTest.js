@@ -66,7 +66,8 @@ async function deployPoolContracts(
     mockTokenContract,
     tranchesPolicyContractName,
     deployer,
-    poolOwner
+    poolOwner,
+    creditContractName
 ) {
     const PoolConfig = await ethers.getContractFactory("PoolConfig");
     const poolConfigContract = await PoolConfig.deploy();
@@ -106,9 +107,21 @@ async function deployPoolContracts(
     const calendarContract = await Calendar.deploy();
     await calendarContract.deployed();
 
-    const MockCredit = await ethers.getContractFactory("MockCredit");
-    const mockCreditContract = await MockCredit.deploy(poolConfigContract.address);
-    await mockCreditContract.deployed();
+    // const MockCredit = await ethers.getContractFactory("MockCredit");
+    // const mockCreditContract = await MockCredit.deploy(poolConfigContract.address);
+    // await mockCreditContract.deployed();
+
+    const Credit = await ethers.getContractFactory(creditContractName);
+    const creditContract = await Credit.deploy();
+    await creditContract.deployed();
+
+    const BaseCreditFeeManager = await ethers.getContractFactory("BaseCreditFeeManager");
+    const creditFeeManagerContract = await BaseCreditFeeManager.deploy(poolConfigContract.address);
+    await creditFeeManagerContract.deployed();
+
+    const CreditPnLManager = await ethers.getContractFactory("LinearMarkdownPnLManager");
+    const creditPnlManagerContract = await CreditPnLManager.deploy(poolConfigContract.address);
+    await creditPnlManagerContract.deployed();
 
     await poolConfigContract.initialize("Test Pool", [
         humaConfigContract.address,
@@ -122,7 +135,9 @@ async function deployPoolContracts(
         epochManagerContract.address,
         seniorTrancheVaultContract.address,
         juniorTrancheVaultContract.address,
-        mockCreditContract.address,
+        creditContract.address,
+        creditFeeManagerContract.address,
+        creditPnlManagerContract.address,
     ]);
 
     await poolConfigContract.grantRole(
@@ -155,7 +170,9 @@ async function deployPoolContracts(
             poolConfigContract.address,
             JUNIOR_TRANCHE_INDEX
         );
-    await mockCreditContract.connect(poolOwner).updatePoolConfigData();
+    await creditContract.connect(poolOwner).initialize(poolConfigContract.address);
+    await creditFeeManagerContract.connect(poolOwner).updatePoolConfigData();
+    await creditPnlManagerContract.connect(poolOwner).updatePoolConfigData();
 
     return [
         poolConfigContract,
@@ -168,7 +185,9 @@ async function deployPoolContracts(
         epochManagerContract,
         seniorTrancheVaultContract,
         juniorTrancheVaultContract,
-        mockCreditContract,
+        creditContract,
+        creditFeeManagerContract,
+        creditPnlManagerContract,
     ];
 }
 
@@ -268,6 +287,7 @@ async function deployAndSetupPoolContracts(
     tranchesPolicyContractName,
     deployer,
     poolOwner,
+    creditContractName,
     evaluationAgent,
     poolOwnerTreasury,
     poolOperator,
@@ -284,13 +304,16 @@ async function deployAndSetupPoolContracts(
         epochManagerContract,
         seniorTrancheVaultContract,
         juniorTrancheVaultContract,
-        mockCreditContract,
+        creditContract,
+        creditFeeManagerContract,
+        creditPnlManagerContract,
     ] = await deployPoolContracts(
         humaConfigContract,
         mockTokenContract,
         tranchesPolicyContractName,
         deployer,
-        poolOwner
+        poolOwner,
+        creditContractName
     );
 
     await setupPoolContracts(
@@ -320,7 +343,9 @@ async function deployAndSetupPoolContracts(
         epochManagerContract,
         seniorTrancheVaultContract,
         juniorTrancheVaultContract,
-        mockCreditContract,
+        creditContract,
+        creditFeeManagerContract,
+        creditPnlManagerContract,
     ];
 }
 

@@ -243,7 +243,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         uint256 maxEpochId = _currentEpoch.id;
 
         // process mature senior withdrawal requests
-        uint256 availableCount = seniorEpochs.length; // all junior epochs are mature for non flex loan pool
+        uint256 availableCount = seniorEpochs.length; // all senior epochs are mature for non flex loan pool
         if (settings.flexCreditEnabled) {
             // get mature senior epochs count
             availableCount = 0;

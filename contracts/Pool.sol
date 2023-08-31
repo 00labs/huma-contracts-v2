@@ -195,11 +195,14 @@ contract Pool is PoolConfigCache, IPool {
                 ILossCoverer coverer = lossCoverers[i];
                 loss = coverer.coverLoss(poolAssets, loss);
             }
-            uint96[2] memory lossesDelta;
-            (assets, lossesDelta) = tranchesPolicy.calcTranchesAssetsForLoss(loss, assets);
 
-            losses[SENIOR_TRANCHE_INDEX] += lossesDelta[SENIOR_TRANCHE_INDEX];
-            losses[JUNIOR_TRANCHE_INDEX] += lossesDelta[JUNIOR_TRANCHE_INDEX];
+            if (loss > 0) {
+                uint96[2] memory lossesDelta;
+                (assets, lossesDelta) = tranchesPolicy.calcTranchesAssetsForLoss(loss, assets);
+
+                losses[SENIOR_TRANCHE_INDEX] += lossesDelta[SENIOR_TRANCHE_INDEX];
+                losses[JUNIOR_TRANCHE_INDEX] += lossesDelta[JUNIOR_TRANCHE_INDEX];
+            }
         }
 
         return (assets, losses);
