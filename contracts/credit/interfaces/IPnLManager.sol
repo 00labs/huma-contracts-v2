@@ -37,7 +37,13 @@ interface IPnLManager {
         uint96 profitDiff,
         uint96 lossDiff,
         uint96 recoveryDiff
-    ) external returns (uint256 totalProfit, uint256 totalLoss, uint256 totalLossRecovery);
+    )
+        external
+        returns (
+            uint256 incrementalProfit,
+            uint256 incrementalLoss,
+            uint256 incrementalLossRecovery
+        );
 
     function refreshPnL()
         external

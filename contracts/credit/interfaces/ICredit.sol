@@ -4,16 +4,6 @@ import {CreditConfig, ReceivableInfo} from "../CreditStructs.sol";
 import {CalendarUnit} from "../../SharedDefs.sol";
 
 interface ICredit {
-    function approveBorrower(
-        address borrower,
-        uint96 creditLimit,
-        uint16 numOfPeriods, // number of periods
-        uint16 yieldInBps,
-        uint96 committedAmount,
-        bool revolving, // whether repeated borrowing is allowed
-        bool receivableRequired,
-        bool borrowerLevelCredit
-    ) external;
 
     // function approveCredit(
     //     address borrower,

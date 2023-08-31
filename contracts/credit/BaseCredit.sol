@@ -146,64 +146,6 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
     );
 
     /**
-     * @notice approve a borrower with set of terms. These terms will be referenced by EA
-     * when credits are created for this borrower.
-     * @param borrower the borrower address
-     * @param creditLimit the credit limit at the borrower level
-     * @param numOfPeriods how many periods are approved for the borrower
-     * @param yieldInBps expected yields in basis points
-     * @param committedAmount the amount the borrower committed to use.
-     * @param revolving indicates if the underlying credit line is revolving or not
-     * @param receivableRequired whether receivable is required as collateral before a drawdown
-     * @param borrowerLevelCredit indicates whether the borrower is allowed to have one or
-     * multiple credit line
-     * The yield will be computed using the max of this amount and the acutal credit used.
-     * @dev Please note CalendarUnit and durationPerPeriodInCalendarUnit are defined at the
-     * pool level, managed by PoolConfig. They cannot be customized for each borrower or credit.
-     */
-    function approveBorrower(
-        address borrower,
-        uint96 creditLimit,
-        uint16 numOfPeriods, // number of periods
-        uint16 yieldInBps,
-        uint96 committedAmount,
-        bool revolving,
-        bool receivableRequired,
-        bool borrowerLevelCredit
-    ) external virtual override {
-        _protocolAndPoolOn();
-        onlyEAServiceAccount();
-
-        if (creditLimit <= 0) revert();
-        if (numOfPeriods <= 0) revert();
-
-        PoolSettings memory ps = _poolConfig.getPoolSettings();
-        _borrowerConfigMap[borrower] = CreditConfig(
-            creditLimit,
-            committedAmount,
-            ps.calendarUnit,
-            ps.payPeriodInCalendarUnit,
-            numOfPeriods,
-            yieldInBps,
-            revolving,
-            receivableRequired,
-            borrowerLevelCredit,
-            true
-        );
-
-        emit BorrowerApproved(
-            borrower,
-            creditLimit,
-            numOfPeriods,
-            yieldInBps,
-            committedAmount,
-            revolving,
-            receivableRequired,
-            borrowerLevelCredit
-        );
-    }
-
-    /**
      * @notice Approves the credit with the terms provided.
      * @param borrower the borrower address
      * @param creditLimit the credit limit of the credit line
@@ -282,16 +224,6 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
             _setCreditConfig(creditHash, cc);
             //todo emit event
         }
-    }
-
-    /**
-     * @notice Distributes income to token holders.
-     * todo get rid of this function once we know where we have the distributeIncome() function that
-     * splits income between poolOwner, EA, firstLossCover provider and the pool. The caller of this
-     * function is responsible for updating PnL.
-     */
-    function distributeIncome(uint256 value) internal virtual returns (uint256 poolIncome) {
-        // uint256 poolIncome = _poolConfig.distributeIncome(value);
     }
 
     /**
@@ -611,7 +543,7 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
      * @notice drawdown helper function.
      * @param creditHash the credit hash
      * @param borrowAmount the amount to borrow
-     * @dev Eligibility check is done outside this function.
+     * @dev Access control and eligibility check is done outside this function.
      */
     function _drawdown(
         bytes32 creditHash,
@@ -667,15 +599,12 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         }
         _setCreditRecord(creditHash, cr);
 
-        (uint256 netAmountToBorrower, uint256 platformFees) = _feeManager.distBorrowingAmount(
+        (uint256 netAmountToBorrower, uint256 platformProfit) = _feeManager.distBorrowingAmount(
             borrowAmount
         );
 
-        uint256 poolIncome = 0;
-        if (platformFees > 0) poolIncome = distributeIncome(platformFees);
-
         pnlManager.processDrawdown(
-            uint96(poolIncome),
+            uint96(platformProfit),
             uint96((borrowAmount * cc.yieldInBps) / SECONDS_IN_A_YEAR)
         );
 
@@ -862,7 +791,7 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         uint96 missedProfit = 0;
         uint96 principalDiff = 0;
         // If the due is nonzero and has passed late payment grace period, the account is considered late
-        bool lateFlag = (cr.totalDue != 0 &&
+        bool oldLateFlag = (cr.totalDue != 0 &&
             block.timestamp >
             cr.nextDueDate +
                 _poolConfig.getPoolSettings().latePaymentGracePeriodInDays *
@@ -879,7 +808,14 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         ) = _feeManager.getDueInfo(cr, cc);
 
         if (periodsPassed > 0) {
-            pnlManager.processDueUpdate(principalDiff, missedProfit, lateFlag, creditHash, cc, cr);
+            pnlManager.processDueUpdate(
+                principalDiff,
+                missedProfit,
+                oldLateFlag,
+                creditHash,
+                cc,
+                cr
+            );
 
             // update nextDueDate
             (uint256 dueDate, ) = calendar.getNextDueDate(
