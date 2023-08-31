@@ -791,7 +791,7 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         uint96 missedProfit = 0;
         uint96 principalDiff = 0;
         // If the due is nonzero and has passed late payment grace period, the account is considered late
-        bool lateFlag = (cr.totalDue != 0 &&
+        bool oldLateFlag = (cr.totalDue != 0 &&
             block.timestamp >
             cr.nextDueDate +
                 _poolConfig.getPoolSettings().latePaymentGracePeriodInDays *
@@ -808,7 +808,14 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         ) = _feeManager.getDueInfo(cr, cc);
 
         if (periodsPassed > 0) {
-            pnlManager.processDueUpdate(principalDiff, missedProfit, lateFlag, creditHash, cc, cr);
+            pnlManager.processDueUpdate(
+                principalDiff,
+                missedProfit,
+                oldLateFlag,
+                creditHash,
+                cc,
+                cr
+            );
 
             // update nextDueDate
             (uint256 dueDate, ) = calendar.getNextDueDate(
