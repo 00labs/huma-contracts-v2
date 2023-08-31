@@ -58,6 +58,23 @@ abstract contract BasePnLManager is IPnLManager {
         pnlTracker = t;
     }
 
+    function getLatestPnL()
+        public
+        view
+        returns (
+            uint256 incrementalProfit,
+            uint256 incrementalLoss,
+            uint256 incrementalLossRecovery
+        )
+    {
+        PnLTracker memory t = pnlTracker;
+        uint256 timeLapsed = block.timestamp - t.pnlLastUpdated;
+
+        incrementalProfit = uint256(t.profitRate * timeLapsed);
+        incrementalLoss = uint256(t.lossRate * timeLapsed);
+        incrementalLossRecovery = 0;
+    }
+
     function getLastUpdated() external view returns (uint256 lastUpdated) {
         return pnlTracker.pnlLastUpdated;
     }
