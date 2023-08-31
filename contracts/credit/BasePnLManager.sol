@@ -58,7 +58,7 @@ abstract contract BasePnLManager is IPnLManager {
         pnlTracker = t;
     }
 
-    function getLatestPnL()
+    function getIncrementalPnL()
         public
         view
         returns (
