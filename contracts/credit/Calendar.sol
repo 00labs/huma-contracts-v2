@@ -57,17 +57,17 @@ contract Calendar is ICalendar {
         uint256 lastDueDate,
         bool isNext
     ) internal view returns (uint256 dueDate, uint256 numberOfPeriodsPassed) {
-        uint256 periodCount;
+        uint256 dayCount;
         if (lastDueDate == 0) {
             (uint256 year, uint256 month, uint256 day) = DTL.timestampToDate(block.timestamp);
             lastDueDate = DTL.timestampFromDate(year, month, day);
-            periodCount = 1;
+            dayCount = 1;
         } else {
             numberOfPeriodsPassed = DTL.diffDays(lastDueDate, block.timestamp) / periodDuration;
         }
-        if (isNext) periodCount += (numberOfPeriodsPassed + 1) * periodDuration;
-        else periodCount += numberOfPeriodsPassed * periodDuration;
-        dueDate = DTL.addDays(lastDueDate, periodCount);
+        if (isNext) dayCount += (numberOfPeriodsPassed + 1) * periodDuration;
+        else dayCount += numberOfPeriodsPassed * periodDuration;
+        dueDate = DTL.addDays(lastDueDate, dayCount);
     }
 
     /**
@@ -78,17 +78,17 @@ contract Calendar is ICalendar {
         uint256 lastDueDate,
         bool isNext
     ) internal view returns (uint256 dueDate, uint256 numberOfPeriodsPassed) {
-        uint256 periodCount;
+        uint256 monthCount;
         if (lastDueDate == 0) {
             (uint256 year, uint256 month, ) = DTL.timestampToDate(block.timestamp);
             lastDueDate = DTL.timestampFromDate(year, month, 1);
-            periodCount = 1;
+            monthCount = 1;
         } else {
             numberOfPeriodsPassed = DTL.diffMonths(lastDueDate, block.timestamp) / periodDuration;
         }
-        if (isNext) periodCount += (numberOfPeriodsPassed + 1) * periodDuration;
-        else periodCount += numberOfPeriodsPassed * periodDuration;
-        dueDate = DTL.addMonths(lastDueDate, periodCount);
+        if (isNext) monthCount += (numberOfPeriodsPassed + 1) * periodDuration;
+        else monthCount += numberOfPeriodsPassed * periodDuration;
+        dueDate = DTL.addMonths(lastDueDate, monthCount);
     }
 
     function getSecondsPerPeriod(
