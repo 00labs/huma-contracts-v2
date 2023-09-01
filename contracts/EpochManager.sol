@@ -371,6 +371,9 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         }
     }
 
+    /// @notice Returns the number of epochs to process.
+    /// @param settings pool settings
+    /// @param epochRedemptionSummaries the list of redemption summaries for each epoch
     function _getNumEpochsToProcess(PoolSettings memory settings, EpochRedemptionSummary[] memory epochRedemptionSummaries) private view returns (uint256 numEpochsToProcess) {
         if (settings.flexCreditEnabled) {
             // If flex loan is enabled for a pool, then we can only process redemption requests after the
