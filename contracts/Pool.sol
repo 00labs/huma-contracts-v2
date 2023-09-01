@@ -335,7 +335,7 @@ contract Pool is PoolConfigCache, IPool {
         // :handle redemption request for flex loan
     }
 
-    function updateTranchesAssets(uint96[2] memory assets) external {
+    function updateTrancheAssets(uint96[2] memory assets) external {
         poolConfig.onlyTrancheVaultOrEpochManager(msg.sender);
 
         TranchesAssets memory ta = tranchesAssets;
