@@ -2,10 +2,11 @@
 pragma solidity ^0.8.0;
 
 import {CreditConfig, CreditRecord, CreditLoss, CreditState, PaymentStatus, PnLTracker, Payment} from "./CreditStructs.sol";
-import {ICreditFeeManager} from "./utils/interfaces/ICreditFeeManager.sol";
 import {ICredit} from "./interfaces/ICredit.sol";
 import {IFlexCredit} from "./interfaces/IFlexCredit.sol";
 import {ICalendar} from "./interfaces/ICalendar.sol";
+import {IPnLManager} from "./interfaces/IPnLManager.sol";
+import {ICreditFeeManager} from "./utils/interfaces/ICreditFeeManager.sol";
 import {BaseCreditStorage} from "./BaseCreditStorage.sol";
 import {Errors} from "../Errors.sol";
 import {PoolConfig, PoolSettings} from "../PoolConfig.sol";
@@ -14,7 +15,8 @@ import {HumaConfig} from "../HumaConfig.sol";
 import {CalendarUnit} from "../SharedDefs.sol";
 import {IERC20, IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IPnLManager} from "./interfaces/IPnLManager.sol";
+import {PoolConfigCacheUpgradeable} from "../PoolConfigCacheUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 /**
  * Credit is the basic borrowing entry in Huma Protocol.
@@ -27,11 +29,14 @@ import {IPnLManager} from "./interfaces/IPnLManager.sol";
  * 2) separate lastUpdateDate for profit and loss
  * 3) Mostly Credit-level limit, also supports borrower-level limit
  */
-contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
+contract BaseCredit is
+    Initializable,
+    PoolConfigCacheUpgradeable,
+    BaseCreditStorage,
+    ICredit,
+    IFlexCredit
+{
     using SafeERC20 for IERC20;
-    ICalendar calendar;
-    // todo pass pnlManager as a parameter in the initianizer
-    IPnLManager pnlManager;
 
     enum CreditLineClosureReason {
         Paidoff,
@@ -145,6 +150,34 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         address by
     );
 
+    function initialize(PoolConfig _poolConfig) external initializer {
+        if (address(_poolConfig) == address(0)) revert Errors.zeroAddressProvided();
+        poolConfig = _poolConfig;
+        _updatePoolConfigData(_poolConfig);
+    }
+
+    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
+        address addr = _poolConfig.underlyingToken();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        _underlyingToken = IERC20(addr);
+
+        addr = address(_poolConfig.humaConfig());
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        _humaConfig = HumaConfig(addr);
+
+        addr = _poolConfig.creditFeeManager();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        _feeManager = ICreditFeeManager(addr);
+
+        addr = _poolConfig.calendar();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        calendar = ICalendar(addr);
+
+        addr = _poolConfig.creditPnLManager();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        pnlManager = IPnLManager(addr);
+    }
+
     /**
      * @notice Approves the credit with the terms provided.
      * @param borrower the borrower address
@@ -170,7 +203,7 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         if (remainingPeriods == 0) revert Errors.zeroPayPeriods();
         if (creditLimit == 0) revert();
 
-        PoolSettings memory ps = _poolConfig.getPoolSettings();
+        PoolSettings memory ps = poolConfig.getPoolSettings();
 
         _maxCreditLineCheck(borrower, creditLimit);
 
@@ -650,7 +683,7 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
                 if (
                     block.timestamp <
                     (beginOfPeriod +
-                        _poolConfig.getPoolSettings().latePaymentGracePeriodInDays *
+                        poolConfig.getPoolSettings().latePaymentGracePeriodInDays *
                         SECONDS_IN_A_DAY)
                 ) {
                     // todo cr.totalDue should be updated as well, cr.state might need to be updated too.
@@ -746,13 +779,13 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
 
     /// Checks if the given amount is higher than what is allowed by the pool
     function _maxCreditLineCheck(address borrower, uint256 amount) internal view {
-        if (amount > _poolConfig.getPoolSettings().maxCreditLine) {
+        if (amount > poolConfig.getPoolSettings().maxCreditLine) {
             revert Errors.greaterThanMaxCreditLine();
         }
 
-        if (amount > _borrowerConfigMap[borrower].creditLimit) {
-            revert Errors.greaterThanMaxCreditLine();
-        }
+        // if (amount > _borrowerConfigMap[borrower].creditLimit) {
+        //     revert Errors.greaterThanMaxCreditLine();
+        // }
     }
 
     /// Shared setter to the credit config mapping
@@ -794,7 +827,7 @@ contract BaseCredit is BaseCreditStorage, ICredit, IFlexCredit {
         bool oldLateFlag = (cr.totalDue != 0 &&
             block.timestamp >
             cr.nextDueDate +
-                _poolConfig.getPoolSettings().latePaymentGracePeriodInDays *
+                poolConfig.getPoolSettings().latePaymentGracePeriodInDays *
                 SECONDS_IN_A_DAY);
 
         (

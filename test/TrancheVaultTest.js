@@ -25,7 +25,9 @@ let poolConfigContract,
     epochManagerContract,
     seniorTrancheVaultContract,
     juniorTrancheVaultContract,
-    creditContract;
+    creditContract,
+    creditFeeManagerContract,
+    creditPnlManagerContract;
 
 function checkUserDisburseInfo(
     disburseInfo,
@@ -76,6 +78,8 @@ describe("TrancheVault Test", function () {
             seniorTrancheVaultContract,
             juniorTrancheVaultContract,
             creditContract,
+            creditFeeManagerContract,
+            creditPnlManagerContract,
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
@@ -83,6 +87,7 @@ describe("TrancheVault Test", function () {
             "RiskAdjustedTranchesPolicy",
             defaultDeployer,
             poolOwner,
+            "MockCredit",
             evaluationAgent,
             poolOwnerTreasury,
             poolOperator,

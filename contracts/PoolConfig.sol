@@ -125,6 +125,9 @@ contract PoolConfig is AccessControl, Initializable {
     address public platformFeeManager;
     address public calendar;
 
+    address public creditFeeManager;
+    address public creditPnLManager;
+
     HumaConfig public humaConfig;
 
     // The ERC20 token this pool manages
@@ -159,7 +162,8 @@ contract PoolConfig is AccessControl, Initializable {
     event HDTChanged(address hdt, address udnerlyingToken, address by);
     event HumaConfigChanged(address humaConfig, address by);
 
-    event MaxCreditLineChanged(uint256 maxCreditLine, address by);    event PoolChanged(address pool, address by);
+    event MaxCreditLineChanged(uint256 maxCreditLine, address by);
+    event PoolChanged(address pool, address by);
     event PoolDefaultGracePeriodChanged(uint256 gracePeriodInDays, address by);
     event PoolLiquidityCapChanged(uint256 liquidityCap, address by);
     event PoolNameChanged(string name, address by);
@@ -195,6 +199,8 @@ contract PoolConfig is AccessControl, Initializable {
      *   _contracts[9]: address of seniorTranche
      *   _contracts[10]: address of juniorTranche
      *   _contracts[11]: address of credit
+     *   _contracts[12]: address of creditFeeManager
+     *   _contracts[13]: address of creditPnLManager
      */
 
     function initialize(
@@ -253,6 +259,14 @@ contract PoolConfig is AccessControl, Initializable {
         addr = _contracts[11];
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         credit = addr;
+
+        addr = _contracts[12];
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        creditFeeManager = addr;
+
+        addr = _contracts[13];
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        creditPnLManager = addr;
 
         // Default values for the pool configurations. The pool owners are expected to reset
         // these values when setting up the pools. Setting these default values to avoid
