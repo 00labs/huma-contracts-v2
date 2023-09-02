@@ -354,20 +354,12 @@ contract BaseCredit is
      * todo Add a new storage to record the extra principal due. We include it when calculate
      * the next bill so that the caller of this function does not have to time the request.
      */
-    function requestEarlyPrincipalWithdrawal(uint96 amount) external virtual override {
+    function requestEarlyPrincipalWithdrawal(
+        bytes32 creditHash,
+        uint96 amount
+    ) external virtual override {
         // todo Only allows the Pool(?) contract to call
         // todo Check against poolConfig to make sure FlexCredit is allowed by this pool
-        if (activeCreditsHash.length != 1) revert Errors.todo();
-        _getCreditRecord(activeCreditsHash[0]).totalDue += amount;
-    }
-
-    /**
-     * @notice Requests additional principal payment in the upcoming period.
-     * @param creditHash - the hash of the credit record
-     * @param amount - the extra principal that becomes due
-     */
-    function requestExtraPrincipalPayment(bytes32 creditHash, uint256 amount) external {
-        // todo decide whether this function is called by service account or a contract
         onlyPDSServiceAccount();
         CreditRecord memory cr = _getCreditRecord(creditHash);
         if (amount > cr.unbilledPrincipal) revert Errors.todo();
@@ -411,14 +403,6 @@ contract BaseCredit is
         // emit DefaultTriggered(borrower, losses, msg.sender);
 
         return losses;
-    }
-
-    function unpauseCredit(bytes32 creditHash) external {
-        CreditRecord memory cr = _getCreditRecord(creditHash);
-        if (cr.state == CreditState.Paused) {
-            cr.state = CreditState.GoodStanding;
-            _setCreditRecord(creditHash, cr);
-        }
     }
 
     /**
@@ -468,6 +452,14 @@ contract BaseCredit is
     }
 
     function updateYield(address borrower, uint yieldInBps) external {}
+
+    function unpauseCredit(bytes32 creditHash) external {
+        CreditRecord memory cr = _getCreditRecord(creditHash);
+        if (cr.state == CreditState.Paused) {
+            cr.state = CreditState.GoodStanding;
+            _setCreditRecord(creditHash, cr);
+        }
+    }
 
     function creditRecordMap(bytes32 creditHash) external view returns (CreditRecord memory) {
         return _creditRecordMap[creditHash];
