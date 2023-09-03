@@ -306,7 +306,9 @@ contract EpochManager is PoolConfigCache, IEpochManager {
             return (seniorResult, juniorResult);
         }
 
-        // process immature senior withdrawal requests
+        // For pools with flex loan, keep processing redemption requests even if they are immature, as long
+        // as there are left over amount to be redeemed.
+        // Process senior redemption requests first.
         numEpochsToProcess = seniorEpochSummaries.length - seniorResult.numEpochsProcessed;
         if (numEpochsToProcess > 0) {
             // console.log("processing immature senior withdrawal requests...");
@@ -335,7 +337,9 @@ contract EpochManager is PoolConfigCache, IEpochManager {
             }
         }
 
-        // process left junior withdrawal requests(mature and immature)
+        // Then process junior redemption requests. Note that some previously ineligible junior requests
+        // blocked by the max senior : junior ratio maybe eligible now due to the additional senior requests
+        // being fulfilled above.
         numEpochsToProcess = juniorEpochSummaries.length - juniorResult.numEpochsProcessed;
         uint256 startIndex = juniorResult.numEpochsProcessed;
         if (
@@ -343,6 +347,8 @@ contract EpochManager is PoolConfigCache, IEpochManager {
             juniorEpochSummaries[juniorResult.numEpochsProcessed - 1].totalSharesRequested >
             juniorEpochSummaries[juniorResult.numEpochsProcessed - 1].totalSharesProcessed
         ) {
+            // If the redemption requests in the last epoch processed were only partially processed, then try to
+            // process the epoch again.
             startIndex -= 1;
             numEpochsToProcess += 1;
         }
@@ -365,10 +371,9 @@ contract EpochManager is PoolConfigCache, IEpochManager {
             //     juniorResult.shares,
             //     juniorResult.amounts
             // );
-            if (availableAmount == 0) {
-                return (seniorResult, juniorResult);
-            }
         }
+
+        return (seniorResult, juniorResult);
     }
 
     /// @notice Returns the number of epochs to process.
@@ -526,9 +531,10 @@ contract EpochManager is PoolConfigCache, IEpochManager {
             maxRedeemableAmount -= redemptionAmount;
             trancheAssets[JUNIOR_TRANCHE_INDEX] -= uint96(redemptionAmount);
 
-            // One junior epoch may be processed twice, 1st time for mature junior epochs, 2nd time for left junior epochs
-            if (i + 1 > trancheResult.count) processingResult.count += 1;
-            processingResult.numEpochsProcessed += sharesToRedeem;
+            // Junior redemption requests in an epoch may be processed twice, the 1st time for mature requests
+            // and the 2nd time for left over ones.
+            if (i + 1 > processingResult.numEpochsProcessed) processingResult.numEpochsProcessed += 1;
+            processingResult.sharesRedeemed += sharesToRedeem;
             processingResult.amountRedeemed += redemptionAmount;
 
             if (availableAmount == 0 || maxRedeemableAmount == 0) break;

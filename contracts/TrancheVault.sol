@@ -133,22 +133,22 @@ contract TrancheVault is
             epochRedemptionSummaryByEpochId[epochRedemptionSummary.epochId] = epochRedemptionSummary;
         }
 
-        // Check if the last epoch is fully processed
         uint256 unprocessedIndex = firstUnprocessedEpochIndex;
         if (epochRedemptionSummary.totalSharesProcessed >= epochRedemptionSummary.totalSharesRequested) {
+            // If the last epoch is fully processed, then advance the index by the number of processed epochs.
             // It's theoretically impossible for the number of processed shares to be greater than the
             // requested shares. The > is just to make the linter happy.
             assert(epochRedemptionSummary.totalSharesProcessed == epochRedemptionSummary.totalSharesRequested);
             unprocessedIndex += numEpochsProcessed;
         } else if (numEpochsProcessed > 1) {
+            // Otherwise, point the index at the last partially processed epoch.
             unprocessedIndex += numEpochsProcessed - 1;
         }
         firstUnprocessedEpochIndex = unprocessedIndex;
 
-        // Burn processed shares
+        // Burn processed shares of LP tokens.
         ERC20Upgradeable._burn(address(this), sharesProcessed);
-
-        // Withdraw underlying tokens from reserve
+        // Withdraw underlying tokens from the reserve so that LPs can redeem.
         poolVault.withdraw(address(this), amountProcessed);
 
         emit EpochsProcessed(numEpochsProcessed, sharesProcessed, amountProcessed, unprocessedIndex);
