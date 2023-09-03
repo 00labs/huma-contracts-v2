@@ -448,7 +448,7 @@ const PnLCalculator = {
     calcLossRecovery,
 };
 
-function checkEpochInfo(
+function checkRedemptionSummary(
     epochInfo,
     epochId,
     totalShareRequested,
@@ -456,8 +456,8 @@ function checkEpochInfo(
     totalAmountProcessed = 0
 ) {
     expect(epochInfo.epochId).to.equal(epochId);
-    expect(epochInfo.totalShareRequested).to.equal(totalShareRequested);
-    expect(epochInfo.totalShareProcessed).to.equal(totalShareProcessed);
+    expect(epochInfo.totalSharesRequested).to.equal(totalShareRequested);
+    expect(epochInfo.totalSharesProcessed).to.equal(totalShareProcessed);
     expect(epochInfo.totalAmountProcessed).to.equal(totalAmountProcessed);
 }
 
@@ -467,7 +467,7 @@ module.exports = {
     setupPoolContracts,
     deployAndSetupPoolContracts,
     getNextDueDate,
-    checkEpochInfo,
+    checkEpochInfo: checkRedemptionSummary,
     CONSTANTS,
     PnLCalculator,
 };

@@ -229,7 +229,7 @@ contract TrancheVault is
         }
         epochRedemptionSummaryByEpochId[currentEpochId] = currentEpochInfo;
 
-        // update user UserRedemptionRequest array
+        // update RedemptionRequest array
         RedemptionRequest[] storage requests = redemptionRequestsByLender[msg.sender];
         uint256 length = requests.length;
         RedemptionRequest memory request;
@@ -352,7 +352,7 @@ contract TrancheVault is
         return epochIds.length;
     }
 
-    function getUserRedemptionRequestLength(address account) external view returns (uint256) {
+    function getRedemptionRequestLength(address account) external view returns (uint256) {
         return redemptionRequestsByLender[account].length;
     }
 
