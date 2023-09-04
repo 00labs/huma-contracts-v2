@@ -200,11 +200,12 @@ async function setupPoolContracts(
     poolContract,
     juniorTrancheVaultContract,
     seniorTrancheVaultContract,
+    creditContract,
     poolOwner,
     evaluationAgent,
     poolOwnerTreasury,
     poolOperator,
-    lenders
+    accounts
 ) {
     await poolConfigContract.connect(poolOwner).setPoolLiquidityCap(toToken(1_000_000_000));
     await poolConfigContract.connect(poolOwner).setMaxCreditLine(toToken(10_000_000));
@@ -266,17 +267,20 @@ async function setupPoolContracts(
     expect(await seniorTrancheVaultContract.totalAssets()).to.equal(0);
     expect(await seniorTrancheVaultContract.totalSupply()).to.equal(0);
 
-    for (let i = 0; i < lenders.length; i++) {
+    for (let i = 0; i < accounts.length; i++) {
         await juniorTrancheVaultContract
             .connect(poolOperator)
-            .addApprovedLender(lenders[i].address);
+            .addApprovedLender(accounts[i].address);
         await seniorTrancheVaultContract
             .connect(poolOperator)
-            .addApprovedLender(lenders[i].address);
+            .addApprovedLender(accounts[i].address);
         await mockTokenContract
-            .connect(lenders[i])
+            .connect(accounts[i])
             .approve(poolVaultContract.address, ethers.constants.MaxUint256);
-        await mockTokenContract.mint(lenders[i].address, toToken(100_000_000));
+        await mockTokenContract
+            .connect(accounts[i])
+            .approve(creditContract.address, ethers.constants.MaxUint256);
+        await mockTokenContract.mint(accounts[i].address, toToken(100_000_000));
     }
 }
 
@@ -291,7 +295,7 @@ async function deployAndSetupPoolContracts(
     evaluationAgent,
     poolOwnerTreasury,
     poolOperator,
-    lenders
+    accounts
 ) {
     let [
         poolConfigContract,
@@ -325,11 +329,12 @@ async function deployAndSetupPoolContracts(
         poolContract,
         juniorTrancheVaultContract,
         seniorTrancheVaultContract,
+        creditContract,
         poolOwner,
         evaluationAgent,
         poolOwnerTreasury,
         poolOperator,
-        lenders
+        accounts
     );
 
     return [

@@ -114,5 +114,3 @@ struct Payment {
     bool oldLateFlag;
     bool newLateFlag;
 }
-
-
