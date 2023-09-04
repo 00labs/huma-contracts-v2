@@ -27,6 +27,12 @@ interface ICalendar {
      */
     function getStartOfNextQuarter() external view returns (uint256 nextDay);
 
+    function getStartDateOfPeriod(
+        CalendarUnit unit,
+        uint256 periodDuration,
+        uint256 periodEndDate
+    ) external view returns (uint256 startDate);
+
     /**
      * @notice Get the next due date and the number of periods passed.
      * When lastDueDate is zero, always returns the due date after a full period from

@@ -88,9 +88,78 @@ describe("BaseCredit Test", function () {
         await loadFixture(prepare);
     });
 
-    it("Should call approveCredit correctly", async function () {
+    it("Should approve a credit correctly", async function () {
+        const creditHash = ethers.utils.keccak256(
+            ethers.utils.defaultAbiCoder.encode(
+                ["address", "address"],
+                [creditContract.address, borrower.address]
+            )
+        );
+
+        await expect(
+            creditContract
+                .connect(eaServiceAccount)
+                .approveCredit(borrower.address, toToken(10_000), 1, 1217, toToken(10_000), true)
+        )
+            .to.emit(creditContract, "CreditApproved")
+            .withArgs(
+                borrower.address,
+                creditHash,
+                toToken(10_000),
+                1,
+                1217,
+                toToken(10_000),
+                true
+            );
+    });
+
+    it("Should drawdown from a credit correctly", async function () {
+        const creditHash = ethers.utils.keccak256(
+            ethers.utils.defaultAbiCoder.encode(
+                ["address", "address"],
+                [creditContract.address, borrower.address]
+            )
+        );
+
+        let juniorDepositAmount = toToken(300_000);
+        await juniorTrancheVaultContract
+            .connect(lender)
+            .deposit(juniorDepositAmount, lender.address);
+        let seniorDepositAmount = toToken(100_000);
+        await seniorTrancheVaultContract
+            .connect(lender)
+            .deposit(seniorDepositAmount, lender.address);
+
         await creditContract
             .connect(eaServiceAccount)
-            .approveCredit(borrower.address, toToken(10000), 1, 1217, toToken(10000), true);
+            .approveCredit(borrower.address, toToken(100_000), 1, 1217, toToken(100_000), true);
+
+        await creditContract.connect(borrower).drawdown(creditHash, toToken(10_000));
+    });
+
+    it("Should makePayment to a credit correctly", async function () {
+        const creditHash = ethers.utils.keccak256(
+            ethers.utils.defaultAbiCoder.encode(
+                ["address", "address"],
+                [creditContract.address, borrower.address]
+            )
+        );
+
+        let juniorDepositAmount = toToken(300_000);
+        await juniorTrancheVaultContract
+            .connect(lender)
+            .deposit(juniorDepositAmount, lender.address);
+        let seniorDepositAmount = toToken(100_000);
+        await seniorTrancheVaultContract
+            .connect(lender)
+            .deposit(seniorDepositAmount, lender.address);
+
+        await creditContract
+            .connect(eaServiceAccount)
+            .approveCredit(borrower.address, toToken(100_000), 1, 1217, toToken(100_000), true);
+
+        await creditContract.connect(borrower).drawdown(creditHash, toToken(10_000));
+
+        await creditContract.connect(borrower).makePayment(creditHash, toToken(100));
     });
 });
