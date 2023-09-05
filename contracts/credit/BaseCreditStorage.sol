@@ -8,11 +8,9 @@ import {PoolConfig} from "../PoolConfig.sol";
 import {ICreditFeeManager} from "./utils/interfaces/ICreditFeeManager.sol";
 import {ICalendar} from "./interfaces/ICalendar.sol";
 import {IPnLManager} from "./interfaces/IPnLManager.sol";
+import {IPoolVault} from "../interfaces/IPoolVault.sol";
 
 contract BaseCreditStorage {
-    // The ERC20 token this pool manages
-    IERC20 internal _underlyingToken;
-
     HumaConfig internal _humaConfig;
 
     // Reference to the fee manager contract
@@ -20,6 +18,7 @@ contract BaseCreditStorage {
 
     ICalendar public calendar;
     IPnLManager public pnlManager;
+    IPoolVault public poolVault;
 
     PnLTracker public pnlTracker;
 

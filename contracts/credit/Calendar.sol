@@ -17,6 +17,18 @@ contract Calendar is ICalendar {
 
     function getStartOfNextQuarter() external view returns (uint256 nextDay) {}
 
+    function getStartDateOfPeriod(
+        CalendarUnit unit,
+        uint256 periodDuration,
+        uint256 periodEndDate
+    ) external pure returns (uint256 startDate) {
+        if (unit == CalendarUnit.Day) {
+            return DTL.subDays(periodEndDate, periodDuration);
+        } else if (unit == CalendarUnit.Month) {
+            return DTL.subMonths(periodEndDate, periodDuration);
+        }
+    }
+
     /**
      * @notice Gets the immediate next due date following lastDueDate. If multiple periods have
      * passed since lastDueDate, this function returns the due date that is only one period after

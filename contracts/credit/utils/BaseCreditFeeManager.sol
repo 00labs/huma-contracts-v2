@@ -9,6 +9,8 @@ import "../../SharedDefs.sol";
 import {Errors} from "../../Errors.sol";
 import {PoolConfigCache} from "../../PoolConfigCache.sol";
 
+import "hardhat/console.sol";
+
 contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
     ICalendar public calendar;
 
@@ -66,7 +68,14 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
         payoffAmount = uint256(cr.totalDue + cr.unbilledPrincipal);
         uint256 remainingInterest = (yieldInBps *
             (cr.unbilledPrincipal + cr.totalDue - cr.yieldDue - cr.feesDue) *
-            (cr.nextDueDate - block.timestamp)) / SECONDS_IN_A_YEAR;
+            (cr.nextDueDate - block.timestamp)) / (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS);
+        console.log(
+            "payoffAmount: %s, remainingInterest: %s, (cr.unbilledPrincipal + cr.totalDue - cr.yieldDue - cr.feesDue): %s",
+            payoffAmount,
+            remainingInterest,
+            cr.unbilledPrincipal + cr.totalDue - cr.yieldDue - cr.feesDue
+        );
+        console.log("cr.nextDueDate: %s, block.timestamp: %s", cr.nextDueDate, block.timestamp);
         assert(payoffAmount >= remainingInterest);
         payoffAmount -= remainingInterest;
     }

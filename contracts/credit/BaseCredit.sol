@@ -16,7 +16,10 @@ import {CalendarUnit} from "../SharedDefs.sol";
 import {IERC20, IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {PoolConfigCacheUpgradeable} from "../PoolConfigCacheUpgradeable.sol";
+import {IPoolVault} from "../interfaces/IPoolVault.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+
+import "hardhat/console.sol";
 
 /**
  * Credit is the basic borrowing entry in Huma Protocol.
@@ -66,10 +69,12 @@ contract BaseCredit is
     /// Credit line request has been approved
     event CreditApproved(
         address indexed borrower,
+        bytes32 indexed creditHash,
         uint256 creditLimit,
-        uint256 intervalInDays,
         uint256 remainingPeriods,
-        uint256 aprInBps
+        uint256 yieldInBps,
+        uint256 committedAmount,
+        bool revolving
     );
 
     /**
@@ -157,11 +162,7 @@ contract BaseCredit is
     }
 
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
-        address addr = _poolConfig.underlyingToken();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
-        _underlyingToken = IERC20(addr);
-
-        addr = address(_poolConfig.humaConfig());
+        address addr = address(_poolConfig.humaConfig());
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         _humaConfig = HumaConfig(addr);
 
@@ -176,6 +177,10 @@ contract BaseCredit is
         addr = _poolConfig.creditPnLManager();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         pnlManager = IPnLManager(addr);
+
+        addr = _poolConfig.poolVault();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        poolVault = IPoolVault(addr);
     }
 
     /**
@@ -227,9 +232,37 @@ contract BaseCredit is
         _setCreditConfig(creditHash, cc);
 
         cr.revolving = revolving;
-        _setCreditRecord(creditHash, cr);
+        cr.borrower = borrower;
+        _setCreditRecord(creditHash, _approveCredit(cr));
 
-        // :emit CreditApproved(borrower, creditLimit, intervalInDays, remainingPeriods, aprInBps);
+        emit CreditApproved(
+            borrower,
+            creditHash,
+            creditLimit,
+            remainingPeriods,
+            yieldInBps,
+            committedAmount,
+            revolving
+        );
+    }
+
+    function _approveCredit(CreditRecord memory cr) internal view returns (CreditRecord memory) {
+        // Note: Special logic. dueDate is normally used to track the next bill due.
+        // Before the first drawdown, it is also used to set the deadline for the first
+        // drawdown to happen, otherwise, the credit line expires.
+        // Decided to use this field in this way to save one field for the struct.
+        // Although we have room in the struct after split struct creditRecord and
+        // struct creditRecordStatic, we keep it unchanged to leave room for the struct
+        // to expand in the future (note Solidity has limit on 13 fields in a struct)
+        PoolSettings memory poolSettings = poolConfig.getPoolSettings();
+        if (poolSettings.creditApprovalExpirationInDays > 0)
+            cr.nextDueDate = uint64(
+                block.timestamp + poolSettings.creditApprovalExpirationInDays * SECONDS_IN_A_DAY
+            );
+
+        cr.state = CreditState.Approved;
+
+        return cr;
     }
 
     /**
@@ -272,7 +305,7 @@ contract BaseCredit is
 
         if (borrowAmount == 0) revert Errors.zeroAmountProvided();
 
-        _checkDrawdownEligibility(cr, borrowAmount);
+        _checkDrawdownEligibility(creditHash, cr, borrowAmount);
 
         uint256 netAmountToBorrower = _drawdown(creditHash, cr, borrowAmount);
         emit DrawdownMade(borrower, borrowAmount, netAmountToBorrower);
@@ -520,23 +553,6 @@ contract BaseCredit is
                 : false;
     }
 
-    function _approveCredit(
-        CreditRecord memory cr
-    ) internal view returns (CreditRecord memory cro) {
-        // if (cr.state > BS.CreditState.Approved) revert Errors.creditLineOutstanding();
-        // // Note: Special logic. dueDate is normally used to track the next bill due.
-        // // Before the first drawdown, it is also used to set the deadline for the first
-        // // drawdown to happen, otherwise, the credit line expires.
-        // // Decided to use this field in this way to save one field for the struct.
-        // // Although we have room in the struct after split struct creditRecord and
-        // // struct creditRecordStatic, we keep it unchanged to leave room for the struct
-        // // to expand in the future (note Solidity has limit on 13 fields in a struct)
-        // uint256 validPeriod = _poolConfig.creditApprovalExpirationInSeconds();
-        // if (validPeriod > 0) cr.nextDueDate = uint64(block.timestamp + validPeriod);
-        // cr.state = BS.CreditState.Approved;
-        // return cr;
-    }
- 
     /**
      * @notice Checks if drawdown is allowed for the credit line at this point of time
      * @dev Checks to make sure the following conditions are met:
@@ -546,6 +562,7 @@ contract BaseCredit is
      * @dev Please note cr.nextDueDate is the credit expiration date for the first drawdown.
      */
     function _checkDrawdownEligibility(
+        bytes32 creditHash,
         CreditRecord memory cr,
         uint256 borrowAmount
     ) internal view {
@@ -560,7 +577,8 @@ contract BaseCredit is
             if (cr.nextDueDate > 0 && block.timestamp > cr.nextDueDate)
                 revert Errors.creditExpiredDueToFirstDrawdownTooLate();
 
-            if (borrowAmount > cr.availableCredit) revert Errors.creditLineExceeded();
+            CreditConfig memory cc = _getCreditConfig(creditHash);
+            if (borrowAmount > cc.creditLimit) revert Errors.creditLineExceeded();
         }
     }
 
@@ -582,6 +600,7 @@ contract BaseCredit is
             // Sets the prinicpal, then generates the first bill and sets credit status
             _creditRecordMap[creditHash].unbilledPrincipal = uint96(borrowAmount);
             cr = _updateDueInfo(creditHash);
+            console.log("cr.nextDueDate: %s", cr.nextDueDate);
             cr.state = CreditState.GoodStanding;
         } else {
             // Disallow repeated drawdown for non-revolving credit
@@ -602,12 +621,10 @@ contract BaseCredit is
 
             if (
                 borrowAmount >
-                (cr.availableCredit -
-                    cr.unbilledPrincipal -
-                    (cr.totalDue - cr.feesDue - cr.yieldDue))
+                (cc.creditLimit - cr.unbilledPrincipal - (cr.totalDue - cr.feesDue - cr.yieldDue))
             ) revert Errors.creditLineExceeded();
 
-            (uint256 nextDueDate, ) = calendar.getNextDueDate(
+            uint256 startDate = calendar.getStartDateOfPeriod(
                 cc.calendarUnit,
                 cc.periodDuration,
                 cr.nextDueDate
@@ -615,10 +632,11 @@ contract BaseCredit is
 
             // Adjust the new due amount due to the yield generated because of the drawdown
             // amount for the rest of this period
-            cr.yieldDue += uint96(
-                (borrowAmount * cc.yieldInBps * (nextDueDate - block.timestamp)) /
-                    SECONDS_IN_A_YEAR
+            uint96 correctYieldDue = uint96(
+                (borrowAmount * cc.yieldInBps * (startDate - block.timestamp)) / SECONDS_IN_A_YEAR
             );
+            cr.yieldDue += correctYieldDue;
+            cr.totalDue += correctYieldDue;
 
             cr.unbilledPrincipal = uint96(cr.unbilledPrincipal + borrowAmount);
         }
@@ -634,7 +652,7 @@ contract BaseCredit is
         );
 
         // Transfer funds to the _borrower
-        _underlyingToken.safeTransfer(cr.borrower, netAmountToBorrower);
+        poolVault.withdraw(cr.borrower, netAmountToBorrower);
         return netAmountToBorrower;
     }
 
@@ -744,7 +762,7 @@ contract BaseCredit is
         }
 
         if (p.amountToCollect > 0) {
-            _underlyingToken.safeTransferFrom(cr.borrower, address(this), p.amountToCollect);
+            poolVault.deposit(cr.borrower, p.amountToCollect);
             emit PaymentMade(
                 cr.borrower,
                 p.amountToCollect,

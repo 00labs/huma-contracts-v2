@@ -24,9 +24,11 @@ let poolConfigContract,
     epochManagerContract,
     seniorTrancheVaultContract,
     juniorTrancheVaultContract,
-    creditContract;
+    creditContract,
+    creditFeeManagerContract,
+    creditPnlManagerContract;
 
-describe.skip("Receivable Test", function () {
+describe("Receivable Test", function () {
     before(async function () {
         [
             defaultDeployer,
@@ -64,12 +66,15 @@ describe.skip("Receivable Test", function () {
                 seniorTrancheVaultContract,
                 juniorTrancheVaultContract,
                 creditContract,
+                creditFeeManagerContract,
+                creditPnlManagerContract,
             ] = await deployPoolContracts(
                 humaConfigContract,
                 mockTokenContract,
                 "RiskAdjustedTranchesPolicy",
                 defaultDeployer,
-                poolOwner
+                poolOwner,
+                "MockCredit"
             );
         }
 
@@ -226,6 +231,8 @@ describe.skip("Receivable Test", function () {
                 seniorTrancheVaultContract,
                 juniorTrancheVaultContract,
                 creditContract,
+                creditFeeManagerContract,
+                creditPnlManagerContract,
             ] = await deployAndSetupPoolContracts(
                 humaConfigContract,
                 mockTokenContract,
@@ -233,6 +240,7 @@ describe.skip("Receivable Test", function () {
                 "RiskAdjustedTranchesPolicy",
                 defaultDeployer,
                 poolOwner,
+                "MockCredit",
                 evaluationAgent,
                 poolOwnerTreasury,
                 poolOperator,
