@@ -6,9 +6,19 @@ import {ICredit, CalendarUnit} from "../credit/interfaces/ICredit.sol";
 import {IPoolVault} from "../interfaces/IPoolVault.sol";
 import {PoolConfig, PoolConfigCacheUpgradeable} from "../PoolConfigCache.sol";
 import {Errors} from "../Errors.sol";
+import {CreditRecord, CreditConfig} from "../credit/CreditStructs.sol";
 
 contract MockCredit is PoolConfigCacheUpgradeable, ICredit {
     IPoolVault public poolVault;
+
+    function approveCredit(
+        address borrower,
+        uint96 creditLimit,
+        uint16 remainingPeriods,
+        uint16 yieldInBps,
+        uint96 committedAmount,
+        bool revolving
+    ) external {}
 
     function initialize(PoolConfig _poolConfig) external {
         if (address(_poolConfig) == address(0)) revert Errors.zeroAddressProvided();
@@ -80,4 +90,26 @@ contract MockCredit is PoolConfigCacheUpgradeable, ICredit {
     function pauseCredit(bytes32 creditHash) external {}
 
     function unpauseCredit(bytes32 creditHash) external {}
+
+    function extendCreditLineDuration(bytes32 creditHash, uint256 numOfPeriods) external {}
+
+    function refreshCredit(bytes32 creditHash) external returns (CreditRecord memory cr) {}
+
+    function requestEarlyPrincipalWithdrawal(bytes32 creditHash, uint96 amount) external {}
+
+    function triggerDefault(bytes32 creditHash) external returns (uint256 losses) {}
+
+    function updateAvailableCredit(bytes32 creditHash, uint96 newAvailableCredit) external {}
+
+    function creditRecordMap(bytes32 creditHash) external view returns (CreditRecord memory) {}
+
+    function creditConfigMap(bytes32 creditHash) external view returns (CreditConfig memory) {}
+
+    function getCreditHash(address borrower) external view returns (bytes32 creditHash) {}
+
+    function isApproved(bytes32 creditHash) external view returns (bool) {}
+
+    function isDefaultReady(bytes32 creditHash) external view returns (bool isDefault) {}
+
+    function isLate(bytes32 creditHash) external view returns (bool lateFlag) {}
 }
