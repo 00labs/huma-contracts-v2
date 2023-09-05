@@ -163,9 +163,9 @@ contract TrancheVault is
      * which will cause a permanent loss and we cannot help reverse transactions
      * or retrieve assets from the contracts.
      *
-     * @param assets the number of underlyingToken to be deposited
-     * @param receiver the address to receive the minted tranche token
-     * @return shares the number of tranche token to be minted
+     * @param assets The number of underlyingToken to be deposited
+     * @param receiver The address to receive the minted tranche token
+     * @return shares The number of tranche token to be minted
      */
     function deposit(uint256 assets, address receiver) external returns (uint256 shares) {
         if (assets == 0) revert Errors.zeroAmountProvided();
@@ -206,7 +206,8 @@ contract TrancheVault is
     }
 
     /**
-     * @notice Records a new redemption request
+     * @notice Records a new redemption request.
+     * @param shares The number of shares the lender wants to redeem
      */
     function addRedemptionRequest(uint256 shares) external {
         if (shares == 0) revert Errors.zeroAmountProvided();
@@ -257,6 +258,7 @@ contract TrancheVault is
 
     /**
      * @notice Cancels a previous redemption request of the specified number of shares.
+     * @param shares The number of shares that the lender no longer wants to redeem
      */
     function cancelRedemptionRequest(uint256 shares) external {
         if (shares == 0) revert Errors.zeroAmountProvided();
@@ -323,6 +325,8 @@ contract TrancheVault is
         (assets, ) = _getWithdrawableAmountForLender(account);
     }
 
+    /// @notice Returns the number of shares previously requested for redemption that can be cancelled.
+    /// @oaram account The lender's account
     function cancellableRedemptionShares(address account) external view returns (uint256 shares) {
         RedemptionRequest[] storage requests = redemptionRequestsByLender[account];
         uint256 numRequests = requests.length;
@@ -374,8 +378,11 @@ contract TrancheVault is
     function _updateUserWithdrawable(address user) internal returns (uint256 withdrableAmount) {}
 
     /**
-     * @notice Calculates withdrawable amount from the last index of user redemption request array
-     * to current processed user redemption request
+     * @notice Calculates the amount of asset that the lender can withdraw.
+     * @oaram account The lender's account
+     * @return withdrawableAmount The amount of asset that the lender can withdraw
+     * @return disbursementInfo Information about the lender's last partially processed redemption request,
+     * including which request was partially processed and how many shares/amount were actually redeemed
      */
     function _getWithdrawableAmountForLender(
         address account
