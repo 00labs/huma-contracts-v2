@@ -75,7 +75,7 @@ describe("RiskAdjustedTranchesPolicy Test", function () {
             "RiskAdjustedTranchesPolicy",
             defaultDeployer,
             poolOwner,
-            "MockCredit",
+            "MockPoolCredit",
             evaluationAgent,
             poolOwnerTreasury,
             poolOperator,

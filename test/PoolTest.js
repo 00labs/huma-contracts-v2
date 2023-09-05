@@ -76,7 +76,7 @@ describe("Pool Test", function () {
                 "RiskAdjustedTranchesPolicy",
                 defaultDeployer,
                 poolOwner,
-                "MockCredit"
+                "MockPoolCredit"
             );
         }
 
@@ -242,7 +242,7 @@ describe("Pool Test", function () {
                 "RiskAdjustedTranchesPolicy",
                 defaultDeployer,
                 poolOwner,
-                "MockCredit",
+                "MockPoolCredit",
                 evaluationAgent,
                 poolOwnerTreasury,
                 poolOperator,

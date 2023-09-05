@@ -98,7 +98,7 @@ describe("EpochManager Test", function () {
             "RiskAdjustedTranchesPolicy",
             defaultDeployer,
             poolOwner,
-            "MockCredit",
+            "MockPoolCredit",
             evaluationAgent,
             poolOwnerTreasury,
             poolOperator,

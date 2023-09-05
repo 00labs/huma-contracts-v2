@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {CreditConfig, CreditRecord, ReceivableInfo, FacilityConfig, ReceivableState} from "./CreditStructs.sol";
-import {BaseCredit} from "./BaseCredit.sol";
+import {Credit} from "./Credit.sol";
 import {IReceivableCredit} from "./interfaces/IReceivableCredit.sol";
 import {Receivable} from "./Receivable.sol";
 import {Errors} from "../Errors.sol";
@@ -11,7 +11,7 @@ import {PoolConfig, PoolSettings} from "../PoolConfig.sol";
 /**
  * ReceivableCredit is a credit backed by receivables.
  */
-contract ReceivableCredit is BaseCredit, IReceivableCredit {
+contract ReceivableCredit is Credit, IReceivableCredit {
     // the NFT contract address for the receivable.
     // todo set Receivable in initializer.
     Receivable receivable;

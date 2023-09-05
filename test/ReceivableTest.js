@@ -74,7 +74,7 @@ describe("Receivable Test", function () {
                 "RiskAdjustedTranchesPolicy",
                 defaultDeployer,
                 poolOwner,
-                "MockCredit"
+                "MockPoolCredit"
             );
         }
 
@@ -240,7 +240,7 @@ describe("Receivable Test", function () {
                 "RiskAdjustedTranchesPolicy",
                 defaultDeployer,
                 poolOwner,
-                "MockCredit",
+                "MockPoolCredit",
                 evaluationAgent,
                 poolOwnerTreasury,
                 poolOperator,

@@ -29,7 +29,7 @@ let poolConfigContract,
     creditFeeManagerContract,
     creditPnlManagerContract;
 
-describe("BaseCredit Test", function () {
+describe("CreditLine Test", function () {
     before(async function () {
         [
             defaultDeployer,
@@ -76,7 +76,7 @@ describe("BaseCredit Test", function () {
             "RiskAdjustedTranchesPolicy",
             defaultDeployer,
             poolOwner,
-            "BaseCredit",
+            "CreditLine",
             evaluationAgent,
             poolOwnerTreasury,
             poolOperator,
@@ -88,7 +88,7 @@ describe("BaseCredit Test", function () {
         await loadFixture(prepare);
     });
 
-    it("Should approve a credit correctly", async function () {
+    it("Should approve a borrower correctly", async function () {
         const creditHash = ethers.utils.keccak256(
             ethers.utils.defaultAbiCoder.encode(
                 ["address", "address"],
@@ -99,7 +99,7 @@ describe("BaseCredit Test", function () {
         await expect(
             creditContract
                 .connect(eaServiceAccount)
-                .approveCredit(borrower.address, toToken(10_000), 1, 1217, toToken(10_000), true)
+                .approveBorrower(borrower.address, toToken(10_000), 1, 1217, toToken(10_000), true)
         )
             .to.emit(creditContract, "CreditApproved")
             .withArgs(
@@ -114,13 +114,6 @@ describe("BaseCredit Test", function () {
     });
 
     it("Should drawdown from a credit correctly", async function () {
-        const creditHash = ethers.utils.keccak256(
-            ethers.utils.defaultAbiCoder.encode(
-                ["address", "address"],
-                [creditContract.address, borrower.address]
-            )
-        );
-
         let juniorDepositAmount = toToken(300_000);
         await juniorTrancheVaultContract
             .connect(lender)
@@ -132,9 +125,9 @@ describe("BaseCredit Test", function () {
 
         await creditContract
             .connect(eaServiceAccount)
-            .approveCredit(borrower.address, toToken(100_000), 1, 1217, toToken(100_000), true);
+            .approveBorrower(borrower.address, toToken(100_000), 1, 1217, toToken(100_000), true);
 
-        await creditContract.connect(borrower).drawdown(creditHash, toToken(10_000));
+        await creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000));
     });
 
     it("Should makePayment to a credit correctly", async function () {
@@ -156,10 +149,10 @@ describe("BaseCredit Test", function () {
 
         await creditContract
             .connect(eaServiceAccount)
-            .approveCredit(borrower.address, toToken(100_000), 1, 1217, toToken(100_000), true);
+            .approveBorrower(borrower.address, toToken(100_000), 1, 1217, toToken(100_000), true);
 
-        await creditContract.connect(borrower).drawdown(creditHash, toToken(10_000));
+        await creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000));
 
-        await creditContract.connect(borrower).makePayment(creditHash, toToken(100));
+        await creditContract.connect(borrower).makePayment(borrower.address, toToken(100));
     });
 });

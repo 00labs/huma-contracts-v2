@@ -2,8 +2,8 @@
 pragma solidity ^0.8.0;
 
 import {CreditConfig, CreditRecord, CreditLoss, CreditState, PaymentStatus, PnLTracker, Payment} from "./CreditStructs.sol";
-import {ICredit} from "./interfaces/ICredit.sol";
 import {IFlexCredit} from "./interfaces/IFlexCredit.sol";
+import {IPoolCredit} from "./interfaces/IPoolCredit.sol";
 import {ICalendar} from "./interfaces/ICalendar.sol";
 import {IPnLManager} from "./interfaces/IPnLManager.sol";
 import {ICreditFeeManager} from "./utils/interfaces/ICreditFeeManager.sol";
@@ -14,7 +14,6 @@ import "../SharedDefs.sol";
 import {HumaConfig} from "../HumaConfig.sol";
 import {CalendarUnit} from "../SharedDefs.sol";
 import {IERC20, IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {PoolConfigCacheUpgradeable} from "../PoolConfigCacheUpgradeable.sol";
 import {IPoolVault} from "../interfaces/IPoolVault.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -32,15 +31,13 @@ import "hardhat/console.sol";
  * 2) separate lastUpdateDate for profit and loss
  * 3) Mostly Credit-level limit, also supports borrower-level limit
  */
-contract BaseCredit is
+abstract contract BaseCredit is
     Initializable,
     PoolConfigCacheUpgradeable,
     BaseCreditStorage,
-    ICredit,
+    IPoolCredit,
     IFlexCredit
 {
-    using SafeERC20 for IERC20;
-
     enum CreditLineClosureReason {
         Paidoff,
         CreditLimitChangedToBeZero,
@@ -183,25 +180,14 @@ contract BaseCredit is
         poolVault = IPoolVault(addr);
     }
 
-    /**
-     * @notice Approves the credit with the terms provided.
-     * @param borrower the borrower address
-     * @param creditLimit the credit limit of the credit line
-     * @param remainingPeriods the number of periods before the credit line expires
-     * @param yieldInBps expected yield expressed in basis points, 1% is 100, 100% is 10000
-     * @param committedAmount the credit that the borrower has committed to use. If the used credit
-     * is less than this amount, the borrower will charged yield using this amount.
-     * @param revolving indicates if the underlying credit line is revolving or not
-     * @dev only Evaluation Agent can call
-     */
-    function approveCredit(
+    function approveCreditInternal(
         address borrower,
         uint96 creditLimit,
         uint16 remainingPeriods,
         uint16 yieldInBps,
         uint96 committedAmount,
         bool revolving
-    ) external virtual {
+    ) internal virtual {
         _protocolAndPoolOn();
         onlyEAServiceAccount();
 
@@ -271,7 +257,7 @@ contract BaseCredit is
      * @dev Revert if there is still balance due
      * @dev Revert if the committed amount is non-zero and there are periods remaining
      */
-    function closeCredit(bytes32 creditHash) public virtual {
+    function closeCreditInternal(bytes32 creditHash) internal virtual {
         CreditRecord memory cr = _getCreditRecord(creditHash);
         onlyBorrowerOrEAServiceAccount(cr.borrower);
 
@@ -293,30 +279,11 @@ contract BaseCredit is
     }
 
     /**
-     * @notice allows the borrower to borrow against an approved credit line.
-     * @param creditHash hash of the credit record
-     * @param borrowAmount the amount to borrow
-     * @dev Only the owner of the credit line can drawdown.
-     */
-    function drawdown(bytes32 creditHash, uint256 borrowAmount) public virtual override {
-        address borrower = msg.sender;
-        CreditRecord memory cr = _getCreditRecord(creditHash);
-        if (borrower != cr.borrower) revert Errors.notBorrower();
-
-        if (borrowAmount == 0) revert Errors.zeroAmountProvided();
-
-        _checkDrawdownEligibility(creditHash, cr, borrowAmount);
-
-        uint256 netAmountToBorrower = _drawdown(creditHash, cr, borrowAmount);
-        emit DrawdownMade(borrower, borrowAmount, netAmountToBorrower);
-    }
-
-    /**
      * @notice Extend the expiration (maturity) date of a credit line
      * @param creditHash the hashcode of the credit
      * @param numOfPeriods the number of pay periods to be extended
      */
-    function extendCreditLineDuration(bytes32 creditHash, uint256 numOfPeriods) external virtual {
+    function extendCreditLineDuration(bytes32 creditHash, uint256 numOfPeriods) public virtual {
         onlyEAServiceAccount();
         // Although it is not essential to call _updateDueInfo() to extend the credit line duration
         // it is good practice to bring the account current while we update one of the fields.
@@ -332,25 +299,34 @@ contract BaseCredit is
     }
 
     /**
-     * @notice Makes one payment for the credit line. This can be initiated by the borrower
-     * or by PDSServiceAccount with the allowance approval from the borrower.
-     * If this is the final payment, it automatically triggers the payoff process.
-     * @return amountPaid the actual amount paid to the contract. When the tendered
-     * amount is larger than the payoff amount, the contract only accepts the payoff amount.
-     * @return paidoff a flag indicating whether the account has been paid off.
-     * @notice Warning, payments should be made by calling this function
-     * No token should be transferred directly to the contract
+     * @notice allows the borrower to borrow against an approved credit line.
+     * @param creditHash hash of the credit record
+     * @param borrowAmount the amount to borrow
+     * @dev Only the owner of the credit line can drawdown.
      */
-    function makePayment(
+    function drawdownInternal(bytes32 creditHash, uint256 borrowAmount) internal virtual {
+        address borrower = msg.sender;
+        CreditRecord memory cr = _getCreditRecord(creditHash);
+        if (borrower != cr.borrower) revert Errors.notBorrower();
+
+        if (borrowAmount == 0) revert Errors.zeroAmountProvided();
+
+        _checkDrawdownEligibility(creditHash, cr, borrowAmount);
+
+        uint256 netAmountToBorrower = _drawdown(creditHash, cr, borrowAmount);
+        emit DrawdownMade(borrower, borrowAmount, netAmountToBorrower);
+    }
+
+    function makePaymentInternal(
         bytes32 creditHash,
         uint256 amount
-    ) public virtual override returns (uint256 amountPaid, bool paidoff) {
+    ) internal virtual returns (uint256 amountPaid, bool paidoff) {
         address borrower = _getCreditRecord(creditHash).borrower;
         if (msg.sender != borrower) onlyPDSServiceAccount();
         (amountPaid, paidoff, ) = _makePayment(creditHash, amount);
     }
 
-    function pauseCredit(bytes32 creditHash) external {
+    function pauseCreditInternal(bytes32 creditHash) internal {
         CreditRecord memory cr = _getCreditRecord(creditHash);
         if (cr.state == CreditState.GoodStanding) {
             cr.state = CreditState.Paused;
@@ -369,7 +345,7 @@ contract BaseCredit is
      * to the LPs. Unfortunately, this special business consideration added more complexity
      * and cognitive load to _updateDueInfo(...).
      */
-    function refreshCredit(bytes32 creditHash) external virtual returns (CreditRecord memory cr) {
+    function refreshCreditInternal(bytes32 creditHash) internal returns (CreditRecord memory cr) {
         if (_creditRecordMap[creditHash].state != CreditState.Defaulted) {
             return _updateDueInfo(creditHash);
         }
@@ -407,7 +383,7 @@ contract BaseCredit is
      * @dev It is possible for the borrower to payback even after default, especially in
      * receivable factoring cases.
      */
-    function triggerDefault(bytes32 creditHash) external virtual returns (uint256 losses) {
+    function triggerDefaultInternal(bytes32 creditHash) internal virtual returns (uint256 losses) {
         _protocolAndPoolOn();
 
         // check to make sure the default grace period has passed.
@@ -484,9 +460,9 @@ contract BaseCredit is
         // emit CreditLineChanged(borrower, oldCreditLimit, newCreditLimit);
     }
 
-    function updateYield(address borrower, uint yieldInBps) external {}
+    function updateYield(address borrower, uint256 yieldInBps) public virtual {}
 
-    function unpauseCredit(bytes32 creditHash) external {
+    function unpauseCreditInternal(bytes32 creditHash) internal virtual {
         CreditRecord memory cr = _getCreditRecord(creditHash);
         if (cr.state == CreditState.Paused) {
             cr.state = CreditState.GoodStanding;
@@ -494,11 +470,15 @@ contract BaseCredit is
         }
     }
 
-    function creditRecordMap(bytes32 creditHash) external view returns (CreditRecord memory) {
+    function creditRecordMap(
+        bytes32 creditHash
+    ) public view virtual returns (CreditRecord memory) {
         return _creditRecordMap[creditHash];
     }
 
-    function creditConfigMap(bytes32 creditHash) external view returns (CreditConfig memory) {
+    function creditConfigMap(
+        bytes32 creditHash
+    ) public view virtual returns (CreditConfig memory) {
         return _creditConfigMap[creditHash];
     }
 
@@ -520,7 +500,7 @@ contract BaseCredit is
         uint256 receivableId
     ) public view virtual returns (bytes32 creditHash) {}
 
-    function isApproved(bytes32 creditHash) external view virtual returns (bool) {
+    function isApproved(bytes32 creditHash) public view virtual returns (bool) {
         if ((_creditRecordMap[creditHash].state >= CreditState.Approved)) return true;
         else return false;
     }
@@ -544,7 +524,7 @@ contract BaseCredit is
      * @dev after the bill is refreshed, the due date is updated, it is possible that the new due 
      // date is in the future, but if the bill refresh has set missedPeriods, the account is late.
      */
-    function isLate(bytes32 creditHash) external view virtual returns (bool lateFlag) {
+    function isLate(bytes32 creditHash) public view virtual returns (bool lateFlag) {
         return
             (_creditRecordMap[creditHash].state > CreditState.Approved &&
                 (_creditRecordMap[creditHash].missedPeriods > 0 ||

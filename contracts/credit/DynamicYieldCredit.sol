@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
-import {BaseCredit} from "./BaseCredit.sol";
+import {Credit} from "./Credit.sol";
 import {CreditConfig, CreditRecord} from "./CreditStructs.sol";
 import {Errors} from "../Errors.sol";
 
-contract DynamicYieldCredit is BaseCredit {
+contract DynamicYieldCredit is Credit {
     function getEstimatedYield(address borrower) external view returns (uint256 yieldInBps) {
         return uint256(_getCreditConfig(getCreditHash(borrower)).yieldInBps);
     }

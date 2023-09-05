@@ -67,7 +67,7 @@ describe("PoolConfigCache Test", function () {
             "RiskAdjustedTranchesPolicy",
             defaultDeployer,
             poolOwner,
-            "MockCredit"
+            "MockPoolCredit"
         );
     }
 
