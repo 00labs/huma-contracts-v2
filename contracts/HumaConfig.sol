@@ -27,21 +27,21 @@ contract HumaConfig is Ownable, Pausable {
     uint32 public protocolDefaultGracePeriodInSeconds;
 
     /// % of platform income that will be reserved in the protocol, measured in basis points
-    uint16 public protocolFee;
+    uint16 public protocolFeeInBps;
 
-    /// Huma protocol treasury
+    /// Address of the Huma protocol treasury
     address public humaTreasury;
 
-    /// address of EvaluationAgentNFT contract
+    /// Address of EvaluationAgentNFT contract
     address public eaNFTContractAddress;
 
-    /// service account for Huma's evaluation agent hosting service
+    /// Service account for Huma's evaluation agent hosting service
     address public eaServiceAccount;
 
-    /// service account for Huma's payment detection service
+    /// Service account for Huma's payment detection service
     address public pdsServiceAccount;
 
-    /// pausers can pause the pool.
+    /// Pausers can pause the pool.
     mapping(address => bool) private pausers;
 
     // poolAdmins has the list of approved accounts who can create and operate pools
@@ -95,7 +95,7 @@ contract HumaConfig is Ownable, Pausable {
     constructor() {
         protocolDefaultGracePeriodInSeconds = PROTOCOL_DEFAULT_GRACE_PERIOD;
 
-        protocolFee = DEFAULT_TREASURY_FEE;
+        protocolFeeInBps = DEFAULT_TREASURY_FEE;
 
         emit ProtocolInitialized(msg.sender);
     }
@@ -253,8 +253,8 @@ contract HumaConfig is Ownable, Pausable {
      */
     function setTreasuryFee(uint256 fee) external onlyOwner {
         if (fee > TREASURY_FEE_UPPER_BOUND) revert Errors.treasuryFeeHighThanUpperLimit();
-        uint256 oldFee = protocolFee;
-        protocolFee = uint16(fee);
+        uint256 oldFee = protocolFeeInBps;
+        protocolFeeInBps = uint16(fee);
         emit TreasuryFeeChanged(oldFee, fee);
     }
 
