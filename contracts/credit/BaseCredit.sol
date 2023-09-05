@@ -536,7 +536,7 @@ contract BaseCredit is
         // cr.state = BS.CreditState.Approved;
         // return cr;
     }
-
+ 
     /**
      * @notice Checks if drawdown is allowed for the credit line at this point of time
      * @dev Checks to make sure the following conditions are met:

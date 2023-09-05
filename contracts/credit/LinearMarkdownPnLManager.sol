@@ -7,11 +7,10 @@ import {PoolConfig} from "../PoolConfig.sol";
 import {PnLTracker, CreditLoss, CreditRecord, CreditConfig} from "./CreditStructs.sol";
 import {BasePnLManager} from "./BasePnLManager.sol";
 import {PoolConfigCache} from "../PoolConfigCache.sol";
+import {ICredit} from "./interfaces/ICredit.sol";
 
-contract LinearMarkdownPnLManager is PoolConfigCache, BasePnLManager {
-    constructor(address poolConfigAddress) PoolConfigCache(poolConfigAddress) {}
-
-    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {}
+contract LinearMarkdownPnLManager is BasePnLManager {
+    constructor(address poolConfigAddress) BasePnLManager(poolConfigAddress) {}
 
     function processDrawdown(uint96 poolIncome, uint96 profitRateDiff) external {
         // todo access control

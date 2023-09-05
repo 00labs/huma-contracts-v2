@@ -6,13 +6,24 @@ import {Errors} from "../Errors.sol";
 import {PoolConfig} from "../PoolConfig.sol";
 import {PnLTracker, CreditLoss, CreditRecord, CreditConfig} from "./CreditStructs.sol";
 import {IPnLManager} from "./interfaces/IPnLManager.sol";
+import {PoolConfigCache} from "../PoolConfigCache.sol";
+import {ICredit} from "./interfaces/ICredit.sol";
+import {PoolConfig} from "../PoolConfig.sol";
 
-abstract contract BasePnLManager is IPnLManager {
-    PoolConfig internal _poolConfig;
-
+abstract contract BasePnLManager is IPnLManager, PoolConfigCache {
     PnLTracker pnlTracker;
 
+    ICredit _credit;
+
     mapping(bytes32 => CreditLoss) internal _creditLossMap;
+
+    constructor(address poolConfigAddress) PoolConfigCache(poolConfigAddress) {}
+
+    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
+        address addr = _poolConfig.credit();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        _credit = ICredit(addr);
+    }
 
     function getPrincipal(CreditRecord memory cr) internal pure returns (uint96 principal) {
         principal = cr.unbilledPrincipal + cr.totalDue - cr.feesDue - cr.yieldDue;
@@ -22,7 +33,7 @@ abstract contract BasePnLManager is IPnLManager {
         CreditConfig memory cc,
         CreditRecord memory cr
     ) internal view returns (int96 markdownRate) {
-        uint16 gracePeriodInCU = _poolConfig.getPoolSettings().defaultGracePeriodInCalendarUnit;
+        uint16 gracePeriodInCU = poolConfig.getPoolSettings().defaultGracePeriodInCalendarUnit;
         uint256 gracePeriod = gracePeriodInCU * SECONDS_IN_A_DAY;
         if (cc.calendarUnit == CalendarUnit.Month) gracePeriod *= 30;
         markdownRate = int96(uint96(getPrincipal(cr) / gracePeriod));
@@ -125,5 +136,9 @@ abstract contract BasePnLManager is IPnLManager {
     {
         PnLTracker memory _t = pnlTracker;
         return (uint256(_t.totalProfit), uint256(_t.totalLoss), uint256(_t.totalLossRecovery));
+    }
+
+    function onlyCreditContract() internal view {
+        if (msg.sender != address(_credit)) revert Errors.todo();
     }
 }
