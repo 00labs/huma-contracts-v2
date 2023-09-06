@@ -303,14 +303,14 @@ contract TrancheVault is
     function disburse(address receiver) external {
         poolConfig.onlyProtocolAndPoolOn();
 
-        (uint256 withdrableAmount, RedemptionDisbursementInfo memory disburseInfo) = _getUserWithdrawable(
+        (uint256 withdrawableAmount, RedemptionDisbursementInfo memory disburseInfo) = _getUserWithdrawable(
             msg.sender
         );
         redemptionDisbursementInfoByLender[msg.sender] = disburseInfo;
 
-        underlyingToken.transfer(receiver, withdrableAmount);
+        underlyingToken.transfer(receiver, withdrawableAmount);
 
-        emit UserDisbursed(msg.sender, receiver, withdrableAmount);
+        emit UserDisbursed(msg.sender, receiver, withdrawableAmount);
     }
 
     /**
@@ -368,7 +368,7 @@ contract TrancheVault is
         return supply == 0 ? _assets : (_assets * supply) / _totalAssets;
     }
 
-    function _updateUserWithdrawable(address user) internal returns (uint256 withdrableAmount) {}
+    function _updateUserWithdrawable(address user) internal returns (uint256 withdrawableAmount) {}
 
     /**
      * @notice Calculates withdrawable amount from the last index of user Redemption request array
@@ -376,7 +376,7 @@ contract TrancheVault is
      */
     function _getUserWithdrawable(
         address user
-    ) internal view returns (uint256 withdrableAmount, RedemptionDisbursementInfo memory disburseInfo) {
+    ) internal view returns (uint256 withdrawableAmount, RedemptionDisbursementInfo memory disburseInfo) {
         disburseInfo = redemptionDisbursementInfoByLender[user];
         RedemptionRequest[] storage requests = redemptionRequestsByLender[user];
         uint256 len = epochIds.length;
@@ -387,7 +387,7 @@ contract TrancheVault is
 
         for (uint256 i = disburseInfo.requestsIndex; i < requests.length; i++) {
             RedemptionRequest memory request = requests[i];
-            if (request.epochId < firstUnprocessedEpochId) {
+            if (request.epochId < lastEpochId) {
                 // The redemption requests in the epoch have been fully processed.
                 EpochInfo memory epoch = epochInfoByEpochId[request.epochId];
                 // TODO There will be one decimal unit of rounding error here if it can't be divisible.
@@ -402,10 +402,9 @@ contract TrancheVault is
                     disburseInfo.partialAmountProcessed = 0;
                 }
 
-                // Bug? Should this be amountProcessed?
                 withdrawableAmount += amountProcessed;
-                disbursementInfo.requestsIndex += 1;
-            } else if (request.epochId == firstUnprocessedEpochId) {
+                disburseInfo.requestsIndex += 1;
+            } else if (request.epochId == lastEpochId) {
                 // The redemption requests in the epoch have been partially processed or unprocessed.
                 EpochInfo memory epoch = epochInfoByEpochId[request.epochId];
                 if (epoch.totalSharesProcessed > 0) {
@@ -413,7 +412,7 @@ contract TrancheVault is
                         epoch.totalSharesRequested;
                     uint256 amountProcessed = (request.numSharesRequested *
                         epoch.totalAmountProcessed) / epoch.totalSharesRequested;
-                    withdrableAmount += amountProcessed - disburseInfo.partialAmountProcessed;
+                    withdrawableAmount += amountProcessed - disburseInfo.partialAmountProcessed;
                     disburseInfo.partialSharesProcessed = uint96(shareProcessed);
                     disburseInfo.partialAmountProcessed = uint96(amountProcessed);
                 }

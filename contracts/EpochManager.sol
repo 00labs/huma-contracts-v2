@@ -414,12 +414,12 @@ contract EpochManager is PoolConfigCache, IEpochManager {
       * @param epochInfos the list of epoch infos in each epoch for the senior tranche
       * @param epochsRange the range of epochs in the list of epoch infos to be processed
       * @param availableAmount the total amount available for redemption
-      * @param processingResult the redemption request processing result for the senior tranche
+      * @param redemptionResult the redemption request processing result for the senior tranche
       * @dev this function is side-effectual and mutates the following incoming params:
       * trancheAssets: will be updated to reflect the remaining amount of assets in the senior tranche after fulfilling
       * redemption requests
       * epochInfos: will be updated to reflect the latest redemption request states for the senior tranche
-      * processingResult: will be updated to store the processing result
+      * redemptionResult: will be updated to store the processing result
       */
     function _processSeniorRedemptionRequests(
         uint96[2] memory trancheAssets,
@@ -427,7 +427,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         EpochInfo[] memory epochInfos,
         EpochsRange memory epochsRange,
         uint256 availableAmount,
-        RedemptionResult memory processingResult
+        RedemptionResult memory redemptionResult
     ) internal pure returns (uint256 remainingAmount) {
         uint256 endIndex = epochsRange.startIndex + epochsRange.length;
         for (uint256 i = epochsRange.startIndex; i < endIndex; i++) {
@@ -459,9 +459,9 @@ contract EpochManager is PoolConfigCache, IEpochManager {
             //     uint256(epochInfo.totalAmountProcessed)
             // );
 
-            processingResult.numEpochsProcessed += 1;
-            processingResult.sharesRedeemed += sharesToRedeem;
-            processingResult.amountRedeemed += redemptionAmount;
+            redemptionResult.numEpochsProcessed += 1;
+            redemptionResult.sharesRedeemed += sharesToRedeem;
+            redemptionResult.amountRedeemed += redemptionAmount;
             trancheAssets[SENIOR_TRANCHE_INDEX] -= uint96(redemptionAmount);
 
             // console.log(
@@ -486,12 +486,12 @@ contract EpochManager is PoolConfigCache, IEpochManager {
       * @param epochInfos the list of epoch infos in each epoch for the junior tranche
       * @param epochsRange the range of epochs in the list of epoch infos to be processed
       * @param availableAmount the total amount available for redemption
-      * @param processingResult the redemption request processing result for the junior tranche
+      * @param redemptionResult the redemption request processing result for the junior tranche
       * @dev this function is side-effectual and mutates the following incoming params:
       * trancheAssets: will be updated to reflect the remaining amount of assets in the junior tranche after fulfilling
       * redemption requests
       * epochInfos: will be updated to reflect the latest redemption request states for the senior tranche
-      * processingResult: will be updated to store the processing result
+      * redemptionResult: will be updated to store the processing result
       */
     function _processJuniorRedemptionRequests(
         uint96[2] memory trancheAssets,
@@ -500,7 +500,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         EpochInfo[] memory epochInfos,
         EpochsRange memory epochsRange,
         uint256 availableAmount,
-        RedemptionResult memory processingResult
+        RedemptionResult memory redemptionResult
     ) internal pure returns (uint256 remainingAmount) {
         // Calculate the minimum amount of junior assets required to maintain the senior : junior ratio.
         // Since integer division rounds down, add 1 to minJuniorAmount in order to maintain the ratio.
@@ -541,10 +541,11 @@ contract EpochManager is PoolConfigCache, IEpochManager {
             // then they will be processed again in this round (by decrementing `epochsRange.startIndex` by 1 in
             // `_executeEpoch`, which means the same epoch would be double-counted if we simply increment the count
             // by 1 all the time, hence the conditional increment only if the value of `i` satisfies the condition
-            // below.
-            if (i > processingResult.numEpochsProcessed - 1) processingResult.numEpochsProcessed += 1;
-            processingResult.sharesRedeemed += sharesToRedeem;
-            processingResult.amountRedeemed += redemptionAmount;
+            // below. Note that we use i + 1 > redemptionResult.numEpochsProcessed instead of
+            // i > redemptionResult.numEpochsProcessed - 1 because the latter underflows if numEpochsProcessed is 0.
+            if (i + 1 > redemptionResult.numEpochsProcessed) redemptionResult.numEpochsProcessed += 1;
+            redemptionResult.sharesRedeemed += sharesToRedeem;
+            redemptionResult.amountRedeemed += redemptionAmount;
 
             if (availableAmount == 0 || maxRedeemableAmount == 0) break;
         }
