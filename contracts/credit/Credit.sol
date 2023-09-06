@@ -3,7 +3,8 @@ pragma solidity ^0.8.0;
 
 import {ICredit} from "./interfaces/ICredit.sol";
 import {BaseCredit} from "./BaseCredit.sol";
-import {CreditRecord, CreditConfig} from "./CreditStructs.sol";
+import {CreditRecord, CreditConfig, CreditQuota} from "./CreditStructs.sol";
+import {Errors} from "../Errors.sol";
 
 import "hardhat/console.sol";
 
@@ -19,34 +20,34 @@ import "hardhat/console.sol";
  * 3) Mostly Credit-level limit, also supports borrower-level limit
  */
 contract Credit is BaseCredit, ICredit {
-    /**
-     * @notice Approves the credit with the terms provided.
-     * @param borrower the borrower address
-     * @param creditLimit the credit limit of the credit line
-     * @param remainingPeriods the number of periods before the credit line expires
-     * @param yieldInBps expected yield expressed in basis points, 1% is 100, 100% is 10000
-     * @param committedAmount the credit that the borrower has committed to use. If the used credit
-     * is less than this amount, the borrower will charged yield using this amount.
-     * @param revolving indicates if the underlying credit line is revolving or not
-     * @dev only Evaluation Agent can call
-     */
-    function approveCredit(
-        address borrower,
-        uint96 creditLimit,
-        uint16 remainingPeriods,
-        uint16 yieldInBps,
-        uint96 committedAmount,
-        bool revolving
-    ) external virtual {
-        approveCreditInternal(
-            borrower,
-            creditLimit,
-            remainingPeriods,
-            yieldInBps,
-            committedAmount,
-            revolving
-        );
-    }
+    // /**
+    //  * @notice Approves the credit with the terms provided.
+    //  * @param borrower the borrower address
+    //  * @param creditLimit the credit limit of the credit line
+    //  * @param remainingPeriods the number of periods before the credit line expires
+    //  * @param yieldInBps expected yield expressed in basis points, 1% is 100, 100% is 10000
+    //  * @param committedAmount the credit that the borrower has committed to use. If the used credit
+    //  * is less than this amount, the borrower will charged yield using this amount.
+    //  * @param revolving indicates if the underlying credit line is revolving or not
+    //  * @dev only Evaluation Agent can call
+    //  */
+    // function approveCredit(
+    //     address borrower,
+    //     uint96 creditLimit,
+    //     uint16 remainingPeriods,
+    //     uint16 yieldInBps,
+    //     uint96 committedAmount,
+    //     bool revolving
+    // ) external virtual {
+    //     approveCreditInternal(
+    //         borrower,
+    //         creditLimit,
+    //         remainingPeriods,
+    //         yieldInBps,
+    //         committedAmount,
+    //         revolving
+    //     );
+    // }
 
     /**
      * @notice allows the borrower to borrow against an approved credit line.
@@ -55,7 +56,9 @@ contract Credit is BaseCredit, ICredit {
      * @dev Only the owner of the credit line can drawdown.
      */
     function drawdown(bytes32 creditHash, uint256 borrowAmount) external {
-        drawdownInternal(creditHash, borrowAmount);
+        if (borrowAmount == 0) revert Errors.zeroAmountProvided();
+        CreditQuota memory quota = _creditQuotaMap[creditHash];
+        _drawdown(quota.borrower, creditHash, borrowAmount);
     }
 
     /**
@@ -72,7 +75,11 @@ contract Credit is BaseCredit, ICredit {
         bytes32 creditHash,
         uint256 amount
     ) external returns (uint256 amountPaid, bool paidoff) {
-        makePaymentInternal(creditHash, amount);
+        if (amount == 0) revert Errors.zeroAmountProvided();
+        CreditQuota memory quota = _creditQuotaMap[creditHash];
+        if (msg.sender != quota.borrower) onlyPDSServiceAccount();
+
+        (amountPaid, paidoff, ) = _makePayment(quota.borrower, creditHash, amount);
     }
 
     /**
@@ -87,7 +94,7 @@ contract Credit is BaseCredit, ICredit {
      * and cognitive load to _updateDueInfo(...).
      */
     function refreshCredit(bytes32 creditHash) external returns (CreditRecord memory cr) {
-        refreshCreditInternal(creditHash);
+        _refreshCredit(creditHash);
     }
 
     /**
@@ -97,7 +104,7 @@ contract Credit is BaseCredit, ICredit {
      * receivable factoring cases.
      */
     function triggerDefault(bytes32 creditHash) external returns (uint256 losses) {
-        triggerDefaultInternal(creditHash);
+        _triggerDefault(creditHash);
     }
 
     /**
@@ -107,15 +114,16 @@ contract Credit is BaseCredit, ICredit {
      * @dev Revert if the committed amount is non-zero and there are periods remaining
      */
     function closeCredit(bytes32 creditHash) external {
-        closeCreditInternal(creditHash);
+        address borrower;
+        _closeCredit(borrower, creditHash);
     }
 
     function pauseCredit(bytes32 creditHash) external {
-        pauseCreditInternal(creditHash);
+        _pauseCredit(creditHash);
     }
 
     function unpauseCredit(bytes32 creditHash) external {
-        unpauseCreditInternal(creditHash);
+        _unpauseCredit(creditHash);
     }
 
     function updateYield(
@@ -132,12 +140,12 @@ contract Credit is BaseCredit, ICredit {
         BaseCredit.extendCreditLineDuration(creditHash, numOfPeriods);
     }
 
-    function updateAvailableCredit(
-        bytes32 creditHash,
-        uint96 newAvailableCredit
-    ) public override(BaseCredit, ICredit) {
-        BaseCredit.updateAvailableCredit(creditHash, newAvailableCredit);
-    }
+    // function updateAvailableCredit(
+    //     bytes32 creditHash,
+    //     uint96 newAvailableCredit
+    // ) public override(BaseCredit, ICredit) {
+    //     BaseCredit.updateAvailableCredit(creditHash, newAvailableCredit);
+    // }
 
     function creditRecordMap(
         bytes32 creditHash
@@ -151,11 +159,11 @@ contract Credit is BaseCredit, ICredit {
         return BaseCredit.creditConfigMap(creditHash);
     }
 
-    function getCreditHash(
-        address borrower
-    ) public view override(BaseCredit, ICredit) returns (bytes32 creditHash) {
-        return BaseCredit.getCreditHash(borrower);
-    }
+    // function getCreditHash(
+    //     address borrower
+    // ) public view override(BaseCredit, ICredit) returns (bytes32 creditHash) {
+    //     return BaseCredit.getCreditHash(borrower);
+    // }
 
     function isApproved(
         bytes32 creditHash

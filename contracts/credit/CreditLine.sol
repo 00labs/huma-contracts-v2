@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import {ICreditLine} from "./interfaces/ICreditLine.sol";
 import {BaseCredit} from "./BaseCredit.sol";
 import {CreditRecord} from "./CreditStructs.sol";
+import {Errors} from "../Errors.sol";
 
 import "hardhat/console.sol";
 
@@ -38,8 +39,13 @@ contract CreditLine is BaseCredit, ICreditLine {
         uint96 committedAmount,
         bool revolving
     ) external virtual {
-        approveCreditInternal(
+        _protocolAndPoolOn();
+        onlyEAServiceAccount();
+
+        bytes32 creditHash = getCreditHash(borrower);
+        _approveCredit(
             borrower,
+            creditHash,
             creditLimit,
             remainingPeriods,
             yieldInBps,
@@ -55,8 +61,10 @@ contract CreditLine is BaseCredit, ICreditLine {
      * @dev Only the owner of the credit line can drawdown.
      */
     function drawdown(address borrower, uint256 borrowAmount) external {
+        if (borrower == address(0)) revert Errors.zeroAddressProvided();
+        if (borrowAmount == 0) revert Errors.zeroAmountProvided();
         bytes32 creditHash = getCreditHash(borrower);
-        drawdownInternal(creditHash, borrowAmount);
+        _drawdown(borrower, creditHash, borrowAmount);
     }
 
     /**
@@ -73,8 +81,9 @@ contract CreditLine is BaseCredit, ICreditLine {
         address borrower,
         uint256 amount
     ) external returns (uint256 amountPaid, bool paidoff) {
+        if (msg.sender != borrower) onlyPDSServiceAccount();
         bytes32 creditHash = getCreditHash(borrower);
-        makePaymentInternal(creditHash, amount);
+        (amountPaid, paidoff, ) = _makePayment(borrower, creditHash, amount);
     }
 
     /**
@@ -90,7 +99,7 @@ contract CreditLine is BaseCredit, ICreditLine {
      */
     function refreshCredit(address borrower) external returns (CreditRecord memory cr) {
         bytes32 creditHash = getCreditHash(borrower);
-        refreshCreditInternal(creditHash);
+        _refreshCredit(creditHash);
     }
 
     /**
@@ -101,7 +110,7 @@ contract CreditLine is BaseCredit, ICreditLine {
      */
     function triggerDefault(address borrower) external returns (uint256 losses) {
         bytes32 creditHash = getCreditHash(borrower);
-        triggerDefaultInternal(creditHash);
+        _triggerDefault(creditHash);
     }
 
     /**
@@ -112,17 +121,17 @@ contract CreditLine is BaseCredit, ICreditLine {
      */
     function closeCredit(address borrower) external {
         bytes32 creditHash = getCreditHash(borrower);
-        closeCreditInternal(creditHash);
+        _closeCredit(borrower, creditHash);
     }
 
     function pauseCredit(address borrower) external {
         bytes32 creditHash = getCreditHash(borrower);
-        pauseCreditInternal(creditHash);
+        _pauseCredit(creditHash);
     }
 
     function unpauseCredit(address borrower) external {
         bytes32 creditHash = getCreditHash(borrower);
-        unpauseCreditInternal(creditHash);
+        _unpauseCredit(creditHash);
     }
 
     function updateYield(
@@ -130,5 +139,9 @@ contract CreditLine is BaseCredit, ICreditLine {
         uint256 yieldInBps
     ) public override(BaseCredit, ICreditLine) {
         BaseCredit.updateYield(borrower, yieldInBps);
+    }
+
+    function getCreditHash(address borrower) internal view virtual returns (bytes32 creditHash) {
+        return keccak256(abi.encode(address(this), borrower));
     }
 }
