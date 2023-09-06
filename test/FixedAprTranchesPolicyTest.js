@@ -76,7 +76,7 @@ describe("FixedAprTranchesPolicy Test", function () {
             "FixedAprTranchesPolicy",
             defaultDeployer,
             poolOwner,
-            "MockCredit",
+            "MockPoolCredit",
             evaluationAgent,
             poolOwnerTreasury,
             poolOperator,
