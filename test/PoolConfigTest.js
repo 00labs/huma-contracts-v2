@@ -874,23 +874,9 @@ describe("PoolConfig Test", function () {
         });
     });
 
-
     it("setPoolName", async function () {
         const poolName = "TestPoolName";
         await poolConfig.setPoolName(poolName);
         expect(await poolConfig.poolName()).to.equal(poolName);
     });
-
-    // it("setYield", async function () {
-    //     await poolConfig.setYield(24);
-    //     const poolSummary = await poolConfig.getPoolSummary();
-    //     console.log(poolSummary)
-    //     expect(await poolConfig.getPoolSummary()).to.equal(24);
-    // });
-
-    // it("setAsset", async function () {
-    //     expect(await poolConfig.asset()).to.equal(ethers.constants.AddressZero);
-    //     await poolConfig.setAsset(mockToken.address);
-    //     expect(await poolConfig.asset()).to.equal(mockToken.address);
-    // });
 });
