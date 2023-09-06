@@ -32,6 +32,9 @@ struct CreditRecord {
     uint16 remainingPeriods;
     CreditState state;
     bool revolving; // whether repeated borrowing is allowed
+}
+
+struct CreditQuota {
     address borrower;
     uint96 availableCredit;
 }
@@ -44,7 +47,7 @@ struct CreditLoss {
     uint96 lossRate;
 }
 
-struct CreditLimits {
+struct BorrowerQuota {
     uint96 creditLimit;
     uint96 availableCredit;
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {CreditConfig, CreditRecord, ReceivableInfo, FacilityConfig, ReceivableState} from "./CreditStructs.sol";
+import {CreditConfig, CreditRecord, CreditQuota, ReceivableInfo, FacilityConfig, ReceivableState} from "./CreditStructs.sol";
 import {Credit} from "./Credit.sol";
 import {IReceivableCredit} from "./interfaces/IReceivableCredit.sol";
 import {Receivable} from "./Receivable.sol";
@@ -91,9 +91,11 @@ contract ReceivableCredit is Credit, IReceivableCredit {
         receivable.approveOrRejectReceivable(receivableId, true);
         bytes32 creditHash = _getCreditHash(borrower, receivableId);
 
-        _creditRecordMap[creditHash].availableCredit +=
+        CreditQuota memory quota = _creditQuotaMap[creditHash];
+        quota.availableCredit +=
             receivable.getReceivable(receivableId).receivableAmount *
             facilityConfig[creditHash].advanceRateInBps;
+        _creditQuotaMap[creditHash] = quota;
 
         // todo emit event
     }
@@ -115,11 +117,9 @@ contract ReceivableCredit is Credit, IReceivableCredit {
         if (receivable.ownerOf(receivableId) != borrower) revert Errors.todo();
         if (receivable.getStatus(receivableId) != ReceivableState.Approved) revert Errors.todo();
 
-        bytes32 creditHash = _getCreditHash(borrower, receivableId);
-        CreditRecord memory cr = _getCreditRecord(creditHash);
-
         receivable.transferFrom(borrower, address(this), receivableId);
-        _drawdown(creditHash, cr, amount);
+        bytes32 creditHash = _getCreditHash(borrower, receivableId);
+        _drawdown(borrower, creditHash, amount);
         // todo emit evnet
     }
 
@@ -128,7 +128,7 @@ contract ReceivableCredit is Credit, IReceivableCredit {
         uint256 receivableId
     ) internal view returns (bytes32 creditHash) {
         if (_getBorrowerRecord(msg.sender).borrowerLevelCredit)
-            creditHash = getCreditHash(msg.sender);
+            creditHash = getCreditHash(msg.sender, receivableId);
         else creditHash = keccak256(abi.encode(borrower, address(receivable), receivableId));
     }
 }
