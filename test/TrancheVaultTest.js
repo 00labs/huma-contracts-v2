@@ -348,7 +348,7 @@ describe("TrancheVault Test", function () {
 
                 let epochId = await juniorTrancheVaultContract.epochIds(0);
                 expect(epochId).to.equal(currentEpochId);
-                let epoch = await juniorTrancheVaultContract.epochRedemptionSummaryByEpochId(epochId);
+                let epoch = await juniorTrancheVaultContract.epochInfoByEpochId(epochId);
                 checkEpochInfo(epoch, currentEpochId, shares);
 
                 // Lender requests redemption again
@@ -374,7 +374,7 @@ describe("TrancheVault Test", function () {
                     await juniorTrancheVaultContract.removableRedemptionShares(lender.address)
                 ).to.equal(shares.mul(BN.from(2)));
 
-                epoch = await juniorTrancheVaultContract.epochRedemptionSummaryByEpochId(epochId);
+                epoch = await juniorTrancheVaultContract.epochInfoByEpochId(epochId);
                 checkEpochInfo(epoch, currentEpochId, shares.mul(BN.from(2)));
 
                 // Lender2 requests redemption
@@ -406,7 +406,7 @@ describe("TrancheVault Test", function () {
                     await juniorTrancheVaultContract.removableRedemptionShares(lender2.address)
                 ).to.equal(shares);
 
-                epoch = await juniorTrancheVaultContract.epochRedemptionSummaryByEpochId(epochId);
+                epoch = await juniorTrancheVaultContract.epochInfoByEpochId(epochId);
                 checkEpochInfo(epoch, currentEpochId, shares.mul(BN.from(3)));
             });
 
@@ -431,7 +431,7 @@ describe("TrancheVault Test", function () {
 
                 let epochId = await juniorTrancheVaultContract.epochIds(0);
                 expect(epochId).to.equal(currentEpochId);
-                let epoch = await juniorTrancheVaultContract.epochRedemptionSummaryByEpochId(epochId);
+                let epoch = await juniorTrancheVaultContract.epochInfoByEpochId(epochId);
                 checkEpochInfo(epoch, currentEpochId, shares);
 
                 expect(
@@ -465,7 +465,7 @@ describe("TrancheVault Test", function () {
                 expect(userRedemptionRequest.numSharesRequested).to.equal(shares);
 
                 epochId = await juniorTrancheVaultContract.epochIds(1);
-                epoch = await juniorTrancheVaultContract.epochRedemptionSummaryByEpochId(epochId);
+                epoch = await juniorTrancheVaultContract.epochInfoByEpochId(epochId);
                 checkEpochInfo(epoch, currentEpochId, shares);
 
                 expect(
@@ -501,7 +501,7 @@ describe("TrancheVault Test", function () {
                     await juniorTrancheVaultContract.removableRedemptionShares(lender2.address)
                 ).to.equal(shares);
 
-                epoch = await juniorTrancheVaultContract.epochRedemptionSummaryByEpochId(epochId);
+                epoch = await juniorTrancheVaultContract.epochInfoByEpochId(epochId);
                 checkEpochInfo(epoch, currentEpochId, shares.mul(BN.from(2)));
             });
 
@@ -581,7 +581,7 @@ describe("TrancheVault Test", function () {
                 let balance = await juniorTrancheVaultContract.balanceOf(lender.address);
                 let userRedemptionRequestBefore =
                     await juniorTrancheVaultContract.redemptionRequestsByLender(lender.address, 0);
-                let epochBefore = await juniorTrancheVaultContract.epochRedemptionSummaryByEpochId(currentEpochId);
+                let epochBefore = await juniorTrancheVaultContract.epochInfoByEpochId(currentEpochId);
                 let removableRedemptionSharesBefore =
                     await juniorTrancheVaultContract.removableRedemptionShares(lender.address);
                 await expect(
@@ -591,7 +591,7 @@ describe("TrancheVault Test", function () {
                     .withArgs(lender.address, shares, currentEpochId);
                 let userRedemptionRequestAfter =
                     await juniorTrancheVaultContract.redemptionRequestsByLender(lender.address, 0);
-                let epochAfter = await juniorTrancheVaultContract.epochRedemptionSummaryByEpochId(currentEpochId);
+                let epochAfter = await juniorTrancheVaultContract.epochInfoByEpochId(currentEpochId);
                 let removableRedemptionSharesAfter =
                     await juniorTrancheVaultContract.removableRedemptionShares(lender.address);
 
@@ -626,7 +626,7 @@ describe("TrancheVault Test", function () {
 
                 // Lender removes redemption request
                 balance = await juniorTrancheVaultContract.balanceOf(lender.address);
-                epochBefore = await juniorTrancheVaultContract.epochRedemptionSummaryByEpochId(currentEpochId);
+                epochBefore = await juniorTrancheVaultContract.epochInfoByEpochId(currentEpochId);
                 removableRedemptionSharesBefore =
                     await juniorTrancheVaultContract.removableRedemptionShares(lender.address);
                 await expect(
@@ -634,7 +634,7 @@ describe("TrancheVault Test", function () {
                 )
                     .to.emit(juniorTrancheVaultContract, "RedemptionRequestRemoved")
                     .withArgs(lender.address, shares, currentEpochId);
-                epochAfter = await juniorTrancheVaultContract.epochRedemptionSummaryByEpochId(currentEpochId);
+                epochAfter = await juniorTrancheVaultContract.epochInfoByEpochId(currentEpochId);
                 removableRedemptionSharesAfter =
                     await juniorTrancheVaultContract.removableRedemptionShares(lender.address);
                 userRedemptionRequestAfter =
@@ -665,7 +665,7 @@ describe("TrancheVault Test", function () {
                     await juniorTrancheVaultContract.removableRedemptionShares(lender2.address);
                 userRedemptionRequestAfter =
                     await juniorTrancheVaultContract.redemptionRequestsByLender(lender2.address, 0);
-                epochAfter = await juniorTrancheVaultContract.epochRedemptionSummaryByEpochId(currentEpochId);
+                epochAfter = await juniorTrancheVaultContract.epochInfoByEpochId(currentEpochId);
 
                 expect(await juniorTrancheVaultContract.balanceOf(lender2.address)).to.equal(
                     balance.add(shares)
@@ -1102,10 +1102,10 @@ describe("TrancheVault Test", function () {
                 expect(
                     await mockTokenContract.balanceOf(seniorTrancheVaultContract.address)
                 ).to.equal(balance.add(shares));
-                expect((await seniorTrancheVaultContract.unprocessedEpochSummaries()).length).to.equal(
+                expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(
                     0
                 );
-                let epoch = await seniorTrancheVaultContract.epochRedemptionSummaryByEpochId(lastEpoch.id);
+                let epoch = await seniorTrancheVaultContract.epochInfoByEpochId(lastEpoch.id);
                 checkEpochInfo(epoch, lastEpoch.id, shares, shares, shares);
             });
 
@@ -1138,10 +1138,10 @@ describe("TrancheVault Test", function () {
                 expect(
                     await mockTokenContract.balanceOf(seniorTrancheVaultContract.address)
                 ).to.equal(balance);
-                expect((await seniorTrancheVaultContract.unprocessedEpochSummaries()).length).to.equal(
+                expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(
                     1
                 );
-                let epoch = await seniorTrancheVaultContract.epochRedemptionSummaryByEpochId(lastEpoch.id);
+                let epoch = await seniorTrancheVaultContract.epochInfoByEpochId(lastEpoch.id);
                 checkEpochInfo(epoch, lastEpoch.id, shares);
                 let epochs = [];
                 epochs.push(epoch);
@@ -1163,10 +1163,10 @@ describe("TrancheVault Test", function () {
                 expect(
                     await mockTokenContract.balanceOf(seniorTrancheVaultContract.address)
                 ).to.equal(balance);
-                expect((await seniorTrancheVaultContract.unprocessedEpochSummaries()).length).to.equal(
+                expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(
                     2
                 );
-                epoch = await seniorTrancheVaultContract.epochRedemptionSummaryByEpochId(lastEpoch.id);
+                epoch = await seniorTrancheVaultContract.epochInfoByEpochId(lastEpoch.id);
                 checkEpochInfo(epoch, lastEpoch.id, shares);
                 epochs.push(epoch);
 
@@ -1194,15 +1194,15 @@ describe("TrancheVault Test", function () {
                 expect(
                     await mockTokenContract.balanceOf(seniorTrancheVaultContract.address)
                 ).to.equal(balance.add(allShares));
-                expect((await seniorTrancheVaultContract.unprocessedEpochSummaries()).length).to.equal(
+                expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(
                     0
                 );
-                epoch = await seniorTrancheVaultContract.epochRedemptionSummaryByEpochId(lastEpoch.id);
+                epoch = await seniorTrancheVaultContract.epochInfoByEpochId(lastEpoch.id);
                 epochs.push(epoch);
 
                 // check epochs fully processed
                 for (let e of epochs) {
-                    let en = await seniorTrancheVaultContract.epochRedemptionSummaryByEpochId(e.epochId);
+                    let en = await seniorTrancheVaultContract.epochInfoByEpochId(e.epochId);
                     checkEpochInfo(
                         en,
                         e.epochId,
@@ -1246,11 +1246,11 @@ describe("TrancheVault Test", function () {
                 expect(
                     await mockTokenContract.balanceOf(seniorTrancheVaultContract.address)
                 ).to.equal(balance.add(availableAmount));
-                expect((await seniorTrancheVaultContract.unprocessedEpochSummaries()).length).to.equal(
+                expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(
                     1
                 );
                 let epochId = await seniorTrancheVaultContract.epochIds(index);
-                let epoch = await seniorTrancheVaultContract.epochRedemptionSummaryByEpochId(epochId);
+                let epoch = await seniorTrancheVaultContract.epochInfoByEpochId(epochId);
                 checkEpochInfo(epoch, epochId, shares, availableAmount, availableAmount);
             });
 
@@ -1288,10 +1288,10 @@ describe("TrancheVault Test", function () {
                 expect(
                     await mockTokenContract.balanceOf(seniorTrancheVaultContract.address)
                 ).to.equal(balance.add(availableAmount));
-                expect((await seniorTrancheVaultContract.unprocessedEpochSummaries()).length).to.equal(
+                expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(
                     1
                 );
-                let epoch = await seniorTrancheVaultContract.epochRedemptionSummaryByEpochId(lastEpoch.id);
+                let epoch = await seniorTrancheVaultContract.epochInfoByEpochId(lastEpoch.id);
                 checkEpochInfo(epoch, lastEpoch.id, shares, availableAmount, availableAmount);
                 let epochs = [];
                 epochs.push(epoch);
@@ -1319,13 +1319,13 @@ describe("TrancheVault Test", function () {
                 expect(
                     await mockTokenContract.balanceOf(seniorTrancheVaultContract.address)
                 ).to.equal(balance.add(availableAmount));
-                expect((await seniorTrancheVaultContract.unprocessedEpochSummaries()).length).to.equal(
+                expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(
                     2
                 );
 
                 // epoch1
                 let epochOld = epochs[0];
-                epoch = await seniorTrancheVaultContract.epochRedemptionSummaryByEpochId(epochOld.epochId);
+                epoch = await seniorTrancheVaultContract.epochInfoByEpochId(epochOld.epochId);
                 checkEpochInfo(
                     epoch,
                     epochOld.epochId,
@@ -1336,7 +1336,7 @@ describe("TrancheVault Test", function () {
                 epochs[0] = epoch;
 
                 // epoch2
-                epoch = await seniorTrancheVaultContract.epochRedemptionSummaryByEpochId(lastEpoch.id);
+                epoch = await seniorTrancheVaultContract.epochInfoByEpochId(lastEpoch.id);
                 checkEpochInfo(epoch, lastEpoch.id, shares);
                 epochs.push(epoch);
 
@@ -1367,13 +1367,13 @@ describe("TrancheVault Test", function () {
                 expect(
                     await mockTokenContract.balanceOf(seniorTrancheVaultContract.address)
                 ).to.equal(balance.add(availableAmountAll));
-                expect((await seniorTrancheVaultContract.unprocessedEpochSummaries()).length).to.equal(
+                expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(
                     2
                 );
 
                 // epoch1
                 epochOld = epochs[0];
-                epoch = await seniorTrancheVaultContract.epochRedemptionSummaryByEpochId(epochOld.epochId);
+                epoch = await seniorTrancheVaultContract.epochInfoByEpochId(epochOld.epochId);
                 checkEpochInfo(
                     epoch,
                     epochOld.epochId,
@@ -1385,7 +1385,7 @@ describe("TrancheVault Test", function () {
 
                 // epoch2
                 epochOld = epochs[0];
-                epoch = await seniorTrancheVaultContract.epochRedemptionSummaryByEpochId(epochOld.epochId);
+                epoch = await seniorTrancheVaultContract.epochInfoByEpochId(epochOld.epochId);
                 checkEpochInfo(
                     epoch,
                     epochOld.epochId,
@@ -1396,7 +1396,7 @@ describe("TrancheVault Test", function () {
                 epochs[0] = epoch;
 
                 // epoch3
-                epoch = await seniorTrancheVaultContract.epochRedemptionSummaryByEpochId(lastEpoch.id);
+                epoch = await seniorTrancheVaultContract.epochInfoByEpochId(lastEpoch.id);
                 checkEpochInfo(epoch, lastEpoch.id, shares);
                 epochs.push(epoch);
 
@@ -1429,13 +1429,13 @@ describe("TrancheVault Test", function () {
                 expect(
                     await mockTokenContract.balanceOf(seniorTrancheVaultContract.address)
                 ).to.equal(balance.add(availableAmountAll));
-                expect((await seniorTrancheVaultContract.unprocessedEpochSummaries()).length).to.equal(
+                expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(
                     0
                 );
 
                 // check epochs fully processed
                 for (let e of epochs) {
-                    let en = await seniorTrancheVaultContract.epochRedemptionSummaryByEpochId(e.epochId);
+                    let en = await seniorTrancheVaultContract.epochInfoByEpochId(e.epochId);
                     checkEpochInfo(
                         en,
                         e.epochId,

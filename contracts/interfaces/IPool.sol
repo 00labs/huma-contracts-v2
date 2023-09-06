@@ -21,6 +21,7 @@ interface IPool {
     /**
      * @notice Refreshes the pool data, including all active loans data,
      * profit for the pool and the asset value for different tranches.
+     * @return assets the updates assets for each tranche.
      */
     function refreshPool() external returns (uint96[2] memory);
 

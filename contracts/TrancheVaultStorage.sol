@@ -6,7 +6,7 @@ import {PoolConfig} from "./PoolConfig.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
 import {IEpochManager} from "./interfaces/IEpochManager.sol";
-import {EpochRedemptionSummary} from "./interfaces/IEpoch.sol";
+import {EpochInfo} from "./interfaces/IEpoch.sol";
 
 contract TrancheVaultStorage {
     struct RedemptionRequest {
@@ -35,7 +35,7 @@ contract TrancheVaultStorage {
     // Note that the index may not be contiguous: if there is no redemption request then the ID won't be recorded
     // in this array.
     uint256[] public epochIds;
-    mapping(uint256 => EpochRedemptionSummary) public epochRedemptionSummaryByEpochId;
+    mapping(uint256 => EpochInfo) public epochInfoByEpochId;
     // The index of the epoch ID whose corresponding epoch is unprocessed/partially processed.
     // We cache the index so that we don't have to traverse through all epoch IDs to figure out which ones
     // haven't been fully processed yet.

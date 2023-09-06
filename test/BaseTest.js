@@ -448,7 +448,7 @@ const PnLCalculator = {
     calcLossRecovery,
 };
 
-function checkRedemptionSummary(
+function checkEpochInfo(
     epochInfo,
     epochId,
     totalShareRequested,
@@ -467,7 +467,7 @@ module.exports = {
     setupPoolContracts,
     deployAndSetupPoolContracts,
     getNextDueDate,
-    checkEpochInfo: checkRedemptionSummary,
+    checkEpochInfo,
     CONSTANTS,
     PnLCalculator,
 };

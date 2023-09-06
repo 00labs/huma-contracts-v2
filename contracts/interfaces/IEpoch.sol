@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-struct EpochRedemptionSummary {
+struct EpochInfo {
     uint64 epochId;
     uint96 totalSharesRequested; // The total number of shares requested for redemption in this epoch
     uint96 totalSharesProcessed; // The total number of shares processed for redemption in this epoch
@@ -9,10 +9,10 @@ struct EpochRedemptionSummary {
 }
 
 interface IEpoch {
-    function unprocessedEpochSummaries() external view returns (EpochRedemptionSummary[] memory);
+    function unprocessedEpochInfos() external view returns (EpochInfo[] memory);
 
     function processEpochs(
-        EpochRedemptionSummary[] memory epochsProcessed,
+        EpochInfo[] memory epochsProcessed,
         uint256 sharesProcessed,
         uint256 amountProcessed
     ) external;
