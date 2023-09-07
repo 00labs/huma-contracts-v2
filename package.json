@@ -11,7 +11,8 @@
     "verify": "hardhat verify",
     "lint-solidity": "yarn solhint -f table 'contracts/**/*.sol'",
     "coverage": "hardhat coverage --network hardhat",
-    "postinstall": "husky install"
+    "postinstall": "husky install",
+    "gitleaks": "bash scripts/gitleaks.sh"
   },
   "keywords": [],
   "author": "",
