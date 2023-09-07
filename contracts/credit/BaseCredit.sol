@@ -444,12 +444,16 @@ abstract contract BaseCredit is
         return _creditConfigMap[creditHash];
     }
 
-    function currentPnL()
+    function getIncrementalPnL()
         external
         view
-        returns (uint256 profit, uint256 loss, uint256 lossRecovery)
+        returns (
+            uint256 incrementalProfit,
+            uint256 incrementalLoss,
+            uint256 incrementalLossRecovery
+        )
     {
-        return pnlManager.getPnLSum();
+        return pnlManager.getIncrementalPnL();
     }
 
     function getCreditHash(
