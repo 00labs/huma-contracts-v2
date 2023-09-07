@@ -7,7 +7,7 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {IERC20, IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IPlatformFeeManager} from "./interfaces/IPlatformFeeManager.sol";
 import {IPool} from "./interfaces/IPool.sol";
-import {ILossCoverer} from "./interfaces/ILossCoverer.sol";
+import {IFirstLossCover} from "./interfaces/IFirstLossCover.sol";
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "./SharedDefs.sol";
@@ -119,8 +119,8 @@ contract PoolConfig is AccessControl, Initializable {
     address public juniorTranche;
     address public tranchesPolicy;
     address public epochManager;
-    address public poolOwnerOrEALossCoverer;
-    address[] internal _lossCoverers;
+    address public poolOwnerOrEAFirstLossCover;
+    address[] internal _firstLossCovers;
     address public credit;
     address public platformFeeManager;
     address public calendar;
@@ -234,7 +234,7 @@ contract PoolConfig is AccessControl, Initializable {
 
         addr = _contracts[5];
         if (addr == address(0)) revert Errors.zeroAddressProvided();
-        poolOwnerOrEALossCoverer = addr;
+        poolOwnerOrEAFirstLossCover = addr;
 
         addr = _contracts[6];
         if (addr == address(0)) revert Errors.zeroAddressProvided();
@@ -361,7 +361,7 @@ contract PoolConfig is AccessControl, Initializable {
 
         // Make sure the new EA has met the liquidity requirements
         if (IPool(pool).isPoolOn()) {
-            if (!ILossCoverer(poolOwnerOrEALossCoverer).isSufficient(agent))
+            if (!IFirstLossCover(poolOwnerOrEAFirstLossCover).isSufficient(agent))
                 revert Errors.lessThanRequiredCover();
         }
 
@@ -509,14 +509,14 @@ contract PoolConfig is AccessControl, Initializable {
     function setLossCoverers(address[] calldata lossCoverers) external {
         _onlyOwnerOrHumaMasterAdmin();
         for (uint256 i = 0; i < lossCoverers.length; i++) {
-            _lossCoverers.push(lossCoverers[i]);
+            _firstLossCovers.push(lossCoverers[i]);
         }
         // todo emit event
     }
 
     function setPoolOwnerOrEALossCoverer(address coverer) external {
         _onlyOwnerOrHumaMasterAdmin();
-        poolOwnerOrEALossCoverer = coverer;
+        poolOwnerOrEAFirstLossCover = coverer;
     }
 
     function setCalendar(address _calendar) external {
@@ -552,10 +552,10 @@ contract PoolConfig is AccessControl, Initializable {
 
     /// Checks to make sure both EA and pool owner treasury meet the pool's first loss cover requirements
     function checkFirstLossCoverRequirement() public view {
-        if (!ILossCoverer(poolOwnerOrEALossCoverer).isSufficient(poolOwnerTreasury))
+        if (!IFirstLossCover(poolOwnerOrEAFirstLossCover).isSufficient(poolOwnerTreasury))
             revert Errors.lessThanRequiredCover();
 
-        if (!ILossCoverer(poolOwnerOrEALossCoverer).isSufficient(evaluationAgent))
+        if (!IFirstLossCover(poolOwnerOrEAFirstLossCover).isSufficient(evaluationAgent))
             revert Errors.lessThanRequiredCover();
     }
 
@@ -610,7 +610,7 @@ contract PoolConfig is AccessControl, Initializable {
     }
 
     function getLossCoverers() external view returns (address[] memory) {
-        return _lossCoverers;
+        return _firstLossCovers;
     }
 
     function getPoolSettings() external view returns (PoolSettings memory) {
@@ -718,9 +718,9 @@ contract PoolConfig is AccessControl, Initializable {
     function onlyTrancheVaultOrLossCovererOrCredit(address account) external view {
         bool valid;
         if (account == seniorTranche || account == juniorTranche || account == credit) return;
-        uint256 len = _lossCoverers.length;
+        uint256 len = _firstLossCovers.length;
         for (uint256 i; i < len; i++) {
-            if (account == _lossCoverers[i]) return;
+            if (account == _firstLossCovers[i]) return;
         }
 
         if (!valid) revert Errors.notTrancheVaultOrLossCoverer();

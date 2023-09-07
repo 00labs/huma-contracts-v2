@@ -5,7 +5,7 @@ import {IPool} from "./interfaces/IPool.sol";
 import {IPlatformFeeManager} from "./interfaces/IPlatformFeeManager.sol";
 import {ITranchesPolicy} from "./interfaces/ITranchesPolicy.sol";
 import {IPoolCredit} from "./credit/interfaces/IPoolCredit.sol";
-import {ILossCoverer} from "./interfaces/ILossCoverer.sol";
+import {IFirstLossCover} from "./interfaces/IFirstLossCover.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
 import {IEpochManager} from "./interfaces/IEpochManager.sol";
 import "./SharedDefs.sol";
@@ -27,8 +27,8 @@ contract Pool is PoolConfigCache, IPool {
 
     IPoolVault public poolVault;
     ITranchesPolicy public tranchesPolicy;
-    ILossCoverer[] public lossCoverers;
-    ILossCoverer public poolOwnerOrEALossCoverer;
+    IFirstLossCover[] public firstLossCovers;
+    IFirstLossCover public poolOwnerOrEAFirstLossCover;
     IPoolCredit public credit;
     IPlatformFeeManager public feeManager;
     IEpochManager public epochManager;
@@ -75,9 +75,9 @@ contract Pool is PoolConfigCache, IPool {
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         feeManager = IPlatformFeeManager(addr);
 
-        addr = _poolConfig.poolOwnerOrEALossCoverer();
+        addr = _poolConfig.poolOwnerOrEAFirstLossCover();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
-        poolOwnerOrEALossCoverer = ILossCoverer(addr);
+        poolOwnerOrEAFirstLossCover = IFirstLossCover(addr);
 
         addr = _poolConfig.epochManager();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
@@ -85,7 +85,7 @@ contract Pool is PoolConfigCache, IPool {
 
         address[] memory coverers = _poolConfig.getLossCoverers();
         for (uint256 i = 0; i < coverers.length; i++) {
-            lossCoverers[i] = ILossCoverer(coverers[i]);
+            firstLossCovers[i] = IFirstLossCover(coverers[i]);
         }
     }
 
@@ -189,8 +189,8 @@ contract Pool is PoolConfigCache, IPool {
         if (loss > 0) {
             // First loss cover
             uint256 poolAssets = assets[SENIOR_TRANCHE_INDEX] + assets[JUNIOR_TRANCHE_INDEX];
-            for (uint256 i; i < lossCoverers.length && loss > 0; i++) {
-                ILossCoverer coverer = lossCoverers[i];
+            for (uint256 i; i < firstLossCovers.length && loss > 0; i++) {
+                IFirstLossCover coverer = firstLossCovers[i];
                 loss = coverer.coverLoss(poolAssets, loss);
             }
 
@@ -218,9 +218,9 @@ contract Pool is PoolConfigCache, IPool {
                 losses
             );
 
-            uint256 len = lossCoverers.length;
+            uint256 len = firstLossCovers.length;
             for (uint256 i = 0; i < len && lossRecovery > 0; i++) {
-                ILossCoverer coverer = lossCoverers[len - i - 1];
+                IFirstLossCover coverer = firstLossCovers[len - i - 1];
                 lossRecovery = coverer.recoverLoss(lossRecovery);
             }
         }
@@ -289,8 +289,8 @@ contract Pool is PoolConfigCache, IPool {
         if (loss > 0) {
             // First loss cover
             uint256 poolAssets = assets[SENIOR_TRANCHE_INDEX] + assets[JUNIOR_TRANCHE_INDEX];
-            for (uint256 i; i < lossCoverers.length && loss > 0; i++) {
-                ILossCoverer coverer = lossCoverers[i];
+            for (uint256 i; i < firstLossCovers.length && loss > 0; i++) {
+                IFirstLossCover coverer = firstLossCovers[i];
                 loss = coverer.calcLossCover(poolAssets, loss);
             }
             uint96[2] memory lossesDelta;
@@ -315,9 +315,9 @@ contract Pool is PoolConfigCache, IPool {
                 losses
             );
 
-            uint256 len = lossCoverers.length;
+            uint256 len = firstLossCovers.length;
             for (uint256 i = 0; i < len && lossRecovery > 0; i++) {
-                ILossCoverer coverer = lossCoverers[len - i - 1];
+                IFirstLossCover coverer = firstLossCovers[len - i - 1];
                 lossRecovery = coverer.calcLossRecover(lossRecovery);
             }
         }

@@ -81,9 +81,9 @@ async function deployPoolContracts(
     const poolVaultContract = await PoolVault.deploy();
     await poolVaultContract.deployed();
 
-    const LossCoverer = await ethers.getContractFactory("LossCoverer");
-    const poolOwnerAndEAlossCovererContract = await LossCoverer.deploy();
-    await poolOwnerAndEAlossCovererContract.deployed();
+    const FirstLossCover = await ethers.getContractFactory("FirstLossCover");
+    const poolOwnerAndEAFirstLossCoverContract = await FirstLossCover.deploy();
+    await poolOwnerAndEAFirstLossCoverContract.deployed();
 
     const TranchesPolicy = await ethers.getContractFactory(tranchesPolicyContractName);
     const tranchesPolicyContract = await TranchesPolicy.deploy();
@@ -129,7 +129,7 @@ async function deployPoolContracts(
         platformFeeManagerContract.address,
         poolVaultContract.address,
         calendarContract.address,
-        poolOwnerAndEAlossCovererContract.address,
+        poolOwnerAndEAFirstLossCoverContract.address,
         tranchesPolicyContract.address,
         poolContract.address,
         epochManagerContract.address,
@@ -151,7 +151,7 @@ async function deployPoolContracts(
 
     await platformFeeManagerContract.initialize(poolConfigContract.address);
     await poolVaultContract.initialize(poolConfigContract.address);
-    await poolOwnerAndEAlossCovererContract.initialize(poolConfigContract.address);
+    await poolOwnerAndEAFirstLossCoverContract.initialize(poolConfigContract.address);
     await poolContract.initialize(poolConfigContract.address);
     await epochManagerContract.initialize(poolConfigContract.address);
     await seniorTrancheVaultContract["initialize(string,string,address,uint8)"](
@@ -176,7 +176,7 @@ async function deployPoolContracts(
         platformFeeManagerContract,
         poolVaultContract,
         calendarContract,
-        poolOwnerAndEAlossCovererContract,
+        poolOwnerAndEAFirstLossCoverContract,
         tranchesPolicyContract,
         poolContract,
         epochManagerContract,
@@ -192,7 +192,7 @@ async function setupPoolContracts(
     poolConfigContract,
     eaNFTContract,
     mockTokenContract,
-    poolOwnerAndEAlossCovererContract,
+    poolOwnerAndEAFirstLossCoverContract,
     poolVaultContract,
     poolContract,
     juniorTrancheVaultContract,
@@ -223,13 +223,13 @@ async function setupPoolContracts(
         .setEvaluationAgent(eaNFTTokenId, evaluationAgent.address);
     await poolConfigContract.connect(poolOwner).setEARewardsAndLiquidity(1875, 10);
 
-    await poolOwnerAndEAlossCovererContract
+    await poolOwnerAndEAFirstLossCoverContract
         .connect(poolOwner)
         .setOperator(poolOwnerTreasury.address, {
             poolCapCoverageInBps: 100,
             poolValueCoverageInBps: 100,
         });
-    await poolOwnerAndEAlossCovererContract
+    await poolOwnerAndEAFirstLossCoverContract
         .connect(poolOwner)
         .setOperator(evaluationAgent.address, {
             poolCapCoverageInBps: 100,
@@ -242,17 +242,19 @@ async function setupPoolContracts(
 
     await mockTokenContract
         .connect(poolOwnerTreasury)
-        .approve(poolOwnerAndEAlossCovererContract.address, ethers.constants.MaxUint256);
+        .approve(poolOwnerAndEAFirstLossCoverContract.address, ethers.constants.MaxUint256);
     await mockTokenContract.mint(poolOwnerTreasury.address, toToken(100_000_000));
-    await poolOwnerAndEAlossCovererContract
+    await poolOwnerAndEAFirstLossCoverContract
         .connect(poolOwnerTreasury)
         .addCover(toToken(10_000_000));
 
     await mockTokenContract
         .connect(evaluationAgent)
-        .approve(poolOwnerAndEAlossCovererContract.address, ethers.constants.MaxUint256);
+        .approve(poolOwnerAndEAFirstLossCoverContract.address, ethers.constants.MaxUint256);
     await mockTokenContract.mint(evaluationAgent.address, toToken(100_000_000));
-    await poolOwnerAndEAlossCovererContract.connect(evaluationAgent).addCover(toToken(10_000_000));
+    await poolOwnerAndEAFirstLossCoverContract
+        .connect(evaluationAgent)
+        .addCover(toToken(10_000_000));
 
     // Set pool epoch window to 3 days for testing purposes
     await poolConfigContract.connect(poolOwner).setPoolPayPeriod(CONSTANTS.CALENDAR_UNIT_DAY, 3);
@@ -299,7 +301,7 @@ async function deployAndSetupPoolContracts(
         platformFeeManagerContract,
         poolVaultContract,
         calendarContract,
-        poolOwnerAndEAlossCovererContract,
+        poolOwnerAndEAFirstLossCoverContract,
         tranchesPolicyContract,
         poolContract,
         epochManagerContract,
@@ -321,7 +323,7 @@ async function deployAndSetupPoolContracts(
         poolConfigContract,
         eaNFTContract,
         mockTokenContract,
-        poolOwnerAndEAlossCovererContract,
+        poolOwnerAndEAFirstLossCoverContract,
         poolVaultContract,
         poolContract,
         juniorTrancheVaultContract,
@@ -339,7 +341,7 @@ async function deployAndSetupPoolContracts(
         platformFeeManagerContract,
         poolVaultContract,
         calendarContract,
-        poolOwnerAndEAlossCovererContract,
+        poolOwnerAndEAFirstLossCoverContract,
         tranchesPolicyContract,
         poolContract,
         epochManagerContract,
