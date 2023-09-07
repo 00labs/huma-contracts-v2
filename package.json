@@ -7,7 +7,11 @@
     "build": "hardhat compile",
     "chain": "hardhat node",
     "test": "hardhat test --network hardhat",
-    "compile": "hardhat compile"
+    "compile": "hardhat compile",
+    "verify": "hardhat verify",
+    "lint-solidity": "yarn solhint -f table 'contracts/**/*.sol'",
+    "coverage": "hardhat coverage --network hardhat",
+    "postinstall": "husky install"
   },
   "keywords": [],
   "author": "",
