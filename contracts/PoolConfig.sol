@@ -287,17 +287,17 @@ contract PoolConfig is AccessControl, Initializable {
         adminRnRConfig.liquidityRateInBpsByPoolOwner = 200; // 2%
         _adminRnR = adminRnRConfig;
 
-        LPConfig memory lpConfig = _lpConfig;
-        lpConfig.maxSeniorJuniorRatio = 4; // senior : junior = 4:1
-        _lpConfig = lpConfig;
+        LPConfig memory config = _lpConfig;
+        config.maxSeniorJuniorRatio = 4; // senior : junior = 4:1
+        _lpConfig = config;
     }
 
     function getTrancheLiquidityCap(uint256 index) external view returns (uint256 cap) {
-        LPConfig memory tempConfig = _lpConfig;
+        LPConfig memory config = _lpConfig;
         if (index == SENIOR_TRANCHE_INDEX) {
-            cap = (tempConfig.liquidityCap * tempConfig.maxSeniorJuniorRatio) / (tempConfig.maxSeniorJuniorRatio + 1);
+            cap = (config.liquidityCap * config.maxSeniorJuniorRatio) / (config.maxSeniorJuniorRatio + 1);
         } else if (index == JUNIOR_TRANCHE_INDEX) {
-            cap = tempConfig.liquidityCap / (tempConfig.maxSeniorJuniorRatio + 1);
+            cap = config.liquidityCap / (config.maxSeniorJuniorRatio + 1);
         } else {
             // We only have two tranches for now.
             assert(false);
