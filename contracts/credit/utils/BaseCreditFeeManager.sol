@@ -14,8 +14,6 @@ import "hardhat/console.sol";
 contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
     ICalendar public calendar;
 
-    constructor(address poolConfigAddress) PoolConfigCache(poolConfigAddress) {}
-
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = _poolConfig.calendar();
         if (addr == address(0)) revert Errors.zeroAddressProvided();

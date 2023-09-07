@@ -10,14 +10,12 @@ import {PoolConfigCache} from "../PoolConfigCache.sol";
 import {ICredit} from "./interfaces/ICredit.sol";
 import {PoolConfig} from "../PoolConfig.sol";
 
-abstract contract BasePnLManager is IPnLManager, PoolConfigCache {
+abstract contract BasePnLManager is PoolConfigCache, IPnLManager {
     PnLTracker pnlTracker;
 
     ICredit _credit;
 
     mapping(bytes32 => CreditLoss) internal _creditLossMap;
-
-    constructor(address poolConfigAddress) PoolConfigCache(poolConfigAddress) {}
 
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = _poolConfig.credit();

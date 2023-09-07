@@ -14,7 +14,7 @@ import "../SharedDefs.sol";
 import {HumaConfig} from "../HumaConfig.sol";
 import {CalendarUnit} from "../SharedDefs.sol";
 import {IERC20, IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {PoolConfigCacheUpgradeable} from "../PoolConfigCacheUpgradeable.sol";
+import {PoolConfigCache} from "../PoolConfigCache.sol";
 import {IPoolVault} from "../interfaces/IPoolVault.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
@@ -33,7 +33,7 @@ import "hardhat/console.sol";
  */
 abstract contract BaseCredit is
     Initializable,
-    PoolConfigCacheUpgradeable,
+    PoolConfigCache,
     BaseCreditStorage,
     IPoolCredit,
     IFlexCredit
@@ -146,12 +146,6 @@ abstract contract BaseCredit is
         uint256 unbilledPrincipal,
         address by
     );
-
-    function initialize(PoolConfig _poolConfig) external initializer {
-        if (address(_poolConfig) == address(0)) revert Errors.zeroAddressProvided();
-        poolConfig = _poolConfig;
-        _updatePoolConfigData(_poolConfig);
-    }
 
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = address(_poolConfig.humaConfig());

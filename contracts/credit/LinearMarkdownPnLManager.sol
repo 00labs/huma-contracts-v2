@@ -10,8 +10,6 @@ import {PoolConfigCache} from "../PoolConfigCache.sol";
 import {ICredit} from "./interfaces/ICredit.sol";
 
 contract LinearMarkdownPnLManager is BasePnLManager {
-    constructor(address poolConfigAddress) BasePnLManager(poolConfigAddress) {}
-
     function processDrawdown(uint96 poolIncome, uint96 profitRateDiff) external {
         // todo access control
         updateTracker(int96(uint96(profitRateDiff)), 0, poolIncome, 0, 0);

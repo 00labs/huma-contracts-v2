@@ -58,8 +58,6 @@ contract Pool is PoolConfigCache, IPool {
         uint256 juniorTotalLoss
     );
 
-    constructor(address poolConfigAddress) PoolConfigCache(poolConfigAddress) {}
-
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = _poolConfig.poolVault();
         if (addr == address(0)) revert Errors.zeroAddressProvided();

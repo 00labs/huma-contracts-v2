@@ -9,14 +9,14 @@ import {IEpoch, EpochInfo} from "./interfaces/IEpoch.sol";
 import {IEpochManager} from "./interfaces/IEpochManager.sol";
 import {Errors} from "./Errors.sol";
 import {PoolConfig, LPConfig} from "./PoolConfig.sol";
-import {PoolConfigCacheUpgradeable} from "./PoolConfigCacheUpgradeable.sol";
+import {PoolConfigCache} from "./PoolConfigCache.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
 
 contract TrancheVault is
     AccessControlUpgradeable,
     ERC20Upgradeable,
-    PoolConfigCacheUpgradeable,
+    PoolConfigCache,
     TrancheVaultStorage,
     IEpoch
 {
@@ -48,13 +48,10 @@ contract TrancheVault is
     ) external initializer {
         __ERC20_init(name, symbol);
         __AccessControl_init();
-
-        poolConfig = _poolConfig;
+        _initialize(_poolConfig);
 
         if (seniorTrancheOrJuniorTranche > 1) revert Errors.invalidTrancheIndex();
         trancheIndex = seniorTrancheOrJuniorTranche;
-
-        _updatePoolConfigData(_poolConfig);
     }
 
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
