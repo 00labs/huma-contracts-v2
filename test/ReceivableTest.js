@@ -18,7 +18,7 @@ let poolConfigContract,
     platformFeeManagerContract,
     poolVaultContract,
     calendarContract,
-    poolOwnerAndEAlossCovererContract,
+    poolOwnerAndEAFirstLossCoverContract,
     tranchesPolicyContract,
     poolContract,
     epochManagerContract,
@@ -59,7 +59,7 @@ describe("Receivable Test", function () {
                 platformFeeManagerContract,
                 poolVaultContract,
                 calendarContract,
-                poolOwnerAndEAlossCovererContract,
+                poolOwnerAndEAFirstLossCoverContract,
                 tranchesPolicyContract,
                 poolContract,
                 epochManagerContract,
@@ -92,13 +92,13 @@ describe("Receivable Test", function () {
         it("Should not enable a pool while no enough first loss cover", async function () {
             await expect(
                 poolContract.connect(protocolOwner).enablePool()
-            ).to.be.revertedWithCustomError(poolOwnerAndEAlossCovererContract, "notOperator");
+            ).to.be.revertedWithCustomError(poolOwnerAndEAFirstLossCoverContract, "notOperator");
 
             await poolConfigContract.connect(poolOwner).setPoolLiquidityCap(toToken(1_000_000));
             await poolConfigContract
                 .connect(poolOwner)
                 .setPoolOwnerTreasury(poolOwnerTreasury.address);
-            await poolOwnerAndEAlossCovererContract
+            await poolOwnerAndEAFirstLossCoverContract
                 .connect(poolOwner)
                 .setOperator(poolOwnerTreasury.address, {
                     poolCapCoverageInBps: 1000,
@@ -111,15 +111,18 @@ describe("Receivable Test", function () {
 
             await mockTokenContract
                 .connect(poolOwnerTreasury)
-                .approve(poolOwnerAndEAlossCovererContract.address, ethers.constants.MaxUint256);
+                .approve(
+                    poolOwnerAndEAFirstLossCoverContract.address,
+                    ethers.constants.MaxUint256
+                );
             await mockTokenContract.mint(poolOwnerTreasury.address, toToken(10_000_000));
-            await poolOwnerAndEAlossCovererContract
+            await poolOwnerAndEAFirstLossCoverContract
                 .connect(poolOwnerTreasury)
                 .addCover(toToken(200_000));
 
             await expect(
                 poolContract.connect(protocolOwner).enablePool()
-            ).to.be.revertedWithCustomError(poolOwnerAndEAlossCovererContract, "notOperator");
+            ).to.be.revertedWithCustomError(poolOwnerAndEAFirstLossCoverContract, "notOperator");
 
             let eaNFTTokenId;
             // Mint EANFT to the ea
@@ -133,7 +136,7 @@ describe("Receivable Test", function () {
             await poolConfigContract
                 .connect(poolOwner)
                 .setEvaluationAgent(eaNFTTokenId, evaluationAgent.address);
-            await poolOwnerAndEAlossCovererContract
+            await poolOwnerAndEAFirstLossCoverContract
                 .connect(poolOwner)
                 .setOperator(evaluationAgent.address, {
                     poolCapCoverageInBps: 1000,
@@ -146,9 +149,12 @@ describe("Receivable Test", function () {
 
             await mockTokenContract
                 .connect(evaluationAgent)
-                .approve(poolOwnerAndEAlossCovererContract.address, ethers.constants.MaxUint256);
+                .approve(
+                    poolOwnerAndEAFirstLossCoverContract.address,
+                    ethers.constants.MaxUint256
+                );
             await mockTokenContract.mint(evaluationAgent.address, toToken(10_000_000));
-            await poolOwnerAndEAlossCovererContract
+            await poolOwnerAndEAFirstLossCoverContract
                 .connect(evaluationAgent)
                 .addCover(toToken(50_000));
 
@@ -162,7 +168,7 @@ describe("Receivable Test", function () {
             await poolConfigContract
                 .connect(poolOwner)
                 .setPoolOwnerTreasury(poolOwnerTreasury.address);
-            await poolOwnerAndEAlossCovererContract
+            await poolOwnerAndEAFirstLossCoverContract
                 .connect(poolOwner)
                 .setOperator(poolOwnerTreasury.address, {
                     poolCapCoverageInBps: 1000,
@@ -171,9 +177,12 @@ describe("Receivable Test", function () {
 
             await mockTokenContract
                 .connect(poolOwnerTreasury)
-                .approve(poolOwnerAndEAlossCovererContract.address, ethers.constants.MaxUint256);
+                .approve(
+                    poolOwnerAndEAFirstLossCoverContract.address,
+                    ethers.constants.MaxUint256
+                );
             await mockTokenContract.mint(poolOwnerTreasury.address, toToken(10_000_000));
-            await poolOwnerAndEAlossCovererContract
+            await poolOwnerAndEAFirstLossCoverContract
                 .connect(poolOwnerTreasury)
                 .addCover(toToken(200_000));
 
@@ -188,7 +197,7 @@ describe("Receivable Test", function () {
             await poolConfigContract
                 .connect(poolOwner)
                 .setEvaluationAgent(eaNFTTokenId, evaluationAgent.address);
-            await poolOwnerAndEAlossCovererContract
+            await poolOwnerAndEAFirstLossCoverContract
                 .connect(poolOwner)
                 .setOperator(evaluationAgent.address, {
                     poolCapCoverageInBps: 1000,
@@ -197,9 +206,12 @@ describe("Receivable Test", function () {
 
             await mockTokenContract
                 .connect(evaluationAgent)
-                .approve(poolOwnerAndEAlossCovererContract.address, ethers.constants.MaxUint256);
+                .approve(
+                    poolOwnerAndEAFirstLossCoverContract.address,
+                    ethers.constants.MaxUint256
+                );
             await mockTokenContract.mint(evaluationAgent.address, toToken(10_000_000));
-            await poolOwnerAndEAlossCovererContract
+            await poolOwnerAndEAFirstLossCoverContract
                 .connect(evaluationAgent)
                 .addCover(toToken(200_000));
 
@@ -224,7 +236,7 @@ describe("Receivable Test", function () {
                 platformFeeManagerContract,
                 poolVaultContract,
                 calendarContract,
-                poolOwnerAndEAlossCovererContract,
+                poolOwnerAndEAFirstLossCoverContract,
                 tranchesPolicyContract,
                 poolContract,
                 epochManagerContract,

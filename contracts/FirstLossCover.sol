@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {ILossCoverer} from "./interfaces/ILossCoverer.sol";
+import {IFirstLossCover} from "./interfaces/IFirstLossCover.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
 import {PoolConfig, LPConfig} from "./PoolConfig.sol";
@@ -14,7 +14,7 @@ import "hardhat/console.sol";
 
 // TODO design first loss cover fee
 
-contract LossCoverer is PoolConfigCache, ILossCoverer {
+contract FirstLossCover is PoolConfigCache, IFirstLossCover {
     struct LossCoverFund {
         // percentage of the pool cap required to be covered by first loss cover
         uint16 poolCapCoverageInBps;
