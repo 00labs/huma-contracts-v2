@@ -4,11 +4,11 @@ pragma solidity ^0.8.0;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IPoolCredit} from "../credit/interfaces/IPoolCredit.sol";
 import {IPoolVault} from "../interfaces/IPoolVault.sol";
-import {PoolConfig, PoolConfigCacheUpgradeable} from "../PoolConfigCache.sol";
+import {PoolConfig, PoolConfigCache} from "../PoolConfigCache.sol";
 import {Errors} from "../Errors.sol";
 import {CreditRecord, CreditConfig} from "../credit/CreditStructs.sol";
 
-contract MockPoolCredit is PoolConfigCacheUpgradeable, IPoolCredit {
+contract MockPoolCredit is PoolConfigCache, IPoolCredit {
     IPoolVault public poolVault;
 
     function approveCredit(
@@ -19,12 +19,6 @@ contract MockPoolCredit is PoolConfigCacheUpgradeable, IPoolCredit {
         uint96 committedAmount,
         bool revolving
     ) external {}
-
-    function initialize(PoolConfig _poolConfig) external {
-        if (address(_poolConfig) == address(0)) revert Errors.zeroAddressProvided();
-        poolConfig = _poolConfig;
-        _updatePoolConfigData(_poolConfig);
-    }
 
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = _poolConfig.poolVault();

@@ -74,27 +74,27 @@ async function deployPoolContracts(
     await poolConfigContract.deployed();
 
     const PlatformFeeManager = await ethers.getContractFactory("PlatformFeeManager");
-    const platformFeeManagerContract = await PlatformFeeManager.deploy(poolConfigContract.address);
+    const platformFeeManagerContract = await PlatformFeeManager.deploy();
     await platformFeeManagerContract.deployed();
 
     const PoolVault = await ethers.getContractFactory("PoolVault");
-    const poolVaultContract = await PoolVault.deploy(poolConfigContract.address);
+    const poolVaultContract = await PoolVault.deploy();
     await poolVaultContract.deployed();
 
     const LossCoverer = await ethers.getContractFactory("LossCoverer");
-    const poolOwnerAndEAlossCovererContract = await LossCoverer.deploy(poolConfigContract.address);
+    const poolOwnerAndEAlossCovererContract = await LossCoverer.deploy();
     await poolOwnerAndEAlossCovererContract.deployed();
 
     const TranchesPolicy = await ethers.getContractFactory(tranchesPolicyContractName);
-    const tranchesPolicyContract = await TranchesPolicy.deploy(poolConfigContract.address);
+    const tranchesPolicyContract = await TranchesPolicy.deploy();
     await tranchesPolicyContract.deployed();
 
     const Pool = await ethers.getContractFactory("Pool");
-    const poolContract = await Pool.deploy(poolConfigContract.address);
+    const poolContract = await Pool.deploy();
     await poolContract.deployed();
 
     const EpochManager = await ethers.getContractFactory("EpochManager");
-    const epochManagerContract = await EpochManager.deploy(poolConfigContract.address);
+    const epochManagerContract = await EpochManager.deploy();
     await epochManagerContract.deployed();
 
     const TrancheVault = await ethers.getContractFactory("TrancheVault");
@@ -116,11 +116,11 @@ async function deployPoolContracts(
     await creditContract.deployed();
 
     const BaseCreditFeeManager = await ethers.getContractFactory("BaseCreditFeeManager");
-    const creditFeeManagerContract = await BaseCreditFeeManager.deploy(poolConfigContract.address);
+    const creditFeeManagerContract = await BaseCreditFeeManager.deploy();
     await creditFeeManagerContract.deployed();
 
     const CreditPnLManager = await ethers.getContractFactory("LinearMarkdownPnLManager");
-    const creditPnlManagerContract = await CreditPnLManager.deploy(poolConfigContract.address);
+    const creditPnlManagerContract = await CreditPnLManager.deploy();
     await creditPnlManagerContract.deployed();
 
     await poolConfigContract.initialize("Test Pool", [
@@ -149,30 +149,27 @@ async function deployPoolContracts(
         deployer.address
     );
 
-    await platformFeeManagerContract.connect(poolOwner).updatePoolConfigData();
-    await poolVaultContract.connect(poolOwner).updatePoolConfigData();
-    await poolOwnerAndEAlossCovererContract.connect(poolOwner).updatePoolConfigData();
-    await poolContract.connect(poolOwner).updatePoolConfigData();
-    await epochManagerContract.connect(poolOwner).updatePoolConfigData();
-    await seniorTrancheVaultContract
-        .connect(poolOwner)
-        .initialize(
-            "Senior Tranche Vault",
-            "STV",
-            poolConfigContract.address,
-            SENIOR_TRANCHE_INDEX
-        );
-    await juniorTrancheVaultContract
-        .connect(poolOwner)
-        .initialize(
-            "Junior Tranche Vault",
-            "JTV",
-            poolConfigContract.address,
-            JUNIOR_TRANCHE_INDEX
-        );
-    await creditContract.connect(poolOwner).initialize(poolConfigContract.address);
-    await creditFeeManagerContract.connect(poolOwner).updatePoolConfigData();
-    await creditPnlManagerContract.connect(poolOwner).updatePoolConfigData();
+    await platformFeeManagerContract.initialize(poolConfigContract.address);
+    await poolVaultContract.initialize(poolConfigContract.address);
+    await poolOwnerAndEAlossCovererContract.initialize(poolConfigContract.address);
+    await poolContract.initialize(poolConfigContract.address);
+    await epochManagerContract.initialize(poolConfigContract.address);
+    await seniorTrancheVaultContract["initialize(string,string,address,uint8)"](
+        "Senior Tranche Vault",
+        "STV",
+        poolConfigContract.address,
+        SENIOR_TRANCHE_INDEX
+    );
+    await juniorTrancheVaultContract["initialize(string,string,address,uint8)"](
+        "Junior Tranche Vault",
+        "JTV",
+        poolConfigContract.address,
+        JUNIOR_TRANCHE_INDEX
+    );
+    await tranchesPolicyContract.initialize(poolConfigContract.address);
+    await creditContract.initialize(poolConfigContract.address);
+    await creditFeeManagerContract.initialize(poolConfigContract.address);
+    await creditPnlManagerContract.initialize(poolConfigContract.address);
 
     return [
         poolConfigContract,

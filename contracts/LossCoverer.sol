@@ -52,8 +52,6 @@ contract LossCoverer is PoolConfigCache, ILossCoverer {
     event LossCovered(uint256 covered, uint256 remaining);
     event LossRecovered(uint256 recovered, uint256 remaining);
 
-    constructor(address poolConfigAddress) PoolConfigCache(poolConfigAddress) {}
-
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = _poolConfig.poolVault();
         if (addr == address(0)) revert Errors.zeroAddressProvided();

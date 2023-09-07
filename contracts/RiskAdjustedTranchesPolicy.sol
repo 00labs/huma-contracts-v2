@@ -11,8 +11,6 @@ import "./SharedDefs.sol";
  * a percentage of the pool return is shifted from the senior tranche to the junior tranche.
  */
 contract RiskAdjustedTranchesPolicy is BaseTranchesPolicy {
-    constructor(address _poolConfig) BaseTranchesPolicy(_poolConfig) {}
-
     /**
      * @notice Distribute profit between tranches.
      */

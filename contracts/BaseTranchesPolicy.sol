@@ -8,8 +8,6 @@ import {Errors} from "./Errors.sol";
 import "./SharedDefs.sol";
 
 abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
-    constructor(address poolConfigAddress) PoolConfigCache(poolConfigAddress) {}
-
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {}
 
     function calcTranchesAssetsForLoss(

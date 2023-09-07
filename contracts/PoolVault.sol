@@ -16,8 +16,6 @@ contract PoolVault is PoolConfigCache, IPoolVault {
     IERC20 public asset;
     Reserves public reserves;
 
-    constructor(address poolConfigAddress) PoolConfigCache(poolConfigAddress) {}
-
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address assetAddress = _poolConfig.underlyingToken();
         if (assetAddress == address(0)) revert Errors.zeroAddressProvided();
