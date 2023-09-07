@@ -15,7 +15,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "LGPL-3.0-or-later",
   "devDependencies": {
     "hardhat": "^2.14.0",
     "hardhat-contract-sizer": "^2.10.0",
