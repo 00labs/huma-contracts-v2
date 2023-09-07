@@ -1,33 +1,59 @@
-const {ethers} = require("hardhat");
-const {expect} = require("chai");
-const {BigNumber: BN} = require("ethers");
-const {loadFixture} = require("@nomicfoundation/hardhat-network-helpers");
-const {
-    deployProtocolContracts,
-    deployAndSetupPoolContracts,
+import { ethers } from "hardhat";
+import { expect } from "chai";
+import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import {
     CONSTANTS,
+    deployAndSetupPoolContracts,
+    deployProtocolContracts,
     PnLCalculator,
-} = require("./BaseTest");
-const {toToken, mineNextBlockWithTimestamp, setNextBlockTimestamp} = require("./TestUtils");
+} from "./BaseTest";
+import { overrideLPConfig, toToken } from "./TestUtils";
+import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
+import {
+    BaseCreditFeeManager,
+    BasePnLManager,
+    Calendar,
+    EpochManager,
+    EvaluationAgentNFT,
+    HumaConfig,
+    LossCoverer,
+    MockPoolCredit,
+    MockToken,
+    PlatformFeeManager,
+    Pool,
+    PoolConfig,
+    PoolVault,
+    RiskAdjustedTranchesPolicy,
+    TrancheVault,
+} from "../typechain-types";
 
-let defaultDeployer, protocolOwner, treasury, eaServiceAccount, pdsServiceAccount;
-let poolOwner, poolOwnerTreasury, evaluationAgent, poolOperator;
-let lender;
+let defaultDeployer: HardhatEthersSigner,
+    protocolOwner: HardhatEthersSigner,
+    treasury: HardhatEthersSigner,
+    eaServiceAccount: HardhatEthersSigner,
+    pdsServiceAccount: HardhatEthersSigner;
+let poolOwner: HardhatEthersSigner,
+    poolOwnerTreasury: HardhatEthersSigner,
+    evaluationAgent: HardhatEthersSigner,
+    poolOperator: HardhatEthersSigner;
+let lender: HardhatEthersSigner;
 
-let eaNFTContract, humaConfigContract, mockTokenContract;
-let poolConfigContract,
-    platformFeeManagerContract,
-    poolVaultContract,
-    calendarContract,
-    firstLossCovererContract,
-    tranchesPolicyContract,
-    poolContract,
-    epochManagerContract,
-    seniorTrancheVaultContract,
-    juniorTrancheVaultContract,
-    creditContract,
-    creditFeeManagerContract,
-    creditPnlManagerContract;
+let eaNFTContract: EvaluationAgentNFT,
+    humaConfigContract: HumaConfig,
+    mockTokenContract: MockToken;
+let poolConfigContract: PoolConfig,
+    platformFeeManagerContract: PlatformFeeManager,
+    poolVaultContract: PoolVault,
+    calendarContract: Calendar,
+    poolOwnerAndEAFirstLossCoverContract: LossCoverer,
+    tranchesPolicyContract: RiskAdjustedTranchesPolicy,
+    poolContract: Pool,
+    epochManagerContract: EpochManager,
+    seniorTrancheVaultContract: TrancheVault,
+    juniorTrancheVaultContract: TrancheVault,
+    creditContract: MockPoolCredit,
+    creditFeeManagerContract: BaseCreditFeeManager,
+    creditPnlManagerContract: BasePnLManager;
 
 describe("RiskAdjustedTranchesPolicy Test", function () {
     before(async function () {
@@ -51,7 +77,7 @@ describe("RiskAdjustedTranchesPolicy Test", function () {
             treasury,
             eaServiceAccount,
             pdsServiceAccount,
-            poolOwner
+            poolOwner,
         );
 
         [
@@ -59,13 +85,13 @@ describe("RiskAdjustedTranchesPolicy Test", function () {
             platformFeeManagerContract,
             poolVaultContract,
             calendarContract,
-            firstLossCovererContract,
+            poolOwnerAndEAFirstLossCoverContract,
             tranchesPolicyContract,
             poolContract,
             epochManagerContract,
             seniorTrancheVaultContract,
             juniorTrancheVaultContract,
-            creditContract,
+            creditContract as unknown,
             creditFeeManagerContract,
             creditPnlManagerContract,
         ] = await deployAndSetupPoolContracts(
@@ -79,7 +105,7 @@ describe("RiskAdjustedTranchesPolicy Test", function () {
             evaluationAgent,
             poolOwnerTreasury,
             poolOperator,
-            [lender]
+            [lender],
         );
 
         let juniorDepositAmount = toToken(100_000);
@@ -97,22 +123,28 @@ describe("RiskAdjustedTranchesPolicy Test", function () {
     });
 
     it("Should call calcTranchesAssetsForProfit correctly", async function () {
-        const adjustment = BN.from(8000);
+        const adjustment = 8000n;
 
-        let lpConfig = await poolConfigContract.getLPConfig();
-        let newLpConfig = {...lpConfig, tranchesRiskAdjustmentInBps: adjustment};
+        const lpConfig = await poolConfigContract.getLPConfig();
+        const newLpConfig = overrideLPConfig(lpConfig, {
+            tranchesRiskAdjustmentInBps: adjustment,
+        });
         await poolConfigContract.connect(poolOwner).setLPConfig(newLpConfig);
 
         let assets = await poolContract.currentTranchesAssets();
         let profit = toToken(14837);
 
         let newAssets = PnLCalculator.calcProfitForRiskAdjustedPolicy(profit, assets, adjustment);
-        let result = await tranchesPolicyContract.calcTranchesAssetsForProfit(profit, assets, 0);
+        let result = await tranchesPolicyContract.calcTranchesAssetsForProfit(
+            profit,
+            [...assets],
+            0,
+        );
         expect(result[CONSTANTS.SENIOR_TRANCHE_INDEX]).to.equal(
-            newAssets[CONSTANTS.SENIOR_TRANCHE_INDEX]
+            newAssets[CONSTANTS.SENIOR_TRANCHE_INDEX],
         );
         expect(result[CONSTANTS.JUNIOR_TRANCHE_INDEX]).to.equal(
-            newAssets[CONSTANTS.JUNIOR_TRANCHE_INDEX]
+            newAssets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
         );
     });
 });

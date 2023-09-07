@@ -1,34 +1,65 @@
-const {ethers} = require("hardhat");
-const {expect} = require("chai");
-const {BigNumber: BN} = require("ethers");
-const {loadFixture} = require("@nomicfoundation/hardhat-network-helpers");
-const moment = require("moment");
-const {
-    deployProtocolContracts,
-    deployAndSetupPoolContracts,
+import { ethers } from "hardhat";
+import { expect } from "chai";
+import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import moment from "moment";
+import {
     CONSTANTS,
+    deployAndSetupPoolContracts,
+    deployProtocolContracts,
     PnLCalculator,
-} = require("./BaseTest");
-const {toToken, mineNextBlockWithTimestamp, setNextBlockTimestamp} = require("./TestUtils");
+} from "./BaseTest";
+import {
+    getLatestBlock,
+    mineNextBlockWithTimestamp,
+    overrideLPConfig,
+    toToken,
+} from "./TestUtils";
+import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
+import {
+    BaseCreditFeeManager,
+    BasePnLManager,
+    Calendar,
+    EpochManager,
+    EvaluationAgentNFT,
+    HumaConfig,
+    LossCoverer,
+    MockPoolCredit,
+    MockToken,
+    PlatformFeeManager,
+    Pool,
+    PoolConfig,
+    PoolVault,
+    RiskAdjustedTranchesPolicy,
+    TrancheVault,
+} from "../typechain-types";
 
-let defaultDeployer, protocolOwner, treasury, eaServiceAccount, pdsServiceAccount;
-let poolOwner, poolOwnerTreasury, evaluationAgent, poolOperator;
-let lender;
+let defaultDeployer: HardhatEthersSigner,
+    protocolOwner: HardhatEthersSigner,
+    treasury: HardhatEthersSigner,
+    eaServiceAccount: HardhatEthersSigner,
+    pdsServiceAccount: HardhatEthersSigner;
+let poolOwner: HardhatEthersSigner,
+    poolOwnerTreasury: HardhatEthersSigner,
+    evaluationAgent: HardhatEthersSigner,
+    poolOperator: HardhatEthersSigner;
+let lender: HardhatEthersSigner;
 
-let eaNFTContract, humaConfigContract, mockTokenContract;
-let poolConfigContract,
-    platformFeeManagerContract,
-    poolVaultContract,
-    calendarContract,
-    firstLossCovererContract,
-    tranchesPolicyContract,
-    poolContract,
-    epochManagerContract,
-    seniorTrancheVaultContract,
-    juniorTrancheVaultContract,
-    creditContract,
-    creditFeeManagerContract,
-    creditPnlManagerContract;
+let eaNFTContract: EvaluationAgentNFT,
+    humaConfigContract: HumaConfig,
+    mockTokenContract: MockToken;
+let poolConfigContract: PoolConfig,
+    platformFeeManagerContract: PlatformFeeManager,
+    poolVaultContract: PoolVault,
+    calendarContract: Calendar,
+    poolOwnerAndEAFirstLossCoverContract: LossCoverer,
+    tranchesPolicyContract: RiskAdjustedTranchesPolicy,
+    poolContract: Pool,
+    epochManagerContract: EpochManager,
+    seniorTrancheVaultContract: TrancheVault,
+    juniorTrancheVaultContract: TrancheVault,
+    creditContract: MockPoolCredit,
+    creditFeeManagerContract: BaseCreditFeeManager,
+    creditPnlManagerContract: BasePnLManager;
 
 describe("FixedAprTranchesPolicy Test", function () {
     before(async function () {
@@ -52,7 +83,7 @@ describe("FixedAprTranchesPolicy Test", function () {
             treasury,
             eaServiceAccount,
             pdsServiceAccount,
-            poolOwner
+            poolOwner,
         );
 
         [
@@ -60,13 +91,13 @@ describe("FixedAprTranchesPolicy Test", function () {
             platformFeeManagerContract,
             poolVaultContract,
             calendarContract,
-            firstLossCovererContract,
+            poolOwnerAndEAFirstLossCoverContract,
             tranchesPolicyContract,
             poolContract,
             epochManagerContract,
             seniorTrancheVaultContract,
             juniorTrancheVaultContract,
-            creditContract,
+            creditContract as unknown,
             creditFeeManagerContract,
             creditPnlManagerContract,
         ] = await deployAndSetupPoolContracts(
@@ -80,7 +111,7 @@ describe("FixedAprTranchesPolicy Test", function () {
             evaluationAgent,
             poolOwnerTreasury,
             poolOperator,
-            [lender]
+            [lender],
         );
 
         let juniorDepositAmount = toToken(100_000);
@@ -98,17 +129,20 @@ describe("FixedAprTranchesPolicy Test", function () {
     });
 
     it("Should call calcTranchesAssetsForProfit correctly", async function () {
-        const APR = BN.from(1217);
-        let lpConfig = await poolConfigContract.getLPConfig();
-        let newLpConfig = {...lpConfig, fixedSeniorYieldInBps: APR};
+        const apy = 1217n;
+
+        const lpConfig = await poolConfigContract.getLPConfig();
+        const newLpConfig = overrideLPConfig(lpConfig, { fixedSeniorYieldInBps: apy });
         await poolConfigContract.connect(poolOwner).setLPConfig(newLpConfig);
         let deployedAssets = toToken(300_000);
-        await creditContract.drawdown(ethers.constants.HashZero, deployedAssets);
+        await creditContract.drawdown(ethers.ZeroHash, deployedAssets);
+
         let assets = await poolContract.currentTranchesAssets();
         let profit = toToken(12463);
         let lastDate = moment.utc("2023-08-01").unix();
-        let lastBlock = await ethers.provider.getBlock();
-        let nextDate = lastBlock.timestamp + 10;
+
+        let lastBlock = await getLatestBlock();
+        let nextDate = lastBlock!.timestamp + 10;
         await mineNextBlockWithTimestamp(nextDate);
         let newAssets = PnLCalculator.calcProfitForFixedAprPolicy(
             profit,
@@ -116,18 +150,18 @@ describe("FixedAprTranchesPolicy Test", function () {
             lastDate,
             nextDate,
             deployedAssets,
-            APR
+            apy,
         );
         let result = await tranchesPolicyContract.calcTranchesAssetsForProfit(
             profit,
-            assets,
-            lastDate
+            [...assets],
+            lastDate,
         );
         // expect(result[CONSTANTS.SENIOR_TRANCHE_INDEX]).to.equal(
-        //     newAssets[CONSTANTS.SENIOR_TRANCHE_INDEX]
+        //     newAssets[CONSTANTS.SENIOR_TRANCHE_INDEX],
         // );
         // expect(result[CONSTANTS.JUNIOR_TRANCHE_INDEX]).to.equal(
-        //     newAssets[CONSTANTS.JUNIOR_TRANCHE_INDEX]
+        //     newAssets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
         // );
     });
 });

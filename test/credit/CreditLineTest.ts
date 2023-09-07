@@ -1,34 +1,56 @@
-const {ethers} = require("hardhat");
-const {expect} = require("chai");
-const {BigNumber: BN} = require("ethers");
-const {loadFixture} = require("@nomicfoundation/hardhat-network-helpers");
-const {
-    deployProtocolContracts,
-    deployAndSetupPoolContracts,
-    CONSTANTS,
-    checkCreditConfig,
-    checkCreditRecord,
-} = require("../BaseTest");
-const {toToken, mineNextBlockWithTimestamp, setNextBlockTimestamp} = require("../TestUtils");
+import hre from "hardhat";
+import { expect } from "chai";
+import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { deployAndSetupPoolContracts, deployProtocolContracts } from "../BaseTest";
+import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 
-let defaultDeployer, protocolOwner, treasury, eaServiceAccount, pdsServiceAccount;
-let poolOwner, poolOwnerTreasury, evaluationAgent, poolOperator;
-let lender, borrower;
+import { toToken } from "../TestUtils";
+import {
+    BaseCreditFeeManager,
+    BasePnLManager,
+    Calendar,
+    CreditLine,
+    EpochManager,
+    EvaluationAgentNFT,
+    HumaConfig,
+    LossCoverer,
+    MockToken,
+    PlatformFeeManager,
+    Pool,
+    PoolConfig,
+    PoolVault,
+    RiskAdjustedTranchesPolicy,
+    TrancheVault,
+} from "../../typechain-types";
+import { AbiCoder } from "ethers";
 
-let eaNFTContract, humaConfigContract, mockTokenContract;
-let poolConfigContract,
-    platformFeeManagerContract,
-    poolVaultContract,
-    calendarContract,
-    firstLossCovererContract,
-    tranchesPolicyContract,
-    poolContract,
-    epochManagerContract,
-    seniorTrancheVaultContract,
-    juniorTrancheVaultContract,
-    creditContract,
-    creditFeeManagerContract,
-    creditPnlManagerContract;
+let defaultDeployer: HardhatEthersSigner,
+    protocolOwner: HardhatEthersSigner,
+    treasury: HardhatEthersSigner,
+    eaServiceAccount: HardhatEthersSigner,
+    pdsServiceAccount: HardhatEthersSigner;
+let poolOwner: HardhatEthersSigner,
+    poolOwnerTreasury: HardhatEthersSigner,
+    evaluationAgent: HardhatEthersSigner,
+    poolOperator: HardhatEthersSigner;
+let lender: HardhatEthersSigner, borrower: HardhatEthersSigner;
+
+let eaNFTContract: EvaluationAgentNFT,
+    humaConfigContract: HumaConfig,
+    mockTokenContract: MockToken;
+let poolConfigContract: PoolConfig,
+    platformFeeManagerContract: PlatformFeeManager,
+    poolVaultContract: PoolVault,
+    calendarContract: Calendar,
+    poolOwnerAndEAFirstLossCoverContract: LossCoverer,
+    tranchesPolicyContract: RiskAdjustedTranchesPolicy,
+    poolContract: Pool,
+    epochManagerContract: EpochManager,
+    seniorTrancheVaultContract: TrancheVault,
+    juniorTrancheVaultContract: TrancheVault,
+    creditContract: CreditLine,
+    creditFeeManagerContract: BaseCreditFeeManager,
+    creditPnlManagerContract: BasePnLManager;
 
 describe("CreditLine Test", function () {
     before(async function () {
@@ -53,7 +75,7 @@ describe("CreditLine Test", function () {
             treasury,
             eaServiceAccount,
             pdsServiceAccount,
-            poolOwner
+            poolOwner,
         );
 
         [
@@ -61,13 +83,13 @@ describe("CreditLine Test", function () {
             platformFeeManagerContract,
             poolVaultContract,
             calendarContract,
-            firstLossCovererContract,
+            poolOwnerAndEAFirstLossCoverContract,
             tranchesPolicyContract,
             poolContract,
             epochManagerContract,
             seniorTrancheVaultContract,
             juniorTrancheVaultContract,
-            creditContract,
+            creditContract as unknown,
             creditFeeManagerContract,
             creditPnlManagerContract,
         ] = await deployAndSetupPoolContracts(
@@ -81,7 +103,7 @@ describe("CreditLine Test", function () {
             evaluationAgent,
             poolOwnerTreasury,
             poolOperator,
-            [lender, borrower]
+            [lender, borrower],
         );
     }
 
@@ -143,7 +165,7 @@ describe("CreditLine Test", function () {
                 creditContract
                     .connect(eaServiceAccount)
                     .approveBorrower(
-                        ethers.constants.AddressZero,
+                        ethers.ZeroAddress,
                         toToken(10_000),
                         1,
                         1217,
@@ -185,7 +207,7 @@ describe("CreditLine Test", function () {
             ).to.be.revertedWithCustomError(creditContract, "committedAmountGreatThanCreditLimit");
 
             let poolSettings = await poolConfigContract.getPoolSettings();
-            let creditLimit = poolSettings.maxCreditLine.add(1);
+            let creditLimit = poolSettings.maxCreditLine + 1n;
 
             await expect(
                 creditContract
@@ -221,10 +243,10 @@ describe("CreditLine Test", function () {
         });
 
         it("Should approve a borrower correctly", async function () {
-            const creditHash = ethers.utils.keccak256(
-                ethers.utils.defaultAbiCoder.encode(
+            const creditHash = ethers.keccak256(
+                AbiCoder.defaultAbiCoder().encode(
                     ["address", "address"],
-                    [creditContract.address, borrower.address]
+                    [await creditContract.getAddress(), borrower.address]
                 )
             );
 
@@ -305,13 +327,6 @@ describe("CreditLine Test", function () {
     });
 
     it("Should makePayment to a credit correctly", async function () {
-        const creditHash = ethers.utils.keccak256(
-            ethers.utils.defaultAbiCoder.encode(
-                ["address", "address"],
-                [creditContract.address, borrower.address]
-            )
-        );
-
         let juniorDepositAmount = toToken(300_000);
         await juniorTrancheVaultContract
             .connect(lender)

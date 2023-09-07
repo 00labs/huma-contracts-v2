@@ -1,10 +1,6 @@
-require("hardhat-contract-sizer");
-require("hardhat-gas-reporter");
+import "@nomicfoundation/hardhat-toolbox";
 
-require("@nomiclabs/hardhat-ethers");
-require("@nomicfoundation/hardhat-chai-matchers");
-
-module.exports = {
+const config= {
     solidity: {
         compilers: [
             {
@@ -24,7 +20,6 @@ module.exports = {
         runOnCompile: true,
         strict: true,
     },
-
     /**
      * gas reporter configuration that let's you know
      * an estimate of gas for contract deployments and function calls
@@ -35,3 +30,5 @@ module.exports = {
         coinmarketcap: process.env.COINMARKETCAP || null,
     },
 };
+
+export default config;

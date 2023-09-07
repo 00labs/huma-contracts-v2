@@ -6,20 +6,17 @@
           "printWidth": 99,
           "tabWidth": 4,
           "useTabs": false,
-          "singleQuote": false,
-          "bracketSpacing": false,
           "explicitTypes": "always"
         }
       },
       {
-        "files": "*.js",
+        "files": "*.ts",
         "options": {
           "printWidth": 99,
           "tabWidth": 4,
           "useTabs": false,
-          "singleQuote": false,
-          "bracketSpacing": false,
-          "explicitTypes": "always"
+          "semi": true,
+          "trailingComma": "all"
         }
       },
       {
