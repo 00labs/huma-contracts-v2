@@ -41,7 +41,7 @@ contract MockPoolCredit is PoolConfigCache, IPoolCredit {
         poolVault.deposit(address(this), amount);
     }
 
-    function currentPnL()
+    function getIncrementalPnL()
         external
         view
         returns (uint256 profit, uint256 loss, uint256 lossRecovery)

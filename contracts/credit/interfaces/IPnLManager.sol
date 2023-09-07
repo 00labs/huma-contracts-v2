@@ -65,4 +65,13 @@ interface IPnLManager {
         external
         view
         returns (uint256 totalProfit, uint256 totalLoss, uint256 totalLossRecovery);
+
+    function getIncrementalPnL()
+        external
+        view
+        returns (
+            uint256 incrementalProfit,
+            uint256 incrementalLoss,
+            uint256 incrementalLossRecovery
+        );
 }
