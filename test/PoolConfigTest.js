@@ -12,7 +12,7 @@ let poolConfigContract,
     platformFeeManagerContract,
     poolVaultContract,
     calendarContract,
-    poolOwnerAndEALossCovererContract,
+    poolOwnerAndEAFirstLossCoverContract,
     tranchesPolicyContract,
     poolContract,
     epochManagerContract,
@@ -49,27 +49,27 @@ describe("PoolConfig Test", function () {
         );
 
         const PlatformFeeManager = await ethers.getContractFactory("PlatformFeeManager");
-        platformFeeManagerContract = await PlatformFeeManager.deploy(poolConfigContract.address);
+        platformFeeManagerContract = await PlatformFeeManager.deploy();
         await platformFeeManagerContract.deployed();
 
         const PoolVault = await ethers.getContractFactory("PoolVault");
-        poolVaultContract = await PoolVault.deploy(poolConfigContract.address);
+        poolVaultContract = await PoolVault.deploy();
         await poolVaultContract.deployed();
 
-        const LossCoverer = await ethers.getContractFactory("LossCoverer");
-        poolOwnerAndEALossCovererContract = await LossCoverer.deploy(poolConfigContract.address);
-        await poolOwnerAndEALossCovererContract.deployed();
+        const FirstLossCover = await ethers.getContractFactory("FirstLossCover");
+        poolOwnerAndEAFirstLossCoverContract = await FirstLossCover.deploy();
+        await poolOwnerAndEAFirstLossCoverContract.deployed();
 
         const TranchesPolicy = await ethers.getContractFactory("RiskAdjustedTranchesPolicy");
-        tranchesPolicyContract = await TranchesPolicy.deploy(poolConfigContract.address);
+        tranchesPolicyContract = await TranchesPolicy.deploy();
         await tranchesPolicyContract.deployed();
 
         const Pool = await ethers.getContractFactory("Pool");
-        poolContract = await Pool.deploy(poolConfigContract.address);
+        poolContract = await Pool.deploy();
         await poolContract.deployed();
 
         const EpochManager = await ethers.getContractFactory("EpochManager");
-        epochManagerContract = await EpochManager.deploy(poolConfigContract.address);
+        epochManagerContract = await EpochManager.deploy();
         await epochManagerContract.deployed();
 
         const TrancheVault = await ethers.getContractFactory("TrancheVault");
@@ -82,16 +82,16 @@ describe("PoolConfig Test", function () {
         calendarContract = await Calendar.deploy();
         await calendarContract.deployed();
 
-        const Credit = await ethers.getContractFactory("BaseCredit");
+        const Credit = await ethers.getContractFactory("MockPoolCredit");
         creditContract = await Credit.deploy();
         await creditContract.deployed();
 
         const BaseCreditFeeManager = await ethers.getContractFactory("BaseCreditFeeManager");
-        creditFeeManagerContract = await BaseCreditFeeManager.deploy(poolConfigContract.address);
+        creditFeeManagerContract = await BaseCreditFeeManager.deploy();
         await creditFeeManagerContract.deployed();
 
         const CreditPnLManager = await ethers.getContractFactory("LinearMarkdownPnLManager");
-        creditPnlManagerContract = await CreditPnLManager.deploy(poolConfigContract.address);
+        creditPnlManagerContract = await CreditPnLManager.deploy();
         await creditPnlManagerContract.deployed();
     }
 
@@ -111,7 +111,7 @@ describe("PoolConfig Test", function () {
                             platformFeeManagerContract.address,
                             poolVaultContract.address,
                             calendarContract.address,
-                            poolOwnerAndEALossCovererContract.address,
+                            poolOwnerAndEAFirstLossCoverContract.address,
                             tranchesPolicyContract.address,
                             poolContract.address,
                             epochManagerContract.address,
@@ -151,7 +151,7 @@ describe("PoolConfig Test", function () {
                             platformFeeManagerContract.address,
                             poolVaultContract.address,
                             calendarContract.address,
-                            poolOwnerAndEALossCovererContract.address,
+                            poolOwnerAndEAFirstLossCoverContract.address,
                             tranchesPolicyContract.address,
                             poolContract.address,
                             epochManagerContract.address,
@@ -176,7 +176,7 @@ describe("PoolConfig Test", function () {
                             platformFeeManagerContract.address,
                             poolVaultContract.address,
                             calendarContract.address,
-                            poolOwnerAndEALossCovererContract.address,
+                            poolOwnerAndEAFirstLossCoverContract.address,
                             tranchesPolicyContract.address,
                             poolContract.address,
                             epochManagerContract.address,
@@ -204,7 +204,7 @@ describe("PoolConfig Test", function () {
                             platformFeeManagerContract.address,
                             poolVaultContract.address,
                             calendarContract.address,
-                            poolOwnerAndEALossCovererContract.address,
+                            poolOwnerAndEAFirstLossCoverContract.address,
                             tranchesPolicyContract.address,
                             poolContract.address,
                             epochManagerContract.address,
@@ -229,7 +229,7 @@ describe("PoolConfig Test", function () {
                             ethers.constants.AddressZero,
                             poolVaultContract.address,
                             calendarContract.address,
-                            poolOwnerAndEALossCovererContract.address,
+                            poolOwnerAndEAFirstLossCoverContract.address,
                             tranchesPolicyContract.address,
                             poolContract.address,
                             epochManagerContract.address,
@@ -254,7 +254,7 @@ describe("PoolConfig Test", function () {
                             platformFeeManagerContract.address,
                             ethers.constants.AddressZero,
                             calendarContract.address,
-                            poolOwnerAndEALossCovererContract.address,
+                            poolOwnerAndEAFirstLossCoverContract.address,
                             tranchesPolicyContract.address,
                             poolContract.address,
                             epochManagerContract.address,
@@ -279,7 +279,7 @@ describe("PoolConfig Test", function () {
                             platformFeeManagerContract.address,
                             poolVaultContract.address,
                             ethers.constants.AddressZero,
-                            poolOwnerAndEALossCovererContract.address,
+                            poolOwnerAndEAFirstLossCoverContract.address,
                             tranchesPolicyContract.address,
                             poolContract.address,
                             epochManagerContract.address,
@@ -329,7 +329,7 @@ describe("PoolConfig Test", function () {
                             platformFeeManagerContract.address,
                             poolVaultContract.address,
                             calendarContract.address,
-                            poolOwnerAndEALossCovererContract.address,
+                            poolOwnerAndEAFirstLossCoverContract.address,
                             ethers.constants.AddressZero,
                             poolContract.address,
                             epochManagerContract.address,
@@ -354,7 +354,7 @@ describe("PoolConfig Test", function () {
                             platformFeeManagerContract.address,
                             poolVaultContract.address,
                             calendarContract.address,
-                            poolOwnerAndEALossCovererContract.address,
+                            poolOwnerAndEAFirstLossCoverContract.address,
                             tranchesPolicyContract.address,
                             ethers.constants.AddressZero,
                             epochManagerContract.address,
@@ -379,7 +379,7 @@ describe("PoolConfig Test", function () {
                             platformFeeManagerContract.address,
                             poolVaultContract.address,
                             calendarContract.address,
-                            poolOwnerAndEALossCovererContract.address,
+                            poolOwnerAndEAFirstLossCoverContract.address,
                             tranchesPolicyContract.address,
                             poolContract.address,
                             ethers.constants.AddressZero,
@@ -404,7 +404,7 @@ describe("PoolConfig Test", function () {
                             platformFeeManagerContract.address,
                             poolVaultContract.address,
                             calendarContract.address,
-                            poolOwnerAndEALossCovererContract.address,
+                            poolOwnerAndEAFirstLossCoverContract.address,
                             tranchesPolicyContract.address,
                             poolContract.address,
                             epochManagerContract.address,
@@ -429,7 +429,7 @@ describe("PoolConfig Test", function () {
                             platformFeeManagerContract.address,
                             poolVaultContract.address,
                             calendarContract.address,
-                            poolOwnerAndEALossCovererContract.address,
+                            poolOwnerAndEAFirstLossCoverContract.address,
                             tranchesPolicyContract.address,
                             poolContract.address,
                             epochManagerContract.address,
@@ -454,7 +454,7 @@ describe("PoolConfig Test", function () {
                             platformFeeManagerContract.address,
                             poolVaultContract.address,
                             calendarContract.address,
-                            poolOwnerAndEALossCovererContract.address,
+                            poolOwnerAndEAFirstLossCoverContract.address,
                             tranchesPolicyContract.address,
                             poolContract.address,
                             epochManagerContract.address,
@@ -479,7 +479,7 @@ describe("PoolConfig Test", function () {
                             platformFeeManagerContract.address,
                             poolVaultContract.address,
                             calendarContract.address,
-                            poolOwnerAndEALossCovererContract.address,
+                            poolOwnerAndEAFirstLossCoverContract.address,
                             tranchesPolicyContract.address,
                             poolContract.address,
                             epochManagerContract.address,
@@ -504,7 +504,7 @@ describe("PoolConfig Test", function () {
                             platformFeeManagerContract.address,
                             poolVaultContract.address,
                             calendarContract.address,
-                            poolOwnerAndEALossCovererContract.address,
+                            poolOwnerAndEAFirstLossCoverContract.address,
                             tranchesPolicyContract.address,
                             poolContract.address,
                             epochManagerContract.address,
@@ -528,7 +528,7 @@ describe("PoolConfig Test", function () {
                         platformFeeManagerContract.address,
                         poolVaultContract.address,
                         calendarContract.address,
-                        poolOwnerAndEALossCovererContract.address,
+                        poolOwnerAndEAFirstLossCoverContract.address,
                         tranchesPolicyContract.address,
                         poolContract.address,
                         epochManagerContract.address,
@@ -550,7 +550,7 @@ describe("PoolConfig Test", function () {
                             platformFeeManagerContract.address,
                             poolVaultContract.address,
                             calendarContract.address,
-                            poolOwnerAndEALossCovererContract.address,
+                            poolOwnerAndEAFirstLossCoverContract.address,
                             tranchesPolicyContract.address,
                             poolContract.address,
                             epochManagerContract.address,
