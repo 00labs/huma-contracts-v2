@@ -287,17 +287,20 @@ contract PoolConfig is AccessControl, Initializable {
         adminRnRConfig.liquidityRateInBpsByPoolOwner = 200; // 2%
         _adminRnR = adminRnRConfig;
 
-        LPConfig memory lpConfig = _lpConfig;
-        lpConfig.maxSeniorJuniorRatio = 4; // senior : junior = 4:1
-        _lpConfig = lpConfig;
+        LPConfig memory config = _lpConfig;
+        config.maxSeniorJuniorRatio = 4; // senior : junior = 4:1
+        _lpConfig = config;
     }
 
     function getTrancheLiquidityCap(uint256 index) external view returns (uint256 cap) {
-        LPConfig memory lpc = _lpConfig;
+        LPConfig memory config = _lpConfig;
         if (index == SENIOR_TRANCHE_INDEX) {
-            cap = (lpc.liquidityCap * lpc.maxSeniorJuniorRatio) / (lpc.maxSeniorJuniorRatio + 1);
+            cap = (config.liquidityCap * config.maxSeniorJuniorRatio) / (config.maxSeniorJuniorRatio + 1);
         } else if (index == JUNIOR_TRANCHE_INDEX) {
-            cap = lpc.liquidityCap / (lpc.maxSeniorJuniorRatio + 1);
+            cap = config.liquidityCap / (config.maxSeniorJuniorRatio + 1);
+        } else {
+            // We only have two tranches for now.
+            assert(false);
         }
     }
 
@@ -372,6 +375,7 @@ contract PoolConfig is AccessControl, Initializable {
     }
 
     function setPlatformFeeManager(address _platformFeeManager) external {
+        _onlyOwnerOrHumaMasterAdmin();
         _onlyOwnerOrHumaMasterAdmin();
         if (_platformFeeManager == address(0)) revert Errors.zeroAddressProvided();
         platformFeeManager = _platformFeeManager;
@@ -562,7 +566,7 @@ contract PoolConfig is AccessControl, Initializable {
     /**
      * Returns a summary information of the pool.
      * @return token the address of the pool token
-     * @return apr the default APR of the pool
+     * @return yieldInBps the default annual percentage yield of the pool, measured in basis points
      * @return payPeriod the standard pay period for the pool
      * @return maxCreditAmount the max amount for the credit line
      */
@@ -571,7 +575,7 @@ contract PoolConfig is AccessControl, Initializable {
         view
         returns (
             address token,
-            uint256 apr,
+            uint256 yieldInBps,
             uint256 payPeriod,
             uint256 maxCreditAmount,
             uint256 liquiditycap,
