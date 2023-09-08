@@ -7,7 +7,7 @@ import {
     deployProtocolContracts,
     PnLCalculator,
 } from "./BaseTest";
-import { overrideLPConfig, toToken } from "./TestUtils";
+import { copyLPConfigWithOverrides, toToken } from "./TestUtils";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import {
     BaseCreditFeeManager,
@@ -126,7 +126,7 @@ describe("RiskAdjustedTranchesPolicy Test", function () {
         const adjustment = 8000n;
 
         const lpConfig = await poolConfigContract.getLPConfig();
-        const newLpConfig = overrideLPConfig(lpConfig, {
+        const newLpConfig = copyLPConfigWithOverrides(lpConfig, {
             tranchesRiskAdjustmentInBps: adjustment,
         });
         await poolConfigContract.connect(poolOwner).setLPConfig(newLpConfig);

@@ -5,7 +5,7 @@ import { deployAndSetupPoolContracts, deployProtocolContracts, PnLCalculator } f
 import {
     getLatestBlock,
     mineNextBlockWithTimestamp,
-    overrideLPConfig,
+    copyLPConfigWithOverrides,
     toToken,
 } from "./TestUtils";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
@@ -126,7 +126,7 @@ describe("FixedAprTranchesPolicy Test", function () {
         const apy = 1217n;
 
         const lpConfig = await poolConfigContract.getLPConfig();
-        const newLpConfig = overrideLPConfig(lpConfig, { fixedSeniorYieldInBps: apy });
+        const newLpConfig = copyLPConfigWithOverrides(lpConfig, { fixedSeniorYieldInBps: apy });
         await poolConfigContract.connect(poolOwner).setLPConfig(newLpConfig);
         let deployedAssets = toToken(300_000);
         await creditContract.drawdown(ethers.ZeroHash, deployedAssets);

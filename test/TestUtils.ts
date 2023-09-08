@@ -69,7 +69,7 @@ export async function getLatestBlock() {
     return await ethers.provider.getBlock("latest");
 }
 
-export function overrideLPConfig(
+export function copyLPConfigWithOverrides(
     lpConfig: LPConfigStructOutput,
     overrides: Partial<LPConfigStructOutput>,
 ) {
@@ -79,8 +79,8 @@ export function overrideLPConfig(
             liquidityCap: lpConfig.liquidityCap,
             withdrawalLockoutInCalendarUnit: lpConfig.withdrawalLockoutInCalendarUnit,
             maxSeniorJuniorRatio: lpConfig.maxSeniorJuniorRatio,
-            tranchesRiskAdjustmentInBps: lpConfig.tranchesRiskAdjustmentInBps,
             fixedSeniorYieldInBps: lpConfig.fixedSeniorYieldInBps,
+            tranchesRiskAdjustmentInBps: lpConfig.tranchesRiskAdjustmentInBps,
         },
         ...overrides,
     };
