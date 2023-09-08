@@ -7,23 +7,30 @@
     "build": "hardhat compile",
     "chain": "hardhat node",
     "test": "hardhat test --network hardhat",
-    "compile": "hardhat compile"
+    "compile": "hardhat compile",
+    "verify": "hardhat verify",
+    "lint-solidity": "yarn solhint -f table 'contracts/**/*.sol'",
+    "coverage": "hardhat coverage --network hardhat",
+    "postinstall": "husky install",
+    "gitleaks": "bash scripts/gitleaks.sh"
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "LGPL-3.0-or-later",
   "devDependencies": {
-    "hardhat": "^2.14.0",
-    "hardhat-contract-sizer": "^2.10.0",
-    "hardhat-gas-reporter": "^1.0.9",
-    "@nomiclabs/hardhat-ethers": "^2.2.3",
     "@nomicfoundation/hardhat-chai-matchers": "^1.0.6",
     "@nomicfoundation/hardhat-network-helpers": "^1.0.7",
+    "@nomiclabs/hardhat-ethers": "^2.2.3",
     "@openzeppelin/contracts": "^4.8.3",
     "@openzeppelin/contracts-upgradeable": "^4.8.3",
     "chai": "^4.3.7",
+    "hardhat": "^2.14.0",
+    "hardhat-contract-sizer": "^2.10.0",
+    "hardhat-gas-reporter": "^1.0.9",
+    "husky": "^8.0.3",
+    "moment": "2.29.4",
     "prettier": "^2.7.1",
     "prettier-plugin-solidity": "^1.0.0-beta.24",
-    "moment": "2.29.4"
+    "solhint": "^3.6.2"
   }
 }
