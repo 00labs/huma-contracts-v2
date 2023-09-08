@@ -37,14 +37,14 @@ abstract contract BasePnLManager is PoolConfigCache, IPnLManager {
         markdownRate = int96(uint96(getPrincipal(cr) / gracePeriod));
     }
 
-    function updateTracker(
+    function _updateTracker(
         int96 profitRateDiff,
         int96 lossRateDiff,
         uint96 profitDiff,
         uint96 lossDiff,
         uint96 recoveryDiff
     )
-        public
+        internal
         returns (
             uint256 incrementalProfit,
             uint256 incrementalLoss,
@@ -97,7 +97,7 @@ abstract contract BasePnLManager is PoolConfigCache, IPnLManager {
         override
         returns (uint256 totalProfit, uint256 totalLoss, uint256 totalLossRecovery)
     {
-        return updateTracker(0, 0, 0, 0, 0);
+        return _updateTracker(0, 0, 0, 0, 0);
     }
 
     function getPnL()

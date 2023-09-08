@@ -511,9 +511,9 @@ abstract contract BaseCredit is
      * @dev Please note cr.nextDueDate is the credit expiration date for the first drawdown.
      */
     function _checkDrawdownEligibility(
-        bytes32 creditHash,
         CreditRecord memory cr,
-        uint256 borrowAmount
+        uint256 borrowAmount,
+        uint256 creditLimit
     ) internal view {
         if (cr.state != CreditState.GoodStanding && cr.state != CreditState.Approved)
             revert Errors.creditLineNotInStateForDrawdown();
@@ -526,8 +526,7 @@ abstract contract BaseCredit is
             if (cr.nextDueDate > 0 && block.timestamp > cr.nextDueDate)
                 revert Errors.creditExpiredDueToFirstDrawdownTooLate();
 
-            CreditConfig memory cc = _getCreditConfig(creditHash);
-            if (borrowAmount > cc.creditLimit) revert Errors.creditLineExceeded();
+            if (borrowAmount > creditLimit) revert Errors.creditLineExceeded();
         }
     }
 
@@ -543,9 +542,8 @@ abstract contract BaseCredit is
         uint256 borrowAmount
     ) internal virtual {
         CreditRecord memory cr = _getCreditRecord(creditHash);
-        _checkDrawdownEligibility(creditHash, cr, borrowAmount);
-
         CreditConfig memory cc = _getCreditConfig(creditHash);
+        _checkDrawdownEligibility(cr, borrowAmount, cc.creditLimit);
 
         if (cr.state == CreditState.Approved) {
             // Flow for first drawdown
@@ -585,8 +583,11 @@ abstract contract BaseCredit is
             // Adjust the new due amount due to the yield generated because of the drawdown
             // amount for the rest of this period
             uint96 correctYieldDue = uint96(
-                (borrowAmount * cc.yieldInBps * (startDate - block.timestamp)) / SECONDS_IN_A_YEAR
+                (borrowAmount * cc.yieldInBps * (startDate - block.timestamp)) /
+                    SECONDS_IN_A_YEAR /
+                    HUNDRED_PERCENT_IN_BPS
             );
+            console.log("startDate: %s, correctYieldDue: %s", startDate, correctYieldDue);
             cr.yieldDue += correctYieldDue;
             cr.totalDue += correctYieldDue;
 
@@ -790,6 +791,8 @@ abstract contract BaseCredit is
             missedProfit,
             principalDiff
         ) = _feeManager.getDueInfo(cr, cc);
+        console.log("cr.totalDue: %s, cr.yieldDue: %s", cr.totalDue, cr.yieldDue);
+        console.log("missedProfit: %s, principalDiff: %s", missedProfit, principalDiff);
 
         if (periodsPassed > 0) {
             pnlManager.processDueUpdate(

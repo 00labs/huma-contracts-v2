@@ -11,8 +11,8 @@ import {ICredit} from "./interfaces/ICredit.sol";
 
 contract LinearMarkdownPnLManager is BasePnLManager {
     function processDrawdown(uint96 poolIncome, uint96 profitRateDiff) external {
-        // todo access control
-        updateTracker(int96(uint96(profitRateDiff)), 0, poolIncome, 0, 0);
+        onlyCreditContract();
+        _updateTracker(int96(uint96(profitRateDiff)), 0, poolIncome, 0, 0);
     }
 
     function processPayback(
@@ -29,7 +29,7 @@ contract LinearMarkdownPnLManager is BasePnLManager {
             uint96((principalPaid * yield) / HUNDRED_PERCENT_IN_BPS / SECONDS_IN_A_YEAR)
         );
         if (oldGoodStanding) {
-            updateTracker(profitRateDiff, 0, uint96(feesPaid), 0, 0);
+            _updateTracker(profitRateDiff, 0, uint96(feesPaid), 0, 0);
         } else {
             // handle recovery.
             CreditLoss memory creditLoss = _creditLossMap[creditHash];
@@ -56,7 +56,7 @@ contract LinearMarkdownPnLManager is BasePnLManager {
 
             _creditLossMap[creditHash] = creditLoss;
 
-            updateTracker(profitRateDiff, lossRateDiff, feesPaid, 0, lossRecovery);
+            _updateTracker(profitRateDiff, lossRateDiff, feesPaid, 0, lossRecovery);
         }
     }
 
@@ -65,6 +65,7 @@ contract LinearMarkdownPnLManager is BasePnLManager {
         CreditConfig memory cc,
         CreditRecord memory cr
     ) external {
+        // todo access control
         CreditLoss memory tempCreditLoss = _creditLossMap[creditHash];
         uint256 cutoffDate = block.timestamp > tempCreditLoss.lossExpiringDate
             ? tempCreditLoss.lossExpiringDate
@@ -79,7 +80,7 @@ contract LinearMarkdownPnLManager is BasePnLManager {
 
         // Write off any remaining principal and dues. Stop profitRate and lossRate
         PnLTracker memory t = pnlTracker;
-        updateTracker(int96(0 - t.profitRate), int96(0 - t.lossRate), 0, 0, 0);
+        _updateTracker(int96(0 - t.profitRate), int96(0 - t.lossRate), 0, 0, 0);
     }
 
     function processDueUpdate(
@@ -90,6 +91,7 @@ contract LinearMarkdownPnLManager is BasePnLManager {
         CreditConfig memory cc,
         CreditRecord memory cr
     ) external {
+        onlyCreditContract();
         int96 markdownRateDiff = 0;
         uint96 markdown = 0;
         int96 profitRateDiff = int96(uint96((principalDiff * cc.yieldInBps) / SECONDS_IN_A_YEAR));
@@ -98,7 +100,7 @@ contract LinearMarkdownPnLManager is BasePnLManager {
             markdownRateDiff = _getMarkdownRate(cc, cr) + profitRateDiff;
             markdown = uint96(uint96(markdownRateDiff) * (block.timestamp - cr.nextDueDate));
         }
-        updateTracker(profitRateDiff, markdownRateDiff, missedProfit, markdown, 0);
+        _updateTracker(profitRateDiff, markdownRateDiff, missedProfit, markdown, 0);
 
         // Need to maintain _creditLossMap
         CreditLoss memory tempCreditLoss = _creditLossMap[creditHash];

@@ -193,6 +193,8 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
             _cc.periodDuration
         );
 
+        console.log("_cc.yieldInBps: %s, secondsPerPeriod: %s", _cc.yieldInBps, secondsPerPeriod);
+
         for (uint256 i = 0; i < periodsPassed; i++) {
             // step 1. calculates late fees
             if (_cr.totalDue > 0) {

@@ -31,20 +31,6 @@ interface IPnLManager {
         CreditRecord memory cr
     ) external;
 
-    function updateTracker(
-        int96 profitRateDiff,
-        int96 lossRateDiff,
-        uint96 profitDiff,
-        uint96 lossDiff,
-        uint96 recoveryDiff
-    )
-        external
-        returns (
-            uint256 incrementalProfit,
-            uint256 incrementalLoss,
-            uint256 incrementalLossRecovery
-        );
-
     function refreshPnL()
         external
         returns (uint256 totalProfit, uint256 totalLoss, uint256 totalLossRecovery);

@@ -9,7 +9,12 @@ const {
     checkCreditConfig,
     checkCreditRecord,
 } = require("../BaseTest");
-const {toToken, mineNextBlockWithTimestamp, setNextBlockTimestamp} = require("../TestUtils");
+const {
+    toToken,
+    mineNextBlockWithTimestamp,
+    setNextBlockTimestamp,
+    getNextTime,
+} = require("../TestUtils");
 
 let defaultDeployer, protocolOwner, treasury, eaServiceAccount, pdsServiceAccount;
 let poolOwner, poolOwnerTreasury, evaluationAgent, poolOperator;
@@ -287,21 +292,93 @@ describe("CreditLine Test", function () {
         });
     });
 
-    it("Should drawdown from a credit correctly", async function () {
-        let juniorDepositAmount = toToken(300_000);
-        await juniorTrancheVaultContract
-            .connect(lender)
-            .deposit(juniorDepositAmount, lender.address);
-        let seniorDepositAmount = toToken(100_000);
-        await seniorTrancheVaultContract
-            .connect(lender)
-            .deposit(seniorDepositAmount, lender.address);
+    describe("Drawdown Tests", function () {
+        it("Should not drawdown with invalid parameters", async function () {
+            // borrower == 0
+            // borrowAmount == 0
+        });
 
-        await creditContract
-            .connect(eaServiceAccount)
-            .approveBorrower(borrower.address, toToken(100_000), 1, 1217, toToken(100_000), true);
+        it("Should not drawdown while credit line is in wrong state", async function () {});
 
-        await creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000));
+        it.skip("Should not borrow after credit expiration window", async function () {
+            await poolConfigContract.connect(poolOwner).setCreditApprovalExpiration(5);
+            await poolContract
+                .connect(eaServiceAccount)
+                .approveCredit(borrower.address, toToken(1_000_000), 30, 12, 1217);
+
+            await advanceClock(6);
+
+            await expect(
+                poolContract.connect(borrower).drawdown(toToken(1_000_000))
+            ).to.revertedWithCustomError(poolContract, "creditExpiredDueToFirstDrawdownTooLate");
+        });
+
+        it("Should not borrow after credit expired", async function () {});
+
+        it("Should not borrow while credit limit is exceeded after updateDueInfo", async function () {});
+
+        it("Should not borrow while borrow amount exceeds front loading fees after updateDueInfo", async function () {});
+
+        it("Should borrow first time successfully", async function () {
+            let frontLoadingFeeBps = BN.from(100);
+            await poolConfigContract.connect(poolOwner).setFrontLoadingFees({
+                frontLoadingFeeFlat: 0,
+                frontLoadingFeeBps: frontLoadingFeeBps,
+            });
+
+            await poolConfigContract
+                .connect(poolOwner)
+                .setPoolPayPeriod(CONSTANTS.CALENDAR_UNIT_MONTH, 1);
+
+            let juniorDepositAmount = toToken(300_000);
+            await juniorTrancheVaultContract
+                .connect(lender)
+                .deposit(juniorDepositAmount, lender.address);
+            let seniorDepositAmount = toToken(100_000);
+            await seniorTrancheVaultContract
+                .connect(lender)
+                .deposit(seniorDepositAmount, lender.address);
+
+            await creditContract
+                .connect(eaServiceAccount)
+                .approveBorrower(
+                    borrower.address,
+                    toToken(100_000),
+                    3,
+                    1217,
+                    toToken(100_000),
+                    true
+                );
+
+            const creditHash = ethers.utils.keccak256(
+                ethers.utils.defaultAbiCoder.encode(
+                    ["address", "address"],
+                    [creditContract.address, borrower.address]
+                )
+            );
+
+            let borrowAmount = toToken(50_000);
+            let netBorrowAmount = borrowAmount
+                .mul(CONSTANTS.BP_FACTOR.sub(frontLoadingFeeBps))
+                .div(CONSTANTS.BP_FACTOR);
+            let nextTime = await getNextTime(3);
+            await mineNextBlockWithTimestamp(nextTime);
+
+            let beforeBalance = await mockTokenContract.balanceOf(borrower.address);
+            await expect(creditContract.connect(borrower).drawdown(borrower.address, borrowAmount))
+                .to.emit(creditContract, "DrawdownMade")
+                .withArgs(borrower.address, borrowAmount, netBorrowAmount);
+            let afterBalance = await mockTokenContract.balanceOf(borrower.address);
+            expect(afterBalance.sub(beforeBalance)).to.equal(netBorrowAmount);
+
+            let creditRecord = await creditContract.creditRecordMap(creditHash);
+
+            console.log(`creditRecord: ${creditRecord}`);
+        });
+
+        it("Should borrow second time in the same period successfully", async function () {});
+
+        it("Should borrow second time in next period successfully", async function () {});
     });
 
     it("Should makePayment to a credit correctly", async function () {

@@ -61,6 +61,16 @@ function getNextMonth(lastDate, currentDate, periodDuration) {
     return [date.unix(), numberOfPeriodsPassed];
 }
 
+async function getNextTime(afterSeconds) {
+    let nextTime = Math.ceil(Date.now() / 1000) + afterSeconds;
+    let block = await ethers.provider.getBlock();
+    if (block.timestamp >= nextTime) {
+        nextTime = block.timestamp + afterSeconds;
+    }
+
+    return nextTime;
+}
+
 module.exports = {
     toBN,
     toToken,
@@ -68,4 +78,5 @@ module.exports = {
     mineNextBlockWithTimestamp,
     getNextDate,
     getNextMonth,
+    getNextTime,
 };
