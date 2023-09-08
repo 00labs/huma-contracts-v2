@@ -47,7 +47,7 @@ contract MockPoolCredit is PoolConfigCache, IPoolCredit {
     function getIncrementalPnL()
         external
         view
-        returns (uint256 profit, uint256 loss, uint256 lossRecovery)
+        returns (uint256 incrementalProfit, uint256 incrementalLoss, uint256 incrementalLossRecovery)
     {}
 
     function setRefreshPnLReturns(uint256 _profit, uint256 _loss, uint256 _lossRecovery) external {

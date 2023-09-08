@@ -1,13 +1,7 @@
 import { ethers } from "hardhat";
-import { expect } from "chai";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import moment from "moment";
-import {
-    CONSTANTS,
-    deployAndSetupPoolContracts,
-    deployProtocolContracts,
-    PnLCalculator,
-} from "./BaseTest";
+import { deployAndSetupPoolContracts, deployProtocolContracts, PnLCalculator } from "./BaseTest";
 import {
     getLatestBlock,
     mineNextBlockWithTimestamp,
@@ -22,7 +16,7 @@ import {
     EpochManager,
     EvaluationAgentNFT,
     HumaConfig,
-    LossCoverer,
+    FirstLossCover,
     MockPoolCredit,
     MockToken,
     PlatformFeeManager,
@@ -51,7 +45,7 @@ let poolConfigContract: PoolConfig,
     platformFeeManagerContract: PlatformFeeManager,
     poolVaultContract: PoolVault,
     calendarContract: Calendar,
-    poolOwnerAndEAFirstLossCoverContract: LossCoverer,
+    poolOwnerAndEAFirstLossCoverContract: FirstLossCover,
     tranchesPolicyContract: RiskAdjustedTranchesPolicy,
     poolContract: Pool,
     epochManagerContract: EpochManager,

@@ -12,7 +12,7 @@ import {
     EvaluationAgentNFT,
     HumaConfig,
     IPoolCredit,
-    LossCoverer,
+    FirstLossCover,
     MockToken,
     PlatformFeeManager,
     Pool,
@@ -20,6 +20,10 @@ import {
     PoolVault,
     TrancheVault,
 } from "../typechain-types";
+import {
+    CreditConfigStruct,
+    CreditRecordStruct,
+} from "../typechain-types/contracts/credit/interfaces/ICredit";
 
 export type ProtocolContracts = [EvaluationAgentNFT, HumaConfig, MockToken];
 export type PoolContracts = [
@@ -27,7 +31,7 @@ export type PoolContracts = [
     PlatformFeeManager,
     PoolVault,
     Calendar,
-    LossCoverer,
+    FirstLossCover,
     BaseTranchesPolicy,
     Pool,
     EpochManager,
@@ -119,31 +123,27 @@ export async function deployPoolContracts(
     await poolConfigContract.waitForDeployment();
 
     const PlatformFeeManager = await ethers.getContractFactory("PlatformFeeManager");
-    const platformFeeManagerContract = await PlatformFeeManager.deploy(
-        poolConfigContract.getAddress(),
-    );
+    const platformFeeManagerContract = await PlatformFeeManager.deploy();
     await platformFeeManagerContract.waitForDeployment();
 
     const PoolVault = await ethers.getContractFactory("PoolVault");
-    const poolVaultContract = await PoolVault.deploy(poolConfigContract.getAddress());
+    const poolVaultContract = await PoolVault.deploy();
     await poolVaultContract.waitForDeployment();
 
-    const LossCoverer = await ethers.getContractFactory("LossCoverer");
-    const poolOwnerAndEALossCovererContract = await LossCoverer.deploy(
-        poolConfigContract.getAddress(),
-    );
-    await poolOwnerAndEALossCovererContract.waitForDeployment();
+    const FirstLossCover = await ethers.getContractFactory("FirstLossCover");
+    const poolOwnerAndEAFirstLossCoverContract = await FirstLossCover.deploy();
+    await poolOwnerAndEAFirstLossCoverContract.waitForDeployment();
 
     const TranchesPolicy = await getTranchesPolicyContractFactory(tranchesPolicyContractName);
-    const tranchesPolicyContract = await TranchesPolicy.deploy(poolConfigContract.getAddress());
+    const tranchesPolicyContract = await TranchesPolicy.deploy();
     await tranchesPolicyContract.waitForDeployment();
 
     const Pool = await ethers.getContractFactory("Pool");
-    const poolContract = await Pool.deploy(poolConfigContract.getAddress());
+    const poolContract = await Pool.deploy();
     await poolContract.waitForDeployment();
 
     const EpochManager = await ethers.getContractFactory("EpochManager");
-    const epochManagerContract = await EpochManager.deploy(poolConfigContract.getAddress());
+    const epochManagerContract = await EpochManager.deploy();
     await epochManagerContract.waitForDeployment();
 
     const TrancheVault = await ethers.getContractFactory("TrancheVault");
@@ -165,15 +165,11 @@ export async function deployPoolContracts(
     await creditContract.waitForDeployment();
 
     const BaseCreditFeeManager = await ethers.getContractFactory("BaseCreditFeeManager");
-    const creditFeeManagerContract = await BaseCreditFeeManager.deploy(
-        poolConfigContract.getAddress(),
-    );
+    const creditFeeManagerContract = await BaseCreditFeeManager.deploy();
     await creditFeeManagerContract.waitForDeployment();
 
     const CreditPnLManager = await ethers.getContractFactory("LinearMarkdownPnLManager");
-    const creditPnlManagerContract = await CreditPnLManager.deploy(
-        poolConfigContract.getAddress(),
-    );
+    const creditPnlManagerContract = await CreditPnLManager.deploy();
     await creditPnlManagerContract.waitForDeployment();
 
     await poolConfigContract.initialize("Test Pool", [
@@ -182,7 +178,7 @@ export async function deployPoolContracts(
         platformFeeManagerContract.getAddress(),
         poolVaultContract.getAddress(),
         calendarContract.getAddress(),
-        poolOwnerAndEALossCovererContract.getAddress(),
+        poolOwnerAndEAFirstLossCoverContract.getAddress(),
         tranchesPolicyContract.getAddress(),
         poolContract.getAddress(),
         epochManagerContract.getAddress(),
@@ -202,37 +198,33 @@ export async function deployPoolContracts(
         deployer.getAddress(),
     );
 
-    await platformFeeManagerContract.connect(poolOwner).updatePoolConfigData();
-    await poolVaultContract.connect(poolOwner).updatePoolConfigData();
-    await poolOwnerAndEALossCovererContract.connect(poolOwner).updatePoolConfigData();
-    await poolContract.connect(poolOwner).updatePoolConfigData();
-    await epochManagerContract.connect(poolOwner).updatePoolConfigData();
-    await seniorTrancheVaultContract
-        .connect(poolOwner)
-        .initialize(
-            "Senior Tranche Vault",
-            "STV",
-            poolConfigContract.getAddress(),
-            SENIOR_TRANCHE_INDEX,
-        );
-    await juniorTrancheVaultContract
-        .connect(poolOwner)
-        .initialize(
-            "Junior Tranche Vault",
-            "JTV",
-            poolConfigContract.getAddress(),
-            JUNIOR_TRANCHE_INDEX,
-        );
+    await platformFeeManagerContract.initialize(poolConfigContract.getAddress());
+    await poolVaultContract.initialize(poolConfigContract.getAddress());
+    await poolOwnerAndEAFirstLossCoverContract.initialize(poolConfigContract.getAddress());
+    await poolContract.initialize(poolConfigContract.getAddress());
+    await epochManagerContract.initialize(poolConfigContract.getAddress());
+    await seniorTrancheVaultContract.getFunction("initialize(string,string,address,uint8)")(
+        "Senior Tranche Vault",
+        "STV",
+        poolConfigContract.getAddress(),
+        SENIOR_TRANCHE_INDEX,
+    );
+    await juniorTrancheVaultContract.getFunction("initialize(string,string,address,uint8)")(
+        "Junior Tranche Vault",
+        "JTV",
+        poolConfigContract.getAddress(),
+        JUNIOR_TRANCHE_INDEX,
+    );
     await creditContract.connect(poolOwner).initialize(poolConfigContract.getAddress());
-    await creditFeeManagerContract.connect(poolOwner).updatePoolConfigData();
-    await creditPnlManagerContract.connect(poolOwner).updatePoolConfigData();
+    await creditFeeManagerContract.initialize(poolConfigContract.getAddress());
+    await creditPnlManagerContract.initialize(poolConfigContract.getAddress());
 
     return [
         poolConfigContract,
         platformFeeManagerContract,
         poolVaultContract,
         calendarContract,
-        poolOwnerAndEALossCovererContract,
+        poolOwnerAndEAFirstLossCoverContract,
         tranchesPolicyContract,
         poolContract,
         epochManagerContract,
@@ -248,7 +240,7 @@ export async function setupPoolContracts(
     poolConfigContract: PoolConfig,
     eaNFTContract: EvaluationAgentNFT,
     mockTokenContract: MockToken,
-    poolOwnerAndEALossCovererContract: LossCoverer,
+    poolOwnerAndEAFirstLossCoverContract: FirstLossCover,
     poolVaultContract: PoolVault,
     poolContract: Pool,
     juniorTrancheVaultContract: TrancheVault,
@@ -278,13 +270,13 @@ export async function setupPoolContracts(
         .setEvaluationAgent(eaNFTTokenId, evaluationAgent.getAddress());
     await poolConfigContract.connect(poolOwner).setEARewardsAndLiquidity(1875, 10);
 
-    await poolOwnerAndEALossCovererContract
+    await poolOwnerAndEAFirstLossCoverContract
         .connect(poolOwner)
         .setOperator(poolOwnerTreasury.getAddress(), {
             poolCapCoverageInBps: 100,
             poolValueCoverageInBps: 100,
         });
-    await poolOwnerAndEALossCovererContract
+    await poolOwnerAndEAFirstLossCoverContract
         .connect(poolOwner)
         .setOperator(evaluationAgent.getAddress(), {
             poolCapCoverageInBps: 100,
@@ -297,17 +289,19 @@ export async function setupPoolContracts(
 
     await mockTokenContract
         .connect(poolOwnerTreasury)
-        .approve(poolOwnerAndEALossCovererContract.getAddress(), ethers.MaxUint256);
+        .approve(poolOwnerAndEAFirstLossCoverContract.getAddress(), ethers.MaxUint256);
     await mockTokenContract.mint(poolOwnerTreasury.getAddress(), toToken(100_000_000));
-    await poolOwnerAndEALossCovererContract
+    await poolOwnerAndEAFirstLossCoverContract
         .connect(poolOwnerTreasury)
         .addCover(toToken(10_000_000));
 
     await mockTokenContract
         .connect(evaluationAgent)
-        .approve(poolOwnerAndEALossCovererContract.getAddress(), ethers.MaxUint256);
+        .approve(poolOwnerAndEAFirstLossCoverContract.getAddress(), ethers.MaxUint256);
     await mockTokenContract.mint(evaluationAgent.getAddress(), toToken(100_000_000));
-    await poolOwnerAndEALossCovererContract.connect(evaluationAgent).addCover(toToken(10_000_000));
+    await poolOwnerAndEAFirstLossCoverContract
+        .connect(evaluationAgent)
+        .addCover(toToken(10_000_000));
 
     // Set pool epoch window to 3 days for testing purposes
     await poolConfigContract.connect(poolOwner).setPoolPayPeriod(CONSTANTS.CALENDAR_UNIT_DAY, 3);
@@ -354,7 +348,7 @@ export async function deployAndSetupPoolContracts(
         platformFeeManagerContract,
         poolVaultContract,
         calendarContract,
-        poolOwnerAndEAlossCovererContract,
+        poolOwnerAndEAFirstLossCoverContract,
         tranchesPolicyContract,
         poolContract,
         epochManagerContract,
@@ -376,7 +370,7 @@ export async function deployAndSetupPoolContracts(
         poolConfigContract,
         eaNFTContract,
         mockTokenContract,
-        poolOwnerAndEAlossCovererContract,
+        poolOwnerAndEAFirstLossCoverContract,
         poolVaultContract,
         poolContract,
         juniorTrancheVaultContract,
@@ -394,7 +388,7 @@ export async function deployAndSetupPoolContracts(
         platformFeeManagerContract,
         poolVaultContract,
         calendarContract,
-        poolOwnerAndEAlossCovererContract,
+        poolOwnerAndEAFirstLossCoverContract,
         tranchesPolicyContract,
         poolContract,
         epochManagerContract,
@@ -531,6 +525,52 @@ export function checkEpochInfo(
     expect(epochInfo.totalShareRequested).to.equal(totalShareRequested);
     expect(epochInfo.totalShareProcessed).to.equal(totalShareProcessed);
     expect(epochInfo.totalAmountProcessed).to.equal(totalAmountProcessed);
+}
+
+export function checkCreditConfig(
+    creditConfig: CreditConfigStruct,
+    creditLimit: bigint,
+    committedAmount: bigint,
+    calendarUnit: bigint,
+    periodDuration: bigint,
+    numOfPeriods: bigint,
+    yieldInBps: bigint,
+    revolving: boolean,
+    receivableBacked: boolean,
+    borrowerLevelCredit: boolean,
+    exclusive: boolean,
+) {
+    expect(creditConfig.creditLimit).to.equal(creditLimit);
+    expect(creditConfig.committedAmount).to.equal(committedAmount);
+    expect(creditConfig.calendarUnit).to.equal(calendarUnit);
+    expect(creditConfig.periodDuration).to.equal(periodDuration);
+    expect(creditConfig.numOfPeriods).to.equal(numOfPeriods);
+    expect(creditConfig.yieldInBps).to.equal(yieldInBps);
+    expect(creditConfig.revolving).to.equal(revolving);
+    expect(creditConfig.receivableBacked).to.equal(receivableBacked);
+    expect(creditConfig.borrowerLevelCredit).to.equal(borrowerLevelCredit);
+    expect(creditConfig.exclusive).to.equal(exclusive);
+}
+
+export function checkCreditRecord(
+    creditRecord: CreditRecordStruct,
+    unbilledPrincipal: bigint,
+    nextDueDate: bigint,
+    totalDue: bigint,
+    yieldDue: bigint,
+    feesDue: bigint,
+    missedPeriods: bigint,
+    remainingPeriods: bigint,
+    state: bigint,
+) {
+    expect(creditRecord.unbilledPrincipal).to.equal(unbilledPrincipal);
+    expect(creditRecord.nextDueDate).to.equal(nextDueDate);
+    expect(creditRecord.totalDue).to.equal(totalDue);
+    expect(creditRecord.yieldDue).to.equal(yieldDue);
+    expect(creditRecord.feesDue).to.equal(feesDue);
+    expect(creditRecord.missedPeriods).to.equal(missedPeriods);
+    expect(creditRecord.remainingPeriods).to.equal(remainingPeriods);
+    expect(creditRecord.state).to.equal(state);
 }
 
 async function getTranchesPolicyContractFactory(
