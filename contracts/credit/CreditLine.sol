@@ -81,6 +81,7 @@ contract CreditLine is BaseCredit, ICreditLine {
      * @dev Only the owner of the credit line can drawdown.
      */
     function drawdown(address borrower, uint256 borrowAmount) external {
+        // TODO poolConfig.onlyProtocolAndPoolOn(); ?
         if (borrower == address(0)) revert Errors.zeroAddressProvided();
         if (borrowAmount == 0) revert Errors.zeroAmountProvided();
         bytes32 creditHash = getCreditHash(borrower);
