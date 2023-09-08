@@ -58,15 +58,18 @@ abstract contract BaseCredit is
         bool borrowerLevelCredit
     );
 
-    /// Credit line request has been approved
-    event CreditApproved(
-        address indexed borrower,
+    event CreditConfigChanged(
         bytes32 indexed creditHash,
         uint256 creditLimit,
-        uint256 remainingPeriods,
-        uint256 yieldInBps,
         uint256 committedAmount,
-        bool revolving
+        CalendarUnit calendarUnit,
+        uint256 periodDuration,
+        uint256 numOfPeriods,
+        uint256 yieldInBps,
+        bool revolving,
+        bool receivableBacked,
+        bool borrowerLevelCredit,
+        bool exclusive
     );
 
     /**
@@ -178,8 +181,13 @@ abstract contract BaseCredit is
         uint96 committedAmount,
         bool revolving
     ) internal virtual {
+        if (borrower == address(0)) revert Errors.zeroAddressProvided();
+        // if (creditHash == bytes32(0)) revert Errors.zeroAddressProvided(); ？
+        if (creditLimit == 0) revert Errors.zeroAmountProvided();
         if (remainingPeriods == 0) revert Errors.zeroPayPeriods();
-        if (creditLimit == 0) revert();
+        // if (yieldInBps == 0) revert Errors.zeroAmountProvided(); ？
+        // if (committedAmount == 0) revert Errors.zeroAmountProvided(); ？
+        if (committedAmount > creditLimit) revert Errors.committedAmountGreatThanCreditLimit();
 
         PoolSettings memory ps = poolConfig.getPoolSettings();
         if (creditLimit > ps.maxCreditLine) {
@@ -200,8 +208,20 @@ abstract contract BaseCredit is
         cc.numOfPeriods = uint16(remainingPeriods);
         cc.yieldInBps = uint16(yieldInBps);
         cc.revolving = revolving;
-
         _setCreditConfig(creditHash, cc);
+        emit CreditConfigChanged(
+            creditHash,
+            cc.creditLimit,
+            cc.committedAmount,
+            cc.calendarUnit,
+            cc.periodDuration,
+            cc.numOfPeriods,
+            cc.yieldInBps,
+            cc.revolving,
+            cc.receivableBacked,
+            cc.borrowerLevelCredit,
+            cc.exclusive
+        );
 
         // Note: Special logic. dueDate is normally used to track the next bill due.
         // Before the first drawdown, it is also used to set the deadline for the first
@@ -214,21 +234,9 @@ abstract contract BaseCredit is
             cr.nextDueDate = uint64(
                 block.timestamp + ps.creditApprovalExpirationInDays * SECONDS_IN_A_DAY
             );
-
+        cr.remainingPeriods = remainingPeriods;
         cr.state = CreditState.Approved;
-        cr.revolving = revolving;
-
         _setCreditRecord(creditHash, cr);
-
-        emit CreditApproved(
-            borrower,
-            creditHash,
-            creditLimit,
-            remainingPeriods,
-            yieldInBps,
-            committedAmount,
-            revolving
-        );
     }
 
     /**
@@ -336,7 +344,7 @@ abstract contract BaseCredit is
      * receivable factoring cases.
      */
     function _triggerDefault(bytes32 creditHash) internal virtual returns (uint256 losses) {
-        _protocolAndPoolOn();
+        poolConfig.onlyProtocolAndPoolOn();
 
         // check to make sure the default grace period has passed.
         CreditRecord memory cr = _getCreditRecord(creditHash);
@@ -375,7 +383,7 @@ abstract contract BaseCredit is
      * @dev only Evaluation Agent can call
      */
     function updateAvailableCredit(bytes32 creditHash, uint96 newAvailableCredit) public virtual {
-        _protocolAndPoolOn();
+        poolConfig.onlyProtocolAndPoolOn();
         onlyEAServiceAccount();
 
         if (newAvailableCredit > poolConfig.getPoolSettings().maxCreditLine) {
@@ -409,7 +417,7 @@ abstract contract BaseCredit is
      * @dev only Evaluation Agent can call
      */
     function updateBorrowerLimit(address borrower, uint96 newCreditLimit) public virtual {
-        _protocolAndPoolOn();
+        poolConfig.onlyProtocolAndPoolOn();
         onlyEAServiceAccount();
         // Credit limit needs to be lower than max for the pool.
         if (newCreditLimit > poolConfig.getPoolSettings().maxCreditLine) {
@@ -548,7 +556,7 @@ abstract contract BaseCredit is
             cr.state = CreditState.GoodStanding;
         } else {
             // Disallow repeated drawdown for non-revolving credit
-            if (!cr.revolving) revert Errors.todo();
+            if (!cc.revolving) revert Errors.todo();
 
             // Bring the account current and check if it is still in good standing.
             if (block.timestamp > cr.nextDueDate) {
@@ -617,7 +625,6 @@ abstract contract BaseCredit is
         bytes32 creditHash,
         uint256 amount
     ) internal returns (uint256 amountPaid, bool paidoff, bool isReviewRequired) {
-        _protocolAndPoolOn();
         if (amount == 0) revert Errors.zeroAmountProvided();
         CreditRecord memory cr = _getCreditRecord(creditHash);
         CreditConfig memory cc = _getCreditConfig(creditHash);
@@ -857,13 +864,6 @@ abstract contract BaseCredit is
     function onlyPDSServiceAccount() internal view {
         if (msg.sender != HumaConfig(_humaConfig).pdsServiceAccount())
             revert Errors.paymentDetectionServiceAccountRequired();
-    }
-
-    /// "Modifier" function that limits access only when both protocol and pool are on.
-    /// Did not use modifier for contract size consideration.
-    function _protocolAndPoolOn() internal view {
-        if (_humaConfig.paused()) revert Errors.protocolIsPaused();
-        // if (_status != PoolStatus.On) revert Errors.poolIsNotOn();
     }
 
     // todo provide an external view function for credit payment due list ?

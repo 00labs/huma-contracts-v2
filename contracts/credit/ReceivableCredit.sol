@@ -50,7 +50,7 @@ contract ReceivableCredit is Credit, IReceivableCredit {
         bool receivableRequired,
         bool borrowerLevelCredit
     ) external virtual override {
-        _protocolAndPoolOn();
+        poolConfig.onlyProtocolAndPoolOn();
         onlyEAServiceAccount();
 
         if (creditLimit <= 0) revert();
