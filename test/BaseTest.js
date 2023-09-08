@@ -465,6 +465,52 @@ function checkEpochInfo(
     expect(epochInfo.totalAmountProcessed).to.equal(totalAmountProcessed);
 }
 
+function checkCreditConfig(
+    creditConfig,
+    creditLimit,
+    committedAmount,
+    calendarUnit,
+    periodDuration,
+    numOfPeriods,
+    yieldInBps,
+    revolving,
+    receivableBacked,
+    borrowerLevelCredit,
+    exclusive
+) {
+    expect(creditConfig.creditLimit).to.equal(creditLimit);
+    expect(creditConfig.committedAmount).to.equal(committedAmount);
+    expect(creditConfig.calendarUnit).to.equal(calendarUnit);
+    expect(creditConfig.periodDuration).to.equal(periodDuration);
+    expect(creditConfig.numOfPeriods).to.equal(numOfPeriods);
+    expect(creditConfig.yieldInBps).to.equal(yieldInBps);
+    expect(creditConfig.revolving).to.equal(revolving);
+    expect(creditConfig.receivableBacked).to.equal(receivableBacked);
+    expect(creditConfig.borrowerLevelCredit).to.equal(borrowerLevelCredit);
+    expect(creditConfig.exclusive).to.equal(exclusive);
+}
+
+function checkCreditRecord(
+    creditRecord,
+    unbilledPrincipal,
+    nextDueDate,
+    totalDue,
+    yieldDue,
+    feesDue,
+    missedPeriods,
+    remainingPeriods,
+    state
+) {
+    expect(creditRecord.unbilledPrincipal).to.equal(unbilledPrincipal);
+    expect(creditRecord.nextDueDate).to.equal(nextDueDate);
+    expect(creditRecord.totalDue).to.equal(totalDue);
+    expect(creditRecord.yieldDue).to.equal(yieldDue);
+    expect(creditRecord.feesDue).to.equal(feesDue);
+    expect(creditRecord.missedPeriods).to.equal(missedPeriods);
+    expect(creditRecord.remainingPeriods).to.equal(remainingPeriods);
+    expect(creditRecord.state).to.equal(state);
+}
+
 module.exports = {
     deployProtocolContracts,
     deployPoolContracts,
@@ -472,6 +518,8 @@ module.exports = {
     deployAndSetupPoolContracts,
     getNextDueDate,
     checkEpochInfo,
+    checkCreditConfig,
+    checkCreditRecord,
     CONSTANTS,
     PnLCalculator,
 };

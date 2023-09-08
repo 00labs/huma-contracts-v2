@@ -6,7 +6,8 @@ const {
     deployProtocolContracts,
     deployAndSetupPoolContracts,
     CONSTANTS,
-    checkEpochInfo,
+    checkCreditConfig,
+    checkCreditRecord,
 } = require("../BaseTest");
 const {toToken, mineNextBlockWithTimestamp, setNextBlockTimestamp} = require("../TestUtils");
 
@@ -88,29 +89,202 @@ describe("CreditLine Test", function () {
         await loadFixture(prepare);
     });
 
-    it("Should approve a borrower correctly", async function () {
-        const creditHash = ethers.utils.keccak256(
-            ethers.utils.defaultAbiCoder.encode(
-                ["address", "address"],
-                [creditContract.address, borrower.address]
-            )
-        );
+    describe("Approve Tests", function () {
+        it("Should not approve while protocol is paused or pool is not on", async function () {
+            await humaConfigContract.connect(protocolOwner).pause();
+            await expect(
+                creditContract
+                    .connect(eaServiceAccount)
+                    .approveBorrower(
+                        borrower.address,
+                        toToken(10_000),
+                        1,
+                        1217,
+                        toToken(10_000),
+                        true
+                    )
+            ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+            await humaConfigContract.connect(protocolOwner).unpause();
 
-        await expect(
-            creditContract
+            await poolContract.connect(poolOwner).disablePool();
+            await expect(
+                creditContract
+                    .connect(eaServiceAccount)
+                    .approveBorrower(
+                        borrower.address,
+                        toToken(10_000),
+                        1,
+                        1217,
+                        toToken(10_000),
+                        true
+                    )
+            ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+            await poolContract.connect(poolOwner).enablePool();
+        });
+
+        it("Should not allow non-EA service account to approve", async function () {
+            await expect(
+                creditContract.approveBorrower(
+                    borrower.address,
+                    toToken(10_000),
+                    1,
+                    1217,
+                    toToken(10_000),
+                    true
+                )
+            ).to.be.revertedWithCustomError(
+                creditContract,
+                "evaluationAgentServiceAccountRequired"
+            );
+        });
+
+        it("Should not approve with invalid parameters", async function () {
+            await expect(
+                creditContract
+                    .connect(eaServiceAccount)
+                    .approveBorrower(
+                        ethers.constants.AddressZero,
+                        toToken(10_000),
+                        1,
+                        1217,
+                        toToken(10_000),
+                        true
+                    )
+            ).to.be.revertedWithCustomError(creditContract, "zeroAddressProvided");
+
+            await expect(
+                creditContract
+                    .connect(eaServiceAccount)
+                    .approveBorrower(borrower.address, toToken(0), 1, 1217, toToken(10_000), true)
+            ).to.be.revertedWithCustomError(creditContract, "zeroAmountProvided");
+
+            await expect(
+                creditContract
+                    .connect(eaServiceAccount)
+                    .approveBorrower(
+                        borrower.address,
+                        toToken(10_000),
+                        0,
+                        1217,
+                        toToken(10_000),
+                        true
+                    )
+            ).to.be.revertedWithCustomError(creditContract, "zeroPayPeriods");
+
+            await expect(
+                creditContract
+                    .connect(eaServiceAccount)
+                    .approveBorrower(
+                        borrower.address,
+                        toToken(10_000),
+                        1,
+                        1217,
+                        toToken(10_001),
+                        true
+                    )
+            ).to.be.revertedWithCustomError(creditContract, "committedAmountGreatThanCreditLimit");
+
+            let poolSettings = await poolConfigContract.getPoolSettings();
+            let creditLimit = poolSettings.maxCreditLine.add(1);
+
+            await expect(
+                creditContract
+                    .connect(eaServiceAccount)
+                    .approveBorrower(borrower.address, creditLimit, 1, 1217, toToken(10_000), true)
+            ).to.be.revertedWithCustomError(creditContract, "greaterThanMaxCreditLine");
+        });
+
+        it("Should not approve while credit line is in wrong state", async function () {
+            await creditContract
                 .connect(eaServiceAccount)
-                .approveBorrower(borrower.address, toToken(10_000), 1, 1217, toToken(10_000), true)
-        )
-            .to.emit(creditContract, "CreditApproved")
-            .withArgs(
-                borrower.address,
-                creditHash,
+                .approveBorrower(
+                    borrower.address,
+                    toToken(10_000),
+                    1,
+                    1217,
+                    toToken(10_000),
+                    true
+                );
+
+            await expect(
+                creditContract
+                    .connect(eaServiceAccount)
+                    .approveBorrower(
+                        borrower.address,
+                        toToken(10_000),
+                        1,
+                        1217,
+                        toToken(10_000),
+                        true
+                    )
+            ).to.be.revertedWithCustomError(creditContract, "creditLineNotInStateForUpdate");
+        });
+
+        it("Should approve a borrower correctly", async function () {
+            const creditHash = ethers.utils.keccak256(
+                ethers.utils.defaultAbiCoder.encode(
+                    ["address", "address"],
+                    [creditContract.address, borrower.address]
+                )
+            );
+
+            let poolSettings = await poolConfigContract.getPoolSettings();
+
+            await expect(
+                creditContract
+                    .connect(eaServiceAccount)
+                    .approveBorrower(
+                        borrower.address,
+                        toToken(10_000),
+                        1,
+                        1217,
+                        toToken(10_000),
+                        true
+                    )
+            )
+                .to.emit(creditContract, "CreditConfigChanged")
+                .withArgs(
+                    creditHash,
+                    toToken(10_000),
+                    toToken(10_000),
+                    poolSettings.calendarUnit,
+                    poolSettings.payPeriodInCalendarUnit,
+                    1,
+                    1217,
+                    true,
+                    false,
+                    false,
+                    false
+                )
+                .to.emit(creditContract, "CreditLineApproved")
+                .withArgs(
+                    borrower.address,
+                    creditHash,
+                    toToken(10_000),
+                    1,
+                    1217,
+                    toToken(10_000),
+                    true
+                );
+
+            let creditConfig = await creditContract.creditConfigMap(creditHash);
+            checkCreditConfig(
+                creditConfig,
                 toToken(10_000),
+                toToken(10_000),
+                poolSettings.calendarUnit,
+                poolSettings.payPeriodInCalendarUnit,
                 1,
                 1217,
-                toToken(10_000),
-                true
+                true,
+                false,
+                false,
+                false
             );
+
+            let creditRecord = await creditContract.creditRecordMap(creditHash);
+            checkCreditRecord(creditRecord, 0, 0, 0, 0, 0, 0, 1, 3);
+        });
     });
 
     it("Should drawdown from a credit correctly", async function () {

@@ -20,6 +20,16 @@ import "hardhat/console.sol";
  * 3) Mostly Credit-level limit, also supports borrower-level limit
  */
 contract CreditLine is BaseCredit, ICreditLine {
+    event CreditLineApproved(
+        address indexed borrower,
+        bytes32 indexed creditHash,
+        uint256 creditLimit,
+        uint256 remainingPeriods,
+        uint256 yieldInBps,
+        uint256 committedAmount,
+        bool revolving
+    );
+
     /**
      * @notice Approves the credit with the terms provided.
      * @param borrower the borrower address
@@ -39,11 +49,21 @@ contract CreditLine is BaseCredit, ICreditLine {
         uint96 committedAmount,
         bool revolving
     ) external virtual {
-        _protocolAndPoolOn();
+        poolConfig.onlyProtocolAndPoolOn();
         onlyEAServiceAccount();
 
         bytes32 creditHash = getCreditHash(borrower);
         _approveCredit(
+            borrower,
+            creditHash,
+            creditLimit,
+            remainingPeriods,
+            yieldInBps,
+            committedAmount,
+            revolving
+        );
+
+        emit CreditLineApproved(
             borrower,
             creditHash,
             creditLimit,
@@ -81,6 +101,7 @@ contract CreditLine is BaseCredit, ICreditLine {
         address borrower,
         uint256 amount
     ) external returns (uint256 amountPaid, bool paidoff) {
+        poolConfig.onlyProtocolAndPoolOn();
         if (msg.sender != borrower) onlyPDSServiceAccount();
         bytes32 creditHash = getCreditHash(borrower);
         (amountPaid, paidoff, ) = _makePayment(borrower, creditHash, amount);

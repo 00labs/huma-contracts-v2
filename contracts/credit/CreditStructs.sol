@@ -31,7 +31,7 @@ struct CreditRecord {
     uint16 missedPeriods;
     uint16 remainingPeriods;
     CreditState state;
-    bool revolving; // whether repeated borrowing is allowed
+    // bool revolving; // whether repeated borrowing is allowed
 }
 
 struct CreditQuota {

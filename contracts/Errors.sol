@@ -90,6 +90,7 @@ contract Errors {
     error settlementTooSoon(); // 0x0453e75e
     error defaultTriggeredTooEarly(); // 0x7872424e
     error defaultHasAlreadyBeenTriggered(); // 0xeb8d2ccc
+    error committedAmountGreatThanCreditLimit();
 
     // receivable operation
     error receivableAssetMismatch(); // 0x41dbeec1
