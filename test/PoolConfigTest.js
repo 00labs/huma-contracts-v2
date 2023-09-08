@@ -3,6 +3,9 @@ const {expect} = require("chai");
 const {deployProtocolContracts} = require("./BaseTest");
 const {loadFixture} = require("@nomicfoundation/hardhat-network-helpers");
 
+let protocolOwner, protocolTreasury, eaServiceAccount, pdsServiceAccount;
+let poolOwner, regularUser
+
 let poolConfigContract,
     humaConfigContract,
     mockTokenContract,
@@ -17,10 +20,7 @@ let poolConfigContract,
     juniorTrancheVaultContract,
     creditContract,
     creditFeeManagerContract,
-    creditPnlManagerContract,
-    protocolOwner,
-    poolOwner,
-    regularUser;
+    creditPnlManagerContract;
 
 describe("PoolConfig Test", function () {
     async function deployPoolConfigContract() {
