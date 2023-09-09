@@ -27,4 +27,4 @@ jobs:
       - name: Compile contracts
         run: yarn compile
       - name: Run tests
-        run: yarn test  --typecheck
+        run: yarn test

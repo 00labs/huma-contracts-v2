@@ -18,7 +18,7 @@
     "lint-solidity": "yarn solhint -f table 'contracts/**/*.sol'",
     "lint:fix": "eslint 'test/**/*.ts' --fix",
     "prepare": "husky install",
-    "test": "hardhat test --network hardhat",
+    "test": "hardhat test --network hardhat --typecheck",
     "verify": "hardhat verify"
   },
   "husky": {
