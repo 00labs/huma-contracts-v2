@@ -202,6 +202,7 @@ export async function deployPoolContracts(
     await platformFeeManagerContract.initialize(poolConfigContract.address);
     await poolVaultContract.initialize(poolConfigContract.address);
     await poolOwnerAndEAFirstLossCoverContract.initialize(poolConfigContract.address);
+    await tranchesPolicyContract.initialize(poolConfigContract.address);
     await poolContract.initialize(poolConfigContract.address);
     await epochManagerContract.initialize(poolConfigContract.address);
     await seniorTrancheVaultContract["initialize(string,string,address,uint8)"](
