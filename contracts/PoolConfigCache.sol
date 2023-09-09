@@ -6,10 +6,9 @@ import {Errors} from "./Errors.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 /**
- * @notice All contracts addresses and configurations of pool level are stored in PoolConfig contract.
- * Any pool level contract needs to inherit PoolConfigCacheUpgradeable or PoolConfigCache.
- * PoolConfigCacheUpgradeable/PoolConfigCache is responsible for managing PoolConfig and
- * caching the addresses of depended contracts. PoolConfigCacheUpgradeable is for upgradeable contracts.
+ * @notice All contract addresses and configurations at the pool level are stored in the PoolConfig contract.
+ * All pool level contracts need to inherit PoolConfigCache.
+ * PoolConfigCache is responsible for managing PoolConfig and caching the addresses of depending contracts.
  */
 
 abstract contract PoolConfigCache is Initializable {
@@ -31,7 +30,7 @@ abstract contract PoolConfigCache is Initializable {
     }
 
     /**
-     * @notice It should be called immediately to cache depended contracts addresses after the contract is deployed.
+     * @notice It should be called immediately to cache depending contract addresses after the contract is deployed.
      */
     function updatePoolConfigData() external {
         poolConfig.onlyPoolOwner(msg.sender);

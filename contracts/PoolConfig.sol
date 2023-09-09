@@ -146,7 +146,7 @@ contract PoolConfig is AccessControl, Initializable {
     FeeStructure internal _feeStructure;
 
     // Address for the account that handles the treasury functions for the pool owner:
-    // liquidity deposits, liquidity withdrawls, and reward withdrawals
+    // liquidity deposits, liquidity withdrawals, and reward withdrawals
     address public poolOwnerTreasury;
 
     event YieldChanged(uint256 aprInBps, address by);

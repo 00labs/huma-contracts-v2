@@ -1,32 +1,58 @@
-const {ethers} = require("hardhat");
-const {expect} = require("chai");
-const {BigNumber: BN} = require("ethers");
-const {loadFixture} = require("@nomicfoundation/hardhat-network-helpers");
-const {
-    deployProtocolContracts,
-    deployPoolContracts,
+import { ethers } from "hardhat";
+import { expect } from "chai";
+import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import {
     deployAndSetupPoolContracts,
-} = require("./BaseTest");
-const {toToken} = require("./TestUtils");
+    deployPoolContracts,
+    deployProtocolContracts,
+} from "./BaseTest";
+import { toToken } from "./TestUtils";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import {
+    BaseCreditFeeManager,
+    BasePnLManager,
+    Calendar,
+    EpochManager,
+    EvaluationAgentNFT,
+    HumaConfig,
+    FirstLossCover,
+    MockPoolCredit,
+    MockToken,
+    PlatformFeeManager,
+    Pool,
+    PoolConfig,
+    PoolVault,
+    RiskAdjustedTranchesPolicy,
+    TrancheVault,
+} from "../typechain-types";
 
-let defaultDeployer, protocolOwner, treasury, eaServiceAccount, pdsServiceAccount;
-let poolOwner, poolOwnerTreasury, evaluationAgent, poolOperator;
-let lender;
+let defaultDeployer: SignerWithAddress,
+    protocolOwner: SignerWithAddress,
+    treasury: SignerWithAddress,
+    eaServiceAccount: SignerWithAddress,
+    pdsServiceAccount: SignerWithAddress;
+let poolOwner: SignerWithAddress,
+    poolOwnerTreasury: SignerWithAddress,
+    evaluationAgent: SignerWithAddress,
+    poolOperator: SignerWithAddress;
+let lender: SignerWithAddress;
 
-let eaNFTContract, humaConfigContract, mockTokenContract;
-let poolConfigContract,
-    platformFeeManagerContract,
-    poolVaultContract,
-    calendarContract,
-    poolOwnerAndEAFirstLossCoverContract,
-    tranchesPolicyContract,
-    poolContract,
-    epochManagerContract,
-    seniorTrancheVaultContract,
-    juniorTrancheVaultContract,
-    creditContract,
-    creditFeeManagerContract,
-    creditPnlManagerContract;
+let eaNFTContract: EvaluationAgentNFT,
+    humaConfigContract: HumaConfig,
+    mockTokenContract: MockToken;
+let poolConfigContract: PoolConfig,
+    platformFeeManagerContract: PlatformFeeManager,
+    poolVaultContract: PoolVault,
+    calendarContract: Calendar,
+    poolOwnerAndEAFirstLossCoverContract: FirstLossCover,
+    tranchesPolicyContract: RiskAdjustedTranchesPolicy,
+    poolContract: Pool,
+    epochManagerContract: EpochManager,
+    seniorTrancheVaultContract: TrancheVault,
+    juniorTrancheVaultContract: TrancheVault,
+    creditContract: MockPoolCredit,
+    creditFeeManagerContract: BaseCreditFeeManager,
+    creditPnlManagerContract: BasePnLManager;
 
 describe("Receivable Test", function () {
     before(async function () {
@@ -51,7 +77,7 @@ describe("Receivable Test", function () {
                 treasury,
                 eaServiceAccount,
                 pdsServiceAccount,
-                poolOwner
+                poolOwner,
             );
 
             [
@@ -65,7 +91,7 @@ describe("Receivable Test", function () {
                 epochManagerContract,
                 seniorTrancheVaultContract,
                 juniorTrancheVaultContract,
-                creditContract,
+                creditContract as unknown,
                 creditFeeManagerContract,
                 creditPnlManagerContract,
             ] = await deployPoolContracts(
@@ -74,7 +100,7 @@ describe("Receivable Test", function () {
                 "RiskAdjustedTranchesPolicy",
                 defaultDeployer,
                 poolOwner,
-                "MockPoolCredit"
+                "MockPoolCredit",
             );
         }
 
@@ -85,13 +111,13 @@ describe("Receivable Test", function () {
         it("Should not allow non-poolOwner and non-protocolAdmin to enable a pool", async function () {
             await expect(poolContract.enablePool()).to.be.revertedWithCustomError(
                 poolConfigContract,
-                "permissionDeniedNotAdmin"
+                "permissionDeniedNotAdmin",
             );
         });
 
         it("Should not enable a pool while no enough first loss cover", async function () {
             await expect(
-                poolContract.connect(protocolOwner).enablePool()
+                poolContract.connect(protocolOwner).enablePool(),
             ).to.be.revertedWithCustomError(poolOwnerAndEAFirstLossCoverContract, "notOperator");
 
             await poolConfigContract.connect(poolOwner).setPoolLiquidityCap(toToken(1_000_000));
@@ -106,14 +132,14 @@ describe("Receivable Test", function () {
                 });
 
             await expect(
-                poolContract.connect(protocolOwner).enablePool()
+                poolContract.connect(protocolOwner).enablePool(),
             ).to.be.revertedWithCustomError(poolConfigContract, "lessThanRequiredCover");
 
             await mockTokenContract
                 .connect(poolOwnerTreasury)
                 .approve(
                     poolOwnerAndEAFirstLossCoverContract.address,
-                    ethers.constants.MaxUint256
+                    ethers.constants.MaxUint256,
                 );
             await mockTokenContract.mint(poolOwnerTreasury.address, toToken(10_000_000));
             await poolOwnerAndEAFirstLossCoverContract
@@ -121,16 +147,16 @@ describe("Receivable Test", function () {
                 .addCover(toToken(200_000));
 
             await expect(
-                poolContract.connect(protocolOwner).enablePool()
+                poolContract.connect(protocolOwner).enablePool(),
             ).to.be.revertedWithCustomError(poolOwnerAndEAFirstLossCoverContract, "notOperator");
 
             let eaNFTTokenId;
             // Mint EANFT to the ea
             const tx = await eaNFTContract.mintNFT(evaluationAgent.address);
             const receipt = await tx.wait();
-            for (const evt of receipt.events) {
+            for (const evt of receipt.events!) {
                 if (evt.event === "NFTGenerated") {
-                    eaNFTTokenId = evt.args.tokenId;
+                    eaNFTTokenId = evt.args!.tokenId;
                 }
             }
             await poolConfigContract
@@ -144,14 +170,14 @@ describe("Receivable Test", function () {
                 });
 
             await expect(
-                poolContract.connect(protocolOwner).enablePool()
+                poolContract.connect(protocolOwner).enablePool(),
             ).to.be.revertedWithCustomError(poolConfigContract, "lessThanRequiredCover");
 
             await mockTokenContract
                 .connect(evaluationAgent)
                 .approve(
                     poolOwnerAndEAFirstLossCoverContract.address,
-                    ethers.constants.MaxUint256
+                    ethers.constants.MaxUint256,
                 );
             await mockTokenContract.mint(evaluationAgent.address, toToken(10_000_000));
             await poolOwnerAndEAFirstLossCoverContract
@@ -159,7 +185,7 @@ describe("Receivable Test", function () {
                 .addCover(toToken(50_000));
 
             await expect(
-                poolContract.connect(protocolOwner).enablePool()
+                poolContract.connect(protocolOwner).enablePool(),
             ).to.be.revertedWithCustomError(poolConfigContract, "lessThanRequiredCover");
         });
 
@@ -179,7 +205,7 @@ describe("Receivable Test", function () {
                 .connect(poolOwnerTreasury)
                 .approve(
                     poolOwnerAndEAFirstLossCoverContract.address,
-                    ethers.constants.MaxUint256
+                    ethers.constants.MaxUint256,
                 );
             await mockTokenContract.mint(poolOwnerTreasury.address, toToken(10_000_000));
             await poolOwnerAndEAFirstLossCoverContract
@@ -189,9 +215,9 @@ describe("Receivable Test", function () {
             let eaNFTTokenId;
             const tx = await eaNFTContract.mintNFT(evaluationAgent.address);
             const receipt = await tx.wait();
-            for (const evt of receipt.events) {
+            for (const evt of receipt.events!) {
                 if (evt.event === "NFTGenerated") {
-                    eaNFTTokenId = evt.args.tokenId;
+                    eaNFTTokenId = evt.args!.tokenId;
                 }
             }
             await poolConfigContract
@@ -208,7 +234,7 @@ describe("Receivable Test", function () {
                 .connect(evaluationAgent)
                 .approve(
                     poolOwnerAndEAFirstLossCoverContract.address,
-                    ethers.constants.MaxUint256
+                    ethers.constants.MaxUint256,
                 );
             await mockTokenContract.mint(evaluationAgent.address, toToken(10_000_000));
             await poolOwnerAndEAFirstLossCoverContract
@@ -228,7 +254,7 @@ describe("Receivable Test", function () {
                 treasury,
                 eaServiceAccount,
                 pdsServiceAccount,
-                poolOwner
+                poolOwner,
             );
 
             [
@@ -242,7 +268,7 @@ describe("Receivable Test", function () {
                 epochManagerContract,
                 seniorTrancheVaultContract,
                 juniorTrancheVaultContract,
-                creditContract,
+                creditContract as unknown,
                 creditFeeManagerContract,
                 creditPnlManagerContract,
             ] = await deployAndSetupPoolContracts(
@@ -256,7 +282,7 @@ describe("Receivable Test", function () {
                 evaluationAgent,
                 poolOwnerTreasury,
                 poolOperator,
-                [lender]
+                [lender],
             );
         }
 
@@ -267,7 +293,7 @@ describe("Receivable Test", function () {
         it("Should not allow non-Operator to disable a pool", async function () {
             await expect(poolContract.disablePool()).to.be.revertedWithCustomError(
                 poolConfigContract,
-                "poolOperatorRequired"
+                "poolOperatorRequired",
             );
         });
 
