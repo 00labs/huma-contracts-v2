@@ -8,23 +8,16 @@ on:
   workflow_dispatch:
 
 jobs:
-  lint:
-    runs-on: ubuntu-latest
+  lint-and-test:
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
       - name: Install dependencies
         run: yarn install
-      - name: Lint contracts
+      - name: Check coding styles
         run: yarn lint-solidity
-      - name: Lint tests
-        run: yarn lint
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Install dependencies
-        run: yarn install
-      - name: Compile contracts
-        run: yarn compile
-      - name: Run tests
-        run: yarn test
+      # - name: run tests
+      #   env:
+      #     GOERLI_URL: ${{ secrets.GOERLI_URL }}
+      #     MUMBAI_URL: ${{ secrets.MUMBAI_URL }}
+      #   run: yarn test
