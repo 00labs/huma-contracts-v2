@@ -11,6 +11,10 @@ import {CreditRecord, CreditConfig} from "../credit/CreditStructs.sol";
 contract MockPoolCredit is PoolConfigCache, IPoolCredit {
     IPoolVault public poolVault;
 
+    uint256 public profit_;
+    uint256 public loss_;
+    uint256 public lossRecovery_;
+
     function approveCredit(
         address borrower,
         uint96 creditLimit,
@@ -44,25 +48,21 @@ contract MockPoolCredit is PoolConfigCache, IPoolCredit {
     function getIncrementalPnL()
         external
         view
-        returns (uint256 profit, uint256 loss, uint256 lossRecovery)
+        returns (uint256 incrementalProfit, uint256 incrementalLoss, uint256 incrementalLossRecovery)
     {}
 
     function setRefreshPnLReturns(uint256 _profit, uint256 _loss, uint256 _lossRecovery) external {
-        profit = _profit;
-        loss = _loss;
-        lossRecovery = _lossRecovery;
+        profit_ = _profit;
+        loss_ = _loss;
+        lossRecovery_ = _lossRecovery;
     }
-
-    uint256 public profit;
-    uint256 public loss;
-    uint256 public lossRecovery;
 
     function refreshPnL()
         external
-        returns (uint256 profit_, uint256 loss_, uint256 lossRecovery_)
+        returns (uint256 profit, uint256 loss, uint256 lossRecovery)
     {
-        profit_ = profit;
-        loss_ = loss;
-        lossRecovery_ = lossRecovery;
+        profit = profit_;
+        loss = loss_;
+        lossRecovery = lossRecovery_;
     }
 }

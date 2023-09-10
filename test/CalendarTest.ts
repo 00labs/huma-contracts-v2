@@ -1,17 +1,14 @@
-const {ethers} = require("hardhat");
-const {expect} = require("chai");
-const moment = require("moment");
-const {loadFixture} = require("@nomicfoundation/hardhat-network-helpers");
-const {mineNextBlockWithTimestamp, getNextTime} = require("./TestUtils");
-const {getNextDueDate, CONSTANTS} = require("./BaseTest");
+import { ethers } from "hardhat";
+import { expect } from "chai";
+import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { CONSTANTS, getNextDueDate } from "./BaseTest";
+import { getNextTime, mineNextBlockWithTimestamp } from "./TestUtils";
+import { Calendar } from "../typechain-types";
+import moment from "moment";
 
-let calendarContract;
+let calendarContract: Calendar;
 
 describe("Calendar Test", function () {
-    before(async function () {
-        [defaultDeployer] = await ethers.getSigners();
-    });
-
     async function prepare() {
         const Calendar = await ethers.getContractFactory("Calendar");
         calendarContract = await Calendar.deploy();
@@ -31,13 +28,13 @@ describe("Calendar Test", function () {
             let result = await calendarContract.getNextDueDate(
                 CONSTANTS.CALENDAR_UNIT_DAY,
                 period,
-                0
+                0,
             );
             let [dueDate, numberOfPeriodsPassed] = getNextDueDate(
                 CONSTANTS.CALENDAR_UNIT_DAY,
                 0,
                 nextTime,
-                period
+                period,
             );
             expect(result.numberOfPeriodsPassed).to.equal(numberOfPeriodsPassed);
             expect(result.dueDate).to.equal(dueDate);
@@ -53,13 +50,13 @@ describe("Calendar Test", function () {
             let result = await calendarContract.getNextDueDate(
                 CONSTANTS.CALENDAR_UNIT_DAY,
                 period,
-                lastDate
+                lastDate,
             );
             let [dueDate, numberOfPeriodsPassed] = getNextDueDate(
                 CONSTANTS.CALENDAR_UNIT_DAY,
                 lastDate,
                 nextTime,
-                period
+                period,
             );
             // console.log(`dueDate: ${dueDate}, numberOfPeriodsPassed: ${numberOfPeriodsPassed}`);
             expect(result.numberOfPeriodsPassed).to.equal(numberOfPeriodsPassed);
@@ -74,13 +71,13 @@ describe("Calendar Test", function () {
             let result = await calendarContract.getNextDueDate(
                 CONSTANTS.CALENDAR_UNIT_MONTH,
                 period,
-                0
+                0,
             );
             let [dueDate, numberOfPeriodsPassed] = getNextDueDate(
                 CONSTANTS.CALENDAR_UNIT_MONTH,
                 0,
                 nextTime,
-                period
+                period,
             );
             // console.log(`dueDate: ${dueDate}, numberOfPeriodsPassed: ${numberOfPeriodsPassed}`);
             expect(result.numberOfPeriodsPassed).to.equal(numberOfPeriodsPassed);
@@ -97,13 +94,13 @@ describe("Calendar Test", function () {
             let result = await calendarContract.getNextDueDate(
                 CONSTANTS.CALENDAR_UNIT_MONTH,
                 period,
-                lastDate
+                lastDate,
             );
             let [dueDate, numberOfPeriodsPassed] = getNextDueDate(
                 CONSTANTS.CALENDAR_UNIT_MONTH,
                 lastDate,
                 nextTime,
-                period
+                period,
             );
             // console.log(`dueDate: ${dueDate}, numberOfPeriodsPassed: ${numberOfPeriodsPassed}`);
             expect(result.numberOfPeriodsPassed).to.equal(numberOfPeriodsPassed);

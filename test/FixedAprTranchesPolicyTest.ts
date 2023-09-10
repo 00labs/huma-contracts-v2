@@ -1,34 +1,60 @@
-const {ethers} = require("hardhat");
-const {expect} = require("chai");
-const {BigNumber: BN} = require("ethers");
-const {loadFixture} = require("@nomicfoundation/hardhat-network-helpers");
-const moment = require("moment");
-const {
-    deployProtocolContracts,
-    deployAndSetupPoolContracts,
-    CONSTANTS,
-    PnLCalculator,
-} = require("./BaseTest");
-const {toToken, mineNextBlockWithTimestamp, setNextBlockTimestamp} = require("./TestUtils");
+import { ethers } from "hardhat";
+import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import moment from "moment";
+import { deployAndSetupPoolContracts, deployProtocolContracts, PnLCalculator } from "./BaseTest";
+import {
+    copyLPConfigWithOverrides,
+    getLatestBlock,
+    mineNextBlockWithTimestamp,
+    toToken,
+} from "./TestUtils";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { BigNumber as BN } from "ethers";
+import {
+    BaseCreditFeeManager,
+    BasePnLManager,
+    Calendar,
+    EpochManager,
+    EvaluationAgentNFT,
+    FirstLossCover,
+    HumaConfig,
+    MockPoolCredit,
+    MockToken,
+    PlatformFeeManager,
+    Pool,
+    PoolConfig,
+    PoolVault,
+    RiskAdjustedTranchesPolicy,
+    TrancheVault,
+} from "../typechain-types";
 
-let defaultDeployer, protocolOwner, treasury, eaServiceAccount, pdsServiceAccount;
-let poolOwner, poolOwnerTreasury, evaluationAgent, poolOperator;
-let lender;
+let defaultDeployer: SignerWithAddress,
+    protocolOwner: SignerWithAddress,
+    treasury: SignerWithAddress,
+    eaServiceAccount: SignerWithAddress,
+    pdsServiceAccount: SignerWithAddress;
+let poolOwner: SignerWithAddress,
+    poolOwnerTreasury: SignerWithAddress,
+    evaluationAgent: SignerWithAddress,
+    poolOperator: SignerWithAddress;
+let lender: SignerWithAddress;
 
-let eaNFTContract, humaConfigContract, mockTokenContract;
-let poolConfigContract,
-    platformFeeManagerContract,
-    poolVaultContract,
-    calendarContract,
-    firstLossCovererContract,
-    tranchesPolicyContract,
-    poolContract,
-    epochManagerContract,
-    seniorTrancheVaultContract,
-    juniorTrancheVaultContract,
-    creditContract,
-    creditFeeManagerContract,
-    creditPnlManagerContract;
+let eaNFTContract: EvaluationAgentNFT,
+    humaConfigContract: HumaConfig,
+    mockTokenContract: MockToken;
+let poolConfigContract: PoolConfig,
+    platformFeeManagerContract: PlatformFeeManager,
+    poolVaultContract: PoolVault,
+    calendarContract: Calendar,
+    poolOwnerAndEAFirstLossCoverContract: FirstLossCover,
+    tranchesPolicyContract: RiskAdjustedTranchesPolicy,
+    poolContract: Pool,
+    epochManagerContract: EpochManager,
+    seniorTrancheVaultContract: TrancheVault,
+    juniorTrancheVaultContract: TrancheVault,
+    creditContract: MockPoolCredit,
+    creditFeeManagerContract: BaseCreditFeeManager,
+    creditPnlManagerContract: BasePnLManager;
 
 describe("FixedAprTranchesPolicy Test", function () {
     before(async function () {
@@ -52,7 +78,7 @@ describe("FixedAprTranchesPolicy Test", function () {
             treasury,
             eaServiceAccount,
             pdsServiceAccount,
-            poolOwner
+            poolOwner,
         );
 
         [
@@ -60,13 +86,13 @@ describe("FixedAprTranchesPolicy Test", function () {
             platformFeeManagerContract,
             poolVaultContract,
             calendarContract,
-            firstLossCovererContract,
+            poolOwnerAndEAFirstLossCoverContract,
             tranchesPolicyContract,
             poolContract,
             epochManagerContract,
             seniorTrancheVaultContract,
             juniorTrancheVaultContract,
-            creditContract,
+            creditContract as unknown,
             creditFeeManagerContract,
             creditPnlManagerContract,
         ] = await deployAndSetupPoolContracts(
@@ -80,7 +106,7 @@ describe("FixedAprTranchesPolicy Test", function () {
             evaluationAgent,
             poolOwnerTreasury,
             poolOperator,
-            [lender]
+            [lender],
         );
 
         let juniorDepositAmount = toToken(100_000);
@@ -98,16 +124,16 @@ describe("FixedAprTranchesPolicy Test", function () {
     });
 
     it("Should call calcTranchesAssetsForProfit correctly", async function () {
-        const APR = BN.from(1217);
-        let lpConfig = await poolConfigContract.getLPConfig();
-        let newLpConfig = {...lpConfig, fixedSeniorYieldInBps: APR};
+        const apy = 1217;
+        const lpConfig = await poolConfigContract.getLPConfig();
+        const newLpConfig = copyLPConfigWithOverrides(lpConfig, { fixedSeniorYieldInBps: apy });
         await poolConfigContract.connect(poolOwner).setLPConfig(newLpConfig);
         let deployedAssets = toToken(300_000);
         await creditContract.drawdown(ethers.constants.HashZero, deployedAssets);
         let assets = await poolContract.currentTranchesAssets();
         let profit = toToken(12463);
         let lastDate = moment.utc("2023-08-01").unix();
-        let lastBlock = await ethers.provider.getBlock();
+        let lastBlock = await getLatestBlock();
         let nextDate = lastBlock.timestamp + 10;
         await mineNextBlockWithTimestamp(nextDate);
         let newAssets = PnLCalculator.calcProfitForFixedAprPolicy(
@@ -116,12 +142,12 @@ describe("FixedAprTranchesPolicy Test", function () {
             lastDate,
             nextDate,
             deployedAssets,
-            APR
+            BN.from(apy),
         );
         let result = await tranchesPolicyContract.calcTranchesAssetsForProfit(
             profit,
             assets,
-            lastDate
+            lastDate,
         );
         // expect(result[CONSTANTS.SENIOR_TRANCHE_INDEX]).to.equal(
         //     newAssets[CONSTANTS.SENIOR_TRANCHE_INDEX]

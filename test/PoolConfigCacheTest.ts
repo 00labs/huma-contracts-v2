@@ -1,26 +1,53 @@
-const {ethers} = require("hardhat");
-const {expect} = require("chai");
-const {loadFixture} = require("@nomicfoundation/hardhat-network-helpers");
-const {deployProtocolContracts, deployPoolContracts} = require("./BaseTest");
+import { ethers } from "hardhat";
+import { expect } from "chai";
+import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { deployPoolContracts, deployProtocolContracts } from "./BaseTest";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import {
+    BaseCreditFeeManager,
+    BasePnLManager,
+    Calendar,
+    EpochManager,
+    EvaluationAgentNFT,
+    HumaConfig,
+    FirstLossCover,
+    MockPoolCredit,
+    MockToken,
+    PlatformFeeManager,
+    Pool,
+    PoolConfig,
+    PoolVault,
+    RiskAdjustedTranchesPolicy,
+    TrancheVault,
+} from "../typechain-types";
 
-let defaultDeployer, protocolOwner, treasury, eaServiceAccount, pdsServiceAccount;
-let poolOwner, poolOwnerTreasury, evaluationAgent, poolOperator;
-let lender;
+let defaultDeployer: SignerWithAddress,
+    protocolOwner: SignerWithAddress,
+    treasury: SignerWithAddress,
+    eaServiceAccount: SignerWithAddress,
+    pdsServiceAccount: SignerWithAddress;
+let poolOwner: SignerWithAddress,
+    poolOwnerTreasury: SignerWithAddress,
+    evaluationAgent: SignerWithAddress,
+    poolOperator: SignerWithAddress,
+    lender: SignerWithAddress;
 
-let eaNFTContract, humaConfigContract, mockTokenContract;
-let poolConfigContract,
-    platformFeeManagerContract,
-    poolVaultContract,
-    calendarContract,
-    poolOwnerAndEAFirstLossCoverContract,
-    tranchesPolicyContract,
-    poolContract,
-    epochManagerContract,
-    seniorTrancheVaultContract,
-    juniorTrancheVaultContract,
-    creditContract,
-    creditFeeManagerContract,
-    creditPnlManagerContract;
+let eaNFTContract: EvaluationAgentNFT,
+    humaConfigContract: HumaConfig,
+    mockTokenContract: MockToken;
+let poolConfigContract: PoolConfig,
+    platformFeeManagerContract: PlatformFeeManager,
+    poolVaultContract: PoolVault,
+    calendarContract: Calendar,
+    poolOwnerAndEAFirstLossCoverContract: FirstLossCover,
+    tranchesPolicyContract: RiskAdjustedTranchesPolicy,
+    poolContract: Pool,
+    epochManagerContract: EpochManager,
+    seniorTrancheVaultContract: TrancheVault,
+    juniorTrancheVaultContract: TrancheVault,
+    creditContract: MockPoolCredit,
+    creditFeeManagerContract: BaseCreditFeeManager,
+    creditPnlManagerContract: BasePnLManager;
 
 describe("PoolConfigCache Test", function () {
     before(async function () {
@@ -44,7 +71,7 @@ describe("PoolConfigCache Test", function () {
             treasury,
             eaServiceAccount,
             pdsServiceAccount,
-            poolOwner
+            poolOwner,
         );
 
         [
@@ -58,7 +85,7 @@ describe("PoolConfigCache Test", function () {
             epochManagerContract,
             seniorTrancheVaultContract,
             juniorTrancheVaultContract,
-            creditContract,
+            creditContract as unknown,
             creditFeeManagerContract,
             creditPnlManagerContract,
         ] = await deployPoolContracts(
@@ -67,7 +94,7 @@ describe("PoolConfigCache Test", function () {
             "RiskAdjustedTranchesPolicy",
             defaultDeployer,
             poolOwner,
-            "MockPoolCredit"
+            "MockPoolCredit",
         );
     }
 
@@ -77,7 +104,7 @@ describe("PoolConfigCache Test", function () {
 
     it("Should not allow non-poolOwner to update pool config cache", async function () {
         await expect(
-            juniorTrancheVaultContract.updatePoolConfigData()
+            juniorTrancheVaultContract.updatePoolConfigData(),
         ).to.be.revertedWithCustomError(poolConfigContract, "notPoolOwner");
     });
 
@@ -93,13 +120,13 @@ describe("PoolConfigCache Test", function () {
 
     it("Should not set pool config to empty address", async function () {
         await expect(
-            seniorTrancheVaultContract.setPoolConfig(ethers.constants.AddressZero)
+            seniorTrancheVaultContract.setPoolConfig(ethers.constants.AddressZero),
         ).to.be.revertedWithCustomError(seniorTrancheVaultContract, "zeroAddressProvided");
     });
 
     it("Should not allow non-poolOwner to set new pool config", async function () {
         await expect(
-            seniorTrancheVaultContract.setPoolConfig(poolConfigContract.address)
+            seniorTrancheVaultContract.setPoolConfig(poolConfigContract.address),
         ).to.be.revertedWithCustomError(poolConfigContract, "notPoolOwner");
     });
 
@@ -128,7 +155,7 @@ describe("PoolConfigCache Test", function () {
         await expect(
             seniorTrancheVaultContract
                 .connect(poolOwner)
-                .setPoolConfig(newPoolConfigContract.address)
+                .setPoolConfig(newPoolConfigContract.address),
         )
             .to.emit(seniorTrancheVaultContract, "PoolConfigChanged")
             .withArgs(newPoolConfigContract.address, poolConfigContract.address);
@@ -136,7 +163,7 @@ describe("PoolConfigCache Test", function () {
         expect(await seniorTrancheVaultContract.pool()).to.equal(tranchesPolicyContract.address);
         expect(await seniorTrancheVaultContract.poolVault()).to.equal(calendarContract.address);
         expect(await seniorTrancheVaultContract.epochManager()).to.equal(
-            mockTokenContract.address
+            mockTokenContract.address,
         );
     });
 });

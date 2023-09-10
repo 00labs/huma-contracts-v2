@@ -1,39 +1,61 @@
-const {ethers} = require("hardhat");
-const {expect} = require("chai");
-const {BigNumber: BN} = require("ethers");
-const {loadFixture} = require("@nomicfoundation/hardhat-network-helpers");
-const {
-    deployProtocolContracts,
-    deployAndSetupPoolContracts,
-    CONSTANTS,
+import { ethers } from "hardhat";
+import { expect } from "chai";
+import { BigNumber as BN } from "ethers";
+import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import {
     checkCreditConfig,
     checkCreditRecord,
-} = require("../BaseTest");
-const {
-    toToken,
-    mineNextBlockWithTimestamp,
-    setNextBlockTimestamp,
-    getNextTime,
-} = require("../TestUtils");
+    CONSTANTS,
+    deployAndSetupPoolContracts,
+    deployProtocolContracts,
+} from "../BaseTest";
+import { getNextTime, mineNextBlockWithTimestamp, toToken } from "../TestUtils";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import {
+    BaseCreditFeeManager,
+    BasePnLManager,
+    Calendar,
+    CreditLine,
+    EpochManager,
+    EvaluationAgentNFT,
+    FirstLossCover,
+    HumaConfig,
+    MockToken,
+    PlatformFeeManager,
+    Pool,
+    PoolConfig,
+    PoolVault,
+    RiskAdjustedTranchesPolicy,
+    TrancheVault,
+} from "../../typechain-types";
 
-let defaultDeployer, protocolOwner, treasury, eaServiceAccount, pdsServiceAccount;
-let poolOwner, poolOwnerTreasury, evaluationAgent, poolOperator;
-let lender, borrower;
+let defaultDeployer: SignerWithAddress,
+    protocolOwner: SignerWithAddress,
+    treasury: SignerWithAddress,
+    eaServiceAccount: SignerWithAddress,
+    pdsServiceAccount: SignerWithAddress;
+let poolOwner: SignerWithAddress,
+    poolOwnerTreasury: SignerWithAddress,
+    evaluationAgent: SignerWithAddress,
+    poolOperator: SignerWithAddress;
+let lender: SignerWithAddress, borrower: SignerWithAddress;
 
-let eaNFTContract, humaConfigContract, mockTokenContract;
-let poolConfigContract,
-    platformFeeManagerContract,
-    poolVaultContract,
-    calendarContract,
-    firstLossCovererContract,
-    tranchesPolicyContract,
-    poolContract,
-    epochManagerContract,
-    seniorTrancheVaultContract,
-    juniorTrancheVaultContract,
-    creditContract,
-    creditFeeManagerContract,
-    creditPnlManagerContract;
+let eaNFTContract: EvaluationAgentNFT,
+    humaConfigContract: HumaConfig,
+    mockTokenContract: MockToken;
+let poolConfigContract: PoolConfig,
+    platformFeeManagerContract: PlatformFeeManager,
+    poolVaultContract: PoolVault,
+    calendarContract: Calendar,
+    poolOwnerAndEAFirstLossCoverContract: FirstLossCover,
+    tranchesPolicyContract: RiskAdjustedTranchesPolicy,
+    poolContract: Pool,
+    epochManagerContract: EpochManager,
+    seniorTrancheVaultContract: TrancheVault,
+    juniorTrancheVaultContract: TrancheVault,
+    creditContract: CreditLine,
+    creditFeeManagerContract: BaseCreditFeeManager,
+    creditPnlManagerContract: BasePnLManager;
 
 describe("CreditLine Test", function () {
     before(async function () {
@@ -58,7 +80,7 @@ describe("CreditLine Test", function () {
             treasury,
             eaServiceAccount,
             pdsServiceAccount,
-            poolOwner
+            poolOwner,
         );
 
         [
@@ -66,13 +88,13 @@ describe("CreditLine Test", function () {
             platformFeeManagerContract,
             poolVaultContract,
             calendarContract,
-            firstLossCovererContract,
+            poolOwnerAndEAFirstLossCoverContract,
             tranchesPolicyContract,
             poolContract,
             epochManagerContract,
             seniorTrancheVaultContract,
             juniorTrancheVaultContract,
-            creditContract,
+            creditContract as unknown,
             creditFeeManagerContract,
             creditPnlManagerContract,
         ] = await deployAndSetupPoolContracts(
@@ -86,7 +108,7 @@ describe("CreditLine Test", function () {
             evaluationAgent,
             poolOwnerTreasury,
             poolOperator,
-            [lender, borrower]
+            [lender, borrower],
         );
     }
 
@@ -106,8 +128,8 @@ describe("CreditLine Test", function () {
                         1,
                         1217,
                         toToken(10_000),
-                        true
-                    )
+                        true,
+                    ),
             ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
             await humaConfigContract.connect(protocolOwner).unpause();
 
@@ -121,8 +143,8 @@ describe("CreditLine Test", function () {
                         1,
                         1217,
                         toToken(10_000),
-                        true
-                    )
+                        true,
+                    ),
             ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
             await poolContract.connect(poolOwner).enablePool();
         });
@@ -135,11 +157,11 @@ describe("CreditLine Test", function () {
                     1,
                     1217,
                     toToken(10_000),
-                    true
-                )
+                    true,
+                ),
             ).to.be.revertedWithCustomError(
                 creditContract,
-                "evaluationAgentServiceAccountRequired"
+                "evaluationAgentServiceAccountRequired",
             );
         });
 
@@ -153,14 +175,14 @@ describe("CreditLine Test", function () {
                         1,
                         1217,
                         toToken(10_000),
-                        true
-                    )
+                        true,
+                    ),
             ).to.be.revertedWithCustomError(creditContract, "zeroAddressProvided");
 
             await expect(
                 creditContract
                     .connect(eaServiceAccount)
-                    .approveBorrower(borrower.address, toToken(0), 1, 1217, toToken(10_000), true)
+                    .approveBorrower(borrower.address, toToken(0), 1, 1217, toToken(10_000), true),
             ).to.be.revertedWithCustomError(creditContract, "zeroAmountProvided");
 
             await expect(
@@ -172,8 +194,8 @@ describe("CreditLine Test", function () {
                         0,
                         1217,
                         toToken(10_000),
-                        true
-                    )
+                        true,
+                    ),
             ).to.be.revertedWithCustomError(creditContract, "zeroPayPeriods");
 
             await expect(
@@ -185,8 +207,8 @@ describe("CreditLine Test", function () {
                         1,
                         1217,
                         toToken(10_001),
-                        true
-                    )
+                        true,
+                    ),
             ).to.be.revertedWithCustomError(creditContract, "committedAmountGreatThanCreditLimit");
 
             let poolSettings = await poolConfigContract.getPoolSettings();
@@ -195,7 +217,14 @@ describe("CreditLine Test", function () {
             await expect(
                 creditContract
                     .connect(eaServiceAccount)
-                    .approveBorrower(borrower.address, creditLimit, 1, 1217, toToken(10_000), true)
+                    .approveBorrower(
+                        borrower.address,
+                        creditLimit,
+                        1,
+                        1217,
+                        toToken(10_000),
+                        true,
+                    ),
             ).to.be.revertedWithCustomError(creditContract, "greaterThanMaxCreditLine");
         });
 
@@ -208,7 +237,7 @@ describe("CreditLine Test", function () {
                     1,
                     1217,
                     toToken(10_000),
-                    true
+                    true,
                 );
 
             await expect(
@@ -220,8 +249,8 @@ describe("CreditLine Test", function () {
                         1,
                         1217,
                         toToken(10_000),
-                        true
-                    )
+                        true,
+                    ),
             ).to.be.revertedWithCustomError(creditContract, "creditLineNotInStateForUpdate");
         });
 
@@ -229,8 +258,8 @@ describe("CreditLine Test", function () {
             const creditHash = ethers.utils.keccak256(
                 ethers.utils.defaultAbiCoder.encode(
                     ["address", "address"],
-                    [creditContract.address, borrower.address]
-                )
+                    [creditContract.address, borrower.address],
+                ),
             );
 
             let poolSettings = await poolConfigContract.getPoolSettings();
@@ -244,8 +273,8 @@ describe("CreditLine Test", function () {
                         1,
                         1217,
                         toToken(10_000),
-                        true
-                    )
+                        true,
+                    ),
             )
                 .to.emit(creditContract, "CreditConfigChanged")
                 .withArgs(
@@ -259,7 +288,7 @@ describe("CreditLine Test", function () {
                     true,
                     false,
                     false,
-                    false
+                    false,
                 )
                 .to.emit(creditContract, "CreditLineApproved")
                 .withArgs(
@@ -269,7 +298,7 @@ describe("CreditLine Test", function () {
                     1,
                     1217,
                     toToken(10_000),
-                    true
+                    true,
                 );
 
             let creditConfig = await creditContract.creditConfigMap(creditHash);
@@ -284,7 +313,7 @@ describe("CreditLine Test", function () {
                 true,
                 false,
                 false,
-                false
+                false,
             );
 
             let creditRecord = await creditContract.creditRecordMap(creditHash);
@@ -300,18 +329,18 @@ describe("CreditLine Test", function () {
 
         it("Should not drawdown while credit line is in wrong state", async function () {});
 
-        it.skip("Should not borrow after credit expiration window", async function () {
-            await poolConfigContract.connect(poolOwner).setCreditApprovalExpiration(5);
-            await poolContract
-                .connect(eaServiceAccount)
-                .approveCredit(borrower.address, toToken(1_000_000), 30, 12, 1217);
-
-            await advanceClock(6);
-
-            await expect(
-                poolContract.connect(borrower).drawdown(toToken(1_000_000))
-            ).to.revertedWithCustomError(poolContract, "creditExpiredDueToFirstDrawdownTooLate");
-        });
+        // it.skip("Should not borrow after credit expiration window", async function () {
+        //     await poolConfigContract.connect(poolOwner).setCreditApprovalExpiration(5);
+        //     await poolContract
+        //         .connect(eaServiceAccount)
+        //         .approveCredit(borrower.address, toToken(1_000_000), 30, 12, 1217);
+        //
+        //     await advanceClock(6);
+        //
+        //     await expect(
+        //         poolContract.connect(borrower).drawdown(toToken(1_000_000))
+        //     ).to.revertedWithCustomError(poolContract, "creditExpiredDueToFirstDrawdownTooLate");
+        // });
 
         it("Should not borrow after credit expired", async function () {});
 
@@ -347,15 +376,8 @@ describe("CreditLine Test", function () {
                     3,
                     1217,
                     toToken(100_000),
-                    true
+                    true,
                 );
-
-            const creditHash = ethers.utils.keccak256(
-                ethers.utils.defaultAbiCoder.encode(
-                    ["address", "address"],
-                    [creditContract.address, borrower.address]
-                )
-            );
 
             let borrowAmount = toToken(50_000);
             let netBorrowAmount = borrowAmount
@@ -370,10 +392,6 @@ describe("CreditLine Test", function () {
                 .withArgs(borrower.address, borrowAmount, netBorrowAmount);
             let afterBalance = await mockTokenContract.balanceOf(borrower.address);
             expect(afterBalance.sub(beforeBalance)).to.equal(netBorrowAmount);
-
-            let creditRecord = await creditContract.creditRecordMap(creditHash);
-
-            console.log(`creditRecord: ${creditRecord}`);
         });
 
         it("Should borrow second time in the same period successfully", async function () {});
@@ -382,13 +400,6 @@ describe("CreditLine Test", function () {
     });
 
     it("Should makePayment to a credit correctly", async function () {
-        const creditHash = ethers.utils.keccak256(
-            ethers.utils.defaultAbiCoder.encode(
-                ["address", "address"],
-                [creditContract.address, borrower.address]
-            )
-        );
-
         let juniorDepositAmount = toToken(300_000);
         await juniorTrancheVaultContract
             .connect(lender)

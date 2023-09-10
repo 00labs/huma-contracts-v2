@@ -1,53 +1,84 @@
-const {ethers} = require("hardhat");
-const {expect} = require("chai");
-const {BigNumber: BN} = require("ethers");
-const {loadFixture} = require("@nomicfoundation/hardhat-network-helpers");
-const {
-    deployProtocolContracts,
-    deployAndSetupPoolContracts,
-    CONSTANTS,
-    getNextDueDate,
+import { ethers } from "hardhat";
+import { expect } from "chai";
+import { BigNumber as BN } from "ethers";
+import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import {
     checkEpochInfo,
-} = require("./BaseTest");
-const {toToken, mineNextBlockWithTimestamp, setNextBlockTimestamp} = require("./TestUtils");
-const moment = require("moment");
+    CONSTANTS,
+    deployAndSetupPoolContracts,
+    deployProtocolContracts,
+    getNextDueDate,
+} from "./BaseTest";
+import { mineNextBlockWithTimestamp, setNextBlockTimestamp, toToken } from "./TestUtils";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import {
+    BaseCreditFeeManager,
+    BasePnLManager,
+    Calendar,
+    CreditLine,
+    EpochManager,
+    EvaluationAgentNFT,
+    HumaConfig,
+    FirstLossCover,
+    MockToken,
+    PlatformFeeManager,
+    Pool,
+    PoolConfig,
+    PoolVault,
+    RiskAdjustedTranchesPolicy,
+    TrancheVault,
+} from "../typechain-types";
 
-let defaultDeployer, protocolOwner, treasury, eaServiceAccount, pdsServiceAccount;
-let poolOwner, poolOwnerTreasury, evaluationAgent, poolOperator;
-let lender, lender2;
+let defaultDeployer: SignerWithAddress,
+    protocolOwner: SignerWithAddress,
+    treasury: SignerWithAddress,
+    eaServiceAccount: SignerWithAddress,
+    pdsServiceAccount: SignerWithAddress;
+let poolOwner: SignerWithAddress,
+    poolOwnerTreasury: SignerWithAddress,
+    evaluationAgent: SignerWithAddress,
+    poolOperator: SignerWithAddress;
+let lender: SignerWithAddress, lender2: SignerWithAddress;
 
-let eaNFTContract, humaConfigContract, mockTokenContract;
-let poolConfigContract,
-    platformFeeManagerContract,
-    poolVaultContract,
-    calendarContract,
-    firstLossCovererContract,
-    tranchesPolicyContract,
-    poolContract,
-    epochManagerContract,
-    seniorTrancheVaultContract,
-    juniorTrancheVaultContract,
-    creditContract,
-    creditFeeManagerContract,
-    creditPnlManagerContract;
+let eaNFTContract: EvaluationAgentNFT,
+    humaConfigContract: HumaConfig,
+    mockTokenContract: MockToken;
+let poolConfigContract: PoolConfig,
+    platformFeeManagerContract: PlatformFeeManager,
+    poolVaultContract: PoolVault,
+    calendarContract: Calendar,
+    poolOwnerAndEAFirstLossCoverContract: FirstLossCover,
+    tranchesPolicyContract: RiskAdjustedTranchesPolicy,
+    poolContract: Pool,
+    epochManagerContract: EpochManager,
+    seniorTrancheVaultContract: TrancheVault,
+    juniorTrancheVaultContract: TrancheVault,
+    creditContract: CreditLine,
+    creditFeeManagerContract: BaseCreditFeeManager,
+    creditPnlManagerContract: BasePnLManager;
 
-async function getMinJuniorAssets(seniorMatureRedemptionInThisEpoch, maxSeniorJuniorRatio) {
+async function getMinJuniorAssets(
+    seniorMatureRedemptionInThisEpoch: number | BN,
+    maxSeniorJuniorRatio: number,
+) {
     let seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
     seniorTotalAssets = seniorTotalAssets.sub(seniorMatureRedemptionInThisEpoch);
     let minJuniorAssets = seniorTotalAssets.div(maxSeniorJuniorRatio);
     if (minJuniorAssets.mul(maxSeniorJuniorRatio).lt(seniorTotalAssets)) {
         minJuniorAssets = minJuniorAssets.add(1);
     }
-    // console.log(`seniorTotalAssets: ${seniorTotalAssets}, minJuniorAssets: ${minJuniorAssets}`);
     return minJuniorAssets;
 }
 
-async function getMaxJuniorProcessed(seniorMatureRedemptionInThisEpoch, maxSeniorJuniorRatio) {
-    let minJuniorAssets = await getMinJuniorAssets(
+async function getMaxJuniorProcessed(
+    seniorMatureRedemptionInThisEpoch: BN | number,
+    maxSeniorJuniorRatio: number,
+) {
+    const minJuniorAssets = await getMinJuniorAssets(
         seniorMatureRedemptionInThisEpoch,
-        maxSeniorJuniorRatio
+        maxSeniorJuniorRatio,
     );
-    let juniorAssets = await juniorTrancheVaultContract.totalAssets();
+    const juniorAssets = await juniorTrancheVaultContract.totalAssets();
     return juniorAssets.sub(minJuniorAssets);
 }
 
@@ -74,7 +105,7 @@ describe("EpochManager Test", function () {
             treasury,
             eaServiceAccount,
             pdsServiceAccount,
-            poolOwner
+            poolOwner,
         );
 
         [
@@ -82,13 +113,13 @@ describe("EpochManager Test", function () {
             platformFeeManagerContract,
             poolVaultContract,
             calendarContract,
-            firstLossCovererContract,
+            poolOwnerAndEAFirstLossCoverContract,
             tranchesPolicyContract,
             poolContract,
             epochManagerContract,
             seniorTrancheVaultContract,
             juniorTrancheVaultContract,
-            creditContract,
+            creditContract as unknown,
             creditFeeManagerContract,
             creditPnlManagerContract,
         ] = await deployAndSetupPoolContracts(
@@ -102,7 +133,7 @@ describe("EpochManager Test", function () {
             evaluationAgent,
             poolOwnerTreasury,
             poolOperator,
-            [lender, lender2]
+            [lender, lender2],
         );
 
         let juniorDepositAmount = toToken(400_000);
@@ -131,7 +162,7 @@ describe("EpochManager Test", function () {
     it("Should not allow non-Pool to start new epoch", async function () {
         await expect(epochManagerContract.startNewEpoch()).to.be.revertedWithCustomError(
             poolConfigContract,
-            "notPool"
+            "notPool",
         );
     });
 
@@ -144,7 +175,7 @@ describe("EpochManager Test", function () {
             settings.calendarUnit,
             0,
             Math.ceil(Date.now() / 1000),
-            settings.payPeriodInCalendarUnit
+            settings.payPeriodInCalendarUnit,
         );
         await expect(poolContract.connect(poolOwner).enablePool())
             .to.emit(epochManagerContract, "NewEpochStarted")
@@ -164,14 +195,14 @@ describe("EpochManager Test", function () {
         await humaConfigContract.connect(protocolOwner).pause();
         await expect(epochManagerContract.closeEpoch()).to.be.revertedWithCustomError(
             poolConfigContract,
-            "protocolIsPaused"
+            "protocolIsPaused",
         );
         await humaConfigContract.connect(protocolOwner).unpause();
 
         await poolContract.connect(poolOwner).disablePool();
         await expect(epochManagerContract.closeEpoch()).to.be.revertedWithCustomError(
             poolConfigContract,
-            "poolIsNotOn"
+            "poolIsNotOn",
         );
         await poolContract.connect(poolOwner).enablePool();
     });
@@ -179,7 +210,7 @@ describe("EpochManager Test", function () {
     it("Should not close epoch before end time", async function () {
         await expect(epochManagerContract.closeEpoch()).to.be.revertedWithCustomError(
             epochManagerContract,
-            "closeTooSoon"
+            "closeTooSoon",
         );
     });
 
@@ -196,7 +227,7 @@ describe("EpochManager Test", function () {
             settings.calendarUnit,
             lastEpoch.endTime.toNumber(),
             ts,
-            settings.payPeriodInCalendarUnit
+            settings.payPeriodInCalendarUnit,
         );
 
         let seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -210,14 +241,14 @@ describe("EpochManager Test", function () {
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
                 juniorTotalAssets,
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
-                0
+                0,
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
             .withArgs(lastEpoch.id.toNumber() + 1, endTime);
 
         expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(0);
         expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
-            seniorTotalAssets.sub(withdrawalShares)
+            seniorTotalAssets.sub(withdrawalShares),
         );
         expect(await juniorTrancheVaultContract.totalAssets()).to.equal(juniorTotalAssets);
     });
@@ -245,7 +276,7 @@ describe("EpochManager Test", function () {
             settings.calendarUnit,
             lastEpoch.endTime.toNumber(),
             ts,
-            settings.payPeriodInCalendarUnit
+            settings.payPeriodInCalendarUnit,
         );
 
         let seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -259,7 +290,7 @@ describe("EpochManager Test", function () {
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
                 juniorTotalAssets,
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
-                allShares
+                allShares,
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
             .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -281,7 +312,7 @@ describe("EpochManager Test", function () {
             settings.calendarUnit,
             lastEpoch.endTime.toNumber(),
             ts,
-            settings.payPeriodInCalendarUnit
+            settings.payPeriodInCalendarUnit,
         );
 
         seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -295,14 +326,14 @@ describe("EpochManager Test", function () {
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
                 juniorTotalAssets,
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
-                0
+                0,
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
             .withArgs(lastEpoch.id.toNumber() + 1, endTime);
 
         expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(0);
         expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
-            seniorTotalAssets.sub(allShares)
+            seniorTotalAssets.sub(allShares),
         );
         expect(await juniorTrancheVaultContract.totalAssets()).to.equal(juniorTotalAssets);
     });
@@ -332,7 +363,7 @@ describe("EpochManager Test", function () {
             settings.calendarUnit,
             lastEpoch.endTime.toNumber(),
             ts,
-            settings.payPeriodInCalendarUnit
+            settings.payPeriodInCalendarUnit,
         );
 
         let seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -346,7 +377,7 @@ describe("EpochManager Test", function () {
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
                 juniorTotalAssets,
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
-                allShares
+                allShares,
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
             .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -367,7 +398,7 @@ describe("EpochManager Test", function () {
             settings.calendarUnit,
             lastEpoch.endTime.toNumber(),
             ts,
-            settings.payPeriodInCalendarUnit
+            settings.payPeriodInCalendarUnit,
         );
 
         seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -381,7 +412,7 @@ describe("EpochManager Test", function () {
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
                 juniorTotalAssets,
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
-                allShares
+                allShares,
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
             .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -402,7 +433,7 @@ describe("EpochManager Test", function () {
             settings.calendarUnit,
             lastEpoch.endTime.toNumber(),
             ts,
-            settings.payPeriodInCalendarUnit
+            settings.payPeriodInCalendarUnit,
         );
 
         seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -416,7 +447,7 @@ describe("EpochManager Test", function () {
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
                 juniorTotalAssets,
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
-                allShares
+                allShares,
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
             .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -438,7 +469,7 @@ describe("EpochManager Test", function () {
             settings.calendarUnit,
             lastEpoch.endTime.toNumber(),
             ts,
-            settings.payPeriodInCalendarUnit
+            settings.payPeriodInCalendarUnit,
         );
 
         seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -452,7 +483,7 @@ describe("EpochManager Test", function () {
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
                 juniorTotalAssets,
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
-                allShares.sub(partialPaid)
+                allShares.sub(partialPaid),
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
             .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -460,7 +491,7 @@ describe("EpochManager Test", function () {
         expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(2);
         expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(2);
         expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
-            seniorTotalAssets.sub(partialPaid)
+            seniorTotalAssets.sub(partialPaid),
         );
         expect(await juniorTrancheVaultContract.totalAssets()).to.equal(juniorTotalAssets);
     });
@@ -478,7 +509,7 @@ describe("EpochManager Test", function () {
             settings.calendarUnit,
             lastEpoch.endTime.toNumber(),
             ts,
-            settings.payPeriodInCalendarUnit
+            settings.payPeriodInCalendarUnit,
         );
 
         let seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -492,14 +523,14 @@ describe("EpochManager Test", function () {
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
                 juniorTotalAssets.sub(withdrawalShares),
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
-                0
+                0,
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
             .withArgs(lastEpoch.id.toNumber() + 1, endTime);
 
         expect((await juniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(0);
         expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
-            juniorTotalAssets.sub(withdrawalShares)
+            juniorTotalAssets.sub(withdrawalShares),
         );
         expect(await seniorTrancheVaultContract.totalAssets()).to.equal(seniorTotalAssets);
     });
@@ -527,7 +558,7 @@ describe("EpochManager Test", function () {
             settings.calendarUnit,
             lastEpoch.endTime.toNumber(),
             ts,
-            settings.payPeriodInCalendarUnit
+            settings.payPeriodInCalendarUnit,
         );
 
         let seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -541,7 +572,7 @@ describe("EpochManager Test", function () {
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
                 juniorTotalAssets,
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
-                allShares
+                allShares,
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
             .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -562,7 +593,7 @@ describe("EpochManager Test", function () {
             settings.calendarUnit,
             lastEpoch.endTime.toNumber(),
             ts,
-            settings.payPeriodInCalendarUnit
+            settings.payPeriodInCalendarUnit,
         );
 
         seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -576,7 +607,7 @@ describe("EpochManager Test", function () {
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
                 juniorTotalAssets,
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
-                allShares
+                allShares,
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
             .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -599,7 +630,7 @@ describe("EpochManager Test", function () {
             settings.calendarUnit,
             lastEpoch.endTime.toNumber(),
             ts,
-            settings.payPeriodInCalendarUnit
+            settings.payPeriodInCalendarUnit,
         );
 
         seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -613,14 +644,14 @@ describe("EpochManager Test", function () {
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
                 juniorTotalAssets.sub(allShares),
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
-                0
+                0,
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
             .withArgs(lastEpoch.id.toNumber() + 1, endTime);
 
         expect((await juniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(0);
         expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
-            juniorTotalAssets.sub(allShares)
+            juniorTotalAssets.sub(allShares),
         );
         expect(await seniorTrancheVaultContract.totalAssets()).to.equal(seniorTotalAssets);
     });
@@ -650,7 +681,7 @@ describe("EpochManager Test", function () {
             settings.calendarUnit,
             lastEpoch.endTime.toNumber(),
             ts,
-            settings.payPeriodInCalendarUnit
+            settings.payPeriodInCalendarUnit,
         );
 
         let seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -664,7 +695,7 @@ describe("EpochManager Test", function () {
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
                 juniorTotalAssets,
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
-                allShares
+                allShares,
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
             .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -685,7 +716,7 @@ describe("EpochManager Test", function () {
             settings.calendarUnit,
             lastEpoch.endTime.toNumber(),
             ts,
-            settings.payPeriodInCalendarUnit
+            settings.payPeriodInCalendarUnit,
         );
 
         seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -699,7 +730,7 @@ describe("EpochManager Test", function () {
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
                 juniorTotalAssets,
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
-                allShares
+                allShares,
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
             .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -719,7 +750,7 @@ describe("EpochManager Test", function () {
             settings.calendarUnit,
             lastEpoch.endTime.toNumber(),
             ts,
-            settings.payPeriodInCalendarUnit
+            settings.payPeriodInCalendarUnit,
         );
 
         seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -733,7 +764,7 @@ describe("EpochManager Test", function () {
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
                 juniorTotalAssets,
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
-                allShares
+                allShares,
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
             .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -755,7 +786,7 @@ describe("EpochManager Test", function () {
             settings.calendarUnit,
             lastEpoch.endTime.toNumber(),
             ts,
-            settings.payPeriodInCalendarUnit
+            settings.payPeriodInCalendarUnit,
         );
 
         seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -769,7 +800,7 @@ describe("EpochManager Test", function () {
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
                 juniorTotalAssets.sub(partialPaid),
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
-                allShares.sub(partialPaid)
+                allShares.sub(partialPaid),
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
             .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -777,7 +808,7 @@ describe("EpochManager Test", function () {
         expect((await juniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(3);
         expect(await juniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(1);
         expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
-            juniorTotalAssets.sub(partialPaid)
+            juniorTotalAssets.sub(partialPaid),
         );
         expect(await seniorTrancheVaultContract.totalAssets()).to.equal(seniorTotalAssets);
     });
@@ -796,7 +827,7 @@ describe("EpochManager Test", function () {
             settings.calendarUnit,
             lastEpoch.endTime.toNumber(),
             ts,
-            settings.payPeriodInCalendarUnit
+            settings.payPeriodInCalendarUnit,
         );
 
         let juniorTotalAssets = await juniorTrancheVaultContract.totalAssets();
@@ -815,7 +846,7 @@ describe("EpochManager Test", function () {
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
                 juniorTotalAssets.sub(withdrawalShares),
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
-                0
+                0,
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
             .withArgs(lastEpoch.id.toNumber() + 1, endTime)
@@ -825,22 +856,22 @@ describe("EpochManager Test", function () {
             .withArgs(1, withdrawalShares, withdrawalShares, 1);
 
         expect(await juniorTrancheVaultContract.totalSupply()).to.equal(
-            juniorTotalSupply.sub(withdrawalShares)
+            juniorTotalSupply.sub(withdrawalShares),
         );
         expect(await mockTokenContract.balanceOf(juniorTrancheVaultContract.address)).to.equal(
-            juniorBalance.add(withdrawalShares)
+            juniorBalance.add(withdrawalShares),
         );
         expect(await seniorTrancheVaultContract.totalSupply()).to.equal(
-            seniorTotalSupply.sub(withdrawalShares)
+            seniorTotalSupply.sub(withdrawalShares),
         );
         expect(await mockTokenContract.balanceOf(seniorTrancheVaultContract.address)).to.equal(
-            seniorBalance.add(withdrawalShares)
+            seniorBalance.add(withdrawalShares),
         );
 
         let epoch = await seniorTrancheVaultContract.epochMap(1);
-        checkEpochInfo(epoch, 1, withdrawalShares, withdrawalShares, withdrawalShares);
+        checkEpochInfo(epoch, BN.from(1), withdrawalShares, withdrawalShares, withdrawalShares);
         epoch = await juniorTrancheVaultContract.epochMap(1);
-        checkEpochInfo(epoch, 1, withdrawalShares, withdrawalShares, withdrawalShares);
+        checkEpochInfo(epoch, BN.from(1), withdrawalShares, withdrawalShares, withdrawalShares);
 
         expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(0);
         expect((await juniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(0);
@@ -879,7 +910,7 @@ describe("EpochManager Test", function () {
             settings.calendarUnit,
             lastEpoch.endTime.toNumber(),
             ts,
-            settings.payPeriodInCalendarUnit
+            settings.payPeriodInCalendarUnit,
         );
 
         let seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -893,7 +924,7 @@ describe("EpochManager Test", function () {
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
                 juniorTotalAssets,
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
-                allShares
+                allShares,
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
             .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -918,7 +949,7 @@ describe("EpochManager Test", function () {
             settings.calendarUnit,
             lastEpoch.endTime.toNumber(),
             ts,
-            settings.payPeriodInCalendarUnit
+            settings.payPeriodInCalendarUnit,
         );
 
         seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -932,7 +963,7 @@ describe("EpochManager Test", function () {
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
                 juniorTotalAssets,
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
-                allShares
+                allShares,
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
             .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -957,7 +988,7 @@ describe("EpochManager Test", function () {
             settings.calendarUnit,
             lastEpoch.endTime.toNumber(),
             ts,
-            settings.payPeriodInCalendarUnit
+            settings.payPeriodInCalendarUnit,
         );
 
         seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -971,7 +1002,7 @@ describe("EpochManager Test", function () {
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
                 juniorTotalAssets,
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
-                allShares
+                allShares,
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
             .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -989,7 +1020,7 @@ describe("EpochManager Test", function () {
             settings.calendarUnit,
             lastEpoch.endTime.toNumber(),
             ts,
-            settings.payPeriodInCalendarUnit
+            settings.payPeriodInCalendarUnit,
         );
 
         seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -1003,7 +1034,7 @@ describe("EpochManager Test", function () {
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
                 juniorTotalAssets.sub(allSharesJ),
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
-                0
+                0,
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
             .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -1013,10 +1044,10 @@ describe("EpochManager Test", function () {
         expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(0);
         expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(3);
         expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
-            juniorTotalAssets.sub(allSharesJ)
+            juniorTotalAssets.sub(allSharesJ),
         );
         expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
-            seniorTotalAssets.sub(allSharesS)
+            seniorTotalAssets.sub(allSharesS),
         );
     });
 
@@ -1044,7 +1075,7 @@ describe("EpochManager Test", function () {
         let allPaid = paidJ.add(paidS);
         await creditContract.drawdown(
             ethers.constants.HashZero,
-            totalAssets.sub(paidJ.add(paidS))
+            totalAssets.sub(paidJ.add(paidS)),
         );
 
         // Close epoch1
@@ -1056,7 +1087,7 @@ describe("EpochManager Test", function () {
             settings.calendarUnit,
             lastEpoch.endTime.toNumber(),
             ts,
-            settings.payPeriodInCalendarUnit
+            settings.payPeriodInCalendarUnit,
         );
 
         let seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -1070,7 +1101,7 @@ describe("EpochManager Test", function () {
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
                 juniorTotalAssets.sub(paidJ),
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
-                unprocessed.sub(allPaid)
+                unprocessed.sub(allPaid),
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
             .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -1080,14 +1111,13 @@ describe("EpochManager Test", function () {
         expect((await juniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(1);
         expect(await juniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(0);
         expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
-            seniorTotalAssets.sub(paidS)
+            seniorTotalAssets.sub(paidS),
         );
         expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
-            juniorTotalAssets.sub(paidJ)
+            juniorTotalAssets.sub(paidJ),
         );
         unprocessedJ = unprocessedJ.sub(paidJ);
         unprocessedS = unprocessedS.sub(paidS);
-        unprocessed = unprocessedJ.add(unprocessedS);
 
         // Epoch2
 
@@ -1101,7 +1131,6 @@ describe("EpochManager Test", function () {
 
         paidJ = unprocessedJ;
         paidS = unprocessedS;
-        allPaid = paidJ.add(paidS);
         await creditContract.makePayment(ethers.constants.HashZero, paidJ.add(paidS));
 
         // Close epoch2
@@ -1113,7 +1142,7 @@ describe("EpochManager Test", function () {
             settings.calendarUnit,
             lastEpoch.endTime.toNumber(),
             ts,
-            settings.payPeriodInCalendarUnit
+            settings.payPeriodInCalendarUnit,
         );
 
         seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -1127,7 +1156,7 @@ describe("EpochManager Test", function () {
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
                 juniorTotalAssets.sub(paidJ),
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
-                0
+                0,
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
             .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -1137,7 +1166,7 @@ describe("EpochManager Test", function () {
         expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(0);
         expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(1);
         expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
-            juniorTotalAssets.sub(paidJ)
+            juniorTotalAssets.sub(paidJ),
         );
         expect(await seniorTrancheVaultContract.totalAssets()).to.equal(seniorTotalAssets);
         unprocessedJ = unprocessedJ.sub(paidJ);
@@ -1163,7 +1192,7 @@ describe("EpochManager Test", function () {
             settings.calendarUnit,
             lastEpoch.endTime.toNumber(),
             ts,
-            settings.payPeriodInCalendarUnit
+            settings.payPeriodInCalendarUnit,
         );
 
         seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -1177,7 +1206,7 @@ describe("EpochManager Test", function () {
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
                 juniorTotalAssets,
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
-                unprocessed
+                unprocessed,
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
             .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -1206,7 +1235,7 @@ describe("EpochManager Test", function () {
             settings.calendarUnit,
             lastEpoch.endTime.toNumber(),
             ts,
-            settings.payPeriodInCalendarUnit
+            settings.payPeriodInCalendarUnit,
         );
 
         seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -1220,7 +1249,7 @@ describe("EpochManager Test", function () {
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
                 juniorTotalAssets.sub(paidJ),
                 CONSTANTS.PRICE_DECIMALS_FACTOR,
-                unprocessed.sub(allPaid)
+                unprocessed.sub(allPaid),
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
             .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -1230,10 +1259,10 @@ describe("EpochManager Test", function () {
         expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(0);
         expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(3);
         expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
-            juniorTotalAssets.sub(paidJ)
+            juniorTotalAssets.sub(paidJ),
         );
         expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
-            seniorTotalAssets.sub(paidS)
+            seniorTotalAssets.sub(paidS),
         );
     });
 
@@ -1259,7 +1288,7 @@ describe("EpochManager Test", function () {
                 settings.calendarUnit,
                 lastEpoch.endTime.toNumber(),
                 ts,
-                settings.payPeriodInCalendarUnit
+                settings.payPeriodInCalendarUnit,
             );
 
             let seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -1273,7 +1302,7 @@ describe("EpochManager Test", function () {
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
                     juniorTotalAssets,
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
-                    0
+                    0,
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -1281,7 +1310,7 @@ describe("EpochManager Test", function () {
             expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(0);
             expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(1);
             expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
-                seniorTotalAssets.sub(shares)
+                seniorTotalAssets.sub(shares),
             );
             expect(await juniorTrancheVaultContract.totalAssets()).to.equal(juniorTotalAssets);
         });
@@ -1309,7 +1338,7 @@ describe("EpochManager Test", function () {
                 settings.calendarUnit,
                 lastEpoch.endTime.toNumber(),
                 ts,
-                settings.payPeriodInCalendarUnit
+                settings.payPeriodInCalendarUnit,
             );
 
             let seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -1323,7 +1352,7 @@ describe("EpochManager Test", function () {
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
                     juniorTotalAssets,
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
-                    allShares
+                    allShares,
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -1345,7 +1374,7 @@ describe("EpochManager Test", function () {
                 settings.calendarUnit,
                 lastEpoch.endTime.toNumber(),
                 ts,
-                settings.payPeriodInCalendarUnit
+                settings.payPeriodInCalendarUnit,
             );
 
             seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -1359,14 +1388,14 @@ describe("EpochManager Test", function () {
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
                     juniorTotalAssets,
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
-                    0
+                    0,
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
 
             expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(0);
             expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
-                seniorTotalAssets.sub(allShares)
+                seniorTotalAssets.sub(allShares),
             );
             expect(await juniorTrancheVaultContract.totalAssets()).to.equal(juniorTotalAssets);
         });
@@ -1398,7 +1427,7 @@ describe("EpochManager Test", function () {
                 settings.calendarUnit,
                 lastEpoch.endTime.toNumber(),
                 ts,
-                settings.payPeriodInCalendarUnit
+                settings.payPeriodInCalendarUnit,
             );
 
             let seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -1412,7 +1441,7 @@ describe("EpochManager Test", function () {
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
                     juniorTotalAssets,
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
-                    allShares
+                    allShares,
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -1433,7 +1462,7 @@ describe("EpochManager Test", function () {
                 settings.calendarUnit,
                 lastEpoch.endTime.toNumber(),
                 ts,
-                settings.payPeriodInCalendarUnit
+                settings.payPeriodInCalendarUnit,
             );
 
             seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -1447,7 +1476,7 @@ describe("EpochManager Test", function () {
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
                     juniorTotalAssets,
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
-                    allShares
+                    allShares,
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -1468,7 +1497,7 @@ describe("EpochManager Test", function () {
                 settings.calendarUnit,
                 lastEpoch.endTime.toNumber(),
                 ts,
-                settings.payPeriodInCalendarUnit
+                settings.payPeriodInCalendarUnit,
             );
 
             seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -1482,7 +1511,7 @@ describe("EpochManager Test", function () {
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
                     juniorTotalAssets,
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
-                    allShares
+                    allShares,
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -1504,7 +1533,7 @@ describe("EpochManager Test", function () {
                 settings.calendarUnit,
                 lastEpoch.endTime.toNumber(),
                 ts,
-                settings.payPeriodInCalendarUnit
+                settings.payPeriodInCalendarUnit,
             );
 
             seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -1518,7 +1547,7 @@ describe("EpochManager Test", function () {
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
                     juniorTotalAssets,
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
-                    allShares.sub(partialPaid)
+                    allShares.sub(partialPaid),
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -1526,7 +1555,7 @@ describe("EpochManager Test", function () {
             expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(2);
             expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(2);
             expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
-                seniorTotalAssets.sub(partialPaid)
+                seniorTotalAssets.sub(partialPaid),
             );
             expect(await juniorTrancheVaultContract.totalAssets()).to.equal(juniorTotalAssets);
         });
@@ -1544,7 +1573,7 @@ describe("EpochManager Test", function () {
                 settings.calendarUnit,
                 lastEpoch.endTime.toNumber(),
                 ts,
-                settings.payPeriodInCalendarUnit
+                settings.payPeriodInCalendarUnit,
             );
 
             let seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -1558,7 +1587,7 @@ describe("EpochManager Test", function () {
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
                     juniorTotalAssets.sub(shares),
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
-                    0
+                    0,
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -1566,7 +1595,7 @@ describe("EpochManager Test", function () {
             expect((await juniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(0);
             expect(await juniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(1);
             expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
-                juniorTotalAssets.sub(shares)
+                juniorTotalAssets.sub(shares),
             );
             expect(await seniorTrancheVaultContract.totalAssets()).to.equal(seniorTotalAssets);
         });
@@ -1594,7 +1623,7 @@ describe("EpochManager Test", function () {
                 settings.calendarUnit,
                 lastEpoch.endTime.toNumber(),
                 ts,
-                settings.payPeriodInCalendarUnit
+                settings.payPeriodInCalendarUnit,
             );
 
             let seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -1608,7 +1637,7 @@ describe("EpochManager Test", function () {
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
                     juniorTotalAssets,
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
-                    allShares
+                    allShares,
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -1629,7 +1658,7 @@ describe("EpochManager Test", function () {
                 settings.calendarUnit,
                 lastEpoch.endTime.toNumber(),
                 ts,
-                settings.payPeriodInCalendarUnit
+                settings.payPeriodInCalendarUnit,
             );
 
             seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -1643,7 +1672,7 @@ describe("EpochManager Test", function () {
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
                     juniorTotalAssets,
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
-                    allShares
+                    allShares,
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -1666,7 +1695,7 @@ describe("EpochManager Test", function () {
                 settings.calendarUnit,
                 lastEpoch.endTime.toNumber(),
                 ts,
-                settings.payPeriodInCalendarUnit
+                settings.payPeriodInCalendarUnit,
             );
 
             seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -1680,14 +1709,14 @@ describe("EpochManager Test", function () {
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
                     juniorTotalAssets.sub(allShares),
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
-                    0
+                    0,
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
 
             expect((await juniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(0);
             expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
-                juniorTotalAssets.sub(allShares)
+                juniorTotalAssets.sub(allShares),
             );
             expect(await seniorTrancheVaultContract.totalAssets()).to.equal(seniorTotalAssets);
         });
@@ -1719,7 +1748,7 @@ describe("EpochManager Test", function () {
                 settings.calendarUnit,
                 lastEpoch.endTime.toNumber(),
                 ts,
-                settings.payPeriodInCalendarUnit
+                settings.payPeriodInCalendarUnit,
             );
 
             let seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -1733,7 +1762,7 @@ describe("EpochManager Test", function () {
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
                     juniorTotalAssets,
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
-                    allShares
+                    allShares,
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -1754,7 +1783,7 @@ describe("EpochManager Test", function () {
                 settings.calendarUnit,
                 lastEpoch.endTime.toNumber(),
                 ts,
-                settings.payPeriodInCalendarUnit
+                settings.payPeriodInCalendarUnit,
             );
 
             seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -1768,7 +1797,7 @@ describe("EpochManager Test", function () {
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
                     juniorTotalAssets,
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
-                    allShares
+                    allShares,
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -1788,7 +1817,7 @@ describe("EpochManager Test", function () {
                 settings.calendarUnit,
                 lastEpoch.endTime.toNumber(),
                 ts,
-                settings.payPeriodInCalendarUnit
+                settings.payPeriodInCalendarUnit,
             );
 
             seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -1802,7 +1831,7 @@ describe("EpochManager Test", function () {
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
                     juniorTotalAssets,
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
-                    allShares
+                    allShares,
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -1824,7 +1853,7 @@ describe("EpochManager Test", function () {
                 settings.calendarUnit,
                 lastEpoch.endTime.toNumber(),
                 ts,
-                settings.payPeriodInCalendarUnit
+                settings.payPeriodInCalendarUnit,
             );
 
             seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -1838,7 +1867,7 @@ describe("EpochManager Test", function () {
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
                     juniorTotalAssets.sub(partialPaid),
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
-                    allShares.sub(partialPaid)
+                    allShares.sub(partialPaid),
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -1846,7 +1875,7 @@ describe("EpochManager Test", function () {
             expect((await juniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(3);
             expect(await juniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(1);
             expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
-                juniorTotalAssets.sub(partialPaid)
+                juniorTotalAssets.sub(partialPaid),
             );
             expect(await seniorTrancheVaultContract.totalAssets()).to.equal(seniorTotalAssets);
         });
@@ -1881,7 +1910,7 @@ describe("EpochManager Test", function () {
                 settings.calendarUnit,
                 lastEpoch.endTime.toNumber(),
                 ts,
-                settings.payPeriodInCalendarUnit
+                settings.payPeriodInCalendarUnit,
             );
 
             let seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -1895,7 +1924,7 @@ describe("EpochManager Test", function () {
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
                     juniorTotalAssets,
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
-                    unprocessed
+                    unprocessed,
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -1928,7 +1957,7 @@ describe("EpochManager Test", function () {
                 settings.calendarUnit,
                 lastEpoch.endTime.toNumber(),
                 ts,
-                settings.payPeriodInCalendarUnit
+                settings.payPeriodInCalendarUnit,
             );
 
             seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -1945,7 +1974,7 @@ describe("EpochManager Test", function () {
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
                     juniorTotalAssets.sub(unprocessedJ),
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
-                    0
+                    0,
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -1955,10 +1984,10 @@ describe("EpochManager Test", function () {
             expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(0);
             expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(2);
             expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
-                juniorTotalAssets.sub(unprocessedJ)
+                juniorTotalAssets.sub(unprocessedJ),
             );
             expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
-                seniorTotalAssets.sub(unprocessedS)
+                seniorTotalAssets.sub(unprocessedS),
             );
         });
 
@@ -1995,7 +2024,7 @@ describe("EpochManager Test", function () {
                 settings.calendarUnit,
                 lastEpoch.endTime.toNumber(),
                 ts,
-                settings.payPeriodInCalendarUnit
+                settings.payPeriodInCalendarUnit,
             );
 
             let seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -2009,19 +2038,18 @@ describe("EpochManager Test", function () {
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
                     juniorTotalAssets,
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
-                    unprocessedS.add(unprocessedJ).sub(paidS)
+                    unprocessedS.add(unprocessedJ).sub(paidS),
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
             unprocessedS = unprocessedS.sub(paidS);
-            unprocessedJ = unprocessedJ;
 
             expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(1);
             expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(0);
             expect((await juniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(1);
             expect(await juniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(0);
             expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
-                seniorTotalAssets.sub(paidS)
+                seniorTotalAssets.sub(paidS),
             );
             expect(await juniorTrancheVaultContract.totalAssets()).to.equal(juniorTotalAssets);
 
@@ -2043,7 +2071,7 @@ describe("EpochManager Test", function () {
                 settings.calendarUnit,
                 lastEpoch.endTime.toNumber(),
                 ts,
-                settings.payPeriodInCalendarUnit
+                settings.payPeriodInCalendarUnit,
             );
 
             seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -2057,7 +2085,7 @@ describe("EpochManager Test", function () {
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
                     juniorTotalAssets,
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
-                    unprocessedJ.add(unprocessedS)
+                    unprocessedJ.add(unprocessedS),
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -2087,7 +2115,7 @@ describe("EpochManager Test", function () {
                 settings.calendarUnit,
                 lastEpoch.endTime.toNumber(),
                 ts,
-                settings.payPeriodInCalendarUnit
+                settings.payPeriodInCalendarUnit,
             );
 
             seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -2101,7 +2129,7 @@ describe("EpochManager Test", function () {
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
                     juniorTotalAssets,
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
-                    unprocessedJ.add(unprocessedS)
+                    unprocessedJ.add(unprocessedS),
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -2124,7 +2152,7 @@ describe("EpochManager Test", function () {
 
             await creditContract.makePayment(
                 ethers.constants.HashZero,
-                unprocessedJ.add(unprocessedS)
+                unprocessedJ.add(unprocessedS),
             );
 
             // Close epoch4
@@ -2136,7 +2164,7 @@ describe("EpochManager Test", function () {
                 settings.calendarUnit,
                 lastEpoch.endTime.toNumber(),
                 ts,
-                settings.payPeriodInCalendarUnit
+                settings.payPeriodInCalendarUnit,
             );
 
             seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -2150,7 +2178,7 @@ describe("EpochManager Test", function () {
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
                     juniorTotalAssets.sub(unprocessedJ),
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
-                    0
+                    0,
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -2160,10 +2188,10 @@ describe("EpochManager Test", function () {
             expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(0);
             expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(4);
             expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
-                juniorTotalAssets.sub(unprocessedJ)
+                juniorTotalAssets.sub(unprocessedJ),
             );
             expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
-                seniorTotalAssets.sub(unprocessedS)
+                seniorTotalAssets.sub(unprocessedS),
             );
         });
 
@@ -2215,7 +2243,7 @@ describe("EpochManager Test", function () {
                 settings.calendarUnit,
                 lastEpoch.endTime.toNumber(),
                 ts,
-                settings.payPeriodInCalendarUnit
+                settings.payPeriodInCalendarUnit,
             );
 
             seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -2229,7 +2257,7 @@ describe("EpochManager Test", function () {
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
                     juniorTotalAssets,
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
-                    unprocessedS.add(unprocessedJ)
+                    unprocessedS.add(unprocessedJ),
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -2252,7 +2280,7 @@ describe("EpochManager Test", function () {
                 settings.calendarUnit,
                 lastEpoch.endTime.toNumber(),
                 ts,
-                settings.payPeriodInCalendarUnit
+                settings.payPeriodInCalendarUnit,
             );
 
             seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -2266,7 +2294,7 @@ describe("EpochManager Test", function () {
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
                     juniorTotalAssets,
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
-                    unprocessedJ.add(unprocessedS)
+                    unprocessedJ.add(unprocessedS),
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -2282,7 +2310,7 @@ describe("EpochManager Test", function () {
 
             let processedJ = await getMaxJuniorProcessed(
                 unprocessedS,
-                lpConfig.maxSeniorJuniorRatio
+                lpConfig.maxSeniorJuniorRatio,
             );
             shares = toToken(34582);
             unprocessedJ = unprocessedJ.add(shares);
@@ -2296,7 +2324,7 @@ describe("EpochManager Test", function () {
 
             await creditContract.makePayment(
                 ethers.constants.HashZero,
-                processedJ.add(processedS).add(paidS)
+                processedJ.add(processedS).add(paidS),
             );
 
             // Close epoch3
@@ -2308,7 +2336,7 @@ describe("EpochManager Test", function () {
                 settings.calendarUnit,
                 lastEpoch.endTime.toNumber(),
                 ts,
-                settings.payPeriodInCalendarUnit
+                settings.payPeriodInCalendarUnit,
             );
 
             seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -2322,7 +2350,7 @@ describe("EpochManager Test", function () {
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
                     juniorTotalAssets.sub(processedJ),
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
-                    unprocessedJ.add(unprocessedS).sub(processedJ.add(processedS).add(paidS))
+                    unprocessedJ.add(unprocessedS).sub(processedJ.add(processedS).add(paidS)),
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -2332,10 +2360,10 @@ describe("EpochManager Test", function () {
             expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(1);
             expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(1);
             expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
-                juniorTotalAssets.sub(processedJ)
+                juniorTotalAssets.sub(processedJ),
             );
             expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
-                seniorTotalAssets.sub(processedS).sub(paidS)
+                seniorTotalAssets.sub(processedS).sub(paidS),
             );
             unprocessedJ = unprocessedJ.sub(processedJ);
             unprocessedS = unprocessedS.sub(processedS).sub(paidS);
@@ -2362,7 +2390,7 @@ describe("EpochManager Test", function () {
                 settings.calendarUnit,
                 lastEpoch.endTime.toNumber(),
                 ts,
-                settings.payPeriodInCalendarUnit
+                settings.payPeriodInCalendarUnit,
             );
 
             seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -2376,7 +2404,7 @@ describe("EpochManager Test", function () {
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
                     juniorTotalAssets.sub(processedJ),
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
-                    unprocessedJ.add(unprocessedS).sub(processedJ.add(paidS))
+                    unprocessedJ.add(unprocessedS).sub(processedJ.add(paidS)),
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -2386,10 +2414,10 @@ describe("EpochManager Test", function () {
             expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(2);
             expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(1);
             expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
-                juniorTotalAssets.sub(processedJ)
+                juniorTotalAssets.sub(processedJ),
             );
             expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
-                seniorTotalAssets.sub(paidS)
+                seniorTotalAssets.sub(paidS),
             );
         });
 
@@ -2440,7 +2468,7 @@ describe("EpochManager Test", function () {
                 settings.calendarUnit,
                 lastEpoch.endTime.toNumber(),
                 ts,
-                settings.payPeriodInCalendarUnit
+                settings.payPeriodInCalendarUnit,
             );
 
             seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -2454,7 +2482,7 @@ describe("EpochManager Test", function () {
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
                     juniorTotalAssets,
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
-                    unprocessedS.add(unprocessedJ)
+                    unprocessedS.add(unprocessedJ),
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -2480,7 +2508,7 @@ describe("EpochManager Test", function () {
                 settings.calendarUnit,
                 lastEpoch.endTime.toNumber(),
                 ts,
-                settings.payPeriodInCalendarUnit
+                settings.payPeriodInCalendarUnit,
             );
 
             seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -2494,7 +2522,7 @@ describe("EpochManager Test", function () {
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
                     juniorTotalAssets,
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
-                    unprocessedJ.add(unprocessedS).sub(paidS)
+                    unprocessedJ.add(unprocessedS).sub(paidS),
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -2505,7 +2533,7 @@ describe("EpochManager Test", function () {
             expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(0);
             expect(await juniorTrancheVaultContract.totalAssets()).to.equal(juniorTotalAssets);
             expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
-                seniorTotalAssets.sub(paidS)
+                seniorTotalAssets.sub(paidS),
             );
             unprocessedS = unprocessedS.sub(paidS);
 
@@ -2523,7 +2551,7 @@ describe("EpochManager Test", function () {
 
             await creditContract.makePayment(
                 ethers.constants.HashZero,
-                processedJ.add(unprocessedS).add(paidJ)
+                processedJ.add(unprocessedS).add(paidJ),
             );
 
             // Close epoch3
@@ -2535,7 +2563,7 @@ describe("EpochManager Test", function () {
                 settings.calendarUnit,
                 lastEpoch.endTime.toNumber(),
                 ts,
-                settings.payPeriodInCalendarUnit
+                settings.payPeriodInCalendarUnit,
             );
 
             seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -2549,7 +2577,7 @@ describe("EpochManager Test", function () {
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
                     juniorTotalAssets.sub(processedJ).sub(paidJ),
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
-                    unprocessedJ.sub(processedJ).sub(paidJ)
+                    unprocessedJ.sub(processedJ).sub(paidJ),
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -2559,10 +2587,10 @@ describe("EpochManager Test", function () {
             expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(0);
             expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(2);
             expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
-                juniorTotalAssets.sub(processedJ).sub(paidJ)
+                juniorTotalAssets.sub(processedJ).sub(paidJ),
             );
             expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
-                seniorTotalAssets.sub(unprocessedS)
+                seniorTotalAssets.sub(unprocessedS),
             );
             unprocessedJ = unprocessedJ.sub(processedJ).sub(paidJ);
             unprocessedS = toToken(0);
@@ -2588,7 +2616,7 @@ describe("EpochManager Test", function () {
                 settings.calendarUnit,
                 lastEpoch.endTime.toNumber(),
                 ts,
-                settings.payPeriodInCalendarUnit
+                settings.payPeriodInCalendarUnit,
             );
 
             seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -2602,7 +2630,7 @@ describe("EpochManager Test", function () {
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
                     juniorTotalAssets.sub(paidJ),
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
-                    unprocessedJ.sub(paidJ)
+                    unprocessedJ.sub(paidJ),
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -2612,10 +2640,10 @@ describe("EpochManager Test", function () {
             expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(0);
             expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(3);
             expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
-                juniorTotalAssets.sub(paidJ)
+                juniorTotalAssets.sub(paidJ),
             );
             expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
-                seniorTotalAssets.sub(unprocessedS)
+                seniorTotalAssets.sub(unprocessedS),
             );
         });
 
@@ -2658,7 +2686,7 @@ describe("EpochManager Test", function () {
                 settings.calendarUnit,
                 lastEpoch.endTime.toNumber(),
                 ts,
-                settings.payPeriodInCalendarUnit
+                settings.payPeriodInCalendarUnit,
             );
 
             seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -2672,7 +2700,7 @@ describe("EpochManager Test", function () {
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
                     juniorTotalAssets,
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
-                    unprocessedS.add(unprocessedJ)
+                    unprocessedS.add(unprocessedJ),
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -2696,12 +2724,12 @@ describe("EpochManager Test", function () {
 
             let processedJ = await getMaxJuniorProcessed(
                 unprocessedS,
-                lpConfig.maxSeniorJuniorRatio
+                lpConfig.maxSeniorJuniorRatio,
             );
             let leftAssets = toToken(36485);
             await creditContract.makePayment(
                 ethers.constants.HashZero,
-                unprocessedS.add(processedJ).add(leftAssets)
+                unprocessedS.add(processedJ).add(leftAssets),
             );
 
             // Close epoch2
@@ -2713,7 +2741,7 @@ describe("EpochManager Test", function () {
                 settings.calendarUnit,
                 lastEpoch.endTime.toNumber(),
                 ts,
-                settings.payPeriodInCalendarUnit
+                settings.payPeriodInCalendarUnit,
             );
 
             seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
@@ -2727,7 +2755,7 @@ describe("EpochManager Test", function () {
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
                     juniorTotalAssets.sub(processedJ),
                     CONSTANTS.PRICE_DECIMALS_FACTOR,
-                    unprocessedJ.sub(processedJ)
+                    unprocessedJ.sub(processedJ),
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -2737,10 +2765,10 @@ describe("EpochManager Test", function () {
             expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(0);
             expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(2);
             expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
-                juniorTotalAssets.sub(processedJ)
+                juniorTotalAssets.sub(processedJ),
             );
             expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
-                seniorTotalAssets.sub(unprocessedS)
+                seniorTotalAssets.sub(unprocessedS),
             );
 
             expect(await poolVaultContract.getAvailableLiquidity()).to.equal(0);
