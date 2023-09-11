@@ -574,23 +574,6 @@ abstract contract BaseCredit is
                 (cc.creditLimit - cr.unbilledPrincipal - (cr.totalDue - cr.feesDue - cr.yieldDue))
             ) revert Errors.creditLineExceeded();
 
-            uint256 startDate = calendar.getStartDateOfPeriod(
-                cc.calendarUnit,
-                cc.periodDuration,
-                cr.nextDueDate
-            );
-
-            // Adjust the new due amount due to the yield generated because of the drawdown
-            // amount for the rest of this period
-            uint96 correctYieldDue = uint96(
-                (borrowAmount * cc.yieldInBps * (startDate - block.timestamp)) /
-                    SECONDS_IN_A_YEAR /
-                    HUNDRED_PERCENT_IN_BPS
-            );
-            console.log("startDate: %s, correctYieldDue: %s", startDate, correctYieldDue);
-            cr.yieldDue += correctYieldDue;
-            cr.totalDue += correctYieldDue;
-
             cr.unbilledPrincipal = uint96(cr.unbilledPrincipal + borrowAmount);
         }
         _setCreditRecord(creditHash, cr);
@@ -601,7 +584,7 @@ abstract contract BaseCredit is
 
         pnlManager.processDrawdown(
             uint96(platformProfit),
-            uint96((borrowAmount * cc.yieldInBps) / SECONDS_IN_A_YEAR)
+            uint96((borrowAmount * cc.yieldInBps) / SECONDS_IN_A_YEAR / HUNDRED_PERCENT_IN_BPS)
         );
 
         // Transfer funds to the _borrower
@@ -782,16 +765,13 @@ abstract contract BaseCredit is
                 poolConfig.getPoolSettings().latePaymentGracePeriodInDays *
                 SECONDS_IN_A_DAY);
 
-        (
-            periodsPassed,
-            cr.feesDue,
-            cr.yieldDue,
+        (cr, periodsPassed, missedProfit, principalDiff) = _feeManager.getDueInfo(cr, cc);
+        console.log(
+            "cr.totalDue: %s, cr.yieldDue: %s, periodsPassed: %s",
             cr.totalDue,
-            cr.unbilledPrincipal,
-            missedProfit,
-            principalDiff
-        ) = _feeManager.getDueInfo(cr, cc);
-        console.log("cr.totalDue: %s, cr.yieldDue: %s", cr.totalDue, cr.yieldDue);
+            cr.yieldDue,
+            periodsPassed
+        );
         console.log("missedProfit: %s, principalDiff: %s", missedProfit, principalDiff);
 
         if (periodsPassed > 0) {
@@ -805,12 +785,12 @@ abstract contract BaseCredit is
             );
 
             // update nextDueDate
-            (uint256 dueDate, ) = calendar.getNextDueDate(
-                cc.calendarUnit,
-                cc.periodDuration,
-                cr.nextDueDate
-            );
-            cr.nextDueDate = uint64(dueDate);
+            // (uint256 dueDate, ) = calendar.getNextDueDate(
+            //     cc.calendarUnit,
+            //     cc.periodDuration,
+            //     cr.nextDueDate
+            // );
+            // cr.nextDueDate = uint64(dueDate);
 
             // Adjusts remainingPeriods, special handling when reached the maturity of the credit line
             if (cr.remainingPeriods > periodsPassed) {
@@ -821,7 +801,7 @@ abstract contract BaseCredit is
 
             // Sets the correct missedPeriods. If totalDue is non zero, the totalDue must be
             // nonZero for each of the passed period, thus add periodsPassed to cr.missedPeriods
-            if (cr.totalDue > 0) cr.missedPeriods = uint16(cr.missedPeriods + periodsPassed);
+            if (oldLateFlag) cr.missedPeriods = uint16(cr.missedPeriods + periodsPassed);
             else cr.missedPeriods = 0;
 
             if (cr.missedPeriods > 0) {

@@ -53,7 +53,7 @@ export type CreditContractName =
     | "MockPoolCredit";
 
 const CALENDAR_UNIT_DAY = 0;
-const CALENDAR_UNIT_MONTH = 0;
+const CALENDAR_UNIT_MONTH = 1;
 const SENIOR_TRANCHE_INDEX = 0;
 const JUNIOR_TRANCHE_INDEX = 1;
 const PRICE_DECIMALS_FACTOR = 10n ** 18n;
@@ -427,7 +427,7 @@ function calcProfitForFixedAprPolicy(
     lastUpdateTS: number,
     currentTS: number,
     deployedAssets: BN,
-    yieldInBps: BN,
+    yieldInBps: number,
 ): BN[] {
     const totalAssets = assets[CONSTANTS.SENIOR_TRANCHE_INDEX].add(
         assets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
@@ -439,7 +439,7 @@ function calcProfitForFixedAprPolicy(
     if (currentTS > lastUpdateTS) {
         seniorProfit = seniorDeployedAssets
             .mul(BN.from(currentTS).sub(BN.from(lastUpdateTS)))
-            .mul(yieldInBps)
+            .mul(BN.from(yieldInBps))
             .div(CONSTANTS.SECONDS_IN_YEAR)
             .div(CONSTANTS.BP_FACTOR);
     }
@@ -552,11 +552,11 @@ export function checkCreditConfig(
 
 export function checkCreditRecord(
     creditRecord: CreditRecordStruct,
-    unbilledPrincipal: number,
+    unbilledPrincipal: BN,
     nextDueDate: number,
-    totalDue: number,
-    yieldDue: number,
-    feesDue: number,
+    totalDue: BN,
+    yieldDue: BN,
+    feesDue: BN,
     missedPeriods: number,
     remainingPeriods: number,
     state: number,
@@ -569,6 +569,24 @@ export function checkCreditRecord(
     expect(creditRecord.missedPeriods).to.equal(missedPeriods);
     expect(creditRecord.remainingPeriods).to.equal(remainingPeriods);
     expect(creditRecord.state).to.equal(state);
+}
+
+export function checkPnLTracker(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    pnlTracker: any,
+    profitRate: BN,
+    lossRate: BN,
+    pnlLastUpdated: number,
+    totalProfit: BN,
+    totalLoss: BN,
+    totalLossRecovery: BN,
+) {
+    expect(pnlTracker.profitRate).to.equal(profitRate);
+    expect(pnlTracker.lossRate).to.equal(lossRate);
+    expect(pnlTracker.pnlLastUpdated).to.equal(pnlLastUpdated);
+    expect(pnlTracker.totalProfit).to.equal(totalProfit);
+    expect(pnlTracker.totalLoss).to.equal(totalLoss);
+    expect(pnlTracker.totalLossRecovery).to.equal(totalLossRecovery);
 }
 
 async function getTranchesPolicyContractFactory(

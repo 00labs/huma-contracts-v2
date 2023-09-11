@@ -142,7 +142,7 @@ describe("FixedAprTranchesPolicy Test", function () {
             lastDate,
             nextDate,
             deployedAssets,
-            BN.from(apy),
+            apy,
         );
         let result = await tranchesPolicyContract.calcTranchesAssetsForProfit(
             profit,
