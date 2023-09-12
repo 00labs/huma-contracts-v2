@@ -354,18 +354,16 @@ describe("CreditLine Test", function () {
 
         it("Should not drawdown while credit line is in wrong state", async function () {});
 
-        // it.skip("Should not borrow after credit expiration window", async function () {
-        //     // await poolConfigContract.connect(poolOwner).setCreditApprovalExpiration(5);
-        //     // await poolContract
-        //     //     .connect(eaServiceAccount)
-        //     //     .approveCredit(borrower.address, toToken(1_000_000), 30, 12, 1217);
-
-        //     // await advanceClock(6);
-
-        //     // await expect(
-        //     //     poolContract.connect(borrower).drawdown(toToken(1_000_000))
-        //     // ).to.revertedWithCustomError(poolContract, "creditExpiredDueToFirstDrawdownTooLate");
-        // });
+        it("Should not borrow after credit expiration window", async function () {
+            // await poolConfigContract.connect(poolOwner).setCreditApprovalExpiration(5);
+            // await poolContract
+            //     .connect(eaServiceAccount)
+            //     .approveCredit(borrower.address, toToken(1_000_000), 30, 12, 1217);
+            // await advanceClock(6);
+            // await expect(
+            //     poolContract.connect(borrower).drawdown(toToken(1_000_000))
+            // ).to.revertedWithCustomError(poolContract, "creditExpiredDueToFirstDrawdownTooLate");
+        });
 
         it("Should not borrow after credit expired", async function () {});
 
@@ -459,9 +457,155 @@ describe("CreditLine Test", function () {
             );
         });
 
-        it("Should borrow second time in the same period successfully", async function () {});
+        it("Should borrow second time in the same period successfully", async function () {
+            let frontLoadingFeeBps = BN.from(100);
+            await poolConfigContract.connect(poolOwner).setFrontLoadingFees({
+                frontLoadingFeeFlat: 0,
+                frontLoadingFeeBps: frontLoadingFeeBps,
+            });
 
-        it("Should borrow second time in next period successfully", async function () {});
+            await poolConfigContract
+                .connect(poolOwner)
+                .setPoolPayPeriod(CONSTANTS.CALENDAR_UNIT_MONTH, 3);
+
+            let juniorDepositAmount = toToken(300_000);
+            await juniorTrancheVaultContract
+                .connect(lender)
+                .deposit(juniorDepositAmount, lender.address);
+            let seniorDepositAmount = toToken(100_000);
+            await seniorTrancheVaultContract
+                .connect(lender)
+                .deposit(seniorDepositAmount, lender.address);
+
+            const yieldInBps = 1217;
+            await creditContract
+                .connect(eaServiceAccount)
+                .approveBorrower(
+                    borrower.address,
+                    toToken(100_000),
+                    3,
+                    yieldInBps,
+                    toToken(100_000),
+                    true,
+                );
+
+            const creditHash = ethers.utils.keccak256(
+                ethers.utils.defaultAbiCoder.encode(
+                    ["address", "address"],
+                    [creditContract.address, borrower.address],
+                ),
+            );
+
+            let borrowAmount = toToken(30_000);
+            let allBorrowAmount = borrowAmount;
+            let netBorrowAmount = borrowAmount
+                .mul(CONSTANTS.BP_FACTOR.sub(frontLoadingFeeBps))
+                .div(CONSTANTS.BP_FACTOR);
+            let nextTime = await getNextTime(3);
+            await mineNextBlockWithTimestamp(nextTime);
+
+            let [nextDueDate] = getNextMonth(0, nextTime, 3);
+            let yieldDue = calcYield(borrowAmount, yieldInBps, nextDueDate - nextTime);
+
+            let userBeforeBalance = await mockTokenContract.balanceOf(borrower.address);
+            let pvBeforeBalance = await mockTokenContract.balanceOf(poolVaultContract.address);
+            await expect(creditContract.connect(borrower).drawdown(borrower.address, borrowAmount))
+                .to.emit(creditContract, "DrawdownMade")
+                .withArgs(borrower.address, borrowAmount, netBorrowAmount)
+                .to.emit(creditContract, "BillRefreshed")
+                .withArgs(creditHash, nextDueDate, yieldDue);
+            let userAfterBalance = await mockTokenContract.balanceOf(borrower.address);
+            let pvAfterBalance = await mockTokenContract.balanceOf(poolVaultContract.address);
+            expect(userAfterBalance.sub(userBeforeBalance)).to.equal(netBorrowAmount);
+            expect(pvBeforeBalance.sub(pvAfterBalance)).to.equal(netBorrowAmount);
+
+            let creditRecord = await creditContract.creditRecordMap(creditHash);
+            // console.log(`creditRecord: ${creditRecord}`);
+            checkCreditRecord(
+                creditRecord,
+                borrowAmount,
+                nextDueDate,
+                yieldDue,
+                yieldDue,
+                BN.from(0),
+                0,
+                2,
+                4,
+            );
+
+            let pnlTracker = await creditPnlManagerContract.getPnL();
+            checkPnLTracker(
+                pnlTracker,
+                borrowAmount
+                    .mul(yieldInBps)
+                    .div(CONSTANTS.BP_FACTOR)
+                    .div(CONSTANTS.SECONDS_IN_YEAR),
+                BN.from(0),
+                nextTime,
+                borrowAmount.mul(frontLoadingFeeBps).div(CONSTANTS.BP_FACTOR),
+                BN.from(0),
+                BN.from(0),
+            );
+
+            // move forward 10 days
+            nextTime = nextTime + 3600 * 24 * 10;
+            await mineNextBlockWithTimestamp(nextTime);
+
+            borrowAmount = toToken(20_000);
+            allBorrowAmount = allBorrowAmount.add(borrowAmount);
+            netBorrowAmount = borrowAmount
+                .mul(CONSTANTS.BP_FACTOR.sub(frontLoadingFeeBps))
+                .div(CONSTANTS.BP_FACTOR);
+
+            userBeforeBalance = await mockTokenContract.balanceOf(borrower.address);
+            pvBeforeBalance = await mockTokenContract.balanceOf(poolVaultContract.address);
+            await expect(creditContract.connect(borrower).drawdown(borrower.address, borrowAmount))
+                .to.emit(creditContract, "DrawdownMade")
+                .withArgs(borrower.address, borrowAmount, netBorrowAmount);
+            // .to.emit(creditContract, "BillRefreshed");
+            // .withArgs(creditHash, nextDueDate, yieldDue);
+            userAfterBalance = await mockTokenContract.balanceOf(borrower.address);
+            pvAfterBalance = await mockTokenContract.balanceOf(poolVaultContract.address);
+            expect(userAfterBalance.sub(userBeforeBalance)).to.equal(netBorrowAmount);
+            expect(pvBeforeBalance.sub(pvAfterBalance)).to.equal(netBorrowAmount);
+
+            yieldDue = yieldDue.add(calcYield(borrowAmount, yieldInBps, nextDueDate - nextTime));
+            creditRecord = await creditContract.creditRecordMap(creditHash);
+            // console.log(`creditRecord: ${creditRecord}`);
+            checkCreditRecord(
+                creditRecord,
+                allBorrowAmount,
+                nextDueDate,
+                yieldDue,
+                yieldDue,
+                BN.from(0),
+                0,
+                2,
+                4,
+            );
+
+            let profitRate = pnlTracker.profitRate.add(
+                borrowAmount
+                    .mul(yieldInBps)
+                    .div(CONSTANTS.BP_FACTOR)
+                    .div(CONSTANTS.SECONDS_IN_YEAR),
+            );
+            let accruedProfit = pnlTracker.accruedProfit
+                .add(pnlTracker.profitRate.mul(BN.from(nextTime).sub(pnlTracker.pnlLastUpdated)))
+                .add(borrowAmount.mul(frontLoadingFeeBps).div(CONSTANTS.BP_FACTOR));
+            pnlTracker = await creditPnlManagerContract.getPnL();
+            checkPnLTracker(
+                pnlTracker,
+                profitRate,
+                BN.from(0),
+                nextTime,
+                accruedProfit,
+                BN.from(0),
+                BN.from(0),
+            );
+        });
+
+        it("Should borrow second time after next due date and before grace late date", async function () {});
     });
 
     it("Should makePayment to a credit correctly", async function () {

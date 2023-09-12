@@ -577,16 +577,16 @@ export function checkPnLTracker(
     profitRate: BN,
     lossRate: BN,
     pnlLastUpdated: number,
-    totalProfit: BN,
-    totalLoss: BN,
-    totalLossRecovery: BN,
+    accruedProfit: BN,
+    accruedLoss: BN,
+    accruedLossRecovery: BN,
 ) {
     expect(pnlTracker.profitRate).to.equal(profitRate);
     expect(pnlTracker.lossRate).to.equal(lossRate);
     expect(pnlTracker.pnlLastUpdated).to.equal(pnlLastUpdated);
-    expect(pnlTracker.totalProfit).to.equal(totalProfit);
-    expect(pnlTracker.totalLoss).to.equal(totalLoss);
-    expect(pnlTracker.totalLossRecovery).to.equal(totalLossRecovery);
+    expect(pnlTracker.accruedProfit).to.equal(accruedProfit);
+    expect(pnlTracker.accruedLoss).to.equal(accruedLoss);
+    expect(pnlTracker.accruedLossRecovery).to.equal(accruedLossRecovery);
 }
 
 async function getTranchesPolicyContractFactory(

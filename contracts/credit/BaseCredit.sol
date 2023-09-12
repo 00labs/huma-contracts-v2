@@ -452,16 +452,12 @@ abstract contract BaseCredit is
         return _creditConfigMap[creditHash];
     }
 
-    function getIncrementalPnL()
+    function getAccruedPnL()
         external
         view
-        returns (
-            uint256 incrementalProfit,
-            uint256 incrementalLoss,
-            uint256 incrementalLossRecovery
-        )
+        returns (uint256 accruedProfit, uint256 accruedLoss, uint256 accruedLossRecovery)
     {
-        return pnlManager.getIncrementalPnL();
+        return pnlManager.getPnLSum();
     }
 
     function getCreditHash(
@@ -574,6 +570,13 @@ abstract contract BaseCredit is
                 (cc.creditLimit - cr.unbilledPrincipal - (cr.totalDue - cr.feesDue - cr.yieldDue))
             ) revert Errors.creditLineExceeded();
 
+            uint256 correctionYield = (borrowAmount *
+                cc.yieldInBps *
+                (cr.nextDueDate - block.timestamp)) /
+                SECONDS_IN_A_YEAR /
+                HUNDRED_PERCENT_IN_BPS;
+            cr.yieldDue += uint96(correctionYield);
+            cr.totalDue += uint96(correctionYield);
             cr.unbilledPrincipal = uint96(cr.unbilledPrincipal + borrowAmount);
         }
         _setCreditRecord(creditHash, cr);
