@@ -11,9 +11,9 @@ import {ICredit} from "./interfaces/ICredit.sol";
 import {PoolConfig} from "../PoolConfig.sol";
 
 abstract contract BasePnLManager is PoolConfigCache, IPnLManager {
-    PnLTracker pnlTracker;
+    PnLTracker internal pnlTracker;
 
-    ICredit _credit;
+    ICredit internal _credit;
 
     mapping(bytes32 => CreditLoss) internal _creditLossMap;
 
