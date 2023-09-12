@@ -83,9 +83,9 @@ contract Pool is PoolConfigCache, IPool {
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         epochManager = IEpochManager(addr);
 
-        address[] memory coverers = _poolConfig.getLossCoverers();
-        for (uint256 i = 0; i < coverers.length; i++) {
-            firstLossCovers[i] = IFirstLossCover(coverers[i]);
+        address[] memory covers = _poolConfig.getFirstLossCovers();
+        for (uint256 i = 0; i < covers.length; i++) {
+            firstLossCovers[i] = IFirstLossCover(covers[i]);
         }
     }
 
@@ -190,8 +190,8 @@ contract Pool is PoolConfigCache, IPool {
             // First loss cover
             uint256 poolAssets = assets[SENIOR_TRANCHE_INDEX] + assets[JUNIOR_TRANCHE_INDEX];
             for (uint256 i; i < firstLossCovers.length && loss > 0; i++) {
-                IFirstLossCover coverer = firstLossCovers[i];
-                loss = coverer.coverLoss(poolAssets, loss);
+                IFirstLossCover cover = firstLossCovers[i];
+                loss = cover.coverLoss(poolAssets, loss);
             }
 
             if (loss > 0) {
@@ -220,8 +220,8 @@ contract Pool is PoolConfigCache, IPool {
 
             uint256 len = firstLossCovers.length;
             for (uint256 i = 0; i < len && lossRecovery > 0; i++) {
-                IFirstLossCover coverer = firstLossCovers[len - i - 1];
-                lossRecovery = coverer.recoverLoss(lossRecovery);
+                IFirstLossCover cover = firstLossCovers[len - i - 1];
+                lossRecovery = cover.recoverLoss(lossRecovery);
             }
         }
 
@@ -290,8 +290,8 @@ contract Pool is PoolConfigCache, IPool {
             // First loss cover
             uint256 poolAssets = assets[SENIOR_TRANCHE_INDEX] + assets[JUNIOR_TRANCHE_INDEX];
             for (uint256 i; i < firstLossCovers.length && loss > 0; i++) {
-                IFirstLossCover coverer = firstLossCovers[i];
-                loss = coverer.calcLossCover(poolAssets, loss);
+                IFirstLossCover cover = firstLossCovers[i];
+                loss = cover.calcLossCover(poolAssets, loss);
             }
             uint96[2] memory lossesDelta;
             (assets, lossesDelta) = tranchesPolicy.calcTranchesAssetsForLoss(loss, assets);
@@ -317,8 +317,8 @@ contract Pool is PoolConfigCache, IPool {
 
             uint256 len = firstLossCovers.length;
             for (uint256 i = 0; i < len && lossRecovery > 0; i++) {
-                IFirstLossCover coverer = firstLossCovers[len - i - 1];
-                lossRecovery = coverer.calcLossRecover(lossRecovery);
+                IFirstLossCover cover = firstLossCovers[len - i - 1];
+                lossRecovery = cover.calcLossRecover(lossRecovery);
             }
         }
 

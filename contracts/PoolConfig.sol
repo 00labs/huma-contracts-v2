@@ -192,7 +192,7 @@ contract PoolConfig is AccessControl, Initializable {
      *   _contracts[2]: address of platformFeeManager
      *   _contracts[3]: address of poolVault
      *   _contracts[4]: address of calendar
-     *   _contracts[5]: address of poolOwnerOrEALossCoverer
+     *   _contracts[5]: address of poolOwnerOrEAFirstLossCover
      *   _contracts[6]: address of tranchesPolicy
      *   _contracts[7]: address of pool
      *   _contracts[8]: address of epochManager
@@ -281,8 +281,8 @@ contract PoolConfig is AccessControl, Initializable {
         _poolSettings = _pSettings;
 
         AdminRnR memory adminRnRConfig = _adminRnR;
-        adminRnRConfig.rewardRateInBpsForEA = 300; //3%
-        adminRnRConfig.rewardRateInBpsForPoolOwner = 200; //2%
+        adminRnRConfig.rewardRateInBpsForEA = 300; // 3%
+        adminRnRConfig.rewardRateInBpsForPoolOwner = 200; // 2%
         adminRnRConfig.liquidityRateInBpsByEA = 200; // 2%
         adminRnRConfig.liquidityRateInBpsByPoolOwner = 200; // 2%
         _adminRnR = adminRnRConfig;
@@ -357,9 +357,9 @@ contract PoolConfig is AccessControl, Initializable {
         // liquidity to pay the EA before replacing it.
         address oldEA = evaluationAgent;
         if (oldEA != address(0)) {
-            IPlatformFeeManager fm = IPlatformFeeManager(platformFeeManager);
-            (, , uint256 eaWithdrawable) = fm.getWithdrawables();
-            fm.withdrawEAFee(eaWithdrawable);
+            IPlatformFeeManager feeManager = IPlatformFeeManager(platformFeeManager);
+            (, , uint256 eaWithdrawable) = feeManager.getWithdrawables();
+            feeManager.withdrawEAFee(eaWithdrawable);
         }
 
         // Make sure the new EA has met the liquidity requirements
@@ -510,17 +510,17 @@ contract PoolConfig is AccessControl, Initializable {
         // todo emit event
     }
 
-    function setLossCoverers(address[] calldata lossCoverers) external {
+    function setFirstLossCovers(address[] calldata firstLossCovers) external {
         _onlyOwnerOrHumaMasterAdmin();
-        for (uint256 i = 0; i < lossCoverers.length; i++) {
-            _firstLossCovers.push(lossCoverers[i]);
+        for (uint256 i = 0; i < firstLossCovers.length; i++) {
+            _firstLossCovers.push(firstLossCovers[i]);
         }
         // todo emit event
     }
 
-    function setPoolOwnerOrEALossCoverer(address coverer) external {
+    function setPoolOwnerOrEAFirstLossCover(address cover) external {
         _onlyOwnerOrHumaMasterAdmin();
-        poolOwnerOrEAFirstLossCover = coverer;
+        poolOwnerOrEAFirstLossCover = cover;
     }
 
     function setCalendar(address _calendar) external {
@@ -534,7 +534,7 @@ contract PoolConfig is AccessControl, Initializable {
      * @notice Set the receivable rate in terms of basis points.
      * When the rate is higher than 10000, it means the backing is higher than the borrow amount,
      * similar to an over-collateral situation.
-     * @param receivableInBps the percentage. A percentage over 10000 means overreceivableization.
+     * @param receivableInBps the percentage. A percentage over 10000 means over-receivablization.
      */
     function setReceivableRequiredInBps(uint256 receivableInBps) external {
         _onlyOwnerOrHumaMasterAdmin();
@@ -578,7 +578,7 @@ contract PoolConfig is AccessControl, Initializable {
             uint256 yieldInBps,
             uint256 payPeriod,
             uint256 maxCreditAmount,
-            uint256 liquiditycap,
+            uint256 liquidityCap,
             string memory name,
             string memory symbol,
             uint8 decimals,
@@ -613,7 +613,7 @@ contract PoolConfig is AccessControl, Initializable {
         return _firstLossCover;
     }
 
-    function getLossCoverers() external view returns (address[] memory) {
+    function getFirstLossCovers() external view returns (address[] memory) {
         return _firstLossCovers;
     }
 
@@ -719,7 +719,7 @@ contract PoolConfig is AccessControl, Initializable {
         if (account != pool) revert Errors.notPool();
     }
 
-    function onlyTrancheVaultOrLossCovererOrCredit(address account) external view {
+    function onlyTrancheVaultOrFirstLossCoverOrCredit(address account) external view {
         bool valid;
         if (account == seniorTranche || account == juniorTranche || account == credit) return;
         uint256 len = _firstLossCovers.length;
@@ -727,7 +727,7 @@ contract PoolConfig is AccessControl, Initializable {
             if (account == _firstLossCovers[i]) return;
         }
 
-        if (!valid) revert Errors.notTrancheVaultOrLossCoverer();
+        if (!valid) revert Errors.notTrancheVaultOrFirstLossCover();
     }
 
     function onlyTrancheVaultOrEpochManager(address account) external view {

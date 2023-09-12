@@ -36,7 +36,7 @@ contract Errors {
     error notBorrower();
     error notEpochManager();
     error notPlatformFeeManager();
-    error notTrancheVaultOrLossCoverer();
+    error notTrancheVaultOrFirstLossCover();
     error notTrancheVaultOrEpochManager();
     error notCurrentEpoch();
 
