@@ -45,10 +45,10 @@ contract MockPoolCredit is PoolConfigCache, IPoolCredit {
         poolVault.deposit(address(this), amount);
     }
 
-    function getIncrementalPnL()
+    function getAccruedPnL()
         external
         view
-        returns (uint256 incrementalProfit, uint256 incrementalLoss, uint256 incrementalLossRecovery)
+        returns (uint256 accruedProfit, uint256 accruedLoss, uint256 accruedLossRecovery)
     {}
 
     function setRefreshPnLReturns(uint256 _profit, uint256 _loss, uint256 _lossRecovery) external {
@@ -57,10 +57,7 @@ contract MockPoolCredit is PoolConfigCache, IPoolCredit {
         lossRecovery_ = _lossRecovery;
     }
 
-    function refreshPnL()
-        external
-        returns (uint256 profit, uint256 loss, uint256 lossRecovery)
-    {
+    function refreshPnL() external returns (uint256 profit, uint256 loss, uint256 lossRecovery) {
         profit = profit_;
         loss = loss_;
         lossRecovery = lossRecovery_;

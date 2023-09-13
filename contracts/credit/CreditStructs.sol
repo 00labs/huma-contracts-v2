@@ -104,9 +104,9 @@ struct PnLTracker {
     uint96 profitRate;
     uint96 lossRate;
     uint64 pnlLastUpdated;
-    uint96 totalProfit;
-    uint96 totalLoss;
-    uint96 totalLossRecovery;
+    uint96 accruedProfit;
+    uint96 accruedLoss;
+    uint96 accruedLossRecovery;
 }
 
 struct Payment {

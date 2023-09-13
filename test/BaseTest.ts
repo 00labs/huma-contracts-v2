@@ -56,7 +56,7 @@ const CALENDAR_UNIT_DAY = 0;
 const CALENDAR_UNIT_MONTH = 1;
 const SENIOR_TRANCHE_INDEX = 0;
 const JUNIOR_TRANCHE_INDEX = 1;
-const PRICE_DECIMALS_FACTOR = 10n ** 18n;
+const DEFAULT_DECIMALS_FACTOR = 10n ** 18n;
 const BP_FACTOR = BN.from(10000);
 const SECONDS_IN_YEAR = 60 * 60 * 24 * 365;
 
@@ -65,7 +65,7 @@ export const CONSTANTS = {
     CALENDAR_UNIT_MONTH,
     SENIOR_TRANCHE_INDEX,
     JUNIOR_TRANCHE_INDEX,
-    PRICE_DECIMALS_FACTOR,
+    DEFAULT_DECIMALS_FACTOR,
     BP_FACTOR,
     SECONDS_IN_YEAR,
 };
@@ -550,6 +550,20 @@ export function checkCreditConfig(
     expect(creditConfig.exclusive).to.equal(exclusive);
 }
 
+export function checkTwoCreditRecords(
+    preCreditRecord: CreditRecordStruct,
+    creditRecord: CreditRecordStruct,
+) {
+    expect(creditRecord.unbilledPrincipal).to.equal(preCreditRecord.unbilledPrincipal);
+    expect(creditRecord.nextDueDate).to.equal(preCreditRecord.nextDueDate);
+    expect(creditRecord.totalDue).to.equal(preCreditRecord.totalDue);
+    expect(creditRecord.yieldDue).to.equal(preCreditRecord.yieldDue);
+    expect(creditRecord.feesDue).to.equal(preCreditRecord.feesDue);
+    expect(creditRecord.missedPeriods).to.equal(preCreditRecord.missedPeriods);
+    expect(creditRecord.remainingPeriods).to.equal(preCreditRecord.remainingPeriods);
+    expect(creditRecord.state).to.equal(preCreditRecord.state);
+}
+
 export function checkCreditRecord(
     creditRecord: CreditRecordStruct,
     unbilledPrincipal: BN,
@@ -577,16 +591,30 @@ export function checkPnLTracker(
     profitRate: BN,
     lossRate: BN,
     pnlLastUpdated: number,
-    totalProfit: BN,
-    totalLoss: BN,
-    totalLossRecovery: BN,
+    accruedProfit: BN,
+    accruedLoss: BN,
+    accruedLossRecovery: BN,
 ) {
     expect(pnlTracker.profitRate).to.equal(profitRate);
     expect(pnlTracker.lossRate).to.equal(lossRate);
     expect(pnlTracker.pnlLastUpdated).to.equal(pnlLastUpdated);
-    expect(pnlTracker.totalProfit).to.equal(totalProfit);
-    expect(pnlTracker.totalLoss).to.equal(totalLoss);
-    expect(pnlTracker.totalLossRecovery).to.equal(totalLossRecovery);
+    expect(pnlTracker.accruedProfit).to.equal(accruedProfit);
+    expect(pnlTracker.accruedLoss).to.equal(accruedLoss);
+    expect(pnlTracker.accruedLossRecovery).to.equal(accruedLossRecovery);
+}
+
+export function printCreditRecord(name: string, creditRecord: CreditRecordStruct) {
+    // console.log(
+    //     `${name}[
+    //         unbilledPrincipal: ${creditRecord.unbilledPrincipal},
+    //         nextDueDate: ${creditRecord.nextDueDate},
+    //         totalDue: ${creditRecord.totalDue},
+    //         yieldDue: ${creditRecord.yieldDue},
+    //         feesDue: ${creditRecord.feesDue},
+    //         missedPeriods: ${creditRecord.missedPeriods},
+    //         remainingPeriods: ${creditRecord.remainingPeriods},
+    //         state: ${creditRecord.state}]`,
+    // );
 }
 
 async function getTranchesPolicyContractFactory(
