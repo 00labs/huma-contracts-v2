@@ -509,7 +509,7 @@ describe("CreditLine Test", function () {
                 pnlTracker,
                 borrowAmount
                     .mul(yieldInBps)
-                    .mul(CONSTANTS.PRICE_DECIMALS_FACTOR)
+                    .mul(CONSTANTS.DEFAULT_DECIMALS_FACTOR)
                     .div(CONSTANTS.BP_FACTOR)
                     .div(CONSTANTS.SECONDS_IN_YEAR),
                 BN.from(0),
@@ -601,7 +601,7 @@ describe("CreditLine Test", function () {
                 pnlTracker,
                 borrowAmount
                     .mul(yieldInBps)
-                    .mul(CONSTANTS.PRICE_DECIMALS_FACTOR)
+                    .mul(CONSTANTS.DEFAULT_DECIMALS_FACTOR)
                     .div(CONSTANTS.BP_FACTOR)
                     .div(CONSTANTS.SECONDS_IN_YEAR),
                 BN.from(0),
@@ -651,7 +651,7 @@ describe("CreditLine Test", function () {
             let profitRate = pnlTracker.profitRate.add(
                 borrowAmount
                     .mul(yieldInBps)
-                    .mul(CONSTANTS.PRICE_DECIMALS_FACTOR)
+                    .mul(CONSTANTS.DEFAULT_DECIMALS_FACTOR)
                     .div(CONSTANTS.BP_FACTOR)
                     .div(CONSTANTS.SECONDS_IN_YEAR),
             );
@@ -659,7 +659,7 @@ describe("CreditLine Test", function () {
                 .add(
                     pnlTracker.profitRate
                         .mul(BN.from(nextTime).sub(pnlTracker.pnlLastUpdated))
-                        .div(CONSTANTS.PRICE_DECIMALS_FACTOR),
+                        .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR),
                 )
                 .add(borrowAmount.mul(frontLoadingFeeBps).div(CONSTANTS.BP_FACTOR));
             pnlTracker = await creditPnlManagerContract.getPnL();

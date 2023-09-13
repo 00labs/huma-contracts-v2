@@ -238,9 +238,9 @@ describe("EpochManager Test", function () {
             .withArgs(
                 lastEpoch.id,
                 seniorTotalAssets.sub(withdrawalShares),
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 juniorTotalAssets,
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 0,
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
@@ -287,9 +287,9 @@ describe("EpochManager Test", function () {
             .withArgs(
                 lastEpoch.id,
                 seniorTotalAssets,
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 juniorTotalAssets,
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 allShares,
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
@@ -323,9 +323,9 @@ describe("EpochManager Test", function () {
             .withArgs(
                 lastEpoch.id,
                 seniorTotalAssets.sub(allShares),
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 juniorTotalAssets,
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 0,
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
@@ -374,9 +374,9 @@ describe("EpochManager Test", function () {
             .withArgs(
                 lastEpoch.id,
                 seniorTotalAssets,
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 juniorTotalAssets,
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 allShares,
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
@@ -409,9 +409,9 @@ describe("EpochManager Test", function () {
             .withArgs(
                 lastEpoch.id,
                 seniorTotalAssets,
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 juniorTotalAssets,
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 allShares,
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
@@ -444,9 +444,9 @@ describe("EpochManager Test", function () {
             .withArgs(
                 lastEpoch.id,
                 seniorTotalAssets,
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 juniorTotalAssets,
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 allShares,
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
@@ -480,9 +480,9 @@ describe("EpochManager Test", function () {
             .withArgs(
                 lastEpoch.id,
                 seniorTotalAssets.sub(partialPaid),
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 juniorTotalAssets,
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 allShares.sub(partialPaid),
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
@@ -520,9 +520,9 @@ describe("EpochManager Test", function () {
             .withArgs(
                 lastEpoch.id,
                 seniorTotalAssets,
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 juniorTotalAssets.sub(withdrawalShares),
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 0,
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
@@ -569,9 +569,9 @@ describe("EpochManager Test", function () {
             .withArgs(
                 lastEpoch.id,
                 seniorTotalAssets,
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 juniorTotalAssets,
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 allShares,
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
@@ -604,9 +604,9 @@ describe("EpochManager Test", function () {
             .withArgs(
                 lastEpoch.id,
                 seniorTotalAssets,
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 juniorTotalAssets,
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 allShares,
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
@@ -641,9 +641,9 @@ describe("EpochManager Test", function () {
             .withArgs(
                 lastEpoch.id,
                 seniorTotalAssets,
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 juniorTotalAssets.sub(allShares),
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 0,
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
@@ -692,9 +692,9 @@ describe("EpochManager Test", function () {
             .withArgs(
                 lastEpoch.id,
                 seniorTotalAssets,
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 juniorTotalAssets,
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 allShares,
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
@@ -727,9 +727,9 @@ describe("EpochManager Test", function () {
             .withArgs(
                 lastEpoch.id,
                 seniorTotalAssets,
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 juniorTotalAssets,
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 allShares,
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
@@ -761,9 +761,9 @@ describe("EpochManager Test", function () {
             .withArgs(
                 lastEpoch.id,
                 seniorTotalAssets,
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 juniorTotalAssets,
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 allShares,
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
@@ -797,9 +797,9 @@ describe("EpochManager Test", function () {
             .withArgs(
                 lastEpoch.id,
                 seniorTotalAssets,
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 juniorTotalAssets.sub(partialPaid),
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 allShares.sub(partialPaid),
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
@@ -843,9 +843,9 @@ describe("EpochManager Test", function () {
             .withArgs(
                 lastEpoch.id,
                 seniorTotalAssets.sub(withdrawalShares),
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 juniorTotalAssets.sub(withdrawalShares),
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 0,
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
@@ -921,9 +921,9 @@ describe("EpochManager Test", function () {
             .withArgs(
                 lastEpoch.id,
                 seniorTotalAssets,
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 juniorTotalAssets,
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 allShares,
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
@@ -960,9 +960,9 @@ describe("EpochManager Test", function () {
             .withArgs(
                 lastEpoch.id,
                 seniorTotalAssets,
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 juniorTotalAssets,
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 allShares,
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
@@ -999,9 +999,9 @@ describe("EpochManager Test", function () {
             .withArgs(
                 lastEpoch.id,
                 seniorTotalAssets,
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 juniorTotalAssets,
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 allShares,
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
@@ -1031,9 +1031,9 @@ describe("EpochManager Test", function () {
             .withArgs(
                 lastEpoch.id,
                 seniorTotalAssets.sub(allSharesS),
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 juniorTotalAssets.sub(allSharesJ),
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 0,
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
@@ -1098,9 +1098,9 @@ describe("EpochManager Test", function () {
             .withArgs(
                 lastEpoch.id,
                 seniorTotalAssets.sub(paidS),
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 juniorTotalAssets.sub(paidJ),
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 unprocessed.sub(allPaid),
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
@@ -1153,9 +1153,9 @@ describe("EpochManager Test", function () {
             .withArgs(
                 lastEpoch.id,
                 seniorTotalAssets,
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 juniorTotalAssets.sub(paidJ),
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 0,
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
@@ -1203,9 +1203,9 @@ describe("EpochManager Test", function () {
             .withArgs(
                 lastEpoch.id,
                 seniorTotalAssets,
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 juniorTotalAssets,
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 unprocessed,
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
@@ -1246,9 +1246,9 @@ describe("EpochManager Test", function () {
             .withArgs(
                 lastEpoch.id,
                 seniorTotalAssets.sub(paidS),
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 juniorTotalAssets.sub(paidJ),
-                CONSTANTS.PRICE_DECIMALS_FACTOR,
+                CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                 unprocessed.sub(allPaid),
             )
             .to.emit(epochManagerContract, "NewEpochStarted")
@@ -1299,9 +1299,9 @@ describe("EpochManager Test", function () {
                 .withArgs(
                     lastEpoch.id,
                     seniorTotalAssets.sub(shares),
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     juniorTotalAssets,
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     0,
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
@@ -1349,9 +1349,9 @@ describe("EpochManager Test", function () {
                 .withArgs(
                     lastEpoch.id,
                     seniorTotalAssets,
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     juniorTotalAssets,
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     allShares,
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
@@ -1385,9 +1385,9 @@ describe("EpochManager Test", function () {
                 .withArgs(
                     lastEpoch.id,
                     seniorTotalAssets.sub(allShares),
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     juniorTotalAssets,
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     0,
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
@@ -1438,9 +1438,9 @@ describe("EpochManager Test", function () {
                 .withArgs(
                     lastEpoch.id,
                     seniorTotalAssets,
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     juniorTotalAssets,
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     allShares,
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
@@ -1473,9 +1473,9 @@ describe("EpochManager Test", function () {
                 .withArgs(
                     lastEpoch.id,
                     seniorTotalAssets,
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     juniorTotalAssets,
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     allShares,
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
@@ -1508,9 +1508,9 @@ describe("EpochManager Test", function () {
                 .withArgs(
                     lastEpoch.id,
                     seniorTotalAssets,
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     juniorTotalAssets,
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     allShares,
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
@@ -1544,9 +1544,9 @@ describe("EpochManager Test", function () {
                 .withArgs(
                     lastEpoch.id,
                     seniorTotalAssets.sub(partialPaid),
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     juniorTotalAssets,
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     allShares.sub(partialPaid),
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
@@ -1584,9 +1584,9 @@ describe("EpochManager Test", function () {
                 .withArgs(
                     lastEpoch.id,
                     seniorTotalAssets,
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     juniorTotalAssets.sub(shares),
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     0,
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
@@ -1634,9 +1634,9 @@ describe("EpochManager Test", function () {
                 .withArgs(
                     lastEpoch.id,
                     seniorTotalAssets,
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     juniorTotalAssets,
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     allShares,
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
@@ -1669,9 +1669,9 @@ describe("EpochManager Test", function () {
                 .withArgs(
                     lastEpoch.id,
                     seniorTotalAssets,
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     juniorTotalAssets,
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     allShares,
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
@@ -1706,9 +1706,9 @@ describe("EpochManager Test", function () {
                 .withArgs(
                     lastEpoch.id,
                     seniorTotalAssets,
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     juniorTotalAssets.sub(allShares),
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     0,
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
@@ -1759,9 +1759,9 @@ describe("EpochManager Test", function () {
                 .withArgs(
                     lastEpoch.id,
                     seniorTotalAssets,
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     juniorTotalAssets,
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     allShares,
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
@@ -1794,9 +1794,9 @@ describe("EpochManager Test", function () {
                 .withArgs(
                     lastEpoch.id,
                     seniorTotalAssets,
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     juniorTotalAssets,
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     allShares,
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
@@ -1828,9 +1828,9 @@ describe("EpochManager Test", function () {
                 .withArgs(
                     lastEpoch.id,
                     seniorTotalAssets,
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     juniorTotalAssets,
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     allShares,
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
@@ -1864,9 +1864,9 @@ describe("EpochManager Test", function () {
                 .withArgs(
                     lastEpoch.id,
                     seniorTotalAssets,
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     juniorTotalAssets.sub(partialPaid),
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     allShares.sub(partialPaid),
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
@@ -1921,9 +1921,9 @@ describe("EpochManager Test", function () {
                 .withArgs(
                     lastEpoch.id,
                     seniorTotalAssets,
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     juniorTotalAssets,
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     unprocessed,
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
@@ -1971,9 +1971,9 @@ describe("EpochManager Test", function () {
                 .withArgs(
                     lastEpoch.id,
                     seniorTotalAssets.sub(unprocessedS),
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     juniorTotalAssets.sub(unprocessedJ),
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     0,
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
@@ -2035,9 +2035,9 @@ describe("EpochManager Test", function () {
                 .withArgs(
                     lastEpoch.id,
                     seniorTotalAssets.sub(paidS),
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     juniorTotalAssets,
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     unprocessedS.add(unprocessedJ).sub(paidS),
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
@@ -2082,9 +2082,9 @@ describe("EpochManager Test", function () {
                 .withArgs(
                     lastEpoch.id,
                     seniorTotalAssets,
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     juniorTotalAssets,
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     unprocessedJ.add(unprocessedS),
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
@@ -2126,9 +2126,9 @@ describe("EpochManager Test", function () {
                 .withArgs(
                     lastEpoch.id,
                     seniorTotalAssets,
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     juniorTotalAssets,
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     unprocessedJ.add(unprocessedS),
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
@@ -2175,9 +2175,9 @@ describe("EpochManager Test", function () {
                 .withArgs(
                     lastEpoch.id,
                     seniorTotalAssets.sub(unprocessedS),
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     juniorTotalAssets.sub(unprocessedJ),
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     0,
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
@@ -2254,9 +2254,9 @@ describe("EpochManager Test", function () {
                 .withArgs(
                     lastEpoch.id,
                     seniorTotalAssets,
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     juniorTotalAssets,
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     unprocessedS.add(unprocessedJ),
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
@@ -2291,9 +2291,9 @@ describe("EpochManager Test", function () {
                 .withArgs(
                     lastEpoch.id,
                     seniorTotalAssets,
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     juniorTotalAssets,
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     unprocessedJ.add(unprocessedS),
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
@@ -2347,9 +2347,9 @@ describe("EpochManager Test", function () {
                 .withArgs(
                     lastEpoch.id,
                     seniorTotalAssets.sub(processedS).sub(paidS),
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     juniorTotalAssets.sub(processedJ),
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     unprocessedJ.add(unprocessedS).sub(processedJ.add(processedS).add(paidS)),
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
@@ -2401,9 +2401,9 @@ describe("EpochManager Test", function () {
                 .withArgs(
                     lastEpoch.id,
                     seniorTotalAssets.sub(paidS),
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     juniorTotalAssets.sub(processedJ),
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     unprocessedJ.add(unprocessedS).sub(processedJ.add(paidS)),
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
@@ -2479,9 +2479,9 @@ describe("EpochManager Test", function () {
                 .withArgs(
                     lastEpoch.id,
                     seniorTotalAssets,
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     juniorTotalAssets,
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     unprocessedS.add(unprocessedJ),
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
@@ -2519,9 +2519,9 @@ describe("EpochManager Test", function () {
                 .withArgs(
                     lastEpoch.id,
                     seniorTotalAssets.sub(paidS),
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     juniorTotalAssets,
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     unprocessedJ.add(unprocessedS).sub(paidS),
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
@@ -2574,9 +2574,9 @@ describe("EpochManager Test", function () {
                 .withArgs(
                     lastEpoch.id,
                     seniorTotalAssets.sub(unprocessedS),
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     juniorTotalAssets.sub(processedJ).sub(paidJ),
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     unprocessedJ.sub(processedJ).sub(paidJ),
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
@@ -2627,9 +2627,9 @@ describe("EpochManager Test", function () {
                 .withArgs(
                     lastEpoch.id,
                     seniorTotalAssets.sub(unprocessedS),
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     juniorTotalAssets.sub(paidJ),
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     unprocessedJ.sub(paidJ),
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
@@ -2697,9 +2697,9 @@ describe("EpochManager Test", function () {
                 .withArgs(
                     lastEpoch.id,
                     seniorTotalAssets,
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     juniorTotalAssets,
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     unprocessedS.add(unprocessedJ),
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
@@ -2752,9 +2752,9 @@ describe("EpochManager Test", function () {
                 .withArgs(
                     lastEpoch.id,
                     seniorTotalAssets.sub(unprocessedS),
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     juniorTotalAssets.sub(processedJ),
-                    CONSTANTS.PRICE_DECIMALS_FACTOR,
+                    CONSTANTS.DEFAULT_DECIMALS_FACTOR,
                     unprocessedJ.sub(processedJ),
                 )
                 .to.emit(epochManagerContract, "NewEpochStarted")
