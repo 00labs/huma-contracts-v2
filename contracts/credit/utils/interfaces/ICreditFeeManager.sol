@@ -62,6 +62,7 @@ interface ICreditFeeManager {
         returns (
             CreditRecord memory cr,
             uint256 periodsPassed,
+            bool isLate,
             uint96 pnlImpact,
             uint96 principalDifference
         );

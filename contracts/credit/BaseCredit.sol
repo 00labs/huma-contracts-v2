@@ -587,7 +587,10 @@ abstract contract BaseCredit is
 
         pnlManager.processDrawdown(
             uint96(platformProfit),
-            uint96((borrowAmount * cc.yieldInBps) / SECONDS_IN_A_YEAR / HUNDRED_PERCENT_IN_BPS)
+            uint96(
+                (borrowAmount * cc.yieldInBps * DEFAULT_DECIMALS_FACTOR) /
+                    (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
+            )
         );
 
         // Transfer funds to the _borrower
@@ -761,14 +764,13 @@ abstract contract BaseCredit is
         uint256 periodsPassed = 0;
         uint96 missedProfit = 0;
         uint96 principalDiff = 0;
-        // If the due is nonzero and has passed late payment grace period, the account is considered late
-        bool oldLateFlag = (cr.totalDue != 0 &&
-            block.timestamp >
-            cr.nextDueDate +
-                poolConfig.getPoolSettings().latePaymentGracePeriodInDays *
-                SECONDS_IN_A_DAY);
+        bool arealdyLate;
+        CreditRecord memory oldCR = cr;
 
-        (cr, periodsPassed, missedProfit, principalDiff) = _feeManager.getDueInfo(cr, cc);
+        (cr, periodsPassed, arealdyLate, missedProfit, principalDiff) = _feeManager.getDueInfo(
+            cr,
+            cc
+        );
         console.log(
             "cr.totalDue: %s, cr.yieldDue: %s, periodsPassed: %s",
             cr.totalDue,
@@ -778,22 +780,19 @@ abstract contract BaseCredit is
         console.log("missedProfit: %s, principalDiff: %s", missedProfit, principalDiff);
 
         if (periodsPassed > 0) {
-            pnlManager.processDueUpdate(
-                principalDiff,
-                missedProfit,
-                oldLateFlag,
-                creditHash,
-                cc,
-                cr
-            );
+            if (arealdyLate) {
+                // calculate principal at the end of due date when the account is late
+                // calculate default duration
 
-            // update nextDueDate
-            // (uint256 dueDate, ) = calendar.getNextDueDate(
-            //     cc.calendarUnit,
-            //     cc.periodDuration,
-            //     cr.nextDueDate
-            // );
-            // cr.nextDueDate = uint64(dueDate);
+                pnlManager.processDueUpdate(
+                    principalDiff,
+                    missedProfit,
+                    arealdyLate,
+                    creditHash,
+                    cc,
+                    oldCR
+                );
+            }
 
             // Adjusts remainingPeriods, special handling when reached the maturity of the credit line
             if (cr.remainingPeriods > periodsPassed) {
@@ -804,7 +803,7 @@ abstract contract BaseCredit is
 
             // Sets the correct missedPeriods. If totalDue is non zero, the totalDue must be
             // nonZero for each of the passed period, thus add periodsPassed to cr.missedPeriods
-            if (oldLateFlag) cr.missedPeriods = uint16(cr.missedPeriods + periodsPassed);
+            if (arealdyLate) cr.missedPeriods = uint16(cr.missedPeriods + periodsPassed);
             else cr.missedPeriods = 0;
 
             if (cr.missedPeriods > 0) {

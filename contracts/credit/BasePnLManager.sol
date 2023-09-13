@@ -8,33 +8,42 @@ import {PnLTracker, CreditLoss, CreditRecord, CreditConfig} from "./CreditStruct
 import {IPnLManager} from "./interfaces/IPnLManager.sol";
 import {PoolConfigCache} from "../PoolConfigCache.sol";
 import {ICredit} from "./interfaces/ICredit.sol";
-import {PoolConfig} from "../PoolConfig.sol";
+import {PoolConfig, PoolSettings} from "../PoolConfig.sol";
+import {ICalendar} from "./interfaces/ICalendar.sol";
+
+import "hardhat/console.sol";
 
 abstract contract BasePnLManager is PoolConfigCache, IPnLManager {
+    ICredit public credit;
+    ICalendar public calendar;
+
     PnLTracker internal pnlTracker;
-
-    ICredit internal _credit;
-
     mapping(bytes32 => CreditLoss) internal _creditLossMap;
 
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = _poolConfig.credit();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
-        _credit = ICredit(addr);
+        credit = ICredit(addr);
+
+        addr = _poolConfig.calendar();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        calendar = ICalendar(addr);
     }
 
     function getPrincipal(CreditRecord memory cr) internal pure returns (uint96 principal) {
         principal = cr.unbilledPrincipal + cr.totalDue - cr.feesDue - cr.yieldDue;
     }
 
-    function _getMarkdownRate(
-        CreditConfig memory cc,
-        CreditRecord memory cr
-    ) internal view returns (int96 markdownRate) {
-        uint16 gracePeriodInCU = poolConfig.getPoolSettings().defaultGracePeriodInCalendarUnit;
-        uint256 gracePeriod = gracePeriodInCU * SECONDS_IN_A_DAY;
-        if (cc.calendarUnit == CalendarUnit.Month) gracePeriod *= 30;
-        markdownRate = int96(uint96(getPrincipal(cr) / gracePeriod));
+    function _getMarkdownRate(CreditRecord memory cr) internal view returns (int96 markdownRate) {
+        PoolSettings memory settings = poolConfig.getPoolSettings();
+        (uint256 lossEndDate, ) = calendar.getNextDueDate(
+            settings.calendarUnit,
+            settings.defaultGracePeriodInCalendarUnit,
+            cr.nextDueDate
+        );
+        markdownRate = int96(
+            uint96((getPrincipal(cr) * DEFAULT_DECIMALS_FACTOR) / (lossEndDate - cr.nextDueDate))
+        );
     }
 
     function _updateTracker(
@@ -61,19 +70,27 @@ abstract contract BasePnLManager is PoolConfigCache, IPnLManager {
         uint96 recoveryDiff
     ) internal view returns (PnLTracker memory newTracker) {
         PnLTracker memory tracker = pnlTracker;
-        uint256 timeLapsed = block.timestamp - tracker.pnlLastUpdated;
+        uint256 timeLapsed;
+        if (tracker.pnlLastUpdated > 0) timeLapsed = block.timestamp - tracker.pnlLastUpdated;
 
-        newTracker.profitRate = uint96(int96(tracker.profitRate) + profitRateDiff);
-        newTracker.lossRate = uint96(int96(tracker.lossRate) + lossRateDiff);
+        console.log(
+            "timeLapsed: %s, profitRate: %s, lossRate: %s",
+            timeLapsed,
+            uint256(tracker.profitRate),
+            uint256(tracker.lossRate)
+        );
+
         newTracker.accruedProfit =
             tracker.accruedProfit +
             profitDiff +
-            uint96(tracker.profitRate * timeLapsed);
+            uint96((tracker.profitRate * timeLapsed) / DEFAULT_DECIMALS_FACTOR);
         newTracker.accruedLoss =
             tracker.accruedLoss +
             lossDiff +
-            uint96(tracker.lossRate * timeLapsed);
+            uint96((tracker.lossRate * timeLapsed) / DEFAULT_DECIMALS_FACTOR);
         newTracker.accruedLossRecovery = tracker.accruedLossRecovery + recoveryDiff;
+        newTracker.profitRate = uint96(int96(tracker.profitRate) + profitRateDiff);
+        newTracker.lossRate = uint96(int96(tracker.lossRate) + lossRateDiff);
         newTracker.pnlLastUpdated = uint64(block.timestamp);
     }
 
@@ -142,6 +159,6 @@ abstract contract BasePnLManager is PoolConfigCache, IPnLManager {
     }
 
     function onlyCreditContract() internal view {
-        if (msg.sender != address(_credit)) revert Errors.todo();
+        if (msg.sender != address(credit)) revert Errors.todo();
     }
 }

@@ -26,7 +26,10 @@ contract LinearMarkdownPnLManager is BasePnLManager {
     ) external {
         // todo access control
         int96 profitRateDiff = -int96(
-            uint96((principalPaid * yield) / HUNDRED_PERCENT_IN_BPS / SECONDS_IN_A_YEAR)
+            uint96(
+                (principalPaid * yield * DEFAULT_DECIMALS_FACTOR) /
+                    (HUNDRED_PERCENT_IN_BPS * SECONDS_IN_A_YEAR)
+            )
         );
         if (oldGoodStanding) {
             _updateTracker(profitRateDiff, 0, uint96(feesPaid), 0, 0);
@@ -34,7 +37,8 @@ contract LinearMarkdownPnLManager is BasePnLManager {
             // handle recovery.
             CreditLoss memory creditLoss = _creditLossMap[creditHash];
             creditLoss.totalAccruedLoss += uint96(
-                (block.timestamp - creditLoss.lastLossUpdateDate) * creditLoss.lossRate
+                ((block.timestamp - creditLoss.lastLossUpdateDate) * creditLoss.lossRate) /
+                    DEFAULT_DECIMALS_FACTOR
             );
             creditLoss.lastLossUpdateDate = uint64(block.timestamp);
 
@@ -71,7 +75,8 @@ contract LinearMarkdownPnLManager is BasePnLManager {
             ? tempCreditLoss.lossExpiringDate
             : block.timestamp;
         tempCreditLoss.totalAccruedLoss += uint96(
-            tempCreditLoss.lossRate * (cutoffDate - tempCreditLoss.lastLossUpdateDate)
+            (tempCreditLoss.lossRate * (cutoffDate - tempCreditLoss.lastLossUpdateDate)) /
+                DEFAULT_DECIMALS_FACTOR
         );
         tempCreditLoss.totalAccruedLoss += 0;
         tempCreditLoss.lossRate = 0;
@@ -94,19 +99,37 @@ contract LinearMarkdownPnLManager is BasePnLManager {
         onlyCreditContract();
         int96 markdownRateDiff = 0;
         uint96 markdown = 0;
-        int96 profitRateDiff = int96(uint96((principalDiff * cc.yieldInBps) / SECONDS_IN_A_YEAR));
+        int96 profitRateDiff = int96(
+            uint96(
+                (principalDiff * cc.yieldInBps * DEFAULT_DECIMALS_FACTOR) /
+                    (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
+            )
+        );
 
         if (lateFlag) {
-            markdownRateDiff = _getMarkdownRate(cc, cr) + profitRateDiff;
-            markdown = uint96(uint96(markdownRateDiff) * (block.timestamp - cr.nextDueDate));
+            CreditLoss memory creditLoss = _creditLossMap[creditHash];
+            markdownRateDiff = profitRateDiff;
+            markdown = missedProfit;
+            if (creditLoss.lastLossUpdateDate == 0) {
+                // process late first time
+                markdownRateDiff += _getMarkdownRate(cr);
+                markdown += uint96(
+                    (uint96(markdownRateDiff) * (block.timestamp - cr.nextDueDate)) /
+                        DEFAULT_DECIMALS_FACTOR
+                );
+            }
+
+            creditLoss.totalAccruedLoss += markdown;
+            if (creditLoss.lastLossUpdateDate > 0) {
+                creditLoss.totalAccruedLoss += uint96(
+                    ((block.timestamp - creditLoss.lastLossUpdateDate) * creditLoss.lossRate) /
+                        DEFAULT_DECIMALS_FACTOR
+                );
+            }
+            creditLoss.lossRate += uint96(markdownRateDiff);
+            creditLoss.lastLossUpdateDate = uint64(block.timestamp);
+            _creditLossMap[creditHash] = creditLoss;
         }
         _updateTracker(profitRateDiff, markdownRateDiff, missedProfit, markdown, 0);
-
-        // Need to maintain _creditLossMap
-        CreditLoss memory tempCreditLoss = _creditLossMap[creditHash];
-        tempCreditLoss.totalAccruedLoss += markdown;
-        tempCreditLoss.lossRate = uint96(markdownRateDiff);
-        tempCreditLoss.lastLossUpdateDate = uint64(block.timestamp);
-        _creditLossMap[creditHash] = tempCreditLoss;
     }
 }
