@@ -295,7 +295,9 @@ contract PoolConfig is AccessControl, Initializable {
     function getTrancheLiquidityCap(uint256 index) external view returns (uint256 cap) {
         LPConfig memory config = _lpConfig;
         if (index == SENIOR_TRANCHE_INDEX) {
-            cap = (config.liquidityCap * config.maxSeniorJuniorRatio) / (config.maxSeniorJuniorRatio + 1);
+            cap =
+                (config.liquidityCap * config.maxSeniorJuniorRatio) /
+                (config.maxSeniorJuniorRatio + 1);
         } else if (index == JUNIOR_TRANCHE_INDEX) {
             cap = config.liquidityCap / (config.maxSeniorJuniorRatio + 1);
         } else {

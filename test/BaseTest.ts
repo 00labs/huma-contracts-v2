@@ -604,16 +604,17 @@ export function checkPnLTracker(
 }
 
 export function printCreditRecord(name: string, creditRecord: CreditRecordStruct) {
-    // console.log(`${name}[ \
-    // unbilledPrincipal: ${creditRecord.unbilledPrincipal}, \
-    // nextDueDate: ${creditRecord.nextDueDate}, \
-    // totalDue: ${creditRecord.totalDue}, \
-    // yieldDue: ${creditRecord.yieldDue}, \
-    // feesDue: ${creditRecord.feesDue}, \
-    // missedPeriods: ${creditRecord.missedPeriods}, \
-    // remainingPeriods: ${creditRecord.remainingPeriods}, \
-    // state: ${creditRecord.state}, \
-    // ]`);
+    // console.log(
+    //     `${name}[
+    //         unbilledPrincipal: ${creditRecord.unbilledPrincipal},
+    //         nextDueDate: ${creditRecord.nextDueDate},
+    //         totalDue: ${creditRecord.totalDue},
+    //         yieldDue: ${creditRecord.yieldDue},
+    //         feesDue: ${creditRecord.feesDue},
+    //         missedPeriods: ${creditRecord.missedPeriods},
+    //         remainingPeriods: ${creditRecord.remainingPeriods},
+    //         state: ${creditRecord.state}]`,
+    // );
 }
 
 async function getTranchesPolicyContractFactory(

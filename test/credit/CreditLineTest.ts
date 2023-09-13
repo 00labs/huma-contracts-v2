@@ -68,6 +68,29 @@ let poolConfigContract: PoolConfig,
     creditFeeManagerContract: BaseCreditFeeManager,
     creditPnlManagerContract: BasePnLManager;
 
+function calcLossRate(cr: CreditRecordStructOutput, defaultPeriod: number): BN {
+    let [defaultDate] = getNextMonth(
+        cr.nextDueDate.toNumber(),
+        cr.nextDueDate.toNumber(),
+        defaultPeriod,
+    );
+    let principal = getPrincipal(cr);
+    let lossRate = principal
+        .mul(CONSTANTS.DEFAULT_DECIMALS_FACTOR)
+        .div(BN.from(defaultDate).sub(cr.nextDueDate));
+    return lossRate;
+}
+
+function calcProfitRate(cr: CreditRecordStructOutput, yieldInBps: number): BN {
+    let principal = getPrincipal(cr);
+    let profitRate = principal
+        .mul(BN.from(yieldInBps))
+        .mul(CONSTANTS.DEFAULT_DECIMALS_FACTOR)
+        .div(CONSTANTS.BP_FACTOR)
+        .div(CONSTANTS.SECONDS_IN_YEAR);
+    return profitRate;
+}
+
 function calcYield(principal: BN, yieldInBps: number, seconds: number): BN {
     return principal
         .mul(BN.from(yieldInBps))
@@ -868,6 +891,11 @@ describe("CreditLine Test", function () {
             //     )}`,
             // );
             // console.log(`accruedProfit: ${accruedProfit}`);
+
+            let lossRate = calcLossRate(
+                preCreditRecord,
+                poolSettings.defaultGracePeriodInCalendarUnit,
+            );
         });
     });
 
