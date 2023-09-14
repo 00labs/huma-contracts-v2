@@ -9,6 +9,8 @@ import {BasePnLManager} from "./BasePnLManager.sol";
 import {PoolConfigCache} from "../PoolConfigCache.sol";
 import {ICredit} from "./interfaces/ICredit.sol";
 
+import "hardhat/console.sol";
+
 contract LinearMarkdownPnLManager is BasePnLManager {
     function processDrawdown(uint96 poolIncome, uint96 profitRateDiff) external {
         onlyCreditContract();
@@ -108,16 +110,21 @@ contract LinearMarkdownPnLManager is BasePnLManager {
 
         if (lateFlag) {
             CreditLoss memory creditLoss = _creditLossMap[creditHash];
-            markdownRateDiff = profitRateDiff;
-            markdown = missedProfit;
             if (creditLoss.lastLossUpdateDate == 0) {
                 // process late first time
-                markdownRateDiff += _getMarkdownRate(cr);
-                markdown += uint96(
+                markdownRateDiff = _getMarkdownRate(cr);
+                markdown = uint96(
                     (uint96(markdownRateDiff) * (block.timestamp - cr.nextDueDate)) /
                         DEFAULT_DECIMALS_FACTOR
                 );
+                console.log(
+                    "markdownRateDiff: %s, markdown: %s",
+                    uint256(uint96(markdownRateDiff)),
+                    uint256(markdown)
+                );
             }
+            markdownRateDiff += profitRateDiff;
+            markdown += missedProfit;
 
             creditLoss.totalAccruedLoss += markdown;
             if (creditLoss.lastLossUpdateDate > 0) {

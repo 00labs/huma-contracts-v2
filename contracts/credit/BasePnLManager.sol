@@ -36,7 +36,7 @@ abstract contract BasePnLManager is PoolConfigCache, IPnLManager {
 
     function _getMarkdownRate(CreditRecord memory cr) internal view returns (int96 markdownRate) {
         PoolSettings memory settings = poolConfig.getPoolSettings();
-        (uint256 lossEndDate, ) = calendar.getNextDueDate(
+        uint256 lossEndDate = calendar.getNextPeriod(
             settings.calendarUnit,
             settings.defaultGracePeriodInCalendarUnit,
             cr.nextDueDate
@@ -73,12 +73,12 @@ abstract contract BasePnLManager is PoolConfigCache, IPnLManager {
         uint256 timeLapsed;
         if (tracker.pnlLastUpdated > 0) timeLapsed = block.timestamp - tracker.pnlLastUpdated;
 
-        console.log(
-            "timeLapsed: %s, profitRate: %s, lossRate: %s",
-            timeLapsed,
-            uint256(tracker.profitRate),
-            uint256(tracker.lossRate)
-        );
+        // console.log(
+        //     "timeLapsed: %s, profitRate: %s, lossRate: %s",
+        //     timeLapsed,
+        //     uint256(tracker.profitRate),
+        //     uint256(tracker.lossRate)
+        // );
 
         newTracker.accruedProfit =
             tracker.accruedProfit +
