@@ -801,7 +801,7 @@ describe("CreditLine Test", function () {
 
             await poolConfigContract
                 .connect(poolOwner)
-                .setPoolDefaultGracePeriod(CONSTANTS.CALENDAR_UNIT_MONTH, periodDuration * 3);
+                .setPoolDefaultGracePeriod(CONSTANTS.CALENDAR_UNIT_MONTH, periodDuration * 4);
 
             let juniorDepositAmount = toToken(300_000);
             await juniorTrancheVaultContract
@@ -1217,6 +1217,8 @@ describe("CreditLine Test", function () {
                 2,
             );
         });
+
+        it("Should become defaulted after default grace periods", async function () {});
     });
 
     describe("Delayed Tests", function () {

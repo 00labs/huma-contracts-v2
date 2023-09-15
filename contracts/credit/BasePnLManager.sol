@@ -34,12 +34,16 @@ abstract contract BasePnLManager is PoolConfigCache, IPnLManager {
         principal = cr.unbilledPrincipal + cr.totalDue - cr.feesDue - cr.yieldDue;
     }
 
-    function _getMarkdownRate(CreditRecord memory cr) internal view returns (int96 markdownRate) {
+    function _getMarkdownRate(
+        CreditRecord memory cr
+    ) internal view returns (int96 markdownRate, uint64 lossEndDate) {
         PoolSettings memory settings = poolConfig.getPoolSettings();
-        uint256 lossEndDate = calendar.getNextPeriod(
-            settings.calendarUnit,
-            settings.defaultGracePeriodInCalendarUnit,
-            cr.nextDueDate
+        lossEndDate = uint64(
+            calendar.getNextPeriod(
+                settings.calendarUnit,
+                settings.defaultGracePeriodInCalendarUnit,
+                cr.nextDueDate
+            )
         );
         markdownRate = int96(
             uint96((getPrincipal(cr) * DEFAULT_DECIMALS_FACTOR) / (lossEndDate - cr.nextDueDate))
