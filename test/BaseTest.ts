@@ -594,27 +594,28 @@ export function checkPnLTracker(
     accruedProfit: BN,
     accruedLoss: BN,
     accruedLossRecovery: BN,
+    delta = 0,
 ) {
-    expect(pnlTracker.profitRate).to.equal(profitRate);
-    expect(pnlTracker.lossRate).to.equal(lossRate);
+    expect(pnlTracker.profitRate).to.be.closeTo(profitRate, delta);
+    expect(pnlTracker.lossRate).to.be.closeTo(lossRate, delta);
     expect(pnlTracker.pnlLastUpdated).to.equal(pnlLastUpdated);
-    expect(pnlTracker.accruedProfit).to.equal(accruedProfit);
-    expect(pnlTracker.accruedLoss).to.equal(accruedLoss);
-    expect(pnlTracker.accruedLossRecovery).to.equal(accruedLossRecovery);
+    expect(pnlTracker.accruedProfit).to.be.closeTo(accruedProfit, delta);
+    expect(pnlTracker.accruedLoss).to.be.closeTo(accruedLoss, delta);
+    expect(pnlTracker.accruedLossRecovery).to.be.closeTo(accruedLossRecovery, delta);
 }
 
 export function printCreditRecord(name: string, creditRecord: CreditRecordStruct) {
-    // console.log(
-    //     `${name}[
-    //         unbilledPrincipal: ${creditRecord.unbilledPrincipal},
-    //         nextDueDate: ${creditRecord.nextDueDate},
-    //         totalDue: ${creditRecord.totalDue},
-    //         yieldDue: ${creditRecord.yieldDue},
-    //         feesDue: ${creditRecord.feesDue},
-    //         missedPeriods: ${creditRecord.missedPeriods},
-    //         remainingPeriods: ${creditRecord.remainingPeriods},
-    //         state: ${creditRecord.state}]`,
-    // );
+    console.log(
+        `${name}[
+            unbilledPrincipal: ${creditRecord.unbilledPrincipal},
+            nextDueDate: ${creditRecord.nextDueDate},
+            totalDue: ${creditRecord.totalDue},
+            yieldDue: ${creditRecord.yieldDue},
+            feesDue: ${creditRecord.feesDue},
+            missedPeriods: ${creditRecord.missedPeriods},
+            remainingPeriods: ${creditRecord.remainingPeriods},
+            state: ${creditRecord.state}]`,
+    );
 }
 
 async function getTranchesPolicyContractFactory(

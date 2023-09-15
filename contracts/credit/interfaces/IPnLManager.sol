@@ -25,7 +25,7 @@ interface IPnLManager {
     function processDueUpdate(
         uint96 principalDiff,
         uint96 missedProfit,
-        bool lateFlag,
+        uint96 lossImpact,
         bytes32 creditHash,
         CreditConfig memory cc,
         CreditRecord memory cr

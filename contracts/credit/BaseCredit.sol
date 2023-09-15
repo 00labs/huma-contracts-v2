@@ -764,10 +764,10 @@ abstract contract BaseCredit is
         uint256 periodsPassed = 0;
         uint96 missedProfit = 0;
         uint96 principalDiff = 0;
-        bool arealdyLate;
+        uint96 lossImpact = 0;
         CreditRecord memory oldCR = cr;
 
-        (cr, periodsPassed, arealdyLate, missedProfit, principalDiff) = _feeManager.getDueInfo(
+        (cr, periodsPassed, missedProfit, principalDiff, lossImpact) = _feeManager.getDueInfo(
             cr,
             cc
         );
@@ -780,14 +780,12 @@ abstract contract BaseCredit is
         console.log("missedProfit: %s, principalDiff: %s", missedProfit, principalDiff);
 
         if (periodsPassed > 0) {
-            if (arealdyLate) {
-                // calculate principal at the end of due date when the account is late
-                // calculate default duration
-
+            bool alreadyLate = lossImpact > 0;
+            if (alreadyLate) {
                 pnlManager.processDueUpdate(
                     principalDiff,
                     missedProfit,
-                    arealdyLate,
+                    lossImpact,
                     creditHash,
                     cc,
                     oldCR
@@ -803,11 +801,23 @@ abstract contract BaseCredit is
 
             // Sets the correct missedPeriods. If totalDue is non zero, the totalDue must be
             // nonZero for each of the passed period, thus add periodsPassed to cr.missedPeriods
-            if (arealdyLate) cr.missedPeriods = uint16(cr.missedPeriods + periodsPassed);
+            if (alreadyLate) cr.missedPeriods = uint16(cr.missedPeriods + periodsPassed);
             else cr.missedPeriods = 0;
 
             if (cr.missedPeriods > 0) {
-                if (cr.state != CreditState.Defaulted) cr.state = CreditState.Delayed;
+                if (cr.state != CreditState.Defaulted) {
+                    cr.state = CreditState.Delayed;
+                    PoolSettings memory ps = poolConfig.getPoolSettings();
+                    if (
+                        cr.missedPeriods * ps.payPeriodInCalendarUnit >=
+                        ps.defaultGracePeriodInCalendarUnit
+                    ) {
+                        cr.state = CreditState.Defaulted;
+                        pnlManager.processDefault(creditHash, cc, cr);
+
+                        // TODO how to recover defaulted state?
+                    }
+                }
             } else cr.state = CreditState.GoodStanding;
 
             _setCreditRecord(creditHash, cr);

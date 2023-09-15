@@ -149,13 +149,13 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
         returns (
             CreditRecord memory cr,
             uint256 periodsPassed,
-            bool isLate,
             uint96 pnlImpact,
-            uint96 principalDifference
+            uint96 principalDifference,
+            uint96 lossImpact
         )
     {
         // If the due is nonzero and has passed late payment grace period, the account is considered late
-        isLate = (_cr.totalDue != 0 &&
+        bool isLate = (_cr.totalDue != 0 &&
             block.timestamp >
             _cr.nextDueDate +
                 poolConfig.getPoolSettings().latePaymentGracePeriodInDays *
@@ -164,91 +164,126 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
         // Directly returns if it is still within the current period or within late payment grace
         // period when there is still a balance due
         if ((block.timestamp <= _cr.nextDueDate) || (_cr.totalDue != 0 && !isLate)) {
-            return (_cr, 0, false, 0, 0);
+            return (_cr, 0, 0, 0, 0);
         }
 
         /**
          * Loops through the passed periods to generate bills for each period following these steps:
-         * 1. Computes the under-reported profit if there is late fee thus increased principal
-         * 2. Calcuates late fee if it is past due
-         * 3. Computes yield for the next period
-         * 4. Adds membership fee
-         * 5. Calculates the principal due, and minus it from the unbilled principal amount
+         * 1. Calcuates late fee if it is past due
+         * 2. Computes yield for the next period
+         * 3. Adds membership fee
+         * 4. Calculates the principal due, and minus it from the unbilled principal amount
+         * 5. Computes the under-reported profit if there is late fee thus increased principal
          */
-        console.log(
-            "_cc.calendarUnit: %s, _cc.periodDuration: %s",
-            uint256(_cc.calendarUnit),
-            uint256(_cc.periodDuration)
+
+        cr = CreditRecord(
+            _cr.unbilledPrincipal,
+            _cr.nextDueDate,
+            _cr.totalDue,
+            _cr.yieldDue,
+            _cr.feesDue,
+            _cr.missedPeriods,
+            _cr.remainingPeriods,
+            _cr.state
         );
 
         uint256 secondsOfThisPeriod;
-        while (block.timestamp > _cr.nextDueDate) {
-            (uint256 newNextDueDate, ) = calendar.getNextDueDate(
+        while (block.timestamp > cr.nextDueDate) {
+            uint256 newNextDueDate = calendar.getNextPeriod(
                 _cc.calendarUnit,
                 _cc.periodDuration,
-                _cr.nextDueDate
+                cr.nextDueDate
             );
-            secondsOfThisPeriod = _cr.nextDueDate > 0
-                ? newNextDueDate - _cr.nextDueDate
+            secondsOfThisPeriod = cr.nextDueDate > 0
+                ? newNextDueDate - cr.nextDueDate
                 : newNextDueDate - block.timestamp;
             console.log(
-                "newNextDueDate: %s, _cr.nextDueDate: %s, secondsPerPeriod: %s",
+                "newNextDueDate: %s, cr.nextDueDate: %s, secondsPerPeriod: %s",
                 newNextDueDate,
-                _cr.nextDueDate,
+                cr.nextDueDate,
                 secondsOfThisPeriod
             );
 
-            // Step 1. captures undercounted profit for this period.
-            if (principalDifference > 0) {
+            // step 1. calculates late fees
+            if (cr.totalDue > 0) {
+                cr.unbilledPrincipal += cr.totalDue;
+                principalDifference += cr.totalDue;
+                cr.feesDue = uint96(calcLateFee(cr.unbilledPrincipal));
+            }
+
+            // step 2. computes yield for the next period
+            cr.yieldDue = uint96(
+                (cr.unbilledPrincipal * _cc.yieldInBps * secondsOfThisPeriod) /
+                    (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
+            );
+
+            console.log(
+                "cr.yieldDue: %s, _cc.yieldInBps: %s, cr.unbilledPrincipal: %s",
+                cr.yieldDue,
+                _cc.yieldInBps,
+                cr.unbilledPrincipal
+            );
+
+            // step 3. handles membership fee.
+            (, , uint256 membershipFee) = poolConfig.getFees();
+            cr.feesDue += uint96(membershipFee);
+
+            // step 4. computes principal due and adjust unbilled principal
+            uint256 principalToBill = (cr.unbilledPrincipal *
+                poolConfig.getMinPrincipalRateInBps()) / HUNDRED_PERCENT_IN_BPS;
+            cr.totalDue = uint96(cr.feesDue + cr.yieldDue + principalToBill);
+            cr.unbilledPrincipal = uint96(cr.unbilledPrincipal - principalToBill);
+
+            // Step 5. captures undercounted profit for this period.
+            if (principalDifference > 0 && block.timestamp > newNextDueDate) {
                 pnlImpact += uint96(
                     (principalDifference * _cc.yieldInBps * secondsOfThisPeriod) /
                         (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
                 );
             }
 
-            // step 2. calculates late fees
-            if (_cr.totalDue > 0) {
-                _cr.unbilledPrincipal += _cr.totalDue;
-                principalDifference += _cr.totalDue;
-                _cr.feesDue = uint96(calcLateFee(_cr.unbilledPrincipal));
-            }
-
-            // step 3. computes yield for the next period
-            _cr.yieldDue = uint96(
-                (_cr.unbilledPrincipal * _cc.yieldInBps * secondsOfThisPeriod) /
-                    (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
-            );
-
+            periodsPassed++;
+            cr.nextDueDate = uint64(newNextDueDate);
+        }
+        if (isLate) {
+            lossImpact =
+                (cr.unbilledPrincipal + cr.totalDue - cr.yieldDue - cr.feesDue) -
+                (_cr.unbilledPrincipal + _cr.totalDue - _cr.yieldDue - _cr.feesDue);
             console.log(
-                "_cr.yieldDue: %s, _cc.yieldInBps: %s, _cr.unbilledPrincipal: %s",
-                _cr.yieldDue,
-                _cc.yieldInBps,
+                "lossImpact: %s, cr.unbilledPrincipal: %s, _cr.unbilledPrincipal",
+                lossImpact,
+                cr.unbilledPrincipal,
                 _cr.unbilledPrincipal
             );
-
-            // step 4. handles membership fee.
-            (, , uint256 membershipFee) = poolConfig.getFees();
-            _cr.feesDue += uint96(membershipFee);
-
-            // step 5. computes principal due and adjust unbilled principal
-            uint256 principalToBill = (_cr.unbilledPrincipal *
-                poolConfig.getMinPrincipalRateInBps()) / HUNDRED_PERCENT_IN_BPS;
-            _cr.totalDue = uint96(_cr.feesDue + _cr.yieldDue + principalToBill);
-            _cr.unbilledPrincipal = uint96(_cr.unbilledPrincipal - principalToBill);
-
-            periodsPassed++;
-            _cr.nextDueDate = uint64(newNextDueDate);
         }
 
         // captures undercounted profit from previous due date to current time
 
-        uint256 preDueDate = _cr.nextDueDate - secondsOfThisPeriod;
+        uint256 preDueDate = cr.nextDueDate - secondsOfThisPeriod;
         console.log("preDueDate: %s, block.timestamp: %s", preDueDate, block.timestamp);
         if (block.timestamp > preDueDate) {
             pnlImpact += uint96(
                 (principalDifference * _cc.yieldInBps * (block.timestamp - preDueDate)) /
                     (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
             );
+
+            console.log(
+                "principalDifference: %s, timelapsed: %s, pnlImpact: %s",
+                principalDifference,
+                block.timestamp - preDueDate,
+                (principalDifference * _cc.yieldInBps * (block.timestamp - preDueDate)) /
+                    (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
+            );
+            if (isLate) {
+                lossImpact += uint96(
+                    ((cr.unbilledPrincipal + cr.totalDue - cr.yieldDue - cr.feesDue) *
+                        _cc.yieldInBps *
+                        (block.timestamp - preDueDate)) /
+                        (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
+                );
+
+                console.log("lossImpact: %s", lossImpact);
+            }
         }
 
         // uint256 secondsPerPeriod = calendar.getSecondsPerPeriod(
@@ -287,11 +322,9 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
         // }
 
         // If passed final period, all principal is due
-        if (periodsPassed >= _cr.remainingPeriods) {
-            _cr.totalDue += _cr.unbilledPrincipal;
-            _cr.unbilledPrincipal = 0;
+        if (periodsPassed >= cr.remainingPeriods) {
+            cr.totalDue += cr.unbilledPrincipal;
+            cr.unbilledPrincipal = 0;
         }
-
-        return (_cr, periodsPassed, isLate, pnlImpact, principalDifference);
     }
 }

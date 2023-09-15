@@ -16,6 +16,7 @@ import {
     getNextTime,
     getNextMonth,
     getNextDate,
+    getStartDateOfPeriod,
     mineNextBlockWithTimestamp,
     toToken,
 } from "../TestUtils";
@@ -81,13 +82,17 @@ function calcLossRate(cr: CreditRecordStructOutput, defaultPeriod: number): BN {
     return lossRate;
 }
 
-function calcProfitRate(cr: CreditRecordStructOutput, yieldInBps: number): BN {
+function calcProfitRateWithCR(cr: CreditRecordStructOutput, yieldInBps: number): BN {
     let principal = getPrincipal(cr);
+    return calcProfitRateWithPrincipal(principal, yieldInBps);
+}
+
+function calcProfitRateWithPrincipal(principal: BN, yieldInBps: number): BN {
     let profitRate = principal
         .mul(BN.from(yieldInBps))
         .mul(CONSTANTS.DEFAULT_DECIMALS_FACTOR)
-        .div(CONSTANTS.BP_FACTOR)
-        .div(CONSTANTS.SECONDS_IN_YEAR);
+        .div(CONSTANTS.BP_FACTOR.mul(CONSTANTS.SECONDS_IN_YEAR));
+
     return profitRate;
 }
 
@@ -114,9 +119,14 @@ function calcLateCreditRecord(
     cr: CreditRecordStructOutput,
     cc: CreditConfigStructOutput,
     periodCount: number,
+    currentTime: number,
     configs: BN[],
-): CreditRecordStructOutput {
+): [CreditRecordStructOutput, BN, BN] {
     let ncr = { ...cr };
+    let principalDiff = BN.from(0);
+    let missProfit = BN.from(0);
+    let preDueDate = 0;
+
     for (let i = 0; i < periodCount; i++) {
         let [nextDueDate] = getNextMonth(
             ncr.nextDueDate.toNumber(),
@@ -127,6 +137,7 @@ function calcLateCreditRecord(
 
         if (cr.totalDue.gt(BN.from(0))) {
             ncr.unbilledPrincipal = ncr.unbilledPrincipal.add(ncr.totalDue);
+            principalDiff = principalDiff.add(ncr.totalDue);
             ncr.feesDue = calcLateFee(configs, ncr.unbilledPrincipal);
         }
 
@@ -138,13 +149,24 @@ function calcLateCreditRecord(
         ncr.totalDue = ncr.yieldDue.add(ncr.feesDue).add(principalToBill);
         ncr.unbilledPrincipal = ncr.unbilledPrincipal.sub(principalToBill);
 
+        if (principalDiff.gt(BN.from(0)) && currentTime > nextDueDate) {
+            missProfit = missProfit.add(calcYield(principalDiff, cc.yieldInBps, seconds));
+        }
+
+        preDueDate = ncr.nextDueDate.toNumber();
         ncr.nextDueDate = BN.from(nextDueDate);
     }
+    if (currentTime > preDueDate) {
+        missProfit = missProfit.add(
+            calcYield(principalDiff, cc.yieldInBps, currentTime - preDueDate),
+        );
+    }
+
     ncr.remainingPeriods = ncr.remainingPeriods - periodCount;
     ncr.missedPeriods = ncr.missedPeriods + periodCount;
     ncr.state = 5;
 
-    return ncr;
+    return [ncr, principalDiff, missProfit];
 }
 
 async function getCreditRecordSettings(): Promise<BN[]> {
@@ -764,6 +786,7 @@ describe("CreditLine Test", function () {
     describe("RefreshCredit Tests", function () {
         const yieldInBps = 1217;
         const frontLoadingFeeBps = 100;
+        const periodDuration = 2;
         let borrowAmount: BN, creditHash: string;
 
         async function prepareForRefreshCredit() {
@@ -774,7 +797,11 @@ describe("CreditLine Test", function () {
 
             await poolConfigContract
                 .connect(poolOwner)
-                .setPoolPayPeriod(CONSTANTS.CALENDAR_UNIT_MONTH, 2);
+                .setPoolPayPeriod(CONSTANTS.CALENDAR_UNIT_MONTH, periodDuration);
+
+            await poolConfigContract
+                .connect(poolOwner)
+                .setPoolDefaultGracePeriod(CONSTANTS.CALENDAR_UNIT_MONTH, periodDuration * 4);
 
             let juniorDepositAmount = toToken(300_000);
             await juniorTrancheVaultContract
@@ -858,17 +885,18 @@ describe("CreditLine Test", function () {
 
             let creditRecordSettings = await getCreditRecordSettings();
             let creditConfig = await creditContract.creditConfigMap(creditHash);
-            let newCreditRecord = calcLateCreditRecord(
+            let [newCreditRecord, principalDiff, missProfit] = calcLateCreditRecord(
                 preCreditRecord,
                 creditConfig,
                 1,
+                nextTime,
                 creditRecordSettings,
             );
             printCreditRecord(`newCreditRecord`, newCreditRecord);
             checkTwoCreditRecords(creditRecord, newCreditRecord);
 
             let pnlTracker = await creditPnlManagerContract.getPnL();
-            // console.log(`pnlTracker: ${pnlTracker}`);
+            console.log(`pnlTracker: ${pnlTracker}`);
 
             let accruedProfit = preCreditRecord.yieldDue
                 .add(
@@ -879,24 +907,318 @@ describe("CreditLine Test", function () {
                     ),
                 )
                 .add(borrowAmount.mul(frontLoadingFeeBps).div(CONSTANTS.BP_FACTOR));
-            // console.log(
-            //     `nextTime: ${nextTime}, getPrincipal(creditRecord): ${getPrincipal(
-            //         creditRecord,
-            //     )}, nextTime - preCreditRecord.nextDueDate.toNumber(): ${
-            //         nextTime - preCreditRecord.nextDueDate.toNumber()
-            //     }, calcYield: ${calcYield(
-            //         getPrincipal(creditRecord),
-            //         yieldInBps,
-            //         nextTime - preCreditRecord.nextDueDate.toNumber(),
-            //     )}`,
-            // );
-            // console.log(`accruedProfit: ${accruedProfit}`);
 
-            let lossRate = calcLossRate(
+            let profitRate = calcProfitRateWithCR(creditRecord, yieldInBps);
+            console.log(`accruedProfit: ${accruedProfit}, profitRate: ${profitRate}`);
+
+            let originalLossRate = calcLossRate(
                 preCreditRecord,
                 poolSettings.defaultGracePeriodInCalendarUnit,
             );
+            let lossRate = originalLossRate.add(profitRate);
+
+            let accruedLoss = BN.from(
+                originalLossRate
+                    .mul(BN.from(nextTime).sub(preCreditRecord.nextDueDate))
+                    .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR),
+            )
+                .add(getPrincipal(creditRecord).sub(getPrincipal(preCreditRecord)))
+                .add(
+                    calcYield(
+                        getPrincipal(creditRecord),
+                        yieldInBps,
+                        nextTime -
+                            getStartDateOfPeriod(
+                                CONSTANTS.CALENDAR_UNIT_MONTH,
+                                periodDuration,
+                                creditRecord.nextDueDate.toNumber(),
+                            ),
+                    ),
+                );
+            console.log(
+                `originalLossRate: ${originalLossRate}, lossRate: ${lossRate}, accruedLoss: ${accruedLoss}`,
+            );
+
+            checkPnLTracker(
+                pnlTracker,
+                profitRate,
+                lossRate,
+                nextTime,
+                accruedProfit,
+                accruedLoss,
+                BN.from(0),
+                1,
+            );
         });
+
+        it("Should create new due info after multiple periods", async function () {
+            let creditRecord = await creditContract.creditRecordMap(creditHash);
+
+            // move forward after grace late date
+            let poolSettings = await poolConfigContract.getPoolSettings();
+            let nextTime =
+                getNextMonth(
+                    creditRecord.nextDueDate.toNumber(),
+                    creditRecord.nextDueDate.toNumber(),
+                    periodDuration,
+                )[0] +
+                60 * 10;
+            await mineNextBlockWithTimestamp(nextTime);
+            console.log(`nextTime: ${nextTime}`);
+
+            let preCreditRecord = creditRecord;
+            await creditContract.refreshCredit(borrower.address);
+            creditRecord = await creditContract.creditRecordMap(creditHash);
+            printCreditRecord(`preCreditRecord`, preCreditRecord);
+            printCreditRecord(`creditRecord`, creditRecord);
+
+            let creditRecordSettings = await getCreditRecordSettings();
+            let creditConfig = await creditContract.creditConfigMap(creditHash);
+            let [newCreditRecord, principalDiff, missProfit] = calcLateCreditRecord(
+                preCreditRecord,
+                creditConfig,
+                2,
+                nextTime,
+                creditRecordSettings,
+            );
+            printCreditRecord(`newCreditRecord`, newCreditRecord);
+            checkTwoCreditRecords(creditRecord, newCreditRecord);
+
+            let pnlTracker = await creditPnlManagerContract.getPnL();
+            console.log(`pnlTracker: ${pnlTracker}`);
+
+            // accrued profit though multiple periods
+            // 1. front loading fee
+            // 2. current principal - borrow amount = accrued profit till last due date
+            // 3. yield from start time of current period to current time
+            let accruedProfit = BN.from(
+                borrowAmount.mul(frontLoadingFeeBps).div(CONSTANTS.BP_FACTOR),
+            )
+                .add(getPrincipal(creditRecord).sub(borrowAmount))
+                .add(
+                    calcYield(
+                        getPrincipal(creditRecord),
+                        yieldInBps,
+                        nextTime -
+                            getStartDateOfPeriod(
+                                CONSTANTS.CALENDAR_UNIT_MONTH,
+                                periodDuration,
+                                creditRecord.nextDueDate.toNumber(),
+                            ),
+                    ),
+                );
+
+            // profit rate = [principal of current due] * yieldInBps / [seconds in a year]
+            let profitRate = calcProfitRateWithCR(creditRecord, yieldInBps);
+            console.log(`accruedProfit: ${accruedProfit}, profitRate: ${profitRate}`);
+
+            // original loss rate = [principal of the late due] / [default grace period length]
+            let originalLossRate = calcLossRate(
+                preCreditRecord,
+                poolSettings.defaultGracePeriodInCalendarUnit,
+            );
+
+            // loss rate = [original loss rate] + [current profit rate]
+            let lossRate = originalLossRate.add(profitRate);
+
+            // accrued loss = [original loss part] + [profit part]
+            // original loss part = [original loss rate] * [seconds till current time]
+            // profit part = [profit from late due to current due]
+            let accruedLoss = BN.from(
+                originalLossRate
+                    .mul(BN.from(nextTime).sub(preCreditRecord.nextDueDate))
+                    .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR),
+            )
+                .add(getPrincipal(creditRecord).sub(getPrincipal(preCreditRecord)))
+                .add(
+                    calcYield(
+                        getPrincipal(creditRecord),
+                        yieldInBps,
+                        nextTime -
+                            getStartDateOfPeriod(
+                                CONSTANTS.CALENDAR_UNIT_MONTH,
+                                periodDuration,
+                                creditRecord.nextDueDate.toNumber(),
+                            ),
+                    ),
+                );
+
+            console.log(
+                `originalLossRate: ${originalLossRate}, lossRate: ${lossRate}, accruedLoss: ${accruedLoss}`,
+            );
+
+            checkPnLTracker(
+                pnlTracker,
+                profitRate,
+                lossRate,
+                nextTime,
+                accruedProfit,
+                accruedLoss,
+                BN.from(0),
+                1,
+            );
+        });
+
+        it("Should create new due info while credit state is delayed", async function () {
+            let creditRecord = await creditContract.creditRecordMap(creditHash);
+
+            // move forward after grace late date
+            let poolSettings = await poolConfigContract.getPoolSettings();
+            let nextTime =
+                creditRecord.nextDueDate.toNumber() +
+                3600 * 24 * (poolSettings.latePaymentGracePeriodInDays + 2);
+            await mineNextBlockWithTimestamp(nextTime);
+
+            let preCreditRecord = creditRecord;
+            await creditContract.refreshCredit(borrower.address);
+            creditRecord = await creditContract.creditRecordMap(creditHash);
+
+            let creditRecordSettings = await getCreditRecordSettings();
+            let creditConfig = await creditContract.creditConfigMap(creditHash);
+            let [newCreditRecord, principalDiff, missProfit] = calcLateCreditRecord(
+                preCreditRecord,
+                creditConfig,
+                1,
+                nextTime,
+                creditRecordSettings,
+            );
+            checkTwoCreditRecords(creditRecord, newCreditRecord);
+            printCreditRecord(`preCreditRecord`, preCreditRecord);
+            printCreditRecord(`creditRecord`, creditRecord);
+
+            let originalLossRate = calcLossRate(
+                preCreditRecord,
+                poolSettings.defaultGracePeriodInCalendarUnit,
+            );
+            let lossStartDate = preCreditRecord.nextDueDate.toNumber();
+            let lossStartPrincipal = getPrincipal(preCreditRecord);
+
+            nextTime =
+                getNextMonth(
+                    preCreditRecord.nextDueDate.toNumber(),
+                    preCreditRecord.nextDueDate.toNumber(),
+                    2 * periodDuration,
+                )[0] +
+                60 * 10;
+            await mineNextBlockWithTimestamp(nextTime);
+
+            preCreditRecord = creditRecord;
+            await creditContract.refreshCredit(borrower.address);
+            creditRecord = await creditContract.creditRecordMap(creditHash);
+
+            console.log(`nextTime: ${nextTime}`);
+            printCreditRecord(`preCreditRecord`, preCreditRecord);
+            printCreditRecord(`creditRecord`, creditRecord);
+
+            [newCreditRecord, principalDiff, missProfit] = calcLateCreditRecord(
+                preCreditRecord,
+                creditConfig,
+                2,
+                nextTime,
+                creditRecordSettings,
+            );
+            checkTwoCreditRecords(creditRecord, newCreditRecord);
+
+            let pnlTracker = await creditPnlManagerContract.getPnL();
+            console.log(`pnlTracker: ${pnlTracker}`);
+            // console.log(
+            //     `start date: ${getStartDateOfPeriod(
+            //         CONSTANTS.CALENDAR_UNIT_MONTH,
+            //         2,
+            //         creditRecord.nextDueDate.toNumber(),
+            //     )}, part1: ${borrowAmount
+            //         .mul(frontLoadingFeeBps)
+            //         .div(CONSTANTS.BP_FACTOR)}, part2: ${getPrincipal(creditRecord).sub(
+            //         borrowAmount,
+            //     )}, part3: ${calcYield(
+            //         getPrincipal(creditRecord),
+            //         yieldInBps,
+            //         nextTime -
+            //             getStartDateOfPeriod(
+            //                 CONSTANTS.CALENDAR_UNIT_MONTH,
+            //                 2,
+            //                 creditRecord.nextDueDate.toNumber(),
+            //             ),
+            //     )}, timelapsed: ${
+            //         nextTime -
+            //         getStartDateOfPeriod(
+            //             CONSTANTS.CALENDAR_UNIT_MONTH,
+            //             2,
+            //             creditRecord.nextDueDate.toNumber(),
+            //         )
+            //     }`,
+            // );
+
+            let accruedProfit = BN.from(
+                borrowAmount.mul(frontLoadingFeeBps).div(CONSTANTS.BP_FACTOR),
+            )
+                .add(getPrincipal(creditRecord).sub(borrowAmount))
+                .add(
+                    calcYield(
+                        getPrincipal(creditRecord),
+                        yieldInBps,
+                        nextTime -
+                            getStartDateOfPeriod(
+                                CONSTANTS.CALENDAR_UNIT_MONTH,
+                                periodDuration,
+                                creditRecord.nextDueDate.toNumber(),
+                            ),
+                    ),
+                );
+
+            let profitRate = calcProfitRateWithCR(creditRecord, yieldInBps);
+            console.log(`accruedProfit: ${accruedProfit}, profitRate: ${profitRate}`);
+
+            let lossRate = originalLossRate.add(profitRate);
+
+            console.log(
+                `lossStartPrincipal: ${lossStartPrincipal}, current principal: ${getPrincipal(
+                    creditRecord,
+                )}`,
+            );
+
+            let accruedLoss = BN.from(
+                originalLossRate
+                    .mul(BN.from(nextTime).sub(lossStartDate))
+                    .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR),
+            )
+                .add(getPrincipal(creditRecord).sub(lossStartPrincipal))
+                .add(
+                    calcYield(
+                        getPrincipal(creditRecord),
+                        yieldInBps,
+                        nextTime -
+                            getStartDateOfPeriod(
+                                CONSTANTS.CALENDAR_UNIT_MONTH,
+                                periodDuration,
+                                creditRecord.nextDueDate.toNumber(),
+                            ),
+                    ),
+                );
+
+            console.log(
+                `lossStartDate: ${lossStartDate}, nextTime: ${nextTime}, loss part1: ${originalLossRate
+                    .mul(BN.from(nextTime).sub(lossStartDate))
+                    .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR)}`,
+            );
+
+            console.log(
+                `originalLossRate: ${originalLossRate}, lossRate: ${lossRate}, accruedLoss: ${accruedLoss}`,
+            );
+
+            checkPnLTracker(
+                pnlTracker,
+                profitRate,
+                lossRate,
+                nextTime,
+                accruedProfit,
+                accruedLoss,
+                BN.from(0),
+                2,
+            );
+        });
+
+        it("Should become defaulted after default grace periods", async function () {});
     });
 
     describe("Delayed Tests", function () {
