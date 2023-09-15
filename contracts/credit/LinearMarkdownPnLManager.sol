@@ -93,7 +93,7 @@ contract LinearMarkdownPnLManager is BasePnLManager {
     function processDueUpdate(
         uint96 principalDiff,
         uint96 missedProfit,
-        bool lateFlag,
+        uint96 lossImpact,
         bytes32 creditHash,
         CreditConfig memory cc,
         CreditRecord memory cr
@@ -108,32 +108,50 @@ contract LinearMarkdownPnLManager is BasePnLManager {
             )
         );
 
-        if (lateFlag) {
+        if (lossImpact > 0) {
             CreditLoss memory creditLoss = _creditLossMap[creditHash];
             if (creditLoss.lastLossUpdateDate == 0) {
                 // process late first time
                 markdownRateDiff = _getMarkdownRate(cr);
-                markdown = uint96(
-                    (uint96(markdownRateDiff) * (block.timestamp - cr.nextDueDate)) /
-                        DEFAULT_DECIMALS_FACTOR
-                );
+                markdown =
+                    uint96(
+                        (uint96(markdownRateDiff) * (block.timestamp - cr.nextDueDate)) /
+                            DEFAULT_DECIMALS_FACTOR
+                    ) +
+                    lossImpact;
                 console.log(
-                    "markdownRateDiff: %s, markdown: %s",
-                    uint256(uint96(markdownRateDiff)),
-                    uint256(markdown)
+                    "markdown: %s, part1: %s, part2: %s",
+                    uint256(markdown),
+                    uint256(lossImpact),
+                    uint256(
+                        uint96(
+                            (uint96(markdownRateDiff) * (block.timestamp - cr.nextDueDate)) /
+                                DEFAULT_DECIMALS_FACTOR
+                        )
+                    )
                 );
-            }
-            markdownRateDiff += profitRateDiff;
-            markdown += missedProfit;
+                markdownRateDiff += int96(
+                    uint96(
+                        ((principalDiff + getPrincipal(cr)) *
+                            cc.yieldInBps *
+                            DEFAULT_DECIMALS_FACTOR) / (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
+                    )
+                );
 
-            creditLoss.totalAccruedLoss += markdown;
-            if (creditLoss.lastLossUpdateDate > 0) {
-                creditLoss.totalAccruedLoss += uint96(
-                    ((block.timestamp - creditLoss.lastLossUpdateDate) * creditLoss.lossRate) /
-                        DEFAULT_DECIMALS_FACTOR
-                );
+                creditLoss.totalAccruedLoss = markdown;
+                creditLoss.lossRate = uint96(markdownRateDiff);
+            } else {
+                markdownRateDiff = profitRateDiff;
+                markdown = missedProfit;
+
+                creditLoss.totalAccruedLoss +=
+                    markdown +
+                    uint96(
+                        ((block.timestamp - creditLoss.lastLossUpdateDate) * creditLoss.lossRate) /
+                            DEFAULT_DECIMALS_FACTOR
+                    );
+                creditLoss.lossRate += uint96(markdownRateDiff);
             }
-            creditLoss.lossRate += uint96(markdownRateDiff);
             creditLoss.lastLossUpdateDate = uint64(block.timestamp);
             _creditLossMap[creditHash] = creditLoss;
         }

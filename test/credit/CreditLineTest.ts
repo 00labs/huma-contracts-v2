@@ -915,14 +915,26 @@ describe("CreditLine Test", function () {
                 preCreditRecord,
                 poolSettings.defaultGracePeriodInCalendarUnit,
             );
-            let lossRate = originalLossRate.add(
-                calcProfitRateWithPrincipal(principalDiff, yieldInBps),
-            );
+            let lossRate = originalLossRate.add(profitRate);
 
-            let accruedLoss = originalLossRate
-                .mul(BN.from(nextTime).sub(preCreditRecord.nextDueDate))
-                .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR)
-                .add(missProfit);
+            let accruedLoss = BN.from(
+                originalLossRate
+                    .mul(BN.from(nextTime).sub(preCreditRecord.nextDueDate))
+                    .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR),
+            )
+                .add(getPrincipal(creditRecord).sub(getPrincipal(preCreditRecord)))
+                .add(
+                    calcYield(
+                        getPrincipal(creditRecord),
+                        yieldInBps,
+                        nextTime -
+                            getStartDateOfPeriod(
+                                CONSTANTS.CALENDAR_UNIT_MONTH,
+                                periodDuration,
+                                creditRecord.nextDueDate.toNumber(),
+                            ),
+                    ),
+                );
             console.log(
                 `originalLossRate: ${originalLossRate}, lossRate: ${lossRate}, accruedLoss: ${accruedLoss}`,
             );
@@ -975,6 +987,10 @@ describe("CreditLine Test", function () {
             let pnlTracker = await creditPnlManagerContract.getPnL();
             console.log(`pnlTracker: ${pnlTracker}`);
 
+            // accrued profit though multiple periods
+            // 1. front loading fee
+            // 2. current principal - borrow amount = accrued profit till last due date
+            // 3. yield from start time of current period to current time
             let accruedProfit = BN.from(
                 borrowAmount.mul(frontLoadingFeeBps).div(CONSTANTS.BP_FACTOR),
             )
@@ -992,21 +1008,41 @@ describe("CreditLine Test", function () {
                     ),
                 );
 
+            // profit rate = [principal of current due] * yieldInBps / [seconds in a year]
             let profitRate = calcProfitRateWithCR(creditRecord, yieldInBps);
             console.log(`accruedProfit: ${accruedProfit}, profitRate: ${profitRate}`);
 
+            // original loss rate = [principal of the late due] / [default grace period length]
             let originalLossRate = calcLossRate(
                 preCreditRecord,
                 poolSettings.defaultGracePeriodInCalendarUnit,
             );
-            let lossRate = originalLossRate.add(
-                calcProfitRateWithPrincipal(principalDiff, yieldInBps),
-            );
 
-            let accruedLoss = originalLossRate
-                .mul(BN.from(nextTime).sub(preCreditRecord.nextDueDate))
-                .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR)
-                .add(missProfit);
+            // loss rate = [original loss rate] + [current profit rate]
+            let lossRate = originalLossRate.add(profitRate);
+
+            // accrued loss = [original loss part] + [profit part]
+            // original loss part = [original loss rate] * [seconds till current time]
+            // profit part = [profit from late due to current due]
+            let accruedLoss = BN.from(
+                originalLossRate
+                    .mul(BN.from(nextTime).sub(preCreditRecord.nextDueDate))
+                    .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR),
+            )
+                .add(getPrincipal(creditRecord).sub(getPrincipal(preCreditRecord)))
+                .add(
+                    calcYield(
+                        getPrincipal(creditRecord),
+                        yieldInBps,
+                        nextTime -
+                            getStartDateOfPeriod(
+                                CONSTANTS.CALENDAR_UNIT_MONTH,
+                                periodDuration,
+                                creditRecord.nextDueDate.toNumber(),
+                            ),
+                    ),
+                );
+
             console.log(
                 `originalLossRate: ${originalLossRate}, lossRate: ${lossRate}, accruedLoss: ${accruedLoss}`,
             );
@@ -1056,7 +1092,6 @@ describe("CreditLine Test", function () {
             );
             let lossStartDate = preCreditRecord.nextDueDate.toNumber();
             let lossStartPrincipal = getPrincipal(preCreditRecord);
-            let allPrincipalDiff = principalDiff;
 
             nextTime =
                 getNextMonth(
@@ -1083,7 +1118,6 @@ describe("CreditLine Test", function () {
                 creditRecordSettings,
             );
             checkTwoCreditRecords(creditRecord, newCreditRecord);
-            allPrincipalDiff = allPrincipalDiff.add(principalDiff);
 
             let pnlTracker = await creditPnlManagerContract.getPnL();
             console.log(`pnlTracker: ${pnlTracker}`);
@@ -1135,9 +1169,7 @@ describe("CreditLine Test", function () {
             let profitRate = calcProfitRateWithCR(creditRecord, yieldInBps);
             console.log(`accruedProfit: ${accruedProfit}, profitRate: ${profitRate}`);
 
-            let lossRate = originalLossRate.add(
-                calcProfitRateWithPrincipal(allPrincipalDiff, yieldInBps),
-            );
+            let lossRate = originalLossRate.add(profitRate);
 
             console.log(
                 `lossStartPrincipal: ${lossStartPrincipal}, current principal: ${getPrincipal(
@@ -1145,10 +1177,24 @@ describe("CreditLine Test", function () {
                 )}`,
             );
 
-            let accruedLoss = originalLossRate
-                .mul(BN.from(nextTime).sub(lossStartDate))
-                .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR)
-                .add(getPrincipal(creditRecord).sub(lossStartPrincipal));
+            let accruedLoss = BN.from(
+                originalLossRate
+                    .mul(BN.from(nextTime).sub(lossStartDate))
+                    .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR),
+            )
+                .add(getPrincipal(creditRecord).sub(lossStartPrincipal))
+                .add(
+                    calcYield(
+                        getPrincipal(creditRecord),
+                        yieldInBps,
+                        nextTime -
+                            getStartDateOfPeriod(
+                                CONSTANTS.CALENDAR_UNIT_MONTH,
+                                periodDuration,
+                                creditRecord.nextDueDate.toNumber(),
+                            ),
+                    ),
+                );
 
             console.log(
                 `lossStartDate: ${lossStartDate}, nextTime: ${nextTime}, loss part1: ${originalLossRate
@@ -1160,16 +1206,16 @@ describe("CreditLine Test", function () {
                 `originalLossRate: ${originalLossRate}, lossRate: ${lossRate}, accruedLoss: ${accruedLoss}`,
             );
 
-            // checkPnLTracker(
-            //     pnlTracker,
-            //     profitRate,
-            //     lossRate,
-            //     nextTime,
-            //     accruedProfit,
-            //     accruedLoss,
-            //     BN.from(0),
-            //     1,
-            // );
+            checkPnLTracker(
+                pnlTracker,
+                profitRate,
+                lossRate,
+                nextTime,
+                accruedProfit,
+                accruedLoss,
+                BN.from(0),
+                2,
+            );
         });
     });
 
