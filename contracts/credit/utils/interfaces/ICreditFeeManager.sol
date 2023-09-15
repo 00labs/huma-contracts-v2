@@ -51,6 +51,10 @@ interface ICreditFeeManager {
      * @param _cr the credit record associated the account
      * @return cr
      * @return periodsPassed the number of billing periods has passed since the last statement.
+     * @return pnlImpact the pnl impact of the account since the last statement
+     * @return principalDifference the principal difference of the account since the last statement
+     * @return lossImpact the loss impact of the account since the last statement. If it is great than 0,
+     * it means the credit is delayed, otherwise it means the credit is good standing.
      * If it is within the same period, it will be 0.
      */
     function getDueInfo(
@@ -62,9 +66,9 @@ interface ICreditFeeManager {
         returns (
             CreditRecord memory cr,
             uint256 periodsPassed,
-            bool isLate,
             uint96 pnlImpact,
-            uint96 principalDifference
+            uint96 principalDifference,
+            uint96 lossImpact
         );
 
     /**
