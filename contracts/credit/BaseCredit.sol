@@ -805,7 +805,19 @@ abstract contract BaseCredit is
             else cr.missedPeriods = 0;
 
             if (cr.missedPeriods > 0) {
-                if (cr.state != CreditState.Defaulted) cr.state = CreditState.Delayed;
+                if (cr.state != CreditState.Defaulted) {
+                    cr.state = CreditState.Delayed;
+                    PoolSettings memory ps = poolConfig.getPoolSettings();
+                    if (
+                        cr.missedPeriods * ps.payPeriodInCalendarUnit >=
+                        ps.defaultGracePeriodInCalendarUnit
+                    ) {
+                        cr.state = CreditState.Defaulted;
+                        pnlManager.processDefault(creditHash, cc, cr);
+
+                        // TODO how to recover defaulted state?
+                    }
+                }
             } else cr.state = CreditState.GoodStanding;
 
             _setCreditRecord(creditHash, cr);
