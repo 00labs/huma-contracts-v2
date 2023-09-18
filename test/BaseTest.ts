@@ -621,6 +621,17 @@ export function checkCreditLoss(
     expect(creditLoss.lossRate).to.be.closeTo(lossRate, delta);
 }
 
+export function checkTwoCreditLosses(
+    preCreditLoss: CreditLossStructOutput,
+    creditLoss: CreditLossStructOutput,
+) {
+    expect(preCreditLoss.totalAccruedLoss).to.equal(creditLoss.totalAccruedLoss);
+    expect(preCreditLoss.totalLossRecovery).to.equal(creditLoss.totalLossRecovery);
+    expect(preCreditLoss.lastLossUpdateDate).to.equal(creditLoss.lastLossUpdateDate);
+    expect(preCreditLoss.lossExpiringDate).to.equal(creditLoss.lossExpiringDate);
+    expect(preCreditLoss.lossRate).to.equal(creditLoss.lossRate);
+}
+
 export function printCreditRecord(name: string, creditRecord: CreditRecordStruct) {
     console.log(
         `${name}[
