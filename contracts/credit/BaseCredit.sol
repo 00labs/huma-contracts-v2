@@ -809,7 +809,7 @@ abstract contract BaseCredit is
                     cr.state = CreditState.Delayed;
                     PoolSettings memory ps = poolConfig.getPoolSettings();
                     if (
-                        cr.missedPeriods * ps.payPeriodInCalendarUnit >=
+                        (cr.missedPeriods - 1) * ps.payPeriodInCalendarUnit >=
                         ps.defaultGracePeriodInCalendarUnit
                     ) {
                         cr.state = CreditState.Defaulted;
