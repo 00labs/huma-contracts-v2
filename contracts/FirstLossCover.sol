@@ -137,7 +137,7 @@ contract FirstLossCover is PoolConfigCache, IFirstLossCover {
 
         uint256 processed = processedLoss;
         uint256 recovered = processed < recovery ? processed : recovery;
-        // There may be multiple loss coverers, the remainingRecovery may be positive.
+        // There may be multiple loss covers, the remainingRecovery may be positive.
         remainingRecovery = recovery - recovered;
         if (recovered > 0) {
             processedLoss = processed - recovered;

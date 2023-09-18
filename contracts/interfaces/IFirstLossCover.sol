@@ -3,13 +3,13 @@ pragma solidity ^0.8.0;
 
 interface IFirstLossCover {
     /**
-     * @notice Adds assets in the loss coverer
+     * @notice Adds assets in the first loss cover
      * @param amount the asset amount
      */
     function addCover(uint256 amount) external;
 
     /**
-     * @notice Withdraws excess assets from the loss coverer,
+     * @notice Withdraws excess assets from the first loss cover,
      * the left assets should meet poolCapCoverageInBps and poolValueCoverageInBps settings
      * @param amount the asset amount
      * @param receiver the address to receive the withdrawn assets
