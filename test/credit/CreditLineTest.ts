@@ -11,6 +11,7 @@ import {
     checkPnLTracker,
     checkTwoCreditRecords,
     printCreditRecord,
+    checkCreditLoss,
 } from "../BaseTest";
 import {
     getNextTime,
@@ -40,6 +41,7 @@ import {
 } from "../../typechain-types";
 import { CreditRecordStructOutput } from "../../typechain-types/contracts/credit/utils/interfaces/ICreditFeeManager";
 import { CreditConfigStructOutput } from "../../typechain-types/contracts/credit/BaseCredit";
+import { credit } from "../../typechain-types/contracts";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
@@ -69,7 +71,7 @@ let poolConfigContract: PoolConfig,
     creditFeeManagerContract: BaseCreditFeeManager,
     creditPnlManagerContract: BasePnLManager;
 
-function calcLossRate(cr: CreditRecordStructOutput, defaultPeriod: number): BN {
+function calcLossRate(cr: CreditRecordStructOutput, defaultPeriod: number): [BN, number] {
     let [defaultDate] = getNextMonth(
         cr.nextDueDate.toNumber(),
         cr.nextDueDate.toNumber(),
@@ -79,7 +81,7 @@ function calcLossRate(cr: CreditRecordStructOutput, defaultPeriod: number): BN {
     let lossRate = principal
         .mul(CONSTANTS.DEFAULT_DECIMALS_FACTOR)
         .div(BN.from(defaultDate).sub(cr.nextDueDate));
-    return lossRate;
+    return [lossRate, defaultDate];
 }
 
 function calcProfitRateWithCR(cr: CreditRecordStructOutput, yieldInBps: number): BN {
@@ -164,6 +166,12 @@ function calcLateCreditRecord(
 
     ncr.remainingPeriods = ncr.remainingPeriods - periodCount;
     ncr.missedPeriods = ncr.missedPeriods + periodCount;
+
+    if (ncr.remainingPeriods === 0) {
+        ncr.totalDue = ncr.totalDue.add(ncr.unbilledPrincipal);
+        ncr.unbilledPrincipal = BN.from(0);
+    }
+
     ncr.state = 5;
 
     return [ncr, principalDiff, missProfit];
@@ -801,7 +809,7 @@ describe("CreditLine Test", function () {
 
             await poolConfigContract
                 .connect(poolOwner)
-                .setPoolDefaultGracePeriod(CONSTANTS.CALENDAR_UNIT_MONTH, periodDuration * 4);
+                .setPoolDefaultGracePeriod(CONSTANTS.CALENDAR_UNIT_MONTH, periodDuration * 3);
 
             let juniorDepositAmount = toToken(300_000);
             await juniorTrancheVaultContract
@@ -911,7 +919,7 @@ describe("CreditLine Test", function () {
             let profitRate = calcProfitRateWithCR(creditRecord, yieldInBps);
             console.log(`accruedProfit: ${accruedProfit}, profitRate: ${profitRate}`);
 
-            let originalLossRate = calcLossRate(
+            let [originalLossRate, defaultDate] = calcLossRate(
                 preCreditRecord,
                 poolSettings.defaultGracePeriodInCalendarUnit,
             );
@@ -947,6 +955,19 @@ describe("CreditLine Test", function () {
                 accruedProfit,
                 accruedLoss,
                 BN.from(0),
+                1,
+            );
+
+            let creditLoss = await creditPnlManagerContract.getCreditLoss(creditHash);
+            console.log(`creditLoss: ${creditLoss}`);
+
+            checkCreditLoss(
+                creditLoss,
+                accruedLoss,
+                BN.from(0),
+                nextTime,
+                defaultDate,
+                lossRate,
                 1,
             );
         });
@@ -1013,7 +1034,7 @@ describe("CreditLine Test", function () {
             console.log(`accruedProfit: ${accruedProfit}, profitRate: ${profitRate}`);
 
             // original loss rate = [principal of the late due] / [default grace period length]
-            let originalLossRate = calcLossRate(
+            let [originalLossRate, defaultDate] = calcLossRate(
                 preCreditRecord,
                 poolSettings.defaultGracePeriodInCalendarUnit,
             );
@@ -1057,6 +1078,18 @@ describe("CreditLine Test", function () {
                 BN.from(0),
                 1,
             );
+
+            let creditLoss = await creditPnlManagerContract.getCreditLoss(creditHash);
+            // console.log(`creditLoss: ${creditLoss}`);
+            checkCreditLoss(
+                creditLoss,
+                accruedLoss,
+                BN.from(0),
+                nextTime,
+                defaultDate,
+                lossRate,
+                1,
+            );
         });
 
         it("Should create new due info while credit state is delayed", async function () {
@@ -1086,7 +1119,7 @@ describe("CreditLine Test", function () {
             printCreditRecord(`preCreditRecord`, preCreditRecord);
             printCreditRecord(`creditRecord`, creditRecord);
 
-            let originalLossRate = calcLossRate(
+            let [originalLossRate, defaultDate] = calcLossRate(
                 preCreditRecord,
                 poolSettings.defaultGracePeriodInCalendarUnit,
             );
@@ -1121,33 +1154,6 @@ describe("CreditLine Test", function () {
 
             let pnlTracker = await creditPnlManagerContract.getPnL();
             console.log(`pnlTracker: ${pnlTracker}`);
-            // console.log(
-            //     `start date: ${getStartDateOfPeriod(
-            //         CONSTANTS.CALENDAR_UNIT_MONTH,
-            //         2,
-            //         creditRecord.nextDueDate.toNumber(),
-            //     )}, part1: ${borrowAmount
-            //         .mul(frontLoadingFeeBps)
-            //         .div(CONSTANTS.BP_FACTOR)}, part2: ${getPrincipal(creditRecord).sub(
-            //         borrowAmount,
-            //     )}, part3: ${calcYield(
-            //         getPrincipal(creditRecord),
-            //         yieldInBps,
-            //         nextTime -
-            //             getStartDateOfPeriod(
-            //                 CONSTANTS.CALENDAR_UNIT_MONTH,
-            //                 2,
-            //                 creditRecord.nextDueDate.toNumber(),
-            //             ),
-            //     )}, timelapsed: ${
-            //         nextTime -
-            //         getStartDateOfPeriod(
-            //             CONSTANTS.CALENDAR_UNIT_MONTH,
-            //             2,
-            //             creditRecord.nextDueDate.toNumber(),
-            //         )
-            //     }`,
-            // );
 
             let accruedProfit = BN.from(
                 borrowAmount.mul(frontLoadingFeeBps).div(CONSTANTS.BP_FACTOR),
@@ -1216,9 +1222,150 @@ describe("CreditLine Test", function () {
                 BN.from(0),
                 2,
             );
+
+            let creditLoss = await creditPnlManagerContract.getCreditLoss(creditHash);
+            // console.log(`creditLoss: ${creditLoss}`);
+            checkCreditLoss(
+                creditLoss,
+                accruedLoss,
+                BN.from(0),
+                nextTime,
+                defaultDate,
+                lossRate,
+                2,
+            );
         });
 
-        it("Should become defaulted after default grace periods", async function () {});
+        it("Should become defaulted after default grace periods", async function () {
+            let creditRecord = await creditContract.creditRecordMap(creditHash);
+
+            // move forward after grace late date
+            let poolSettings = await poolConfigContract.getPoolSettings();
+            let nextTime =
+                creditRecord.nextDueDate.toNumber() +
+                3600 * 24 * (poolSettings.latePaymentGracePeriodInDays + 1);
+            await mineNextBlockWithTimestamp(nextTime);
+
+            let preCreditRecord = creditRecord;
+            await creditContract.refreshCredit(borrower.address);
+            creditRecord = await creditContract.creditRecordMap(creditHash);
+
+            let creditRecordSettings = await getCreditRecordSettings();
+            let creditConfig = await creditContract.creditConfigMap(creditHash);
+            let [newCreditRecord, principalDiff, missProfit] = calcLateCreditRecord(
+                preCreditRecord,
+                creditConfig,
+                1,
+                nextTime,
+                creditRecordSettings,
+            );
+            checkTwoCreditRecords(creditRecord, newCreditRecord);
+            printCreditRecord(`preCreditRecord`, preCreditRecord);
+            printCreditRecord(`creditRecord`, creditRecord);
+
+            let [originalLossRate, defaultDate] = calcLossRate(
+                preCreditRecord,
+                poolSettings.defaultGracePeriodInCalendarUnit,
+            );
+            let lossStartDate = preCreditRecord.nextDueDate.toNumber();
+            let lossStartPrincipal = getPrincipal(preCreditRecord);
+
+            let creditLoss = await creditPnlManagerContract.getCreditLoss(creditHash);
+            console.log(`creditLoss: ${creditLoss}`);
+
+            let lossRate = originalLossRate.add(calcProfitRateWithCR(creditRecord, yieldInBps));
+
+            let accruedLoss = BN.from(
+                originalLossRate
+                    .mul(BN.from(nextTime).sub(lossStartDate))
+                    .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR),
+            )
+                .add(getPrincipal(creditRecord).sub(lossStartPrincipal))
+                .add(
+                    calcYield(
+                        getPrincipal(creditRecord),
+                        yieldInBps,
+                        nextTime -
+                            getStartDateOfPeriod(
+                                CONSTANTS.CALENDAR_UNIT_MONTH,
+                                periodDuration,
+                                creditRecord.nextDueDate.toNumber(),
+                            ),
+                    ),
+                );
+            console.log(`accruedLoss: ${accruedLoss}, lossRate: ${lossRate}`);
+
+            checkCreditLoss(
+                creditLoss,
+                accruedLoss,
+                BN.from(0),
+                nextTime,
+                defaultDate,
+                lossRate,
+                1,
+            );
+
+            nextTime =
+                getNextMonth(
+                    preCreditRecord.nextDueDate.toNumber(),
+                    preCreditRecord.nextDueDate.toNumber(),
+                    3 * periodDuration,
+                )[0] +
+                60 * 5;
+            await mineNextBlockWithTimestamp(nextTime);
+
+            preCreditRecord = creditRecord;
+            await creditContract.refreshCredit(borrower.address);
+            creditRecord = await creditContract.creditRecordMap(creditHash);
+
+            console.log(`nextTime: ${nextTime}`);
+            printCreditRecord(`preCreditRecord`, preCreditRecord);
+            printCreditRecord(`creditRecord`, creditRecord);
+
+            [newCreditRecord, principalDiff, missProfit] = calcLateCreditRecord(
+                preCreditRecord,
+                creditConfig,
+                3,
+                nextTime,
+                creditRecordSettings,
+            );
+            newCreditRecord.state = 6;
+            checkTwoCreditRecords(creditRecord, newCreditRecord);
+
+            let pnlTracker = await creditPnlManagerContract.getPnL();
+            console.log(`pnlTracker: ${pnlTracker}`);
+
+            let accruedProfit = BN.from(
+                borrowAmount.mul(frontLoadingFeeBps).div(CONSTANTS.BP_FACTOR),
+            ).add(getPrincipal(creditRecord).sub(borrowAmount));
+            console.log(`accruedProfit: ${accruedProfit}`);
+
+            accruedLoss = getPrincipal(creditRecord);
+            console.log(`accruedLoss: ${accruedLoss}`);
+
+            checkPnLTracker(
+                pnlTracker,
+                BN.from(0),
+                BN.from(0),
+                nextTime,
+                accruedProfit,
+                accruedLoss,
+                BN.from(0),
+                2,
+            );
+
+            creditLoss = await creditPnlManagerContract.getCreditLoss(creditHash);
+            console.log(`creditLoss: ${creditLoss}`);
+            checkCreditLoss(
+                creditLoss,
+                accruedLoss,
+                BN.from(0),
+                defaultDate,
+                defaultDate,
+                BN.from(0),
+                1,
+            );
+        });
     });
 
     describe("Delayed Tests", function () {

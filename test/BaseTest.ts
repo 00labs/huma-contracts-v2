@@ -25,6 +25,7 @@ import {
     CreditConfigStruct,
     CreditRecordStruct,
 } from "../typechain-types/contracts/credit/interfaces/ICredit";
+import { CreditLossStructOutput } from "../typechain-types/contracts/credit/BasePnLManager";
 
 export type ProtocolContracts = [EvaluationAgentNFT, HumaConfig, MockToken];
 export type PoolContracts = [
@@ -602,6 +603,22 @@ export function checkPnLTracker(
     expect(pnlTracker.accruedProfit).to.be.closeTo(accruedProfit, delta);
     expect(pnlTracker.accruedLoss).to.be.closeTo(accruedLoss, delta);
     expect(pnlTracker.accruedLossRecovery).to.be.closeTo(accruedLossRecovery, delta);
+}
+
+export function checkCreditLoss(
+    creditLoss: CreditLossStructOutput,
+    totalAccruedLoss: BN,
+    totalLossRecovery: BN,
+    lastLossUpdateDate: number,
+    lossExpiringDate: number,
+    lossRate: BN,
+    delta = 0,
+) {
+    expect(creditLoss.totalAccruedLoss).to.be.closeTo(totalAccruedLoss, delta);
+    expect(creditLoss.totalLossRecovery).to.be.closeTo(totalLossRecovery, delta);
+    expect(creditLoss.lastLossUpdateDate).to.be.closeTo(lastLossUpdateDate, delta);
+    expect(creditLoss.lossExpiringDate).to.be.closeTo(lossExpiringDate, delta);
+    expect(creditLoss.lossRate).to.be.closeTo(lossRate, delta);
 }
 
 export function printCreditRecord(name: string, creditRecord: CreditRecordStruct) {

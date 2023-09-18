@@ -162,6 +162,10 @@ abstract contract BasePnLManager is PoolConfigCache, IPnLManager {
         );
     }
 
+    function getCreditLoss(bytes32 creditHash) external view returns (CreditLoss memory) {
+        return _creditLossMap[creditHash];
+    }
+
     function onlyCreditContract() internal view {
         if (msg.sender != address(credit)) revert Errors.todo();
     }

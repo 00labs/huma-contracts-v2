@@ -75,34 +75,42 @@ contract LinearMarkdownPnLManager is BasePnLManager {
         CreditLoss memory creditLoss = _creditLossMap[creditHash];
 
         PnLTracker memory tracker = _getLatestTracker(0, 0, 0, 0, 0);
-        tracker.lossRate -= creditLoss.lossRate;
+        tracker.lossRate = tracker.lossRate > creditLoss.lossRate
+            ? tracker.lossRate - creditLoss.lossRate
+            : 0;
 
         // deduct profit rate
         uint96 deductedProfitRate = uint96(
             (getPrincipal(cr) * cc.yieldInBps * DEFAULT_DECIMALS_FACTOR) /
                 (HUNDRED_PERCENT_IN_BPS * SECONDS_IN_A_YEAR)
         );
-        tracker.profitRate -= deductedProfitRate;
+        tracker.profitRate = tracker.profitRate > deductedProfitRate
+            ? tracker.profitRate - deductedProfitRate
+            : 0;
 
         // deduct overcalculated profit
         uint96 deductedProfit = uint96(
             (deductedProfitRate * (block.timestamp - creditLoss.lossExpiringDate)) /
                 DEFAULT_DECIMALS_FACTOR
         );
-        tracker.accruedProfit -= deductedProfit;
+        tracker.accruedProfit = tracker.accruedProfit > deductedProfit
+            ? tracker.accruedProfit - deductedProfit
+            : 0;
 
         // deduct overcalculated loss
         uint96 deductedLoss = uint96(
             (creditLoss.lossRate * (block.timestamp - creditLoss.lossExpiringDate)) /
                 DEFAULT_DECIMALS_FACTOR
         );
-        tracker.accruedLoss -= deductedLoss;
+        tracker.accruedLoss = tracker.accruedLoss > deductedLoss
+            ? tracker.accruedLoss - deductedLoss
+            : 0;
 
         pnlTracker = tracker;
 
-        // _updateTracker(int96(0 - 1), int96(0 - lossRate), 0, 0, 0);
-
-        creditLoss.totalAccruedLoss -= deductedLoss;
+        creditLoss.totalAccruedLoss = creditLoss.totalAccruedLoss > deductedLoss
+            ? creditLoss.totalAccruedLoss - deductedLoss
+            : 0;
         creditLoss.lossRate = 0;
         creditLoss.lastLossUpdateDate = uint64(creditLoss.lossExpiringDate);
         _creditLossMap[creditHash] = creditLoss;
@@ -130,6 +138,7 @@ contract LinearMarkdownPnLManager is BasePnLManager {
             CreditLoss memory creditLoss = _creditLossMap[creditHash];
             if (creditLoss.lastLossUpdateDate == 0) {
                 // process late first time
+                console.log("process late first time - cr.nextDueDate: %s", cr.nextDueDate);
                 (markdownRateDiff, creditLoss.lossExpiringDate) = _getMarkdownRate(cr);
                 markdown =
                     uint96(
