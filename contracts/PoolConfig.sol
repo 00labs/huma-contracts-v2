@@ -378,7 +378,6 @@ contract PoolConfig is AccessControl, Initializable {
 
     function setPlatformFeeManager(address _platformFeeManager) external {
         _onlyOwnerOrHumaMasterAdmin();
-        _onlyOwnerOrHumaMasterAdmin();
         if (_platformFeeManager == address(0)) revert Errors.zeroAddressProvided();
         platformFeeManager = _platformFeeManager;
         emit PlatformFeeManagerChanged(_platformFeeManager, msg.sender);
