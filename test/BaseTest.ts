@@ -25,6 +25,7 @@ import {
     CreditConfigStruct,
     CreditRecordStruct,
 } from "../typechain-types/contracts/credit/interfaces/ICredit";
+import { CreditLossStructOutput } from "../typechain-types/contracts/credit/BasePnLManager";
 
 export type ProtocolContracts = [EvaluationAgentNFT, HumaConfig, MockToken];
 export type PoolContracts = [
@@ -53,10 +54,10 @@ export type CreditContractName =
     | "MockPoolCredit";
 
 const CALENDAR_UNIT_DAY = 0;
-const CALENDAR_UNIT_MONTH = 0;
+const CALENDAR_UNIT_MONTH = 1;
 const SENIOR_TRANCHE_INDEX = 0;
 const JUNIOR_TRANCHE_INDEX = 1;
-const PRICE_DECIMALS_FACTOR = 10n ** 18n;
+const DEFAULT_DECIMALS_FACTOR = 10n ** 18n;
 const BP_FACTOR = BN.from(10000);
 const SECONDS_IN_YEAR = 60 * 60 * 24 * 365;
 
@@ -65,7 +66,7 @@ export const CONSTANTS = {
     CALENDAR_UNIT_MONTH,
     SENIOR_TRANCHE_INDEX,
     JUNIOR_TRANCHE_INDEX,
-    PRICE_DECIMALS_FACTOR,
+    DEFAULT_DECIMALS_FACTOR,
     BP_FACTOR,
     SECONDS_IN_YEAR,
 };
@@ -427,7 +428,7 @@ function calcProfitForFixedAprPolicy(
     lastUpdateTS: number,
     currentTS: number,
     deployedAssets: BN,
-    yieldInBps: BN,
+    yieldInBps: number,
 ): BN[] {
     const totalAssets = assets[CONSTANTS.SENIOR_TRANCHE_INDEX].add(
         assets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
@@ -439,7 +440,7 @@ function calcProfitForFixedAprPolicy(
     if (currentTS > lastUpdateTS) {
         seniorProfit = seniorDeployedAssets
             .mul(BN.from(currentTS).sub(BN.from(lastUpdateTS)))
-            .mul(yieldInBps)
+            .mul(BN.from(yieldInBps))
             .div(CONSTANTS.SECONDS_IN_YEAR)
             .div(CONSTANTS.BP_FACTOR);
     }
@@ -550,13 +551,27 @@ export function checkCreditConfig(
     expect(creditConfig.exclusive).to.equal(exclusive);
 }
 
+export function checkTwoCreditRecords(
+    preCreditRecord: CreditRecordStruct,
+    creditRecord: CreditRecordStruct,
+) {
+    expect(creditRecord.unbilledPrincipal).to.equal(preCreditRecord.unbilledPrincipal);
+    expect(creditRecord.nextDueDate).to.equal(preCreditRecord.nextDueDate);
+    expect(creditRecord.totalDue).to.equal(preCreditRecord.totalDue);
+    expect(creditRecord.yieldDue).to.equal(preCreditRecord.yieldDue);
+    expect(creditRecord.feesDue).to.equal(preCreditRecord.feesDue);
+    expect(creditRecord.missedPeriods).to.equal(preCreditRecord.missedPeriods);
+    expect(creditRecord.remainingPeriods).to.equal(preCreditRecord.remainingPeriods);
+    expect(creditRecord.state).to.equal(preCreditRecord.state);
+}
+
 export function checkCreditRecord(
     creditRecord: CreditRecordStruct,
-    unbilledPrincipal: number,
+    unbilledPrincipal: BN,
     nextDueDate: number,
-    totalDue: number,
-    yieldDue: number,
-    feesDue: number,
+    totalDue: BN,
+    yieldDue: BN,
+    feesDue: BN,
     missedPeriods: number,
     remainingPeriods: number,
     state: number,
@@ -569,6 +584,55 @@ export function checkCreditRecord(
     expect(creditRecord.missedPeriods).to.equal(missedPeriods);
     expect(creditRecord.remainingPeriods).to.equal(remainingPeriods);
     expect(creditRecord.state).to.equal(state);
+}
+
+export function checkPnLTracker(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    pnlTracker: any,
+    profitRate: BN,
+    lossRate: BN,
+    pnlLastUpdated: number,
+    accruedProfit: BN,
+    accruedLoss: BN,
+    accruedLossRecovery: BN,
+    delta = 0,
+) {
+    expect(pnlTracker.profitRate).to.be.closeTo(profitRate, delta);
+    expect(pnlTracker.lossRate).to.be.closeTo(lossRate, delta);
+    expect(pnlTracker.pnlLastUpdated).to.equal(pnlLastUpdated);
+    expect(pnlTracker.accruedProfit).to.be.closeTo(accruedProfit, delta);
+    expect(pnlTracker.accruedLoss).to.be.closeTo(accruedLoss, delta);
+    expect(pnlTracker.accruedLossRecovery).to.be.closeTo(accruedLossRecovery, delta);
+}
+
+export function checkCreditLoss(
+    creditLoss: CreditLossStructOutput,
+    totalAccruedLoss: BN,
+    totalLossRecovery: BN,
+    lastLossUpdateDate: number,
+    lossExpiringDate: number,
+    lossRate: BN,
+    delta = 0,
+) {
+    expect(creditLoss.totalAccruedLoss).to.be.closeTo(totalAccruedLoss, delta);
+    expect(creditLoss.totalLossRecovery).to.be.closeTo(totalLossRecovery, delta);
+    expect(creditLoss.lastLossUpdateDate).to.be.closeTo(lastLossUpdateDate, delta);
+    expect(creditLoss.lossExpiringDate).to.be.closeTo(lossExpiringDate, delta);
+    expect(creditLoss.lossRate).to.be.closeTo(lossRate, delta);
+}
+
+export function printCreditRecord(name: string, creditRecord: CreditRecordStruct) {
+    console.log(
+        `${name}[
+            unbilledPrincipal: ${creditRecord.unbilledPrincipal},
+            nextDueDate: ${creditRecord.nextDueDate},
+            totalDue: ${creditRecord.totalDue},
+            yieldDue: ${creditRecord.yieldDue},
+            feesDue: ${creditRecord.feesDue},
+            missedPeriods: ${creditRecord.missedPeriods},
+            remainingPeriods: ${creditRecord.remainingPeriods},
+            state: ${creditRecord.state}]`,
+    );
 }
 
 async function getTranchesPolicyContractFactory(

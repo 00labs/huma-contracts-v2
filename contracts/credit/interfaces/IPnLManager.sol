@@ -25,7 +25,7 @@ interface IPnLManager {
     function processDueUpdate(
         uint96 principalDiff,
         uint96 missedProfit,
-        bool lateFlag,
+        uint96 lossImpact,
         bytes32 creditHash,
         CreditConfig memory cc,
         CreditRecord memory cr
@@ -33,15 +33,15 @@ interface IPnLManager {
 
     function refreshPnL()
         external
-        returns (uint256 totalProfit, uint256 totalLoss, uint256 totalLossRecovery);
+        returns (uint256 accruedProfit, uint256 accruedLoss, uint256 accruedLossRecovery);
 
     function getPnL()
         external
         view
         returns (
-            uint96 totalProfit,
-            uint96 totalLoss,
-            uint96 totalLossRecovery,
+            uint96 accruedProfit,
+            uint96 accruedLoss,
+            uint96 accruedLossRecovery,
             uint96 profitRate,
             uint96 lossRate,
             uint64 pnlLastUpdated
@@ -50,14 +50,5 @@ interface IPnLManager {
     function getPnLSum()
         external
         view
-        returns (uint256 totalProfit, uint256 totalLoss, uint256 totalLossRecovery);
-
-    function getIncrementalPnL()
-        external
-        view
-        returns (
-            uint256 incrementalProfit,
-            uint256 incrementalLoss,
-            uint256 incrementalLossRecovery
-        );
+        returns (uint256 accruedProfit, uint256 accruedLoss, uint256 accruedLossRecovery);
 }

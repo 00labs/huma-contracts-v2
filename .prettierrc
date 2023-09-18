@@ -1,29 +1,30 @@
 {
+    "plugins": ["prettier-plugin-solidity"],
     "overrides": [
-      {
-        "files": "*.sol",
-        "options": {
-          "printWidth": 99,
-          "tabWidth": 4,
-          "useTabs": false,
-          "explicitTypes": "always"
+        {
+            "files": "*.sol",
+            "options": {
+                "printWidth": 99,
+                "tabWidth": 4,
+                "useTabs": false,
+                "explicitTypes": "always"
+            }
+        },
+        {
+            "files": ["*.ts", "*.js", ".prettierrc"],
+            "options": {
+                "printWidth": 99,
+                "tabWidth": 4,
+                "useTabs": false,
+                "semi": true,
+                "trailingComma": "all"
+            }
+        },
+        {
+            "files": "*.json",
+            "options": {
+                "printWidth": 80
+            }
         }
-      },
-      {
-        "files": "*.ts",
-        "options": {
-          "printWidth": 99,
-          "tabWidth": 4,
-          "useTabs": false,
-          "semi": true,
-          "trailingComma": "all"
-        }
-      },
-      {
-        "files": "*.json",
-        "options": {
-            "printWidth": 80
-        }
-      }
     ]
-  }
+}

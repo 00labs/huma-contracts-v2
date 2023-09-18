@@ -452,16 +452,12 @@ abstract contract BaseCredit is
         return _creditConfigMap[creditHash];
     }
 
-    function getIncrementalPnL()
+    function getAccruedPnL()
         external
         view
-        returns (
-            uint256 incrementalProfit,
-            uint256 incrementalLoss,
-            uint256 incrementalLossRecovery
-        )
+        returns (uint256 accruedProfit, uint256 accruedLoss, uint256 accruedLossRecovery)
     {
-        return pnlManager.getIncrementalPnL();
+        return pnlManager.getPnLSum();
     }
 
     function getCreditHash(
@@ -574,23 +570,13 @@ abstract contract BaseCredit is
                 (cc.creditLimit - cr.unbilledPrincipal - (cr.totalDue - cr.feesDue - cr.yieldDue))
             ) revert Errors.creditLineExceeded();
 
-            uint256 startDate = calendar.getStartDateOfPeriod(
-                cc.calendarUnit,
-                cc.periodDuration,
-                cr.nextDueDate
-            );
-
-            // Adjust the new due amount due to the yield generated because of the drawdown
-            // amount for the rest of this period
-            uint96 correctYieldDue = uint96(
-                (borrowAmount * cc.yieldInBps * (startDate - block.timestamp)) /
-                    SECONDS_IN_A_YEAR /
-                    HUNDRED_PERCENT_IN_BPS
-            );
-            console.log("startDate: %s, correctYieldDue: %s", startDate, correctYieldDue);
-            cr.yieldDue += correctYieldDue;
-            cr.totalDue += correctYieldDue;
-
+            uint256 correctionYield = (borrowAmount *
+                cc.yieldInBps *
+                (cr.nextDueDate - block.timestamp)) /
+                SECONDS_IN_A_YEAR /
+                HUNDRED_PERCENT_IN_BPS;
+            cr.yieldDue += uint96(correctionYield);
+            cr.totalDue += uint96(correctionYield);
             cr.unbilledPrincipal = uint96(cr.unbilledPrincipal + borrowAmount);
         }
         _setCreditRecord(creditHash, cr);
@@ -601,7 +587,10 @@ abstract contract BaseCredit is
 
         pnlManager.processDrawdown(
             uint96(platformProfit),
-            uint96((borrowAmount * cc.yieldInBps) / SECONDS_IN_A_YEAR)
+            uint96(
+                (borrowAmount * cc.yieldInBps * DEFAULT_DECIMALS_FACTOR) /
+                    (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
+            )
         );
 
         // Transfer funds to the _borrower
@@ -775,42 +764,33 @@ abstract contract BaseCredit is
         uint256 periodsPassed = 0;
         uint96 missedProfit = 0;
         uint96 principalDiff = 0;
-        // If the due is nonzero and has passed late payment grace period, the account is considered late
-        bool oldLateFlag = (cr.totalDue != 0 &&
-            block.timestamp >
-            cr.nextDueDate +
-                poolConfig.getPoolSettings().latePaymentGracePeriodInDays *
-                SECONDS_IN_A_DAY);
+        uint96 lossImpact = 0;
+        CreditRecord memory oldCR = cr;
 
-        (
-            periodsPassed,
-            cr.feesDue,
-            cr.yieldDue,
+        (cr, periodsPassed, missedProfit, principalDiff, lossImpact) = _feeManager.getDueInfo(
+            cr,
+            cc
+        );
+        console.log(
+            "cr.totalDue: %s, cr.yieldDue: %s, periodsPassed: %s",
             cr.totalDue,
-            cr.unbilledPrincipal,
-            missedProfit,
-            principalDiff
-        ) = _feeManager.getDueInfo(cr, cc);
-        console.log("cr.totalDue: %s, cr.yieldDue: %s", cr.totalDue, cr.yieldDue);
+            cr.yieldDue,
+            periodsPassed
+        );
         console.log("missedProfit: %s, principalDiff: %s", missedProfit, principalDiff);
 
         if (periodsPassed > 0) {
-            pnlManager.processDueUpdate(
-                principalDiff,
-                missedProfit,
-                oldLateFlag,
-                creditHash,
-                cc,
-                cr
-            );
-
-            // update nextDueDate
-            (uint256 dueDate, ) = calendar.getNextDueDate(
-                cc.calendarUnit,
-                cc.periodDuration,
-                cr.nextDueDate
-            );
-            cr.nextDueDate = uint64(dueDate);
+            bool alreadyLate = lossImpact > 0;
+            if (alreadyLate) {
+                pnlManager.processDueUpdate(
+                    principalDiff,
+                    missedProfit,
+                    lossImpact,
+                    creditHash,
+                    cc,
+                    oldCR
+                );
+            }
 
             // Adjusts remainingPeriods, special handling when reached the maturity of the credit line
             if (cr.remainingPeriods > periodsPassed) {
@@ -821,11 +801,23 @@ abstract contract BaseCredit is
 
             // Sets the correct missedPeriods. If totalDue is non zero, the totalDue must be
             // nonZero for each of the passed period, thus add periodsPassed to cr.missedPeriods
-            if (cr.totalDue > 0) cr.missedPeriods = uint16(cr.missedPeriods + periodsPassed);
+            if (alreadyLate) cr.missedPeriods = uint16(cr.missedPeriods + periodsPassed);
             else cr.missedPeriods = 0;
 
             if (cr.missedPeriods > 0) {
-                if (cr.state != CreditState.Defaulted) cr.state = CreditState.Delayed;
+                if (cr.state != CreditState.Defaulted) {
+                    cr.state = CreditState.Delayed;
+                    PoolSettings memory ps = poolConfig.getPoolSettings();
+                    if (
+                        (cr.missedPeriods - 1) * ps.payPeriodInCalendarUnit >=
+                        ps.defaultGracePeriodInCalendarUnit
+                    ) {
+                        cr.state = CreditState.Defaulted;
+                        pnlManager.processDefault(creditHash, cc, cr);
+
+                        // TODO how to recover defaulted state?
+                    }
+                }
             } else cr.state = CreditState.GoodStanding;
 
             _setCreditRecord(creditHash, cr);

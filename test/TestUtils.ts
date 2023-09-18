@@ -2,6 +2,7 @@ import { ethers, network } from "hardhat";
 import { BigNumber as BN } from "ethers";
 import moment from "moment";
 import { LPConfigStructOutput } from "../typechain-types/contracts/PoolConfig";
+import { CONSTANTS } from "./BaseTest";
 
 export function toBN(number: string | number, decimals: number): BN {
     return BN.from(number).mul(BN.from(10).pow(BN.from(decimals)));
@@ -23,7 +24,6 @@ export async function mineNextBlockWithTimestamp(nextTS: BN | number) {
         method: "evm_setNextBlockTimestamp",
         params: [Number(nextTS)],
     });
-    await network.provider.send("evm_mine", []);
 }
 
 export function getNextDate(
@@ -74,6 +74,20 @@ export async function getNextTime(afterSeconds: number) {
     }
 
     return nextTime;
+}
+
+export function getStartDateOfPeriod(
+    calendarUnit: number,
+    periodDuration: number,
+    endDate: number,
+): number {
+    if (calendarUnit == CONSTANTS.CALENDAR_UNIT_DAY) {
+        return moment.unix(endDate).subtract(periodDuration, "days").unix();
+    } else if (calendarUnit == CONSTANTS.CALENDAR_UNIT_MONTH) {
+        return moment.unix(endDate).subtract(periodDuration, "months").unix();
+    } else {
+        return 0;
+    }
 }
 
 export async function getLatestBlock() {
