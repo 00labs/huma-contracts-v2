@@ -30,7 +30,7 @@ contract Errors {
     error notPoolOwnerTreasuryOrEA(); // 0xc74cb44c
     error notPauser(); // 0xdcdea7c8
     error notPool(); // 0x26d29bbf
-    error drawdownFunctionUsedInsteadofDrawdownWithReceivable(); // 0x7e737537
+    error drawdownFunctionUsedInsteadOfDrawdownWithReceivable(); // 0x7e737537
     error notNFTOwner(); // 0x091a5762
     error notProcessor(); // 0x90409ca1
     error notBorrower();

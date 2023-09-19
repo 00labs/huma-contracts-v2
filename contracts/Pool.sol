@@ -244,7 +244,7 @@ contract Pool is PoolConfigCache, IPool {
             return [tempTranchesAssets.seniorTotalAssets, tempTranchesAssets.juniorTotalAssets];
         }
 
-        (uint256 profit, uint256 loss, uint256 lossRecovery) = credit.currentPnL();
+        (uint256 profit, uint256 loss, uint256 lossRecovery) = credit.getAccruedPnL();
         assets[SENIOR_TRANCHE_INDEX] = tempTranchesAssets.seniorTotalAssets;
         assets[JUNIOR_TRANCHE_INDEX] = tempTranchesAssets.juniorTotalAssets;
 

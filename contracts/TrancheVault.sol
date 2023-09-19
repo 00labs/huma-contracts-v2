@@ -323,7 +323,7 @@ contract TrancheVault is
     }
 
     /// @notice Returns the number of shares previously requested for redemption that can be cancelled.
-    /// @oaram account The lender's account
+    /// @param account The lender's account
     function cancellableRedemptionShares(address account) external view returns (uint256 shares) {
         RedemptionRequest[] storage requests = redemptionRequestsByLender[account];
         uint256 numRequests = requests.length;
