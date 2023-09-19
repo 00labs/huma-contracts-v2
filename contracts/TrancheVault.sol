@@ -185,10 +185,10 @@ contract TrancheVault is
         }
 
         if (trancheIndex == SENIOR_TRANCHE_INDEX) {
-            // validate maxRatio for senior tranche
+            // Make sure that the max senior : junior asset ratio is still valid.
             LPConfig memory lpConfig = poolConfig.getLPConfig();
             if ((ta + assets) > tranches[JUNIOR_TRANCHE_INDEX] * lpConfig.maxSeniorJuniorRatio)
-                revert Errors.exceededMaxJuniorSeniorRatio(); // greater than max ratio
+                revert Errors.exceededMaxJuniorSeniorRatio();
         }
 
         poolVault.deposit(msg.sender, assets);
