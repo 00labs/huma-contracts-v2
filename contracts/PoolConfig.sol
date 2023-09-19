@@ -728,7 +728,7 @@ contract PoolConfig is AccessControl, Initializable {
             if (account == _firstLossCovers[i]) return;
         }
 
-        if (!valid) revert Errors.notTrancheVaultOrFirstLossCover();
+        if (!valid) revert Errors.notTrancheVaultOrFirstLossCoverOrCredit();
     }
 
     function onlyTrancheVaultOrEpochManager(address account) external view {

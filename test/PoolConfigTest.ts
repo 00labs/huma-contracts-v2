@@ -70,74 +70,74 @@ describe("PoolConfig Test", function () {
         ] = await ethers.getSigners();
     });
 
-    async function deployPoolConfigContract() {
-        [, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
-            protocolOwner,
-            protocolTreasury,
-            eaServiceAccount,
-            pdsServiceAccount,
-            poolOwner,
-        );
-        const PoolConfig = await ethers.getContractFactory("PoolConfig");
-        poolConfigContract = await PoolConfig.deploy();
-        await poolConfigContract.deployed();
-        await poolConfigContract.grantRole(
-            await poolConfigContract.DEFAULT_ADMIN_ROLE(),
-            poolOwner.address,
-        );
-
-        const PlatformFeeManager = await ethers.getContractFactory("PlatformFeeManager");
-        platformFeeManagerContract = await PlatformFeeManager.deploy();
-        await platformFeeManagerContract.deployed();
-
-        const PoolVault = await ethers.getContractFactory("PoolVault");
-        poolVaultContract = await PoolVault.deploy();
-        await poolVaultContract.deployed();
-
-        const FirstLossCover = await ethers.getContractFactory("FirstLossCover");
-        poolOwnerAndEAFirstLossCoverContract = await FirstLossCover.deploy();
-        await poolOwnerAndEAFirstLossCoverContract.deployed();
-
-        const TranchesPolicy = await ethers.getContractFactory("RiskAdjustedTranchesPolicy");
-        tranchesPolicyContract = await TranchesPolicy.deploy();
-        await tranchesPolicyContract.deployed();
-
-        const Pool = await ethers.getContractFactory("Pool");
-        poolContract = await Pool.deploy();
-        await poolContract.deployed();
-
-        const EpochManager = await ethers.getContractFactory("EpochManager");
-        epochManagerContract = await EpochManager.deploy();
-        await epochManagerContract.deployed();
-
-        const TrancheVault = await ethers.getContractFactory("TrancheVault");
-        seniorTrancheVaultContract = await TrancheVault.deploy();
-        await seniorTrancheVaultContract.deployed();
-        juniorTrancheVaultContract = await TrancheVault.deploy();
-        await juniorTrancheVaultContract.deployed();
-
-        const Calendar = await ethers.getContractFactory("Calendar");
-        calendarContract = await Calendar.deploy();
-        await calendarContract.deployed();
-
-        const Credit = await ethers.getContractFactory("MockPoolCredit");
-        creditContract = await Credit.deploy();
-        await creditContract.deployed();
-
-        const BaseCreditFeeManager = await ethers.getContractFactory("BaseCreditFeeManager");
-        creditFeeManagerContract = await BaseCreditFeeManager.deploy();
-        await creditFeeManagerContract.deployed();
-
-        const CreditPnLManager = await ethers.getContractFactory("LinearMarkdownPnLManager");
-        creditPnlManagerContract = await CreditPnLManager.deploy();
-        await creditPnlManagerContract.deployed();
-    }
-
-    beforeEach(async function () {
-        await loadFixture(deployPoolConfigContract);
-    });
-
     describe("Pool config initialization", function () {
+        async function deployPoolConfigContract() {
+            [, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+                protocolOwner,
+                protocolTreasury,
+                eaServiceAccount,
+                pdsServiceAccount,
+                poolOwner,
+            );
+            const PoolConfig = await ethers.getContractFactory("PoolConfig");
+            poolConfigContract = await PoolConfig.deploy();
+            await poolConfigContract.deployed();
+            await poolConfigContract.grantRole(
+                await poolConfigContract.DEFAULT_ADMIN_ROLE(),
+                poolOwner.address,
+            );
+
+            const PlatformFeeManager = await ethers.getContractFactory("PlatformFeeManager");
+            platformFeeManagerContract = await PlatformFeeManager.deploy();
+            await platformFeeManagerContract.deployed();
+
+            const PoolVault = await ethers.getContractFactory("PoolVault");
+            poolVaultContract = await PoolVault.deploy();
+            await poolVaultContract.deployed();
+
+            const FirstLossCover = await ethers.getContractFactory("FirstLossCover");
+            poolOwnerAndEAFirstLossCoverContract = await FirstLossCover.deploy();
+            await poolOwnerAndEAFirstLossCoverContract.deployed();
+
+            const TranchesPolicy = await ethers.getContractFactory("RiskAdjustedTranchesPolicy");
+            tranchesPolicyContract = await TranchesPolicy.deploy();
+            await tranchesPolicyContract.deployed();
+
+            const Pool = await ethers.getContractFactory("Pool");
+            poolContract = await Pool.deploy();
+            await poolContract.deployed();
+
+            const EpochManager = await ethers.getContractFactory("EpochManager");
+            epochManagerContract = await EpochManager.deploy();
+            await epochManagerContract.deployed();
+
+            const TrancheVault = await ethers.getContractFactory("TrancheVault");
+            seniorTrancheVaultContract = await TrancheVault.deploy();
+            await seniorTrancheVaultContract.deployed();
+            juniorTrancheVaultContract = await TrancheVault.deploy();
+            await juniorTrancheVaultContract.deployed();
+
+            const Calendar = await ethers.getContractFactory("Calendar");
+            calendarContract = await Calendar.deploy();
+            await calendarContract.deployed();
+
+            const Credit = await ethers.getContractFactory("MockPoolCredit");
+            creditContract = await Credit.deploy();
+            await creditContract.deployed();
+
+            const BaseCreditFeeManager = await ethers.getContractFactory("BaseCreditFeeManager");
+            creditFeeManagerContract = await BaseCreditFeeManager.deploy();
+            await creditFeeManagerContract.deployed();
+
+            const CreditPnLManager = await ethers.getContractFactory("LinearMarkdownPnLManager");
+            creditPnlManagerContract = await CreditPnLManager.deploy();
+            await creditPnlManagerContract.deployed();
+        }
+
+        beforeEach(async function () {
+            await loadFixture(deployPoolConfigContract);
+        });
+
         it("Should initialize successfully and sets default values", async function () {
             await poolConfigContract
                 .connect(poolOwner)
@@ -174,6 +174,7 @@ describe("PoolConfig Test", function () {
             const lpConfig = await poolConfigContract.getLPConfig();
             expect(lpConfig.maxSeniorJuniorRatio).to.equal(4);
         });
+
         it("Should reject non-owner's call to initialize()", async function () {
             await expect(
                 poolConfigContract
@@ -196,6 +197,7 @@ describe("PoolConfig Test", function () {
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "notPoolOwner");
         });
+
         it("Should reject zero address for HumaConfig", async function () {
             await expect(
                 poolConfigContract
@@ -218,6 +220,7 @@ describe("PoolConfig Test", function () {
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
+
         it("Should reject invalid underlying tokens", async function () {
             await humaConfigContract
                 .connect(protocolOwner)
@@ -246,6 +249,7 @@ describe("PoolConfig Test", function () {
                 "underlyingTokenNotApprovedForHumaProtocol",
             );
         });
+
         it("Should reject zero address for platformFeeManager", async function () {
             await expect(
                 poolConfigContract
@@ -268,6 +272,7 @@ describe("PoolConfig Test", function () {
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
+
         it("Should reject zero address for poolVault", async function () {
             await expect(
                 poolConfigContract
@@ -290,6 +295,7 @@ describe("PoolConfig Test", function () {
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
+
         it("Should reject zero address for calendar", async function () {
             await expect(
                 poolConfigContract
@@ -312,6 +318,7 @@ describe("PoolConfig Test", function () {
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
+
         it("Should reject zero address for poolOwnerOrEAFirstLossCover", async function () {
             await expect(
                 poolConfigContract
@@ -334,6 +341,7 @@ describe("PoolConfig Test", function () {
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
+
         it("Should reject zero address for tranchePolicy", async function () {
             await expect(
                 poolConfigContract
@@ -356,6 +364,7 @@ describe("PoolConfig Test", function () {
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
+
         it("Should reject zero address for the pool", async function () {
             await expect(
                 poolConfigContract
@@ -378,6 +387,7 @@ describe("PoolConfig Test", function () {
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
+
         it("Should reject zero address for epochManager", async function () {
             await expect(
                 poolConfigContract
@@ -400,6 +410,7 @@ describe("PoolConfig Test", function () {
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
+
         it("Should reject zero address for seniorTranche", async function () {
             await expect(
                 poolConfigContract
@@ -422,6 +433,7 @@ describe("PoolConfig Test", function () {
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
+
         it("Should reject zero address for juniorTranche", async function () {
             await expect(
                 poolConfigContract
@@ -444,6 +456,7 @@ describe("PoolConfig Test", function () {
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
+
         it("Should reject zero address for credit", async function () {
             await expect(
                 poolConfigContract
@@ -466,6 +479,7 @@ describe("PoolConfig Test", function () {
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
+
         it("Should reject zero address for creditFeeManager", async function () {
             await expect(
                 poolConfigContract
@@ -488,6 +502,7 @@ describe("PoolConfig Test", function () {
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
+
         it("Should reject zero address for creditPnLManager", async function () {
             await expect(
                 poolConfigContract
@@ -510,6 +525,7 @@ describe("PoolConfig Test", function () {
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
+
         it("Should reject repeated call to initialize()", async function () {
             await poolConfigContract
                 .connect(poolOwner)

@@ -361,8 +361,8 @@ describe("Pool Test", function () {
                 const nextTS = block.timestamp + 5;
                 await setNextBlockTimestamp(nextTS);
 
-                let assets = await poolContract.currentTranchesAssets();
-                let profitAfterFees =
+                const assets = await poolContract.currentTranchesAssets();
+                const profitAfterFees =
                     await platformFeeManagerContract.calcPlatformFeeDistribution(profit);
                 const assetsWithProfits = PnLCalculator.calcProfitForRiskAdjustedPolicy(
                     profitAfterFees,
