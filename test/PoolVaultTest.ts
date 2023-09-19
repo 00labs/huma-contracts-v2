@@ -21,7 +21,7 @@ import {
     RiskAdjustedTranchesPolicy,
     TrancheVault,
 } from "../typechain-types";
-import { copyLPConfigWithOverrides, toToken } from "./TestUtils";
+import { toToken } from "./TestUtils";
 import { BigNumber as BN } from "ethers";
 
 let defaultDeployer: SignerWithAddress,
@@ -136,7 +136,7 @@ describe("PoolVault Test", function () {
             await testDeposit();
         });
 
-        it("Should first loss covers to make deposit into the vault", async function () {
+        it("Should allow first loss covers to make deposit into the vault", async function () {
             await poolConfigContract
                 .connect(poolOwner)
                 .setFirstLossCovers([defaultDeployer.address]);
@@ -181,7 +181,7 @@ describe("PoolVault Test", function () {
             await testWithdrawal();
         });
 
-        it("Should first loss covers to withdraw from the vault", async function () {
+        it("Should allow first loss covers to withdraw from the vault", async function () {
             await poolConfigContract
                 .connect(poolOwner)
                 .setFirstLossCovers([defaultDeployer.address]);
@@ -245,6 +245,144 @@ describe("PoolVault Test", function () {
             await expect(
                 poolVaultContract.connect(lender).withdrawFees(evaluationAgent.address, amount),
             ).to.be.revertedWithCustomError(poolConfigContract, "notPlatformFeeManager");
+        });
+    });
+
+    describe("setRedemptionReserve", function () {
+        let amount: BN;
+
+        before(function () {
+            amount = toToken(2_000);
+        });
+
+        it("Should allow the pool to set the redemption reserve", async function () {
+            await poolConfigContract
+                .connect(poolOwner)
+                .setPool(defaultDeployer.address);
+            const originalReserve = await poolVaultContract.reserves();
+            await poolVaultContract.setRedemptionReserve(amount);
+            const reserveAfterAddition = await poolVaultContract.reserves();
+            expect(reserveAfterAddition.forRedemption).to.equal(
+                originalReserve.forRedemption.add(amount),
+            );
+        });
+
+        it("Should disallow non-qualified addresses to withdraw", async function () {
+            await expect(
+                poolVaultContract.connect(lender).withdraw(lender.address, amount),
+            ).to.be.revertedWithCustomError(
+                poolConfigContract,
+                "notTrancheVaultOrFirstLossCoverOrCredit",
+            );
+        });
+    });
+
+    describe("getAvailableLiquidity", function () {
+        let assets: BN, reserveForRedemption: BN, reserveForPlatformFees: BN;
+
+        beforeEach(async function() {
+            assets = toToken(2_000);
+            await poolConfigContract
+                .connect(poolOwner)
+                .setPool(defaultDeployer.address);
+            await poolConfigContract
+                .connect(poolOwner)
+                .setPlatformFeeManager(defaultDeployer.address);
+            await mockTokenContract.mint(poolVaultContract.address, assets);
+
+        })
+
+        it("Should return the difference between the amount of assets and the reserve", async function () {
+            reserveForRedemption = toToken(1_000);
+            reserveForPlatformFees = toToken(500)
+            await poolVaultContract.setRedemptionReserve(reserveForRedemption)
+            await poolVaultContract.addPlatformFeesReserve(reserveForPlatformFees);
+            const availableLiquidity = await poolVaultContract.getAvailableLiquidity();
+            expect(availableLiquidity).to.equal(assets.sub(reserveForRedemption).sub(reserveForPlatformFees));
+        });
+
+        it("Should return 0 if the reserve exceeds the amount of assets", async function () {
+            reserveForRedemption = toToken(2_100);
+            await poolVaultContract.setRedemptionReserve(reserveForRedemption)
+            const availableLiquidity = await poolVaultContract.getAvailableLiquidity();
+            expect(availableLiquidity).to.equal(0);
+        });
+    });
+
+    describe("getAvailableReservation", function () {
+        let assets: BN, reserveForRedemption: BN, reserveForPlatformFees: BN;
+
+        beforeEach(async function() {
+            assets = toToken(2_000);
+            await poolConfigContract
+                .connect(poolOwner)
+                .setPool(defaultDeployer.address);
+            await poolConfigContract
+                .connect(poolOwner)
+                .setPlatformFeeManager(defaultDeployer.address);
+            await mockTokenContract.mint(poolVaultContract.address, assets);
+
+        })
+
+        it("Should return the amount of reserve if there are enough assets", async function () {
+            reserveForRedemption = toToken(1_000);
+            reserveForPlatformFees = toToken(500)
+            await poolVaultContract.setRedemptionReserve(reserveForRedemption)
+            await poolVaultContract.addPlatformFeesReserve(reserveForPlatformFees);
+            const availableReserve = await poolVaultContract.getAvailableReservation();
+            expect(availableReserve).to.equal(reserveForRedemption.add(reserveForPlatformFees));
+        });
+
+        it("Should return the amount of assets if there are more reserve than assets", async function () {
+            reserveForRedemption = toToken(2_100);
+            await poolVaultContract.setRedemptionReserve(reserveForRedemption)
+            const availableReserve = await poolVaultContract.getAvailableReservation();
+            expect(availableReserve).to.equal(assets);
+        });
+    });
+
+    describe("getPoolAssets", function () {
+        let assets: BN, reserveForPlatformFees: BN;
+
+        beforeEach(async function() {
+            assets = toToken(2_000);
+            await poolConfigContract
+                .connect(poolOwner)
+                .setPlatformFeeManager(defaultDeployer.address);
+            await mockTokenContract.mint(poolVaultContract.address, assets);
+
+        })
+
+        it("Should return the difference between assets and platform fees if there are enough assets", async function () {
+            reserveForPlatformFees = toToken(500)
+            await poolVaultContract.addPlatformFeesReserve(reserveForPlatformFees);
+            const poolAssets = await poolVaultContract.getPoolAssets();
+            expect(poolAssets).to.equal(assets.sub(reserveForPlatformFees));
+        });
+
+        it("Should return 0 if there are not enough assets", async function () {
+            reserveForPlatformFees = toToken(2_100)
+            await poolVaultContract.addPlatformFeesReserve(reserveForPlatformFees);
+            const poolAssets = await poolVaultContract.getPoolAssets();
+            expect(poolAssets).to.equal(0);
+        });
+    });
+
+    describe("totalAssets", function () {
+        let amount: BN;
+
+        beforeEach(async function() {
+            amount = toToken(2_000);
+            await poolConfigContract
+                .connect(poolOwner)
+                .setCredit(defaultDeployer.address);
+            await mockTokenContract.mint(poolVaultContract.address, amount);
+
+        })
+
+        it("Should return the asset balance", async function () {
+            const assets = await poolVaultContract.totalAssets();
+            expect(assets).to.equal(amount);
         });
     });
 });
