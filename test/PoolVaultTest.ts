@@ -256,9 +256,7 @@ describe("PoolVault Test", function () {
         });
 
         it("Should allow the pool to set the redemption reserve", async function () {
-            await poolConfigContract
-                .connect(poolOwner)
-                .setPool(defaultDeployer.address);
+            await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.address);
             const originalReserve = await poolVaultContract.reserves();
             await poolVaultContract.setRedemptionReserve(amount);
             const reserveAfterAddition = await poolVaultContract.reserves();
@@ -280,30 +278,29 @@ describe("PoolVault Test", function () {
     describe("getAvailableLiquidity", function () {
         let assets: BN, reserveForRedemption: BN, reserveForPlatformFees: BN;
 
-        beforeEach(async function() {
+        beforeEach(async function () {
             assets = toToken(2_000);
-            await poolConfigContract
-                .connect(poolOwner)
-                .setPool(defaultDeployer.address);
+            await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.address);
             await poolConfigContract
                 .connect(poolOwner)
                 .setPlatformFeeManager(defaultDeployer.address);
             await mockTokenContract.mint(poolVaultContract.address, assets);
-
-        })
+        });
 
         it("Should return the difference between the amount of assets and the reserve", async function () {
             reserveForRedemption = toToken(1_000);
-            reserveForPlatformFees = toToken(500)
-            await poolVaultContract.setRedemptionReserve(reserveForRedemption)
+            reserveForPlatformFees = toToken(500);
+            await poolVaultContract.setRedemptionReserve(reserveForRedemption);
             await poolVaultContract.addPlatformFeesReserve(reserveForPlatformFees);
             const availableLiquidity = await poolVaultContract.getAvailableLiquidity();
-            expect(availableLiquidity).to.equal(assets.sub(reserveForRedemption).sub(reserveForPlatformFees));
+            expect(availableLiquidity).to.equal(
+                assets.sub(reserveForRedemption).sub(reserveForPlatformFees),
+            );
         });
 
         it("Should return 0 if the reserve exceeds the amount of assets", async function () {
             reserveForRedemption = toToken(2_100);
-            await poolVaultContract.setRedemptionReserve(reserveForRedemption)
+            await poolVaultContract.setRedemptionReserve(reserveForRedemption);
             const availableLiquidity = await poolVaultContract.getAvailableLiquidity();
             expect(availableLiquidity).to.equal(0);
         });
@@ -312,22 +309,19 @@ describe("PoolVault Test", function () {
     describe("getAvailableReservation", function () {
         let assets: BN, reserveForRedemption: BN, reserveForPlatformFees: BN;
 
-        beforeEach(async function() {
+        beforeEach(async function () {
             assets = toToken(2_000);
-            await poolConfigContract
-                .connect(poolOwner)
-                .setPool(defaultDeployer.address);
+            await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.address);
             await poolConfigContract
                 .connect(poolOwner)
                 .setPlatformFeeManager(defaultDeployer.address);
             await mockTokenContract.mint(poolVaultContract.address, assets);
-
-        })
+        });
 
         it("Should return the amount of reserve if there are enough assets", async function () {
             reserveForRedemption = toToken(1_000);
-            reserveForPlatformFees = toToken(500)
-            await poolVaultContract.setRedemptionReserve(reserveForRedemption)
+            reserveForPlatformFees = toToken(500);
+            await poolVaultContract.setRedemptionReserve(reserveForRedemption);
             await poolVaultContract.addPlatformFeesReserve(reserveForPlatformFees);
             const availableReserve = await poolVaultContract.getAvailableReservation();
             expect(availableReserve).to.equal(reserveForRedemption.add(reserveForPlatformFees));
@@ -335,7 +329,7 @@ describe("PoolVault Test", function () {
 
         it("Should return the amount of assets if there are more reserve than assets", async function () {
             reserveForRedemption = toToken(2_100);
-            await poolVaultContract.setRedemptionReserve(reserveForRedemption)
+            await poolVaultContract.setRedemptionReserve(reserveForRedemption);
             const availableReserve = await poolVaultContract.getAvailableReservation();
             expect(availableReserve).to.equal(assets);
         });
@@ -344,24 +338,23 @@ describe("PoolVault Test", function () {
     describe("getPoolAssets", function () {
         let assets: BN, reserveForPlatformFees: BN;
 
-        beforeEach(async function() {
+        beforeEach(async function () {
             assets = toToken(2_000);
             await poolConfigContract
                 .connect(poolOwner)
                 .setPlatformFeeManager(defaultDeployer.address);
             await mockTokenContract.mint(poolVaultContract.address, assets);
-
-        })
+        });
 
         it("Should return the difference between assets and platform fees if there are enough assets", async function () {
-            reserveForPlatformFees = toToken(500)
+            reserveForPlatformFees = toToken(500);
             await poolVaultContract.addPlatformFeesReserve(reserveForPlatformFees);
             const poolAssets = await poolVaultContract.getPoolAssets();
             expect(poolAssets).to.equal(assets.sub(reserveForPlatformFees));
         });
 
         it("Should return 0 if there are not enough assets", async function () {
-            reserveForPlatformFees = toToken(2_100)
+            reserveForPlatformFees = toToken(2_100);
             await poolVaultContract.addPlatformFeesReserve(reserveForPlatformFees);
             const poolAssets = await poolVaultContract.getPoolAssets();
             expect(poolAssets).to.equal(0);
@@ -371,14 +364,11 @@ describe("PoolVault Test", function () {
     describe("totalAssets", function () {
         let amount: BN;
 
-        beforeEach(async function() {
+        beforeEach(async function () {
             amount = toToken(2_000);
-            await poolConfigContract
-                .connect(poolOwner)
-                .setCredit(defaultDeployer.address);
+            await poolConfigContract.connect(poolOwner).setCredit(defaultDeployer.address);
             await mockTokenContract.mint(poolVaultContract.address, amount);
-
-        })
+        });
 
         it("Should return the asset balance", async function () {
             const assets = await poolVaultContract.totalAssets();
