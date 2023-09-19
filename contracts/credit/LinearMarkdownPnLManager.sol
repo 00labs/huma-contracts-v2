@@ -75,6 +75,13 @@ contract LinearMarkdownPnLManager is BasePnLManager {
         CreditLoss memory creditLoss = _creditLossMap[creditHash];
 
         PnLTracker memory tracker = _getLatestTracker(0, 0, 0, 0, 0);
+
+        // console.log(
+        //     "tracker.lossRate: %s, creditLoss.lossRate: %s",
+        //     tracker.lossRate,
+        //     creditLoss.lossRate
+        // );
+        // deduct loss rate
         tracker.lossRate = tracker.lossRate > creditLoss.lossRate
             ? tracker.lossRate - creditLoss.lossRate
             : 0;
@@ -84,6 +91,11 @@ contract LinearMarkdownPnLManager is BasePnLManager {
             (getPrincipal(cr) * cc.yieldInBps * DEFAULT_DECIMALS_FACTOR) /
                 (HUNDRED_PERCENT_IN_BPS * SECONDS_IN_A_YEAR)
         );
+        // console.log(
+        //     "deductedProfitRate: %s, tracker.profitRate: %s",
+        //     deductedProfitRate,
+        //     tracker.profitRate
+        // );
         tracker.profitRate = tracker.profitRate > deductedProfitRate
             ? tracker.profitRate - deductedProfitRate
             : 0;
@@ -93,6 +105,11 @@ contract LinearMarkdownPnLManager is BasePnLManager {
             (deductedProfitRate * (block.timestamp - creditLoss.lossExpiringDate)) /
                 DEFAULT_DECIMALS_FACTOR
         );
+        // console.log(
+        //     "deductedProfit: %s, tracker.accruedProfit: %s",
+        //     deductedProfit,
+        //     tracker.accruedProfit
+        // );
         tracker.accruedProfit = tracker.accruedProfit > deductedProfit
             ? tracker.accruedProfit - deductedProfit
             : 0;
@@ -102,6 +119,11 @@ contract LinearMarkdownPnLManager is BasePnLManager {
             (creditLoss.lossRate * (block.timestamp - creditLoss.lossExpiringDate)) /
                 DEFAULT_DECIMALS_FACTOR
         );
+        // console.log(
+        //     "deductedLoss: %s, tracker.accruedLoss: %s",
+        //     deductedLoss,
+        //     tracker.accruedLoss
+        // );
         tracker.accruedLoss = tracker.accruedLoss > deductedLoss
             ? tracker.accruedLoss - deductedLoss
             : 0;
