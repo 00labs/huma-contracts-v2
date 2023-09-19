@@ -409,7 +409,7 @@ contract TrancheVault is
                     disbursementInfo.actualAmountProcessed = 0;
                 }
 
-                withdrawableAmount += sharesProcessed;
+                withdrawableAmount += amountProcessed;
                 disbursementInfo.requestsIndex += 1;
             } else if (request.epochId == firstUnprocessedEpochId) {
                 // The redemption requests in the epoch have been partially processed or unprocessed.
