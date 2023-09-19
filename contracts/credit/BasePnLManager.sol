@@ -78,10 +78,22 @@ abstract contract BasePnLManager is PoolConfigCache, IPnLManager {
         if (tracker.pnlLastUpdated > 0) timeLapsed = block.timestamp - tracker.pnlLastUpdated;
 
         // console.log(
+        //     "block.timestamp: %s, tracker.pnlLastUpdated",
+        //     block.timestamp,
+        //     tracker.pnlLastUpdated
+        // );
+
+        // console.log(
         //     "timeLapsed: %s, profitRate: %s, lossRate: %s",
         //     timeLapsed,
         //     uint256(tracker.profitRate),
         //     uint256(tracker.lossRate)
+        // );
+
+        // console.log(
+        //     "tracker.accruedProfit: %s, profitDiff: %s",
+        //     tracker.accruedProfit,
+        //     profitDiff
         // );
 
         newTracker.accruedProfit =
