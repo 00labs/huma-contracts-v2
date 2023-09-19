@@ -52,8 +52,6 @@ contract EpochManager is PoolConfigCache, IEpochManager {
     );
     event NewEpochStarted(uint256 epochId, uint256 endTime);
 
-    constructor(address poolConfigAddress) PoolConfigCache(poolConfigAddress) {}
-
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = _poolConfig.poolVault();
         if (addr == address(0)) revert Errors.zeroAddressProvided();

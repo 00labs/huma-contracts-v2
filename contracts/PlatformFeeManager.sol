@@ -34,8 +34,6 @@ contract PlatformFeeManager is PoolConfigCache, IPlatformFeeManager {
     event ProtocolRewardsWithdrawn(address receiver, uint256 amount, address by);
     event EvaluationAgentRewardsWithdrawn(address receiver, uint256 amount, address by);
 
-    constructor(address poolConfigAddress) PoolConfigCache(poolConfigAddress) {}
-
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = _poolConfig.poolVault();
         if (addr == address(0)) revert Errors.zeroAddressProvided();

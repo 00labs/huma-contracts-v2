@@ -17,6 +17,18 @@ contract Calendar is ICalendar {
 
     function getStartOfNextQuarter() external view returns (uint256 nextDay) {}
 
+    function getStartDateOfPeriod(
+        CalendarUnit unit,
+        uint256 periodDuration,
+        uint256 periodEndDate
+    ) external pure returns (uint256 startDate) {
+        if (unit == CalendarUnit.Day) {
+            return DTL.subDays(periodEndDate, periodDuration);
+        } else if (unit == CalendarUnit.Month) {
+            return DTL.subMonths(periodEndDate, periodDuration);
+        }
+    }
+
     /**
      * @notice Gets the immediate next due date following lastDueDate. If multiple periods have
      * passed since lastDueDate, this function returns the due date that is only one period after
@@ -26,7 +38,13 @@ contract Calendar is ICalendar {
         CalendarUnit unit,
         uint256 periodDuration,
         uint256 lastDueDate
-    ) external view returns (uint256 dueDateInNextPeriod) {}
+    ) external view returns (uint256 dueDateInNextPeriod) {
+        if (unit == CalendarUnit.Day) {
+            return getNextPeriodInDays(periodDuration, lastDueDate);
+        } else if (unit == CalendarUnit.Month) {
+            return getNextPeriodInMonths(periodDuration, lastDueDate);
+        }
+    }
 
     function getBeginOfPeriod(
         CalendarUnit unit,
@@ -52,22 +70,50 @@ contract Calendar is ICalendar {
         }
     }
 
+    function getNextPeriodInDays(
+        uint256 periodDuration,
+        uint256 lastDueDate
+    ) internal view returns (uint256 nextDueDate) {
+        uint256 dayCount;
+        if (lastDueDate == 0) {
+            (uint256 year, uint256 month, uint256 day) = DTL.timestampToDate(block.timestamp);
+            lastDueDate = DTL.timestampFromDate(year, month, day);
+            dayCount = 1;
+        }
+        dayCount += periodDuration;
+        nextDueDate = DTL.addDays(lastDueDate, dayCount);
+    }
+
+    function getNextPeriodInMonths(
+        uint256 periodDuration,
+        uint256 lastDueDate
+    ) internal view returns (uint256 nextDueDate) {
+        uint256 monthCount;
+        if (lastDueDate == 0) {
+            (uint256 year, uint256 month, ) = DTL.timestampToDate(block.timestamp);
+            lastDueDate = DTL.timestampFromDate(year, month, 1);
+            monthCount = 1;
+        }
+        monthCount += periodDuration;
+        nextDueDate = DTL.addMonths(lastDueDate, monthCount);
+    }
+
     function getDueDateInDays(
         uint256 periodDuration,
         uint256 lastDueDate,
         bool isNext
     ) internal view returns (uint256 dueDate, uint256 numberOfPeriodsPassed) {
-        uint256 periodCount;
+        uint256 dayCount;
         if (lastDueDate == 0) {
             (uint256 year, uint256 month, uint256 day) = DTL.timestampToDate(block.timestamp);
             lastDueDate = DTL.timestampFromDate(year, month, day);
-            periodCount = 1;
+            dayCount = 1;
         } else {
             numberOfPeriodsPassed = DTL.diffDays(lastDueDate, block.timestamp) / periodDuration;
         }
-        if (isNext) periodCount += (numberOfPeriodsPassed + 1) * periodDuration;
-        else periodCount += numberOfPeriodsPassed * periodDuration;
-        dueDate = DTL.addDays(lastDueDate, periodCount);
+        if (isNext) dayCount += (numberOfPeriodsPassed + 1) * periodDuration;
+        else dayCount += numberOfPeriodsPassed * periodDuration;
+        dueDate = DTL.addDays(lastDueDate, dayCount);
     }
 
     /**
@@ -78,27 +124,16 @@ contract Calendar is ICalendar {
         uint256 lastDueDate,
         bool isNext
     ) internal view returns (uint256 dueDate, uint256 numberOfPeriodsPassed) {
-        uint256 periodCount;
+        uint256 monthCount;
         if (lastDueDate == 0) {
             (uint256 year, uint256 month, ) = DTL.timestampToDate(block.timestamp);
             lastDueDate = DTL.timestampFromDate(year, month, 1);
-            periodCount = 1;
+            monthCount = 1;
         } else {
             numberOfPeriodsPassed = DTL.diffMonths(lastDueDate, block.timestamp) / periodDuration;
         }
-        if (isNext) periodCount += (numberOfPeriodsPassed + 1) * periodDuration;
-        else periodCount += numberOfPeriodsPassed * periodDuration;
-        dueDate = DTL.addMonths(lastDueDate, periodCount);
-    }
-
-    function getSecondsPerPeriod(
-        CalendarUnit unit,
-        uint256 periodDuration
-    ) external pure returns (uint256 secondsPerPeriod) {
-        if (unit == CalendarUnit.Day) {
-            return SECONDS_IN_A_DAY * periodDuration;
-        } else if (unit == CalendarUnit.Month) {
-            return (SECONDS_IN_A_YEAR / 12) * periodDuration;
-        }
+        if (isNext) monthCount += (numberOfPeriodsPassed + 1) * periodDuration;
+        else monthCount += numberOfPeriodsPassed * periodDuration;
+        dueDate = DTL.addMonths(lastDueDate, monthCount);
     }
 }

@@ -4,8 +4,8 @@ pragma solidity ^0.8.0;
 import {IPool} from "./interfaces/IPool.sol";
 import {IPlatformFeeManager} from "./interfaces/IPlatformFeeManager.sol";
 import {ITranchesPolicy} from "./interfaces/ITranchesPolicy.sol";
-import {ICredit} from "./credit/interfaces/ICredit.sol";
-import {ILossCoverer} from "./interfaces/ILossCoverer.sol";
+import {IPoolCredit} from "./credit/interfaces/IPoolCredit.sol";
+import {IFirstLossCover} from "./interfaces/IFirstLossCover.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
 import {IEpochManager} from "./interfaces/IEpochManager.sol";
 import "./SharedDefs.sol";
@@ -27,9 +27,9 @@ contract Pool is PoolConfigCache, IPool {
 
     IPoolVault public poolVault;
     ITranchesPolicy public tranchesPolicy;
-    ILossCoverer[] public lossCoverers;
-    ILossCoverer public poolOwnerOrEALossCoverer;
-    ICredit public credit;
+    IFirstLossCover[] public firstLossCovers;
+    IFirstLossCover public poolOwnerOrEAFirstLossCover;
+    IPoolCredit public credit;
     IPlatformFeeManager public feeManager;
     IEpochManager public epochManager;
 
@@ -58,8 +58,6 @@ contract Pool is PoolConfigCache, IPool {
         uint256 juniorTotalLoss
     );
 
-    constructor(address poolConfigAddress) PoolConfigCache(poolConfigAddress) {}
-
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = _poolConfig.poolVault();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
@@ -71,23 +69,23 @@ contract Pool is PoolConfigCache, IPool {
 
         addr = _poolConfig.credit();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
-        credit = ICredit(addr);
+        credit = IPoolCredit(addr);
 
         addr = _poolConfig.platformFeeManager();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         feeManager = IPlatformFeeManager(addr);
 
-        addr = _poolConfig.poolOwnerOrEALossCoverer();
+        addr = _poolConfig.poolOwnerOrEAFirstLossCover();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
-        poolOwnerOrEALossCoverer = ILossCoverer(addr);
+        poolOwnerOrEAFirstLossCover = IFirstLossCover(addr);
 
         addr = _poolConfig.epochManager();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         epochManager = IEpochManager(addr);
 
-        address[] memory coverers = _poolConfig.getLossCoverers();
-        for (uint256 i = 0; i < coverers.length; i++) {
-            lossCoverers[i] = ILossCoverer(coverers[i]);
+        address[] memory covers = _poolConfig.getFirstLossCovers();
+        for (uint256 i = 0; i < covers.length; i++) {
+            firstLossCovers[i] = IFirstLossCover(covers[i]);
         }
     }
 
@@ -191,9 +189,9 @@ contract Pool is PoolConfigCache, IPool {
         if (loss > 0) {
             // First loss cover
             uint256 poolAssets = assets[SENIOR_TRANCHE_INDEX] + assets[JUNIOR_TRANCHE_INDEX];
-            for (uint256 i; i < lossCoverers.length && loss > 0; i++) {
-                ILossCoverer coverer = lossCoverers[i];
-                loss = coverer.coverLoss(poolAssets, loss);
+            for (uint256 i; i < firstLossCovers.length && loss > 0; i++) {
+                IFirstLossCover cover = firstLossCovers[i];
+                loss = cover.coverLoss(poolAssets, loss);
             }
 
             if (loss > 0) {
@@ -220,10 +218,10 @@ contract Pool is PoolConfigCache, IPool {
                 losses
             );
 
-            uint256 len = lossCoverers.length;
+            uint256 len = firstLossCovers.length;
             for (uint256 i = 0; i < len && lossRecovery > 0; i++) {
-                ILossCoverer coverer = lossCoverers[len - i - 1];
-                lossRecovery = coverer.recoverLoss(lossRecovery);
+                IFirstLossCover cover = firstLossCovers[len - i - 1];
+                lossRecovery = cover.recoverLoss(lossRecovery);
             }
         }
 
@@ -246,7 +244,7 @@ contract Pool is PoolConfigCache, IPool {
             return [ta.seniorTotalAssets, ta.juniorTotalAssets];
         }
 
-        (uint256 profit, uint256 loss, uint256 lossRecovery) = credit.currentPnL();
+        (uint256 profit, uint256 loss, uint256 lossRecovery) = credit.getAccruedPnL();
         assets[SENIOR_TRANCHE_INDEX] = ta.seniorTotalAssets;
         assets[JUNIOR_TRANCHE_INDEX] = ta.juniorTotalAssets;
 
@@ -291,9 +289,9 @@ contract Pool is PoolConfigCache, IPool {
         if (loss > 0) {
             // First loss cover
             uint256 poolAssets = assets[SENIOR_TRANCHE_INDEX] + assets[JUNIOR_TRANCHE_INDEX];
-            for (uint256 i; i < lossCoverers.length && loss > 0; i++) {
-                ILossCoverer coverer = lossCoverers[i];
-                loss = coverer.calcLossCover(poolAssets, loss);
+            for (uint256 i; i < firstLossCovers.length && loss > 0; i++) {
+                IFirstLossCover cover = firstLossCovers[i];
+                loss = cover.calcLossCover(poolAssets, loss);
             }
             uint96[2] memory lossesDelta;
             (assets, lossesDelta) = tranchesPolicy.calcTranchesAssetsForLoss(loss, assets);
@@ -317,10 +315,10 @@ contract Pool is PoolConfigCache, IPool {
                 losses
             );
 
-            uint256 len = lossCoverers.length;
+            uint256 len = firstLossCovers.length;
             for (uint256 i = 0; i < len && lossRecovery > 0; i++) {
-                ILossCoverer coverer = lossCoverers[len - i - 1];
-                lossRecovery = coverer.calcLossRecover(lossRecovery);
+                IFirstLossCover cover = firstLossCovers[len - i - 1];
+                lossRecovery = cover.calcLossRecover(lossRecovery);
             }
         }
 

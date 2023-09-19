@@ -15,8 +15,6 @@ import "hardhat/console.sol";
  */
 
 contract FixedAprTranchesPolicy is BaseTranchesPolicy {
-    constructor(address _poolConfig) BaseTranchesPolicy(_poolConfig) {}
-
     function calcTranchesAssetsForProfit(
         uint256 profit,
         uint96[2] memory assets,
@@ -47,5 +45,6 @@ contract FixedAprTranchesPolicy is BaseTranchesPolicy {
 
         newAssets[SENIOR_TRANCHE_INDEX] = assets[SENIOR_TRANCHE_INDEX] + uint96(seniorProfit);
         newAssets[JUNIOR_TRANCHE_INDEX] = assets[JUNIOR_TRANCHE_INDEX] + uint96(juniorProfit);
+        return newAssets;
     }
 }

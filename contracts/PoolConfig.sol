@@ -7,7 +7,7 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {IERC20, IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IPlatformFeeManager} from "./interfaces/IPlatformFeeManager.sol";
 import {IPool} from "./interfaces/IPool.sol";
-import {ILossCoverer} from "./interfaces/ILossCoverer.sol";
+import {IFirstLossCover} from "./interfaces/IFirstLossCover.sol";
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "./SharedDefs.sol";
@@ -120,8 +120,8 @@ contract PoolConfig is AccessControl, Initializable {
     address public juniorTranche;
     address public tranchesPolicy;
     address public epochManager;
-    address public poolOwnerOrEALossCoverer;
-    address[] internal _lossCoverers;
+    address public poolOwnerOrEAFirstLossCover;
+    address[] internal _firstLossCovers;
     address public credit;
     address public platformFeeManager;
     address public calendar;
@@ -147,7 +147,7 @@ contract PoolConfig is AccessControl, Initializable {
     FeeStructure internal _feeStructure;
 
     // Address for the account that handles the treasury functions for the pool owner:
-    // liquidity deposits, liquidity withdrawls, and reward withdrawals
+    // liquidity deposits, liquidity withdrawals, and reward withdrawals
     address public poolOwnerTreasury;
 
     event YieldChanged(uint256 aprInBps, address by);
@@ -193,7 +193,7 @@ contract PoolConfig is AccessControl, Initializable {
      *   _contracts[2]: address of platformFeeManager
      *   _contracts[3]: address of poolVault
      *   _contracts[4]: address of calendar
-     *   _contracts[5]: address of poolOwnerOrEALossCoverer
+     *   _contracts[5]: address of poolOwnerOrEAFirstLossCover
      *   _contracts[6]: address of tranchesPolicy
      *   _contracts[7]: address of pool
      *   _contracts[8]: address of epochManager
@@ -235,7 +235,7 @@ contract PoolConfig is AccessControl, Initializable {
 
         addr = _contracts[5];
         if (addr == address(0)) revert Errors.zeroAddressProvided();
-        poolOwnerOrEALossCoverer = addr;
+        poolOwnerOrEAFirstLossCover = addr;
 
         addr = _contracts[6];
         if (addr == address(0)) revert Errors.zeroAddressProvided();
@@ -282,23 +282,28 @@ contract PoolConfig is AccessControl, Initializable {
         _poolSettings = _pSettings;
 
         AdminRnR memory adminRnRConfig = _adminRnR;
-        adminRnRConfig.rewardRateInBpsForEA = 300; //3%
-        adminRnRConfig.rewardRateInBpsForPoolOwner = 200; //2%
+        adminRnRConfig.rewardRateInBpsForEA = 300; // 3%
+        adminRnRConfig.rewardRateInBpsForPoolOwner = 200; // 2%
         adminRnRConfig.liquidityRateInBpsByEA = 200; // 2%
         adminRnRConfig.liquidityRateInBpsByPoolOwner = 200; // 2%
         _adminRnR = adminRnRConfig;
 
-        LPConfig memory lpConfig = _lpConfig;
-        lpConfig.maxSeniorJuniorRatio = 4; // senior : junior = 4:1
-        _lpConfig = lpConfig;
+        LPConfig memory config = _lpConfig;
+        config.maxSeniorJuniorRatio = 4; // senior : junior = 4:1
+        _lpConfig = config;
     }
 
     function getTrancheLiquidityCap(uint256 index) external view returns (uint256 cap) {
-        LPConfig memory lpc = _lpConfig;
+        LPConfig memory config = _lpConfig;
         if (index == SENIOR_TRANCHE_INDEX) {
-            cap = (lpc.liquidityCap * lpc.maxSeniorJuniorRatio) / (lpc.maxSeniorJuniorRatio + 1);
+            cap =
+                (config.liquidityCap * config.maxSeniorJuniorRatio) /
+                (config.maxSeniorJuniorRatio + 1);
         } else if (index == JUNIOR_TRANCHE_INDEX) {
-            cap = lpc.liquidityCap / (lpc.maxSeniorJuniorRatio + 1);
+            cap = config.liquidityCap / (config.maxSeniorJuniorRatio + 1);
+        } else {
+            // We only have two tranches for now.
+            assert(false);
         }
     }
 
@@ -355,14 +360,14 @@ contract PoolConfig is AccessControl, Initializable {
         // liquidity to pay the EA before replacing it.
         address oldEA = evaluationAgent;
         if (oldEA != address(0)) {
-            IPlatformFeeManager fm = IPlatformFeeManager(platformFeeManager);
-            (, , uint256 eaWithdrawable) = fm.getWithdrawables();
-            fm.withdrawEAFee(eaWithdrawable);
+            IPlatformFeeManager feeManager = IPlatformFeeManager(platformFeeManager);
+            (, , uint256 eaWithdrawable) = feeManager.getWithdrawables();
+            feeManager.withdrawEAFee(eaWithdrawable);
         }
 
         // Make sure the new EA has met the liquidity requirements
         if (IPool(pool).isPoolOn()) {
-            if (!ILossCoverer(poolOwnerOrEALossCoverer).isSufficient(agent))
+            if (!IFirstLossCover(poolOwnerOrEAFirstLossCover).isSufficient(agent))
                 revert Errors.lessThanRequiredCover();
         }
 
@@ -507,17 +512,17 @@ contract PoolConfig is AccessControl, Initializable {
         // todo emit event
     }
 
-    function setLossCoverers(address[] calldata lossCoverers) external {
+    function setFirstLossCovers(address[] calldata firstLossCovers) external {
         _onlyOwnerOrHumaMasterAdmin();
-        for (uint256 i = 0; i < lossCoverers.length; i++) {
-            _lossCoverers.push(lossCoverers[i]);
+        for (uint256 i = 0; i < firstLossCovers.length; i++) {
+            _firstLossCovers.push(firstLossCovers[i]);
         }
         // todo emit event
     }
 
-    function setPoolOwnerOrEALossCoverer(address coverer) external {
+    function setPoolOwnerOrEAFirstLossCover(address cover) external {
         _onlyOwnerOrHumaMasterAdmin();
-        poolOwnerOrEALossCoverer = coverer;
+        poolOwnerOrEAFirstLossCover = cover;
     }
 
     function setCalendar(address _calendar) external {
@@ -531,7 +536,7 @@ contract PoolConfig is AccessControl, Initializable {
      * @notice Set the receivable rate in terms of basis points.
      * When the rate is higher than 10000, it means the backing is higher than the borrow amount,
      * similar to an over-collateral situation.
-     * @param receivableInBps the percentage. A percentage over 10000 means overreceivableization.
+     * @param receivableInBps the percentage. A percentage over 10000 means over-receivablization.
      */
     function setReceivableRequiredInBps(uint256 receivableInBps) external {
         _onlyOwnerOrHumaMasterAdmin();
@@ -553,17 +558,17 @@ contract PoolConfig is AccessControl, Initializable {
 
     /// Checks to make sure both EA and pool owner treasury meet the pool's first loss cover requirements
     function checkFirstLossCoverRequirement() public view {
-        if (!ILossCoverer(poolOwnerOrEALossCoverer).isSufficient(poolOwnerTreasury))
+        if (!IFirstLossCover(poolOwnerOrEAFirstLossCover).isSufficient(poolOwnerTreasury))
             revert Errors.lessThanRequiredCover();
 
-        if (!ILossCoverer(poolOwnerOrEALossCoverer).isSufficient(evaluationAgent))
+        if (!IFirstLossCover(poolOwnerOrEAFirstLossCover).isSufficient(evaluationAgent))
             revert Errors.lessThanRequiredCover();
     }
 
     /**
      * Returns a summary information of the pool.
      * @return token the address of the pool token
-     * @return apr the default APR of the pool
+     * @return yieldInBps the default annual percentage yield of the pool, measured in basis points
      * @return payPeriod the standard pay period for the pool
      * @return maxCreditAmount the max amount for the credit line
      */
@@ -572,10 +577,10 @@ contract PoolConfig is AccessControl, Initializable {
         view
         returns (
             address token,
-            uint256 apr,
+            uint256 yieldInBps,
             uint256 payPeriod,
             uint256 maxCreditAmount,
-            uint256 liquiditycap,
+            uint256 liquidityCap,
             string memory name,
             string memory symbol,
             uint8 decimals,
@@ -610,8 +615,8 @@ contract PoolConfig is AccessControl, Initializable {
         return _firstLossCover;
     }
 
-    function getLossCoverers() external view returns (address[] memory) {
-        return _lossCoverers;
+    function getFirstLossCovers() external view returns (address[] memory) {
+        return _firstLossCovers;
     }
 
     function getPoolSettings() external view returns (PoolSettings memory) {
@@ -716,15 +721,15 @@ contract PoolConfig is AccessControl, Initializable {
         if (account != pool) revert Errors.notPool();
     }
 
-    function onlyTrancheVaultOrLossCovererOrCredit(address account) external view {
+    function onlyTrancheVaultOrFirstLossCoverOrCredit(address account) external view {
         bool valid;
         if (account == seniorTranche || account == juniorTranche || account == credit) return;
-        uint256 len = _lossCoverers.length;
+        uint256 len = _firstLossCovers.length;
         for (uint256 i; i < len; i++) {
-            if (account == _lossCoverers[i]) return;
+            if (account == _firstLossCovers[i]) return;
         }
 
-        if (!valid) revert Errors.notTrancheVaultOrLossCoverer();
+        if (!valid) revert Errors.notTrancheVaultOrFirstLossCover();
     }
 
     function onlyTrancheVaultOrEpochManager(address account) external view {
