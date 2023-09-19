@@ -202,23 +202,23 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
             secondsOfThisPeriod = cr.nextDueDate > 0
                 ? newNextDueDate - cr.nextDueDate
                 : newNextDueDate - block.timestamp;
-            // console.log(
-            //     "newNextDueDate: %s, cr.nextDueDate: %s, secondsPerPeriod: %s",
-            //     newNextDueDate,
-            //     cr.nextDueDate,
-            //     secondsOfThisPeriod
-            // );
+            console.log(
+                "newNextDueDate: %s, cr.nextDueDate: %s, secondsPerPeriod: %s",
+                newNextDueDate,
+                cr.nextDueDate,
+                secondsOfThisPeriod
+            );
 
-            // console.log(
-            //     "cr.unbilledPrincipal: %s, cr.totalDue: %s",
-            //     cr.unbilledPrincipal,
-            //     cr.totalDue
-            // );
+            console.log(
+                "cr.unbilledPrincipal: %s, cr.totalDue: %s",
+                cr.unbilledPrincipal,
+                cr.totalDue
+            );
 
             // step 1. calculates late fees
             if (cr.totalDue > 0) {
                 cr.unbilledPrincipal += cr.totalDue;
-                principalDifference += cr.totalDue;
+                principalDifference += cr.yieldDue + cr.feesDue;
                 pnlImpact += cr.feesDue;
                 cr.feesDue = uint96(calcLateFee(cr.unbilledPrincipal));
                 // console.log(
@@ -248,12 +248,12 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
                 poolConfig.getMinPrincipalRateInBps()) / HUNDRED_PERCENT_IN_BPS;
             cr.totalDue = uint96(cr.feesDue + cr.yieldDue + principalToBill);
             cr.unbilledPrincipal = uint96(cr.unbilledPrincipal - principalToBill);
-            // console.log(
-            //     "cr.unbilledPrincipal: %s, cr.totalDue: %s, principalToBill: %s",
-            //     cr.unbilledPrincipal,
-            //     cr.totalDue,
-            //     principalToBill
-            // );
+            console.log(
+                "cr.unbilledPrincipal: %s, cr.totalDue: %s, principalToBill: %s",
+                cr.unbilledPrincipal,
+                cr.totalDue,
+                principalToBill
+            );
 
             // Step 5. captures undercounted profit for this period.
             if (principalDifference > 0 && block.timestamp > newNextDueDate) {

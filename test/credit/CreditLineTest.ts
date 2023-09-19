@@ -1405,7 +1405,7 @@ describe("CreditLine Test", function () {
             checkTwoCreditLosses(preCreditLoss, creditLoss);
         });
 
-        it("Should refresh credit correctly with multiple credits, while setting late fee and membership fee", async function () {
+        it("Should refresh credit correctly with multiple credits, while setting late fee, membership fee and minPrincipalRateInBps", async function () {
             let creditRecord = await creditContract.creditRecordMap(creditHash);
             printCreditRecord(`creditRecord`, creditRecord);
 
@@ -1430,9 +1430,10 @@ describe("CreditLine Test", function () {
 
             let lateFeeBps = 200;
             let membershipFee = toToken(100);
+            let minPrincipalRateInBps = 1000;
             await poolConfigContract.connect(poolOwner).setFees({
                 yieldInBps: yieldInBps,
-                minPrincipalRateInBps: 0,
+                minPrincipalRateInBps: minPrincipalRateInBps,
                 lateFeeFlat: BN.from(0),
                 lateFeeBps: lateFeeBps,
                 membershipFee: membershipFee,
@@ -1453,7 +1454,7 @@ describe("CreditLine Test", function () {
 
             block = await getLatestBlock();
             let nextTime = moment.unix(block.timestamp).add(1, "months").unix();
-            // console.log(`nextTime: ${nextTime}`);
+            console.log(`nextTime: ${nextTime}`);
             await mineNextBlockWithTimestamp(nextTime);
 
             borrowAmount2 = toToken(15_000);
@@ -1599,6 +1600,7 @@ describe("CreditLine Test", function () {
             let preCreditRecord2 = creditRecord2;
             await creditContract.refreshCredit(borrower2.address);
             creditRecord2 = await creditContract.creditRecordMap(creditHash2);
+            printCreditRecord(`creditRecord2`, creditRecord2);
 
             let [newCreditRecord2, ,] = calcLateCreditRecord(
                 preCreditRecord2,
@@ -1654,17 +1656,17 @@ describe("CreditLine Test", function () {
             accruedLoss = accruedLoss.add(
                 lossRate.mul(nextTime - preTime).div(CONSTANTS.DEFAULT_DECIMALS_FACTOR),
             );
-            // console.log(
-            //     `profitRate.add(profitRate2): ${profitRate.add(
-            //         profitRate2,
-            //     )}, lossRate.add(lossRate2): ${lossRate.add(
-            //         lossRate2,
-            //     )}, accruedProfit.add(accruedProfit2): ${accruedProfit.add(
-            //         accruedProfit2,
-            //     )}, accruedLoss.add(accruedLoss2): ${accruedLoss.add(accruedLoss2)}`,
-            // );
+            console.log(
+                `profitRate.add(profitRate2): ${profitRate.add(
+                    profitRate2,
+                )}, lossRate.add(lossRate2): ${lossRate.add(
+                    lossRate2,
+                )}, accruedProfit.add(accruedProfit2): ${accruedProfit.add(
+                    accruedProfit2,
+                )}, accruedLoss.add(accruedLoss2): ${accruedLoss.add(accruedLoss2)}`,
+            );
             pnlTracker = await creditPnlManagerContract.getPnL();
-            // console.log(`pnlTracker: ${pnlTracker}`);
+            console.log(`pnlTracker: ${pnlTracker}`);
             checkPnLTracker(
                 pnlTracker,
                 profitRate.add(profitRate2),
