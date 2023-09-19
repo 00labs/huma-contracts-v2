@@ -7,19 +7,17 @@ import {Errors} from "./Errors.sol";
 import "./SharedDefs.sol";
 
 /**
- * @notice RiskAdjustedWaterfallPolicy is one tranche policy implementation. In this policy,
+ * @notice RiskAdjustedTranchesPolicy is one tranche policy implementation. In this policy,
  * a percentage of the pool return is shifted from the senior tranche to the junior tranche.
  */
 contract RiskAdjustedTranchesPolicy is BaseTranchesPolicy {
-    constructor(address _poolConfig) BaseTranchesPolicy(_poolConfig) {}
-
     /**
      * @notice Distribute profit between tranches.
      */
     function calcTranchesAssetsForProfit(
         uint256 profit,
         uint96[2] memory assets,
-        uint256
+        uint256 lastUpdatedTime
     ) external view returns (uint96[2] memory newAssets) {
         uint256 seniorAssets = assets[SENIOR_TRANCHE_INDEX];
         uint256 juniorAssets = assets[JUNIOR_TRANCHE_INDEX];
@@ -32,5 +30,6 @@ contract RiskAdjustedTranchesPolicy is BaseTranchesPolicy {
 
         newAssets[SENIOR_TRANCHE_INDEX] = uint96(seniorAssets + seniorProfit);
         newAssets[JUNIOR_TRANCHE_INDEX] = uint96(juniorAssets + profit - seniorProfit);
+        return newAssets;
     }
 }

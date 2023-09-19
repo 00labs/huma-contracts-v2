@@ -31,7 +31,10 @@ struct CreditRecord {
     uint16 missedPeriods;
     uint16 remainingPeriods;
     CreditState state;
-    bool revolving; // whether repeated borrowing is allowed
+    // bool revolving; // whether repeated borrowing is allowed
+}
+
+struct CreditQuota {
     address borrower;
     uint96 availableCredit;
 }
@@ -44,7 +47,7 @@ struct CreditLoss {
     uint96 lossRate;
 }
 
-struct CreditLimits {
+struct BorrowerQuota {
     uint96 creditLimit;
     uint96 availableCredit;
 }
@@ -101,9 +104,9 @@ struct PnLTracker {
     uint96 profitRate;
     uint96 lossRate;
     uint64 pnlLastUpdated;
-    uint96 totalProfit;
-    uint96 totalLoss;
-    uint96 totalLossRecovery;
+    uint96 accruedProfit;
+    uint96 accruedLoss;
+    uint96 accruedLossRecovery;
 }
 
 struct Payment {
@@ -114,5 +117,3 @@ struct Payment {
     bool oldLateFlag;
     bool newLateFlag;
 }
-
-

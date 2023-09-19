@@ -15,8 +15,6 @@ import "hardhat/console.sol";
  */
 
 contract FixedAprTranchesPolicy is BaseTranchesPolicy {
-    constructor(address _poolConfig) BaseTranchesPolicy(_poolConfig) {}
-
     function calcTranchesAssetsForProfit(
         uint256 profit,
         uint96[2] memory assets,

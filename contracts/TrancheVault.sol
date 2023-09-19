@@ -5,18 +5,18 @@ import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol"
 import "./SharedDefs.sol";
 import {IERC20MetadataUpgradeable, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {TrancheVaultStorage, IERC20} from "./TrancheVaultStorage.sol";
-import {IEpoch, EpochRedemptionSummary} from "./interfaces/IEpoch.sol";
+import {IEpoch, EpochInfo} from "./interfaces/IEpoch.sol";
 import {IEpochManager} from "./interfaces/IEpochManager.sol";
 import {Errors} from "./Errors.sol";
 import {PoolConfig, LPConfig} from "./PoolConfig.sol";
-import {PoolConfigCacheUpgradeable} from "./PoolConfigCacheUpgradeable.sol";
+import {PoolConfigCache} from "./PoolConfigCache.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
 
 contract TrancheVault is
     AccessControlUpgradeable,
     ERC20Upgradeable,
-    PoolConfigCacheUpgradeable,
+    PoolConfigCache,
     TrancheVaultStorage,
     IEpoch
 {
@@ -48,13 +48,10 @@ contract TrancheVault is
     ) external initializer {
         __ERC20_init(name, symbol);
         __AccessControl_init();
-
-        poolConfig = _poolConfig;
+        _initialize(_poolConfig);
 
         if (seniorTrancheOrJuniorTranche > 1) revert Errors.invalidTrancheIndex();
         trancheIndex = seniorTrancheOrJuniorTranche;
-
-        _updatePoolConfigData(_poolConfig);
     }
 
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
@@ -98,13 +95,13 @@ contract TrancheVault is
     }
 
     /**
-     * @notice Returns the redemption summary for all unprocessed/partially processed epochs.
+     * @notice Returns the list of all unprocessed/partially processed epochs infos.
      */
-    function unprocessedEpochSummaries() external view override returns (EpochRedemptionSummary[] memory summaries) {
+    function unprocessedEpochInfos() external view override returns (EpochInfo[] memory infos) {
         uint256 numUnprocessedEpochs = epochIds.length - firstUnprocessedEpochIndex;
-        summaries = new EpochRedemptionSummary[](numUnprocessedEpochs);
+        infos = new EpochInfo[](numUnprocessedEpochs);
         for (uint256 i; i < numUnprocessedEpochs; i++) {
-            summaries[i] = epochRedemptionSummaryByEpochId[epochIds[firstUnprocessedEpochIndex + i]];
+            infos[i] = epochInfoByEpochId[epochIds[firstUnprocessedEpochIndex + i]];
         }
     }
 
@@ -120,25 +117,25 @@ contract TrancheVault is
      * @notice Updates processed epochs
      */
     function processEpochs(
-        EpochRedemptionSummary[] memory epochsProcessed,
+        EpochInfo[] memory epochsProcessed,
         uint256 sharesProcessed,
         uint256 amountProcessed
     ) external {
         poolConfig.onlyEpochManager(msg.sender);
 
         uint256 numEpochsProcessed = epochsProcessed.length;
-        EpochRedemptionSummary memory epochRedemptionSummary;
+        EpochInfo memory epochInfo;
         for (uint256 i; i < numEpochsProcessed; i++) {
-            epochRedemptionSummary = epochsProcessed[i];
-            epochRedemptionSummaryByEpochId[epochRedemptionSummary.epochId] = epochRedemptionSummary;
+            epochInfo = epochsProcessed[i];
+            epochInfoByEpochId[epochInfo.epochId] = epochInfo;
         }
 
         uint256 unprocessedIndex = firstUnprocessedEpochIndex;
-        if (epochRedemptionSummary.totalSharesProcessed >= epochRedemptionSummary.totalSharesRequested) {
+        if (epochInfo.totalSharesProcessed >= epochInfo.totalSharesRequested) {
             // If the last epoch is fully processed, then advance the index by the number of processed epochs.
             // It's theoretically impossible for the number of processed shares to be greater than the
             // requested shares. The > is just to make the linter happy.
-            assert(epochRedemptionSummary.totalSharesProcessed == epochRedemptionSummary.totalSharesRequested);
+            assert(epochInfo.totalSharesProcessed == epochInfo.totalSharesRequested);
             unprocessedIndex += numEpochsProcessed;
         } else if (numEpochsProcessed > 1) {
             // Otherwise, point the index at the last partially processed epoch.
@@ -188,7 +185,7 @@ contract TrancheVault is
         }
 
         if (trancheIndex == SENIOR_TRANCHE_INDEX) {
-            // Make sure that the max senior : junior asset ratio is still intact.
+            // Make sure that the max senior : junior asset ratio is still valid.
             LPConfig memory lpConfig = poolConfig.getLPConfig();
             if ((trancheAssets + assets) > tranches[JUNIOR_TRANCHE_INDEX] * lpConfig.maxSeniorJuniorRatio)
                 revert Errors.maxSeniorJuniorRatioExceeded();
@@ -219,7 +216,7 @@ contract TrancheVault is
         }
 
         uint256 currentEpochId = epochManager.currentEpochId();
-        EpochRedemptionSummary memory currentEpochInfo = epochRedemptionSummaryByEpochId[currentEpochId];
+        EpochInfo memory currentEpochInfo = epochInfoByEpochId[currentEpochId];
         if (currentEpochInfo.totalSharesRequested > 0) {
             // If the current epoch already has redemption requests, then add the new redemption request
             // to it.
@@ -231,7 +228,7 @@ contract TrancheVault is
             currentEpochInfo.epochId = uint64(currentEpochId);
             currentEpochInfo.totalSharesRequested = uint96(shares);
         }
-        epochRedemptionSummaryByEpochId[currentEpochId] = currentEpochInfo;
+        epochInfoByEpochId[currentEpochId] = currentEpochInfo;
 
         // Also log the redemption request in the per-lender registry.
         RedemptionRequest[] storage requests = redemptionRequestsByLender[msg.sender];
@@ -285,13 +282,13 @@ contract TrancheVault is
             delete requests[lastIndex];
         }
 
-        EpochRedemptionSummary memory currentEpochInfo = epochRedemptionSummaryByEpochId[currentEpochId];
+        EpochInfo memory currentEpochInfo = epochInfoByEpochId[currentEpochId];
         currentEpochInfo.totalSharesRequested -= uint96(shares);
         if (currentEpochInfo.totalSharesRequested > 0) {
-            epochRedemptionSummaryByEpochId[currentEpochId] = currentEpochInfo;
+            epochInfoByEpochId[currentEpochId] = currentEpochInfo;
         } else {
             // Since we don't keep track of epochs w/o redemption requests, clean them up.
-            delete epochRedemptionSummaryByEpochId[currentEpochId];
+            delete epochInfoByEpochId[currentEpochId];
             lastIndex = epochIds.length - 1;
             assert(epochIds[lastIndex] == currentEpochId);
             delete epochIds[lastIndex];
@@ -375,11 +372,11 @@ contract TrancheVault is
         return supply == 0 ? _assets : (_assets * supply) / _totalAssets;
     }
 
-    function _updateUserWithdrawable(address user) internal returns (uint256 withdrableAmount) {}
+    function _updateUserWithdrawable(address user) internal returns (uint256 withdrawableAmount) {}
 
     /**
      * @notice Calculates the amount of asset that the lender can withdraw.
-     * @oaram account The lender's account
+     * @param account The lender's account
      * @return withdrawableAmount The amount of asset that the lender can withdraw
      * @return disbursementInfo Information about the lender's last partially processed redemption request,
      * including which request was partially processed and how many shares/amount were actually redeemed
@@ -412,7 +409,6 @@ contract TrancheVault is
                     disbursementInfo.actualAmountProcessed = 0;
                 }
 
-                // Bug? Should this be amountProcessed?
                 withdrawableAmount += amountProcessed;
                 disbursementInfo.requestsIndex += 1;
             } else if (request.epochId == firstUnprocessedEpochId) {

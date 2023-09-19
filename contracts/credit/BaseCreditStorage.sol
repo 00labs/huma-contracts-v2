@@ -3,16 +3,14 @@ pragma solidity ^0.8.0;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {HumaConfig} from "../HumaConfig.sol";
-import {CreditConfig, CreditRecord, CreditLimits, PnLTracker} from "./CreditStructs.sol";
+import {CreditConfig, CreditRecord, CreditQuota, BorrowerQuota, PnLTracker} from "./CreditStructs.sol";
 import {PoolConfig} from "../PoolConfig.sol";
 import {ICreditFeeManager} from "./utils/interfaces/ICreditFeeManager.sol";
 import {ICalendar} from "./interfaces/ICalendar.sol";
 import {IPnLManager} from "./interfaces/IPnLManager.sol";
+import {IPoolVault} from "../interfaces/IPoolVault.sol";
 
 contract BaseCreditStorage {
-    // The ERC20 token this pool manages
-    IERC20 internal _underlyingToken;
-
     HumaConfig internal _humaConfig;
 
     // Reference to the fee manager contract
@@ -20,6 +18,7 @@ contract BaseCreditStorage {
 
     ICalendar public calendar;
     IPnLManager public pnlManager;
+    IPoolVault public poolVault;
 
     PnLTracker public pnlTracker;
 
@@ -28,8 +27,9 @@ contract BaseCreditStorage {
     mapping(bytes32 => CreditConfig) internal _creditConfigMap;
     /// mapping from credit id to the credit record
     mapping(bytes32 => CreditRecord) internal _creditRecordMap;
+    mapping(bytes32 => CreditQuota) internal _creditQuotaMap;
     /// mapping from borrower to the credit limit at borrower-level
-    mapping(address => CreditLimits) internal _creditLimitsMap;
+    mapping(address => BorrowerQuota) internal _borrowerQuotaMap;
 
     bytes32[] public activeCreditsHash;
     bytes32[] public overdueCreditsHash;

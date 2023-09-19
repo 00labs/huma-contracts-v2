@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {CreditConfig, CreditRecord, ReceivableInfo, FacilityConfig, ReceivableState} from "./CreditStructs.sol";
-import {BaseCredit} from "./BaseCredit.sol";
+import {CreditConfig, CreditRecord, CreditQuota, ReceivableInfo, FacilityConfig, ReceivableState} from "./CreditStructs.sol";
+import {Credit} from "./Credit.sol";
 import {IReceivableCredit} from "./interfaces/IReceivableCredit.sol";
 import {Receivable} from "./Receivable.sol";
 import {Errors} from "../Errors.sol";
@@ -11,7 +11,7 @@ import {PoolConfig, PoolSettings} from "../PoolConfig.sol";
 /**
  * ReceivableCredit is a credit backed by receivables.
  */
-contract ReceivableCredit is BaseCredit, IReceivableCredit {
+contract ReceivableCredit is Credit, IReceivableCredit {
     // the NFT contract address for the receivable.
     // todo set Receivable in initializer.
     Receivable receivable;
@@ -50,7 +50,7 @@ contract ReceivableCredit is BaseCredit, IReceivableCredit {
         bool receivableRequired,
         bool borrowerLevelCredit
     ) external virtual override {
-        _protocolAndPoolOn();
+        poolConfig.onlyProtocolAndPoolOn();
         onlyEAServiceAccount();
 
         if (creditLimit <= 0) revert();
@@ -91,9 +91,11 @@ contract ReceivableCredit is BaseCredit, IReceivableCredit {
         receivable.approveOrRejectReceivable(receivableId, true);
         bytes32 creditHash = _getCreditHash(borrower, receivableId);
 
-        _creditRecordMap[creditHash].availableCredit +=
+        CreditQuota memory quota = _creditQuotaMap[creditHash];
+        quota.availableCredit +=
             receivable.getReceivable(receivableId).receivableAmount *
             facilityConfig[creditHash].advanceRateInBps;
+        _creditQuotaMap[creditHash] = quota;
 
         // todo emit event
     }
@@ -115,11 +117,9 @@ contract ReceivableCredit is BaseCredit, IReceivableCredit {
         if (receivable.ownerOf(receivableId) != borrower) revert Errors.todo();
         if (receivable.getStatus(receivableId) != ReceivableState.Approved) revert Errors.todo();
 
-        bytes32 creditHash = _getCreditHash(borrower, receivableId);
-        CreditRecord memory cr = _getCreditRecord(creditHash);
-
         receivable.transferFrom(borrower, address(this), receivableId);
-        _drawdown(creditHash, cr, amount);
+        bytes32 creditHash = _getCreditHash(borrower, receivableId);
+        _drawdown(borrower, creditHash, amount);
         // todo emit evnet
     }
 
@@ -128,7 +128,7 @@ contract ReceivableCredit is BaseCredit, IReceivableCredit {
         uint256 receivableId
     ) internal view returns (bytes32 creditHash) {
         if (_getBorrowerRecord(msg.sender).borrowerLevelCredit)
-            creditHash = getCreditHash(msg.sender);
+            creditHash = getCreditHash(msg.sender, receivableId);
         else creditHash = keccak256(abi.encode(borrower, address(receivable), receivableId));
     }
 }
