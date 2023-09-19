@@ -15,14 +15,14 @@ import "hardhat/console.sol";
 // TODO design first loss cover fee
 
 contract FirstLossCover is PoolConfigCache, IFirstLossCover {
-    struct LossCoverFund {
-        // percentage of the pool cap required to be covered by first loss cover
+    struct LossCoverConfig {
+        // Percentage of the pool cap required to be covered by first loss cover
         uint16 poolCapCoverageInBps;
-        // percentage of the pool value required to be covered by first loss cover
+        // Percentage of the pool value required to be covered by first loss cover
         uint16 poolValueCoverageInBps;
     }
 
-    struct LossCoverPayout {
+    struct LossCoverPayoutConfig {
         // The percentage of a default to be paid by the first loss cover
         uint16 coverRateInBps;
         // The max amount that first loss cover can spend on one default
@@ -33,11 +33,12 @@ contract FirstLossCover is PoolConfigCache, IFirstLossCover {
     IPoolVault public poolVault;
     IERC20 public asset;
 
-    uint256 public processedLoss;
+    /// The cumulative amount of loss covered.
+    uint256 public coveredLoss;
 
-    mapping(address => LossCoverFund) public operatorConfigs;
+    mapping(address => LossCoverConfig) public operatorConfigs;
     mapping(address => uint256) public amounts;
-    LossCoverPayout public lossCoverPayoutConfig;
+    LossCoverPayoutConfig public lossCoverPayoutConfig;
 
     event OperatorSet(
         address indexed account,
@@ -66,14 +67,14 @@ contract FirstLossCover is PoolConfigCache, IFirstLossCover {
         asset = IERC20(addr);
     }
 
-    function setPayoutConfig(LossCoverPayout memory config) external {
+    function setPayoutConfig(LossCoverPayoutConfig memory config) external {
         poolConfig.onlyPoolOwner(msg.sender);
         lossCoverPayoutConfig = config;
 
         emit PayoutConfigSet(config.coverRateInBps, config.coverCap);
     }
 
-    function setOperator(address account, LossCoverFund memory config) external {
+    function setOperator(address account, LossCoverConfig memory config) external {
         poolConfig.onlyPoolOwner(msg.sender);
         if (account == address(0)) revert Errors.zeroAddressProvided();
         operatorConfigs[account] = config;
@@ -95,15 +96,15 @@ contract FirstLossCover is PoolConfigCache, IFirstLossCover {
 
     function removeCover(uint256 amount, address receiver) external {
         if (amount == 0) revert Errors.zeroAmountProvided();
-        uint256 userBalance = amounts[msg.sender];
-        if (userBalance < amount) revert Errors.withdrawnAmountHigherThanBalance();
+        uint256 operatorBalance = amounts[msg.sender];
+        if (operatorBalance < amount) revert Errors.withdrawnAmountHigherThanBalance();
         uint256 balance = asset.balanceOf(address(this));
         if (balance < amount) revert Errors.insufficientTotalBalance();
 
-        uint256 min = _getMinAmount(msg.sender);
-        if (userBalance - amount < min) revert Errors.lessThanRequiredCover();
+        uint256 minCover = _getMinCoverAmount(msg.sender);
+        if (operatorBalance - amount < minCover) revert Errors.lessThanRequiredCover();
 
-        userBalance -= amount;
+        operatorBalance -= amount;
         asset.transfer(receiver, amount);
 
         emit CoverRemoved(msg.sender, amount, receiver);
@@ -112,19 +113,23 @@ contract FirstLossCover is PoolConfigCache, IFirstLossCover {
     function coverLoss(uint256 poolAssets, uint256 loss) external returns (uint256 remainingLoss) {
         poolConfig.onlyPool(msg.sender);
 
-        LossCoverPayout memory config = lossCoverPayoutConfig;
-        uint256 processed = (poolAssets * config.coverRateInBps) / HUNDRED_PERCENT_IN_BPS;
-        processed = processed < config.coverCap ? processed : config.coverCap;
-
-        uint256 assets = asset.balanceOf(address(this));
-        processed = processed < assets ? processed : assets;
-        remainingLoss = loss - processed;
-        if (processed > 0) {
-            processedLoss += processed;
-            poolVault.deposit(address(this), processed);
+        LossCoverPayoutConfig memory config = lossCoverPayoutConfig;
+        uint256 coveredAmount = (poolAssets * config.coverRateInBps) / HUNDRED_PERCENT_IN_BPS;
+        if (coveredAmount >= config.coverCap) {
+            coveredAmount = config.coverCap;
         }
 
-        emit LossCovered(processed, remainingLoss);
+        uint256 assets = asset.balanceOf(address(this));
+        if (coveredAmount >= assets) {
+            coveredAmount = assets;
+        }
+        remainingLoss = loss - coveredAmount;
+        if (coveredAmount > 0) {
+            coveredLoss += coveredAmount;
+            poolVault.deposit(address(this), coveredAmount);
+        }
+
+        emit LossCovered(coveredAmount, remainingLoss);
     }
 
     function calcLossCover(
@@ -135,12 +140,12 @@ contract FirstLossCover is PoolConfigCache, IFirstLossCover {
     function recoverLoss(uint256 recovery) external returns (uint256 remainingRecovery) {
         poolConfig.onlyPool(msg.sender);
 
-        uint256 processed = processedLoss;
-        uint256 recovered = processed < recovery ? processed : recovery;
+        uint256 tempCoveredLoss = coveredLoss;
+        uint256 recovered = tempCoveredLoss < recovery ? tempCoveredLoss : recovery;
         // There may be multiple loss covers, the remainingRecovery may be positive.
         remainingRecovery = recovery - recovered;
         if (recovered > 0) {
-            processedLoss = processed - recovered;
+            coveredLoss = tempCoveredLoss - recovered;
             poolVault.withdraw(address(this), recovered);
         }
 
@@ -152,33 +157,33 @@ contract FirstLossCover is PoolConfigCache, IFirstLossCover {
     function isSufficient(address account) external view returns (bool) {
         _onlyOperator(account);
 
-        uint256 userBalance = amounts[account];
-        uint256 min = _getMinAmount(account);
-        return userBalance >= min;
+        uint256 operatorBalance = amounts[account];
+        uint256 min = _getMinCoverAmount(account);
+        return operatorBalance >= min;
     }
 
-    function removable(address account) external view returns (uint256 amount) {
-        uint256 userBalance = amounts[msg.sender];
-        uint256 min = _getMinAmount(account);
+    function removableAmount(address account) external view returns (uint256 amount) {
+        uint256 operatorBalance = amounts[msg.sender];
+        uint256 min = _getMinCoverAmount(account);
 
-        amount = userBalance > min ? userBalance - min : 0;
+        amount = operatorBalance > min ? operatorBalance - min : 0;
     }
 
     function getPayoutConfig() external view returns (uint256 coverRateInBps, uint256 coverCap) {
-        LossCoverPayout memory config = lossCoverPayoutConfig;
+        LossCoverPayoutConfig memory config = lossCoverPayoutConfig;
         coverRateInBps = config.coverRateInBps;
         coverCap = config.coverCap;
     }
 
     function _onlyOperator(address account) internal view {
-        LossCoverFund memory config = operatorConfigs[account];
+        LossCoverConfig memory config = operatorConfigs[account];
         if (config.poolCapCoverageInBps == 0 && config.poolValueCoverageInBps == 0)
             revert Errors.notOperator();
     }
 
-    function _getMinAmount(address account) internal view returns (uint256 amount) {
+    function _getMinCoverAmount(address account) internal view returns (uint256 amount) {
         LPConfig memory lpConfig = poolConfig.getLPConfig();
-        LossCoverFund memory config = operatorConfigs[account];
+        LossCoverConfig memory config = operatorConfigs[account];
         uint256 poolCap = lpConfig.liquidityCap;
         uint256 minFromPoolCap = (poolCap * config.poolCapCoverageInBps) / HUNDRED_PERCENT_IN_BPS;
         uint256 poolValue = pool.totalAssets();

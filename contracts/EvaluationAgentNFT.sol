@@ -17,7 +17,7 @@ contract EvaluationAgentNFT is ERC721URIStorage, Ownable {
     constructor() ERC721("EvaluationAgentNFT", "EANFT") {}
 
     /**
-     * @notice  Minting an NFT only gets a placeholder for an EA
+     * @notice Minting an NFT only gets a placeholder for an EA
      * the NFT has attributes such as "status" that can only be updated by
      * Huma to indicate whether the corresponding EA is approved or not.
      * Merely owning an EANFT does NOT mean the owner has any authority

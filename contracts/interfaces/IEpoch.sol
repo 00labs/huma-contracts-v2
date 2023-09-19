@@ -3,9 +3,9 @@ pragma solidity ^0.8.0;
 
 struct EpochInfo {
     uint64 epochId;
-    uint96 totalShareRequested; // the total requested shares of this epoch
-    uint96 totalShareProcessed; // the total processed shares of this epoch
-    uint96 totalAmountProcessed; // the total processed amounts(according to processed shares and price) of this epoch
+    uint96 totalSharesRequested; // The total number of shares requested for redemption in this epoch
+    uint96 totalSharesProcessed; // The total number of shares processed for redemption in this epoch
+    uint96 totalAmountProcessed; // The total amount redeemed (according to the processed shares and price) in this epoch
 }
 
 interface IEpoch {

@@ -1487,7 +1487,7 @@ describe("CreditLine Test", function () {
                 accruedProfit.add(accruedProfit2),
                 BN.from(0),
                 BN.from(0),
-                1,
+                2,
             );
             preTime = nextTime;
 

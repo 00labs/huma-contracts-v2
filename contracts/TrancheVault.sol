@@ -34,7 +34,7 @@ contract TrancheVault is
         uint256 unprocessedIndexOfEpochIds
     );
 
-    event UserDisbursed(address indexed account, address receiver, uint256 withdrawnAmount);
+    event LenderFundDisbursed(address indexed account, address receiver, uint256 withdrawnAmount);
 
     constructor() {
         // _disableInitializers();
@@ -75,7 +75,7 @@ contract TrancheVault is
 
     /**
      * @notice Lenders need to pass compliance requirements. Pool operator will administer off-chain
-     * to make sure potential lenders meet the requirements. Afterwords, the pool operator will
+     * to make sure potential lenders meet the requirements. Afterwards, the pool operator will
      * call this function to mark a lender as approved.
      */
     function addApprovedLender(address lender) external {
@@ -95,13 +95,13 @@ contract TrancheVault is
     }
 
     /**
-     * @notice Returns all unprocessed epochs.
+     * @notice Returns the list of all unprocessed/partially processed epochs infos.
      */
-    function unprocessedEpochInfos() external view override returns (EpochInfo[] memory result) {
-        uint256 len = epochIds.length - unprocessedIndexOfEpochIds;
-        result = new EpochInfo[](len);
-        for (uint256 i; i < len; i++) {
-            result[i] = epochMap[epochIds[unprocessedIndexOfEpochIds + i]];
+    function unprocessedEpochInfos() external view override returns (EpochInfo[] memory infos) {
+        uint256 numUnprocessedEpochs = epochIds.length - firstUnprocessedEpochIndex;
+        infos = new EpochInfo[](numUnprocessedEpochs);
+        for (uint256 i; i < numUnprocessedEpochs; i++) {
+            infos[i] = epochInfoByEpochId[epochIds[firstUnprocessedEpochIndex + i]];
         }
     }
 
@@ -123,29 +123,32 @@ contract TrancheVault is
     ) external {
         poolConfig.onlyEpochManager(msg.sender);
 
-        uint256 count = epochsProcessed.length;
-        EpochInfo memory epoch;
-        for (uint256 i; i < count; i++) {
-            epoch = epochsProcessed[i];
-            epochMap[epoch.epochId] = epoch;
+        uint256 numEpochsProcessed = epochsProcessed.length;
+        EpochInfo memory epochInfo;
+        for (uint256 i; i < numEpochsProcessed; i++) {
+            epochInfo = epochsProcessed[i];
+            epochInfoByEpochId[epochInfo.epochId] = epochInfo;
         }
 
-        // Check if the last epoch is fully processed
-        uint256 unprocessedIndex = unprocessedIndexOfEpochIds;
-        if (epoch.totalAmountProcessed >= epoch.totalShareRequested) {
-            unprocessedIndex += count;
-        } else if (count - 1 > 0) {
-            unprocessedIndex += count - 1;
+        uint256 unprocessedIndex = firstUnprocessedEpochIndex;
+        if (epochInfo.totalSharesProcessed >= epochInfo.totalSharesRequested) {
+            // If the last epoch is fully processed, then advance the index by the number of processed epochs.
+            // It's theoretically impossible for the number of processed shares to be greater than the
+            // requested shares. The > is just to make the linter happy.
+            assert(epochInfo.totalSharesProcessed == epochInfo.totalSharesRequested);
+            unprocessedIndex += numEpochsProcessed;
+        } else if (numEpochsProcessed > 1) {
+            // Otherwise, point the index at the last partially processed epoch.
+            unprocessedIndex += numEpochsProcessed - 1;
         }
-        unprocessedIndexOfEpochIds = unprocessedIndex;
+        firstUnprocessedEpochIndex = unprocessedIndex;
 
-        // Burn processed shares
+        // Burn processed shares of LP tokens.
         ERC20Upgradeable._burn(address(this), sharesProcessed);
-
-        // Withdraw underlying tokens from reserve
+        // Withdraw underlying tokens from the reserve so that LPs can redeem.
         poolVault.withdraw(address(this), amountProcessed);
 
-        emit EpochsProcessed(count, sharesProcessed, amountProcessed, unprocessedIndex);
+        emit EpochsProcessed(numEpochsProcessed, sharesProcessed, amountProcessed, unprocessedIndex);
     }
 
     /**
@@ -157,9 +160,9 @@ contract TrancheVault is
      * which will cause a permanent loss and we cannot help reverse transactions
      * or retrieve assets from the contracts.
      *
-     * @param assets the number of underlyingToken to be deposited
-     * @param receiver the address to receive the minted tranche token
-     * @return shares the number of tranche token to be minted
+     * @param assets The number of underlyingToken to be deposited
+     * @param receiver The address to receive the minted tranche token
+     * @return shares The number of tranche token to be minted
      */
     function deposit(uint256 assets, address receiver) external returns (uint256 shares) {
         if (assets == 0) revert Errors.zeroAmountProvided();
@@ -173,71 +176,75 @@ contract TrancheVault is
     function _deposit(uint256 assets, address receiver) internal returns (uint256 shares) {
         uint256 cap = poolConfig.getTrancheLiquidityCap(trancheIndex);
         if (assets > cap) {
-            revert Errors.exceededPoolLiquidityCap();
+            revert Errors.poolLiquidityCapExceeded();
         }
         uint96[2] memory tranches = pool.refreshPool();
-        uint256 ta = tranches[trancheIndex];
-        if (ta + assets > cap) {
-            revert Errors.exceededPoolLiquidityCap();
+        uint256 trancheAssets = tranches[trancheIndex];
+        if (trancheAssets + assets > cap) {
+            revert Errors.poolLiquidityCapExceeded();
         }
 
         if (trancheIndex == SENIOR_TRANCHE_INDEX) {
-            // validate maxRatio for senior tranche
+            // Make sure that the max senior : junior asset ratio is still valid.
             LPConfig memory lpConfig = poolConfig.getLPConfig();
-            if ((ta + assets) > tranches[JUNIOR_TRANCHE_INDEX] * lpConfig.maxSeniorJuniorRatio)
-                revert Errors.exceededMaxJuniorSeniorRatio(); // greater than max ratio
+            if ((trancheAssets + assets) > tranches[JUNIOR_TRANCHE_INDEX] * lpConfig.maxSeniorJuniorRatio)
+                revert Errors.maxSeniorJuniorRatioExceeded();
         }
 
         poolVault.deposit(msg.sender, assets);
 
-        shares = _convertToShares(assets, ta);
+        shares = _convertToShares(assets, trancheAssets);
         ERC20Upgradeable._mint(receiver, shares);
 
         tranches[trancheIndex] += uint96(assets);
-        pool.updateTranchesAssets(tranches);
+        pool.updateTrancheAssets(tranches);
 
         emit LiquidityDeposited(receiver, assets, shares);
     }
 
     /**
-     * @notice Adds Redemption assets(underlying token amount) in current Redemption request
+     * @notice Records a new redemption request.
+     * @param shares The number of shares the lender wants to redeem
      */
     function addRedemptionRequest(uint256 shares) external {
         if (shares == 0) revert Errors.zeroAmountProvided();
         poolConfig.onlyProtocolAndPoolOn();
 
-        uint256 userShares = ERC20Upgradeable.balanceOf(msg.sender);
-        if (shares > userShares) {
+        uint256 sharesBalance = ERC20Upgradeable.balanceOf(msg.sender);
+        if (shares > sharesBalance) {
             revert Errors.withdrawnAmountHigherThanBalance(); // assets is too big
         }
 
-        // update global epochId array and EpochInfo mapping
         uint256 currentEpochId = epochManager.currentEpochId();
-        EpochInfo memory currentEpochInfo = epochMap[currentEpochId];
-        if (currentEpochInfo.totalShareRequested > 0) {
-            currentEpochInfo.totalShareRequested += uint96(shares);
+        EpochInfo memory currentEpochInfo = epochInfoByEpochId[currentEpochId];
+        if (currentEpochInfo.totalSharesRequested > 0) {
+            // If the current epoch already has redemption requests, then add the new redemption request
+            // to it.
+            currentEpochInfo.totalSharesRequested += uint96(shares);
         } else {
+            // Otherwise, record the current epoch ID in `epochIds` since there are now redemption requests,
+            // and record the redemption request data in the global registry.
             epochIds.push(currentEpochId);
             currentEpochInfo.epochId = uint64(currentEpochId);
-            currentEpochInfo.totalShareRequested = uint96(shares);
+            currentEpochInfo.totalSharesRequested = uint96(shares);
         }
-        epochMap[currentEpochId] = currentEpochInfo;
+        epochInfoByEpochId[currentEpochId] = currentEpochInfo;
 
-        // update user UserRedemptionRequest array
-        UserRedemptionRequest[] storage requests = userRedemptionRequests[msg.sender];
-        uint256 length = requests.length;
-        UserRedemptionRequest memory request;
-        if (length > 0) {
-            request = requests[length - 1];
+        // Also log the redemption request in the per-lender registry.
+        RedemptionRequest[] storage requests = redemptionRequestsByLender[msg.sender];
+        uint256 numRequests = requests.length;
+        RedemptionRequest memory request;
+        if (numRequests > 0) {
+            request = requests[numRequests - 1];
         }
         if (request.epochId == currentEpochId) {
-            // add assets in current Redemption request
-            request.shareRequested += uint96(shares);
-            requests[length - 1] = request;
+            // If the request already exists, merge the new request with the existing one.
+            request.numSharesRequested += uint96(shares);
+            requests[numRequests - 1] = request;
         } else {
-            // no Redemption request, create a new one
+            // Otherwise, create a new request.
             request.epochId = uint64(currentEpochId);
-            request.shareRequested = uint96(shares);
+            request.numSharesRequested = uint96(shares);
             requests.push(request);
         }
 
@@ -247,39 +254,41 @@ contract TrancheVault is
     }
 
     /**
-     * @notice Removes Redemption assets(underlying token amount) from current Redemption request
+     * @notice Cancels a previous redemption request of the specified number of shares.
+     * @param shares The number of shares that the lender no longer wants to redeem
      */
-    function removeRedemptionRequest(uint256 shares) external {
+    function cancelRedemptionRequest(uint256 shares) external {
         if (shares == 0) revert Errors.zeroAmountProvided();
         poolConfig.onlyProtocolAndPoolOn();
 
-        UserRedemptionRequest[] storage requests = userRedemptionRequests[msg.sender];
-        uint256 length = requests.length;
-        if (length == 0) revert Errors.emptyArray();
-        uint256 lastIndex = length - 1;
-        UserRedemptionRequest memory request = requests[lastIndex];
+        RedemptionRequest[] storage requests = redemptionRequestsByLender[msg.sender];
+        uint256 numRequests = requests.length;
+        if (numRequests == 0) revert Errors.emptyArray();
+        uint256 lastIndex = numRequests - 1;
+        RedemptionRequest memory request = requests[lastIndex];
         uint256 currentEpochId = epochManager.currentEpochId();
         if (request.epochId < currentEpochId) {
-            // only remove from current Redemption request
+            // Redemption requests from previous epochs cannot be removed.
             revert Errors.notCurrentEpoch();
         }
-        if (request.shareRequested < shares) {
-            revert Errors.shareHigherThanRequested();
+        if (request.numSharesRequested < shares) {
+            revert Errors.insufficientSharesForRequest();
         }
 
-        request.shareRequested -= uint96(shares);
-        if (request.shareRequested > 0) {
+        request.numSharesRequested -= uint96(shares);
+        if (request.numSharesRequested > 0) {
             requests[lastIndex] = request;
         } else {
             delete requests[lastIndex];
         }
 
-        EpochInfo memory currentEpochInfo = epochMap[currentEpochId];
-        currentEpochInfo.totalShareRequested -= uint96(shares);
-        if (currentEpochInfo.totalShareRequested > 0) {
-            epochMap[currentEpochId] = currentEpochInfo;
+        EpochInfo memory currentEpochInfo = epochInfoByEpochId[currentEpochId];
+        currentEpochInfo.totalSharesRequested -= uint96(shares);
+        if (currentEpochInfo.totalSharesRequested > 0) {
+            epochInfoByEpochId[currentEpochId] = currentEpochInfo;
         } else {
-            delete epochMap[currentEpochId];
+            // Since we don't keep track of epochs w/o redemption requests, clean them up.
+            delete epochInfoByEpochId[currentEpochId];
             lastIndex = epochIds.length - 1;
             assert(epochIds[lastIndex] == currentEpochId);
             delete epochIds[lastIndex];
@@ -291,44 +300,46 @@ contract TrancheVault is
     }
 
     /**
-     * @notice Transfers processed underlying tokens to the user
+     * @notice Transfers the full redeemable amount to the lender
      */
     function disburse(address receiver) external {
         poolConfig.onlyProtocolAndPoolOn();
 
-        (uint256 withdrableAmount, UserDisburseInfo memory disburseInfo) = _getUserWithdrawable(
+        (uint256 withdrawableAmount, RedemptionDisbursementInfo memory disbursementInfo) = _getWithdrawableAmountForLender(
             msg.sender
         );
-        userDisburseInfos[msg.sender] = disburseInfo;
+        redemptionDisbursementInfoByLender[msg.sender] = disbursementInfo;
 
-        underlyingToken.transfer(receiver, withdrableAmount);
+        underlyingToken.transfer(receiver, withdrawableAmount);
 
-        emit UserDisbursed(msg.sender, receiver, withdrableAmount);
+        emit LenderFundDisbursed(msg.sender, receiver, withdrawableAmount);
     }
 
     /**
      * @notice Returns the withdrawable assets value of the given account
      */
     function withdrawableAssets(address account) external view returns (uint256 assets) {
-        (assets, ) = _getUserWithdrawable(account);
+        (assets, ) = _getWithdrawableAmountForLender(account);
     }
 
-    function removableRedemptionShares(address account) external view returns (uint256 shares) {
-        UserRedemptionRequest[] storage requests = userRedemptionRequests[account];
-        uint256 length = requests.length;
-        if (length > 0) {
+    /// @notice Returns the number of shares previously requested for redemption that can be cancelled.
+    /// @param account The lender's account
+    function cancellableRedemptionShares(address account) external view returns (uint256 shares) {
+        RedemptionRequest[] storage requests = redemptionRequestsByLender[account];
+        uint256 numRequests = requests.length;
+        if (numRequests > 0) {
             uint256 lastIndex = requests.length - 1;
-            UserRedemptionRequest memory request = requests[lastIndex];
-            uint256 epochId = epochManager.currentEpochId();
-            if (request.epochId == epochId) {
-                UserDisburseInfo memory disburseInfo = userDisburseInfos[account];
+            RedemptionRequest memory request = requests[lastIndex];
+            uint256 currentEpochId = epochManager.currentEpochId();
+            if (request.epochId == currentEpochId) {
+                RedemptionDisbursementInfo memory disbursementInfo = redemptionDisbursementInfoByLender[account];
                 if (
-                    disburseInfo.requestsIndex == lastIndex &&
-                    disburseInfo.partialShareProcessed > 0
+                    disbursementInfo.requestsIndex == lastIndex &&
+                    disbursementInfo.actualSharesProcessed > 0
                 ) {
                     // shares = 0;
                 } else {
-                    shares = request.shareRequested;
+                    shares = request.numSharesRequested;
                 }
             }
         }
@@ -342,12 +353,12 @@ contract TrancheVault is
         shares = _convertToShares(assets, totalAssets());
     }
 
-    function getRedemptionEpochLength() external view returns (uint256) {
+    function getNumEpochsWithRedemption() external view returns (uint256) {
         return epochIds.length;
     }
 
-    function getUserRedemptionRequestLength(address account) external view returns (uint256) {
-        return userRedemptionRequests[account].length;
+    function getNumRedemptionRequests(address account) external view returns (uint256) {
+        return redemptionRequestsByLender[account].length;
     }
 
     function _convertToShares(
@@ -361,55 +372,61 @@ contract TrancheVault is
         return supply == 0 ? _assets : (_assets * supply) / _totalAssets;
     }
 
-    function _updateUserWithdrawable(address user) internal returns (uint256 withdrableAmount) {}
+    function _updateUserWithdrawable(address user) internal returns (uint256 withdrawableAmount) {}
 
     /**
-     * @notice Calculates withdrawable amount from the last index of user Redemption request array
-     * to current processed user Redemption request
+     * @notice Calculates the amount of asset that the lender can withdraw.
+     * @param account The lender's account
+     * @return withdrawableAmount The amount of asset that the lender can withdraw
+     * @return disbursementInfo Information about the lender's last partially processed redemption request,
+     * including which request was partially processed and how many shares/amount were actually redeemed
      */
-    function _getUserWithdrawable(
-        address user
-    ) internal view returns (uint256 withdrableAmount, UserDisburseInfo memory disburseInfo) {
-        disburseInfo = userDisburseInfos[user];
-        UserRedemptionRequest[] storage requests = userRedemptionRequests[user];
-        uint256 len = epochIds.length;
-        uint256 epochIdsIndex = unprocessedIndexOfEpochIds;
-        uint256 lastEpochId = epochIdsIndex < len
+    function _getWithdrawableAmountForLender(
+        address account
+    ) internal view returns (uint256 withdrawableAmount, RedemptionDisbursementInfo memory disbursementInfo) {
+        disbursementInfo = redemptionDisbursementInfoByLender[account];
+        RedemptionRequest[] storage requests = redemptionRequestsByLender[account];
+        uint256 numEpochsWithRedemption = epochIds.length;
+        uint256 epochIdsIndex = firstUnprocessedEpochIndex;
+        uint256 firstUnprocessedEpochId = epochIdsIndex < numEpochsWithRedemption
             ? epochIds[epochIdsIndex]
-            : epochIds[len - 1] + 1;
+            : epochIds[numEpochsWithRedemption - 1] + 1;
 
-        for (uint256 i = disburseInfo.requestsIndex; i < requests.length; i++) {
-            UserRedemptionRequest memory request = requests[i];
-            if (request.epochId < lastEpochId) {
-                // Fully processed
-                EpochInfo memory epoch = epochMap[request.epochId];
+        for (uint256 i = disbursementInfo.requestsIndex; i < requests.length; i++) {
+            RedemptionRequest memory request = requests[i];
+            if (request.epochId < firstUnprocessedEpochId) {
+                // The redemption requests in the epoch have been fully processed.
+                EpochInfo memory epoch = epochInfoByEpochId[request.epochId];
                 // TODO There will be one decimal unit of rounding error here if it can't be divisible.
-                uint256 shareProcessed = (request.shareRequested * epoch.totalShareProcessed) /
-                    epoch.totalShareRequested;
-                uint256 amountProcessed = (request.shareRequested * epoch.totalAmountProcessed) /
-                    epoch.totalShareRequested;
-                if (disburseInfo.partialShareProcessed > 0) {
-                    shareProcessed -= disburseInfo.partialShareProcessed;
-                    amountProcessed -= disburseInfo.partialAmountProcessed;
-                    disburseInfo.partialShareProcessed = 0;
-                    disburseInfo.partialAmountProcessed = 0;
+                uint256 sharesProcessed = (request.numSharesRequested * epoch.totalSharesProcessed) /
+                    epoch.totalSharesRequested;
+                uint256 amountProcessed = (request.numSharesRequested * epoch.totalAmountProcessed) /
+                    epoch.totalSharesRequested;
+                if (disbursementInfo.actualSharesProcessed > 0) {
+                    sharesProcessed -= disbursementInfo.actualSharesProcessed;
+                    amountProcessed -= disbursementInfo.actualAmountProcessed;
+                    disbursementInfo.actualSharesProcessed = 0;
+                    disbursementInfo.actualAmountProcessed = 0;
                 }
 
-                withdrableAmount += shareProcessed;
-                disburseInfo.requestsIndex += 1;
-            } else if (request.epochId == lastEpochId) {
-                // partially processed
-                EpochInfo memory epoch = epochMap[request.epochId];
-                if (epoch.totalShareProcessed > 0) {
-                    uint256 shareProcessed = (request.shareRequested * epoch.totalShareProcessed) /
-                        epoch.totalShareRequested;
-                    uint256 amountProcessed = (request.shareRequested *
-                        epoch.totalAmountProcessed) / epoch.totalShareRequested;
-                    withdrableAmount += amountProcessed - disburseInfo.partialAmountProcessed;
-                    disburseInfo.partialShareProcessed = uint96(shareProcessed);
-                    disburseInfo.partialAmountProcessed = uint96(amountProcessed);
+                withdrawableAmount += sharesProcessed;
+                disbursementInfo.requestsIndex += 1;
+            } else if (request.epochId == firstUnprocessedEpochId) {
+                // The redemption requests in the epoch have been partially processed or unprocessed.
+                EpochInfo memory epoch = epochInfoByEpochId[request.epochId];
+                if (epoch.totalSharesProcessed > 0) {
+                    uint256 sharesProcessed = (request.numSharesRequested * epoch.totalSharesProcessed) /
+                        epoch.totalSharesRequested;
+                    uint256 amountProcessed = (request.numSharesRequested *
+                        epoch.totalAmountProcessed) / epoch.totalSharesRequested;
+                    withdrawableAmount += amountProcessed - disbursementInfo.actualAmountProcessed;
+                    disbursementInfo.actualSharesProcessed = uint96(sharesProcessed);
+                    disbursementInfo.actualAmountProcessed = uint96(amountProcessed);
                 }
                 break;
+            } else {
+                // It's impossible for the request epoch ID to exceed the unprocessed epoch ID.
+                assert(false);
             }
         }
     }

@@ -149,12 +149,14 @@ contract PlatformFeeManager is PoolConfigCache, IPlatformFeeManager {
         eaWithdrawable = incomes.eaIncome < eaWithdrawn ? 0 : incomes.eaIncome - eaWithdrawn;
     }
 
+    /// @notice Returns the incomes of the Huma protocol, pool owner and EA and the remaining profit
+    /// after deducting the incomes as fees.
     function _getPlatformFees(
         uint256 profit
     ) internal view returns (AccruedIncomes memory incomes, uint256 remaining) {
         AdminRnR memory adminRnR = poolConfig.getAdminRnR();
 
-        uint256 income = (humaConfig.protocolFee() * profit) / HUNDRED_PERCENT_IN_BPS;
+        uint256 income = (humaConfig.protocolFeeInBps() * profit) / HUNDRED_PERCENT_IN_BPS;
         incomes.protocolIncome = uint96(income);
 
         remaining = profit - income;
@@ -166,5 +168,6 @@ contract PlatformFeeManager is PoolConfigCache, IPlatformFeeManager {
         incomes.eaIncome = uint96(income);
 
         remaining -= incomes.poolOwnerIncome + incomes.eaIncome;
+        return (incomes, remaining);
     }
 }

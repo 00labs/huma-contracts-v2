@@ -21,15 +21,16 @@ interface IPool {
     /**
      * @notice Refreshes the pool data, including all active loans data,
      * profit for the pool and the asset value for different tranches.
+     * @return assets the updates assets for each tranche.
      */
-    function refreshPool() external returns (uint96[2] memory);
+    function refreshPool() external returns (uint96[2] memory assets);
 
     /**
      * @notice Submits redemption request to the pool
      */
     function submitRedemptionRequest(uint256 amounts) external;
 
-    function updateTranchesAssets(uint96[2] memory assets) external;
+    function updateTrancheAssets(uint96[2] memory assets) external;
 
     function isPoolOn() external view returns (bool status);
 }
