@@ -432,7 +432,7 @@ describe("TrancheVault Test", function () {
             });
 
             it("Should request redemption in the next epoch successfully", async function () {
-                let shares = toToken(10_000);
+                const shares = toToken(10_000);
                 let currentEpochId = await epochManagerContract.currentEpochId();
                 // console.log(`currentEpochId: ${currentEpochId}`);
                 let balance = await juniorTrancheVaultContract.balanceOf(lender.address);
