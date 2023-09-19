@@ -112,26 +112,26 @@ contract Pool is PoolConfigCache, IPool {
 
     /// Gets the on/off status of the pool
     function isPoolOn() external view returns (bool status) {
-        if (_status == PoolStatus.On) return true;
-        else return false;
+        return _status == PoolStatus.On;
     }
 
+    /// @inheritdoc IPool
     function refreshPool() external returns (uint96[2] memory assets) {
         poolConfig.onlyTrancheVaultOrEpochManager(msg.sender);
 
         (uint256 profit, uint256 loss, uint256 lossRecovery) = credit.refreshPnL();
 
-        TranchesAssets memory ta = tranchesAssets;
+        TranchesAssets memory tempTranchesAssets = tranchesAssets;
         bool lossesUpdated;
 
         if (profit > 0) {
-            assets = _distributeProfit(profit, ta);
+            assets = _distributeProfit(profit, tempTranchesAssets);
         } else {
-            assets = [ta.seniorTotalAssets, ta.juniorTotalAssets];
+            assets = [tempTranchesAssets.seniorTotalAssets, tempTranchesAssets.juniorTotalAssets];
         }
 
-        TranchesLosses memory tl = tranchesLosses;
-        uint96[2] memory losses = [tl.seniorLoss, tl.juniorLoss];
+        TranchesLosses memory tempTranchesLosses = tranchesLosses;
+        uint96[2] memory losses = [tempTranchesLosses.seniorLoss, tempTranchesLosses.juniorLoss];
         if (loss > 0) {
             (assets, losses) = _distributeLoss(loss, assets, losses);
             lossesUpdated = true;
@@ -142,15 +142,15 @@ contract Pool is PoolConfigCache, IPool {
             lossesUpdated = true;
         }
 
-        ta.seniorTotalAssets = assets[SENIOR_TRANCHE_INDEX];
-        ta.juniorTotalAssets = assets[JUNIOR_TRANCHE_INDEX];
-        ta.lastUpdatedTime = uint64(block.timestamp);
-        tranchesAssets = ta;
+        tempTranchesAssets.seniorTotalAssets = assets[SENIOR_TRANCHE_INDEX];
+        tempTranchesAssets.juniorTotalAssets = assets[JUNIOR_TRANCHE_INDEX];
+        tempTranchesAssets.lastUpdatedTime = uint64(block.timestamp);
+        tranchesAssets = tempTranchesAssets;
 
         if (lossesUpdated) {
-            tl.seniorLoss = losses[SENIOR_TRANCHE_INDEX];
-            tl.juniorLoss = losses[JUNIOR_TRANCHE_INDEX];
-            tranchesLosses = tl;
+            tempTranchesLosses.seniorLoss = losses[SENIOR_TRANCHE_INDEX];
+            tempTranchesLosses.juniorLoss = losses[JUNIOR_TRANCHE_INDEX];
+            tranchesLosses = tempTranchesLosses;
         }
 
         emit PoolAssetsRefreshed(
@@ -167,16 +167,16 @@ contract Pool is PoolConfigCache, IPool {
 
     function _distributeProfit(
         uint256 profit,
-        TranchesAssets memory ta
+        TranchesAssets memory assets
     ) internal returns (uint96[2] memory newAssets) {
         uint256 poolProfit = feeManager.distributePlatformFees(profit);
-        newAssets = [ta.seniorTotalAssets, ta.juniorTotalAssets];
+        newAssets = [assets.seniorTotalAssets, assets.juniorTotalAssets];
 
         if (poolProfit > 0) {
             newAssets = tranchesPolicy.calcTranchesAssetsForProfit(
                 poolProfit,
                 newAssets,
-                ta.lastUpdatedTime
+                assets.lastUpdatedTime
             );
         }
     }
@@ -239,21 +239,21 @@ contract Pool is PoolConfigCache, IPool {
     }
 
     function currentTranchesAssets() public view returns (uint96[2] memory assets) {
-        TranchesAssets memory ta = tranchesAssets;
-        if (block.timestamp <= ta.lastUpdatedTime) {
-            return [ta.seniorTotalAssets, ta.juniorTotalAssets];
+        TranchesAssets memory tempTranchesAssets = tranchesAssets;
+        if (block.timestamp <= tempTranchesAssets.lastUpdatedTime) {
+            return [tempTranchesAssets.seniorTotalAssets, tempTranchesAssets.juniorTotalAssets];
         }
 
-        (uint256 profit, uint256 loss, uint256 lossRecovery) = credit.getAccruedPnL();
-        assets[SENIOR_TRANCHE_INDEX] = ta.seniorTotalAssets;
-        assets[JUNIOR_TRANCHE_INDEX] = ta.juniorTotalAssets;
+        (uint256 profit, uint256 loss, uint256 lossRecovery) = credit.currentPnL();
+        assets[SENIOR_TRANCHE_INDEX] = tempTranchesAssets.seniorTotalAssets;
+        assets[JUNIOR_TRANCHE_INDEX] = tempTranchesAssets.juniorTotalAssets;
 
         if (profit > 0) {
-            assets = _calcProfitDistributions(profit, ta);
+            assets = _calcProfitDistributions(profit, tempTranchesAssets);
         }
 
-        TranchesLosses memory tl = tranchesLosses;
-        uint96[2] memory losses = [tl.seniorLoss, tl.juniorLoss];
+        TranchesLosses memory tempTranchesLosses = tranchesLosses;
+        uint96[2] memory losses = [tempTranchesLosses.seniorLoss, tempTranchesLosses.juniorLoss];
 
         if (loss > 0) {
             (assets, losses) = _calcLossDistributions(loss, assets, losses);
@@ -268,15 +268,15 @@ contract Pool is PoolConfigCache, IPool {
 
     function _calcProfitDistributions(
         uint256 profit,
-        TranchesAssets memory ta
+        TranchesAssets memory assets
     ) internal view returns (uint96[2] memory newAssets) {
         uint256 poolProfit = feeManager.calcPlatformFeeDistribution(profit);
-        newAssets = [ta.seniorTotalAssets, ta.juniorTotalAssets];
+        newAssets = [assets.seniorTotalAssets, assets.juniorTotalAssets];
         if (poolProfit > 0) {
             newAssets = tranchesPolicy.calcTranchesAssetsForProfit(
                 poolProfit,
                 newAssets,
-                ta.lastUpdatedTime
+                assets.lastUpdatedTime
             );
         }
     }

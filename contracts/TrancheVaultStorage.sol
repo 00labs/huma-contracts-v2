@@ -16,10 +16,13 @@ contract TrancheVaultStorage {
     }
 
     struct RedemptionDisbursementInfo {
-        // an index of user redemption requests array, withdrawable amounts should be calculated from this request
+        // The index of the first redemption request whose funds haven't been fully disbursed yet.
         uint64 requestsIndex;
-        uint96 partialSharesProcessed;
-        uint96 partialAmountProcessed;
+        // Since redemption requests may be only partially fulfilled, and we only keep track of the total number
+        // of shares requested, we need another mechanism to keep track of the actual
+        // number of shares and amount redeemed, hence the fields below.
+        uint96 actualSharesProcessed;
+        uint96 actualAmountProcessed;
     }
 
     IERC20 public underlyingToken;
