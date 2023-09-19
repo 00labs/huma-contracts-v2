@@ -516,13 +516,13 @@ export const PnLCalculator = {
 export function checkEpochInfo(
     epochInfo: EpochInfoStruct,
     epochId: BN,
-    totalShareRequested: BN,
-    totalShareProcessed: BN = BN.from(0),
+    totalSharesRequested: BN,
+    totalSharesProcessed: BN = BN.from(0),
     totalAmountProcessed: BN = BN.from(0),
 ): void {
     expect(epochInfo.epochId).to.equal(epochId);
-    expect(epochInfo.totalShareRequested).to.equal(totalShareRequested);
-    expect(epochInfo.totalShareProcessed).to.equal(totalShareProcessed);
+    expect(epochInfo.totalSharesRequested).to.equal(totalSharesRequested);
+    expect(epochInfo.totalSharesProcessed).to.equal(totalSharesProcessed);
     expect(epochInfo.totalAmountProcessed).to.equal(totalAmountProcessed);
 }
 

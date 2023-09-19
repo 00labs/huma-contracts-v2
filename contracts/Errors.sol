@@ -10,7 +10,7 @@ contract Errors {
     error invalidBasisPointHigherThan10000(); // 0x07982d85
     error withdrawnAmountHigherThanBalance(); // 0x477c0ab2
     error allowanceTooLow(); // 0xcd8ef369
-    error shareHigherThanRequested();
+    error insufficientSharesForRequest();
     error insufficientTotalBalance();
     error lessThanRequiredCover();
     error emptyArray();
@@ -30,7 +30,7 @@ contract Errors {
     error notPoolOwnerTreasuryOrEA(); // 0xc74cb44c
     error notPauser(); // 0xdcdea7c8
     error notPool(); // 0x26d29bbf
-    error drawdownFunctionUsedInsteadofDrawdownWithReceivable(); // 0x7e737537
+    error drawdownFunctionUsedInsteadOfDrawdownWithReceivable(); // 0x7e737537
     error notNFTOwner(); // 0x091a5762
     error notProcessor(); // 0x90409ca1
     error notBorrower();
@@ -61,9 +61,9 @@ contract Errors {
     error poolIsNotOn(); // 0x69b355df
 
     // tranche operation
-    error exceededPoolLiquidityCap(); // 0x5642ebd4
+    error poolLiquidityCapExceeded(); // 0x5642ebd4
     error withdrawTooSoon(); // 0x67982472
-    error exceededMaxJuniorSeniorRatio();
+    error maxSeniorJuniorRatioExceeded();
     error invalidTrancheIndex();
     error closeTooSoon();
 

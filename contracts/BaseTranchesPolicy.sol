@@ -22,6 +22,7 @@ abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
         newAssets[SENIOR_TRANCHE_INDEX] = uint96(assets[SENIOR_TRANCHE_INDEX] - seniorLoss);
         newLosses[JUNIOR_TRANCHE_INDEX] = uint96(juniorLoss);
         newLosses[SENIOR_TRANCHE_INDEX] = uint96(seniorLoss);
+        return (newAssets, newLosses);
     }
 
     function calcTranchesAssetsForLossRecovery(

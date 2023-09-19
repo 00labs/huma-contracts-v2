@@ -489,7 +489,7 @@ describe("EpochManager Test", function () {
             .withArgs(lastEpoch.id.toNumber() + 1, endTime);
 
         expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(2);
-        expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(2);
+        expect(await seniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(2);
         expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
             seniorTotalAssets.sub(partialPaid),
         );
@@ -806,7 +806,7 @@ describe("EpochManager Test", function () {
             .withArgs(lastEpoch.id.toNumber() + 1, endTime);
 
         expect((await juniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(3);
-        expect(await juniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(1);
+        expect(await juniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(1);
         expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
             juniorTotalAssets.sub(partialPaid),
         );
@@ -868,16 +868,16 @@ describe("EpochManager Test", function () {
             seniorBalance.add(withdrawalShares),
         );
 
-        let epoch = await seniorTrancheVaultContract.epochMap(1);
+        let epoch = await seniorTrancheVaultContract.epochInfoByEpochId(1);
         checkEpochInfo(epoch, BN.from(1), withdrawalShares, withdrawalShares, withdrawalShares);
-        epoch = await juniorTrancheVaultContract.epochMap(1);
+        epoch = await juniorTrancheVaultContract.epochInfoByEpochId(1);
         checkEpochInfo(epoch, BN.from(1), withdrawalShares, withdrawalShares, withdrawalShares);
 
         expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(0);
         expect((await juniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(0);
 
-        expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(1);
-        expect(await juniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(1);
+        expect(await seniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(1);
+        expect(await juniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(1);
     });
 
     it("Should close epoch successfully while processing multi epochs, \
@@ -1040,9 +1040,9 @@ describe("EpochManager Test", function () {
             .withArgs(lastEpoch.id.toNumber() + 1, endTime);
 
         expect((await juniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(0);
-        expect(await juniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(3);
+        expect(await juniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(3);
         expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(0);
-        expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(3);
+        expect(await seniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(3);
         expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
             juniorTotalAssets.sub(allSharesJ),
         );
@@ -1107,9 +1107,9 @@ describe("EpochManager Test", function () {
             .withArgs(lastEpoch.id.toNumber() + 1, endTime);
 
         expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(0);
-        expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(1);
+        expect(await seniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(1);
         expect((await juniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(1);
-        expect(await juniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(0);
+        expect(await juniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(0);
         expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
             seniorTotalAssets.sub(paidS),
         );
@@ -1162,9 +1162,9 @@ describe("EpochManager Test", function () {
             .withArgs(lastEpoch.id.toNumber() + 1, endTime);
 
         expect((await juniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(0);
-        expect(await juniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(2);
+        expect(await juniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(2);
         expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(0);
-        expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(1);
+        expect(await seniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(1);
         expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
             juniorTotalAssets.sub(paidJ),
         );
@@ -1255,9 +1255,9 @@ describe("EpochManager Test", function () {
             .withArgs(lastEpoch.id.toNumber() + 1, endTime);
 
         expect((await juniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(2);
-        expect(await juniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(2);
+        expect(await juniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(2);
         expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(0);
-        expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(3);
+        expect(await seniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(3);
         expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
             juniorTotalAssets.sub(paidJ),
         );
@@ -1308,7 +1308,7 @@ describe("EpochManager Test", function () {
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
 
             expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(0);
-            expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(1);
+            expect(await seniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(1);
             expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
                 seniorTotalAssets.sub(shares),
             );
@@ -1553,7 +1553,7 @@ describe("EpochManager Test", function () {
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
 
             expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(2);
-            expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(2);
+            expect(await seniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(2);
             expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
                 seniorTotalAssets.sub(partialPaid),
             );
@@ -1593,7 +1593,7 @@ describe("EpochManager Test", function () {
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
 
             expect((await juniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(0);
-            expect(await juniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(1);
+            expect(await juniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(1);
             expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
                 juniorTotalAssets.sub(shares),
             );
@@ -1873,7 +1873,7 @@ describe("EpochManager Test", function () {
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
 
             expect((await juniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(3);
-            expect(await juniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(1);
+            expect(await juniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(1);
             expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
                 juniorTotalAssets.sub(partialPaid),
             );
@@ -1930,9 +1930,9 @@ describe("EpochManager Test", function () {
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
 
             expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(1);
-            expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(0);
+            expect(await seniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(0);
             expect((await juniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(1);
-            expect(await juniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(0);
+            expect(await juniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(0);
             expect(await seniorTrancheVaultContract.totalAssets()).to.equal(seniorTotalAssets);
             expect(await juniorTrancheVaultContract.totalAssets()).to.equal(juniorTotalAssets);
 
@@ -1980,9 +1980,9 @@ describe("EpochManager Test", function () {
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
 
             expect((await juniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(0);
-            expect(await juniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(2);
+            expect(await juniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(2);
             expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(0);
-            expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(2);
+            expect(await seniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(2);
             expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
                 juniorTotalAssets.sub(unprocessedJ),
             );
@@ -2045,9 +2045,9 @@ describe("EpochManager Test", function () {
             unprocessedS = unprocessedS.sub(paidS);
 
             expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(1);
-            expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(0);
+            expect(await seniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(0);
             expect((await juniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(1);
-            expect(await juniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(0);
+            expect(await juniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(0);
             expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
                 seniorTotalAssets.sub(paidS),
             );
@@ -2091,9 +2091,9 @@ describe("EpochManager Test", function () {
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
 
             expect((await juniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(2);
-            expect(await juniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(0);
+            expect(await juniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(0);
             expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(2);
-            expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(0);
+            expect(await seniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(0);
             expect(await juniorTrancheVaultContract.totalAssets()).to.equal(juniorTotalAssets);
             expect(await seniorTrancheVaultContract.totalAssets()).to.equal(seniorTotalAssets);
 
@@ -2135,9 +2135,9 @@ describe("EpochManager Test", function () {
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
 
             expect((await juniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(3);
-            expect(await juniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(0);
+            expect(await juniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(0);
             expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(3);
-            expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(0);
+            expect(await seniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(0);
             expect(await juniorTrancheVaultContract.totalAssets()).to.equal(juniorTotalAssets);
             expect(await seniorTrancheVaultContract.totalAssets()).to.equal(seniorTotalAssets);
 
@@ -2184,9 +2184,9 @@ describe("EpochManager Test", function () {
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
 
             expect((await juniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(0);
-            expect(await juniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(4);
+            expect(await juniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(4);
             expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(0);
-            expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(4);
+            expect(await seniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(4);
             expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
                 juniorTotalAssets.sub(unprocessedJ),
             );
@@ -2263,9 +2263,9 @@ describe("EpochManager Test", function () {
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
 
             expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(1);
-            expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(0);
+            expect(await seniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(0);
             expect((await juniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(1);
-            expect(await juniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(0);
+            expect(await juniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(0);
             expect(await seniorTrancheVaultContract.totalAssets()).to.equal(seniorTotalAssets);
             expect(await juniorTrancheVaultContract.totalAssets()).to.equal(juniorTotalAssets);
 
@@ -2300,9 +2300,9 @@ describe("EpochManager Test", function () {
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
 
             expect((await juniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(1);
-            expect(await juniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(0);
+            expect(await juniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(0);
             expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(1);
-            expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(0);
+            expect(await seniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(0);
             expect(await juniorTrancheVaultContract.totalAssets()).to.equal(juniorTotalAssets);
             expect(await seniorTrancheVaultContract.totalAssets()).to.equal(seniorTotalAssets);
 
@@ -2356,9 +2356,9 @@ describe("EpochManager Test", function () {
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
 
             expect((await juniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(2);
-            expect(await juniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(0);
+            expect(await juniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(0);
             expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(1);
-            expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(1);
+            expect(await seniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(1);
             expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
                 juniorTotalAssets.sub(processedJ),
             );
@@ -2410,9 +2410,9 @@ describe("EpochManager Test", function () {
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
 
             expect((await juniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(3);
-            expect(await juniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(0);
+            expect(await juniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(0);
             expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(2);
-            expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(1);
+            expect(await seniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(1);
             expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
                 juniorTotalAssets.sub(processedJ),
             );
@@ -2488,9 +2488,9 @@ describe("EpochManager Test", function () {
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
 
             expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(1);
-            expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(0);
+            expect(await seniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(0);
             expect((await juniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(1);
-            expect(await juniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(0);
+            expect(await juniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(0);
             expect(await seniorTrancheVaultContract.totalAssets()).to.equal(seniorTotalAssets);
             expect(await juniorTrancheVaultContract.totalAssets()).to.equal(juniorTotalAssets);
 
@@ -2528,9 +2528,9 @@ describe("EpochManager Test", function () {
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
 
             expect((await juniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(1);
-            expect(await juniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(0);
+            expect(await juniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(0);
             expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(1);
-            expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(0);
+            expect(await seniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(0);
             expect(await juniorTrancheVaultContract.totalAssets()).to.equal(juniorTotalAssets);
             expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
                 seniorTotalAssets.sub(paidS),
@@ -2583,9 +2583,9 @@ describe("EpochManager Test", function () {
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
 
             expect((await juniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(1);
-            expect(await juniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(1);
+            expect(await juniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(1);
             expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(0);
-            expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(2);
+            expect(await seniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(2);
             expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
                 juniorTotalAssets.sub(processedJ).sub(paidJ),
             );
@@ -2636,9 +2636,9 @@ describe("EpochManager Test", function () {
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
 
             expect((await juniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(1);
-            expect(await juniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(2);
+            expect(await juniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(2);
             expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(0);
-            expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(3);
+            expect(await seniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(3);
             expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
                 juniorTotalAssets.sub(paidJ),
             );
@@ -2706,9 +2706,9 @@ describe("EpochManager Test", function () {
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
 
             expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(1);
-            expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(0);
+            expect(await seniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(0);
             expect((await juniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(1);
-            expect(await juniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(0);
+            expect(await juniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(0);
             expect(await seniorTrancheVaultContract.totalAssets()).to.equal(seniorTotalAssets);
             expect(await juniorTrancheVaultContract.totalAssets()).to.equal(juniorTotalAssets);
 
@@ -2761,9 +2761,9 @@ describe("EpochManager Test", function () {
                 .withArgs(lastEpoch.id.toNumber() + 1, endTime);
 
             expect((await juniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(2);
-            expect(await juniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(0);
+            expect(await juniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(0);
             expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(0);
-            expect(await seniorTrancheVaultContract.unprocessedIndexOfEpochIds()).to.equal(2);
+            expect(await seniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(2);
             expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
                 juniorTotalAssets.sub(processedJ),
             );

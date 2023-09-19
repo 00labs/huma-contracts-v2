@@ -2,14 +2,14 @@
 pragma solidity ^0.8.0;
 
 /**
- * @notice ICreditManager provides functions about fees.
+ * @notice IPlatformFeeManager provides functions about fees.
  */
 
 interface IPlatformFeeManager {
     function distributePlatformFees(uint256 profit) external returns (uint256 remaining);
 
     /**
-     * @notice Gets remaining profit after deducting various fees
+     * @notice Returns the remaining profit after deducting various fees
      */
     function calcPlatformFeeDistribution(uint256 profit) external view returns (uint256 remaining);
 

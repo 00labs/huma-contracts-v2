@@ -8,16 +8,21 @@ import {IEpochManager} from "./interfaces/IEpochManager.sol";
 import {EpochInfo} from "./interfaces/IEpoch.sol";
 
 contract TrancheVaultStorage {
-    struct UserRedemptionRequest {
-        uint64 epochId; // the epochId of EpochInfo
-        uint96 shareRequested; // the requested shares to redeem
+    struct RedemptionRequest {
+        // The ID of the epoch where this redemption request was submitted
+        uint64 epochId;
+        // The number of shares requested for redemption
+        uint96 numSharesRequested;
     }
 
-    struct UserDisburseInfo {
-        // an index of user redemption requests array, withdrawable amounts should be calculated from this request
+    struct RedemptionDisbursementInfo {
+        // The index of the first redemption request whose funds haven't been fully disbursed yet.
         uint64 requestsIndex;
-        uint96 partialShareProcessed;
-        uint96 partialAmountProcessed;
+        // Since redemption requests may be only partially fulfilled, and we only keep track of the total number
+        // of shares requested, we need another mechanism to keep track of the actual
+        // number of shares and amount redeemed, hence the fields below.
+        uint96 actualSharesProcessed;
+        uint96 actualAmountProcessed;
     }
 
     IERC20 public underlyingToken;
@@ -25,14 +30,21 @@ contract TrancheVaultStorage {
     IPoolVault public poolVault;
     IEpochManager public epochManager;
     uint8 internal _decimals;
-    uint8 public trancheIndex; // senior index or junior index
+    // Senior or junior tranche index
+    uint8 public trancheIndex;
 
-    uint256[] public epochIds; // the epoch id array
-    mapping(uint256 => EpochInfo) public epochMap; // key is epochId
-    uint256 public unprocessedIndexOfEpochIds; // the index of the epoch id from which is not fully processed
+    // The IDs of all epochs where there is at least one redemption request.
+    // Note that the index may not be contiguous: if there is no redemption request then the ID won't be recorded
+    // in this array.
+    uint256[] public epochIds;
+    mapping(uint256 => EpochInfo) public epochInfoByEpochId;
+    // The index of the epoch ID whose corresponding epoch is unprocessed/partially processed.
+    // We cache the index so that we don't have to traverse through all epoch IDs to figure out which ones
+    // haven't been fully processed yet.
+    uint256 public firstUnprocessedEpochIndex;
 
-    mapping(address => UserRedemptionRequest[]) public userRedemptionRequests; // user redemption request array
-    mapping(address => UserDisburseInfo) public userDisburseInfos;
+    mapping(address => RedemptionRequest[]) public redemptionRequestsByLender;
+    mapping(address => RedemptionDisbursementInfo) public redemptionDisbursementInfoByLender;
 
     /**
      * @dev This empty reserved space is put in place to allow future versions to add new

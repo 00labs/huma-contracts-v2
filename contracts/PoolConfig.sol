@@ -34,8 +34,9 @@ struct PoolSettings {
     uint16 defaultGracePeriodInCalendarUnit;
     // percentage of the receivable amount applied towards available credit
     uint16 advanceRateInBps;
-    // The duration between a capital withdraw request and capital availability, in the unit of full CycleType.
-    uint8 flexCallWindowInEpoch;
+    // The duration between a capital withdrawal request and capital availability, in the unit of epochs.
+    // For example, if flexCallWindowInEpoch = 2, then a withdrawal request will be processed 2 epochs from now.
+    uint8 flexCallWindowInEpochs;
     // if the pool is exclusive to one borrower
     bool singleBorrower;
     // if the dues are combined into one credit if the borrower has multiple receivables
@@ -446,7 +447,7 @@ contract PoolConfig is AccessControl, Initializable {
         if (windowInEpoch == 0) revert Errors.zeroAmountProvided();
         PoolSettings memory _settings = _poolSettings;
         _settings.flexCreditEnabled = enabled;
-        _settings.flexCallWindowInEpoch = uint8(windowInEpoch);
+        _settings.flexCallWindowInEpochs = uint8(windowInEpoch);
         _poolSettings = _settings;
         // TODO emit event
     }
