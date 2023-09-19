@@ -396,7 +396,7 @@ contract TrancheVault is
             RedemptionRequest memory request = requests[i];
             if (request.epochId < firstUnprocessedEpochId) {
                 // The redemption requests in the epoch have been fully processed.
-                EpochRedemptionSummary memory epoch = epochRedemptionSummaryByEpochId[request.epochId];
+                EpochInfo memory epoch = epochInfoByEpochId[request.epochId];
                 // TODO There will be one decimal unit of rounding error here if it can't be divisible.
                 uint256 sharesProcessed = (request.numSharesRequested * epoch.totalSharesProcessed) /
                     epoch.totalSharesRequested;
@@ -409,11 +409,11 @@ contract TrancheVault is
                     disbursementInfo.actualAmountProcessed = 0;
                 }
 
-                withdrawableAmount += amountProcessed;
+                withdrawableAmount += sharesProcessed;
                 disbursementInfo.requestsIndex += 1;
             } else if (request.epochId == firstUnprocessedEpochId) {
                 // The redemption requests in the epoch have been partially processed or unprocessed.
-                EpochRedemptionSummary memory epoch = epochRedemptionSummaryByEpochId[request.epochId];
+                EpochInfo memory epoch = epochInfoByEpochId[request.epochId];
                 if (epoch.totalSharesProcessed > 0) {
                     uint256 sharesProcessed = (request.numSharesRequested * epoch.totalSharesProcessed) /
                         epoch.totalSharesRequested;
