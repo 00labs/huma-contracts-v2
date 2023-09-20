@@ -76,17 +76,6 @@ struct LPConfig {
     uint16 tranchesRiskAdjustmentInBps;
 }
 
-struct FirstLossCoverConfig {
-    // percentage of the pool cap required to be covered by first loss cover
-    uint16 poolCapCoverageInBps;
-    // percentage of the pool value required to be covered by first loss cover
-    uint16 poolValueCoverageInBps;
-    // The percentage of a default to be paid by the first loss cover
-    uint16 coverRateInBps;
-    // The max amount that first loss cover can spend on one default
-    uint96 coverCap;
-}
-
 struct FrontLoadingFeesStructure {
     // Part of platform fee, charged as a flat amount when a borrow happens
     uint96 frontLoadingFeeFlat;
@@ -120,8 +109,6 @@ contract PoolConfig is AccessControl, Initializable {
     address public juniorTranche;
     address public tranchesPolicy;
     address public epochManager;
-    address public poolOwnerOrEAFirstLossCover;
-    address[] internal _firstLossCovers;
     address public credit;
     address public platformFeeManager;
     address public calendar;
@@ -139,10 +126,14 @@ contract PoolConfig is AccessControl, Initializable {
 
     uint256 public evaluationAgentId;
 
+    address[16] internal _firstLossCovers;
+    // _riskYieldMultipliers is used to adjust the yield of first loss cover with _firstLossCover
+    // uint16[16] is just on slot, 16 is the max count of first loss cover array, it is enough for now
+    uint16[16] internal _riskYieldMultipliers;
+
     PoolSettings internal _poolSettings;
     LPConfig internal _lpConfig;
     AdminRnR internal _adminRnR;
-    FirstLossCoverConfig internal _firstLossCoverConfig;
     FrontLoadingFeesStructure internal _frontFees;
     FeeStructure internal _feeStructure;
 
@@ -202,13 +193,6 @@ contract PoolConfig is AccessControl, Initializable {
         uint16 tranchesRiskAdjustmentInBps,
         address by
     );
-    event FirstLossCoverConfigChanged(
-        uint16 poolCapCoverageInBps,
-        uint16 poolValueCoverageInBps,
-        uint16 coverRateInBps,
-        uint96 coverCap,
-        address by
-    );
     event FrontLoadingFeesChanged(
         uint96 frontLoadingFeeFlat,
         uint16 frontLoadingFeeBps,
@@ -233,18 +217,17 @@ contract PoolConfig is AccessControl, Initializable {
      * @param _contracts The addresses of the contracts that are used by the pool
      *   _contracts[0]: address of HumaConfig
      *   _contracts[1]: address of underlyingToken
-     *   _contracts[2]: address of platformFeeManager
-     *   _contracts[3]: address of poolVault
-     *   _contracts[4]: address of calendar
-     *   _contracts[5]: address of poolOwnerOrEAFirstLossCover
+     *   _contracts[2]: address of calendar
+     *   _contracts[3]: address of pool
+     *   _contracts[4]: address of poolVault
+     *   _contracts[5]: address of platformFeeManager
      *   _contracts[6]: address of tranchesPolicy
-     *   _contracts[7]: address of pool
-     *   _contracts[8]: address of epochManager
-     *   _contracts[9]: address of seniorTranche
-     *   _contracts[10]: address of juniorTranche
-     *   _contracts[11]: address of credit
-     *   _contracts[12]: address of creditFeeManager
-     *   _contracts[13]: address of creditPnLManager
+     *   _contracts[7]: address of epochManager
+     *   _contracts[8]: address of seniorTranche
+     *   _contracts[9]: address of juniorTranche
+     *   _contracts[10]: address of credit
+     *   _contracts[11]: address of creditFeeManager
+     *   _contracts[12]: address of creditPnLManager
      */
 
     function initialize(
@@ -265,20 +248,20 @@ contract PoolConfig is AccessControl, Initializable {
         underlyingToken = addr;
 
         addr = _contracts[2];
-        if (_contracts[2] == address(0)) revert Errors.zeroAddressProvided();
-        platformFeeManager = _contracts[2];
-
-        addr = _contracts[3];
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
-        poolVault = addr;
-
-        addr = _contracts[4];
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         calendar = addr;
 
+        addr = _contracts[3];
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        pool = addr;
+
+        addr = _contracts[4];
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        poolVault = addr;
+
         addr = _contracts[5];
         if (addr == address(0)) revert Errors.zeroAddressProvided();
-        poolOwnerOrEAFirstLossCover = addr;
+        platformFeeManager = addr;
 
         addr = _contracts[6];
         if (addr == address(0)) revert Errors.zeroAddressProvided();
@@ -286,29 +269,25 @@ contract PoolConfig is AccessControl, Initializable {
 
         addr = _contracts[7];
         if (addr == address(0)) revert Errors.zeroAddressProvided();
-        pool = addr;
+        epochManager = addr;
 
         addr = _contracts[8];
         if (addr == address(0)) revert Errors.zeroAddressProvided();
-        epochManager = addr;
+        seniorTranche = addr;
 
         addr = _contracts[9];
         if (addr == address(0)) revert Errors.zeroAddressProvided();
-        seniorTranche = addr;
+        juniorTranche = addr;
 
         addr = _contracts[10];
         if (addr == address(0)) revert Errors.zeroAddressProvided();
-        juniorTranche = addr;
+        credit = addr;
 
         addr = _contracts[11];
         if (addr == address(0)) revert Errors.zeroAddressProvided();
-        credit = addr;
-
-        addr = _contracts[12];
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
         creditFeeManager = addr;
 
-        addr = _contracts[13];
+        addr = _contracts[12];
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         creditPnLManager = addr;
 
@@ -409,8 +388,11 @@ contract PoolConfig is AccessControl, Initializable {
 
         // Make sure the new EA has met the liquidity requirements
         if (IPool(pool).isPoolOn()) {
-            if (!IFirstLossCover(poolOwnerOrEAFirstLossCover).isSufficient(agent))
-                revert Errors.lessThanRequiredCover();
+            if (
+                !IFirstLossCover(_firstLossCovers[AFFILIATE_FIRST_LOSS_COVER_INDEX]).isSufficient(
+                    agent
+                )
+            ) revert Errors.lessThanRequiredCover();
         }
 
         evaluationAgent = agent;
@@ -554,18 +536,16 @@ contract PoolConfig is AccessControl, Initializable {
         emit CreditChanged(_credit, msg.sender);
     }
 
-    function setFirstLossCovers(address[] calldata firstLossCovers) external {
+    function setFirstLossCover(
+        uint8 index,
+        address firstLossCover,
+        uint16 riskYieldMultiplier
+    ) external {
         _onlyOwnerOrHumaMasterAdmin();
-        for (uint256 i = 0; i < firstLossCovers.length; i++) {
-            _firstLossCovers.push(firstLossCovers[i]);
-        }
-        emit FirstLossCoversChanged(firstLossCovers, msg.sender);
-    }
-
-    function setPoolOwnerOrEAFirstLossCover(address cover) external {
-        _onlyOwnerOrHumaMasterAdmin();
-        poolOwnerOrEAFirstLossCover = cover;
-        // TODO emit event
+        _firstLossCovers[index] = firstLossCover;
+        _riskYieldMultipliers[index] = riskYieldMultiplier;
+        _firstLossCoverProfitEscrowMap[firstLossCover] = profitEscrow;
+        // todo emit event
     }
 
     function setCalendar(address _calendar) external {
@@ -651,12 +631,24 @@ contract PoolConfig is AccessControl, Initializable {
     /**
      * @notice Checks to make sure both EA and pool owner treasury meet the pool's first loss cover requirements
      */
-    function checkFirstLossCoverRequirement() public view {
-        if (!IFirstLossCover(poolOwnerOrEAFirstLossCover).isSufficient(poolOwnerTreasury))
-            revert Errors.lessThanRequiredCover();
+    function checkFirstLossCoverRequirementForAdmin() public view {
+        IFirstLossCover firstLossCover = IFirstLossCover(
+            _firstLossCovers[AFFILIATE_FIRST_LOSS_COVER_INDEX]
+        );
+        if (!firstLossCover.isSufficient(poolOwnerTreasury)) revert Errors.lessThanRequiredCover();
+        if (!firstLossCover.isSufficient(evaluationAgent)) revert Errors.lessThanRequiredCover();
+    }
 
-        if (!IFirstLossCover(poolOwnerOrEAFirstLossCover).isSufficient(evaluationAgent))
-            revert Errors.lessThanRequiredCover();
+    /// When the pool owner treasury or EA wants to withdraw liquidity from the pool,
+    /// checks to make sure 1. first loss cover liquidity meets the requirement
+    ///                TODO 2. the remaining liquidity meets the pool's requirements
+    function checkWithdrawLiquidityRequirementForAdmin(address lender) public view {
+        IFirstLossCover firstLossCover = IFirstLossCover(
+            _firstLossCovers[AFFILIATE_FIRST_LOSS_COVER_INDEX]
+        );
+        if (lender == evaluationAgent || lender == poolOwnerTreasury) {
+            if (!firstLossCover.isSufficient(lender)) revert Errors.lessThanRequiredCover();
+        }
     }
 
     function checkLiquidityRequirementForPoolOwner(uint256 balance) public view {
@@ -725,12 +717,16 @@ contract PoolConfig is AccessControl, Initializable {
         return _adminRnR;
     }
 
-    function getFirstLossCoverConfig() external view returns (FirstLossCoverConfig memory) {
-        return _firstLossCoverConfig;
+    function getFirstLossCovers() external view returns (address[16] memory) {
+        return _firstLossCovers;
     }
 
-    function getFirstLossCovers() external view returns (address[] memory) {
-        return _firstLossCovers;
+    function getFirstLossCover(uint256 index) external view returns (address) {
+        return _firstLossCovers[index];
+    }
+
+    function getRiskYieldMultipliers() external view returns (uint16[16] memory) {
+        return _riskYieldMultipliers;
     }
 
     function getPoolSettings() external view returns (PoolSettings memory) {
@@ -800,6 +796,49 @@ contract PoolConfig is AccessControl, Initializable {
         }
     }
 
+    /// "Modifier" function that limits access to pool owner or Huma protocol owner
+    function _onlyOwnerOrHumaMasterAdmin() internal view {
+        onlyOwnerOrHumaMasterAdmin(msg.sender);
+    }
+
+    function getFrontLoadingFee() external view returns (uint256, uint256) {
+        return (_frontFees.frontLoadingFeeFlat, _frontFees.frontLoadingFeeBps);
+    }
+
+    /**
+     * @notice Gets the fee structure for the pool
+     */
+    function getFees()
+        external
+        view
+        virtual
+        returns (uint256 _lateFeeFlat, uint256 _lateFeeBps, uint256 _membershipFee)
+    {
+        return (_feeStructure.lateFeeFlat, _feeStructure.lateFeeBps, _feeStructure.membershipFee);
+    }
+
+    function getMinPrincipalRateInBps() external view virtual returns (uint256 _minPrincipalRate) {
+        return _feeStructure.minPrincipalRateInBps;
+    }
+
+    function setLPConfig(LPConfig calldata lpConfig) external {
+        _onlyOwnerOrHumaMasterAdmin();
+        _lpConfig = lpConfig;
+        // todo emit event
+    }
+
+    function setFrontLoadingFees(FrontLoadingFeesStructure calldata frontFees) external {
+        _onlyOwnerOrHumaMasterAdmin();
+        _frontFees = frontFees;
+        // todo emit event
+    }
+
+    function setFees(FeeStructure calldata feeStructure) external {
+        _onlyOwnerOrHumaMasterAdmin();
+        _feeStructure = feeStructure;
+        // todo emit event
+    }
+
     function onlyEpochManager(address account) external view {
         if (account != epochManager) revert Errors.notEpochManager();
     }
@@ -816,8 +855,10 @@ contract PoolConfig is AccessControl, Initializable {
         bool valid;
         if (account == seniorTranche || account == juniorTranche || account == credit) return;
         uint256 len = _firstLossCovers.length;
+        // console.log("account: %s, len: %s", account, len);
         for (uint256 i; i < len; i++) {
-            if (account == _firstLossCovers[i]) return;
+            // console.log("i: %s, _firstLossCovers[i]: %s", i, address(_firstLossCovers[i]));
+            if (account == address(_firstLossCovers[i])) return;
         }
 
         if (!valid) revert Errors.notTrancheVaultOrFirstLossCoverOrCredit();
@@ -835,6 +876,11 @@ contract PoolConfig is AccessControl, Initializable {
 
     function onlyPoolOperator(address account) external view {
         if (!hasRole(POOL_OPERATOR_ROLE, account)) revert Errors.poolOperatorRequired();
+    }
+
+    function onlyTrancheVault(address trancheVault) external view {
+        if (trancheVault != seniorTranche && trancheVault != juniorTranche)
+            revert Errors.notTrancheVault();
     }
 
     /**

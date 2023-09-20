@@ -9,6 +9,7 @@ import {ICreditFeeManager} from "./utils/interfaces/ICreditFeeManager.sol";
 import {ICalendar} from "./interfaces/ICalendar.sol";
 import {IPnLManager} from "./interfaces/IPnLManager.sol";
 import {IPoolVault} from "../interfaces/IPoolVault.sol";
+import {IFirstLossCover} from "../interfaces/IFirstLossCover.sol";
 
 contract BaseCreditStorage {
     HumaConfig internal _humaConfig;
@@ -19,6 +20,7 @@ contract BaseCreditStorage {
     ICalendar public calendar;
     IPnLManager public pnlManager;
     IPoolVault public poolVault;
+    IFirstLossCover public firstLossCover;
 
     PnLTracker public pnlTracker;
 

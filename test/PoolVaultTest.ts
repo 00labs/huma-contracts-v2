@@ -42,7 +42,8 @@ let poolConfigContract: PoolConfig,
     platformFeeManagerContract: PlatformFeeManager,
     poolVaultContract: PoolVault,
     calendarContract: Calendar,
-    poolOwnerAndEAFirstLossCoverContract: FirstLossCover,
+    borrowerFirstLossCoverContract: FirstLossCover,
+    affiliateFeeManagerContract: FirstLossCover,
     tranchesPolicyContract: RiskAdjustedTranchesPolicy,
     poolContract: Pool,
     epochManagerContract: EpochManager,
@@ -82,7 +83,8 @@ describe("PoolVault Test", function () {
             platformFeeManagerContract,
             poolVaultContract,
             calendarContract,
-            poolOwnerAndEAFirstLossCoverContract,
+            borrowerFirstLossCoverContract,
+            affiliateFeeManagerContract,
             tranchesPolicyContract,
             poolContract,
             epochManagerContract,
@@ -121,7 +123,7 @@ describe("PoolVault Test", function () {
             await mockTokenContract.mint(lender.address, amount);
             await mockTokenContract
                 .connect(lender)
-                .approve(poolOwnerAndEAFirstLossCoverContract.address, amount);
+                .approve(affiliateFeeManagerContract.address, amount);
 
             const oldBalance = await poolVaultContract.totalAssets();
             await poolVaultContract.deposit(lender.address, amount);
@@ -139,7 +141,7 @@ describe("PoolVault Test", function () {
         it("Should allow first loss covers to make deposit into the vault", async function () {
             await poolConfigContract
                 .connect(poolOwner)
-                .setFirstLossCovers([defaultDeployer.address]);
+                .setFirstLossCover(0, defaultDeployer.address, 0);
             await testDeposit();
         });
 
@@ -184,7 +186,7 @@ describe("PoolVault Test", function () {
         it("Should allow first loss covers to withdraw from the vault", async function () {
             await poolConfigContract
                 .connect(poolOwner)
-                .setFirstLossCovers([defaultDeployer.address]);
+                .setFirstLossCover(0, defaultDeployer.address, 0);
             await testWithdrawal();
         });
 

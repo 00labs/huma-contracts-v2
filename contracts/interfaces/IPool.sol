@@ -39,4 +39,6 @@ interface IPool {
     function updateTranchesAssets(uint96[2] memory assets) external;
 
     function isPoolOn() external view returns (bool status);
+
+    function readyToWithdrawFirstLossCover() external view returns (bool ready);
 }

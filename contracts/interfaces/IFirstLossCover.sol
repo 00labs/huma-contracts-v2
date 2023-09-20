@@ -4,26 +4,29 @@ pragma solidity ^0.8.0;
 interface IFirstLossCover {
     /**
      * @notice Adds assets in the first loss cover
-     * @param amount the asset amount
+
      */
-    function addCover(uint256 amount) external;
+    function depositCover(uint256 assets, address receiver) external returns (uint256 shares);
 
     /**
      * @notice Withdraws excess assets from the first loss cover,
      * the left assets should meet poolCapCoverageInBps and poolValueCoverageInBps settings
-     * @param amount the asset amount
-     * @param receiver the address to receive the withdrawn assets
+
      */
-    function removeCover(uint256 amount, address receiver) external;
+    function redeemCover(uint256 shares, address receiver) external returns (uint256 assets);
+
+    function distributeProfit(uint256 profit) external;
 
     function coverLoss(uint256 poolAssets, uint256 loss) external returns (uint256 remainingLoss);
+
+    function recoverLoss(uint256 recovery) external returns (uint256 remainingRecovery);
+
+    function totalAssets() external view returns (uint256);
 
     function calcLossCover(
         uint256 poolAssets,
         uint256 loss
     ) external view returns (uint256 remainingLoss);
-
-    function recoverLoss(uint256 recovery) external returns (uint256 remainingRecovery);
 
     function calcLossRecover(uint256 recovery) external view returns (uint256 remainingRecovery);
 

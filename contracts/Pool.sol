@@ -27,8 +27,7 @@ contract Pool is PoolConfigCache, IPool {
 
     IPoolVault public poolVault;
     ITranchesPolicy public tranchesPolicy;
-    IFirstLossCover[] public firstLossCovers;
-    IFirstLossCover public poolOwnerOrEAFirstLossCover;
+    IFirstLossCover[] internal _firstLossCovers;
     IPoolCredit public credit;
     IPlatformFeeManager public feeManager;
     IEpochManager public epochManager;
@@ -44,8 +43,11 @@ contract Pool is PoolConfigCache, IPool {
     // Whether the pool is ON or OFF
     PoolStatus internal _status;
 
+    bool public readyToWithdrawFirstLossCover;
+
     event PoolDisabled(address indexed by);
     event PoolEnabled(address indexed by);
+    event PoolReadyToWithdrawFirstLossCover(address indexed by, bool ready);
 
     event PoolAssetsRefreshed(
         uint256 refreshedTimestamp,
@@ -75,26 +77,25 @@ contract Pool is PoolConfigCache, IPool {
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         feeManager = IPlatformFeeManager(addr);
 
-        addr = _poolConfig.poolOwnerOrEAFirstLossCover();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
-        poolOwnerOrEAFirstLossCover = IFirstLossCover(addr);
-
         addr = _poolConfig.epochManager();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         epochManager = IEpochManager(addr);
 
-        address[] memory covers = _poolConfig.getFirstLossCovers();
+        address[16] memory covers = _poolConfig.getFirstLossCovers();
         for (uint256 i = 0; i < covers.length; i++) {
-            firstLossCovers[i] = IFirstLossCover(covers[i]);
+            if (covers[i] != address(0)) _firstLossCovers.push(IFirstLossCover(covers[i]));
+            else break;
         }
     }
+
+    // TODO Add pool state and start/close functions
 
     /**
      * @notice turns on the pool. Only the pool owner or protocol owner can enable a pool.
      */
     function enablePool() external {
         poolConfig.onlyOwnerOrHumaMasterAdmin(msg.sender);
-        poolConfig.checkFirstLossCoverRequirement();
+        poolConfig.checkFirstLossCoverRequirementForAdmin();
 
         epochManager.startNewEpoch();
         _status = PoolStatus.On;
@@ -108,6 +109,12 @@ contract Pool is PoolConfigCache, IPool {
         poolConfig.onlyPoolOperator(msg.sender);
         _status = PoolStatus.Off;
         emit PoolDisabled(msg.sender);
+    }
+
+    function setReadyToWithdrawFirstLossCover(bool ready) external {
+        poolConfig.onlyOwnerOrHumaMasterAdmin(msg.sender);
+        readyToWithdrawFirstLossCover = ready;
+        emit PoolReadyToWithdrawFirstLossCover(msg.sender, ready);
     }
 
     /// Gets the on/off status of the pool
@@ -170,14 +177,58 @@ contract Pool is PoolConfigCache, IPool {
         TranchesAssets memory assets
     ) internal returns (uint96[2] memory newAssets) {
         uint256 poolProfit = feeManager.distributePlatformFees(profit);
-        newAssets = [assets.seniorTotalAssets, assets.juniorTotalAssets];
 
         if (poolProfit > 0) {
             newAssets = tranchesPolicy.calcTranchesAssetsForProfit(
                 poolProfit,
-                newAssets,
+                [assets.seniorTotalAssets, assets.juniorTotalAssets],
                 assets.lastUpdatedTime
             );
+
+            newAssets[JUNIOR_TRANCHE_INDEX] = uint96(
+                _distributeProfitForFirstLossCovers(
+                    newAssets[JUNIOR_TRANCHE_INDEX] - assets.juniorTotalAssets,
+                    assets.juniorTotalAssets
+                )
+            );
+        }
+    }
+
+    function _distributeProfitForFirstLossCovers(
+        uint256 profit,
+        uint256 juniorTotalAssets
+    ) internal returns (uint256 newJuniorTotalAssets) {
+        if (profit == 0) return juniorTotalAssets;
+        (
+            uint256 juniorProfit,
+            uint256[16] memory profitsForFirstLossCovers
+        ) = _calcProfitForFirstLossCovers(profit, juniorTotalAssets);
+        uint256 len = _firstLossCovers.length;
+        for (uint256 i; i < len && profitsForFirstLossCovers[i] > 0; i++) {
+            IFirstLossCover cover = _firstLossCovers[i];
+            cover.distributeProfit(profitsForFirstLossCovers[i]);
+        }
+        newJuniorTotalAssets = juniorTotalAssets + juniorProfit;
+    }
+
+    function _calcProfitForFirstLossCovers(
+        uint256 profit,
+        uint256 juniorTotalAssets
+    ) internal view returns (uint256 juniorProfit, uint256[16] memory profitsForFirstLossCovers) {
+        if (profit == 0) return (juniorProfit, profitsForFirstLossCovers);
+        uint16[16] memory riskYieldMultipliers = poolConfig.getRiskYieldMultipliers();
+        uint256 len = _firstLossCovers.length;
+        uint256 totalWeight = juniorTotalAssets;
+        for (uint256 i; i < len; i++) {
+            IFirstLossCover cover = _firstLossCovers[i];
+            // use profitsForFirstLossCovers to store total assets of first loss covers to save a temp array
+            profitsForFirstLossCovers[i] = cover.totalAssets() * riskYieldMultipliers[i];
+            totalWeight += profitsForFirstLossCovers[i];
+        }
+        juniorProfit = profit;
+        for (uint256 i; i < len; i++) {
+            profitsForFirstLossCovers[i] = (profit * profitsForFirstLossCovers[i]) / totalWeight;
+            juniorProfit -= profitsForFirstLossCovers[i];
         }
     }
 
@@ -188,10 +239,9 @@ contract Pool is PoolConfigCache, IPool {
     ) internal returns (uint96[2] memory newAssets, uint96[2] memory newLosses) {
         if (loss > 0) {
             uint256 poolAssets = assets[SENIOR_TRANCHE_INDEX] + assets[JUNIOR_TRANCHE_INDEX];
-            // First loss covers attempt to cover the losses first.
-            for (uint256 i; i < firstLossCovers.length && loss > 0; i++) {
-                IFirstLossCover cover = firstLossCovers[i];
-                loss = cover.coverLoss(poolAssets, loss);
+            uint256 coverCount = _firstLossCovers.length;
+            for (uint256 i; i < coverCount && loss > 0; i++) {
+                loss = _firstLossCovers[i].coverLoss(poolAssets, loss);
             }
 
             if (loss > 0) {
@@ -219,9 +269,9 @@ contract Pool is PoolConfigCache, IPool {
                 losses
             );
 
-            uint256 len = firstLossCovers.length;
+            uint256 len = _firstLossCovers.length;
             for (uint256 i = 0; i < len && lossRecovery > 0; i++) {
-                IFirstLossCover cover = firstLossCovers[len - i - 1];
+                IFirstLossCover cover = _firstLossCovers[len - i - 1];
                 lossRecovery = cover.recoverLoss(lossRecovery);
             }
         }
@@ -276,13 +326,19 @@ contract Pool is PoolConfigCache, IPool {
         TranchesAssets memory assets
     ) internal view returns (uint96[2] memory newAssets) {
         uint256 poolProfit = feeManager.calcPlatformFeeDistribution(profit);
-        newAssets = [assets.seniorTotalAssets, assets.juniorTotalAssets];
         if (poolProfit > 0) {
             newAssets = tranchesPolicy.calcTranchesAssetsForProfit(
                 poolProfit,
-                newAssets,
+                [assets.seniorTotalAssets, assets.juniorTotalAssets],
                 assets.lastUpdatedTime
             );
+
+            uint256 juniorProfit = newAssets[JUNIOR_TRANCHE_INDEX] - assets.juniorTotalAssets;
+            (juniorProfit, ) = _calcProfitForFirstLossCovers(
+                juniorProfit,
+                assets.juniorTotalAssets
+            );
+            newAssets[JUNIOR_TRANCHE_INDEX] = uint96(assets.juniorTotalAssets + juniorProfit);
         }
     }
 
@@ -294,8 +350,9 @@ contract Pool is PoolConfigCache, IPool {
         if (loss > 0) {
             // First loss cover
             uint256 poolAssets = assets[SENIOR_TRANCHE_INDEX] + assets[JUNIOR_TRANCHE_INDEX];
-            for (uint256 i; i < firstLossCovers.length && loss > 0; i++) {
-                IFirstLossCover cover = firstLossCovers[i];
+            uint256 coverCount = _firstLossCovers.length;
+            for (uint256 i; i < coverCount && loss > 0; i++) {
+                IFirstLossCover cover = _firstLossCovers[i];
                 loss = cover.calcLossCover(poolAssets, loss);
             }
             uint96[2] memory lossesDelta;
@@ -320,9 +377,9 @@ contract Pool is PoolConfigCache, IPool {
                 losses
             );
 
-            uint256 len = firstLossCovers.length;
+            uint256 len = _firstLossCovers.length;
             for (uint256 i = 0; i < len && lossRecovery > 0; i++) {
-                IFirstLossCover cover = firstLossCovers[len - i - 1];
+                IFirstLossCover cover = _firstLossCovers[len - i - 1];
                 lossRecovery = cover.calcLossRecover(lossRecovery);
             }
         }
@@ -349,5 +406,9 @@ contract Pool is PoolConfigCache, IPool {
         tempTranchesAssets.seniorTotalAssets = assets[SENIOR_TRANCHE_INDEX];
         tempTranchesAssets.juniorTotalAssets = assets[JUNIOR_TRANCHE_INDEX];
         tranchesAssets = tempTranchesAssets;
+    }
+
+    function getFirstLossCovers() external view returns (IFirstLossCover[] memory) {
+        return _firstLossCovers;
     }
 }

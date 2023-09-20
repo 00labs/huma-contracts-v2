@@ -47,6 +47,8 @@ contract PlatformFeeManager is PoolConfigCache, IPlatformFeeManager {
     function distributePlatformFees(uint256 profit) external returns (uint256) {
         poolConfig.onlyPool(msg.sender);
 
+        // TODO deposit into affiliate first loss cover before liquidity cap is reached
+
         (AccruedIncomes memory incomes, uint256 remaining) = _getPlatformFees(profit);
         AccruedIncomes memory accruedIncomes = _accruedIncomes;
 

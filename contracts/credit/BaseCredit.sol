@@ -16,6 +16,7 @@ import {CalendarUnit} from "../SharedDefs.sol";
 import {IERC20, IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {PoolConfigCache} from "../PoolConfigCache.sol";
 import {IPoolVault} from "../interfaces/IPoolVault.sol";
+import {IFirstLossCover} from "../interfaces/IFirstLossCover.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 import "hardhat/console.sol";
@@ -170,6 +171,10 @@ abstract contract BaseCredit is
         addr = _poolConfig.poolVault();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         poolVault = IPoolVault(addr);
+
+        addr = _poolConfig.getFirstLossCover(BORROWER_FIRST_LOSS_COVER_INDEX);
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        firstLossCover = IFirstLossCover(addr);
     }
 
     function _approveCredit(
@@ -537,6 +542,8 @@ abstract contract BaseCredit is
         bytes32 creditHash,
         uint256 borrowAmount
     ) internal virtual {
+        if (firstLossCover.isSufficient(borrower)) revert Errors.todo();
+
         CreditRecord memory cr = _getCreditRecord(creditHash);
         CreditConfig memory cc = _getCreditConfig(creditHash);
         _checkDrawdownEligibility(cr, borrowAmount, cc.creditLimit);

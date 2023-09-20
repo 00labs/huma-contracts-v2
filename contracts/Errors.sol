@@ -39,6 +39,7 @@ contract Errors {
     error notTrancheVaultOrFirstLossCoverOrCredit(); // 0xcd3d25f5
     error notTrancheVaultOrEpochManager(); // 0x31c76c83
     error notCurrentEpoch(); // 0x50c5dd13
+    error notTrancheVault();
 
     // system config
     error defaultGracePeriodLessThanMinAllowed(); // 0xa733ff9c
@@ -59,6 +60,7 @@ contract Errors {
     // pool state
     error protocolIsPaused(); // 0x8f6fa2d4
     error poolIsNotOn(); // 0x69b355df
+    error poolIsNotReadyToWithdrawFirstLossCover();
 
     // tranche operation
     error poolLiquidityCapExceeded(); // 0xdea32e48

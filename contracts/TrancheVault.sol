@@ -214,6 +214,8 @@ contract TrancheVault is
      * @param shares The number of shares the lender wants to redeem
      */
     function addRedemptionRequest(uint256 shares) external {
+        poolConfig.checkWithdrawLiquidityRequirementForAdmin(msg.sender);
+
         if (shares == 0) revert Errors.zeroAmountProvided();
         poolConfig.onlyProtocolAndPoolOn();
 
@@ -356,6 +358,13 @@ contract TrancheVault is
 
     function totalAssets() public view returns (uint256) {
         return pool.trancheTotalAssets(trancheIndex);
+    }
+
+    function convertToAssets(uint256 shares) public view returns (uint256 assets) {
+        uint256 tempTotalAssets = totalAssets();
+        uint256 tempTotalSupply = ERC20Upgradeable.totalSupply();
+
+        return tempTotalSupply == 0 ? shares : (shares * tempTotalAssets) / tempTotalSupply;
     }
 
     function convertToShares(uint256 assets) external view returns (uint256 shares) {

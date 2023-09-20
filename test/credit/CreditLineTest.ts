@@ -64,7 +64,8 @@ let poolConfigContract: PoolConfig,
     platformFeeManagerContract: PlatformFeeManager,
     poolVaultContract: PoolVault,
     calendarContract: Calendar,
-    poolOwnerAndEAFirstLossCoverContract: FirstLossCover,
+    borrowerFirstLossCover: FirstLossCover,
+    affiliateFeeManagerContract: FirstLossCover,
     tranchesPolicyContract: RiskAdjustedTranchesPolicy,
     poolContract: Pool,
     epochManagerContract: EpochManager,
@@ -245,7 +246,8 @@ describe("CreditLine Test", function () {
             platformFeeManagerContract,
             poolVaultContract,
             calendarContract,
-            poolOwnerAndEAFirstLossCoverContract,
+            borrowerFirstLossCover,
+            affiliateFeeManagerContract,
             tranchesPolicyContract,
             poolContract,
             epochManagerContract,
@@ -267,6 +269,24 @@ describe("CreditLine Test", function () {
             poolOperator,
             [lender, borrower, borrower2],
         );
+
+        await borrowerFirstLossCover.connect(poolOwner).setOperator(borrower.address, {
+            poolCapCoverageInBps: 1000,
+            poolValueCoverageInBps: 1000,
+        });
+
+        await borrowerFirstLossCover
+            .connect(borrower)
+            .depositCover(toToken(200_000), borrower.address);
+
+        await borrowerFirstLossCover.connect(poolOwner).setOperator(borrower2.address, {
+            poolCapCoverageInBps: 1000,
+            poolValueCoverageInBps: 1000,
+        });
+
+        await borrowerFirstLossCover
+            .connect(borrower2)
+            .depositCover(toToken(200_000), borrower2.address);
     }
 
     beforeEach(async function () {
