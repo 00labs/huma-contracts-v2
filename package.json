@@ -19,7 +19,8 @@
     "lint:fix": "eslint 'test/**/*.ts' --fix",
     "prepare": "husky install",
     "test": "hardhat test --network hardhat --typecheck",
-    "verify": "hardhat verify"
+    "verify": "hardhat verify",
+    "gen-error-ids": "hardhat run scripts/gen-error-function-ids.ts --network hardhat && prettier --write scripts/error-functions.json"
   },
   "husky": {
     "hooks": {

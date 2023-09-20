@@ -10,10 +10,10 @@ contract Errors {
     error invalidBasisPointHigherThan10000(); // 0x07982d85
     error withdrawnAmountHigherThanBalance(); // 0x477c0ab2
     error allowanceTooLow(); // 0xcd8ef369
-    error insufficientSharesForRequest();
-    error insufficientTotalBalance();
-    error lessThanRequiredCover();
-    error emptyArray();
+    error insufficientSharesForRequest(); // 0x439f3ef3
+    error insufficientTotalBalance(); // 0x300e0111
+    error lessThanRequiredCover(); // 0xd0f0d90e
+    error emptyArray(); // 0x81a5a837
 
     // security
     error permissionDeniedNotAdmin(); // 0xf2c5b6a7
@@ -30,15 +30,15 @@ contract Errors {
     error notPoolOwnerTreasuryOrEA(); // 0xc74cb44c
     error notPauser(); // 0xdcdea7c8
     error notPool(); // 0x26d29bbf
-    error drawdownFunctionUsedInsteadOfDrawdownWithReceivable(); // 0x7e737537
+    error drawdownFunctionUsedInsteadOfDrawdownWithReceivable(); // 0xf7a16c77
     error notNFTOwner(); // 0x091a5762
     error notProcessor(); // 0x90409ca1
-    error notBorrower();
-    error notEpochManager();
-    error notPlatformFeeManager();
-    error notTrancheVaultOrFirstLossCoverOrCredit();
-    error notTrancheVaultOrEpochManager();
-    error notCurrentEpoch();
+    error notBorrower(); // 0xb18f4d11
+    error notEpochManager(); // 0x34478df7
+    error notPlatformFeeManager(); // 0xd4017ec2
+    error notTrancheVaultOrFirstLossCoverOrCredit(); // 0xcd3d25f5
+    error notTrancheVaultOrEpochManager(); // 0x31c76c83
+    error notCurrentEpoch(); // 0x50c5dd13
 
     // system config
     error defaultGracePeriodLessThanMinAllowed(); // 0xa733ff9c
@@ -61,11 +61,11 @@ contract Errors {
     error poolIsNotOn(); // 0x69b355df
 
     // tranche operation
-    error poolLiquidityCapExceeded(); // 0x5642ebd4
+    error poolLiquidityCapExceeded(); // 0xdea32e48
     error withdrawTooSoon(); // 0x67982472
-    error maxSeniorJuniorRatioExceeded();
-    error invalidTrancheIndex();
-    error closeTooSoon();
+    error maxSeniorJuniorRatioExceeded(); // 0x52fc3aa4
+    error invalidTrancheIndex(); // 0xa82f3ece
+    error closeTooSoon(); // 0xa38d0553
 
     // credit operation
     error creditExpiredDueToFirstDrawdownTooLate(); // 0x9fac7390
@@ -83,14 +83,14 @@ contract Errors {
     error paymentIdNotUnderReview(); // 0xd1696aaa
     error creditLineTooHigh(); // 0x552b8377
     error creditLineOutstanding(); // 0xc64e338c
-    error creditLineNotInStateForUpdate();
-    error creditLineHasOutstandingBalance();
+    error creditLineNotInStateForUpdate(); // 0x80cc0c6f
+    error creditLineHasOutstandingBalance(); // 0x78272365
     error borrowingAmountLessThanPlatformFees(); // 0x97fde118
     error paymentAlreadyProcessed(); // 0xfd6754cf
     error settlementTooSoon(); // 0x0453e75e
     error defaultTriggeredTooEarly(); // 0x7872424e
     error defaultHasAlreadyBeenTriggered(); // 0xeb8d2ccc
-    error committedAmountGreatThanCreditLimit();
+    error committedAmountGreatThanCreditLimit(); // 0x663ce1a8
 
     // receivable operation
     error receivableAssetMismatch(); // 0x41dbeec1
@@ -109,8 +109,8 @@ contract Errors {
     error invalidSuperfluidCallback(); // 0xd2747f83
     error invalidSuperfluidAction(); // 0x2f2cd9e9
 
-    error invalidCalendarUnit();
-    error zeroPayPeriods();
+    error invalidCalendarUnit(); // 0x353226f1
+    error zeroPayPeriods(); // 0xd991f55d
 
-    error todo();
+    error todo(); // 0xb47f18a1
 }
