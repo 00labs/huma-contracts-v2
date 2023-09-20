@@ -30,7 +30,7 @@ contract Errors {
     error notPoolOwnerTreasuryOrEA(); // 0xc74cb44c
     error notPauser(); // 0xdcdea7c8
     error notPool(); // 0x26d29bbf
-    error drawdownFunctionUsedInsteadOfDrawdownWithReceivable(); // 0xf7a16c77 // 0x7e737537
+    error drawdownFunctionUsedInsteadOfDrawdownWithReceivable(); // 0xf7a16c77
     error notNFTOwner(); // 0x091a5762
     error notProcessor(); // 0x90409ca1
     error notBorrower(); // 0xb18f4d11
@@ -61,7 +61,7 @@ contract Errors {
     error poolIsNotOn(); // 0x69b355df
 
     // tranche operation
-    error poolLiquidityCapExceeded(); // 0xdea32e48 // 0x5642ebd4
+    error poolLiquidityCapExceeded(); // 0xdea32e48
     error withdrawTooSoon(); // 0x67982472
     error maxSeniorJuniorRatioExceeded(); // 0x52fc3aa4
     error invalidTrancheIndex(); // 0xa82f3ece
