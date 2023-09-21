@@ -1,6 +1,19 @@
 import "@nomicfoundation/hardhat-toolbox";
 import "hardhat-contract-sizer";
 
+const EMPTY_URL = "empty url";
+const EMPTY_PRIVATE_KEY = "0x0000000000000000000000000000000000000000000000000000000000000000";
+
+let sepoliaUrl = process.env["SEPOLIA_URL"];
+if (!sepoliaUrl) {
+    sepoliaUrl = EMPTY_URL;
+}
+
+let deployer = process.env["DEPLOYER"];
+if (!deployer) {
+    deployer = EMPTY_PRIVATE_KEY;
+}
+
 const config = {
     solidity: {
         compilers: [
@@ -14,6 +27,12 @@ const config = {
                 },
             },
         ],
+    },
+    networks: {
+        sepolia: {
+            url: sepoliaUrl,
+            accounts: [deployer],
+        },
     },
     contractSizer: {
         alphaSort: true,
