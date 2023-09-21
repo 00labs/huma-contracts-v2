@@ -1,7 +1,7 @@
 import { ethers } from "hardhat";
 
 import { expect } from "chai";
-import { deployAndSetupPoolContracts, deployProtocolContracts } from "./BaseTest";
+import { CONSTANTS, deployAndSetupPoolContracts, deployProtocolContracts } from "./BaseTest";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import {
@@ -109,13 +109,15 @@ describe("PlatformFeeManager Test", function () {
         );
         profit = toToken(1_000);
         const protocolFeeInBps = await humaConfigContract.protocolFeeInBps();
-        expectedProtocolIncome = profit.mul(protocolFeeInBps).div(10000);
+        expectedProtocolIncome = profit.mul(protocolFeeInBps).div(CONSTANTS.BP_FACTOR);
         const remainingProfit = profit.sub(expectedProtocolIncome);
         const adminRnR = await poolConfigContract.getAdminRnR();
         expectedPoolOwnerIncome = remainingProfit
             .mul(adminRnR.rewardRateInBpsForPoolOwner)
-            .div(10000);
-        expectedEAIncome = remainingProfit.mul(adminRnR.rewardRateInBpsForEA).div(10000);
+            .div(CONSTANTS.BP_FACTOR);
+        expectedEAIncome = remainingProfit
+            .mul(adminRnR.rewardRateInBpsForEA)
+            .div(CONSTANTS.BP_FACTOR);
         totalFees = expectedProtocolIncome.add(expectedPoolOwnerIncome).add(expectedEAIncome);
     }
 
