@@ -89,7 +89,6 @@ export async function deployProtocolContracts(
     await humaConfigContract.deployed();
 
     await humaConfigContract.setHumaTreasury(treasury.getAddress());
-    await humaConfigContract.setTreasuryFee(2000);
     await humaConfigContract.setEANFTContractAddress(eaNFTContract.address);
     await humaConfigContract.setEAServiceAccount(eaServiceAccount.getAddress());
     await humaConfigContract.setPDSServiceAccount(pdsServiceAccount.getAddress());
