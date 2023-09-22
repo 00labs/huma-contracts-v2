@@ -197,7 +197,7 @@ contract TrancheVault is
         ERC20Upgradeable._mint(receiver, shares);
 
         tranches[trancheIndex] += uint96(assets);
-        pool.updateTrancheAssets(tranches);
+        pool.updateTranchesAssets(tranches);
 
         emit LiquidityDeposited(receiver, assets, shares);
     }

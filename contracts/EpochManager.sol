@@ -128,7 +128,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
             );
         }
 
-        pool.updateTrancheAssets(trancheAssets);
+        pool.updateTranchesAssets(trancheAssets);
 
         uint256 unprocessedShares;
         if (seniorResult.numEpochsProcessed > 0) {

@@ -30,7 +30,13 @@ interface IPool {
      */
     function submitRedemptionRequest(uint256 amounts) external;
 
-    function updateTrancheAssets(uint96[2] memory assets) external;
+    /**
+     * @notice Updates the assets for the two tranches with the specified values.
+     * @dev This function should only be called after `refreshPool` is called to bring
+     * the assets data up-to-date.
+     * @param assets The amount of assets for each tranche to update to.
+     */
+    function updateTranchesAssets(uint96[2] memory assets) external;
 
     function isPoolOn() external view returns (bool status);
 }

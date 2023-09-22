@@ -49,7 +49,11 @@ contract MockPoolCredit is PoolConfigCache, IPoolCredit {
         external
         view
         returns (uint256 accruedProfit, uint256 accruedLoss, uint256 accruedLossRecovery)
-    {}
+    {
+        accruedProfit = profit_;
+        accruedLoss = loss_;
+        accruedLossRecovery = lossRecovery_;
+    }
 
     function setRefreshPnLReturns(uint256 _profit, uint256 _loss, uint256 _lossRecovery) external {
         profit_ = _profit;

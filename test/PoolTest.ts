@@ -78,7 +78,7 @@ describe("Pool Test", function () {
         ] = await ethers.getSigners();
     });
 
-    describe("Tests before Pool is enabled", function () {
+    describe("Before the pool is enabled", function () {
         async function prepare() {
             [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
                 protocolOwner,
@@ -121,9 +121,11 @@ describe("Pool Test", function () {
                 poolConfigContract,
                 "permissionDeniedNotAdmin",
             );
+            const isPoolOn = await poolContract.isPoolOn();
+            expect(isPoolOn).to.be.false;
         });
 
-        it("Should not enable a pool while no enough first loss cover", async function () {
+        it("Should not enable a pool when there is not enough first loss cover", async function () {
             await expect(
                 poolContract.connect(protocolOwner).enablePool(),
             ).to.be.revertedWithCustomError(poolOwnerAndEAFirstLossCoverContract, "notOperator");
@@ -195,9 +197,11 @@ describe("Pool Test", function () {
             await expect(
                 poolContract.connect(protocolOwner).enablePool(),
             ).to.be.revertedWithCustomError(poolConfigContract, "lessThanRequiredCover");
+            const isPoolOn = await poolContract.isPoolOn();
+            expect(isPoolOn).to.be.false;
         });
 
-        it("Should enable a pool", async function () {
+        it("Should allow the pool owner to enable a pool then conditions are met", async function () {
             await poolConfigContract.connect(poolOwner).setPoolLiquidityCap(toToken(1_000_000));
             await poolConfigContract
                 .connect(poolOwner)
@@ -252,10 +256,13 @@ describe("Pool Test", function () {
             await expect(poolContract.connect(protocolOwner).enablePool())
                 .to.emit(poolContract, "PoolEnabled")
                 .withArgs(protocolOwner.address);
+
+            const isPoolOn = await poolContract.isPoolOn();
+            expect(isPoolOn).to.be.true;
         });
     });
 
-    describe("Tests after Pool is enabled", function () {
+    describe("After the pool is enabled", function () {
         async function prepare() {
             [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
                 protocolOwner,
@@ -311,7 +318,7 @@ describe("Pool Test", function () {
                 .withArgs(poolOperator.address);
         });
 
-        describe("PnL Tests", function () {
+        describe("PnL tests", function () {
             async function prepareForPnL() {
                 let juniorDepositAmount = toToken(250_000);
                 await juniorTrancheVaultContract
@@ -327,68 +334,296 @@ describe("Pool Test", function () {
                 await loadFixture(prepareForPnL);
             });
 
-            it("Should distribute profit correctly", async function () {});
+            describe("refreshPool", function () {
+                async function testDistribution(profit: BN, loss: BN, recovery: BN) {
+                    await creditContract.setRefreshPnLReturns(profit, loss, recovery);
+                    await poolConfigContract
+                        .connect(poolOwner)
+                        .setEpochManager(defaultDeployer.address);
+                    const adjustment = 8000;
+                    const lpConfig = await poolConfigContract.getLPConfig();
+                    const newLpConfig = copyLPConfigWithOverrides(lpConfig, {
+                        tranchesRiskAdjustmentInBps: adjustment,
+                    });
+                    await poolConfigContract.connect(poolOwner).setLPConfig(newLpConfig);
 
-            it("Should distribute loss correctly while first loss can cover loss", async function () {});
+                    const block = await getLatestBlock();
+                    const nextTS = block.timestamp + 5;
+                    await setNextBlockTimestamp(nextTS);
 
-            it("Should distribute loss correctly while junior assets can cover loss", async function () {});
-
-            it("Should distribute loss correctly while junior assets can not cover loss", async function () {});
-
-            it("Should distribute loss recovery correctly while senior loss can be recovered", async function () {});
-
-            it("Should distribute loss recovery correctly while junior loss can be recovered", async function () {});
-
-            it("Should distribute loss recovery correctly while first loss can be recovered", async function () {});
-
-            it("Should distribute profit, loss and loss recovery correctly", async function () {
-                const profit = toToken(12387);
-                const loss = toToken(8493);
-                const recovery = toToken(3485);
-
-                await creditContract.setRefreshPnLReturns(profit, loss, recovery);
-                await poolConfigContract
-                    .connect(poolOwner)
-                    .setEpochManager(defaultDeployer.address);
-                const adjustment = 8000;
-                const lpConfig = await poolConfigContract.getLPConfig();
-                const newLpConfig = copyLPConfigWithOverrides(lpConfig, {
-                    tranchesRiskAdjustmentInBps: adjustment,
-                });
-                await poolConfigContract.connect(poolOwner).setLPConfig(newLpConfig);
-
-                const block = await getLatestBlock();
-                const nextTS = block.timestamp + 5;
-                await setNextBlockTimestamp(nextTS);
-
-                const assets = await poolContract.currentTranchesAssets();
-                const profitAfterFees =
-                    await platformFeeManagerContract.calcPlatformFeeDistribution(profit);
-                const assetsWithProfits = PnLCalculator.calcProfitForRiskAdjustedPolicy(
-                    profitAfterFees,
-                    assets,
-                    BN.from(adjustment),
-                );
-                const [assetsWithLosses, losses] = PnLCalculator.calcLoss(loss, assetsWithProfits);
-                const [, assetsWithRecovery, lossesWithRecovery] = PnLCalculator.calcLossRecovery(
-                    recovery,
-                    assetsWithLosses,
-                    losses,
-                );
-
-                await expect(await poolContract.refreshPool())
-                    .to.emit(poolContract, "PoolAssetsRefreshed")
-                    .withArgs(
-                        nextTS,
-                        profit,
-                        loss,
-                        recovery,
-                        // 0,
-                        assetsWithRecovery[CONSTANTS.SENIOR_TRANCHE_INDEX],
-                        assetsWithRecovery[CONSTANTS.JUNIOR_TRANCHE_INDEX],
-                        lossesWithRecovery[CONSTANTS.SENIOR_TRANCHE_INDEX],
-                        lossesWithRecovery[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                    const assetInfo = await poolContract.tranchesAssets();
+                    const assets = [
+                        assetInfo[CONSTANTS.SENIOR_TRANCHE_INDEX],
+                        assetInfo[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                    ];
+                    const profitAfterFees =
+                        await platformFeeManagerContract.calcPlatformFeeDistribution(profit);
+                    const assetsWithProfits = PnLCalculator.calcProfitForRiskAdjustedPolicy(
+                        profitAfterFees,
+                        assets,
+                        BN.from(adjustment),
                     );
+                    const [assetsWithLosses, losses] = PnLCalculator.calcLoss(
+                        loss,
+                        assetsWithProfits,
+                    );
+                    const [, assetsWithRecovery, lossesWithRecovery] =
+                        PnLCalculator.calcLossRecovery(recovery, assetsWithLosses, losses);
+
+                    await expect(await poolContract.refreshPool())
+                        .to.emit(poolContract, "PoolAssetsRefreshed")
+                        .withArgs(
+                            nextTS,
+                            profit,
+                            loss,
+                            recovery,
+                            assetsWithRecovery[CONSTANTS.SENIOR_TRANCHE_INDEX],
+                            assetsWithRecovery[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                            lossesWithRecovery[CONSTANTS.SENIOR_TRANCHE_INDEX],
+                            lossesWithRecovery[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                        );
+
+                    // All getters now should return the most up-to-date data.
+                    const totalAssets = await poolContract.totalAssets();
+                    expect(totalAssets).to.equal(
+                        assetsWithRecovery[CONSTANTS.SENIOR_TRANCHE_INDEX].add(
+                            assetsWithRecovery[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                        ),
+                    );
+                    const seniorAssets = await poolContract.trancheTotalAssets(
+                        CONSTANTS.SENIOR_TRANCHE_INDEX,
+                    );
+                    expect(seniorAssets).to.equal(
+                        assetsWithRecovery[CONSTANTS.SENIOR_TRANCHE_INDEX],
+                    );
+                    const juniorAssets = await poolContract.trancheTotalAssets(
+                        CONSTANTS.JUNIOR_TRANCHE_INDEX,
+                    );
+                    expect(juniorAssets).to.equal(
+                        assetsWithRecovery[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                    );
+                }
+
+                it("Should distribute profit correctly", async function () {
+                    const profit = toToken(12387);
+                    const loss = toToken(0);
+                    const recovery = toToken(0);
+
+                    await testDistribution(profit, loss, recovery);
+                });
+
+                it("Should distribute loss correctly when first loss covers can cover loss", async function () {});
+
+                it("Should distribute loss correctly when the junior tranche can cover loss", async function () {
+                    const assets = await poolContract.currentTranchesAssets();
+                    const profit = toToken(0);
+                    const loss = assets[CONSTANTS.JUNIOR_TRANCHE_INDEX];
+                    const recovery = toToken(0);
+
+                    await testDistribution(profit, loss, recovery);
+                });
+
+                it("Should distribute loss correctly when the senior tranche needs to cover loss", async function () {
+                    const assets = await poolContract.currentTranchesAssets();
+                    const profit = toToken(0);
+                    const loss = assets[CONSTANTS.JUNIOR_TRANCHE_INDEX].add(
+                        assets[CONSTANTS.SENIOR_TRANCHE_INDEX],
+                    );
+                    const recovery = toToken(0);
+
+                    await testDistribution(profit, loss, recovery);
+                });
+
+                it("Should distribute loss recovery correctly when senior loss can be recovered", async function () {
+                    const assets = await poolContract.currentTranchesAssets();
+                    const profit = toToken(0);
+                    const loss = assets[CONSTANTS.SENIOR_TRANCHE_INDEX].add(
+                        assets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                    );
+                    const recovery = assets[CONSTANTS.JUNIOR_TRANCHE_INDEX];
+
+                    await testDistribution(profit, loss, recovery);
+                });
+
+                it("Should distribute loss recovery correctly when junior loss can be recovered", async function () {
+                    const assets = await poolContract.currentTranchesAssets();
+                    const profit = toToken(0);
+                    const loss = assets[CONSTANTS.JUNIOR_TRANCHE_INDEX].add(
+                        assets[CONSTANTS.SENIOR_TRANCHE_INDEX],
+                    );
+                    const recovery = assets[CONSTANTS.JUNIOR_TRANCHE_INDEX].add(
+                        assets[CONSTANTS.SENIOR_TRANCHE_INDEX],
+                    );
+
+                    await testDistribution(profit, loss, recovery);
+                });
+
+                it("Should distribute loss recovery correctly when first loss can be recovered", async function () {});
+
+                it("Should distribute profit, loss and loss recovery correctly", async function () {
+                    const profit = toToken(12387);
+                    const loss = toToken(8493);
+                    const recovery = toToken(3485);
+
+                    await testDistribution(profit, loss, recovery);
+                });
+
+                it("Should not allow non-tranche vault or non-epoch manager to distribute PnL", async function () {
+                    await expect(
+                        poolContract.connect(lender).refreshPool(),
+                    ).to.be.revertedWithCustomError(
+                        poolConfigContract,
+                        "notTrancheVaultOrEpochManager",
+                    );
+                });
+            });
+
+            describe("trancheTotalAssets and totalAssets", function () {
+                async function testAssetCalculation(profit: BN, loss: BN, recovery: BN) {
+                    await creditContract.setRefreshPnLReturns(profit, loss, recovery);
+                    await poolConfigContract
+                        .connect(poolOwner)
+                        .setEpochManager(defaultDeployer.address);
+                    const adjustment = 8000;
+                    const lpConfig = await poolConfigContract.getLPConfig();
+                    const newLpConfig = copyLPConfigWithOverrides(lpConfig, {
+                        tranchesRiskAdjustmentInBps: adjustment,
+                    });
+                    await poolConfigContract.connect(poolOwner).setLPConfig(newLpConfig);
+
+                    const block = await getLatestBlock();
+                    const nextTS = block.timestamp + 5;
+                    await setNextBlockTimestamp(nextTS);
+
+                    const assetInfo = await poolContract.tranchesAssets();
+                    const assets = [
+                        assetInfo[CONSTANTS.SENIOR_TRANCHE_INDEX],
+                        assetInfo[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                    ];
+                    const profitAfterFees =
+                        await platformFeeManagerContract.calcPlatformFeeDistribution(profit);
+                    const assetsWithProfits = PnLCalculator.calcProfitForRiskAdjustedPolicy(
+                        profitAfterFees,
+                        assets,
+                        BN.from(adjustment),
+                    );
+                    const [assetsWithLosses, losses] = PnLCalculator.calcLoss(
+                        loss,
+                        assetsWithProfits,
+                    );
+                    const [, assetsWithRecovery] = PnLCalculator.calcLossRecovery(
+                        recovery,
+                        assetsWithLosses,
+                        losses,
+                    );
+
+                    const totalAssets = await poolContract.totalAssets();
+                    expect(totalAssets).to.equal(
+                        assetsWithRecovery[CONSTANTS.SENIOR_TRANCHE_INDEX].add(
+                            assetsWithRecovery[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                        ),
+                    );
+                    const seniorAssets = await poolContract.trancheTotalAssets(
+                        CONSTANTS.SENIOR_TRANCHE_INDEX,
+                    );
+                    expect(seniorAssets).to.equal(
+                        assetsWithRecovery[CONSTANTS.SENIOR_TRANCHE_INDEX],
+                    );
+                    const juniorAssets = await poolContract.trancheTotalAssets(
+                        CONSTANTS.JUNIOR_TRANCHE_INDEX,
+                    );
+                    expect(juniorAssets).to.equal(
+                        assetsWithRecovery[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                    );
+                }
+
+                it("Should return the correct asset distribution when there is only profit", async function () {
+                    const profit = toToken(12387);
+                    const loss = toToken(0);
+                    const recovery = toToken(0);
+
+                    await testAssetCalculation(profit, loss, recovery);
+                });
+
+                it(
+                    "Should return the correct asset distribution when there is profit ans loss," +
+                        " and first loss cover can cover the loss",
+                    async function () {},
+                );
+
+                it(
+                    "Should return the correct asset distribution when there is profit and loss," +
+                        " and the junior tranche needs to cover the loss",
+                    async function () {
+                        const assets = await poolContract.currentTranchesAssets();
+                        const profit = toToken(0);
+                        const loss = assets[CONSTANTS.JUNIOR_TRANCHE_INDEX];
+                        const recovery = toToken(0);
+
+                        await testAssetCalculation(profit, loss, recovery);
+                    },
+                );
+
+                it(
+                    "Should return the correct asset distribution when there is profit and loss," +
+                        " and the senior tranche needs to cover the loss",
+                    async function () {
+                        const assets = await poolContract.currentTranchesAssets();
+                        const profit = toToken(0);
+                        const loss = assets[CONSTANTS.SENIOR_TRANCHE_INDEX].add(
+                            assets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                        );
+                        const recovery = toToken(0);
+
+                        await testAssetCalculation(profit, loss, recovery);
+                    },
+                );
+
+                it(
+                    "Should return the correct asset distribution when there is profit, loss and recovery," +
+                        " and the senior loss can be recovered",
+                    async function () {
+                        const assets = await poolContract.currentTranchesAssets();
+                        const profit = toToken(0);
+                        const loss = assets[CONSTANTS.SENIOR_TRANCHE_INDEX].add(
+                            assets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                        );
+                        const recovery = assets[CONSTANTS.JUNIOR_TRANCHE_INDEX];
+
+                        await testAssetCalculation(profit, loss, recovery);
+                    },
+                );
+
+                it(
+                    "Should return the correct asset distribution when there is profit, loss and recovery," +
+                        " and the junior loss can be recovered",
+                    async function () {
+                        const assets = await poolContract.currentTranchesAssets();
+                        const profit = toToken(0);
+                        const loss = assets[CONSTANTS.SENIOR_TRANCHE_INDEX].add(
+                            assets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                        );
+                        const recovery = assets[CONSTANTS.SENIOR_TRANCHE_INDEX].add(
+                            assets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                        );
+
+                        await testAssetCalculation(profit, loss, recovery);
+                    },
+                );
+
+                it(
+                    "Should return the correct asset distribution when there is profit, loss and recovery," +
+                        " and the first loss cover loss can be recovered",
+                    async function () {},
+                );
+
+                it("Should return the correct profit, loss and loss recovery distribution", async function () {
+                    const profit = toToken(12387);
+                    const loss = toToken(8493);
+                    const recovery = toToken(3485);
+
+                    await testAssetCalculation(profit, loss, recovery);
+                });
             });
         });
     });

@@ -14,7 +14,7 @@ abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
         uint256 loss,
         uint96[2] memory assets
     ) external pure returns (uint96[2] memory newAssets, uint96[2] memory newLosses) {
-        // The junior tranches covers the loss first
+        // The junior tranche covers the loss first.
         uint256 juniorTotalAssets = assets[JUNIOR_TRANCHE_INDEX];
         uint256 juniorLoss = juniorTotalAssets >= loss ? loss : juniorTotalAssets;
         uint256 seniorLoss = loss - juniorLoss;
@@ -37,12 +37,8 @@ abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
         uint96 seniorLoss = losses[SENIOR_TRANCHE_INDEX];
         uint256 seniorLossRecovery = lossRecovery >= seniorLoss ? seniorLoss : lossRecovery;
         if (seniorLossRecovery > 0) {
-            assets[SENIOR_TRANCHE_INDEX] =
-                assets[SENIOR_TRANCHE_INDEX] +
-                uint96(seniorLossRecovery);
-            losses[SENIOR_TRANCHE_INDEX] =
-                losses[SENIOR_TRANCHE_INDEX] -
-                uint96(seniorLossRecovery);
+            assets[SENIOR_TRANCHE_INDEX] += uint96(seniorLossRecovery);
+            losses[SENIOR_TRANCHE_INDEX] -= uint96(seniorLossRecovery);
         }
         newLossRecovery = lossRecovery - seniorLossRecovery;
         if (newLossRecovery > 0) {
@@ -50,12 +46,8 @@ abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
             uint256 juniorLossRecovery = newLossRecovery >= juniorLoss
                 ? juniorLoss
                 : newLossRecovery;
-            assets[JUNIOR_TRANCHE_INDEX] =
-                assets[JUNIOR_TRANCHE_INDEX] +
-                uint96(juniorLossRecovery);
-            losses[JUNIOR_TRANCHE_INDEX] =
-                losses[JUNIOR_TRANCHE_INDEX] -
-                uint96(juniorLossRecovery);
+            assets[JUNIOR_TRANCHE_INDEX] += uint96(juniorLossRecovery);
+            losses[JUNIOR_TRANCHE_INDEX] -= uint96(juniorLossRecovery);
             newLossRecovery = newLossRecovery - juniorLossRecovery;
         }
 

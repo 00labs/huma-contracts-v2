@@ -187,14 +187,15 @@ contract Pool is PoolConfigCache, IPool {
         uint96[2] memory losses
     ) internal returns (uint96[2] memory newAssets, uint96[2] memory newLosses) {
         if (loss > 0) {
-            // First loss cover
             uint256 poolAssets = assets[SENIOR_TRANCHE_INDEX] + assets[JUNIOR_TRANCHE_INDEX];
+            // First loss covers attempt to cover the losses first.
             for (uint256 i; i < firstLossCovers.length && loss > 0; i++) {
                 IFirstLossCover cover = firstLossCovers[i];
                 loss = cover.coverLoss(poolAssets, loss);
             }
 
             if (loss > 0) {
+                // If there are losses remaining, let the junior and senior tranches cover the losses.
                 uint96[2] memory lossesDelta;
                 (assets, lossesDelta) = tranchesPolicy.calcTranchesAssetsForLoss(loss, assets);
 
@@ -241,6 +242,10 @@ contract Pool is PoolConfigCache, IPool {
     function currentTranchesAssets() public view returns (uint96[2] memory assets) {
         TranchesAssets memory tempTranchesAssets = tranchesAssets;
         if (block.timestamp <= tempTranchesAssets.lastUpdatedTime) {
+            // Return the cached asset data if in the same block, so that we don't need to do all the calculations
+            // again. Note that it's theoretically impossible for the block timestamp to be smaller than the
+            // last updated timestamp. We are adding the < check because strictly equality is frowned upon
+            // by the linter.
             return [tempTranchesAssets.seniorTotalAssets, tempTranchesAssets.juniorTotalAssets];
         }
 
@@ -333,13 +338,16 @@ contract Pool is PoolConfigCache, IPool {
         // :handle redemption request for flex loan
     }
 
-    function updateTrancheAssets(uint96[2] memory assets) external {
+    function updateTranchesAssets(uint96[2] memory assets) external {
         poolConfig.onlyTrancheVaultOrEpochManager(msg.sender);
 
-        TranchesAssets memory ta = tranchesAssets;
-        ta.seniorTotalAssets = assets[SENIOR_TRANCHE_INDEX];
-        ta.juniorTotalAssets = assets[JUNIOR_TRANCHE_INDEX];
-        assert(ta.lastUpdatedTime == block.timestamp);
-        tranchesAssets = ta;
+        TranchesAssets memory tempTranchesAssets = tranchesAssets;
+        // This assertion is to ensure that the asset data is up-to-date before any further
+        // updates can be made. The asset data can be brought up-to-date usually by calling
+        // `refreshPool` before calling this function.
+        assert(tempTranchesAssets.lastUpdatedTime == block.timestamp);
+        tempTranchesAssets.seniorTotalAssets = assets[SENIOR_TRANCHE_INDEX];
+        tempTranchesAssets.juniorTotalAssets = assets[JUNIOR_TRANCHE_INDEX];
+        tranchesAssets = tempTranchesAssets;
     }
 }
