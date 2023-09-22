@@ -242,6 +242,10 @@ contract Pool is PoolConfigCache, IPool {
     function currentTranchesAssets() public view returns (uint96[2] memory assets) {
         TranchesAssets memory tempTranchesAssets = tranchesAssets;
         if (block.timestamp <= tempTranchesAssets.lastUpdatedTime) {
+            // Return the cached asset data if in the same block, so that we don't need to do all the calculations
+            // again. Note that it's theoretically impossible for the block timestamp to be smaller than the
+            // last updated timestamp. We are adding the < check because strictly equality is frowned upon
+            // by the linter.
             return [tempTranchesAssets.seniorTotalAssets, tempTranchesAssets.juniorTotalAssets];
         }
 
@@ -334,13 +338,16 @@ contract Pool is PoolConfigCache, IPool {
         // :handle redemption request for flex loan
     }
 
-    function updateTrancheAssets(uint96[2] memory assets) external {
+    function updateTranchesAssets(uint96[2] memory assets) external {
         poolConfig.onlyTrancheVaultOrEpochManager(msg.sender);
 
         TranchesAssets memory tempTranchesAssets = tranchesAssets;
+        // This assertion is to ensure that the asset data is up-to-date before any further
+        // updates can be made. The asset data can be brought up-to-date usually by calling
+        // `refreshPool` before calling this function.
+        assert(tempTranchesAssets.lastUpdatedTime == block.timestamp);
         tempTranchesAssets.seniorTotalAssets = assets[SENIOR_TRANCHE_INDEX];
         tempTranchesAssets.juniorTotalAssets = assets[JUNIOR_TRANCHE_INDEX];
-        tempTranchesAssets.lastUpdatedTime = uint64(block.timestamp);
         tranchesAssets = tempTranchesAssets;
     }
 }

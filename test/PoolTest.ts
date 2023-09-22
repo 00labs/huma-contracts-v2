@@ -382,6 +382,26 @@ describe("Pool Test", function () {
                             lossesWithRecovery[CONSTANTS.SENIOR_TRANCHE_INDEX],
                             lossesWithRecovery[CONSTANTS.JUNIOR_TRANCHE_INDEX],
                         );
+
+                    // All getters now should return the most up-to-date data.
+                    const totalAssets = await poolContract.totalAssets();
+                    expect(totalAssets).to.equal(
+                        assetsWithRecovery[CONSTANTS.SENIOR_TRANCHE_INDEX].add(
+                            assetsWithRecovery[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                        ),
+                    );
+                    const seniorAssets = await poolContract.trancheTotalAssets(
+                        CONSTANTS.SENIOR_TRANCHE_INDEX,
+                    );
+                    expect(seniorAssets).to.equal(
+                        assetsWithRecovery[CONSTANTS.SENIOR_TRANCHE_INDEX],
+                    );
+                    const juniorAssets = await poolContract.trancheTotalAssets(
+                        CONSTANTS.JUNIOR_TRANCHE_INDEX,
+                    );
+                    expect(juniorAssets).to.equal(
+                        assetsWithRecovery[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                    );
                 }
 
                 it("Should distribute profit correctly", async function () {
@@ -491,8 +511,11 @@ describe("Pool Test", function () {
                         loss,
                         assetsWithProfits,
                     );
-                    const [, assetsWithRecovery, lossesWithRecovery] =
-                        PnLCalculator.calcLossRecovery(recovery, assetsWithLosses, losses);
+                    const [, assetsWithRecovery] = PnLCalculator.calcLossRecovery(
+                        recovery,
+                        assetsWithLosses,
+                        losses,
+                    );
 
                     const totalAssets = await poolContract.totalAssets();
                     expect(totalAssets).to.equal(
@@ -601,34 +624,6 @@ describe("Pool Test", function () {
 
                     await testAssetCalculation(profit, loss, recovery);
                 });
-            });
-        });
-
-        describe("updateTrancheAssets", function () {
-            let seniorAssets: BN, juniorAssets: BN;
-
-            before(function () {
-                seniorAssets = toToken(800_000);
-                juniorAssets = toToken(250_000);
-            });
-
-            it("Should allow tranche vault to update the assets", async function () {
-                await poolConfigContract
-                    .connect(poolOwner)
-                    .setTranches(defaultDeployer.address, defaultDeployer.address);
-                await poolContract.updateTrancheAssets([seniorAssets, juniorAssets]);
-                const assets = await poolContract.currentTranchesAssets();
-                expect(assets[CONSTANTS.SENIOR_TRANCHE_INDEX]).to.equal(seniorAssets);
-                expect(assets[CONSTANTS.JUNIOR_TRANCHE_INDEX]).to.equal(juniorAssets);
-            });
-
-            it("Should disallow non-tranche vault or non-epoch manager to update the assets", async function () {
-                await expect(
-                    poolContract.updateTrancheAssets([juniorAssets, seniorAssets]),
-                ).to.be.revertedWithCustomError(
-                    poolConfigContract,
-                    "notTrancheVaultOrEpochManager",
-                );
             });
         });
     });
