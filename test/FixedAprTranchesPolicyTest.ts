@@ -1,9 +1,9 @@
 import { ethers } from "hardhat";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import moment from "moment";
 import { deployAndSetupPoolContracts, deployProtocolContracts, PnLCalculator } from "./BaseTest";
 import {
     copyLPConfigWithOverrides,
+    dateToTimestamp,
     getLatestBlock,
     mineNextBlockWithTimestamp,
     toToken,
@@ -132,7 +132,7 @@ describe("FixedAprTranchesPolicy Test", function () {
         await creditContract.drawdown(ethers.constants.HashZero, deployedAssets);
         let assets = await poolContract.currentTranchesAssets();
         let profit = toToken(12463);
-        let lastDate = moment.utc("2023-08-01").unix();
+        let lastDate = dateToTimestamp("2023-08-01");
         let lastBlock = await getLatestBlock();
         let nextDate = lastBlock.timestamp + 10;
         await mineNextBlockWithTimestamp(nextDate);

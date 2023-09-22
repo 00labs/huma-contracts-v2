@@ -2,9 +2,8 @@ import { ethers } from "hardhat";
 import { expect } from "chai";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { CONSTANTS, getNextDueDate } from "./BaseTest";
-import { getNextTime, mineNextBlockWithTimestamp } from "./TestUtils";
+import { dateToTimestamp, getNextTime, mineNextBlockWithTimestamp } from "./TestUtils";
 import { Calendar } from "../typechain-types";
-import moment from "moment";
 
 let calendarContract: Calendar;
 
@@ -44,7 +43,7 @@ describe("Calendar Test", function () {
             let nextTime = await getNextTime(2);
             await mineNextBlockWithTimestamp(nextTime);
 
-            let lastDate = moment.utc("2023-07-01").unix();
+            let lastDate = dateToTimestamp("2023-07-01");
 
             let period = 3;
             let result = await calendarContract.getNextDueDate(
@@ -88,7 +87,7 @@ describe("Calendar Test", function () {
             let nextTime = await getNextTime(2);
             await mineNextBlockWithTimestamp(nextTime);
 
-            let lastDate = moment.utc("2023-02-01").unix();
+            let lastDate = dateToTimestamp("2023-02-01");
 
             let period = 3;
             let result = await calendarContract.getNextDueDate(
@@ -127,7 +126,7 @@ describe("Calendar Test", function () {
             let nextTime = await getNextTime(2);
             await mineNextBlockWithTimestamp(nextTime);
 
-            let lastDate = moment.utc("2023-07-01").unix();
+            let lastDate = dateToTimestamp("2023-07-01");
 
             let period = 3;
             let dueDateInNextPeriod = await calendarContract.getNextPeriod(
@@ -164,7 +163,7 @@ describe("Calendar Test", function () {
             let nextTime = await getNextTime(2);
             await mineNextBlockWithTimestamp(nextTime);
 
-            let lastDate = moment.utc("2023-02-01").unix();
+            let lastDate = dateToTimestamp("2023-02-01");
 
             let period = 3;
             let dueDateInNextPeriod = await calendarContract.getNextPeriod(

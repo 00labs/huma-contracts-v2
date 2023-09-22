@@ -31,16 +31,16 @@ export function getNextDate(
     currentDate: number,
     periodDuration: number,
 ): number[] {
-    let date;
+    let date: moment.Moment;
     let numberOfPeriodsPassed = 0;
     let dayCount = 0;
     if (lastDate > 0) {
-        date = moment.unix(lastDate);
+        date = timestampToMoment(lastDate);
         numberOfPeriodsPassed = Math.floor(
-            moment.unix(currentDate).diff(date, "days") / periodDuration,
+            timestampToMoment(currentDate).diff(date, "days") / periodDuration,
         );
     } else {
-        date = moment.utc(moment.unix(currentDate).utc().format("YYYY-MM-DD"));
+        date = timestampToMoment(currentDate, "YYYY-MM-DD");
         dayCount = 1;
     }
     dayCount += (numberOfPeriodsPassed + 1) * periodDuration;
@@ -49,16 +49,16 @@ export function getNextDate(
 }
 
 export function getNextMonth(lastDate: number, currentDate: number, periodDuration: number) {
-    let date;
+    let date: moment.Moment;
     let numberOfPeriodsPassed = 0;
     let monthCount = 0;
     if (lastDate > 0) {
-        date = moment.unix(lastDate);
+        date = timestampToMoment(lastDate);
         numberOfPeriodsPassed = Math.floor(
-            moment.unix(currentDate).diff(date, "months") / periodDuration,
+            timestampToMoment(currentDate).diff(date, "months") / periodDuration,
         );
     } else {
-        date = moment.utc(moment.unix(currentDate).utc().format("YYYY-MM-01"));
+        date = timestampToMoment(currentDate, "YYYY-MM-01");
         monthCount = 1;
     }
     monthCount += (numberOfPeriodsPassed + 1) * periodDuration;
@@ -82,9 +82,9 @@ export function getStartDateOfPeriod(
     endDate: number,
 ): number {
     if (calendarUnit == CONSTANTS.CALENDAR_UNIT_DAY) {
-        return moment.unix(endDate).subtract(periodDuration, "days").unix();
+        return timestampToMoment(endDate).subtract(periodDuration, "days").unix();
     } else if (calendarUnit == CONSTANTS.CALENDAR_UNIT_MONTH) {
-        return moment.unix(endDate).subtract(periodDuration, "months").unix();
+        return timestampToMoment(endDate).subtract(periodDuration, "months").unix();
     } else {
         return 0;
     }
@@ -109,4 +109,16 @@ export function copyLPConfigWithOverrides(
         },
         ...overrides,
     };
+}
+
+export function timestampToMoment(timestamp: number, format?: string): moment.Moment {
+    if (format) {
+        const date = moment.unix(timestamp).utc().format(format);
+        return moment.unix(dateToTimestamp(date)).utc();
+    }
+    return moment.unix(timestamp).utc();
+}
+
+export function dateToTimestamp(date: string): number {
+    return moment.utc(date).unix();
 }
