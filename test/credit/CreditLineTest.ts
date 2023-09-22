@@ -22,6 +22,7 @@ import {
     mineNextBlockWithTimestamp,
     toToken,
     getLatestBlock,
+    timestampToMoment,
 } from "../TestUtils";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import {
@@ -43,7 +44,6 @@ import {
 } from "../../typechain-types";
 import { CreditRecordStructOutput } from "../../typechain-types/contracts/credit/utils/interfaces/ICreditFeeManager";
 import { CreditConfigStructOutput } from "../../typechain-types/contracts/credit/BaseCredit";
-import moment from "moment";
 import { FeeStructureStructOutput } from "../../typechain-types/contracts/PoolConfig";
 
 let defaultDeployer: SignerWithAddress,
@@ -1453,7 +1453,7 @@ describe("CreditLine Test", function () {
             // move forward 30 days for borrower2 drawdown
 
             block = await getLatestBlock();
-            let nextTime = moment.unix(block.timestamp).add(1, "months").unix();
+            let nextTime = timestampToMoment(block.timestamp).add(1, "months").unix();
             console.log(`nextTime: ${nextTime}`);
             await mineNextBlockWithTimestamp(nextTime);
 
