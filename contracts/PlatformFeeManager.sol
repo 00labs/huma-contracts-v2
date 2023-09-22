@@ -6,6 +6,7 @@ import {PoolConfig, PoolSettings, AdminRnR} from "./PoolConfig.sol";
 import {PoolConfigCache} from "./PoolConfigCache.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
 import {IPlatformFeeManager} from "./interfaces/IPlatformFeeManager.sol";
+import {IFirstLossCover} from "./interfaces/IFirstLossCover.sol";
 import {HumaConfig} from "./HumaConfig.sol";
 import {Errors} from "./Errors.sol";
 
@@ -18,6 +19,8 @@ contract PlatformFeeManager is PoolConfigCache, IPlatformFeeManager {
 
     HumaConfig public humaConfig;
     IPoolVault public poolVault;
+    IFirstLossCover public firstLossCover;
+
     AccruedIncomes internal _accruedIncomes;
     uint256 public protocolIncomeWithdrawn;
     uint256 public poolOwnerIncomeWithdrawn;
@@ -42,24 +45,41 @@ contract PlatformFeeManager is PoolConfigCache, IPlatformFeeManager {
         addr = address(_poolConfig.humaConfig());
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         humaConfig = HumaConfig(addr);
+
+        addr = _poolConfig.getFirstLossCover(AFFILIATE_FIRST_LOSS_COVER_INDEX);
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        firstLossCover = IFirstLossCover(addr);
     }
 
     function distributePlatformFees(uint256 profit) external returns (uint256) {
         poolConfig.onlyPool(msg.sender);
 
-        // TODO deposit into affiliate first loss cover before liquidity cap is reached
-
         (AccruedIncomes memory incomes, uint256 remaining) = _getPlatformFees(profit);
-        AccruedIncomes memory accruedIncomes = _accruedIncomes;
+        uint256 totalFees = incomes.protocolIncome + incomes.poolOwnerIncome + incomes.eaIncome;
+        uint256 liquidityCapacity = firstLossCover.availableLiquidityCapacity();
 
-        accruedIncomes.protocolIncome += incomes.protocolIncome;
-        accruedIncomes.poolOwnerIncome += incomes.poolOwnerIncome;
-        accruedIncomes.eaIncome += incomes.eaIncome;
+        if (liquidityCapacity > totalFees) {
+            // TODO these deposits are expensive, it is better to move them to an autotask
+            firstLossCover.depositCover(incomes.protocolIncome, humaConfig.humaTreasury());
+            firstLossCover.depositCover(incomes.poolOwnerIncome, poolConfig.poolOwnerTreasury());
+            firstLossCover.depositCover(incomes.eaIncome, poolConfig.evaluationAgent());
+        } else {
+            if (liquidityCapacity > 0) {
+                // TODO deposit liquidityCapacity into affiliate first loss cover
+            }
 
-        _accruedIncomes = accruedIncomes;
-        poolVault.addPlatformFeesReserve(
-            incomes.protocolIncome + incomes.poolOwnerIncome + incomes.eaIncome
-        );
+            // TODO accrued remaining fees in this contract
+
+            AccruedIncomes memory accruedIncomes = _accruedIncomes;
+            accruedIncomes.protocolIncome += incomes.protocolIncome;
+            accruedIncomes.poolOwnerIncome += incomes.poolOwnerIncome;
+            accruedIncomes.eaIncome += incomes.eaIncome;
+
+            _accruedIncomes = accruedIncomes;
+            poolVault.addPlatformFeesReserve(
+                incomes.protocolIncome + incomes.poolOwnerIncome + incomes.eaIncome
+            );
+        }
 
         emit IncomeDistributed(
             incomes.protocolIncome,

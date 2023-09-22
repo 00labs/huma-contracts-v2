@@ -31,4 +31,11 @@ interface IFirstLossCover {
     function calcLossRecover(uint256 recovery) external view returns (uint256 remainingRecovery);
 
     function isSufficient(address account) external view returns (bool sufficient);
+
+    function availableLiquidityCapacity() external view returns (uint256);
+
+    function depositByPoolFeeManager(
+        uint256 assets,
+        address receiver
+    ) external returns (uint256 shares);
 }

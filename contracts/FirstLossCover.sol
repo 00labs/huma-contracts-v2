@@ -125,10 +125,13 @@ contract FirstLossCover is
     }
 
     // Deposit fees of protocol owner, pool owner and EA again by pool contract
-    function depositByPool(uint256 assets, address receiver) external returns (uint256 shares) {
+    function depositByPoolFeeManager(
+        uint256 assets,
+        address receiver
+    ) external returns (uint256 shares) {
         if (assets == 0) revert Errors.zeroAmountProvided();
         if (receiver == address(0)) revert Errors.zeroAddressProvided();
-        poolConfig.onlyPool(msg.sender);
+        poolConfig.onlyPlatformFeeManager(msg.sender);
 
         return _deposit(assets, receiver);
     }
@@ -136,13 +139,19 @@ contract FirstLossCover is
     function distributeProfit(uint256 profit) external {
         poolConfig.onlyPool(msg.sender);
 
-        uint256 tempTotalAssets = _totalAssets;
-        tempTotalAssets += profit;
-        _totalAssets = tempTotalAssets;
+        uint256 liquidityCapacity = availableLiquidityCapacity();
+        uint256 profitToLock = profit > liquidityCapacity ? liquidityCapacity : profit;
+        if (profitToLock > 0) {
+            uint256 tempTotalAssets = _totalAssets;
+            tempTotalAssets += profitToLock;
+            _totalAssets = tempTotalAssets;
+            emit ProfitDistributed(profitToLock, tempTotalAssets);
+        }
 
-        // TODO put profit into escrow contract if liquidity cap is reached
-
-        emit ProfitDistributed(profit, tempTotalAssets);
+        uint256 remainingProfit = profit - profitToLock;
+        if (remainingProfit > 0) {
+            // TODO put profit into escrow contract
+        }
     }
 
     function redeemCover(uint256 shares, address receiver) external returns (uint256 assets) {
@@ -204,6 +213,12 @@ contract FirstLossCover is
 
     function totalAssets() public view virtual returns (uint256) {
         return _totalAssets;
+    }
+
+    function availableLiquidityCapacity() public view returns (uint256) {
+        LossCoverPayoutConfig memory config = lossCoverPayoutConfig;
+        uint256 tempTotalAssets = totalAssets();
+        return config.liquidityCap > tempTotalAssets ? config.liquidityCap - tempTotalAssets : 0;
     }
 
     function convertToShares(uint256 assets) public view virtual returns (uint256) {
