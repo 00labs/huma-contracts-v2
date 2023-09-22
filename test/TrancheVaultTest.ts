@@ -2,8 +2,19 @@ import { ethers } from "hardhat";
 import { expect } from "chai";
 import { BigNumber as BN } from "ethers";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { checkEpochInfo, deployAndSetupPoolContracts, deployProtocolContracts } from "./BaseTest";
-import { mineNextBlockWithTimestamp, setNextBlockTimestamp, toToken } from "./TestUtils";
+import {
+    checkEpochInfo,
+    CONSTANTS,
+    deployAndSetupPoolContracts,
+    deployProtocolContracts,
+    PnLCalculator,
+} from "./BaseTest";
+import {
+    copyLPConfigWithOverrides,
+    mineNextBlockWithTimestamp,
+    setNextBlockTimestamp,
+    toToken,
+} from "./TestUtils";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import {
     BaseCreditFeeManager,
@@ -32,7 +43,10 @@ let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
     evaluationAgent: SignerWithAddress,
     poolOperator: SignerWithAddress;
-let lender: SignerWithAddress, lender2: SignerWithAddress;
+let lender: SignerWithAddress,
+    lender2: SignerWithAddress,
+    lender3: SignerWithAddress,
+    lender4: SignerWithAddress;
 
 let eaNFTContract: EvaluationAgentNFT,
     humaConfigContract: HumaConfig,
@@ -78,6 +92,8 @@ describe("TrancheVault Test", function () {
             poolOperator,
             lender,
             lender2,
+            lender3,
+            lender4,
         ] = await ethers.getSigners();
     });
 
@@ -115,7 +131,7 @@ describe("TrancheVault Test", function () {
             evaluationAgent,
             poolOwnerTreasury,
             poolOperator,
-            [lender, lender2],
+            [lender, lender2, lender3, lender4],
         );
     }
 
@@ -242,38 +258,193 @@ describe("TrancheVault Test", function () {
             );
         });
 
-        it("Should deposit successfully", async function () {
-            let amount = toToken(40_000);
-            let balanceBefore = await mockTokenContract.balanceOf(lender.address);
+        it("Should allow lenders to deposit", async function () {
+            const juniorAmount = toToken(40_000);
+            const lenderBalanceBeforeJuniorDeposit = await mockTokenContract.balanceOf(
+                lender.address,
+            );
             await expect(
-                juniorTrancheVaultContract.connect(lender).deposit(amount, lender.address),
+                juniorTrancheVaultContract.connect(lender).deposit(juniorAmount, lender.address),
             )
                 .to.emit(juniorTrancheVaultContract, "LiquidityDeposited")
-                .withArgs(lender.address, amount, amount);
+                .withArgs(lender.address, juniorAmount, juniorAmount);
 
-            expect(await poolContract.totalAssets()).to.equal(amount);
-            let poolAssets = await poolContract.totalAssets();
-            expect(await juniorTrancheVaultContract.totalAssets()).to.equal(amount);
-            expect(await juniorTrancheVaultContract.totalSupply()).to.equal(amount);
-            expect(await juniorTrancheVaultContract.balanceOf(lender.address)).to.equal(amount);
+            expect(await poolContract.totalAssets()).to.equal(juniorAmount);
+            const poolAssets = await poolContract.totalAssets();
+            expect(await juniorTrancheVaultContract.totalAssets()).to.equal(juniorAmount);
+            expect(await juniorTrancheVaultContract.totalSupply()).to.equal(juniorAmount);
+            expect(await juniorTrancheVaultContract.balanceOf(lender.address)).to.equal(
+                juniorAmount,
+            );
             expect(await mockTokenContract.balanceOf(lender.address)).to.equal(
-                balanceBefore.sub(amount),
+                lenderBalanceBeforeJuniorDeposit.sub(juniorAmount),
             );
 
-            amount = toToken(10_000);
-            balanceBefore = await mockTokenContract.balanceOf(lender.address);
+            const seniorAmount = toToken(10_000);
+            const lenderBalanceBeforeSeniorDeposit = await mockTokenContract.balanceOf(
+                lender.address,
+            );
+            // Let lender makes the deposit, but send the token to lender2.
             await expect(
-                seniorTrancheVaultContract.connect(lender).deposit(amount, lender2.address),
+                seniorTrancheVaultContract.connect(lender).deposit(seniorAmount, lender2.address),
             )
                 .to.emit(seniorTrancheVaultContract, "LiquidityDeposited")
-                .withArgs(lender2.address, amount, amount);
-            expect(await poolContract.totalAssets()).to.equal(poolAssets.add(amount));
-            expect(await seniorTrancheVaultContract.totalAssets()).to.equal(amount);
-            expect(await seniorTrancheVaultContract.totalSupply()).to.equal(amount);
-            expect(await seniorTrancheVaultContract.balanceOf(lender2.address)).to.equal(amount);
-            expect(await mockTokenContract.balanceOf(lender.address)).to.equal(
-                balanceBefore.sub(amount),
+                .withArgs(lender2.address, seniorAmount, seniorAmount);
+            expect(await poolContract.totalAssets()).to.equal(poolAssets.add(seniorAmount));
+            expect(await seniorTrancheVaultContract.totalAssets()).to.equal(seniorAmount);
+            expect(await seniorTrancheVaultContract.totalSupply()).to.equal(seniorAmount);
+            expect(await seniorTrancheVaultContract.balanceOf(lender2.address)).to.equal(
+                seniorAmount,
             );
+            expect(await mockTokenContract.balanceOf(lender.address)).to.equal(
+                lenderBalanceBeforeSeniorDeposit.sub(seniorAmount),
+            );
+        });
+
+        describe("When there is PnL", function () {
+            let juniorAmount: BN, seniorAmount: BN;
+
+            before(function () {
+                juniorAmount = toToken(20_000);
+                seniorAmount = toToken(5_000);
+            });
+
+            async function testDepositWithPnL(profit: BN, loss: BN, lossRecovery: BN) {
+                // Make initial deposits into the junior and senior tranches.
+                // Initially, token price : asset is 1 : 1 w/o PnL.
+                const initialJuniorTokens = juniorAmount,
+                    initialSeniorTokens = seniorAmount;
+                await juniorTrancheVaultContract
+                    .connect(lender)
+                    .deposit(juniorAmount, lender.address);
+                await seniorTrancheVaultContract
+                    .connect(lender2)
+                    .deposit(seniorAmount, lender2.address);
+
+                // Distribute profit in the pool so that LP tokens increase in value.
+                await creditContract.setRefreshPnLReturns(profit, loss, lossRecovery);
+                await poolConfigContract
+                    .connect(poolOwner)
+                    .setEpochManager(defaultDeployer.address);
+                const adjustment = 8000;
+                const lpConfig = await poolConfigContract.getLPConfig();
+                const newLpConfig = copyLPConfigWithOverrides(lpConfig, {
+                    tranchesRiskAdjustmentInBps: adjustment,
+                });
+                await poolConfigContract.connect(poolOwner).setLPConfig(newLpConfig);
+
+                const assetInfo = await poolContract.tranchesAssets();
+                const assets = [
+                    assetInfo[CONSTANTS.SENIOR_TRANCHE_INDEX],
+                    assetInfo[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                ];
+                const profitAfterFees =
+                    await platformFeeManagerContract.calcPlatformFeeDistribution(profit);
+                const assetsWithProfits = PnLCalculator.calcProfitForRiskAdjustedPolicy(
+                    profitAfterFees,
+                    assets,
+                    BN.from(adjustment),
+                );
+                const [assetsWithLosses, losses] = PnLCalculator.calcLoss(loss, assetsWithProfits);
+                const [, assetsWithRecovery] = PnLCalculator.calcLossRecovery(
+                    lossRecovery,
+                    assetsWithLosses,
+                    losses,
+                );
+                const seniorAssets = assetsWithRecovery[CONSTANTS.SENIOR_TRANCHE_INDEX],
+                    juniorAssets = assetsWithRecovery[CONSTANTS.JUNIOR_TRANCHE_INDEX];
+
+                // Make a second round of deposits to make sure the LP token price has increased
+                // and the correct number of tokens are minted.
+                // First check the junior tranche.
+                const expectedJuniorAssets = juniorAssets.add(juniorAmount);
+                const expectedNewJuniorTokens = juniorAmount
+                    .mul(initialJuniorTokens)
+                    .div(juniorAssets);
+                await expect(
+                    juniorTrancheVaultContract
+                        .connect(lender3)
+                        .deposit(juniorAmount, lender3.address),
+                )
+                    .to.emit(juniorTrancheVaultContract, "LiquidityDeposited")
+                    .withArgs(lender3.address, juniorAmount, expectedNewJuniorTokens);
+                const poolAssets = await poolContract.totalAssets();
+                expect(poolAssets).to.equal(expectedJuniorAssets.add(seniorAssets));
+                expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
+                    expectedJuniorAssets,
+                );
+                // Check junior LP token.
+                expect(await juniorTrancheVaultContract.totalSupply()).to.equal(
+                    expectedNewJuniorTokens.add(initialJuniorTokens),
+                );
+                expect(await juniorTrancheVaultContract.balanceOf(lender3.address)).to.equal(
+                    expectedNewJuniorTokens,
+                );
+
+                // Then check the senior tranche.
+                const expectedSeniorAssets = seniorAssets.add(seniorAmount);
+                const expectedNewSeniorTokens = seniorAmount
+                    .mul(initialSeniorTokens)
+                    .div(seniorAssets);
+                await expect(
+                    seniorTrancheVaultContract
+                        .connect(lender4)
+                        .deposit(seniorAmount, lender4.address),
+                )
+                    .to.emit(seniorTrancheVaultContract, "LiquidityDeposited")
+                    .withArgs(lender4.address, seniorAmount, expectedNewSeniorTokens);
+                expect(await poolContract.totalAssets()).to.equal(poolAssets.add(seniorAmount));
+                expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
+                    expectedSeniorAssets,
+                );
+                // Check senior LP token.
+                expect(await seniorTrancheVaultContract.totalSupply()).to.equal(
+                    expectedNewSeniorTokens.add(initialSeniorTokens),
+                );
+                expect(await seniorTrancheVaultContract.balanceOf(lender4.address)).to.equal(
+                    expectedNewSeniorTokens,
+                );
+            }
+
+            it("Should mint the correct number of LP tokens if there is profit in the pool", async function () {
+                const profit = toToken(10_000),
+                    loss = toToken(0),
+                    lossRecovery = toToken(0);
+                await testDepositWithPnL(profit, loss, lossRecovery);
+            });
+
+            it("Should mint the correct number of LP tokens if the junior tranche has to take loss", async function () {
+                const profit = toToken(0),
+                    loss = juniorAmount.sub(toToken(1)),
+                    lossRecovery = toToken(0);
+                await testDepositWithPnL(profit, loss, lossRecovery);
+            });
+
+            // it("Should mint the correct number of LP tokens if the senior tranche has to take loss", async function () {
+            //     const profit = toToken(0), loss = juniorAmount.add(seniorAmount), lossRecovery = toToken(0);
+            //     await testDepositWithPnL(profit, loss, lossRecovery);
+            // });
+
+            it("Should mint the correct number of LP tokens if the senior tranche loss can be recovered", async function () {
+                const profit = toToken(0),
+                    loss = juniorAmount.add(seniorAmount),
+                    lossRecovery = seniorAmount.add(toToken(1));
+                await testDepositWithPnL(profit, loss, lossRecovery);
+            });
+
+            it("Should mint the correct number of LP tokens if the junior tranche loss can be recovered", async function () {
+                const profit = toToken(0),
+                    loss = juniorAmount.add(seniorAmount),
+                    lossRecovery = seniorAmount.add(juniorAmount);
+                await testDepositWithPnL(profit, loss, lossRecovery);
+            });
+
+            it("Should mint the correct number of LP tokens if there is all types of PnL in the pool", async function () {
+                const profit = toToken(10_000),
+                    loss = toToken(1_000),
+                    lossRecovery = toToken(500);
+                await testDepositWithPnL(profit, loss, lossRecovery);
+            });
         });
     });
 
@@ -350,7 +521,6 @@ describe("TrancheVault Test", function () {
             it("Should request redemption in a same epoch successfully", async function () {
                 let shares = toToken(10_000);
                 let currentEpochId = await epochManagerContract.currentEpochId();
-                // console.log(`currentEpochId: ${currentEpochId}`);
                 let balance = await juniorTrancheVaultContract.balanceOf(lender.address);
                 await expect(
                     juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares),
@@ -434,7 +604,6 @@ describe("TrancheVault Test", function () {
             it("Should request redemption in the next epoch successfully", async function () {
                 const shares = toToken(10_000);
                 let currentEpochId = await epochManagerContract.currentEpochId();
-                // console.log(`currentEpochId: ${currentEpochId}`);
                 let balance = await juniorTrancheVaultContract.balanceOf(lender.address);
                 await expect(
                     juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares),
