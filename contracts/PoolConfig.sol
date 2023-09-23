@@ -183,7 +183,7 @@ contract PoolConfig is AccessControl, Initializable {
     event EpochManagerChanged(address epochManager, address by);
     event CreditChanged(address credit, address by);
     event FirstLossCoversChanged(address[] firstLossCovers, address by);
-    event CalenderChanged(address calender, address by);
+    event CalendarChanged(address calendar, address by);
 
     event PoolRewardsWithdrawn(address receiver, uint256 amount);
     event ProtocolRewardsWithdrawn(address receiver, uint256 amount, address by);
@@ -540,7 +540,7 @@ contract PoolConfig is AccessControl, Initializable {
         _onlyOwnerOrHumaMasterAdmin();
         if (_calendar == address(0)) revert Errors.zeroAddressProvided();
         calendar = _calendar;
-        emit CalenderChanged(_calendar, msg.sender);
+        emit CalendarChanged(_calendar, msg.sender);
     }
 
     /**
