@@ -65,5 +65,10 @@ contract MockPoolCredit is PoolConfigCache, IPoolCredit {
         profit = profit_;
         loss = loss_;
         lossRecovery = lossRecovery_;
+
+        // Reset PnL data since they have been consumed by this function call.
+        profit_ = 0;
+        loss_ = 0;
+        lossRecovery_ = 0;
     }
 }

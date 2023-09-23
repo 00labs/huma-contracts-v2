@@ -370,7 +370,7 @@ describe("Pool Test", function () {
                     const [, assetsWithRecovery, lossesWithRecovery] =
                         PnLCalculator.calcLossRecovery(recovery, assetsWithLosses, losses);
 
-                    await expect(await poolContract.refreshPool())
+                    await expect(poolContract.refreshPool())
                         .to.emit(poolContract, "PoolAssetsRefreshed")
                         .withArgs(
                             nextTS,
