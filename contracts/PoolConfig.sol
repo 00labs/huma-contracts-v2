@@ -76,7 +76,7 @@ struct LPConfig {
     uint16 tranchesRiskAdjustmentInBps;
 }
 
-struct FirstLossCover {
+struct FirstLossCoverConfig {
     // percentage of the pool cap required to be covered by first loss cover
     uint16 poolCapCoverageInBps;
     // percentage of the pool value required to be covered by first loss cover
@@ -88,22 +88,22 @@ struct FirstLossCover {
 }
 
 struct FrontLoadingFeesStructure {
-    /// Part of platform fee, charged as a flat amount when a borrow happens
+    // Part of platform fee, charged as a flat amount when a borrow happens
     uint96 frontLoadingFeeFlat;
-    /// Part of platform fee, charged as a % of the borrowing amount when a borrow happens
+    // Part of platform fee, charged as a % of the borrowing amount when a borrow happens
     uint16 frontLoadingFeeBps;
 }
 
 struct FeeStructure {
     // Expected yield in basis points
     uint16 yieldInBps;
-    ///The min % of the outstanding principal to be paid in the statement for each each period
+    // The min % of the outstanding principal to be paid in the statement for each each period
     uint16 minPrincipalRateInBps;
-    /// Part of late fee, charged as a flat amount when a payment is late
+    // Part of late fee, charged as a flat amount when a payment is late
     uint96 lateFeeFlat;
-    /// Part of late fee, charged as % of the totaling outstanding balance when a payment is late
+    // Part of late fee, charged as % of the totaling outstanding balance when a payment is late
     uint16 lateFeeBps;
-    // membership fee per pay period. It is a flat fee
+    // Membership fee per pay period. It is a flat fee
     uint96 membershipFee;
 }
 
@@ -142,7 +142,7 @@ contract PoolConfig is AccessControl, Initializable {
     PoolSettings internal _poolSettings;
     LPConfig internal _lpConfig;
     AdminRnR internal _adminRnR;
-    FirstLossCover internal _firstLossCover;
+    FirstLossCoverConfig internal _firstLossCoverConfig;
     FrontLoadingFeesStructure internal _frontFees;
     FeeStructure internal _feeStructure;
 
@@ -174,7 +174,17 @@ contract PoolConfig is AccessControl, Initializable {
         address indexed by
     );
     event PoolOwnerTreasuryChanged(address treasury, address indexed by);
-    event PoolPayPeriodChanged(uint256 periodInDays, address by);
+    event PoolPayPeriodChanged(uint8 unit, uint256 number, address by);
+    event PoolFlexCallChanged(bool enabled, uint256 windowInEpoch, address by);
+    event PoolUnderlyingTokenChanged(address underlyingToken, address by);
+    event TranchesChanged(address seniorTranche, address juniorTranche, address by);
+    event PoolVaultChanged(address poolVault, address by);
+    event TranchesPolicyChanged(address tranchesPolicy, address by);
+    event EpochManagerChanged(address epochManager, address by);
+    event CreditChanged(address credit, address by);
+    event FirstLossCoversChanged(address[] firstLossCovers, address by);
+    event CalenderChanged(address calender, address by);
+
     event PoolRewardsWithdrawn(address receiver, uint256 amount);
     event ProtocolRewardsWithdrawn(address receiver, uint256 amount, address by);
     event ReceivableRequiredInBpsChanged(uint256 receivableInBps, address by);
@@ -439,7 +449,7 @@ contract PoolConfig is AccessControl, Initializable {
         _settings.calendarUnit = unit;
         _settings.payPeriodInCalendarUnit = uint8(number);
         _poolSettings = _settings;
-        //emit PoolPayPeriodChanged(unit, number, msg.sender);
+        emit PoolPayPeriodChanged(uint8(unit), number, msg.sender);
     }
 
     function setPoolFlexCall(bool enabled, uint256 windowInEpoch) external {
@@ -449,7 +459,7 @@ contract PoolConfig is AccessControl, Initializable {
         _settings.flexCreditEnabled = enabled;
         _settings.flexCallWindowInEpochs = uint8(windowInEpoch);
         _poolSettings = _settings;
-        // TODO emit event
+        emit PoolFlexCallChanged(enabled, windowInEpoch, msg.sender);
     }
 
     /**
@@ -472,7 +482,7 @@ contract PoolConfig is AccessControl, Initializable {
         _onlyOwnerOrHumaMasterAdmin();
         if (_underlyingToken == address(0)) revert Errors.zeroAddressProvided();
         underlyingToken = _underlyingToken;
-        // todo emit event
+        emit PoolUnderlyingTokenChanged(_underlyingToken, msg.sender);
     }
 
     function setTranches(address _seniorTranche, address _juniorTranche) external {
@@ -481,35 +491,35 @@ contract PoolConfig is AccessControl, Initializable {
             revert Errors.zeroAddressProvided();
         seniorTranche = _seniorTranche;
         juniorTranche = _juniorTranche;
-        // todo emit event
+        emit TranchesChanged(_seniorTranche, _juniorTranche, msg.sender);
     }
 
     function setPoolVault(address _poolVault) external {
         _onlyOwnerOrHumaMasterAdmin();
         if (_poolVault == address(0)) revert Errors.zeroAddressProvided();
         poolVault = _poolVault;
-        // todo emit event
+        emit PoolVaultChanged(poolVault, msg.sender);
     }
 
     function setTranchesPolicy(address _tranchesPolicy) external {
         _onlyOwnerOrHumaMasterAdmin();
         if (_tranchesPolicy == address(0)) revert Errors.zeroAddressProvided();
         tranchesPolicy = _tranchesPolicy;
-        // todo emit event
+        emit TranchesPolicyChanged(_tranchesPolicy, msg.sender);
     }
 
     function setEpochManager(address _epochManager) external {
         _onlyOwnerOrHumaMasterAdmin();
         if (_epochManager == address(0)) revert Errors.zeroAddressProvided();
         epochManager = _epochManager;
-        // todo emit event
+        emit EpochManagerChanged(epochManager, msg.sender);
     }
 
     function setCredit(address _credit) external {
         _onlyOwnerOrHumaMasterAdmin();
         if (_credit == address(0)) revert Errors.zeroAddressProvided();
         credit = _credit;
-        // todo emit event
+        emit CreditChanged(_credit, msg.sender);
     }
 
     function setFirstLossCovers(address[] calldata firstLossCovers) external {
@@ -517,19 +527,20 @@ contract PoolConfig is AccessControl, Initializable {
         for (uint256 i = 0; i < firstLossCovers.length; i++) {
             _firstLossCovers.push(firstLossCovers[i]);
         }
-        // todo emit event
+        emit FirstLossCoversChanged(firstLossCovers, msg.sender);
     }
 
     function setPoolOwnerOrEAFirstLossCover(address cover) external {
         _onlyOwnerOrHumaMasterAdmin();
         poolOwnerOrEAFirstLossCover = cover;
+        // TODO emit event
     }
 
     function setCalendar(address _calendar) external {
         _onlyOwnerOrHumaMasterAdmin();
         if (_calendar == address(0)) revert Errors.zeroAddressProvided();
         calendar = _calendar;
-        // todo emit event
+        emit CalenderChanged(_calendar, msg.sender);
     }
 
     /**
@@ -611,8 +622,8 @@ contract PoolConfig is AccessControl, Initializable {
         return _adminRnR;
     }
 
-    function getFirstLossCover() external view returns (FirstLossCover memory) {
-        return _firstLossCover;
+    function getFirstLossCover() external view returns (FirstLossCoverConfig memory) {
+        return _firstLossCoverConfig;
     }
 
     function getFirstLossCovers() external view returns (address[] memory) {
@@ -691,9 +702,9 @@ contract PoolConfig is AccessControl, Initializable {
         // todo emit event
     }
 
-    function setFirstLossCoverConfig(FirstLossCover calldata firstLossCover) external {
+    function setFirstLossCoverConfig(FirstLossCoverConfig calldata firstLossCoverConfig) external {
         _onlyOwnerOrHumaMasterAdmin();
-        _firstLossCover = firstLossCover;
+        _firstLossCoverConfig = firstLossCoverConfig;
         // todo emit event
     }
 
