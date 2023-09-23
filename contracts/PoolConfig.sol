@@ -851,9 +851,16 @@ contract PoolConfig is AccessControl, Initializable {
         if (account != pool) revert Errors.notPool();
     }
 
-    function onlyTrancheVaultOrFirstLossCoverOrCredit(address account) external view {
+    function onlyTrancheVaultOrFirstLossCoverOrCreditOrPlatformFeeManager(
+        address account
+    ) external view {
         bool valid;
-        if (account == seniorTranche || account == juniorTranche || account == credit) return;
+        if (
+            account == seniorTranche ||
+            account == juniorTranche ||
+            account == credit ||
+            account == platformFeeManager
+        ) return;
         uint256 len = _firstLossCovers.length;
         // console.log("account: %s, len: %s", account, len);
         for (uint256 i; i < len; i++) {
@@ -861,7 +868,7 @@ contract PoolConfig is AccessControl, Initializable {
             if (account == address(_firstLossCovers[i])) return;
         }
 
-        if (!valid) revert Errors.notTrancheVaultOrFirstLossCoverOrCredit();
+        if (!valid) revert Errors.notTrancheVaultOrFirstLossCoverOrCreditOrPlatformFeeManager();
     }
 
     function onlyTrancheVaultOrEpochManager(address account) external view {

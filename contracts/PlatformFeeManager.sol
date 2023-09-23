@@ -65,28 +65,37 @@ contract PlatformFeeManager is PoolConfigCache, IPlatformFeeManager {
             firstLossCover.depositCover(incomes.eaIncome, poolConfig.evaluationAgent());
         } else {
             if (liquidityCapacity > 0) {
-                // TODO deposit liquidityCapacity into affiliate first loss cover
-            }
+                // TODO these deposits are expensive, it is better to move them to an autotask
+                uint256 poolOwnerFees = (incomes.poolOwnerIncome * liquidityCapacity) / totalFees;
+                firstLossCover.depositCover(poolOwnerFees, poolConfig.poolOwnerTreasury());
+                uint256 eaFees = (incomes.eaIncome * liquidityCapacity) / totalFees;
+                firstLossCover.depositCover(eaFees, poolConfig.evaluationAgent());
+                uint256 protocolFees = liquidityCapacity - poolOwnerFees - eaFees;
+                firstLossCover.depositCover(protocolFees, humaConfig.humaTreasury());
 
-            // TODO accrued remaining fees in this contract
+                uint256 remainingFees = totalFees - liquidityCapacity;
+                incomes.poolOwnerIncome = uint96(
+                    (incomes.poolOwnerIncome * remainingFees) / totalFees
+                );
+                incomes.eaIncome = uint96((incomes.eaIncome * remainingFees) / totalFees);
+                incomes.protocolIncome = uint96(
+                    remainingFees - incomes.poolOwnerIncome - incomes.eaIncome
+                );
+            }
 
             AccruedIncomes memory accruedIncomes = _accruedIncomes;
             accruedIncomes.protocolIncome += incomes.protocolIncome;
             accruedIncomes.poolOwnerIncome += incomes.poolOwnerIncome;
             accruedIncomes.eaIncome += incomes.eaIncome;
-
             _accruedIncomes = accruedIncomes;
-            poolVault.addPlatformFeesReserve(
-                incomes.protocolIncome + incomes.poolOwnerIncome + incomes.eaIncome
+
+            emit IncomeDistributed(
+                incomes.protocolIncome,
+                incomes.poolOwnerIncome,
+                incomes.eaIncome,
+                remaining
             );
         }
-
-        emit IncomeDistributed(
-            incomes.protocolIncome,
-            incomes.poolOwnerIncome,
-            incomes.eaIncome,
-            remaining
-        );
 
         return remaining;
     }
@@ -112,7 +121,7 @@ contract PlatformFeeManager is PoolConfigCache, IPlatformFeeManager {
         // after protocolTreasury is configured in HumaConfig.
         assert(treasuryAddress != address(0));
 
-        poolVault.withdrawFees(treasuryAddress, amount);
+        poolVault.withdraw(treasuryAddress, amount);
         emit ProtocolRewardsWithdrawn(treasuryAddress, amount, msg.sender);
     }
 
@@ -124,7 +133,7 @@ contract PlatformFeeManager is PoolConfigCache, IPlatformFeeManager {
             revert Errors.withdrawnAmountHigherThanBalance();
 
         poolOwnerIncomeWithdrawn = incomeWithdrawn + amount;
-        poolVault.withdrawFees(treasury, amount);
+        poolVault.withdraw(treasury, amount);
         emit PoolRewardsWithdrawn(treasury, amount, msg.sender);
     }
 
@@ -138,12 +147,23 @@ contract PlatformFeeManager is PoolConfigCache, IPlatformFeeManager {
             revert Errors.withdrawnAmountHigherThanBalance();
 
         eaIncomeWithdrawn = incomeWithdrawn + amount;
-        poolVault.withdrawFees(treasury, amount);
+        poolVault.withdraw(treasury, amount);
         emit EvaluationAgentRewardsWithdrawn(treasury, amount, msg.sender);
     }
 
     function getAccruedIncomes() external view returns (AccruedIncomes memory) {
         return _accruedIncomes;
+    }
+
+    function getTotalAvailableFees() external view returns (uint256) {
+        AccruedIncomes memory incomes = _accruedIncomes;
+        return
+            incomes.protocolIncome +
+            incomes.poolOwnerIncome +
+            incomes.eaIncome -
+            protocolIncomeWithdrawn -
+            poolOwnerIncomeWithdrawn -
+            eaIncomeWithdrawn;
     }
 
     function getWithdrawables()
