@@ -253,7 +253,7 @@ describe("EpochManager Test", function () {
         expect(await juniorTrancheVaultContract.totalAssets()).to.equal(juniorTotalAssets);
     });
 
-    it("Should close epoch successfully while processing multi senior fully", async function () {
+    it("Should close epoch successfully while processing multiple senior fully", async function () {
         let settings = await poolConfigContract.getPoolSettings();
 
         // Epoch1
@@ -338,7 +338,7 @@ describe("EpochManager Test", function () {
         expect(await juniorTrancheVaultContract.totalAssets()).to.equal(juniorTotalAssets);
     });
 
-    it("Should close epoch successfully while processing multi senior epochs(\
+    it("Should close epoch successfully while processing multiple senior epochs (\
     some are processed fully, some are processed partially and some are unprocessed)", async function () {
         let settings = await poolConfigContract.getPoolSettings();
 
@@ -535,7 +535,7 @@ describe("EpochManager Test", function () {
         expect(await seniorTrancheVaultContract.totalAssets()).to.equal(seniorTotalAssets);
     });
 
-    it("Should close epoch successfully while processing multi junior fully", async function () {
+    it("Should close epoch successfully while processing multiple junior fully", async function () {
         let settings = await poolConfigContract.getPoolSettings();
 
         // Epoch1
@@ -656,7 +656,7 @@ describe("EpochManager Test", function () {
         expect(await seniorTrancheVaultContract.totalAssets()).to.equal(seniorTotalAssets);
     });
 
-    it("Should close epoch successfully while processing multi junior epochs(\
+    it("Should close epoch successfully while processing multiple junior epochs (\
     some are processed fully, some are processed partially and some are unprocessed)", async function () {
         let settings = await poolConfigContract.getPoolSettings();
 
@@ -880,9 +880,9 @@ describe("EpochManager Test", function () {
         expect(await juniorTrancheVaultContract.firstUnprocessedEpochIndex()).to.equal(1);
     });
 
-    it("Should close epoch successfully while processing multi epochs, \
-    multi senior epochs are processed fully, \
-    multi junior epochs are processed fully", async function () {
+    it("Should close epoch successfully while processing multiple epochs, \
+    multiple senior epochs are processed fully, \
+    multiple junior epochs are processed fully", async function () {
         let settings = await poolConfigContract.getPoolSettings();
 
         // Epoch1
@@ -1051,9 +1051,9 @@ describe("EpochManager Test", function () {
         );
     });
 
-    it("Should close epoch successfully while processing multi epochs, \
-    multi senior epochs are processed fully, \
-    multi junior epochs are processed partially(\
+    it("Should close epoch successfully while processing multiple epochs, \
+    multiple senior epochs are processed fully, \
+    multiple junior epochs are processed partially (\
     some are processed fully, some are processed partially and some are unprocessed)", async function () {
         let settings = await poolConfigContract.getPoolSettings();
 
@@ -1315,7 +1315,7 @@ describe("EpochManager Test", function () {
             expect(await juniorTrancheVaultContract.totalAssets()).to.equal(juniorTotalAssets);
         });
 
-        it("Should close epoch successfully while processing multi immature senior fully", async function () {
+        it("Should close epoch successfully while processing multiple immature senior fully", async function () {
             let settings = await poolConfigContract.getPoolSettings();
 
             // Epoch1
@@ -1400,7 +1400,7 @@ describe("EpochManager Test", function () {
             expect(await juniorTrancheVaultContract.totalAssets()).to.equal(juniorTotalAssets);
         });
 
-        it("Should close epoch successfully while processing multi immature senior(\
+        it("Should close epoch successfully while processing multiple immature senior (\
         some are processed fully, some are processed partially and some are unprocessed)", async function () {
             await poolConfigContract.connect(poolOwner).setPoolFlexCall(true, 5);
 
@@ -1600,7 +1600,7 @@ describe("EpochManager Test", function () {
             expect(await seniorTrancheVaultContract.totalAssets()).to.equal(seniorTotalAssets);
         });
 
-        it("Should close epoch successfully while processing multi immature junior fully", async function () {
+        it("Should close epoch successfully while processing multiple immature junior fully", async function () {
             let settings = await poolConfigContract.getPoolSettings();
 
             // Epoch1
@@ -1721,7 +1721,7 @@ describe("EpochManager Test", function () {
             expect(await seniorTrancheVaultContract.totalAssets()).to.equal(seniorTotalAssets);
         });
 
-        it("Should close epoch successfully while processing multi immature junior(\
+        it("Should close epoch successfully while processing multiple immature junior (\
         some are processed fully, some are processed partially and some are unprocessed)", async function () {
             await poolConfigContract.connect(poolOwner).setPoolFlexCall(true, 5);
 
@@ -1991,11 +1991,11 @@ describe("EpochManager Test", function () {
             );
         });
 
-        it("Should close epoch successfully while processing multi epochs, \
-        multi mature senior epochs are processed fully, \
-        multi mature junior epochs are processed fully, \
-        multi immature senior epochs are processed fully, \
-        multi immature junior epochs are processed fully", async function () {
+        it("Should close epoch successfully while processing multiple epochs, \
+        multiple mature senior epochs are processed fully, \
+        multiple mature junior epochs are processed fully, \
+        multiple immature senior epochs are processed fully, \
+        multiple immature junior epochs are processed fully", async function () {
             await poolConfigContract.connect(poolOwner).setPoolFlexCall(true, 2);
 
             let settings = await poolConfigContract.getPoolSettings();
@@ -2195,13 +2195,13 @@ describe("EpochManager Test", function () {
             );
         });
 
-        it("Should close epoch successfully while processing multi epochs, \
-        multi mature senior epochs are processed fully, \
-        multi mature junior epochs are processed partially(\
+        it("Should close epoch successfully while processing multiple epochs, \
+        multiple mature senior epochs are processed fully, \
+        multiple mature junior epochs are processed partially (\
         some are processed fully, some are processed partially and some are unprocessed), \
-        multi immature senior epochs are processed partially(\
+        multiple immature senior epochs are processed partially (\
         some are processed fully, some are processed partially and some are unprocessed), \
-        multi immature junior epochs are unprocessed", async function () {
+        multiple immature junior epochs are unprocessed", async function () {
             await poolConfigContract.connect(poolOwner).setPoolFlexCall(true, 2);
 
             let settings = await poolConfigContract.getPoolSettings();
@@ -2421,11 +2421,11 @@ describe("EpochManager Test", function () {
             );
         });
 
-        it("Should close epoch successfully while processing multi epochs, \
-        multi mature senior epochs are processed fully, \
-        multi mature junior epochs are processed fully, \
-        multi immature senior epochs are processed fully, \
-        multi immature junior epochs are processed partially(\
+        it("Should close epoch successfully while processing multiple epochs, \
+        multiple mature senior epochs are processed fully, \
+        multiple mature junior epochs are processed fully, \
+        multiple immature senior epochs are processed fully, \
+        multiple immature junior epochs are processed partially (\
         some are processed fully, some are processed partially and some are unprocessed)", async function () {
             await poolConfigContract.connect(poolOwner).setPoolFlexCall(true, 2);
 
