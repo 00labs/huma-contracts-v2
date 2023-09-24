@@ -164,6 +164,8 @@ contract FirstLossCover is
         ERC20Upgradeable._burn(msg.sender, shares);
         _totalAssets -= assets;
 
+        // TODO withdraw from ProfitEscrow contract
+
         poolVault.withdraw(receiver, assets);
 
         emit CoverRedeemed(msg.sender, receiver, shares, assets);
@@ -269,6 +271,8 @@ contract FirstLossCover is
         shares = convertToShares(assets);
         ERC20Upgradeable._mint(receiver, shares);
         _totalAssets += assets;
+
+        // TODO deposit into ProfitEscrow contract
 
         emit CoverDeposited(msg.sender, receiver, assets, shares);
     }
