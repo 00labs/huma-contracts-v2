@@ -1810,7 +1810,7 @@ describe("CreditLine Test", function () {
                 defaultDate2,
                 defaultDate2,
                 BN.from(0),
-                2,
+                3,
             );
         });
     });
