@@ -54,7 +54,7 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
         uint256 _amount
     ) public view virtual override returns (uint256 fees) {
         uint256 frontLoadingFeeBps;
-        (fees, frontLoadingFeeBps) = poolConfig.getFrontLoadingFee();
+        (fees, frontLoadingFeeBps) = poolConfig.getFrontLoadingFees();
         if (frontLoadingFeeBps > 0)
             fees += (_amount * frontLoadingFeeBps) / HUNDRED_PERCENT_IN_BPS;
     }
