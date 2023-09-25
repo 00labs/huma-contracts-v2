@@ -21,7 +21,7 @@ struct PoolSettings {
     // the maximum credit line for an address in terms of the amount of poolTokens
     uint96 maxCreditLine;
     // calendarType and numPerPeriod are used together to measure the duration
-    // of a pay period. For example, 14 days, 2 SemiMonth (1 month), 6 SemiMonth (1 quarter)
+    // of a pay period. For example, 14 days, 1 month.
     CalendarUnit calendarUnit;
     // It is the pay period in terms of the calendar unit for borrowers.
     // It is the duration of an epoch for lenders withdrawing.
@@ -456,7 +456,7 @@ contract PoolConfig is AccessControl, Initializable {
      */
     function setPoolDefaultGracePeriod(CalendarUnit unit, uint256 gracePeriod) external {
         _onlyOwnerOrHumaMasterAdmin();
-        if (unit != _poolSettings.calendarUnit) revert();
+        if (unit != _poolSettings.calendarUnit) revert Errors.invalidCalendarUnit();
         _poolSettings.defaultGracePeriodInCalendarUnit = uint16(gracePeriod);
         emit PoolDefaultGracePeriodChanged(unit, gracePeriod, msg.sender);
     }
@@ -592,7 +592,7 @@ contract PoolConfig is AccessControl, Initializable {
      */
     function setWithdrawalLockoutPeriod(CalendarUnit unit, uint256 lockoutPeriod) external {
         _onlyOwnerOrHumaMasterAdmin();
-        if (unit != _poolSettings.calendarUnit) revert();
+        if (unit != _poolSettings.calendarUnit) revert Errors.invalidCalendarUnit();
         _lpConfig.withdrawalLockoutInCalendarUnit = uint8(lockoutPeriod);
         emit WithdrawalLockoutPeriodChanged(unit, lockoutPeriod, msg.sender);
     }

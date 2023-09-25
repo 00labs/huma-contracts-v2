@@ -1,7 +1,7 @@
 import { ethers } from "hardhat";
 
 import { expect } from "chai";
-import { deployAndSetupPoolContracts, deployProtocolContracts } from "./BaseTest";
+import { CONSTANTS, deployAndSetupPoolContracts, deployProtocolContracts } from "./BaseTest";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import {
@@ -53,7 +53,7 @@ let poolConfigContract: PoolConfig,
     creditFeeManagerContract: BaseCreditFeeManager,
     creditPnlManagerContract: BasePnLManager;
 
-describe("PoolConfig Test", function () {
+describe("PoolConfig Tests", function () {
     before(async function () {
         [
             defaultDeployer,
@@ -765,7 +765,6 @@ describe("PoolConfig Test", function () {
                         .connect(regularUser)
                         .setEARewardsAndLiquidity(rewardsRate, liquidityRate),
                 ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
-                const adminRnR = await poolConfigContract.getAdminRnR();
             });
 
             it("Should fail if rewards rate exceeds 100%", async function () {
@@ -1064,6 +1063,193 @@ describe("PoolConfig Test", function () {
                 await expect(
                     poolConfigContract.connect(poolOwner).setPool(ethers.constants.AddressZero),
                 ).to.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
+            });
+        });
+
+        describe("setPoolDefaultGracePeriod", function () {
+            let defaultGracePeriodDays: number, calendarUnit: number;
+
+            before(function () {
+                defaultGracePeriodDays = 1;
+                calendarUnit = CONSTANTS.CALENDAR_UNIT_MONTH;
+            });
+
+            it("Should allow the pool owner to set the default grace period", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setPoolDefaultGracePeriod(calendarUnit, defaultGracePeriodDays),
+                )
+                    .to.emit(poolConfigContract, "PoolDefaultGracePeriodChanged")
+                    .withArgs(calendarUnit, defaultGracePeriodDays, poolOwner.address);
+                const poolSettings = await poolConfigContract.getPoolSettings();
+                expect(poolSettings.defaultGracePeriodInCalendarUnit).to.equal(
+                    defaultGracePeriodDays,
+                );
+            });
+
+            it("Should allow the Huma master admin to set the default grace period", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(protocolOwner)
+                        .setPoolDefaultGracePeriod(calendarUnit, defaultGracePeriodDays),
+                )
+                    .to.emit(poolConfigContract, "PoolDefaultGracePeriodChanged")
+                    .withArgs(calendarUnit, defaultGracePeriodDays, protocolOwner.address);
+                const poolSettings = await poolConfigContract.getPoolSettings();
+                expect(poolSettings.calendarUnit).to.equal(calendarUnit);
+            });
+
+            it("Should reject non-owner or admin to set the default grace period", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(regularUser)
+                        .setPoolDefaultGracePeriod(calendarUnit, defaultGracePeriodDays),
+                ).to.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+            });
+
+            it("Should reject new default grace period with the wrong calendar unit", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setPoolDefaultGracePeriod(
+                            CONSTANTS.CALENDAR_UNIT_MONTH,
+                            defaultGracePeriodDays,
+                        ),
+                ).to.revertedWithCustomError(poolConfigContract, "invalidCalendarUnit");
+            });
+        });
+
+        describe("setPoolLiquidityCap", function () {
+            let liquidityCap: BN;
+
+            before(function () {
+                liquidityCap = toToken(50_000_000);
+            });
+
+            it("Should allow the pool owner to set the liquidity cap", async function () {
+                await expect(
+                    poolConfigContract.connect(poolOwner).setPoolLiquidityCap(liquidityCap),
+                )
+                    .to.emit(poolConfigContract, "PoolLiquidityCapChanged")
+                    .withArgs(liquidityCap, poolOwner.address);
+                const lpConfig = await poolConfigContract.getLPConfig();
+                expect(lpConfig.liquidityCap).to.equal(liquidityCap);
+            });
+
+            it("Should allow the Huma master admin to set the liquidity cap", async function () {
+                await expect(
+                    poolConfigContract.connect(protocolOwner).setPoolLiquidityCap(liquidityCap),
+                )
+                    .to.emit(poolConfigContract, "PoolLiquidityCapChanged")
+                    .withArgs(liquidityCap, protocolOwner.address);
+                const lpConfig = await poolConfigContract.getLPConfig();
+                expect(lpConfig.liquidityCap).to.equal(liquidityCap);
+            });
+
+            it("Should reject non-owner or admin to set the liquidity cap", async function () {
+                await expect(
+                    poolConfigContract.connect(regularUser).setPoolLiquidityCap(liquidityCap),
+                ).to.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+            });
+
+            it("Should reject zero liquidity cap", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setPoolLiquidityCap(ethers.constants.Zero),
+                ).to.revertedWithCustomError(poolConfigContract, "zeroAmountProvided");
+            });
+        });
+
+        describe("setPoolPayPeriod", function () {
+            let calendarUnit: number, numPayPeriods: number;
+
+            before(function () {
+                calendarUnit = CONSTANTS.CALENDAR_UNIT_MONTH;
+                numPayPeriods = 1;
+            });
+
+            it("Should allow the pool owner to set the pay period", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setPoolPayPeriod(calendarUnit, numPayPeriods),
+                )
+                    .to.emit(poolConfigContract, "PoolPayPeriodChanged")
+                    .withArgs(calendarUnit, numPayPeriods, poolOwner.address);
+                const poolSettings = await poolConfigContract.getPoolSettings();
+                expect(poolSettings.calendarUnit).to.equal(calendarUnit);
+                expect(poolSettings.payPeriodInCalendarUnit).to.equal(numPayPeriods);
+            });
+
+            it("Should allow the Huma master admin to set the pay period", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(protocolOwner)
+                        .setPoolPayPeriod(calendarUnit, numPayPeriods),
+                )
+                    .to.emit(poolConfigContract, "PoolPayPeriodChanged")
+                    .withArgs(calendarUnit, numPayPeriods, protocolOwner.address);
+                const poolSettings = await poolConfigContract.getPoolSettings();
+                expect(poolSettings.calendarUnit).to.equal(calendarUnit);
+                expect(poolSettings.payPeriodInCalendarUnit).to.equal(numPayPeriods);
+            });
+
+            it("Should reject non-owner or admin to set the pool", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(regularUser)
+                        .setPoolPayPeriod(calendarUnit, numPayPeriods),
+                ).to.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+            });
+
+            it("Should reject zero pay periods", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setPoolPayPeriod(calendarUnit, ethers.constants.Zero),
+                ).to.revertedWithCustomError(poolConfigContract, "zeroAmountProvided");
+            });
+        });
+
+        describe("setPoolFlexCall", function () {
+            let enabled = true,
+                flexCallWindowInEpoch = 3;
+            it("Should allow the pool owner to set the flex call config", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setPoolFlexCall(enabled, flexCallWindowInEpoch),
+                )
+                    .to.emit(poolConfigContract, "PoolFlexCallChanged")
+                    .withArgs(enabled, flexCallWindowInEpoch, poolOwner.address);
+                expect(await poolConfigContract.pool()).to.equal(poolContract.address);
+            });
+
+            it("Should allow the Huma master admin to set the flex call config", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(protocolOwner)
+                        .setPoolFlexCall(enabled, flexCallWindowInEpoch),
+                )
+                    .to.emit(poolConfigContract, "PoolFlexCallChanged")
+                    .withArgs(enabled, flexCallWindowInEpoch, protocolOwner.address);
+                expect(await poolConfigContract.pool()).to.equal(poolContract.address);
+            });
+
+            it("Should reject non-owner or admin to set the flex call config", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(regularUser)
+                        .setPoolFlexCall(enabled, flexCallWindowInEpoch),
+                ).to.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+            });
+
+            it("Should reject zero-valued windows", async function () {
+                await expect(
+                    poolConfigContract.connect(poolOwner).setPoolFlexCall(enabled, 0),
+                ).to.revertedWithCustomError(poolConfigContract, "zeroAmountProvided");
             });
         });
 
