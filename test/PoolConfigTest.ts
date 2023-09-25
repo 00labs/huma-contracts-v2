@@ -1137,20 +1137,26 @@ describe("PoolConfig Test", function () {
 
         describe("setPoolUnderlyingToken", function () {
             it("Should allow the pool owner to set the underlying token", async function () {
-                // TODO(jiatu): test event emission when the event is added.
-                await poolConfigContract
-                    .connect(poolOwner)
-                    .setPoolUnderlyingToken(mockTokenContract.address);
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setPoolUnderlyingToken(mockTokenContract.address),
+                )
+                    .to.emit(poolConfigContract, "PoolUnderlyingTokenChanged")
+                    .withArgs(mockTokenContract.address, poolOwner.address);
                 expect(await poolConfigContract.underlyingToken()).to.equal(
                     mockTokenContract.address,
                 );
             });
 
             it("Should allow the Huma master admin to set the underlying token", async function () {
-                // TODO(jiatu): test event emission when the event is added.
-                await poolConfigContract
-                    .connect(poolOwner)
-                    .setPoolUnderlyingToken(mockTokenContract.address);
+                await expect(
+                    poolConfigContract
+                        .connect(protocolOwner)
+                        .setPoolUnderlyingToken(mockTokenContract.address),
+                )
+                    .to.emit(poolConfigContract, "PoolUnderlyingTokenChanged")
+                    .withArgs(mockTokenContract.address, protocolOwner.address);
                 expect(await poolConfigContract.underlyingToken()).to.equal(
                     mockTokenContract.address,
                 );

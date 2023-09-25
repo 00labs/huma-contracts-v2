@@ -165,8 +165,9 @@ contract PoolConfig is AccessControl, Initializable {
 
     event MaxCreditLineChanged(uint256 maxCreditLine, address by);
     event PoolChanged(address pool, address by);
-    event PoolDefaultGracePeriodChanged(uint256 gracePeriodInDays, address by);
+    event PoolDefaultGracePeriodChanged(CalendarUnit unit, uint256 gracePeriodInDays, address by);
     event PoolLiquidityCapChanged(uint256 liquidityCap, address by);
+    event PoolPayPeriodChanged(CalendarUnit unit, uint256 number, address by);
     event PoolNameChanged(string name, address by);
     event PoolOwnerRewardsAndLiquidityChanged(
         uint256 rewardsRate,
@@ -174,7 +175,6 @@ contract PoolConfig is AccessControl, Initializable {
         address indexed by
     );
     event PoolOwnerTreasuryChanged(address treasury, address indexed by);
-    event PoolPayPeriodChanged(uint8 unit, uint256 number, address by);
     event PoolFlexCallChanged(bool enabled, uint256 windowInEpoch, address by);
     event PoolUnderlyingTokenChanged(address underlyingToken, address by);
     event TranchesChanged(address seniorTranche, address juniorTranche, address by);
@@ -188,7 +188,26 @@ contract PoolConfig is AccessControl, Initializable {
     event PoolRewardsWithdrawn(address receiver, uint256 amount);
     event ProtocolRewardsWithdrawn(address receiver, uint256 amount, address by);
     event ReceivableRequiredInBpsChanged(uint256 receivableInBps, address by);
-    event WithdrawalLockoutPeriodChanged(uint256 lockoutPeriodInDays, address by);
+    event WithdrawalLockoutPeriodChanged(CalendarUnit unit, uint256 lockoutPeriodInDays, address by);
+
+    event LPConfigChanged(bool permissioned, uint96 liquidityCap, uint8 withdrawalLockoutInCalendarUnit, uint8 maxSeniorJuniorRatio, uint16 fixedSeniorYieldInBps, uint16 tranchesRiskAdjustmentInBps, address by);
+    event FirstLossCoverConfigChanged(
+    uint16 poolCapCoverageInBps,
+uint16 poolValueCoverageInBps,
+uint16 coverRateInBps,
+uint96 coverCap,
+        address by);
+    event FrontLoadingFeesChanged(
+    uint96 frontLoadingFeeFlat,
+uint16 frontLoadingFeeBps,
+        address by);
+    event FeeStructureChanged(
+    uint16 yieldInBps,
+uint16 minPrincipalRateInBps,
+uint96 lateFeeFlat,
+uint16 lateFeeBps,
+uint96 membershipFee,
+        address by);
 
     constructor() {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -428,7 +447,7 @@ contract PoolConfig is AccessControl, Initializable {
         _onlyOwnerOrHumaMasterAdmin();
         if (unit != _poolSettings.calendarUnit) revert();
         _poolSettings.defaultGracePeriodInCalendarUnit = uint16(gracePeriod);
-        emit PoolDefaultGracePeriodChanged(gracePeriod, msg.sender);
+        emit PoolDefaultGracePeriodChanged(unit, gracePeriod, msg.sender);
     }
 
     /**
@@ -449,7 +468,7 @@ contract PoolConfig is AccessControl, Initializable {
         _settings.calendarUnit = unit;
         _settings.payPeriodInCalendarUnit = uint8(number);
         _poolSettings = _settings;
-        emit PoolPayPeriodChanged(uint8(unit), number, msg.sender);
+        emit PoolPayPeriodChanged(unit, number, msg.sender);
     }
 
     function setPoolFlexCall(bool enabled, uint256 windowInEpoch) external {
@@ -564,7 +583,7 @@ contract PoolConfig is AccessControl, Initializable {
         _onlyOwnerOrHumaMasterAdmin();
         if (unit != _poolSettings.calendarUnit) revert();
         _lpConfig.withdrawalLockoutInCalendarUnit = uint8(lockoutPeriod);
-        emit WithdrawalLockoutPeriodChanged(lockoutPeriod, msg.sender);
+        emit WithdrawalLockoutPeriodChanged(unit, lockoutPeriod, msg.sender);
     }
 
     /// Checks to make sure both EA and pool owner treasury meet the pool's first loss cover requirements
@@ -699,25 +718,50 @@ contract PoolConfig is AccessControl, Initializable {
     function setLPConfig(LPConfig calldata lpConfig) external {
         _onlyOwnerOrHumaMasterAdmin();
         _lpConfig = lpConfig;
-        // todo emit event
+        emit LPConfigChanged(
+        lpConfig.permissioned,
+        lpConfig.liquidityCap,
+        lpConfig.withdrawalLockoutInCalendarUnit,
+        lpConfig.maxSeniorJuniorRatio,
+        lpConfig.fixedSeniorYieldInBps,
+        lpConfig.tranchesRiskAdjustmentInBps,
+        msg.sender
+    );
     }
 
     function setFirstLossCoverConfig(FirstLossCoverConfig calldata firstLossCoverConfig) external {
         _onlyOwnerOrHumaMasterAdmin();
         _firstLossCoverConfig = firstLossCoverConfig;
-        // todo emit event
+        emit FirstLossCoverConfigChanged(
+        firstLossCoverConfig.poolCapCoverageInBps,
+        firstLossCoverConfig.poolValueCoverageInBps,
+        firstLossCoverConfig.coverRateInBps,
+        firstLossCoverConfig.coverCap,
+        msg.sender
+    );
     }
 
     function setFrontLoadingFees(FrontLoadingFeesStructure calldata frontFees) external {
         _onlyOwnerOrHumaMasterAdmin();
         _frontFees = frontFees;
-        // todo emit event
+        emit FrontLoadingFeesChanged(
+        frontFees.frontLoadingFeeFlat,
+        frontFees.frontLoadingFeeBps,
+        msg.sender
+    );
     }
 
-    function setFees(FeeStructure calldata feeStructure) external {
+    function setFeeStructure(FeeStructure calldata feeStructure) external {
         _onlyOwnerOrHumaMasterAdmin();
         _feeStructure = feeStructure;
-        // todo emit event
+        emit FeeStructureChanged(
+        feeStructure.yieldInBps,
+        feeStructure.minPrincipalRateInBps,
+        feeStructure.lateFeeFlat,
+        feeStructure.lateFeeBps,
+        feeStructure.membershipFee,
+        msg.sender
+    );
     }
 
     function onlyEpochManager(address account) external view {
