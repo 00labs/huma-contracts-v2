@@ -19,6 +19,7 @@ import {
     PoolVault,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
+    ProfitEscrow,
 } from "../typechain-types";
 
 let defaultDeployer: SignerWithAddress,
@@ -42,6 +43,7 @@ let poolConfigContract: PoolConfig,
     borrowerFirstLossCoverContract: FirstLossCover,
     affiliateFirstLossCoverContract: FirstLossCover,
     tranchesPolicyContract: RiskAdjustedTranchesPolicy,
+    affiliateFirstLossCoverProfitEscrowContract: ProfitEscrow,
     poolContract: Pool,
     epochManagerContract: EpochManager,
     seniorTrancheVaultContract: TrancheVault,
@@ -82,6 +84,7 @@ describe("PoolConfigCache Test", function () {
             calendarContract,
             borrowerFirstLossCoverContract,
             affiliateFirstLossCoverContract,
+            affiliateFirstLossCoverProfitEscrowContract,
             tranchesPolicyContract,
             poolContract,
             epochManagerContract,

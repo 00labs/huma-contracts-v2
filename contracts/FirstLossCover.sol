@@ -9,8 +9,11 @@ import {PoolConfigCache} from "./PoolConfigCache.sol";
 import {PoolConfig, LPConfig} from "./PoolConfig.sol";
 import {FirstLossCoverStorage, IERC20} from "./FirstLossCoverStorage.sol";
 import {IFirstLossCover} from "./interfaces/IFirstLossCover.sol";
+import {IProfitEscrow} from "./interfaces/IProfitEscrow.sol";
 import "./SharedDefs.sol";
 import {Errors} from "./Errors.sol";
+
+import "hardhat/console.sol";
 
 interface ITrancheVaultLike {
     function convertToAssets(uint256 shares) external view returns (uint256 assets);
@@ -42,12 +45,7 @@ contract FirstLossCover is
         uint256 coveredLoss
     );
 
-    event CoverDeposited(
-        address indexed by,
-        address indexed receiver,
-        uint256 assets,
-        uint256 shares
-    );
+    event CoverDeposited(address indexed account, uint256 assets, uint256 shares);
     event CoverRedeemed(
         address indexed by,
         address indexed receiver,
@@ -82,6 +80,11 @@ contract FirstLossCover is
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         underlyingToken = IERC20(addr);
         _decimals = IERC20MetadataUpgradeable(addr).decimals();
+
+        addr = _poolConfig.getFirstLossCoverProfitEscrow(address(this));
+        // It is possible to be null for borrower first loss cover
+        // if (addr == address(0)) revert Errors.zeroAddressProvided();
+        profitEscrow = IProfitEscrow(addr);
     }
 
     function setPayoutConfig(LossCoverPayoutConfig memory config) external {
@@ -99,29 +102,29 @@ contract FirstLossCover is
         emit OperatorSet(account, config.poolCapCoverageInBps, config.poolValueCoverageInBps);
     }
 
-    function depositCover(uint256 assets, address receiver) external returns (uint256 shares) {
+    function depositCover(uint256 assets) external returns (uint256 shares) {
         if (assets == 0) revert Errors.zeroAmountProvided();
-        if (receiver == address(0)) revert Errors.zeroAddressProvided();
         _onlyOperator(msg.sender);
 
         poolVault.deposit(msg.sender, assets);
 
-        return _deposit(assets, receiver);
+        return _deposit(assets, msg.sender);
     }
 
     function depositTrancheVaultToken(
         address trancheVaultAddress,
-        uint256 tokenAmount,
-        address receiver
+        uint256 tokenAmount
     ) external returns (uint256 shares) {
         if (tokenAmount == 0) revert Errors.zeroAmountProvided();
-        if (receiver == address(0)) revert Errors.zeroAddressProvided();
         poolConfig.onlyTrancheVault(trancheVaultAddress);
+        _onlyOperator(msg.sender);
 
         ITrancheVaultLike trancheVault = ITrancheVaultLike(trancheVaultAddress);
         uint256 assets = trancheVault.convertToAssets(tokenAmount);
 
-        return _deposit(assets, receiver);
+        // TODO withdraw from tranche vault
+
+        return _deposit(assets, msg.sender);
     }
 
     // Deposit fees of protocol owner, pool owner and EA again by pool contract
@@ -150,7 +153,7 @@ contract FirstLossCover is
 
         uint256 remainingProfit = profit - profitToLock;
         if (remainingProfit > 0) {
-            // TODO put profit into escrow contract
+            profitEscrow.addProfit(remainingProfit);
         }
     }
 
@@ -164,7 +167,7 @@ contract FirstLossCover is
         ERC20Upgradeable._burn(msg.sender, shares);
         _totalAssets -= assets;
 
-        // TODO withdraw from ProfitEscrow contract
+        if (address(profitEscrow) != address(0)) profitEscrow.withdraw(msg.sender, shares);
 
         poolVault.withdraw(receiver, assets);
 
@@ -252,6 +255,7 @@ contract FirstLossCover is
         _onlyOperator(account);
         uint256 operatorBalance = convertToAssets(balanceOf(account));
         uint256 min = _getMinCoverAmount(account);
+        console.log("operatorBalance: %s, min: %s", operatorBalance, min);
         return operatorBalance >= min;
     }
 
@@ -267,14 +271,14 @@ contract FirstLossCover is
         return operatorConfigs[account];
     }
 
-    function _deposit(uint256 assets, address receiver) internal returns (uint256 shares) {
+    function _deposit(uint256 assets, address account) internal returns (uint256 shares) {
         shares = convertToShares(assets);
-        ERC20Upgradeable._mint(receiver, shares);
+        ERC20Upgradeable._mint(account, shares);
         _totalAssets += assets;
 
-        // TODO deposit into ProfitEscrow contract
+        if (address(profitEscrow) != address(0)) profitEscrow.deposit(account, shares);
 
-        emit CoverDeposited(msg.sender, receiver, assets, shares);
+        emit CoverDeposited(account, assets, shares);
     }
 
     function _calcLossCover(

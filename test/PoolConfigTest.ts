@@ -20,6 +20,7 @@ import {
     PoolVault,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
+    ProfitEscrow,
 } from "../typechain-types";
 import { copyLPConfigWithOverrides, toToken } from "./TestUtils";
 import { BigNumber as BN } from "ethers";
@@ -52,6 +53,7 @@ let poolConfigContract: PoolConfig,
     calendarContract: Calendar,
     borrowerFirstLossCoverContract: FirstLossCover,
     affiliateFirstLossCoverContract: FirstLossCover,
+    affiliateFirstLossCoverProfitEscrowContract: ProfitEscrow,
     tranchesPolicyContract: RiskAdjustedTranchesPolicy,
     poolContract: Pool,
     epochManagerContract: EpochManager,
@@ -577,6 +579,7 @@ describe("PoolConfig Tests", function () {
                 calendarContract,
                 borrowerFirstLossCoverContract,
                 affiliateFirstLossCoverContract,
+                affiliateFirstLossCoverProfitEscrowContract,
                 tranchesPolicyContract,
                 poolContract,
                 epochManagerContract,
@@ -829,7 +832,7 @@ describe("PoolConfig Tests", function () {
                     .approve(poolVaultContract.address, firstLossCoverAmount);
                 await affiliateFirstLossCoverContract
                     .connect(evaluationAgent2)
-                    .depositCover(firstLossCoverAmount, evaluationAgent2.address);
+                    .depositCover(firstLossCoverAmount);
 
                 await expect(
                     poolConfigContract
@@ -881,7 +884,7 @@ describe("PoolConfig Tests", function () {
                     .approve(poolVaultContract.address, firstLossCoverAmount);
                 await affiliateFirstLossCoverContract
                     .connect(evaluationAgent2)
-                    .depositCover(firstLossCoverAmount, evaluationAgent2.address);
+                    .depositCover(firstLossCoverAmount);
                 await expect(
                     poolConfigContract
                         .connect(poolOwner)

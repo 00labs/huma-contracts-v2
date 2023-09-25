@@ -6,7 +6,7 @@ interface IFirstLossCover {
      * @notice Adds assets in the first loss cover
 
      */
-    function depositCover(uint256 assets, address receiver) external returns (uint256 shares);
+    function depositCover(uint256 assets) external returns (uint256 shares);
 
     /**
      * @notice Withdraws excess assets from the first loss cover,

@@ -130,6 +130,8 @@ contract PoolConfig is AccessControl, Initializable {
     // _riskYieldMultipliers is used to adjust the yield of first loss cover with _firstLossCover
     // uint16[16] is just on slot, 16 is the max count of first loss cover array, it is enough for now
     uint16[16] internal _riskYieldMultipliers;
+    // first loss cover address => profit escrow address
+    mapping(address => address) internal _firstLossCoverProfitEscrowMap;
 
     PoolSettings internal _poolSettings;
     LPConfig internal _lpConfig;
@@ -539,7 +541,8 @@ contract PoolConfig is AccessControl, Initializable {
     function setFirstLossCover(
         uint8 index,
         address firstLossCover,
-        uint16 riskYieldMultiplier
+        uint16 riskYieldMultiplier,
+        address profitEscrow
     ) external {
         _onlyOwnerOrHumaMasterAdmin();
         _firstLossCovers[index] = firstLossCover;
@@ -727,6 +730,12 @@ contract PoolConfig is AccessControl, Initializable {
 
     function getRiskYieldMultipliers() external view returns (uint16[16] memory) {
         return _riskYieldMultipliers;
+    }
+
+    function getFirstLossCoverProfitEscrow(
+        address firstLossCover
+    ) external view returns (address) {
+        return _firstLossCoverProfitEscrowMap[firstLossCover];
     }
 
     function getPoolSettings() external view returns (PoolSettings memory) {

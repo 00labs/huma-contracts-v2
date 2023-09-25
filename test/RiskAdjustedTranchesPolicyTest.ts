@@ -26,7 +26,9 @@ import {
     PoolVault,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
+    ProfitEscrow,
 } from "../typechain-types";
+import { ProfitDistributedEvent } from "../typechain-types/contracts/FirstLossCover.sol/FirstLossCover";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
@@ -48,6 +50,7 @@ let poolConfigContract: PoolConfig,
     calendarContract: Calendar,
     borrowerFirstLossCoverContract: FirstLossCover,
     affiliateFeeManagerContract: FirstLossCover,
+    affiliateFirstLossCoverProfitEscrowContract: ProfitEscrow,
     tranchesPolicyContract: RiskAdjustedTranchesPolicy,
     poolContract: Pool,
     epochManagerContract: EpochManager,
@@ -89,6 +92,7 @@ describe("RiskAdjustedTranchesPolicy Test", function () {
             calendarContract,
             borrowerFirstLossCoverContract,
             affiliateFeeManagerContract,
+            affiliateFirstLossCoverProfitEscrowContract,
             tranchesPolicyContract,
             poolContract,
             epochManagerContract,

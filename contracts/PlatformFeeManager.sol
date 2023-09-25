@@ -60,18 +60,27 @@ contract PlatformFeeManager is PoolConfigCache, IPlatformFeeManager {
 
         if (liquidityCapacity > totalFees) {
             // TODO these deposits are expensive, it is better to move them to an autotask
-            firstLossCover.depositCover(incomes.protocolIncome, humaConfig.humaTreasury());
-            firstLossCover.depositCover(incomes.poolOwnerIncome, poolConfig.poolOwnerTreasury());
-            firstLossCover.depositCover(incomes.eaIncome, poolConfig.evaluationAgent());
+            firstLossCover.depositByPoolFeeManager(
+                incomes.protocolIncome,
+                humaConfig.humaTreasury()
+            );
+            firstLossCover.depositByPoolFeeManager(
+                incomes.poolOwnerIncome,
+                poolConfig.poolOwnerTreasury()
+            );
+            firstLossCover.depositByPoolFeeManager(incomes.eaIncome, poolConfig.evaluationAgent());
         } else {
             if (liquidityCapacity > 0) {
                 // TODO these deposits are expensive, it is better to move them to an autotask
                 uint256 poolOwnerFees = (incomes.poolOwnerIncome * liquidityCapacity) / totalFees;
-                firstLossCover.depositCover(poolOwnerFees, poolConfig.poolOwnerTreasury());
+                firstLossCover.depositByPoolFeeManager(
+                    poolOwnerFees,
+                    poolConfig.poolOwnerTreasury()
+                );
                 uint256 eaFees = (incomes.eaIncome * liquidityCapacity) / totalFees;
-                firstLossCover.depositCover(eaFees, poolConfig.evaluationAgent());
+                firstLossCover.depositByPoolFeeManager(eaFees, poolConfig.evaluationAgent());
                 uint256 protocolFees = liquidityCapacity - poolOwnerFees - eaFees;
-                firstLossCover.depositCover(protocolFees, humaConfig.humaTreasury());
+                firstLossCover.depositByPoolFeeManager(protocolFees, humaConfig.humaTreasury());
 
                 uint256 remainingFees = totalFees - liquidityCapacity;
                 incomes.poolOwnerIncome = uint96(

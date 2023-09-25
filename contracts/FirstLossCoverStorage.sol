@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
+import {IProfitEscrow} from "./interfaces/IProfitEscrow.sol";
 
 contract FirstLossCoverStorage {
     struct LossCoverConfig {
@@ -25,6 +26,7 @@ contract FirstLossCoverStorage {
     IPool public pool;
     IPoolVault public poolVault;
     IERC20 public underlyingToken;
+    IProfitEscrow public profitEscrow;
 
     uint8 internal _decimals;
     uint256 internal _totalAssets;

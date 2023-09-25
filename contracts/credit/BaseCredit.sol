@@ -542,7 +542,7 @@ abstract contract BaseCredit is
         bytes32 creditHash,
         uint256 borrowAmount
     ) internal virtual {
-        if (firstLossCover.isSufficient(borrower)) revert Errors.todo();
+        if (!firstLossCover.isSufficient(borrower)) revert Errors.todo();
 
         CreditRecord memory cr = _getCreditRecord(creditHash);
         CreditConfig memory cc = _getCreditConfig(creditHash);

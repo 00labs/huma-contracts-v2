@@ -24,6 +24,7 @@ import {
     PoolVault,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
+    ProfitEscrow,
 } from "../typechain-types";
 
 let defaultDeployer: SignerWithAddress,
@@ -46,6 +47,7 @@ let poolConfigContract: PoolConfig,
     calendarContract: Calendar,
     borrowerFirstLossCoverContract: FirstLossCover,
     affiliateFeeManagerContract: FirstLossCover,
+    affiliateFirstLossCoverProfitEscrowContract: ProfitEscrow,
     tranchesPolicyContract: RiskAdjustedTranchesPolicy,
     poolContract: Pool,
     epochManagerContract: EpochManager,
@@ -88,6 +90,7 @@ describe("Receivable Test", function () {
                 calendarContract,
                 borrowerFirstLossCoverContract,
                 affiliateFeeManagerContract,
+                affiliateFirstLossCoverProfitEscrowContract,
                 tranchesPolicyContract,
                 poolContract,
                 epochManagerContract,
@@ -143,7 +146,7 @@ describe("Receivable Test", function () {
             await mockTokenContract.mint(poolOwnerTreasury.address, toToken(10_000_000));
             await affiliateFeeManagerContract
                 .connect(poolOwnerTreasury)
-                .depositCover(toToken(200_000), poolOwnerTreasury.address);
+                .depositCover(toToken(200_000));
 
             await expect(
                 poolContract.connect(protocolOwner).enablePool(),
@@ -178,7 +181,7 @@ describe("Receivable Test", function () {
             await mockTokenContract.mint(evaluationAgent.address, toToken(10_000_000));
             await affiliateFeeManagerContract
                 .connect(evaluationAgent)
-                .depositCover(toToken(50_000), evaluationAgent.address);
+                .depositCover(toToken(50_000));
 
             await expect(
                 poolContract.connect(protocolOwner).enablePool(),
@@ -203,7 +206,7 @@ describe("Receivable Test", function () {
             await mockTokenContract.mint(poolOwnerTreasury.address, toToken(10_000_000));
             await affiliateFeeManagerContract
                 .connect(poolOwnerTreasury)
-                .depositCover(toToken(200_000), poolOwnerTreasury.address);
+                .depositCover(toToken(200_000));
 
             let eaNFTTokenId;
             const tx = await eaNFTContract.mintNFT(evaluationAgent.address);
@@ -229,7 +232,7 @@ describe("Receivable Test", function () {
             await mockTokenContract.mint(evaluationAgent.address, toToken(10_000_000));
             await affiliateFeeManagerContract
                 .connect(evaluationAgent)
-                .depositCover(toToken(200_000), evaluationAgent.address);
+                .depositCover(toToken(200_000));
 
             await expect(poolContract.connect(protocolOwner).enablePool())
                 .to.emit(poolContract, "PoolEnabled")
@@ -254,6 +257,7 @@ describe("Receivable Test", function () {
                 calendarContract,
                 borrowerFirstLossCoverContract,
                 affiliateFeeManagerContract,
+                affiliateFirstLossCoverProfitEscrowContract,
                 tranchesPolicyContract,
                 poolContract,
                 epochManagerContract,

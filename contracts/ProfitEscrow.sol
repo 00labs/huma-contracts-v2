@@ -22,6 +22,11 @@ contract ProfitEscrow is PoolConfigCache, ProfitEscrowStorage, IProfitEscrow {
         poolVault = IPoolVault(addr);
     }
 
+    function initialize(address _caller, PoolConfig _poolConfig) external initializer {
+        _initialize(_poolConfig);
+        caller = _caller;
+    }
+
     function setCaller(address _caller) external {
         poolConfig.onlyPoolOwner(msg.sender);
         caller = _caller;

@@ -39,6 +39,7 @@ import {
     Pool,
     PoolConfig,
     PoolVault,
+    ProfitEscrow,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
 } from "../../typechain-types";
@@ -66,6 +67,7 @@ let poolConfigContract: PoolConfig,
     calendarContract: Calendar,
     borrowerFirstLossCover: FirstLossCover,
     affiliateFeeManagerContract: FirstLossCover,
+    affiliateFirstLossCoverProfitEscrowContract: ProfitEscrow,
     tranchesPolicyContract: RiskAdjustedTranchesPolicy,
     poolContract: Pool,
     epochManagerContract: EpochManager,
@@ -248,6 +250,7 @@ describe("CreditLine Test", function () {
             calendarContract,
             borrowerFirstLossCover,
             affiliateFeeManagerContract,
+            affiliateFirstLossCoverProfitEscrowContract,
             tranchesPolicyContract,
             poolContract,
             epochManagerContract,
@@ -271,22 +274,18 @@ describe("CreditLine Test", function () {
         );
 
         await borrowerFirstLossCover.connect(poolOwner).setOperator(borrower.address, {
-            poolCapCoverageInBps: 1000,
-            poolValueCoverageInBps: 1000,
+            poolCapCoverageInBps: 1,
+            poolValueCoverageInBps: 100,
         });
 
-        await borrowerFirstLossCover
-            .connect(borrower)
-            .depositCover(toToken(200_000), borrower.address);
+        await borrowerFirstLossCover.connect(borrower).depositCover(toToken(200_000));
 
         await borrowerFirstLossCover.connect(poolOwner).setOperator(borrower2.address, {
-            poolCapCoverageInBps: 1000,
-            poolValueCoverageInBps: 1000,
+            poolCapCoverageInBps: 1,
+            poolValueCoverageInBps: 100,
         });
 
-        await borrowerFirstLossCover
-            .connect(borrower2)
-            .depositCover(toToken(200_000), borrower2.address);
+        await borrowerFirstLossCover.connect(borrower2).depositCover(toToken(200_000));
     }
 
     beforeEach(async function () {
