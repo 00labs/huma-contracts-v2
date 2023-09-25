@@ -16,6 +16,7 @@
     "gitleaks": "bash scripts/gitleaks.sh",
     "lint": "eslint 'test/**/*.ts'",
     "lint-solidity": "yarn solhint -f table 'contracts/**/*.sol'",
+    "lint-solidity:fix": "yarn solhint --fix -f table 'contracts/**/*.sol'",
     "lint:fix": "eslint 'test/**/*.ts' --fix",
     "prepare": "husky install",
     "test": "hardhat test --network hardhat --typecheck",

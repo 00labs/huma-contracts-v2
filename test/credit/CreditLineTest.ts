@@ -1431,7 +1431,7 @@ describe("CreditLine Test", function () {
             let lateFeeBps = 200;
             let membershipFee = toToken(100);
             let minPrincipalRateInBps = 1000;
-            await poolConfigContract.connect(poolOwner).setFees({
+            await poolConfigContract.connect(poolOwner).setFeeStructure({
                 yieldInBps: yieldInBps,
                 minPrincipalRateInBps: minPrincipalRateInBps,
                 lateFeeFlat: BN.from(0),

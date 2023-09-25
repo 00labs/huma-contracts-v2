@@ -190,24 +190,35 @@ contract PoolConfig is AccessControl, Initializable {
     event ReceivableRequiredInBpsChanged(uint256 receivableInBps, address by);
     event WithdrawalLockoutPeriodChanged(CalendarUnit unit, uint256 lockoutPeriodInDays, address by);
 
-    event LPConfigChanged(bool permissioned, uint96 liquidityCap, uint8 withdrawalLockoutInCalendarUnit, uint8 maxSeniorJuniorRatio, uint16 fixedSeniorYieldInBps, uint16 tranchesRiskAdjustmentInBps, address by);
+    event LPConfigChanged(
+        bool permissioned,
+        uint96 liquidityCap,
+        uint8 withdrawalLockoutInCalendarUnit,
+        uint8 maxSeniorJuniorRatio,
+        uint16 fixedSeniorYieldInBps,
+        uint16 tranchesRiskAdjustmentInBps,
+        address by
+    );
     event FirstLossCoverConfigChanged(
     uint16 poolCapCoverageInBps,
-uint16 poolValueCoverageInBps,
-uint16 coverRateInBps,
-uint96 coverCap,
-        address by);
+        uint16 poolValueCoverageInBps,
+        uint16 coverRateInBps,
+        uint96 coverCap,
+        address by
+    );
     event FrontLoadingFeesChanged(
-    uint96 frontLoadingFeeFlat,
-uint16 frontLoadingFeeBps,
-        address by);
+        uint96 frontLoadingFeeFlat,
+        uint16 frontLoadingFeeBps,
+        address by
+    );
     event FeeStructureChanged(
-    uint16 yieldInBps,
-uint16 minPrincipalRateInBps,
-uint96 lateFeeFlat,
-uint16 lateFeeBps,
-uint96 membershipFee,
-        address by);
+        uint16 yieldInBps,
+        uint16 minPrincipalRateInBps,
+        uint96 lateFeeFlat,
+        uint16 lateFeeBps,
+        uint96 membershipFee,
+        address by
+    );
 
     constructor() {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
