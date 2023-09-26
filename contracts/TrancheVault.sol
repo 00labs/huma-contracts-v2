@@ -221,8 +221,14 @@ contract TrancheVault is
 
         uint256 sharesBalance = ERC20Upgradeable.balanceOf(msg.sender);
         if (shares > sharesBalance) {
-            revert Errors.withdrawnAmountHigherThanBalance(); // assets is too big
+            revert Errors.withdrawnAmountHigherThanBalance();
         }
+        uint256 assetsAfterRedemption = convertToAssets(sharesBalance - shares);
+        poolConfig.checkLiquidityRequirementForPoolOwner(
+            msg.sender,
+            address(this),
+            assetsAfterRedemption
+        );
 
         uint256 currentEpochId = epochManager.currentEpochId();
         EpochInfo memory currentEpochInfo = epochInfoByEpochId[currentEpochId];
@@ -371,6 +377,16 @@ contract TrancheVault is
         shares = _convertToShares(assets, totalAssets());
     }
 
+    function convertToAssets(uint256 shares) external view returns (uint256 assets) {
+        uint256 totalAssets = totalAssets();
+        uint256 totalSupply = ERC20Upgradeable.totalSupply();
+        return totalSupply == 0 ? shares : (shares * totalAssets) / totalSupply;
+    }
+
+    function totalAssetsOf(address account) external view returns (uint256 assets) {
+        return convertToAssets(ERC20Upgradeable.balanceOf(account));
+    }
+
     function getNumEpochsWithRedemption() external view returns (uint256) {
         return epochIds.length;
     }
@@ -416,6 +432,8 @@ contract TrancheVault is
 
         for (uint256 i = disbursementInfo.requestsIndex; i < requests.length; i++) {
             RedemptionRequest memory request = requests[i];
+            // It's impossible for the request epoch ID to exceed the unprocessed epoch ID.
+            assert(request.epochId <= firstUnprocessedEpochId);
             if (request.epochId < firstUnprocessedEpochId) {
                 // The redemption requests in the epoch have been fully processed.
                 EpochInfo memory epoch = epochInfoByEpochId[request.epochId];
@@ -433,7 +451,7 @@ contract TrancheVault is
 
                 withdrawableAmount += amountProcessed;
                 disbursementInfo.requestsIndex += 1;
-            } else if (request.epochId == firstUnprocessedEpochId) {
+            } else {
                 // The redemption requests in the epoch have been partially processed or unprocessed.
                 EpochInfo memory epoch = epochInfoByEpochId[request.epochId];
                 if (epoch.totalSharesProcessed > 0) {
@@ -446,9 +464,6 @@ contract TrancheVault is
                     disbursementInfo.actualAmountProcessed = uint96(amountProcessed);
                 }
                 break;
-            } else {
-                // It's impossible for the request epoch ID to exceed the unprocessed epoch ID.
-                assert(false);
             }
         }
     }
