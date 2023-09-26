@@ -6,5 +6,6 @@ import {ICredit} from "./ICredit.sol";
 
 interface IDynamicYieldCredit is ICredit {
     function getEstimatedYield() external;
+
     function declareYield() external;
 }
