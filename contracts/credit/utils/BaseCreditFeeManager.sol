@@ -63,19 +63,16 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
         CreditRecord memory cr,
         uint256 yieldInBps
     ) external view virtual override returns (uint256 payoffAmount) {
+        uint256 principal = cr.unbilledPrincipal + cr.totalDue - cr.yieldDue - cr.feesDue;
         payoffAmount = uint256(cr.totalDue + cr.unbilledPrincipal);
-        uint256 remainingInterest = (yieldInBps *
-            (cr.unbilledPrincipal + cr.totalDue - cr.yieldDue - cr.feesDue) *
-            (cr.nextDueDate - block.timestamp)) / (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS);
-        console.log(
-            "payoffAmount: %s, remainingInterest: %s, (cr.unbilledPrincipal + cr.totalDue - cr.yieldDue - cr.feesDue): %s",
-            payoffAmount,
-            remainingInterest,
-            cr.unbilledPrincipal + cr.totalDue - cr.yieldDue - cr.feesDue
-        );
-        console.log("cr.nextDueDate: %s, block.timestamp: %s", cr.nextDueDate, block.timestamp);
-        assert(payoffAmount >= remainingInterest);
-        payoffAmount -= remainingInterest;
+        if (block.timestamp < cr.nextDueDate) {
+            // Deduct interest of days from now to due date while makes payment before due date
+            uint256 remainingYield = (yieldInBps *
+                principal *
+                (cr.nextDueDate - block.timestamp)) / (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS);
+            assert(payoffAmount >= remainingYield);
+            payoffAmount -= remainingYield;
+        }
     }
 
     /**

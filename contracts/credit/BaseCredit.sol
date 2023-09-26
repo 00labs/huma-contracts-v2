@@ -622,6 +622,8 @@ abstract contract BaseCredit is
         bytes32 creditHash,
         uint256 amount
     ) internal returns (uint256 amountPaid, bool paidoff, bool isReviewRequired) {
+        // TODO Borrowers cannot make payment for defaulted credits
+
         if (amount == 0) revert Errors.zeroAmountProvided();
         CreditRecord memory cr = _getCreditRecord(creditHash);
         CreditConfig memory cc = _getCreditConfig(creditHash);
@@ -630,29 +632,31 @@ abstract contract BaseCredit is
             cr = _updateDueInfo(creditHash);
         }
 
-        // todo this is not the ideal place for this logic. Ideally, updateDueInfo() should handle this
-        // Reverse late charge if it is paid before the late fee grace period
-        {
-            if (cr.state == CreditState.Delayed) {
-                (uint256 beginOfPeriod, ) = calendar.getBeginOfPeriod(
-                    cc.calendarUnit,
-                    cc.periodDuration,
-                    cr.nextDueDate
-                );
-                if (
-                    block.timestamp <
-                    (beginOfPeriod +
-                        poolConfig.getPoolSettings().latePaymentGracePeriodInDays *
-                        SECONDS_IN_A_DAY)
-                ) {
-                    // todo cr.totalDue should be updated as well, cr.state might need to be updated too.
-                    // Safe to set feesDue to zero since the fees for the previous cycles should have been rolled into principals.
-                    cr.feesDue = 0;
-                }
-            }
-        }
+        // // todo this is not the ideal place for this logic. Ideally, updateDueInfo() should handle this
+        // // Reverse late charge if it is paid before the late fee grace period
+        // {
+        //     if (cr.state == CreditState.Delayed) {
+        //         (uint256 beginOfPeriod, ) = calendar.getBeginOfPeriod(
+        //             cc.calendarUnit,
+        //             cc.periodDuration,
+        //             cr.nextDueDate
+        //         );
+        //         if (
+        //             block.timestamp <
+        //             (beginOfPeriod +
+        //                 poolConfig.getPoolSettings().latePaymentGracePeriodInDays *
+        //                 SECONDS_IN_A_DAY)
+        //         ) {
+        //             // todo cr.totalDue should be updated as well, cr.state might need to be updated too.
+        //             // Safe to set feesDue to zero since the fees for the previous cycles should have been rolled into principals.
+        //             cr.feesDue = 0;
+        //         }
+        //     }
+        // }
 
         uint256 payoffAmount = _feeManager.getPayoffAmount(cr, cc.yieldInBps);
+
+        // Doesn't deduct additional interest of days from due date to now currently while makes payment after due date
 
         // The amount to collect from the payer's wallet.
         Payment memory p = Payment(0, 0, 0, 0, cr.state == CreditState.GoodStanding, false);
@@ -660,42 +664,128 @@ abstract contract BaseCredit is
         if (amount < payoffAmount) {
             p.amountToCollect = uint96(amount);
             if (amount < cr.totalDue) {
-                // Handle principal payment
-                p.principalPaid = (amount <= cr.totalDue - cr.feesDue - cr.yieldDue)
-                    ? uint96(amount)
-                    : cr.totalDue - cr.feesDue - cr.yieldDue;
-                amount -= p.principalPaid;
+                // Update due info based on new principal if part principal is paid
+
+                // process order - 1. fees, 2. yieldTillNow, 3. principal
+
+                uint256 printcipal = cr.totalDue - cr.feesDue - cr.yieldDue;
+
+                // Handle fee payment.
+                p.feesPaid = amount < cr.feesDue ? uint96(amount) : cr.feesDue;
+                cr.feesDue -= p.feesPaid;
+                amount -= p.feesPaid;
 
                 // Handle interest payment.
                 if (amount > 0) {
-                    p.yieldPaid = amount <= cr.yieldDue ? uint96(amount) : cr.yieldDue;
-                    cr.yieldDue -= uint96(p.yieldPaid);
+                    p.yieldPaid = amount < cr.yieldDue ? uint96(amount) : cr.yieldDue;
+                    cr.yieldDue -= p.yieldPaid;
                     amount -= p.yieldPaid;
                 }
 
-                // Handle fee payment.
+                // Handle principal payment
                 if (amount > 0) {
-                    p.feesPaid = uint96(amount);
-                    cr.feesDue -= uint96(p.feesPaid);
+                    p.principalPaid = (amount < printcipal) ? uint96(amount) : uint96(printcipal);
+                    amount -= p.principalPaid;
                 }
 
                 cr.totalDue = uint96(cr.totalDue - amount);
+
+                _setCreditRecord(creditHash, cr);
+
+                if (p.principalPaid > 0) {
+                    int96 profitDiff;
+                    if (block.timestamp < cr.nextDueDate) {
+                        // Paid principal will be deducted from profitRate, but interest of the original principal is charged,
+                        // needs to add this extra interest
+                        profitDiff = int96(
+                            uint96(
+                                (p.principalPaid *
+                                    (cr.nextDueDate - block.timestamp) *
+                                    cc.yieldInBps) / (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
+                            )
+                        );
+                    } else {
+                        // Next due info hasn't been generated now, next due info should deduct paid principal,
+                        // but interest of the original principal is accumulated in PnLManager,
+                        // needs to deduct this extra interest
+                        profitDiff = -int96(
+                            uint96(
+                                (p.principalPaid *
+                                    (block.timestamp - cr.nextDueDate) *
+                                    cc.yieldInBps) / (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
+                            )
+                        );
+                    }
+
+                    pnlManager.processPayback(
+                        creditHash,
+                        p.principalPaid,
+                        p.yieldPaid,
+                        profitDiff,
+                        uint16(cc.yieldInBps),
+                        p.oldLateFlag,
+                        false
+                    );
+                }
             } else {
                 // Apply extra payments towards principal, reduce unbilledPrincipal amount
-                cr.unbilledPrincipal -= uint96(amount - cr.totalDue);
                 p.principalPaid = uint96(amount - cr.feesDue - cr.yieldDue);
+                p.feesPaid = cr.feesDue;
+                p.yieldPaid = cr.yieldDue;
+                cr.unbilledPrincipal -= uint96(amount - cr.totalDue);
                 cr.totalDue = 0;
                 cr.feesDue = 0;
                 cr.yieldDue = 0;
                 cr.missedPeriods = 0;
                 // Moves account to GoodStanding if it was delayed.
                 if (cr.state == CreditState.Delayed) cr.state = CreditState.GoodStanding;
+
+                _setCreditRecord(creditHash, cr);
+
+                int96 profitDiff;
+                if (block.timestamp < cr.nextDueDate) {
+                    // Paid principal will be deducted from profitRate, but interest of the original principal is charged,
+                    // needs to add this extra interest
+                    profitDiff = int96(
+                        uint96(
+                            (p.principalPaid *
+                                (cr.nextDueDate - block.timestamp) *
+                                cc.yieldInBps) / (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
+                        )
+                    );
+                } else {
+                    // Next due info hasn't been generated now, next due info should deduct paid principal,
+                    // but interest of the original principal is accumulated in PnLManager,
+                    // needs to deduct this extra interest
+                    profitDiff = -int96(
+                        uint96(
+                            (p.principalPaid *
+                                (block.timestamp - cr.nextDueDate) *
+                                cc.yieldInBps) / (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
+                        )
+                    );
+                }
+
+                pnlManager.processPayback(
+                    creditHash,
+                    p.principalPaid,
+                    p.yieldPaid,
+                    profitDiff,
+                    uint16(cc.yieldInBps),
+                    p.oldLateFlag,
+                    true
+                );
+
+                if (block.timestamp > cr.nextDueDate) {
+                    // Generate next due info
+                    cr = _updateDueInfo(creditHash);
+                }
             }
         } else {
             // Payoff
             p.principalPaid = cr.unbilledPrincipal + cr.totalDue - cr.feesDue - cr.yieldDue;
             p.feesPaid = cr.feesDue;
-            p.yieldPaid = cr.yieldDue;
+            p.yieldPaid = uint96(payoffAmount - p.principalPaid);
             p.amountToCollect = uint96(payoffAmount);
 
             cr.unbilledPrincipal = 0;
@@ -708,6 +798,28 @@ abstract contract BaseCredit is
                 cr.state = CreditState.Deleted;
                 emit CreditLineClosed(borrower, msg.sender, CreditLineClosureReason.Paidoff);
             } else cr.state = CreditState.GoodStanding;
+
+            _setCreditRecord(creditHash, cr);
+
+            int96 profitDiff;
+            if (block.timestamp > cr.nextDueDate) {
+                // Interest of days from next due date(past time) to now isn't charged, need to deduct this extra interest
+                profitDiff = -int96(
+                    uint96(
+                        (p.principalPaid * (block.timestamp - cr.nextDueDate) * cc.yieldInBps) /
+                            (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
+                    )
+                );
+            }
+            pnlManager.processPayback(
+                creditHash,
+                p.principalPaid,
+                p.yieldPaid,
+                profitDiff,
+                uint16(cc.yieldInBps),
+                p.oldLateFlag,
+                true
+            );
         }
 
         if (p.amountToCollect > 0) {
@@ -720,17 +832,6 @@ abstract contract BaseCredit is
                 msg.sender
             );
         }
-        _setCreditRecord(creditHash, cr);
-
-        pnlManager.processPayback(
-            creditHash,
-            p.principalPaid,
-            p.yieldPaid,
-            p.feesPaid,
-            uint16(cc.yieldInBps),
-            p.oldLateFlag,
-            cr.state == CreditState.GoodStanding
-        );
 
         // p.amountToCollect == payoffAmount indicates payoff or not. >= is a safe practice
         return (p.amountToCollect, p.amountToCollect >= payoffAmount, false);

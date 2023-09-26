@@ -10,7 +10,7 @@ interface IPnLManager {
         bytes32 creditHash,
         uint96 principalPaid,
         uint96 yieldPaid,
-        uint96 feesPaid,
+        int96 profitDiff,
         uint16 yield,
         bool oldGoodStanding,
         bool newGoodStanding
