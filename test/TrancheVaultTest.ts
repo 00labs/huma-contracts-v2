@@ -29,7 +29,7 @@ import {
     PlatformFeeManager,
     Pool,
     PoolConfig,
-    PoolVault,
+    PoolSafe,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
     ProfitEscrow,
@@ -54,7 +54,7 @@ let eaNFTContract: EvaluationAgentNFT,
     mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
     platformFeeManagerContract: PlatformFeeManager,
-    poolVaultContract: PoolVault,
+    poolSafeContract: PoolSafe,
     calendarContract: Calendar,
     borrowerFirstLossCoverContract: FirstLossCover,
     affiliateFeeManagerContract: FirstLossCover,
@@ -112,7 +112,7 @@ describe("TrancheVault Test", function () {
         [
             poolConfigContract,
             platformFeeManagerContract,
-            poolVaultContract,
+            poolSafeContract,
             calendarContract,
             borrowerFirstLossCoverContract,
             affiliateFeeManagerContract,
@@ -949,7 +949,7 @@ describe("TrancheVault Test", function () {
 
                 // Move all assets out of pool vault
 
-                let availableAssets = await poolVaultContract.totalAssets();
+                let availableAssets = await poolSafeContract.totalAssets();
                 await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
 
                 // Finish 1st epoch
@@ -1025,7 +1025,7 @@ describe("TrancheVault Test", function () {
                 // Move assets out of pool vault for partial processing
 
                 let availableAmount = toToken(1000);
-                let availableAssets = await poolVaultContract.totalAssets();
+                let availableAssets = await poolSafeContract.totalAssets();
                 await creditContract.drawdown(
                     ethers.constants.HashZero,
                     availableAssets.sub(availableAmount),
@@ -1329,7 +1329,7 @@ describe("TrancheVault Test", function () {
                 // Move all assets out of pool vault
 
                 let availableAmount = toToken(0);
-                let availableAssets = await poolVaultContract.totalAssets();
+                let availableAssets = await poolSafeContract.totalAssets();
                 await creditContract.drawdown(
                     ethers.constants.HashZero,
                     availableAssets.sub(availableAmount),
@@ -1432,7 +1432,7 @@ describe("TrancheVault Test", function () {
                 // Move assets out of pool vault for partial processing
 
                 let availableAmount = toToken(1000);
-                let availableAssets = await poolVaultContract.totalAssets();
+                let availableAssets = await poolSafeContract.totalAssets();
                 await creditContract.drawdown(
                     ethers.constants.HashZero,
                     availableAssets.sub(availableAmount),
@@ -1472,7 +1472,7 @@ describe("TrancheVault Test", function () {
                 // Move assets out of pool vault for partial processing
 
                 let availableAmount = toToken(1000);
-                let availableAssets = await poolVaultContract.totalAssets();
+                let availableAssets = await poolSafeContract.totalAssets();
                 await creditContract.drawdown(
                     ethers.constants.HashZero,
                     availableAssets.sub(availableAmount),

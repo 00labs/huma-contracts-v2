@@ -18,7 +18,7 @@ import {
     PlatformFeeManager,
     Pool,
     PoolConfig,
-    PoolVault,
+    PoolSafe,
     TrancheVault,
     ProfitEscrow,
 } from "../typechain-types";
@@ -32,7 +32,7 @@ export type ProtocolContracts = [EvaluationAgentNFT, HumaConfig, MockToken];
 export type PoolContracts = [
     PoolConfig,
     PlatformFeeManager,
-    PoolVault,
+    PoolSafe,
     Calendar,
     FirstLossCover,
     FirstLossCover,
@@ -134,9 +134,9 @@ export async function deployPoolContracts(
     const platformFeeManagerContract = await PlatformFeeManager.deploy();
     await platformFeeManagerContract.deployed();
 
-    const PoolVault = await ethers.getContractFactory("PoolVault");
-    const poolVaultContract = await PoolVault.deploy();
-    await poolVaultContract.deployed();
+    const PoolSafe = await ethers.getContractFactory("PoolSafe");
+    const poolSafeContract = await PoolSafe.deploy();
+    await poolSafeContract.deployed();
 
     const FirstLossCover = await ethers.getContractFactory("FirstLossCover");
     const borrowerFirstLossCoverContract = await FirstLossCover.deploy();
@@ -190,7 +190,7 @@ export async function deployPoolContracts(
         mockTokenContract.address,
         calendarContract.address,
         poolContract.address,
-        poolVaultContract.address,
+        poolSafeContract.address,
         platformFeeManagerContract.address,
         tranchesPolicyContract.address,
         epochManagerContract.address,
@@ -223,7 +223,7 @@ export async function deployPoolContracts(
     );
 
     await platformFeeManagerContract.initialize(poolConfigContract.address);
-    await poolVaultContract.initialize(poolConfigContract.address);
+    await poolSafeContract.initialize(poolConfigContract.address);
     await borrowerFirstLossCoverContract["initialize(string,string,address)"](
         "Borrower First Loss Cover",
         "BFLC",
@@ -260,7 +260,7 @@ export async function deployPoolContracts(
     return [
         poolConfigContract,
         platformFeeManagerContract,
-        poolVaultContract,
+        poolSafeContract,
         calendarContract,
         borrowerFirstLossCoverContract,
         affiliateFirstLossCoverContract,
@@ -283,7 +283,7 @@ export async function setupPoolContracts(
     borrowerFirstLossCoverContract: FirstLossCover,
     affiliateFirstLossCoverContract: FirstLossCover,
     affiliateFirstLossCoverProfitEscrowContract: ProfitEscrow,
-    poolVaultContract: PoolVault,
+    poolSafeContract: PoolSafe,
     poolContract: Pool,
     juniorTrancheVaultContract: TrancheVault,
     seniorTrancheVaultContract: TrancheVault,
@@ -334,7 +334,7 @@ export async function setupPoolContracts(
 
     await mockTokenContract
         .connect(poolOwnerTreasury)
-        .approve(poolVaultContract.address, ethers.constants.MaxUint256);
+        .approve(poolSafeContract.address, ethers.constants.MaxUint256);
     await mockTokenContract.mint(poolOwnerTreasury.getAddress(), toToken(100_000_000));
     await affiliateFirstLossCoverContract
         .connect(poolOwnerTreasury)
@@ -342,7 +342,7 @@ export async function setupPoolContracts(
 
     await mockTokenContract
         .connect(evaluationAgent)
-        .approve(poolVaultContract.address, ethers.constants.MaxUint256);
+        .approve(poolSafeContract.address, ethers.constants.MaxUint256);
     await mockTokenContract.mint(evaluationAgent.getAddress(), toToken(100_000_000));
     await affiliateFirstLossCoverContract
         .connect(evaluationAgent)
@@ -367,7 +367,7 @@ export async function setupPoolContracts(
             .addApprovedLender(accounts[i].getAddress());
         await mockTokenContract
             .connect(accounts[i])
-            .approve(poolVaultContract.address, ethers.constants.MaxUint256);
+            .approve(poolSafeContract.address, ethers.constants.MaxUint256);
         await mockTokenContract
             .connect(accounts[i])
             .approve(creditContract.address, ethers.constants.MaxUint256);
@@ -391,7 +391,7 @@ export async function deployAndSetupPoolContracts(
     let [
         poolConfigContract,
         platformFeeManagerContract,
-        poolVaultContract,
+        poolSafeContract,
         calendarContract,
         borrowerFirstLossCoverContract,
         affiliateFirstLossCoverContract,
@@ -420,7 +420,7 @@ export async function deployAndSetupPoolContracts(
         borrowerFirstLossCoverContract,
         affiliateFirstLossCoverContract,
         affiliateFirstLossCoverProfitEscrowContract,
-        poolVaultContract,
+        poolSafeContract,
         poolContract,
         juniorTrancheVaultContract,
         seniorTrancheVaultContract,
@@ -435,7 +435,7 @@ export async function deployAndSetupPoolContracts(
     return [
         poolConfigContract,
         platformFeeManagerContract,
-        poolVaultContract,
+        poolSafeContract,
         calendarContract,
         borrowerFirstLossCoverContract,
         affiliateFirstLossCoverContract,

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {IPoolVault} from "./IPoolVault.sol";
+import {IPoolSafe} from "./IPoolSafe.sol";
 
 /**
  * @notice IPool is a core contract that connects the lender lender side (via tranches)

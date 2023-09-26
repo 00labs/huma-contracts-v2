@@ -2,10 +2,10 @@
 pragma solidity ^0.8.0;
 
 /**
- * @notice IPoolVault is the vault for a pool. It tracks the flow of underlying token.
+ * @notice IPoolSafe.sol is the vault for a pool. It tracks the flow of underlying token.
  */
 
-interface IPoolVault {
+interface IPoolSafe {
     /**
      * @notice Deposit underlying tokens into the pool
      * @param from the address that supplies the underlying tokens

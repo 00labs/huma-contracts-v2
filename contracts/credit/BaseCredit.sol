@@ -15,7 +15,7 @@ import {HumaConfig} from "../HumaConfig.sol";
 import {CalendarUnit} from "../SharedDefs.sol";
 import {IERC20, IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {PoolConfigCache} from "../PoolConfigCache.sol";
-import {IPoolVault} from "../interfaces/IPoolVault.sol";
+import {IPoolSafe} from "../interfaces/IPoolSafe.sol";
 import {IFirstLossCover} from "../interfaces/IFirstLossCover.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
@@ -168,9 +168,9 @@ abstract contract BaseCredit is
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         pnlManager = IPnLManager(addr);
 
-        addr = _poolConfig.poolVault();
+        addr = _poolConfig.poolSafe();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
-        poolVault = IPoolVault(addr);
+        poolSafe = IPoolSafe(addr);
 
         addr = _poolConfig.getFirstLossCover(BORROWER_FIRST_LOSS_COVER_INDEX);
         if (addr == address(0)) revert Errors.zeroAddressProvided();
@@ -601,7 +601,7 @@ abstract contract BaseCredit is
         );
 
         // Transfer funds to the _borrower
-        poolVault.withdraw(borrower, netAmountToBorrower);
+        poolSafe.withdraw(borrower, netAmountToBorrower);
         emit DrawdownMade(borrower, borrowAmount, netAmountToBorrower);
     }
 
@@ -711,7 +711,7 @@ abstract contract BaseCredit is
         }
 
         if (p.amountToCollect > 0) {
-            poolVault.deposit(borrower, p.amountToCollect);
+            poolSafe.deposit(borrower, p.amountToCollect);
             emit PaymentMade(
                 borrower,
                 p.amountToCollect,

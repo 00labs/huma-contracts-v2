@@ -17,7 +17,7 @@ import {
     PlatformFeeManager,
     Pool,
     PoolConfig,
-    PoolVault,
+    PoolSafe,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
     ProfitEscrow,
@@ -41,7 +41,7 @@ let eaNFTContract: EvaluationAgentNFT,
     mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
     platformFeeManagerContract: PlatformFeeManager,
-    poolVaultContract: PoolVault,
+    poolSafeContract: PoolSafe,
     calendarContract: Calendar,
     borrowerFirstLossCoverContract: FirstLossCover,
     affiliateFirstLossCoverContract: FirstLossCover,
@@ -86,7 +86,7 @@ describe("PlatformFeeManager Test", function () {
         [
             poolConfigContract,
             platformFeeManagerContract,
-            poolVaultContract,
+            poolSafeContract,
             calendarContract,
             borrowerFirstLossCoverContract,
             affiliateFirstLossCoverContract,
@@ -135,10 +135,10 @@ describe("PlatformFeeManager Test", function () {
             await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.address);
 
             // Make sure all the fees are distributed correctly.
-            const oldReserve = await poolVaultContract.reserves();
+            const oldReserve = await poolSafeContract.reserves();
             await platformFeeManagerContract.distributePlatformFees(profit);
             const newAccruedIncomes = await platformFeeManagerContract.getAccruedIncomes();
-            const newReserve = await poolVaultContract.reserves();
+            const newReserve = await poolSafeContract.reserves();
             expect(newAccruedIncomes.protocolIncome).to.equal(expectedProtocolIncome);
             expect(newAccruedIncomes.poolOwnerIncome).to.equal(expectedPoolOwnerIncome);
             expect(newAccruedIncomes.eaIncome).to.equal(expectedEAIncome);
@@ -146,7 +146,7 @@ describe("PlatformFeeManager Test", function () {
             expect(newReserve.forRedemption).to.equal(oldReserve.forRedemption);
 
             // Make sure all parties can withdraw their fees. First, mint enough tokens for distribution.
-            await mockTokenContract.mint(poolVaultContract.address, totalFees);
+            await mockTokenContract.mint(poolSafeContract.address, totalFees);
 
             // Protocol owner fees.
             const oldProtocolIncomeWithdrawn =
@@ -323,7 +323,7 @@ describe("PlatformFeeManager Test", function () {
             );
             const withdrawalAmount = toToken(1);
 
-            await mockTokenContract.mint(poolVaultContract.address, totalFees);
+            await mockTokenContract.mint(poolSafeContract.address, totalFees);
             await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.address);
 
             await platformFeeManagerContract.distributePlatformFees(profit);

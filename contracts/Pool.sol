@@ -6,7 +6,7 @@ import {IPlatformFeeManager} from "./interfaces/IPlatformFeeManager.sol";
 import {ITranchesPolicy} from "./interfaces/ITranchesPolicy.sol";
 import {IPoolCredit} from "./credit/interfaces/IPoolCredit.sol";
 import {IFirstLossCover} from "./interfaces/IFirstLossCover.sol";
-import {IPoolVault} from "./interfaces/IPoolVault.sol";
+import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import {IEpochManager} from "./interfaces/IEpochManager.sol";
 import "./SharedDefs.sol";
 import {PoolConfig} from "./PoolConfig.sol";
@@ -25,7 +25,7 @@ contract Pool is PoolConfigCache, IPool {
         uint96 juniorLoss; // total losses of junior tranche
     }
 
-    IPoolVault public poolVault;
+    IPoolSafe public poolSafe;
     ITranchesPolicy public tranchesPolicy;
     IFirstLossCover[] internal _firstLossCovers;
     IPoolCredit public credit;
@@ -61,9 +61,9 @@ contract Pool is PoolConfigCache, IPool {
     );
 
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
-        address addr = _poolConfig.poolVault();
+        address addr = _poolConfig.poolSafe();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
-        poolVault = IPoolVault(addr);
+        poolSafe = IPoolSafe(addr);
 
         addr = _poolConfig.tranchesPolicy();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
@@ -391,7 +391,7 @@ contract Pool is PoolConfigCache, IPool {
     function submitRedemptionRequest(uint256 amounts) external {
         poolConfig.onlyEpochManager(msg.sender);
 
-        poolVault.setRedemptionReserve(amounts);
+        poolSafe.setRedemptionReserve(amounts);
 
         // :handle redemption request for flex loan
     }
