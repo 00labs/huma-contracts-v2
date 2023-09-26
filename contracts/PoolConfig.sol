@@ -151,7 +151,7 @@ contract PoolConfig is AccessControl, Initializable {
     address public poolOwnerTreasury;
 
     event YieldChanged(uint256 aprInBps, address by);
-    event CreditApprovalExpirationChanged(uint256 durationInSeconds, address by);
+    event CreditApprovalExpirationChanged(uint256 durationInDays, address by);
     event EARewardsAndLiquidityChanged(
         uint256 rewardsRate,
         uint256 liquidityRate,
@@ -160,7 +160,6 @@ contract PoolConfig is AccessControl, Initializable {
     event EvaluationAgentChanged(address oldEA, address newEA, uint256 newEAId, address by);
     event EvaluationAgentRewardsWithdrawn(address receiver, uint256 amount, address by);
     event PlatformFeeManagerChanged(address platformFeeManager, address by);
-    event HDTChanged(address hdt, address udnerlyingToken, address by);
     event HumaConfigChanged(address humaConfig, address by);
 
     event MaxCreditLineChanged(uint256 maxCreditLine, address by);
@@ -312,7 +311,6 @@ contract PoolConfig is AccessControl, Initializable {
         // Default values for the pool configurations. The pool owners are expected to reset
         // these values when setting up the pools. Setting these default values to avoid
         // strange behaviors when the pool owner missed setting up these configurations.
-        // _liquidityCap, _maxCreditLine, _creditApprovalExpirationInSeconds are left at 0.
         PoolSettings memory _pSettings = _poolSettings;
         _pSettings.calendarUnit = CalendarUnit.Month;
         _pSettings.payPeriodInCalendarUnit = 1; // 1 month
@@ -655,6 +653,30 @@ contract PoolConfig is AccessControl, Initializable {
 
         if (!IFirstLossCover(poolOwnerOrEAFirstLossCover).isSufficient(evaluationAgent))
             revert Errors.lessThanRequiredCover();
+    }
+
+    function checkLiquidityRequirementForPoolOwner(uint256 balance) public view {
+        if (
+            balance <
+            (_lpConfig.liquidityCap * _adminRnR.liquidityRateInBpsByPoolOwner) /
+            HUNDRED_PERCENT_IN_BPS
+        ) revert Errors.poolOwnerNotEnoughLiquidity();
+    }
+
+    function checkLiquidityRequirementForEA(uint256 balance) public view {
+        if (
+            balance <
+            (_lpConfig.liquidityCap * _adminRnR.liquidityRateInBpsByEA) /
+            HUNDRED_PERCENT_IN_BPS
+        ) revert Errors.evaluationAgentNotEnoughLiquidity();
+    }
+
+    /**
+     * @notice Checks whether both the EA and the pool owner treasury have met the pool's liquidity requirements
+     */
+    function checkLiquidityRequirements() public view {
+        checkLiquidityRequirementForPoolOwner(poolToken.withdrawableFundsOf(poolOwnerTreasury));
+        checkLiquidityRequirementForEA(poolToken.withdrawableFundsOf(evaluationAgent));
     }
 
     /**
