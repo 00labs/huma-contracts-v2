@@ -60,7 +60,7 @@ contract Errors {
     // pool state
     error protocolIsPaused(); // 0x8f6fa2d4
     error poolIsNotOn(); // 0x69b355df
-    error poolIsNotReadyToWithdrawFirstLossCover();
+    error poolIsNotReadyForFirstLossCoverWithdrawal();
 
     // tranche operation
     error poolLiquidityCapExceeded(); // 0xdea32e48

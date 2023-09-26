@@ -40,5 +40,5 @@ interface IPool {
 
     function isPoolOn() external view returns (bool status);
 
-    function readyToWithdrawFirstLossCover() external view returns (bool ready);
+    function readyForFirstLossCoverWithdrawal() external view returns (bool ready);
 }

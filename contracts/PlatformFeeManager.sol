@@ -60,27 +60,33 @@ contract PlatformFeeManager is PoolConfigCache, IPlatformFeeManager {
 
         if (liquidityCapacity > totalFees) {
             // TODO these deposits are expensive, it is better to move them to an autotask
-            firstLossCover.depositByPoolFeeManager(
+            firstLossCover.depositCoverWithAffiliateFees(
                 incomes.protocolIncome,
                 humaConfig.humaTreasury()
             );
-            firstLossCover.depositByPoolFeeManager(
+            firstLossCover.depositCoverWithAffiliateFees(
                 incomes.poolOwnerIncome,
                 poolConfig.poolOwnerTreasury()
             );
-            firstLossCover.depositByPoolFeeManager(incomes.eaIncome, poolConfig.evaluationAgent());
+            firstLossCover.depositCoverWithAffiliateFees(
+                incomes.eaIncome,
+                poolConfig.evaluationAgent()
+            );
         } else {
             if (liquidityCapacity > 0) {
                 // TODO these deposits are expensive, it is better to move them to an autotask
                 uint256 poolOwnerFees = (incomes.poolOwnerIncome * liquidityCapacity) / totalFees;
-                firstLossCover.depositByPoolFeeManager(
+                firstLossCover.depositCoverWithAffiliateFees(
                     poolOwnerFees,
                     poolConfig.poolOwnerTreasury()
                 );
                 uint256 eaFees = (incomes.eaIncome * liquidityCapacity) / totalFees;
-                firstLossCover.depositByPoolFeeManager(eaFees, poolConfig.evaluationAgent());
+                firstLossCover.depositCoverWithAffiliateFees(eaFees, poolConfig.evaluationAgent());
                 uint256 protocolFees = liquidityCapacity - poolOwnerFees - eaFees;
-                firstLossCover.depositByPoolFeeManager(protocolFees, humaConfig.humaTreasury());
+                firstLossCover.depositCoverWithAffiliateFees(
+                    protocolFees,
+                    humaConfig.humaTreasury()
+                );
 
                 uint256 remainingFees = totalFees - liquidityCapacity;
                 incomes.poolOwnerIncome = uint96(

@@ -33,7 +33,7 @@ interface IFirstLossCover {
 
     function availableLiquidityCapacity() external view returns (uint256);
 
-    function depositByPoolFeeManager(
+    function depositCoverWithAffiliateFees(
         uint256 assets,
         address receiver
     ) external returns (uint256 shares);

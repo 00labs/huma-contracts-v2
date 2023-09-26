@@ -111,7 +111,7 @@ contract Pool is PoolConfigCache, IPool {
         emit PoolDisabled(msg.sender);
     }
 
-    function setReadyToWithdrawFirstLossCover(bool ready) external {
+    function setReadyForFirstLossCoverWithdrawal(bool ready) external {
         poolConfig.onlyOwnerOrHumaMasterAdmin(msg.sender);
         readyForFirstLossCoverWithdrawal = ready;
         emit PoolReadyForFirstLossCoverWithdrawal(msg.sender, ready);

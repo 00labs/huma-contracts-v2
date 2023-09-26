@@ -111,7 +111,12 @@ contract FirstLossCover is
         return _deposit(assets, msg.sender);
     }
 
-    function depositCoverWithTrancheVaultToken(
+    /**
+     * @notice Adds to the cover using assets from other tranches. This is convenient for LPs who
+     * hold positions as both first loss covers and participants in the junior/senior tranche, so that
+     * they don't have to withdraw their assets from the tranches first before adding to the first loss cover.
+     */
+    function depositCoverWithTrancheVaultTokens(
         address trancheVaultAddress,
         uint256 tokenAmount
     ) external returns (uint256 shares) {
@@ -128,7 +133,7 @@ contract FirstLossCover is
     }
 
     /**
-     * @notice Deposits fees of protocol owner, pool owner and EA again by pool contract
+     * @notice Adds to the cover using fees of protocol owner, pool owner and/or EA.
      */
     function depositCoverWithAffiliateFees(
         uint256 assets,
@@ -162,8 +167,8 @@ contract FirstLossCover is
     function redeemCover(uint256 shares, address receiver) external returns (uint256 assets) {
         if (assets == 0) revert Errors.zeroAmountProvided();
         if (receiver == address(0)) revert Errors.zeroAddressProvided();
-        if (!pool.readyToWithdrawFirstLossCover())
-            revert Errors.poolIsNotReadyToWithdrawFirstLossCover();
+        if (!pool.readyForFirstLossCoverWithdrawal())
+            revert Errors.poolIsNotReadyForFirstLossCoverWithdrawal();
 
         assets = convertToAssets(shares);
         ERC20Upgradeable._burn(msg.sender, shares);
