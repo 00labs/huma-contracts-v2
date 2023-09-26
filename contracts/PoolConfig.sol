@@ -187,7 +187,11 @@ contract PoolConfig is AccessControl, Initializable {
     event PoolRewardsWithdrawn(address receiver, uint256 amount);
     event ProtocolRewardsWithdrawn(address receiver, uint256 amount, address by);
     event ReceivableRequiredInBpsChanged(uint256 receivableInBps, address by);
-    event WithdrawalLockoutPeriodChanged(CalendarUnit unit, uint256 lockoutPeriodInDays, address by);
+    event WithdrawalLockoutPeriodChanged(
+        CalendarUnit unit,
+        uint256 lockoutPeriodInDays,
+        address by
+    );
 
     event LPConfigChanged(
         bool permissioned,
@@ -199,7 +203,7 @@ contract PoolConfig is AccessControl, Initializable {
         address by
     );
     event FirstLossCoverConfigChanged(
-    uint16 poolCapCoverageInBps,
+        uint16 poolCapCoverageInBps,
         uint16 poolValueCoverageInBps,
         uint16 coverRateInBps,
         uint96 coverCap,
@@ -659,23 +663,21 @@ contract PoolConfig is AccessControl, Initializable {
         if (
             balance <
             (_lpConfig.liquidityCap * _adminRnR.liquidityRateInBpsByPoolOwner) /
-            HUNDRED_PERCENT_IN_BPS
+                HUNDRED_PERCENT_IN_BPS
         ) revert Errors.poolOwnerNotEnoughLiquidity();
     }
 
     function checkLiquidityRequirementForEA(uint256 balance) public view {
         if (
             balance <
-            (_lpConfig.liquidityCap * _adminRnR.liquidityRateInBpsByEA) /
-            HUNDRED_PERCENT_IN_BPS
+            (_lpConfig.liquidityCap * _adminRnR.liquidityRateInBpsByEA) / HUNDRED_PERCENT_IN_BPS
         ) revert Errors.evaluationAgentNotEnoughLiquidity();
     }
 
     /**
      * @notice Checks whether both the EA and the pool owner treasury have met the pool's liquidity requirements
      */
-    function checkLiquidityRequirements() public view {
-    }
+    function checkLiquidityRequirements() public view {}
 
     /**
      * Returns a summary information of the pool.
@@ -747,10 +749,10 @@ contract PoolConfig is AccessControl, Initializable {
      * @notice Gets the fee structure for the pool
      */
     function getFees()
-    external
-    view
-    virtual
-    returns (uint256 _lateFeeFlat, uint256 _lateFeeBps, uint256 _membershipFee)
+        external
+        view
+        virtual
+        returns (uint256 _lateFeeFlat, uint256 _lateFeeBps, uint256 _membershipFee)
     {
         return (_feeStructure.lateFeeFlat, _feeStructure.lateFeeBps, _feeStructure.membershipFee);
     }
@@ -775,8 +777,8 @@ contract PoolConfig is AccessControl, Initializable {
     function onlyPoolOwnerOrEA(address account) public view returns (address) {
         if (
             !hasRole(DEFAULT_ADMIN_ROLE, account) &&
-        account != evaluationAgent &&
-        account != address(this)
+            account != evaluationAgent &&
+            account != address(this)
         ) revert Errors.notPoolOwnerOrEA();
         return evaluationAgent;
     }

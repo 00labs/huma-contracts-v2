@@ -13,6 +13,5 @@ import {ReceivableCredit} from "./ReceivableCredit.sol";
  * ReceivableCredit is a credit backed by receivables.
  */
 contract ReceivableFactoringCredit is ReceivableCredit {
-    
 
 }
