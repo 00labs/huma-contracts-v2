@@ -3,5 +3,5 @@
 
 yarn lint:fix
 yarn format
-yarn lint-solidity
+yarn lint-solidity:fix
 yarn gitleaks
