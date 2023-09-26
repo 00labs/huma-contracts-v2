@@ -170,6 +170,7 @@ describe("PoolConfig Tests", function () {
             const poolSettings = await poolConfigContract.getPoolSettings();
             expect(poolSettings.calendarUnit).to.equal(1);
             expect(poolSettings.payPeriodInCalendarUnit).to.equal(1);
+            expect(poolSettings.receivableRequiredInBps).to.equal(10000);
             expect(poolSettings.advanceRateInBps).to.equal(10000);
             expect(poolSettings.latePaymentGracePeriodInDays).to.equal(5);
             expect(poolSettings.defaultGracePeriodInCalendarUnit).to.equal(3);
@@ -1601,7 +1602,7 @@ describe("PoolConfig Tests", function () {
                     .to.emit(poolConfigContract, "ReceivableRequiredInBpsChanged")
                     .withArgs(receivableRequiredInBps, poolOwner.address);
                 const poolSettings = await poolConfigContract.getPoolSettings();
-                expect(poolSettings.advanceRateInBps).to.equal(receivableRequiredInBps);
+                expect(poolSettings.receivableRequiredInBps).to.equal(receivableRequiredInBps);
             });
 
             it("Should allow the Huma master admin to set the receivable requirement rate", async function () {
@@ -1613,7 +1614,7 @@ describe("PoolConfig Tests", function () {
                     .to.emit(poolConfigContract, "ReceivableRequiredInBpsChanged")
                     .withArgs(receivableRequiredInBps, protocolOwner.address);
                 const poolSettings = await poolConfigContract.getPoolSettings();
-                expect(poolSettings.advanceRateInBps).to.equal(receivableRequiredInBps);
+                expect(poolSettings.receivableRequiredInBps).to.equal(receivableRequiredInBps);
             });
 
             it("Should reject non-owner or admin to set the receivable requirement rate", async function () {
@@ -1622,6 +1623,47 @@ describe("PoolConfig Tests", function () {
                         .connect(regularUser)
                         .setReceivableRequiredInBps(receivableRequiredInBps),
                 ).to.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+            });
+        });
+
+        describe("setAdvanceRateInBps", function () {
+            let advanceRateInBps = 9_000;
+
+            it("Should allow the pool owner to set the advance rate", async function () {
+                await expect(
+                    poolConfigContract.connect(poolOwner).setAdvanceRateInBps(advanceRateInBps),
+                )
+                    .to.emit(poolConfigContract, "AdvanceRateInBpsChanged")
+                    .withArgs(advanceRateInBps, poolOwner.address);
+                const poolSettings = await poolConfigContract.getPoolSettings();
+                expect(poolSettings.advanceRateInBps).to.equal(advanceRateInBps);
+            });
+
+            it("Should allow the Huma master admin to set the advance rate", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(protocolOwner)
+                        .setAdvanceRateInBps(advanceRateInBps),
+                )
+                    .to.emit(poolConfigContract, "AdvanceRateInBpsChanged")
+                    .withArgs(advanceRateInBps, protocolOwner.address);
+                const poolSettings = await poolConfigContract.getPoolSettings();
+                expect(poolSettings.advanceRateInBps).to.equal(advanceRateInBps);
+            });
+
+            it("Should reject non-owner or admin to set the advance rate", async function () {
+                await expect(
+                    poolConfigContract.connect(regularUser).setAdvanceRateInBps(advanceRateInBps),
+                ).to.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+            });
+
+            it("Should reject advance rates higher than 10000", async function () {
+                await expect(
+                    poolConfigContract.connect(poolOwner).setAdvanceRateInBps(10_001),
+                ).to.revertedWithCustomError(
+                    poolConfigContract,
+                    "invalidBasisPointHigherThan10000",
+                );
             });
         });
 
