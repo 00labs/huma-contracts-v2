@@ -43,11 +43,11 @@ contract Pool is PoolConfigCache, IPool {
     // Whether the pool is ON or OFF
     PoolStatus internal _status;
 
-    bool public readyToWithdrawFirstLossCover;
+    bool public readyForFirstLossCoverWithdrawal;
 
     event PoolDisabled(address indexed by);
     event PoolEnabled(address indexed by);
-    event PoolReadyToWithdrawFirstLossCover(address indexed by, bool ready);
+    event PoolReadyForFirstLossCoverWithdrawal(address indexed by, bool ready);
 
     event PoolAssetsRefreshed(
         uint256 refreshedTimestamp,
@@ -113,8 +113,8 @@ contract Pool is PoolConfigCache, IPool {
 
     function setReadyToWithdrawFirstLossCover(bool ready) external {
         poolConfig.onlyOwnerOrHumaMasterAdmin(msg.sender);
-        readyToWithdrawFirstLossCover = ready;
-        emit PoolReadyToWithdrawFirstLossCover(msg.sender, ready);
+        readyForFirstLossCoverWithdrawal = ready;
+        emit PoolReadyForFirstLossCoverWithdrawal(msg.sender, ready);
     }
 
     /// Gets the on/off status of the pool
@@ -221,7 +221,8 @@ contract Pool is PoolConfigCache, IPool {
         uint256 totalWeight = juniorTotalAssets;
         for (uint256 i; i < len; i++) {
             IFirstLossCover cover = _firstLossCovers[i];
-            // use profitsForFirstLossCovers to store total assets of first loss covers to save a temp array
+            // We use profitsForFirstLossCovers to store the effective amount of assets of first loss covers so that
+            // we don't have to create another array, which helps to save on gas.
             profitsForFirstLossCovers[i] = cover.totalAssets() * riskYieldMultipliers[i];
             totalWeight += profitsForFirstLossCovers[i];
         }

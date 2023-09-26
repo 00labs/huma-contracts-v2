@@ -39,6 +39,7 @@ contract ProfitEscrow is PoolConfigCache, ProfitEscrowStorage, IProfitEscrow {
         _onlyCaller();
 
         EscrowInfo memory escrowInfo = _escrowInfo;
+        assert(escrowInfo.totalShares != 0);
         escrowInfo.accRewardPerShare += uint96(
             (profit * DEFAULT_DECIMALS_FACTOR) / escrowInfo.totalShares
         );

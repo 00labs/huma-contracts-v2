@@ -30,7 +30,7 @@ contract FirstLossCoverStorage {
 
     uint8 internal _decimals;
     uint256 internal _totalAssets;
-    /// The cumulative amount of loss covered.
+    // The cumulative amount of loss covered.
     uint256 public coveredLoss;
 
     mapping(address => LossCoverConfig) internal operatorConfigs;

@@ -126,12 +126,15 @@ contract PoolConfig is AccessControl, Initializable {
 
     uint256 public evaluationAgentId;
 
+    // The maximum number of first loss covers we allow is 16, which should be sufficient for now.
     address[16] internal _firstLossCovers;
-    // _riskYieldMultipliers is used to adjust the yield of first loss cover with _firstLossCover
-    // uint16[16] is just on slot, 16 is the max count of first loss cover array, it is enough for now
+    // _riskYieldMultipliers is used to adjust the yield of the first loss covers relative to each other.
+    // The higher the multiplier, the higher the yield the first loss cover will get during profit distribution
+    // compared to other first loss covers. Each element in this array is the multiplier of the first loss cover
+    // at the corresponding index in _firstLossCovers. Note that The entire array occupies just one slot.
     uint16[16] internal _riskYieldMultipliers;
     // first loss cover address => profit escrow address
-    mapping(address => address) internal _firstLossCoverProfitEscrowMap;
+    mapping(address => address) internal _profitEscrowByFirstLossCover;
 
     PoolSettings internal _poolSettings;
     LPConfig internal _lpConfig;
@@ -547,7 +550,7 @@ contract PoolConfig is AccessControl, Initializable {
         _onlyOwnerOrHumaMasterAdmin();
         _firstLossCovers[index] = firstLossCover;
         _riskYieldMultipliers[index] = riskYieldMultiplier;
-        _firstLossCoverProfitEscrowMap[firstLossCover] = profitEscrow;
+        _profitEscrowByFirstLossCover[firstLossCover] = profitEscrow;
         // todo emit event
     }
 
@@ -723,7 +726,7 @@ contract PoolConfig is AccessControl, Initializable {
     function getFirstLossCoverProfitEscrow(
         address firstLossCover
     ) external view returns (address) {
-        return _firstLossCoverProfitEscrowMap[firstLossCover];
+        return _profitEscrowByFirstLossCover[firstLossCover];
     }
 
     function getPoolSettings() external view returns (PoolSettings memory) {

@@ -111,7 +111,7 @@ contract FirstLossCover is
         return _deposit(assets, msg.sender);
     }
 
-    function depositTrancheVaultToken(
+    function depositCoverWithTrancheVaultToken(
         address trancheVaultAddress,
         uint256 tokenAmount
     ) external returns (uint256 shares) {
@@ -127,8 +127,10 @@ contract FirstLossCover is
         return _deposit(assets, msg.sender);
     }
 
-    // Deposit fees of protocol owner, pool owner and EA again by pool contract
-    function depositByPoolFeeManager(
+    /**
+     * @notice Deposits fees of protocol owner, pool owner and EA again by pool contract
+     */
+    function depositCoverWithAffiliateFees(
         uint256 assets,
         address receiver
     ) external returns (uint256 shares) {
