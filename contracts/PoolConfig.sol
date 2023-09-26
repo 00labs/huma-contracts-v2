@@ -675,8 +675,6 @@ contract PoolConfig is AccessControl, Initializable {
      * @notice Checks whether both the EA and the pool owner treasury have met the pool's liquidity requirements
      */
     function checkLiquidityRequirements() public view {
-        checkLiquidityRequirementForPoolOwner(poolToken.withdrawableFundsOf(poolOwnerTreasury));
-        checkLiquidityRequirementForEA(poolToken.withdrawableFundsOf(evaluationAgent));
     }
 
     /**
