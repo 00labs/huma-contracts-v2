@@ -6,6 +6,7 @@ import {PoolConfig, PoolSettings, AdminRnR} from "./PoolConfig.sol";
 import {PoolConfigCache} from "./PoolConfigCache.sol";
 import {IPoolVault} from "./interfaces/IPoolVault.sol";
 import {IPlatformFeeManager} from "./interfaces/IPlatformFeeManager.sol";
+import {IFirstLossCover} from "./interfaces/IFirstLossCover.sol";
 import {HumaConfig} from "./HumaConfig.sol";
 import {Errors} from "./Errors.sol";
 
@@ -18,6 +19,8 @@ contract PlatformFeeManager is PoolConfigCache, IPlatformFeeManager {
 
     HumaConfig public humaConfig;
     IPoolVault public poolVault;
+    IFirstLossCover public firstLossCover;
+
     AccruedIncomes internal _accruedIncomes;
     uint256 public protocolIncomeWithdrawn;
     uint256 public poolOwnerIncomeWithdrawn;
@@ -42,29 +45,72 @@ contract PlatformFeeManager is PoolConfigCache, IPlatformFeeManager {
         addr = address(_poolConfig.humaConfig());
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         humaConfig = HumaConfig(addr);
+
+        addr = _poolConfig.getFirstLossCover(AFFILIATE_FIRST_LOSS_COVER_INDEX);
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        firstLossCover = IFirstLossCover(addr);
     }
 
     function distributePlatformFees(uint256 profit) external returns (uint256) {
         poolConfig.onlyPool(msg.sender);
 
         (AccruedIncomes memory incomes, uint256 remaining) = _getPlatformFees(profit);
-        AccruedIncomes memory accruedIncomes = _accruedIncomes;
+        uint256 totalFees = incomes.protocolIncome + incomes.poolOwnerIncome + incomes.eaIncome;
+        uint256 liquidityCapacity = firstLossCover.availableLiquidityCapacity();
 
-        accruedIncomes.protocolIncome += incomes.protocolIncome;
-        accruedIncomes.poolOwnerIncome += incomes.poolOwnerIncome;
-        accruedIncomes.eaIncome += incomes.eaIncome;
+        if (liquidityCapacity > totalFees) {
+            // TODO these deposits are expensive, it is better to move them to an autotask
+            firstLossCover.depositCoverWithAffiliateFees(
+                incomes.protocolIncome,
+                humaConfig.humaTreasury()
+            );
+            firstLossCover.depositCoverWithAffiliateFees(
+                incomes.poolOwnerIncome,
+                poolConfig.poolOwnerTreasury()
+            );
+            firstLossCover.depositCoverWithAffiliateFees(
+                incomes.eaIncome,
+                poolConfig.evaluationAgent()
+            );
+        } else {
+            if (liquidityCapacity > 0) {
+                // TODO these deposits are expensive, it is better to move them to an autotask
+                uint256 poolOwnerFees = (incomes.poolOwnerIncome * liquidityCapacity) / totalFees;
+                firstLossCover.depositCoverWithAffiliateFees(
+                    poolOwnerFees,
+                    poolConfig.poolOwnerTreasury()
+                );
+                uint256 eaFees = (incomes.eaIncome * liquidityCapacity) / totalFees;
+                firstLossCover.depositCoverWithAffiliateFees(eaFees, poolConfig.evaluationAgent());
+                uint256 protocolFees = liquidityCapacity - poolOwnerFees - eaFees;
+                firstLossCover.depositCoverWithAffiliateFees(
+                    protocolFees,
+                    humaConfig.humaTreasury()
+                );
 
-        _accruedIncomes = accruedIncomes;
-        poolVault.addPlatformFeesReserve(
-            incomes.protocolIncome + incomes.poolOwnerIncome + incomes.eaIncome
-        );
+                uint256 remainingFees = totalFees - liquidityCapacity;
+                incomes.poolOwnerIncome = uint96(
+                    (incomes.poolOwnerIncome * remainingFees) / totalFees
+                );
+                incomes.eaIncome = uint96((incomes.eaIncome * remainingFees) / totalFees);
+                incomes.protocolIncome = uint96(
+                    remainingFees - incomes.poolOwnerIncome - incomes.eaIncome
+                );
+            }
 
-        emit IncomeDistributed(
-            incomes.protocolIncome,
-            incomes.poolOwnerIncome,
-            incomes.eaIncome,
-            remaining
-        );
+            AccruedIncomes memory accruedIncomes = _accruedIncomes;
+            accruedIncomes.protocolIncome += incomes.protocolIncome;
+            accruedIncomes.poolOwnerIncome += incomes.poolOwnerIncome;
+            accruedIncomes.eaIncome += incomes.eaIncome;
+            _accruedIncomes = accruedIncomes;
+
+            emit IncomeDistributed(
+                incomes.protocolIncome,
+                incomes.poolOwnerIncome,
+                incomes.eaIncome,
+                remaining
+            );
+        }
 
         return remaining;
     }
@@ -90,7 +136,7 @@ contract PlatformFeeManager is PoolConfigCache, IPlatformFeeManager {
         // after protocolTreasury is configured in HumaConfig.
         assert(treasuryAddress != address(0));
 
-        poolVault.withdrawFees(treasuryAddress, amount);
+        poolVault.withdraw(treasuryAddress, amount);
         emit ProtocolRewardsWithdrawn(treasuryAddress, amount, msg.sender);
     }
 
@@ -102,7 +148,7 @@ contract PlatformFeeManager is PoolConfigCache, IPlatformFeeManager {
             revert Errors.withdrawnAmountHigherThanBalance();
 
         poolOwnerIncomeWithdrawn = incomeWithdrawn + amount;
-        poolVault.withdrawFees(treasury, amount);
+        poolVault.withdraw(treasury, amount);
         emit PoolRewardsWithdrawn(treasury, amount, msg.sender);
     }
 
@@ -116,12 +162,23 @@ contract PlatformFeeManager is PoolConfigCache, IPlatformFeeManager {
             revert Errors.withdrawnAmountHigherThanBalance();
 
         eaIncomeWithdrawn = incomeWithdrawn + amount;
-        poolVault.withdrawFees(treasury, amount);
+        poolVault.withdraw(treasury, amount);
         emit EvaluationAgentRewardsWithdrawn(treasury, amount, msg.sender);
     }
 
     function getAccruedIncomes() external view returns (AccruedIncomes memory) {
         return _accruedIncomes;
+    }
+
+    function getTotalAvailableFees() external view returns (uint256) {
+        AccruedIncomes memory incomes = _accruedIncomes;
+        return
+            incomes.protocolIncome +
+            incomes.poolOwnerIncome +
+            incomes.eaIncome -
+            protocolIncomeWithdrawn -
+            poolOwnerIncomeWithdrawn -
+            eaIncomeWithdrawn;
     }
 
     function getWithdrawables()

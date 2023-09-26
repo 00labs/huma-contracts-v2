@@ -20,15 +20,14 @@ import {
     PoolVault,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
+    ProfitEscrow,
 } from "../typechain-types";
 import { copyLPConfigWithOverrides, toToken } from "./TestUtils";
 import { BigNumber as BN } from "ethers";
 import {
     FeeStructureStruct,
-    FirstLossCoverConfigStruct,
     FrontLoadingFeesStructureStruct,
     LPConfigStruct,
-    LPConfigStructOutput,
 } from "../typechain-types/contracts/PoolConfig";
 
 let defaultDeployer: SignerWithAddress,
@@ -50,7 +49,9 @@ let poolConfigContract: PoolConfig,
     platformFeeManagerContract: PlatformFeeManager,
     poolVaultContract: PoolVault,
     calendarContract: Calendar,
-    poolOwnerAndEAFirstLossCoverContract: FirstLossCover,
+    borrowerFirstLossCoverContract: FirstLossCover,
+    affiliateFirstLossCoverContract: FirstLossCover,
+    affiliateFirstLossCoverProfitEscrowContract: ProfitEscrow,
     tranchesPolicyContract: RiskAdjustedTranchesPolicy,
     poolContract: Pool,
     epochManagerContract: EpochManager,
@@ -103,8 +104,10 @@ describe("PoolConfig Tests", function () {
             await poolVaultContract.deployed();
 
             const FirstLossCover = await ethers.getContractFactory("FirstLossCover");
-            poolOwnerAndEAFirstLossCoverContract = await FirstLossCover.deploy();
-            await poolOwnerAndEAFirstLossCoverContract.deployed();
+            borrowerFirstLossCoverContract = await FirstLossCover.deploy();
+            await borrowerFirstLossCoverContract.deployed();
+            affiliateFirstLossCoverContract = await FirstLossCover.deploy();
+            await affiliateFirstLossCoverContract.deployed();
 
             const TranchesPolicy = await ethers.getContractFactory("RiskAdjustedTranchesPolicy");
             tranchesPolicyContract = await TranchesPolicy.deploy();
@@ -151,12 +154,11 @@ describe("PoolConfig Tests", function () {
                 .initialize("Base Credit Pool", [
                     humaConfigContract.address,
                     mockTokenContract.address,
-                    platformFeeManagerContract.address,
-                    poolVaultContract.address,
                     calendarContract.address,
-                    poolOwnerAndEAFirstLossCoverContract.address,
-                    tranchesPolicyContract.address,
                     poolContract.address,
+                    poolVaultContract.address,
+                    platformFeeManagerContract.address,
+                    tranchesPolicyContract.address,
                     epochManagerContract.address,
                     seniorTrancheVaultContract.address,
                     juniorTrancheVaultContract.address,
@@ -192,7 +194,6 @@ describe("PoolConfig Tests", function () {
                         platformFeeManagerContract.address,
                         poolVaultContract.address,
                         calendarContract.address,
-                        poolOwnerAndEAFirstLossCoverContract.address,
                         tranchesPolicyContract.address,
                         poolContract.address,
                         epochManagerContract.address,
@@ -215,7 +216,6 @@ describe("PoolConfig Tests", function () {
                         platformFeeManagerContract.address,
                         poolVaultContract.address,
                         calendarContract.address,
-                        poolOwnerAndEAFirstLossCoverContract.address,
                         tranchesPolicyContract.address,
                         poolContract.address,
                         epochManagerContract.address,
@@ -241,7 +241,6 @@ describe("PoolConfig Tests", function () {
                         platformFeeManagerContract.address,
                         poolVaultContract.address,
                         calendarContract.address,
-                        poolOwnerAndEAFirstLossCoverContract.address,
                         tranchesPolicyContract.address,
                         poolContract.address,
                         epochManagerContract.address,
@@ -267,7 +266,6 @@ describe("PoolConfig Tests", function () {
                         ethers.constants.AddressZero,
                         poolVaultContract.address,
                         calendarContract.address,
-                        poolOwnerAndEAFirstLossCoverContract.address,
                         tranchesPolicyContract.address,
                         poolContract.address,
                         epochManagerContract.address,
@@ -290,7 +288,6 @@ describe("PoolConfig Tests", function () {
                         platformFeeManagerContract.address,
                         ethers.constants.AddressZero,
                         calendarContract.address,
-                        poolOwnerAndEAFirstLossCoverContract.address,
                         tranchesPolicyContract.address,
                         poolContract.address,
                         epochManagerContract.address,
@@ -313,7 +310,6 @@ describe("PoolConfig Tests", function () {
                         platformFeeManagerContract.address,
                         poolVaultContract.address,
                         ethers.constants.AddressZero,
-                        poolOwnerAndEAFirstLossCoverContract.address,
                         tranchesPolicyContract.address,
                         poolContract.address,
                         epochManagerContract.address,
@@ -359,7 +355,6 @@ describe("PoolConfig Tests", function () {
                         platformFeeManagerContract.address,
                         poolVaultContract.address,
                         calendarContract.address,
-                        poolOwnerAndEAFirstLossCoverContract.address,
                         ethers.constants.AddressZero,
                         poolContract.address,
                         epochManagerContract.address,
@@ -382,7 +377,6 @@ describe("PoolConfig Tests", function () {
                         platformFeeManagerContract.address,
                         poolVaultContract.address,
                         calendarContract.address,
-                        poolOwnerAndEAFirstLossCoverContract.address,
                         tranchesPolicyContract.address,
                         ethers.constants.AddressZero,
                         epochManagerContract.address,
@@ -405,7 +399,6 @@ describe("PoolConfig Tests", function () {
                         platformFeeManagerContract.address,
                         poolVaultContract.address,
                         calendarContract.address,
-                        poolOwnerAndEAFirstLossCoverContract.address,
                         tranchesPolicyContract.address,
                         poolContract.address,
                         ethers.constants.AddressZero,
@@ -428,7 +421,6 @@ describe("PoolConfig Tests", function () {
                         platformFeeManagerContract.address,
                         poolVaultContract.address,
                         calendarContract.address,
-                        poolOwnerAndEAFirstLossCoverContract.address,
                         tranchesPolicyContract.address,
                         poolContract.address,
                         epochManagerContract.address,
@@ -451,7 +443,6 @@ describe("PoolConfig Tests", function () {
                         platformFeeManagerContract.address,
                         poolVaultContract.address,
                         calendarContract.address,
-                        poolOwnerAndEAFirstLossCoverContract.address,
                         tranchesPolicyContract.address,
                         poolContract.address,
                         epochManagerContract.address,
@@ -474,7 +465,6 @@ describe("PoolConfig Tests", function () {
                         platformFeeManagerContract.address,
                         poolVaultContract.address,
                         calendarContract.address,
-                        poolOwnerAndEAFirstLossCoverContract.address,
                         tranchesPolicyContract.address,
                         poolContract.address,
                         epochManagerContract.address,
@@ -497,7 +487,6 @@ describe("PoolConfig Tests", function () {
                         platformFeeManagerContract.address,
                         poolVaultContract.address,
                         calendarContract.address,
-                        poolOwnerAndEAFirstLossCoverContract.address,
                         tranchesPolicyContract.address,
                         poolContract.address,
                         epochManagerContract.address,
@@ -520,7 +509,6 @@ describe("PoolConfig Tests", function () {
                         platformFeeManagerContract.address,
                         poolVaultContract.address,
                         calendarContract.address,
-                        poolOwnerAndEAFirstLossCoverContract.address,
                         tranchesPolicyContract.address,
                         poolContract.address,
                         epochManagerContract.address,
@@ -542,7 +530,6 @@ describe("PoolConfig Tests", function () {
                     platformFeeManagerContract.address,
                     poolVaultContract.address,
                     calendarContract.address,
-                    poolOwnerAndEAFirstLossCoverContract.address,
                     tranchesPolicyContract.address,
                     poolContract.address,
                     epochManagerContract.address,
@@ -561,7 +548,6 @@ describe("PoolConfig Tests", function () {
                         platformFeeManagerContract.address,
                         poolVaultContract.address,
                         calendarContract.address,
-                        poolOwnerAndEAFirstLossCoverContract.address,
                         tranchesPolicyContract.address,
                         poolContract.address,
                         epochManagerContract.address,
@@ -589,7 +575,9 @@ describe("PoolConfig Tests", function () {
                 platformFeeManagerContract,
                 poolVaultContract,
                 calendarContract,
-                poolOwnerAndEAFirstLossCoverContract,
+                borrowerFirstLossCoverContract,
+                affiliateFirstLossCoverContract,
+                affiliateFirstLossCoverProfitEscrowContract,
                 tranchesPolicyContract,
                 poolContract,
                 epochManagerContract,
@@ -813,7 +801,7 @@ describe("PoolConfig Tests", function () {
                 }
 
                 // Set the EA to be an operator.
-                await poolOwnerAndEAFirstLossCoverContract
+                await affiliateFirstLossCoverContract
                     .connect(poolOwner)
                     .setOperator(evaluationAgent2.getAddress(), {
                         poolCapCoverageInBps: 100,
@@ -826,10 +814,9 @@ describe("PoolConfig Tests", function () {
                     liquidityCap: liquidityCap,
                 });
                 await poolConfigContract.connect(poolOwner).setLPConfig(newLpConfig);
-                const eaOperatorConfig =
-                    await poolOwnerAndEAFirstLossCoverContract.operatorConfigs(
-                        evaluationAgent2.getAddress(),
-                    );
+                const eaOperatorConfig = await affiliateFirstLossCoverContract.getOperatorConfig(
+                    evaluationAgent2.getAddress(),
+                );
                 firstLossCoverAmount = liquidityCap
                     .mul(eaOperatorConfig.poolValueCoverageInBps)
                     .div(10000);
@@ -840,10 +827,10 @@ describe("PoolConfig Tests", function () {
                 await mockTokenContract.mint(evaluationAgent2.address, firstLossCoverAmount);
                 await mockTokenContract
                     .connect(evaluationAgent2)
-                    .approve(poolOwnerAndEAFirstLossCoverContract.address, firstLossCoverAmount);
-                await poolOwnerAndEAFirstLossCoverContract
+                    .approve(poolVaultContract.address, firstLossCoverAmount);
+                await affiliateFirstLossCoverContract
                     .connect(evaluationAgent2)
-                    .addCover(firstLossCoverAmount);
+                    .depositCover(firstLossCoverAmount);
 
                 await expect(
                     poolConfigContract
@@ -892,10 +879,10 @@ describe("PoolConfig Tests", function () {
                 await mockTokenContract.mint(evaluationAgent2.address, firstLossCoverAmount);
                 await mockTokenContract
                     .connect(evaluationAgent2)
-                    .approve(poolOwnerAndEAFirstLossCoverContract.address, firstLossCoverAmount);
-                await poolOwnerAndEAFirstLossCoverContract
+                    .approve(poolVaultContract.address, firstLossCoverAmount);
+                await affiliateFirstLossCoverContract
                     .connect(evaluationAgent2)
-                    .addCover(firstLossCoverAmount);
+                    .depositCover(firstLossCoverAmount);
                 await expect(
                     poolConfigContract
                         .connect(poolOwner)
@@ -1756,81 +1743,6 @@ describe("PoolConfig Tests", function () {
             it("Should reject non-owner or admin to set the LP config", async function () {
                 await expect(
                     poolConfigContract.connect(regularUser).setLPConfig(newLPConfig),
-                ).to.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
-            });
-        });
-
-        describe("setFirstLossCoverConfig", function () {
-            let newFirstLossCoverConfig: FirstLossCoverConfigStruct;
-
-            before(async function () {
-                newFirstLossCoverConfig = {
-                    poolCapCoverageInBps: 100,
-                    poolValueCoverageInBps: 200,
-                    coverRateInBps: 300,
-                    coverCap: toToken(1_000_000),
-                };
-            });
-
-            it("Should allow the pool owner to set the first loss cover config", async function () {
-                await expect(
-                    poolConfigContract
-                        .connect(poolOwner)
-                        .setFirstLossCoverConfig(newFirstLossCoverConfig),
-                )
-                    .to.emit(poolConfigContract, "FirstLossCoverConfigChanged")
-                    .withArgs(
-                        newFirstLossCoverConfig.poolCapCoverageInBps,
-                        newFirstLossCoverConfig.poolValueCoverageInBps,
-                        newFirstLossCoverConfig.coverRateInBps,
-                        newFirstLossCoverConfig.coverCap,
-                        poolOwner.address,
-                    );
-                const firstLossCoverConfig = await poolConfigContract.getFirstLossCoverConfig();
-                expect(firstLossCoverConfig.poolCapCoverageInBps).to.equal(
-                    newFirstLossCoverConfig.poolCapCoverageInBps,
-                );
-                expect(firstLossCoverConfig.poolValueCoverageInBps).to.equal(
-                    newFirstLossCoverConfig.poolValueCoverageInBps,
-                );
-                expect(firstLossCoverConfig.coverRateInBps).to.equal(
-                    newFirstLossCoverConfig.coverRateInBps,
-                );
-                expect(firstLossCoverConfig.coverCap).to.equal(newFirstLossCoverConfig.coverCap);
-            });
-
-            it("Should allow the Huma master admin to set the first loss cover config", async function () {
-                await expect(
-                    poolConfigContract
-                        .connect(protocolOwner)
-                        .setFirstLossCoverConfig(newFirstLossCoverConfig),
-                )
-                    .to.emit(poolConfigContract, "FirstLossCoverConfigChanged")
-                    .withArgs(
-                        newFirstLossCoverConfig.poolCapCoverageInBps,
-                        newFirstLossCoverConfig.poolValueCoverageInBps,
-                        newFirstLossCoverConfig.coverRateInBps,
-                        newFirstLossCoverConfig.coverCap,
-                        protocolOwner.address,
-                    );
-                const firstLossCoverConfig = await poolConfigContract.getFirstLossCoverConfig();
-                expect(firstLossCoverConfig.poolCapCoverageInBps).to.equal(
-                    newFirstLossCoverConfig.poolCapCoverageInBps,
-                );
-                expect(firstLossCoverConfig.poolValueCoverageInBps).to.equal(
-                    newFirstLossCoverConfig.poolValueCoverageInBps,
-                );
-                expect(firstLossCoverConfig.coverRateInBps).to.equal(
-                    newFirstLossCoverConfig.coverRateInBps,
-                );
-                expect(firstLossCoverConfig.coverCap).to.equal(newFirstLossCoverConfig.coverCap);
-            });
-
-            it("Should reject non-owner or admin to set the first loss cover config", async function () {
-                await expect(
-                    poolConfigContract
-                        .connect(regularUser)
-                        .setFirstLossCoverConfig(newFirstLossCoverConfig),
                 ).to.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
             });
         });

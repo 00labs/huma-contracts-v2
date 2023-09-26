@@ -27,4 +27,6 @@ interface IPlatformFeeManager {
             uint256 poolOwnerWithdrawable,
             uint256 eaWithdrawable
         );
+
+    function getTotalAvailableFees() external view returns (uint256);
 }
