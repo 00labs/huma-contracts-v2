@@ -8,7 +8,7 @@ import {PoolConfig} from "../PoolConfig.sol";
 import {ICreditFeeManager} from "./utils/interfaces/ICreditFeeManager.sol";
 import {ICalendar} from "./interfaces/ICalendar.sol";
 import {IPnLManager} from "./interfaces/IPnLManager.sol";
-import {IPoolVault} from "../interfaces/IPoolVault.sol";
+import {IPoolSafe} from "../interfaces/IPoolSafe.sol";
 import {IFirstLossCover} from "../interfaces/IFirstLossCover.sol";
 
 contract BaseCreditStorage {
@@ -19,7 +19,7 @@ contract BaseCreditStorage {
 
     ICalendar public calendar;
     IPnLManager public pnlManager;
-    IPoolVault public poolVault;
+    IPoolSafe public poolSafe;
     IFirstLossCover public firstLossCover;
 
     PnLTracker public pnlTracker;

@@ -30,7 +30,7 @@ import {
     PlatformFeeManager,
     Pool,
     PoolConfig,
-    PoolVault,
+    PoolSafe,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
 } from "../typechain-types";
@@ -51,7 +51,7 @@ let eaNFTContract: EvaluationAgentNFT,
     mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
     platformFeeManagerContract: PlatformFeeManager,
-    poolVaultContract: PoolVault,
+    poolSafeContract: PoolSafe,
     calendarContract: Calendar,
     borrowerFirstLossCoverContract: FirstLossCover,
     affiliateFeeManagerContract: FirstLossCover,
@@ -94,7 +94,7 @@ describe("Pool Test", function () {
             [
                 poolConfigContract,
                 platformFeeManagerContract,
-                poolVaultContract,
+                poolSafeContract,
                 calendarContract,
                 borrowerFirstLossCoverContract,
                 affiliateFeeManagerContract,
@@ -152,7 +152,7 @@ describe("Pool Test", function () {
 
             await mockTokenContract
                 .connect(poolOwnerTreasury)
-                .approve(poolVaultContract.address, ethers.constants.MaxUint256);
+                .approve(poolSafeContract.address, ethers.constants.MaxUint256);
             await mockTokenContract.mint(poolOwnerTreasury.address, toToken(10_000_000));
             await affiliateFeeManagerContract
                 .connect(poolOwnerTreasury)
@@ -187,7 +187,7 @@ describe("Pool Test", function () {
 
             await mockTokenContract
                 .connect(evaluationAgent)
-                .approve(poolVaultContract.address, ethers.constants.MaxUint256);
+                .approve(poolSafeContract.address, ethers.constants.MaxUint256);
             await mockTokenContract.mint(evaluationAgent.address, toToken(10_000_000));
             await affiliateFeeManagerContract
                 .connect(evaluationAgent)
@@ -214,7 +214,7 @@ describe("Pool Test", function () {
 
             await mockTokenContract
                 .connect(poolOwnerTreasury)
-                .approve(poolVaultContract.address, ethers.constants.MaxUint256);
+                .approve(poolSafeContract.address, ethers.constants.MaxUint256);
             await mockTokenContract.mint(poolOwnerTreasury.address, toToken(10_000_000));
             await affiliateFeeManagerContract
                 .connect(poolOwnerTreasury)
@@ -240,7 +240,7 @@ describe("Pool Test", function () {
 
             await mockTokenContract
                 .connect(evaluationAgent)
-                .approve(poolVaultContract.address, ethers.constants.MaxUint256);
+                .approve(poolSafeContract.address, ethers.constants.MaxUint256);
             await mockTokenContract.mint(evaluationAgent.address, toToken(10_000_000));
             await affiliateFeeManagerContract
                 .connect(evaluationAgent)
@@ -268,7 +268,7 @@ describe("Pool Test", function () {
             [
                 poolConfigContract,
                 platformFeeManagerContract,
-                poolVaultContract,
+                poolSafeContract,
                 calendarContract,
                 borrowerFirstLossCoverContract,
                 affiliateFeeManagerContract,

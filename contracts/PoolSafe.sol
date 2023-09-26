@@ -2,14 +2,14 @@
 pragma solidity ^0.8.0;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IPoolVault} from "./interfaces/IPoolVault.sol";
+import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import {IFirstLossCover} from "./interfaces/IFirstLossCover.sol";
 import {IPlatformFeeManager} from "./interfaces/IPlatformFeeManager.sol";
 import {PoolConfig} from "./PoolConfig.sol";
 import {PoolConfigCache} from "./PoolConfigCache.sol";
 import {Errors} from "./Errors.sol";
 
-contract PoolVault is PoolConfigCache, IPoolVault {
+contract PoolSafe is PoolConfigCache, IPoolSafe {
     struct Reserves {
         uint96 forRedemption;
         uint96 forPlatformFees;

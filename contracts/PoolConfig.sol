@@ -104,7 +104,7 @@ contract PoolConfig is AccessControl, Initializable {
     string public poolName;
 
     address public pool;
-    address public poolVault;
+    address public poolSafe;
     address public seniorTranche;
     address public juniorTranche;
     address public tranchesPolicy;
@@ -173,7 +173,7 @@ contract PoolConfig is AccessControl, Initializable {
     event PoolFlexCallChanged(bool enabled, uint256 windowInEpoch, address by);
     event PoolUnderlyingTokenChanged(address underlyingToken, address by);
     event TranchesChanged(address seniorTranche, address juniorTranche, address by);
-    event PoolVaultChanged(address poolVault, address by);
+    event PoolSafeChanged(address poolSafe, address by);
     event TranchesPolicyChanged(address tranchesPolicy, address by);
     event EpochManagerChanged(address epochManager, address by);
     event CreditChanged(address credit, address by);
@@ -224,7 +224,7 @@ contract PoolConfig is AccessControl, Initializable {
      *   _contracts[1]: address of underlyingToken
      *   _contracts[2]: address of calendar
      *   _contracts[3]: address of pool
-     *   _contracts[4]: address of poolVault
+     *   _contracts[4]: address of poolSafe
      *   _contracts[5]: address of platformFeeManager
      *   _contracts[6]: address of tranchesPolicy
      *   _contracts[7]: address of epochManager
@@ -262,7 +262,7 @@ contract PoolConfig is AccessControl, Initializable {
 
         addr = _contracts[4];
         if (addr == address(0)) revert Errors.zeroAddressProvided();
-        poolVault = addr;
+        poolSafe = addr;
 
         addr = _contracts[5];
         if (addr == address(0)) revert Errors.zeroAddressProvided();
@@ -513,11 +513,11 @@ contract PoolConfig is AccessControl, Initializable {
         emit TranchesChanged(_seniorTranche, _juniorTranche, msg.sender);
     }
 
-    function setPoolVault(address _poolVault) external {
+    function setPoolSafe(address _poolSafe) external {
         _onlyOwnerOrHumaMasterAdmin();
-        if (_poolVault == address(0)) revert Errors.zeroAddressProvided();
-        poolVault = _poolVault;
-        emit PoolVaultChanged(poolVault, msg.sender);
+        if (_poolSafe == address(0)) revert Errors.zeroAddressProvided();
+        poolSafe = _poolSafe;
+        emit PoolSafeChanged(poolSafe, msg.sender);
     }
 
     function setTranchesPolicy(address _tranchesPolicy) external {

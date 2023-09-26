@@ -11,7 +11,7 @@ import {Errors} from "./Errors.sol";
 import {PoolConfig, LPConfig} from "./PoolConfig.sol";
 import {PoolConfigCache} from "./PoolConfigCache.sol";
 import {IPool} from "./interfaces/IPool.sol";
-import {IPoolVault} from "./interfaces/IPoolVault.sol";
+import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 
 contract TrancheVault is
     AccessControlUpgradeable,
@@ -64,9 +64,9 @@ contract TrancheVault is
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         pool = IPool(addr);
 
-        addr = _poolConfig.poolVault();
+        addr = _poolConfig.poolSafe();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
-        poolVault = IPoolVault(addr);
+        poolSafe = IPoolSafe(addr);
 
         addr = _poolConfig.epochManager();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
@@ -146,7 +146,7 @@ contract TrancheVault is
         // Burn processed shares of LP tokens.
         ERC20Upgradeable._burn(address(this), sharesProcessed);
         // Withdraw underlying tokens from the reserve so that LPs can redeem.
-        poolVault.withdraw(address(this), amountProcessed);
+        poolSafe.withdraw(address(this), amountProcessed);
 
         emit EpochsProcessed(
             numEpochsProcessed,
@@ -198,7 +198,7 @@ contract TrancheVault is
             ) revert Errors.maxSeniorJuniorRatioExceeded();
         }
 
-        poolVault.deposit(msg.sender, assets);
+        poolSafe.deposit(msg.sender, assets);
 
         shares = _convertToShares(assets, trancheAssets);
         ERC20Upgradeable._mint(receiver, shares);

@@ -5,7 +5,7 @@ import {IPool} from "./interfaces/IPool.sol";
 import {PoolConfig, PoolSettings, LPConfig} from "./PoolConfig.sol";
 import {PoolConfigCache} from "./PoolConfigCache.sol";
 import {IEpoch, EpochInfo} from "./interfaces/IEpoch.sol";
-import {IPoolVault} from "./interfaces/IPoolVault.sol";
+import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import "./SharedDefs.sol";
 import {IEpochManager} from "./interfaces/IEpochManager.sol";
 import {Errors} from "./Errors.sol";
@@ -35,7 +35,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
     }
 
     IPool public pool;
-    IPoolVault public poolVault;
+    IPoolSafe public poolSafe;
     ITrancheVaultLike public seniorTranche;
     ITrancheVaultLike public juniorTranche;
     ICalendar public calendar;
@@ -53,9 +53,9 @@ contract EpochManager is PoolConfigCache, IEpochManager {
     event NewEpochStarted(uint256 epochId, uint256 endTime);
 
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
-        address addr = _poolConfig.poolVault();
+        address addr = _poolConfig.poolSafe();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
-        poolVault = IPoolVault(addr);
+        poolSafe = IPoolSafe(addr);
 
         addr = _poolConfig.pool();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
@@ -238,7 +238,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         returns (RedemptionResult memory seniorResult, RedemptionResult memory juniorResult)
     {
         // get available underlying token amount
-        uint256 availableAmount = poolVault.totalAssets();
+        uint256 availableAmount = poolSafe.totalAssets();
         // console.log("availableAmount: %s", availableAmount);
         if (availableAmount <= 0) return (seniorResult, juniorResult);
 

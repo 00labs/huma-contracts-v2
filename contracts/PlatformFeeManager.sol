@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import "./SharedDefs.sol";
 import {PoolConfig, PoolSettings, AdminRnR} from "./PoolConfig.sol";
 import {PoolConfigCache} from "./PoolConfigCache.sol";
-import {IPoolVault} from "./interfaces/IPoolVault.sol";
+import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import {IPlatformFeeManager} from "./interfaces/IPlatformFeeManager.sol";
 import {IFirstLossCover} from "./interfaces/IFirstLossCover.sol";
 import {HumaConfig} from "./HumaConfig.sol";
@@ -18,7 +18,7 @@ contract PlatformFeeManager is PoolConfigCache, IPlatformFeeManager {
     }
 
     HumaConfig public humaConfig;
-    IPoolVault public poolVault;
+    IPoolSafe public poolSafe;
     IFirstLossCover public firstLossCover;
 
     AccruedIncomes internal _accruedIncomes;
@@ -38,9 +38,9 @@ contract PlatformFeeManager is PoolConfigCache, IPlatformFeeManager {
     event EvaluationAgentRewardsWithdrawn(address receiver, uint256 amount, address by);
 
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
-        address addr = _poolConfig.poolVault();
+        address addr = _poolConfig.poolSafe();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
-        poolVault = IPoolVault(addr);
+        poolSafe = IPoolSafe(addr);
 
         addr = address(_poolConfig.humaConfig());
         if (addr == address(0)) revert Errors.zeroAddressProvided();
@@ -136,7 +136,7 @@ contract PlatformFeeManager is PoolConfigCache, IPlatformFeeManager {
         // after protocolTreasury is configured in HumaConfig.
         assert(treasuryAddress != address(0));
 
-        poolVault.withdraw(treasuryAddress, amount);
+        poolSafe.withdraw(treasuryAddress, amount);
         emit ProtocolRewardsWithdrawn(treasuryAddress, amount, msg.sender);
     }
 
@@ -148,7 +148,7 @@ contract PlatformFeeManager is PoolConfigCache, IPlatformFeeManager {
             revert Errors.withdrawnAmountHigherThanBalance();
 
         poolOwnerIncomeWithdrawn = incomeWithdrawn + amount;
-        poolVault.withdraw(treasury, amount);
+        poolSafe.withdraw(treasury, amount);
         emit PoolRewardsWithdrawn(treasury, amount, msg.sender);
     }
 
@@ -162,7 +162,7 @@ contract PlatformFeeManager is PoolConfigCache, IPlatformFeeManager {
             revert Errors.withdrawnAmountHigherThanBalance();
 
         eaIncomeWithdrawn = incomeWithdrawn + amount;
-        poolVault.withdraw(treasury, amount);
+        poolSafe.withdraw(treasury, amount);
         emit EvaluationAgentRewardsWithdrawn(treasury, amount, msg.sender);
     }
 

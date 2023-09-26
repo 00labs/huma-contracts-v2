@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {BaseTranchesPolicy} from "./BaseTranchesPolicy.sol";
 import {PoolConfig, LPConfig} from "./PoolConfig.sol";
-import {IPoolVault} from "./interfaces/IPoolVault.sol";
+import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import {Errors} from "./Errors.sol";
 import "./SharedDefs.sol";
 
@@ -20,9 +20,9 @@ contract FixedAprTranchesPolicy is BaseTranchesPolicy {
         uint96[2] memory assets,
         uint256 lastUpdatedTime
     ) external view returns (uint96[2] memory newAssets) {
-        uint256 poolVaultAssets = IPoolVault(poolConfig.poolVault()).getPoolAssets();
+        uint256 poolSafeAssets = IPoolSafe(poolConfig.poolSafe()).getPoolAssets();
         uint256 totalAssets = assets[SENIOR_TRANCHE_INDEX] + assets[JUNIOR_TRANCHE_INDEX];
-        uint256 deployedTotalAssets = totalAssets - poolVaultAssets;
+        uint256 deployedTotalAssets = totalAssets - poolSafeAssets;
         uint256 deployedSeniorAssets = (deployedTotalAssets * assets[SENIOR_TRANCHE_INDEX]) /
             totalAssets;
 

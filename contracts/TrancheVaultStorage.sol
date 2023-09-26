@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IPool} from "./interfaces/IPool.sol";
-import {IPoolVault} from "./interfaces/IPoolVault.sol";
+import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import {IEpochManager} from "./interfaces/IEpochManager.sol";
 import {EpochInfo} from "./interfaces/IEpoch.sol";
 
@@ -27,7 +27,7 @@ contract TrancheVaultStorage {
 
     IERC20 public underlyingToken;
     IPool public pool;
-    IPoolVault public poolVault;
+    IPoolSafe public poolSafe;
     IEpochManager public epochManager;
     uint8 internal _decimals;
     // Senior or junior tranche index

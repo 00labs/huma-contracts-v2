@@ -38,7 +38,7 @@ import {
     PlatformFeeManager,
     Pool,
     PoolConfig,
-    PoolVault,
+    PoolSafe,
     ProfitEscrow,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
@@ -63,7 +63,7 @@ let eaNFTContract: EvaluationAgentNFT,
     mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
     platformFeeManagerContract: PlatformFeeManager,
-    poolVaultContract: PoolVault,
+    poolSafeContract: PoolSafe,
     calendarContract: Calendar,
     borrowerFirstLossCover: FirstLossCover,
     affiliateFeeManagerContract: FirstLossCover,
@@ -246,7 +246,7 @@ describe("CreditLine Test", function () {
         [
             poolConfigContract,
             platformFeeManagerContract,
-            poolVaultContract,
+            poolSafeContract,
             calendarContract,
             borrowerFirstLossCover,
             affiliateFeeManagerContract,
@@ -670,14 +670,14 @@ describe("CreditLine Test", function () {
             let yieldDue = calcYield(borrowAmount, yieldInBps, nextDueDate - nextTime);
 
             let userBeforeBalance = await mockTokenContract.balanceOf(borrower.address);
-            let pvBeforeBalance = await mockTokenContract.balanceOf(poolVaultContract.address);
+            let pvBeforeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
             await expect(creditContract.connect(borrower).drawdown(borrower.address, borrowAmount))
                 .to.emit(creditContract, "DrawdownMade")
                 .withArgs(borrower.address, borrowAmount, netBorrowAmount)
                 .to.emit(creditContract, "BillRefreshed")
                 .withArgs(creditHash, nextDueDate, yieldDue);
             let userAfterBalance = await mockTokenContract.balanceOf(borrower.address);
-            let pvAfterBalance = await mockTokenContract.balanceOf(poolVaultContract.address);
+            let pvAfterBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
             expect(userAfterBalance.sub(userBeforeBalance)).to.equal(netBorrowAmount);
             expect(pvBeforeBalance.sub(pvAfterBalance)).to.equal(netBorrowAmount);
 
@@ -721,14 +721,14 @@ describe("CreditLine Test", function () {
                 .div(CONSTANTS.BP_FACTOR);
 
             userBeforeBalance = await mockTokenContract.balanceOf(borrower.address);
-            pvBeforeBalance = await mockTokenContract.balanceOf(poolVaultContract.address);
+            pvBeforeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
             await expect(creditContract.connect(borrower).drawdown(borrower.address, borrowAmount))
                 .to.emit(creditContract, "DrawdownMade")
                 .withArgs(borrower.address, borrowAmount, netBorrowAmount);
             // .to.emit(creditContract, "BillRefreshed");
             // .withArgs(creditHash, nextDueDate, yieldDue);
             userAfterBalance = await mockTokenContract.balanceOf(borrower.address);
-            pvAfterBalance = await mockTokenContract.balanceOf(poolVaultContract.address);
+            pvAfterBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
             expect(userAfterBalance.sub(userBeforeBalance)).to.equal(netBorrowAmount);
             expect(pvBeforeBalance.sub(pvAfterBalance)).to.equal(netBorrowAmount);
 

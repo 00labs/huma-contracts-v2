@@ -24,7 +24,7 @@ import {
     PlatformFeeManager,
     Pool,
     PoolConfig,
-    PoolVault,
+    PoolSafe,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
     ProfitEscrow,
@@ -46,7 +46,7 @@ let eaNFTContract: EvaluationAgentNFT,
     mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
     platformFeeManagerContract: PlatformFeeManager,
-    poolVaultContract: PoolVault,
+    poolSafeContract: PoolSafe,
     calendarContract: Calendar,
     borrowerFirstLossCoverContract: FirstLossCover,
     affiliateFirstLossCoverContract: FirstLossCover,
@@ -114,7 +114,7 @@ describe("EpochManager Test", function () {
         [
             poolConfigContract,
             platformFeeManagerContract,
-            poolVaultContract,
+            poolSafeContract,
             calendarContract,
             borrowerFirstLossCoverContract,
             affiliateFirstLossCoverContract,
@@ -269,7 +269,7 @@ describe("EpochManager Test", function () {
 
         // Move all assets out of pool vault
 
-        let availableAssets = await poolVaultContract.totalAssets();
+        let availableAssets = await poolSafeContract.totalAssets();
         await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
 
         // Close epoch1
@@ -356,7 +356,7 @@ describe("EpochManager Test", function () {
 
         // Move all assets out of pool vault
 
-        let availableAssets = await poolVaultContract.totalAssets();
+        let availableAssets = await poolSafeContract.totalAssets();
         await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
 
         // Close epoch1
@@ -551,7 +551,7 @@ describe("EpochManager Test", function () {
 
         // Move all assets out of pool vault
 
-        let availableAssets = await poolVaultContract.totalAssets();
+        let availableAssets = await poolSafeContract.totalAssets();
         await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
 
         // Close epoch1
@@ -674,7 +674,7 @@ describe("EpochManager Test", function () {
 
         // Move all assets out of pool vault
 
-        let availableAssets = await poolVaultContract.totalAssets();
+        let availableAssets = await poolSafeContract.totalAssets();
         await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
 
         // Close epoch1
@@ -903,7 +903,7 @@ describe("EpochManager Test", function () {
 
         // Move all assets out of pool vault
 
-        let availableAssets = await poolVaultContract.totalAssets();
+        let availableAssets = await poolSafeContract.totalAssets();
         await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
 
         // Close epoch1
@@ -1074,7 +1074,7 @@ describe("EpochManager Test", function () {
 
         // Move all assets out of pool vault
 
-        let totalAssets = await poolVaultContract.totalAssets();
+        let totalAssets = await poolSafeContract.totalAssets();
         let paidS = unprocessedS;
         let paidJ = toToken(1349);
         let allPaid = paidJ.add(paidS);
@@ -1331,7 +1331,7 @@ describe("EpochManager Test", function () {
 
             // Move all assets out of pool vault
 
-            let availableAssets = await poolVaultContract.totalAssets();
+            let availableAssets = await poolSafeContract.totalAssets();
             await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
 
             // Close epoch1
@@ -1420,7 +1420,7 @@ describe("EpochManager Test", function () {
 
             // Move all assets out of pool vault
 
-            let availableAssets = await poolVaultContract.totalAssets();
+            let availableAssets = await poolSafeContract.totalAssets();
             await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
 
             // Close epoch1
@@ -1616,7 +1616,7 @@ describe("EpochManager Test", function () {
 
             // Move all assets out of pool vault
 
-            let availableAssets = await poolVaultContract.totalAssets();
+            let availableAssets = await poolSafeContract.totalAssets();
             await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
 
             // Close epoch1
@@ -1741,7 +1741,7 @@ describe("EpochManager Test", function () {
 
             // Move all assets out of pool vault
 
-            let availableAssets = await poolVaultContract.totalAssets();
+            let availableAssets = await poolSafeContract.totalAssets();
             await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
 
             // Close epoch1
@@ -1903,7 +1903,7 @@ describe("EpochManager Test", function () {
 
             // Move all assets out of pool vault
 
-            let totalAssets = await poolVaultContract.totalAssets();
+            let totalAssets = await poolSafeContract.totalAssets();
             await creditContract.drawdown(ethers.constants.HashZero, totalAssets);
 
             // Close epoch1
@@ -2017,7 +2017,7 @@ describe("EpochManager Test", function () {
             // Move all assets out of pool vault
 
             let paidS = toToken(242);
-            let totalAssets = await poolVaultContract.totalAssets();
+            let totalAssets = await poolSafeContract.totalAssets();
             await creditContract.drawdown(ethers.constants.HashZero, totalAssets.sub(paidS));
 
             // Close epoch1
@@ -2236,7 +2236,7 @@ describe("EpochManager Test", function () {
 
             // Move all assets out of pool vault
 
-            let totalAssets = await poolVaultContract.totalAssets();
+            let totalAssets = await poolSafeContract.totalAssets();
             await creditContract.drawdown(ethers.constants.HashZero, totalAssets);
 
             // Close epoch1
@@ -2461,7 +2461,7 @@ describe("EpochManager Test", function () {
 
             // Move all assets out of pool vault
 
-            let totalAssets = await poolVaultContract.totalAssets();
+            let totalAssets = await poolSafeContract.totalAssets();
             await creditContract.drawdown(ethers.constants.HashZero, totalAssets);
 
             // Close epoch1
@@ -2679,7 +2679,7 @@ describe("EpochManager Test", function () {
 
             // Move all assets out of pool vault
 
-            let totalAssets = await poolVaultContract.totalAssets();
+            let totalAssets = await poolSafeContract.totalAssets();
             await creditContract.drawdown(ethers.constants.HashZero, totalAssets);
 
             // Close epoch1
@@ -2776,8 +2776,8 @@ describe("EpochManager Test", function () {
                 seniorTotalAssets.sub(unprocessedS),
             );
 
-            expect(await poolVaultContract.getAvailableLiquidity()).to.equal(0);
-            expect(await poolVaultContract.getAvailableReservation()).to.equal(leftAssets);
+            expect(await poolSafeContract.getAvailableLiquidity()).to.equal(0);
+            expect(await poolSafeContract.getAvailableReservation()).to.equal(leftAssets);
         });
     });
 });

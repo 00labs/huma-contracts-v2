@@ -17,7 +17,7 @@ import {
     PlatformFeeManager,
     Pool,
     PoolConfig,
-    PoolVault,
+    PoolSafe,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
     ProfitEscrow,
@@ -47,7 +47,7 @@ let eaNFTContract: EvaluationAgentNFT,
     mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
     platformFeeManagerContract: PlatformFeeManager,
-    poolVaultContract: PoolVault,
+    poolSafeContract: PoolSafe,
     calendarContract: Calendar,
     borrowerFirstLossCoverContract: FirstLossCover,
     affiliateFirstLossCoverContract: FirstLossCover,
@@ -99,9 +99,9 @@ describe("PoolConfig Tests", function () {
             platformFeeManagerContract = await PlatformFeeManager.deploy();
             await platformFeeManagerContract.deployed();
 
-            const PoolVault = await ethers.getContractFactory("PoolVault");
-            poolVaultContract = await PoolVault.deploy();
-            await poolVaultContract.deployed();
+            const PoolSafe = await ethers.getContractFactory("PoolSafe");
+            poolSafeContract = await PoolSafe.deploy();
+            await poolSafeContract.deployed();
 
             const FirstLossCover = await ethers.getContractFactory("FirstLossCover");
             borrowerFirstLossCoverContract = await FirstLossCover.deploy();
@@ -156,7 +156,7 @@ describe("PoolConfig Tests", function () {
                     mockTokenContract.address,
                     calendarContract.address,
                     poolContract.address,
-                    poolVaultContract.address,
+                    poolSafeContract.address,
                     platformFeeManagerContract.address,
                     tranchesPolicyContract.address,
                     epochManagerContract.address,
@@ -192,7 +192,7 @@ describe("PoolConfig Tests", function () {
                         humaConfigContract.address,
                         mockTokenContract.address,
                         platformFeeManagerContract.address,
-                        poolVaultContract.address,
+                        poolSafeContract.address,
                         calendarContract.address,
                         tranchesPolicyContract.address,
                         poolContract.address,
@@ -214,7 +214,7 @@ describe("PoolConfig Tests", function () {
                         ethers.constants.AddressZero,
                         mockTokenContract.address,
                         platformFeeManagerContract.address,
-                        poolVaultContract.address,
+                        poolSafeContract.address,
                         calendarContract.address,
                         tranchesPolicyContract.address,
                         poolContract.address,
@@ -239,7 +239,7 @@ describe("PoolConfig Tests", function () {
                         humaConfigContract.address,
                         ethers.constants.AddressZero,
                         platformFeeManagerContract.address,
-                        poolVaultContract.address,
+                        poolSafeContract.address,
                         calendarContract.address,
                         tranchesPolicyContract.address,
                         poolContract.address,
@@ -264,7 +264,7 @@ describe("PoolConfig Tests", function () {
                         humaConfigContract.address,
                         mockTokenContract.address,
                         ethers.constants.AddressZero,
-                        poolVaultContract.address,
+                        poolSafeContract.address,
                         calendarContract.address,
                         tranchesPolicyContract.address,
                         poolContract.address,
@@ -278,7 +278,7 @@ describe("PoolConfig Tests", function () {
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
 
-        it("Should reject zero address for poolVault", async function () {
+        it("Should reject zero address for poolSafe", async function () {
             await expect(
                 poolConfigContract
                     .connect(poolOwner)
@@ -308,7 +308,7 @@ describe("PoolConfig Tests", function () {
                         humaConfigContract.address,
                         mockTokenContract.address,
                         platformFeeManagerContract.address,
-                        poolVaultContract.address,
+                        poolSafeContract.address,
                         ethers.constants.AddressZero,
                         tranchesPolicyContract.address,
                         poolContract.address,
@@ -330,7 +330,7 @@ describe("PoolConfig Tests", function () {
                         humaConfigContract.address,
                         mockTokenContract.address,
                         platformFeeManagerContract.address,
-                        poolVaultContract.address,
+                        poolSafeContract.address,
                         calendarContract.address,
                         ethers.constants.AddressZero,
                         tranchesPolicyContract.address,
@@ -353,7 +353,7 @@ describe("PoolConfig Tests", function () {
                         humaConfigContract.address,
                         mockTokenContract.address,
                         platformFeeManagerContract.address,
-                        poolVaultContract.address,
+                        poolSafeContract.address,
                         calendarContract.address,
                         ethers.constants.AddressZero,
                         poolContract.address,
@@ -375,7 +375,7 @@ describe("PoolConfig Tests", function () {
                         humaConfigContract.address,
                         mockTokenContract.address,
                         platformFeeManagerContract.address,
-                        poolVaultContract.address,
+                        poolSafeContract.address,
                         calendarContract.address,
                         tranchesPolicyContract.address,
                         ethers.constants.AddressZero,
@@ -397,7 +397,7 @@ describe("PoolConfig Tests", function () {
                         humaConfigContract.address,
                         mockTokenContract.address,
                         platformFeeManagerContract.address,
-                        poolVaultContract.address,
+                        poolSafeContract.address,
                         calendarContract.address,
                         tranchesPolicyContract.address,
                         poolContract.address,
@@ -419,7 +419,7 @@ describe("PoolConfig Tests", function () {
                         humaConfigContract.address,
                         mockTokenContract.address,
                         platformFeeManagerContract.address,
-                        poolVaultContract.address,
+                        poolSafeContract.address,
                         calendarContract.address,
                         tranchesPolicyContract.address,
                         poolContract.address,
@@ -441,7 +441,7 @@ describe("PoolConfig Tests", function () {
                         humaConfigContract.address,
                         mockTokenContract.address,
                         platformFeeManagerContract.address,
-                        poolVaultContract.address,
+                        poolSafeContract.address,
                         calendarContract.address,
                         tranchesPolicyContract.address,
                         poolContract.address,
@@ -463,7 +463,7 @@ describe("PoolConfig Tests", function () {
                         humaConfigContract.address,
                         mockTokenContract.address,
                         platformFeeManagerContract.address,
-                        poolVaultContract.address,
+                        poolSafeContract.address,
                         calendarContract.address,
                         tranchesPolicyContract.address,
                         poolContract.address,
@@ -485,7 +485,7 @@ describe("PoolConfig Tests", function () {
                         humaConfigContract.address,
                         mockTokenContract.address,
                         platformFeeManagerContract.address,
-                        poolVaultContract.address,
+                        poolSafeContract.address,
                         calendarContract.address,
                         tranchesPolicyContract.address,
                         poolContract.address,
@@ -507,7 +507,7 @@ describe("PoolConfig Tests", function () {
                         humaConfigContract.address,
                         mockTokenContract.address,
                         platformFeeManagerContract.address,
-                        poolVaultContract.address,
+                        poolSafeContract.address,
                         calendarContract.address,
                         tranchesPolicyContract.address,
                         poolContract.address,
@@ -528,7 +528,7 @@ describe("PoolConfig Tests", function () {
                     humaConfigContract.address,
                     mockTokenContract.address,
                     platformFeeManagerContract.address,
-                    poolVaultContract.address,
+                    poolSafeContract.address,
                     calendarContract.address,
                     tranchesPolicyContract.address,
                     poolContract.address,
@@ -546,7 +546,7 @@ describe("PoolConfig Tests", function () {
                         humaConfigContract.address,
                         mockTokenContract.address,
                         platformFeeManagerContract.address,
-                        poolVaultContract.address,
+                        poolSafeContract.address,
                         calendarContract.address,
                         tranchesPolicyContract.address,
                         poolContract.address,
@@ -573,7 +573,7 @@ describe("PoolConfig Tests", function () {
             [
                 poolConfigContract,
                 platformFeeManagerContract,
-                poolVaultContract,
+                poolSafeContract,
                 calendarContract,
                 borrowerFirstLossCoverContract,
                 affiliateFirstLossCoverContract,
@@ -827,7 +827,7 @@ describe("PoolConfig Tests", function () {
                 await mockTokenContract.mint(evaluationAgent2.address, firstLossCoverAmount);
                 await mockTokenContract
                     .connect(evaluationAgent2)
-                    .approve(poolVaultContract.address, firstLossCoverAmount);
+                    .approve(poolSafeContract.address, firstLossCoverAmount);
                 await affiliateFirstLossCoverContract
                     .connect(evaluationAgent2)
                     .depositCover(firstLossCoverAmount);
@@ -879,7 +879,7 @@ describe("PoolConfig Tests", function () {
                 await mockTokenContract.mint(evaluationAgent2.address, firstLossCoverAmount);
                 await mockTokenContract
                     .connect(evaluationAgent2)
-                    .approve(poolVaultContract.address, firstLossCoverAmount);
+                    .approve(poolSafeContract.address, firstLossCoverAmount);
                 await affiliateFirstLossCoverContract
                     .connect(evaluationAgent2)
                     .depositCover(firstLossCoverAmount);
@@ -1396,32 +1396,30 @@ describe("PoolConfig Tests", function () {
             });
         });
 
-        describe("setPoolVault", function () {
+        describe("setPoolSafe", function () {
             it("Should allow the pool owner to set the pool vault", async function () {
                 await expect(
-                    poolConfigContract.connect(poolOwner).setPoolVault(poolVaultContract.address),
+                    poolConfigContract.connect(poolOwner).setPoolSafe(poolSafeContract.address),
                 )
-                    .to.emit(poolConfigContract, "PoolVaultChanged")
-                    .withArgs(poolVaultContract.address, poolOwner.address);
-                expect(await poolConfigContract.poolVault()).to.equal(poolVaultContract.address);
+                    .to.emit(poolConfigContract, "PoolSafeChanged")
+                    .withArgs(poolSafeContract.address, poolOwner.address);
+                expect(await poolConfigContract.poolSafe()).to.equal(poolSafeContract.address);
             });
 
             it("Should allow the Huma master admin to set the pool vault", async function () {
                 await expect(
                     poolConfigContract
                         .connect(protocolOwner)
-                        .setPoolVault(poolVaultContract.address),
+                        .setPoolSafe(poolSafeContract.address),
                 )
-                    .to.emit(poolConfigContract, "PoolVaultChanged")
-                    .withArgs(poolVaultContract.address, protocolOwner.address);
-                expect(await poolConfigContract.poolVault()).to.equal(poolVaultContract.address);
+                    .to.emit(poolConfigContract, "PoolSafeChanged")
+                    .withArgs(poolSafeContract.address, protocolOwner.address);
+                expect(await poolConfigContract.poolSafe()).to.equal(poolSafeContract.address);
             });
 
             it("Should reject non-owner or admin to set the pool vault", async function () {
                 await expect(
-                    poolConfigContract
-                        .connect(regularUser)
-                        .setPoolVault(poolVaultContract.address),
+                    poolConfigContract.connect(regularUser).setPoolSafe(poolSafeContract.address),
                 ).to.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
             });
 
@@ -1429,7 +1427,7 @@ describe("PoolConfig Tests", function () {
                 await expect(
                     poolConfigContract
                         .connect(poolOwner)
-                        .setPoolVault(ethers.constants.AddressZero),
+                        .setPoolSafe(ethers.constants.AddressZero),
                 ).to.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
             });
         });

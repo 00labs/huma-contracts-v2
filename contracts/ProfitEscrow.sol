@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {IPoolVault} from "./interfaces/IPoolVault.sol";
+import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import {IProfitEscrow} from "./interfaces/IProfitEscrow.sol";
 import {PoolConfigCache} from "./PoolConfigCache.sol";
 import {PoolConfig} from "./PoolConfig.sol";
@@ -17,9 +17,9 @@ contract ProfitEscrow is PoolConfigCache, ProfitEscrowStorage, IProfitEscrow {
     }
 
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
-        address addr = _poolConfig.poolVault();
+        address addr = _poolConfig.poolSafe();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
-        poolVault = IPoolVault(addr);
+        poolSafe = IPoolSafe(addr);
     }
 
     function initialize(address _caller, PoolConfig _poolConfig) external initializer {
@@ -107,7 +107,7 @@ contract ProfitEscrow is PoolConfigCache, ProfitEscrowStorage, IProfitEscrow {
         tempUserInfo.rewardDebt += int96(int256(amount));
         userInfo[msg.sender] = tempUserInfo;
 
-        poolVault.withdraw(msg.sender, amount);
+        poolSafe.withdraw(msg.sender, amount);
 
         // TODO emit event
     }

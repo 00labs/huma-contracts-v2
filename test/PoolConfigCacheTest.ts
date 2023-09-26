@@ -16,7 +16,7 @@ import {
     PlatformFeeManager,
     Pool,
     PoolConfig,
-    PoolVault,
+    PoolSafe,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
     ProfitEscrow,
@@ -38,7 +38,7 @@ let eaNFTContract: EvaluationAgentNFT,
     mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
     platformFeeManagerContract: PlatformFeeManager,
-    poolVaultContract: PoolVault,
+    poolSafeContract: PoolSafe,
     calendarContract: Calendar,
     borrowerFirstLossCoverContract: FirstLossCover,
     affiliateFirstLossCoverContract: FirstLossCover,
@@ -80,7 +80,7 @@ describe("PoolConfigCache Test", function () {
         [
             poolConfigContract,
             platformFeeManagerContract,
-            poolVaultContract,
+            poolSafeContract,
             calendarContract,
             borrowerFirstLossCoverContract,
             affiliateFirstLossCoverContract,
@@ -114,13 +114,13 @@ describe("PoolConfigCache Test", function () {
     });
 
     it("Should update pool config cache", async function () {
-        await poolConfigContract.connect(poolOwner).setPoolVault(defaultDeployer.address);
+        await poolConfigContract.connect(poolOwner).setPoolSafe(defaultDeployer.address);
 
         await expect(juniorTrancheVaultContract.connect(poolOwner).updatePoolConfigData())
             .to.emit(juniorTrancheVaultContract, "PoolConfigCacheUpdated")
             .withArgs(poolConfigContract.address);
 
-        expect(await juniorTrancheVaultContract.poolVault()).to.equal(defaultDeployer.address);
+        expect(await juniorTrancheVaultContract.poolSafe()).to.equal(defaultDeployer.address);
     });
 
     it("Should not set pool config to empty address", async function () {
@@ -165,7 +165,7 @@ describe("PoolConfigCache Test", function () {
             .withArgs(newPoolConfigContract.address, poolConfigContract.address);
 
         expect(await seniorTrancheVaultContract.pool()).to.equal(tranchesPolicyContract.address);
-        expect(await seniorTrancheVaultContract.poolVault()).to.equal(calendarContract.address);
+        expect(await seniorTrancheVaultContract.poolSafe()).to.equal(calendarContract.address);
         expect(await seniorTrancheVaultContract.epochManager()).to.equal(
             mockTokenContract.address,
         );

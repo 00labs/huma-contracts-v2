@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20MetadataUpgradeable, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {IPool} from "./interfaces/IPool.sol";
-import {IPoolVault} from "./interfaces/IPoolVault.sol";
+import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import {PoolConfigCache} from "./PoolConfigCache.sol";
 import {PoolConfig, LPConfig} from "./PoolConfig.sol";
 import {FirstLossCoverStorage, IERC20} from "./FirstLossCoverStorage.sol";
@@ -68,9 +68,9 @@ contract FirstLossCover is
     }
 
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
-        address addr = _poolConfig.poolVault();
+        address addr = _poolConfig.poolSafe();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
-        poolVault = IPoolVault(addr);
+        poolSafe = IPoolSafe(addr);
 
         addr = _poolConfig.pool();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
@@ -106,7 +106,7 @@ contract FirstLossCover is
         if (assets == 0) revert Errors.zeroAmountProvided();
         _onlyOperator(msg.sender);
 
-        poolVault.deposit(msg.sender, assets);
+        poolSafe.deposit(msg.sender, assets);
 
         return _deposit(assets, msg.sender);
     }
@@ -176,7 +176,7 @@ contract FirstLossCover is
 
         if (address(profitEscrow) != address(0)) profitEscrow.withdraw(msg.sender, shares);
 
-        poolVault.withdraw(receiver, assets);
+        poolSafe.withdraw(receiver, assets);
 
         emit CoverRedeemed(msg.sender, receiver, shares, assets);
     }
