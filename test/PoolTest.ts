@@ -27,7 +27,7 @@ import {
     HumaConfig,
     MockPoolCredit,
     MockToken,
-    PlatformFeeManager,
+    PoolFeeManager,
     Pool,
     PoolConfig,
     PoolSafe,
@@ -50,7 +50,7 @@ let eaNFTContract: EvaluationAgentNFT,
     humaConfigContract: HumaConfig,
     mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
-    platformFeeManagerContract: PlatformFeeManager,
+    poolFeeManagerContract: PoolFeeManager,
     poolSafeContract: PoolSafe,
     calendarContract: Calendar,
     borrowerFirstLossCoverContract: FirstLossCover,
@@ -93,7 +93,7 @@ describe("Pool Test", function () {
 
             [
                 poolConfigContract,
-                platformFeeManagerContract,
+                poolFeeManagerContract,
                 poolSafeContract,
                 calendarContract,
                 borrowerFirstLossCoverContract,
@@ -267,7 +267,7 @@ describe("Pool Test", function () {
 
             [
                 poolConfigContract,
-                platformFeeManagerContract,
+                poolFeeManagerContract,
                 poolSafeContract,
                 calendarContract,
                 borrowerFirstLossCoverContract,
@@ -352,7 +352,7 @@ describe("Pool Test", function () {
                         assetInfo[CONSTANTS.JUNIOR_TRANCHE_INDEX],
                     ];
                     const profitAfterFees =
-                        await platformFeeManagerContract.calcPlatformFeeDistribution(profit);
+                        await poolFeeManagerContract.calcPlatformFeeDistribution(profit);
                     const assetsWithProfits = PnLCalculator.calcProfitForRiskAdjustedPolicy(
                         profitAfterFees,
                         assets,
@@ -494,7 +494,7 @@ describe("Pool Test", function () {
                         assetInfo[CONSTANTS.JUNIOR_TRANCHE_INDEX],
                     ];
                     const profitAfterFees =
-                        await platformFeeManagerContract.calcPlatformFeeDistribution(profit);
+                        await poolFeeManagerContract.calcPlatformFeeDistribution(profit);
                     const assetsWithProfits = PnLCalculator.calcProfitForRiskAdjustedPolicy(
                         profitAfterFees,
                         assets,

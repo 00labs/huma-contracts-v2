@@ -5,7 +5,7 @@ import {CalendarUnit} from "./SharedDefs.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {IERC20, IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {IPlatformFeeManager} from "./interfaces/IPlatformFeeManager.sol";
+import {IPoolFeeManager} from "./interfaces/IPoolFeeManager.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IFirstLossCover} from "./interfaces/IFirstLossCover.sol";
 
@@ -110,7 +110,7 @@ contract PoolConfig is AccessControl, Initializable {
     address public tranchesPolicy;
     address public epochManager;
     address public credit;
-    address public platformFeeManager;
+    address public poolFeeManager;
     address public calendar;
 
     address public creditFeeManager;
@@ -155,7 +155,7 @@ contract PoolConfig is AccessControl, Initializable {
     );
     event EvaluationAgentChanged(address oldEA, address newEA, uint256 newEAId, address by);
     event EvaluationAgentRewardsWithdrawn(address receiver, uint256 amount, address by);
-    event PlatformFeeManagerChanged(address platformFeeManager, address by);
+    event PoolFeeManagerChanged(address poolFeeManager, address by);
     event HumaConfigChanged(address humaConfig, address by);
 
     event MaxCreditLineChanged(uint256 maxCreditLine, address by);
@@ -225,7 +225,7 @@ contract PoolConfig is AccessControl, Initializable {
      *   _contracts[2]: address of calendar
      *   _contracts[3]: address of pool
      *   _contracts[4]: address of poolSafe
-     *   _contracts[5]: address of platformFeeManager
+     *   _contracts[5]: address of poolFeeManager
      *   _contracts[6]: address of tranchesPolicy
      *   _contracts[7]: address of epochManager
      *   _contracts[8]: address of seniorTranche
@@ -266,7 +266,7 @@ contract PoolConfig is AccessControl, Initializable {
 
         addr = _contracts[5];
         if (addr == address(0)) revert Errors.zeroAddressProvided();
-        platformFeeManager = addr;
+        poolFeeManager = addr;
 
         addr = _contracts[6];
         if (addr == address(0)) revert Errors.zeroAddressProvided();
@@ -386,7 +386,7 @@ contract PoolConfig is AccessControl, Initializable {
         // liquidity to pay the EA before replacing it.
         address oldEA = evaluationAgent;
         if (oldEA != address(0)) {
-            IPlatformFeeManager feeManager = IPlatformFeeManager(platformFeeManager);
+            IPoolFeeManager feeManager = IPoolFeeManager(poolFeeManager);
             (, , uint256 eaWithdrawable) = feeManager.getWithdrawables();
             feeManager.withdrawEAFee(eaWithdrawable);
         }
@@ -406,11 +406,11 @@ contract PoolConfig is AccessControl, Initializable {
         emit EvaluationAgentChanged(oldEA, agent, eaId, msg.sender);
     }
 
-    function setPlatformFeeManager(address _platformFeeManager) external {
+    function setPoolFeeManager(address _poolFeeManager) external {
         _onlyOwnerOrHumaMasterAdmin();
-        if (_platformFeeManager == address(0)) revert Errors.zeroAddressProvided();
-        platformFeeManager = _platformFeeManager;
-        emit PlatformFeeManagerChanged(_platformFeeManager, msg.sender);
+        if (_poolFeeManager == address(0)) revert Errors.zeroAddressProvided();
+        poolFeeManager = _poolFeeManager;
+        emit PoolFeeManagerChanged(_poolFeeManager, msg.sender);
     }
 
     function setHumaConfig(address _humaConfig) external {
@@ -800,15 +800,15 @@ contract PoolConfig is AccessControl, Initializable {
         if (account != epochManager) revert Errors.notEpochManager();
     }
 
-    function onlyPlatformFeeManager(address account) external view {
-        if (account != platformFeeManager) revert Errors.notPlatformFeeManager();
+    function onlyPoolFeeManager(address account) external view {
+        if (account != poolFeeManager) revert Errors.notPoolFeeManager();
     }
 
     function onlyPool(address account) external view {
         if (account != pool) revert Errors.notPool();
     }
 
-    function onlyTrancheVaultOrFirstLossCoverOrCreditOrPlatformFeeManager(
+    function onlyTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManager(
         address account
     ) external view {
         bool valid;
@@ -816,7 +816,7 @@ contract PoolConfig is AccessControl, Initializable {
             account == seniorTranche ||
             account == juniorTranche ||
             account == credit ||
-            account == platformFeeManager
+            account == poolFeeManager
         ) return;
         uint256 len = _firstLossCovers.length;
         // console.log("account: %s, len: %s", account, len);
@@ -825,7 +825,7 @@ contract PoolConfig is AccessControl, Initializable {
             if (account == address(_firstLossCovers[i])) return;
         }
 
-        if (!valid) revert Errors.notTrancheVaultOrFirstLossCoverOrCreditOrPlatformFeeManager();
+        if (!valid) revert Errors.notTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManager();
     }
 
     function onlyTrancheVaultOrEpochManager(address account) external view {

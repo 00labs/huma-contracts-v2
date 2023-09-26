@@ -2,10 +2,10 @@
 pragma solidity ^0.8.0;
 
 /**
- * @notice IPlatformFeeManager provides functions about fees.
+ * @notice IPoolFeeManager.sol provides functions about fees.
  */
 
-interface IPlatformFeeManager {
+interface IPoolFeeManager {
     function distributePlatformFees(uint256 profit) external returns (uint256 remaining);
 
     /**

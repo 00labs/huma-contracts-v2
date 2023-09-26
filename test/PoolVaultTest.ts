@@ -14,7 +14,7 @@ import {
     FirstLossCover,
     MockPoolCredit,
     MockToken,
-    PlatformFeeManager,
+    PoolFeeManager,
     Pool,
     PoolConfig,
     PoolSafe,
@@ -40,7 +40,7 @@ let eaNFTContract: EvaluationAgentNFT,
     humaConfigContract: HumaConfig,
     mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
-    platformFeeManagerContract: PlatformFeeManager,
+    poolFeeManagerContract: PoolFeeManager,
     poolSafeContract: PoolSafe,
     calendarContract: Calendar,
     borrowerFirstLossCoverContract: FirstLossCover,
@@ -82,7 +82,7 @@ describe("PoolSafe.sol Test", function () {
 
         [
             poolConfigContract,
-            platformFeeManagerContract,
+            poolFeeManagerContract,
             poolSafeContract,
             calendarContract,
             borrowerFirstLossCoverContract,
@@ -158,7 +158,7 @@ describe("PoolSafe.sol Test", function () {
                 poolSafeContract.connect(lender).deposit(lender.address, amount),
             ).to.be.revertedWithCustomError(
                 poolConfigContract,
-                "notTrancheVaultOrFirstLossCoverOrCreditOrPlatformFeeManager",
+                "notTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManager",
             );
         });
     });
@@ -203,7 +203,7 @@ describe("PoolSafe.sol Test", function () {
                 poolSafeContract.connect(lender).withdraw(lender.address, amount),
             ).to.be.revertedWithCustomError(
                 poolConfigContract,
-                "notTrancheVaultOrFirstLossCoverOrCreditOrPlatformFeeManager",
+                "notTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManager",
             );
         });
     });
@@ -216,9 +216,7 @@ describe("PoolSafe.sol Test", function () {
         });
 
         it("Should allow the platform fee manager to add fees to the reserve and then withdraw", async function () {
-            await poolConfigContract
-                .connect(poolOwner)
-                .setPlatformFeeManager(defaultDeployer.address);
+            await poolConfigContract.connect(poolOwner).setPoolFeeManager(defaultDeployer.address);
             await mockTokenContract.mint(poolSafeContract.address, amount);
 
             // First, add fees to the reserve.
@@ -243,13 +241,13 @@ describe("PoolSafe.sol Test", function () {
         it("Should disallow non-qualified addresses to add fees to the reserve", async function () {
             await expect(
                 poolSafeContract.connect(lender).addPlatformFeesReserve(amount),
-            ).to.be.revertedWithCustomError(poolConfigContract, "notPlatformFeeManager");
+            ).to.be.revertedWithCustomError(poolConfigContract, "notPoolFeeManager");
         });
 
         it("Should disallow non-qualified addresses to withdraw fees from the reserve", async function () {
             await expect(
                 poolSafeContract.connect(lender).withdrawFees(evaluationAgent.address, amount),
-            ).to.be.revertedWithCustomError(poolConfigContract, "notPlatformFeeManager");
+            ).to.be.revertedWithCustomError(poolConfigContract, "notPoolFeeManager");
         });
     });
 
@@ -275,7 +273,7 @@ describe("PoolSafe.sol Test", function () {
                 poolSafeContract.connect(lender).withdraw(lender.address, amount),
             ).to.be.revertedWithCustomError(
                 poolConfigContract,
-                "notTrancheVaultOrFirstLossCoverOrCreditOrPlatformFeeManager",
+                "notTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManager",
             );
         });
     });
@@ -286,9 +284,7 @@ describe("PoolSafe.sol Test", function () {
         beforeEach(async function () {
             assets = toToken(2_000);
             await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.address);
-            await poolConfigContract
-                .connect(poolOwner)
-                .setPlatformFeeManager(defaultDeployer.address);
+            await poolConfigContract.connect(poolOwner).setPoolFeeManager(defaultDeployer.address);
             await mockTokenContract.mint(poolSafeContract.address, assets);
         });
 
@@ -317,9 +313,7 @@ describe("PoolSafe.sol Test", function () {
         beforeEach(async function () {
             assets = toToken(2_000);
             await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.address);
-            await poolConfigContract
-                .connect(poolOwner)
-                .setPlatformFeeManager(defaultDeployer.address);
+            await poolConfigContract.connect(poolOwner).setPoolFeeManager(defaultDeployer.address);
             await mockTokenContract.mint(poolSafeContract.address, assets);
         });
 
@@ -345,9 +339,7 @@ describe("PoolSafe.sol Test", function () {
 
         beforeEach(async function () {
             assets = toToken(2_000);
-            await poolConfigContract
-                .connect(poolOwner)
-                .setPlatformFeeManager(defaultDeployer.address);
+            await poolConfigContract.connect(poolOwner).setPoolFeeManager(defaultDeployer.address);
             await mockTokenContract.mint(poolSafeContract.address, assets);
         });
 

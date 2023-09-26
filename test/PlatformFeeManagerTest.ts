@@ -14,7 +14,7 @@ import {
     FirstLossCover,
     MockPoolCredit,
     MockToken,
-    PlatformFeeManager,
+    PoolFeeManager,
     Pool,
     PoolConfig,
     PoolSafe,
@@ -40,7 +40,7 @@ let eaNFTContract: EvaluationAgentNFT,
     humaConfigContract: HumaConfig,
     mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
-    platformFeeManagerContract: PlatformFeeManager,
+    poolFeeManagerContract: PoolFeeManager,
     poolSafeContract: PoolSafe,
     calendarContract: Calendar,
     borrowerFirstLossCoverContract: FirstLossCover,
@@ -58,7 +58,7 @@ let poolConfigContract: PoolConfig,
 let profit: BN;
 let expectedProtocolIncome: BN, expectedPoolOwnerIncome: BN, expectedEAIncome: BN, totalFees: BN;
 
-describe("PlatformFeeManager Test", function () {
+describe("PoolFeeManager.sol Test", function () {
     before(async function () {
         [
             defaultDeployer,
@@ -85,7 +85,7 @@ describe("PlatformFeeManager Test", function () {
 
         [
             poolConfigContract,
-            platformFeeManagerContract,
+            poolFeeManagerContract,
             poolSafeContract,
             calendarContract,
             borrowerFirstLossCoverContract,
@@ -136,8 +136,8 @@ describe("PlatformFeeManager Test", function () {
 
             // Make sure all the fees are distributed correctly.
             const oldReserve = await poolSafeContract.reserves();
-            await platformFeeManagerContract.distributePlatformFees(profit);
-            const newAccruedIncomes = await platformFeeManagerContract.getAccruedIncomes();
+            await poolFeeManagerContract.distributePlatformFees(profit);
+            const newAccruedIncomes = await poolFeeManagerContract.getAccruedIncomes();
             const newReserve = await poolSafeContract.reserves();
             expect(newAccruedIncomes.protocolIncome).to.equal(expectedProtocolIncome);
             expect(newAccruedIncomes.poolOwnerIncome).to.equal(expectedPoolOwnerIncome);
@@ -150,19 +150,19 @@ describe("PlatformFeeManager Test", function () {
 
             // Protocol owner fees.
             const oldProtocolIncomeWithdrawn =
-                await platformFeeManagerContract.protocolIncomeWithdrawn();
+                await poolFeeManagerContract.protocolIncomeWithdrawn();
             const oldProtocolTreasuryBalance = await mockTokenContract.balanceOf(
                 protocolTreasury.address,
             );
             await expect(
-                platformFeeManagerContract
+                poolFeeManagerContract
                     .connect(protocolOwner)
                     .withdrawProtocolFee(expectedProtocolIncome),
             )
-                .to.emit(platformFeeManagerContract, "ProtocolRewardsWithdrawn")
+                .to.emit(poolFeeManagerContract, "ProtocolRewardsWithdrawn")
                 .withArgs(protocolTreasury.address, expectedProtocolIncome, protocolOwner.address);
             const newProtocolIncomeWithdrawn =
-                await platformFeeManagerContract.protocolIncomeWithdrawn();
+                await poolFeeManagerContract.protocolIncomeWithdrawn();
             const newProtocolTreasuryBalance = await mockTokenContract.balanceOf(
                 protocolTreasury.address,
             );
@@ -175,23 +175,23 @@ describe("PlatformFeeManager Test", function () {
 
             // Pool owner fees.
             const oldPoolOwnerIncomeWithdrawn =
-                await platformFeeManagerContract.poolOwnerIncomeWithdrawn();
+                await poolFeeManagerContract.poolOwnerIncomeWithdrawn();
             const oldPoolOwnerTreasuryBalance = await mockTokenContract.balanceOf(
                 poolOwnerTreasury.address,
             );
             await expect(
-                platformFeeManagerContract
+                poolFeeManagerContract
                     .connect(poolOwnerTreasury)
                     .withdrawPoolOwnerFee(expectedPoolOwnerIncome),
             )
-                .to.emit(platformFeeManagerContract, "PoolRewardsWithdrawn")
+                .to.emit(poolFeeManagerContract, "PoolRewardsWithdrawn")
                 .withArgs(
                     poolOwnerTreasury.address,
                     expectedPoolOwnerIncome,
                     poolOwnerTreasury.address,
                 );
             const newPoolOwnerIncomeWithdrawn =
-                await platformFeeManagerContract.poolOwnerIncomeWithdrawn();
+                await poolFeeManagerContract.poolOwnerIncomeWithdrawn();
             const newPoolOwnerTreasuryBalance = await mockTokenContract.balanceOf(
                 poolOwnerTreasury.address,
             );
@@ -203,16 +203,14 @@ describe("PlatformFeeManager Test", function () {
             );
 
             // EA fees.
-            const oldEAIncomeWithdrawn = await platformFeeManagerContract.eaIncomeWithdrawn();
+            const oldEAIncomeWithdrawn = await poolFeeManagerContract.eaIncomeWithdrawn();
             const oldEABalance = await mockTokenContract.balanceOf(evaluationAgent.address);
             await expect(
-                platformFeeManagerContract
-                    .connect(evaluationAgent)
-                    .withdrawEAFee(expectedEAIncome),
+                poolFeeManagerContract.connect(evaluationAgent).withdrawEAFee(expectedEAIncome),
             )
-                .to.emit(platformFeeManagerContract, "EvaluationAgentRewardsWithdrawn")
+                .to.emit(poolFeeManagerContract, "EvaluationAgentRewardsWithdrawn")
                 .withArgs(evaluationAgent.address, expectedEAIncome, evaluationAgent.address);
-            const newEAIncomeWithdrawn = await platformFeeManagerContract.eaIncomeWithdrawn();
+            const newEAIncomeWithdrawn = await poolFeeManagerContract.eaIncomeWithdrawn();
             const newEABalance = await mockTokenContract.balanceOf(evaluationAgent.address);
             expect(newEAIncomeWithdrawn).to.equal(oldEAIncomeWithdrawn.add(expectedEAIncome));
             expect(newEABalance).to.equal(oldEABalance.add(expectedEAIncome));
@@ -220,7 +218,7 @@ describe("PlatformFeeManager Test", function () {
 
         it("Should disallow non-pool to distribute platform fees", async function () {
             await expect(
-                platformFeeManagerContract.connect(lender).distributePlatformFees(profit),
+                poolFeeManagerContract.connect(lender).distributePlatformFees(profit),
             ).to.be.revertedWithCustomError(poolConfigContract, "notPool");
         });
     });
@@ -230,7 +228,7 @@ describe("PlatformFeeManager Test", function () {
             await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.address);
 
             const remainingProfit =
-                await platformFeeManagerContract.calcPlatformFeeDistribution(profit);
+                await poolFeeManagerContract.calcPlatformFeeDistribution(profit);
             expect(remainingProfit).to.equal(profit.sub(totalFees));
         });
     });
@@ -244,15 +242,15 @@ describe("PlatformFeeManager Test", function () {
 
         it("Should disallow non-protocol owner owner to withdraw protocol fees", async function () {
             await expect(
-                platformFeeManagerContract.connect(lender).withdrawProtocolFee(amount),
-            ).to.be.revertedWithCustomError(platformFeeManagerContract, "notProtocolOwner");
+                poolFeeManagerContract.connect(lender).withdrawProtocolFee(amount),
+            ).to.be.revertedWithCustomError(poolFeeManagerContract, "notProtocolOwner");
         });
 
         it("Should disallow withdrawal attempts with amounts higher than the balance", async function () {
             await expect(
-                platformFeeManagerContract.connect(protocolOwner).withdrawProtocolFee(amount),
+                poolFeeManagerContract.connect(protocolOwner).withdrawProtocolFee(amount),
             ).to.be.revertedWithCustomError(
-                platformFeeManagerContract,
+                poolFeeManagerContract,
                 "withdrawnAmountHigherThanBalance",
             );
         });
@@ -267,15 +265,15 @@ describe("PlatformFeeManager Test", function () {
 
         it("Should disallow non-pool owner treasury to withdraw protocol fees", async function () {
             await expect(
-                platformFeeManagerContract.connect(lender).withdrawPoolOwnerFee(amount),
+                poolFeeManagerContract.connect(lender).withdrawPoolOwnerFee(amount),
             ).to.be.revertedWithCustomError(poolConfigContract, "notPoolOwnerTreasury");
         });
 
         it("Should disallow withdrawal attempts with amounts higher than the balance", async function () {
             await expect(
-                platformFeeManagerContract.connect(poolOwnerTreasury).withdrawPoolOwnerFee(amount),
+                poolFeeManagerContract.connect(poolOwnerTreasury).withdrawPoolOwnerFee(amount),
             ).to.be.revertedWithCustomError(
-                platformFeeManagerContract,
+                poolFeeManagerContract,
                 "withdrawnAmountHigherThanBalance",
             );
         });
@@ -290,15 +288,15 @@ describe("PlatformFeeManager Test", function () {
 
         it("Should disallow non-pool owner or EA to withdraw protocol fees", async function () {
             await expect(
-                platformFeeManagerContract.connect(lender).withdrawEAFee(amount),
+                poolFeeManagerContract.connect(lender).withdrawEAFee(amount),
             ).to.be.revertedWithCustomError(poolConfigContract, "notPoolOwnerOrEA");
         });
 
         it("Should disallow withdrawal attempts with amounts higher than the balance", async function () {
             await expect(
-                platformFeeManagerContract.connect(evaluationAgent).withdrawEAFee(amount),
+                poolFeeManagerContract.connect(evaluationAgent).withdrawEAFee(amount),
             ).to.be.revertedWithCustomError(
-                platformFeeManagerContract,
+                poolFeeManagerContract,
                 "withdrawnAmountHigherThanBalance",
             );
         });
@@ -326,17 +324,15 @@ describe("PlatformFeeManager Test", function () {
             await mockTokenContract.mint(poolSafeContract.address, totalFees);
             await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.address);
 
-            await platformFeeManagerContract.distributePlatformFees(profit);
-            await platformFeeManagerContract
+            await poolFeeManagerContract.distributePlatformFees(profit);
+            await poolFeeManagerContract
                 .connect(protocolOwner)
                 .withdrawProtocolFee(withdrawalAmount);
-            await platformFeeManagerContract
+            await poolFeeManagerContract
                 .connect(poolOwnerTreasury)
                 .withdrawPoolOwnerFee(withdrawalAmount);
-            await platformFeeManagerContract
-                .connect(evaluationAgent)
-                .withdrawEAFee(withdrawalAmount);
-            const withdrawables = await platformFeeManagerContract.getWithdrawables();
+            await poolFeeManagerContract.connect(evaluationAgent).withdrawEAFee(withdrawalAmount);
+            const withdrawables = await poolFeeManagerContract.getWithdrawables();
             expect(withdrawables[0]).to.equal(expectedProtocolIncome.sub(withdrawalAmount));
             expect(withdrawables[1]).to.equal(expectedPoolOwnerIncome.sub(withdrawalAmount));
             expect(withdrawables[2]).to.equal(expectedEAIncome.sub(withdrawalAmount));

@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import {IFirstLossCover} from "./interfaces/IFirstLossCover.sol";
-import {IPlatformFeeManager} from "./interfaces/IPlatformFeeManager.sol";
+import {IPoolFeeManager} from "./interfaces/IPoolFeeManager.sol";
 import {PoolConfig} from "./PoolConfig.sol";
 import {PoolConfigCache} from "./PoolConfigCache.sol";
 import {Errors} from "./Errors.sol";
@@ -17,7 +17,7 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
 
     IERC20 public underlyingToken;
     IFirstLossCover[] internal _firstLossCovers;
-    IPlatformFeeManager public platformFeeManager;
+    IPoolFeeManager public poolFeeManager;
 
     Reserves public reserves;
 
@@ -26,9 +26,9 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         underlyingToken = IERC20(addr);
 
-        addr = _poolConfig.platformFeeManager();
+        addr = _poolConfig.poolFeeManager();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
-        platformFeeManager = IPlatformFeeManager(addr);
+        poolFeeManager = IPoolFeeManager(addr);
 
         address[16] memory covers = _poolConfig.getFirstLossCovers();
         for (uint256 i = 0; i < covers.length; i++) {
@@ -38,19 +38,19 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
     }
 
     function deposit(address from, uint256 amount) external {
-        poolConfig.onlyTrancheVaultOrFirstLossCoverOrCreditOrPlatformFeeManager(msg.sender);
+        poolConfig.onlyTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManager(msg.sender);
 
         underlyingToken.transferFrom(from, address(this), amount);
     }
 
     function withdraw(address to, uint256 amount) external {
-        poolConfig.onlyTrancheVaultOrFirstLossCoverOrCreditOrPlatformFeeManager(msg.sender);
+        poolConfig.onlyTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManager(msg.sender);
 
         underlyingToken.transfer(to, amount);
     }
 
     function addPlatformFeesReserve(uint256 reserve) external {
-        poolConfig.onlyPlatformFeeManager(msg.sender);
+        poolConfig.onlyPoolFeeManager(msg.sender);
 
         Reserves memory rs = reserves;
         rs.forPlatformFees += uint96(reserve);
@@ -58,7 +58,7 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
     }
 
     function withdrawFees(address to, uint256 amount) external {
-        poolConfig.onlyPlatformFeeManager(msg.sender);
+        poolConfig.onlyPoolFeeManager(msg.sender);
 
         Reserves memory rs = reserves;
         rs.forPlatformFees -= uint96(amount);
@@ -98,7 +98,7 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
         for (uint256 i = 0; i < len; i++) {
             reserved += _firstLossCovers[i].totalAssets();
         }
-        reserved += platformFeeManager.getTotalAvailableFees();
+        reserved += poolFeeManager.getTotalAvailableFees();
         uint256 balance = underlyingToken.balanceOf(address(this));
         return balance > reserved ? balance - reserved : 0;
     }
