@@ -26,10 +26,8 @@ import { copyLPConfigWithOverrides, toToken } from "./TestUtils";
 import { BigNumber as BN } from "ethers";
 import {
     FeeStructureStruct,
-    FirstLossCoverConfigStruct,
     FrontLoadingFeesStructureStruct,
     LPConfigStruct,
-    LPConfigStructOutput,
 } from "../typechain-types/contracts/PoolConfig";
 
 let defaultDeployer: SignerWithAddress,

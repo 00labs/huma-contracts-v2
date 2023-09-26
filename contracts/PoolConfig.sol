@@ -596,18 +596,6 @@ contract PoolConfig is AccessControl, Initializable {
         );
     }
 
-    function setFirstLossCoverConfig(FirstLossCoverConfig calldata firstLossCoverConfig) external {
-        _onlyOwnerOrHumaMasterAdmin();
-        _firstLossCoverConfig = firstLossCoverConfig;
-        emit FirstLossCoverConfigChanged(
-            firstLossCoverConfig.poolCapCoverageInBps,
-            firstLossCoverConfig.poolValueCoverageInBps,
-            firstLossCoverConfig.coverRateInBps,
-            firstLossCoverConfig.coverCap,
-            msg.sender
-        );
-    }
-
     function setFrontLoadingFees(FrontLoadingFeesStructure calldata frontFees) external {
         _onlyOwnerOrHumaMasterAdmin();
         _frontFees = frontFees;
@@ -803,49 +791,6 @@ contract PoolConfig is AccessControl, Initializable {
         if (!hasRole(DEFAULT_ADMIN_ROLE, account) && account != humaConfig.owner()) {
             revert Errors.permissionDeniedNotAdmin();
         }
-    }
-
-    /// "Modifier" function that limits access to pool owner or Huma protocol owner
-    function _onlyOwnerOrHumaMasterAdmin() internal view {
-        onlyOwnerOrHumaMasterAdmin(msg.sender);
-    }
-
-    function getFrontLoadingFee() external view returns (uint256, uint256) {
-        return (_frontFees.frontLoadingFeeFlat, _frontFees.frontLoadingFeeBps);
-    }
-
-    /**
-     * @notice Gets the fee structure for the pool
-     */
-    function getFees()
-        external
-        view
-        virtual
-        returns (uint256 _lateFeeFlat, uint256 _lateFeeBps, uint256 _membershipFee)
-    {
-        return (_feeStructure.lateFeeFlat, _feeStructure.lateFeeBps, _feeStructure.membershipFee);
-    }
-
-    function getMinPrincipalRateInBps() external view virtual returns (uint256 _minPrincipalRate) {
-        return _feeStructure.minPrincipalRateInBps;
-    }
-
-    function setLPConfig(LPConfig calldata lpConfig) external {
-        _onlyOwnerOrHumaMasterAdmin();
-        _lpConfig = lpConfig;
-        // todo emit event
-    }
-
-    function setFrontLoadingFees(FrontLoadingFeesStructure calldata frontFees) external {
-        _onlyOwnerOrHumaMasterAdmin();
-        _frontFees = frontFees;
-        // todo emit event
-    }
-
-    function setFees(FeeStructure calldata feeStructure) external {
-        _onlyOwnerOrHumaMasterAdmin();
-        _feeStructure = feeStructure;
-        // todo emit event
     }
 
     function onlyEpochManager(address account) external view {
