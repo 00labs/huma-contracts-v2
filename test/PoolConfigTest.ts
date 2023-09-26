@@ -1,7 +1,7 @@
 import { ethers } from "hardhat";
 
 import { expect } from "chai";
-import { deployAndSetupPoolContracts, deployProtocolContracts } from "./BaseTest";
+import { CONSTANTS, deployAndSetupPoolContracts, deployProtocolContracts } from "./BaseTest";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import {
@@ -23,6 +23,13 @@ import {
 } from "../typechain-types";
 import { copyLPConfigWithOverrides, toToken } from "./TestUtils";
 import { BigNumber as BN } from "ethers";
+import {
+    FeeStructureStruct,
+    FirstLossCoverConfigStruct,
+    FrontLoadingFeesStructureStruct,
+    LPConfigStruct,
+    LPConfigStructOutput,
+} from "../typechain-types/contracts/PoolConfig";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
@@ -53,7 +60,7 @@ let poolConfigContract: PoolConfig,
     creditFeeManagerContract: BaseCreditFeeManager,
     creditPnlManagerContract: BasePnLManager;
 
-describe("PoolConfig Test", function () {
+describe("PoolConfig Tests", function () {
     before(async function () {
         [
             defaultDeployer,
@@ -765,7 +772,6 @@ describe("PoolConfig Test", function () {
                         .connect(regularUser)
                         .setEARewardsAndLiquidity(rewardsRate, liquidityRate),
                 ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
-                const adminRnR = await poolConfigContract.getAdminRnR();
             });
 
             it("Should fail if rewards rate exceeds 100%", async function () {
@@ -1067,6 +1073,193 @@ describe("PoolConfig Test", function () {
             });
         });
 
+        describe("setPoolDefaultGracePeriod", function () {
+            let defaultGracePeriodDays: number, calendarUnit: number;
+
+            before(function () {
+                defaultGracePeriodDays = 30;
+                calendarUnit = CONSTANTS.CALENDAR_UNIT_DAY;
+            });
+
+            it("Should allow the pool owner to set the default grace period", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setPoolDefaultGracePeriod(calendarUnit, defaultGracePeriodDays),
+                )
+                    .to.emit(poolConfigContract, "PoolDefaultGracePeriodChanged")
+                    .withArgs(calendarUnit, defaultGracePeriodDays, poolOwner.address);
+                const poolSettings = await poolConfigContract.getPoolSettings();
+                expect(poolSettings.defaultGracePeriodInCalendarUnit).to.equal(
+                    defaultGracePeriodDays,
+                );
+            });
+
+            it("Should allow the Huma master admin to set the default grace period", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(protocolOwner)
+                        .setPoolDefaultGracePeriod(calendarUnit, defaultGracePeriodDays),
+                )
+                    .to.emit(poolConfigContract, "PoolDefaultGracePeriodChanged")
+                    .withArgs(calendarUnit, defaultGracePeriodDays, protocolOwner.address);
+                const poolSettings = await poolConfigContract.getPoolSettings();
+                expect(poolSettings.calendarUnit).to.equal(calendarUnit);
+            });
+
+            it("Should reject non-owner or admin to set the default grace period", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(regularUser)
+                        .setPoolDefaultGracePeriod(calendarUnit, defaultGracePeriodDays),
+                ).to.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+            });
+
+            it("Should reject new default grace period with the wrong calendar unit", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setPoolDefaultGracePeriod(
+                            CONSTANTS.CALENDAR_UNIT_MONTH,
+                            defaultGracePeriodDays,
+                        ),
+                ).to.revertedWithCustomError(poolConfigContract, "invalidCalendarUnit");
+            });
+        });
+
+        describe("setPoolLiquidityCap", function () {
+            let liquidityCap: BN;
+
+            before(function () {
+                liquidityCap = toToken(50_000_000);
+            });
+
+            it("Should allow the pool owner to set the liquidity cap", async function () {
+                await expect(
+                    poolConfigContract.connect(poolOwner).setPoolLiquidityCap(liquidityCap),
+                )
+                    .to.emit(poolConfigContract, "PoolLiquidityCapChanged")
+                    .withArgs(liquidityCap, poolOwner.address);
+                const lpConfig = await poolConfigContract.getLPConfig();
+                expect(lpConfig.liquidityCap).to.equal(liquidityCap);
+            });
+
+            it("Should allow the Huma master admin to set the liquidity cap", async function () {
+                await expect(
+                    poolConfigContract.connect(protocolOwner).setPoolLiquidityCap(liquidityCap),
+                )
+                    .to.emit(poolConfigContract, "PoolLiquidityCapChanged")
+                    .withArgs(liquidityCap, protocolOwner.address);
+                const lpConfig = await poolConfigContract.getLPConfig();
+                expect(lpConfig.liquidityCap).to.equal(liquidityCap);
+            });
+
+            it("Should reject non-owner or admin to set the liquidity cap", async function () {
+                await expect(
+                    poolConfigContract.connect(regularUser).setPoolLiquidityCap(liquidityCap),
+                ).to.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+            });
+
+            it("Should reject zero liquidity cap", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setPoolLiquidityCap(ethers.constants.Zero),
+                ).to.revertedWithCustomError(poolConfigContract, "zeroAmountProvided");
+            });
+        });
+
+        describe("setPoolPayPeriod", function () {
+            let calendarUnit: number, numPayPeriods: number;
+
+            before(function () {
+                calendarUnit = CONSTANTS.CALENDAR_UNIT_MONTH;
+                numPayPeriods = 1;
+            });
+
+            it("Should allow the pool owner to set the pay period", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setPoolPayPeriod(calendarUnit, numPayPeriods),
+                )
+                    .to.emit(poolConfigContract, "PoolPayPeriodChanged")
+                    .withArgs(calendarUnit, numPayPeriods, poolOwner.address);
+                const poolSettings = await poolConfigContract.getPoolSettings();
+                expect(poolSettings.calendarUnit).to.equal(calendarUnit);
+                expect(poolSettings.payPeriodInCalendarUnit).to.equal(numPayPeriods);
+            });
+
+            it("Should allow the Huma master admin to set the pay period", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(protocolOwner)
+                        .setPoolPayPeriod(calendarUnit, numPayPeriods),
+                )
+                    .to.emit(poolConfigContract, "PoolPayPeriodChanged")
+                    .withArgs(calendarUnit, numPayPeriods, protocolOwner.address);
+                const poolSettings = await poolConfigContract.getPoolSettings();
+                expect(poolSettings.calendarUnit).to.equal(calendarUnit);
+                expect(poolSettings.payPeriodInCalendarUnit).to.equal(numPayPeriods);
+            });
+
+            it("Should reject non-owner or admin to set the pool", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(regularUser)
+                        .setPoolPayPeriod(calendarUnit, numPayPeriods),
+                ).to.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+            });
+
+            it("Should reject zero pay periods", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setPoolPayPeriod(calendarUnit, ethers.constants.Zero),
+                ).to.revertedWithCustomError(poolConfigContract, "zeroAmountProvided");
+            });
+        });
+
+        describe("setPoolFlexCall", function () {
+            let enabled = true,
+                flexCallWindowInEpoch = 3;
+            it("Should allow the pool owner to set the flex call config", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setPoolFlexCall(enabled, flexCallWindowInEpoch),
+                )
+                    .to.emit(poolConfigContract, "PoolFlexCallChanged")
+                    .withArgs(enabled, flexCallWindowInEpoch, poolOwner.address);
+                expect(await poolConfigContract.pool()).to.equal(poolContract.address);
+            });
+
+            it("Should allow the Huma master admin to set the flex call config", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(protocolOwner)
+                        .setPoolFlexCall(enabled, flexCallWindowInEpoch),
+                )
+                    .to.emit(poolConfigContract, "PoolFlexCallChanged")
+                    .withArgs(enabled, flexCallWindowInEpoch, protocolOwner.address);
+                expect(await poolConfigContract.pool()).to.equal(poolContract.address);
+            });
+
+            it("Should reject non-owner or admin to set the flex call config", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(regularUser)
+                        .setPoolFlexCall(enabled, flexCallWindowInEpoch),
+                ).to.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+            });
+
+            it("Should reject zero-valued windows", async function () {
+                await expect(
+                    poolConfigContract.connect(poolOwner).setPoolFlexCall(enabled, 0),
+                ).to.revertedWithCustomError(poolConfigContract, "zeroAmountProvided");
+            });
+        });
+
         describe("setPoolName", function () {
             const poolName = "Test pool";
 
@@ -1135,48 +1328,640 @@ describe("PoolConfig Test", function () {
             });
         });
 
-        describe("setPoolUnderlyingToken", function () {
-            it("Should allow the pool owner to set the underlying token", async function () {
+        describe("setTranches", function () {
+            it("Should allow the pool owner to set the tranches", async function () {
                 await expect(
                     poolConfigContract
                         .connect(poolOwner)
-                        .setPoolUnderlyingToken(mockTokenContract.address),
+                        .setTranches(
+                            seniorTrancheVaultContract.address,
+                            juniorTrancheVaultContract.address,
+                        ),
                 )
-                    .to.emit(poolConfigContract, "PoolUnderlyingTokenChanged")
-                    .withArgs(mockTokenContract.address, poolOwner.address);
-                expect(await poolConfigContract.underlyingToken()).to.equal(
-                    mockTokenContract.address,
+                    .to.emit(poolConfigContract, "TranchesChanged")
+                    .withArgs(
+                        seniorTrancheVaultContract.address,
+                        juniorTrancheVaultContract.address,
+                        poolOwner.address,
+                    );
+                expect(await poolConfigContract.seniorTranche()).to.equal(
+                    seniorTrancheVaultContract.address,
+                );
+                expect(await poolConfigContract.juniorTranche()).to.equal(
+                    juniorTrancheVaultContract.address,
                 );
             });
 
-            it("Should allow the Huma master admin to set the underlying token", async function () {
+            it("Should allow the Huma master admin to set the tranches", async function () {
                 await expect(
                     poolConfigContract
                         .connect(protocolOwner)
-                        .setPoolUnderlyingToken(mockTokenContract.address),
+                        .setTranches(
+                            seniorTrancheVaultContract.address,
+                            juniorTrancheVaultContract.address,
+                        ),
                 )
-                    .to.emit(poolConfigContract, "PoolUnderlyingTokenChanged")
-                    .withArgs(mockTokenContract.address, protocolOwner.address);
-                expect(await poolConfigContract.underlyingToken()).to.equal(
-                    mockTokenContract.address,
+                    .to.emit(poolConfigContract, "TranchesChanged")
+                    .withArgs(
+                        seniorTrancheVaultContract.address,
+                        juniorTrancheVaultContract.address,
+                        protocolOwner.address,
+                    );
+                expect(await poolConfigContract.seniorTranche()).to.equal(
+                    seniorTrancheVaultContract.address,
+                );
+                expect(await poolConfigContract.juniorTranche()).to.equal(
+                    juniorTrancheVaultContract.address,
                 );
             });
 
-            it("Should reject non-owner or admin to set the underlying token", async function () {
+            it("Should reject non-owner or admin to set the tranches", async function () {
                 await expect(
                     poolConfigContract
                         .connect(regularUser)
-                        .setPoolUnderlyingToken(mockTokenContract.address),
+                        .setTranches(
+                            seniorTrancheVaultContract.address,
+                            juniorTrancheVaultContract.address,
+                        ),
                 ).to.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
             });
 
-            it("Should disallow zero address for pool token", async function () {
+            it("Should disallow zero addresses for the senior tranche", async function () {
                 await expect(
                     poolConfigContract
                         .connect(poolOwner)
-                        .setPoolUnderlyingToken(ethers.constants.AddressZero),
+                        .setTranches(
+                            ethers.constants.AddressZero,
+                            juniorTrancheVaultContract.address,
+                        ),
+                ).to.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
+            });
+
+            it("Should disallow zero addresses for the junior tranche", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setTranches(
+                            seniorTrancheVaultContract.address,
+                            ethers.constants.AddressZero,
+                        ),
                 ).to.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
             });
         });
+
+        describe("setPoolVault", function () {
+            it("Should allow the pool owner to set the pool vault", async function () {
+                await expect(
+                    poolConfigContract.connect(poolOwner).setPoolVault(poolVaultContract.address),
+                )
+                    .to.emit(poolConfigContract, "PoolVaultChanged")
+                    .withArgs(poolVaultContract.address, poolOwner.address);
+                expect(await poolConfigContract.poolVault()).to.equal(poolVaultContract.address);
+            });
+
+            it("Should allow the Huma master admin to set the pool vault", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(protocolOwner)
+                        .setPoolVault(poolVaultContract.address),
+                )
+                    .to.emit(poolConfigContract, "PoolVaultChanged")
+                    .withArgs(poolVaultContract.address, protocolOwner.address);
+                expect(await poolConfigContract.poolVault()).to.equal(poolVaultContract.address);
+            });
+
+            it("Should reject non-owner or admin to set the pool vault", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(regularUser)
+                        .setPoolVault(poolVaultContract.address),
+                ).to.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+            });
+
+            it("Should disallow zero address for the pool vault", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setPoolVault(ethers.constants.AddressZero),
+                ).to.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
+            });
+        });
+
+        describe("setTranchesPolicy", function () {
+            it("Should allow the pool owner to set the tranches policy", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setTranchesPolicy(tranchesPolicyContract.address),
+                )
+                    .to.emit(poolConfigContract, "TranchesPolicyChanged")
+                    .withArgs(tranchesPolicyContract.address, poolOwner.address);
+                expect(await poolConfigContract.tranchesPolicy()).to.equal(
+                    tranchesPolicyContract.address,
+                );
+            });
+
+            it("Should allow the Huma master admin to set the tranches policy", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(protocolOwner)
+                        .setTranchesPolicy(tranchesPolicyContract.address),
+                )
+                    .to.emit(poolConfigContract, "TranchesPolicyChanged")
+                    .withArgs(tranchesPolicyContract.address, protocolOwner.address);
+                expect(await poolConfigContract.tranchesPolicy()).to.equal(
+                    tranchesPolicyContract.address,
+                );
+            });
+
+            it("Should reject non-owner or admin to set the tranches policy", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(regularUser)
+                        .setTranchesPolicy(tranchesPolicyContract.address),
+                ).to.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+            });
+
+            it("Should disallow zero address for the tranches policy", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setTranchesPolicy(ethers.constants.AddressZero),
+                ).to.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
+            });
+        });
+
+        describe("setEpochManager", function () {
+            it("Should allow the pool owner to set the epoch manager", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setEpochManager(epochManagerContract.address),
+                )
+                    .to.emit(poolConfigContract, "EpochManagerChanged")
+                    .withArgs(epochManagerContract.address, poolOwner.address);
+                expect(await poolConfigContract.epochManager()).to.equal(
+                    epochManagerContract.address,
+                );
+            });
+
+            it("Should allow the Huma master admin to set the epoch manager", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(protocolOwner)
+                        .setEpochManager(epochManagerContract.address),
+                )
+                    .to.emit(poolConfigContract, "EpochManagerChanged")
+                    .withArgs(epochManagerContract.address, protocolOwner.address);
+                expect(await poolConfigContract.epochManager()).to.equal(
+                    epochManagerContract.address,
+                );
+            });
+
+            it("Should reject non-owner or admin to set the epoch manager", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(regularUser)
+                        .setEpochManager(epochManagerContract.address),
+                ).to.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+            });
+
+            it("Should disallow zero address for the epoch manager", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setEpochManager(ethers.constants.AddressZero),
+                ).to.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
+            });
+        });
+
+        describe("setCredit", function () {
+            it("Should allow the pool owner to set the credit contract", async function () {
+                await expect(
+                    poolConfigContract.connect(poolOwner).setCredit(creditContract.address),
+                )
+                    .to.emit(poolConfigContract, "CreditChanged")
+                    .withArgs(creditContract.address, poolOwner.address);
+                expect(await poolConfigContract.credit()).to.equal(creditContract.address);
+            });
+
+            it("Should allow the Huma master admin to set the credit contract", async function () {
+                await expect(
+                    poolConfigContract.connect(protocolOwner).setCredit(creditContract.address),
+                )
+                    .to.emit(poolConfigContract, "CreditChanged")
+                    .withArgs(creditContract.address, protocolOwner.address);
+                expect(await poolConfigContract.credit()).to.equal(creditContract.address);
+            });
+
+            it("Should reject non-owner or admin to set the credit contract", async function () {
+                await expect(
+                    poolConfigContract.connect(regularUser).setCredit(creditContract.address),
+                ).to.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+            });
+
+            it("Should disallow zero address for the credit contract", async function () {
+                await expect(
+                    poolConfigContract.connect(poolOwner).setCredit(ethers.constants.AddressZero),
+                ).to.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
+            });
+        });
+
+        // TODO(jiatu): add first loss cover setter tests after it's updated.
+        describe("setCalendar", function () {
+            it("Should allow the pool owner to set the calendar contract", async function () {
+                await expect(
+                    poolConfigContract.connect(poolOwner).setCalendar(calendarContract.address),
+                )
+                    .to.emit(poolConfigContract, "CalendarChanged")
+                    .withArgs(calendarContract.address, poolOwner.address);
+                expect(await poolConfigContract.calendar()).to.equal(calendarContract.address);
+            });
+
+            it("Should allow the Huma master admin to set the calendar contract", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(protocolOwner)
+                        .setCalendar(calendarContract.address),
+                )
+                    .to.emit(poolConfigContract, "CalendarChanged")
+                    .withArgs(calendarContract.address, protocolOwner.address);
+                expect(await poolConfigContract.calendar()).to.equal(calendarContract.address);
+            });
+
+            it("Should reject non-owner or admin to set the calendar contract", async function () {
+                await expect(
+                    poolConfigContract.connect(regularUser).setCalendar(calendarContract.address),
+                ).to.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+            });
+
+            it("Should disallow zero address for the calendar contract", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setCalendar(ethers.constants.AddressZero),
+                ).to.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
+            });
+        });
+
+        describe("setReceivableRequiredInBps", function () {
+            let receivableRequiredInBps = 10_100;
+
+            it("Should allow the pool owner to set the receivable requirement rate", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setReceivableRequiredInBps(receivableRequiredInBps),
+                )
+                    .to.emit(poolConfigContract, "ReceivableRequiredInBpsChanged")
+                    .withArgs(receivableRequiredInBps, poolOwner.address);
+                const poolSettings = await poolConfigContract.getPoolSettings();
+                expect(poolSettings.advanceRateInBps).to.equal(receivableRequiredInBps);
+            });
+
+            it("Should allow the Huma master admin to set the receivable requirement rate", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(protocolOwner)
+                        .setReceivableRequiredInBps(receivableRequiredInBps),
+                )
+                    .to.emit(poolConfigContract, "ReceivableRequiredInBpsChanged")
+                    .withArgs(receivableRequiredInBps, protocolOwner.address);
+                const poolSettings = await poolConfigContract.getPoolSettings();
+                expect(poolSettings.advanceRateInBps).to.equal(receivableRequiredInBps);
+            });
+
+            it("Should reject non-owner or admin to set the receivable requirement rate", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(regularUser)
+                        .setReceivableRequiredInBps(receivableRequiredInBps),
+                ).to.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+            });
+        });
+
+        describe("setWithdrawalLockoutPeriod", function () {
+            let calendarUnit: number, lockoutPeriod: number;
+
+            before(function () {
+                calendarUnit = CONSTANTS.CALENDAR_UNIT_DAY;
+                lockoutPeriod = 30;
+            });
+
+            it("Should allow the pool owner to set the withdrawal lockout period", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setWithdrawalLockoutPeriod(calendarUnit, lockoutPeriod),
+                )
+                    .to.emit(poolConfigContract, "WithdrawalLockoutPeriodChanged")
+                    .withArgs(calendarUnit, lockoutPeriod, poolOwner.address);
+                const lpConfig = await poolConfigContract.getLPConfig();
+                expect(lpConfig.withdrawalLockoutInCalendarUnit).to.equal(lockoutPeriod);
+            });
+
+            it("Should allow the Huma master admin to set the withdrawal lockout period", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(protocolOwner)
+                        .setWithdrawalLockoutPeriod(calendarUnit, lockoutPeriod),
+                )
+                    .to.emit(poolConfigContract, "WithdrawalLockoutPeriodChanged")
+                    .withArgs(calendarUnit, lockoutPeriod, protocolOwner.address);
+                const lpConfig = await poolConfigContract.getLPConfig();
+                expect(lpConfig.withdrawalLockoutInCalendarUnit).to.equal(lockoutPeriod);
+            });
+
+            it("Should reject non-owner or admin to set the withdrawal lockout period", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(regularUser)
+                        .setWithdrawalLockoutPeriod(calendarUnit, lockoutPeriod),
+                ).to.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+            });
+
+            it("Should disallow incompatible calendar units", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setWithdrawalLockoutPeriod(CONSTANTS.CALENDAR_UNIT_MONTH, lockoutPeriod),
+                ).to.revertedWithCustomError(poolConfigContract, "invalidCalendarUnit");
+            });
+        });
+
+        describe("setLPConfig", function () {
+            let newLPConfig: LPConfigStruct;
+
+            before(async function () {
+                newLPConfig = {
+                    permissioned: false,
+                    liquidityCap: toToken(100_000_000),
+                    withdrawalLockoutInCalendarUnit: 30,
+                    maxSeniorJuniorRatio: 4,
+                    fixedSeniorYieldInBps: 2000,
+                    tranchesRiskAdjustmentInBps: 8000,
+                };
+            });
+
+            it("Should allow the pool owner to set the LP config", async function () {
+                await expect(poolConfigContract.connect(poolOwner).setLPConfig(newLPConfig))
+                    .to.emit(poolConfigContract, "LPConfigChanged")
+                    .withArgs(
+                        newLPConfig.permissioned,
+                        newLPConfig.liquidityCap,
+                        newLPConfig.withdrawalLockoutInCalendarUnit,
+                        newLPConfig.maxSeniorJuniorRatio,
+                        newLPConfig.fixedSeniorYieldInBps,
+                        newLPConfig.tranchesRiskAdjustmentInBps,
+                        poolOwner.address,
+                    );
+                const lpConfig = await poolConfigContract.getLPConfig();
+                expect(lpConfig.permissioned).to.equal(newLPConfig.permissioned);
+                expect(lpConfig.liquidityCap).to.equal(newLPConfig.liquidityCap);
+                expect(lpConfig.withdrawalLockoutInCalendarUnit).to.equal(
+                    newLPConfig.withdrawalLockoutInCalendarUnit,
+                );
+                expect(lpConfig.maxSeniorJuniorRatio).to.equal(newLPConfig.maxSeniorJuniorRatio);
+                expect(lpConfig.fixedSeniorYieldInBps).to.equal(newLPConfig.fixedSeniorYieldInBps);
+                expect(lpConfig.tranchesRiskAdjustmentInBps).to.equal(
+                    newLPConfig.tranchesRiskAdjustmentInBps,
+                );
+            });
+
+            it("Should allow the Huma master admin to set the LP config", async function () {
+                await expect(poolConfigContract.connect(protocolOwner).setLPConfig(newLPConfig))
+                    .to.emit(poolConfigContract, "LPConfigChanged")
+                    .withArgs(
+                        newLPConfig.permissioned,
+                        newLPConfig.liquidityCap,
+                        newLPConfig.withdrawalLockoutInCalendarUnit,
+                        newLPConfig.maxSeniorJuniorRatio,
+                        newLPConfig.fixedSeniorYieldInBps,
+                        newLPConfig.tranchesRiskAdjustmentInBps,
+                        protocolOwner.address,
+                    );
+                const lpConfig = await poolConfigContract.getLPConfig();
+                expect(lpConfig.permissioned).to.equal(newLPConfig.permissioned);
+                expect(lpConfig.liquidityCap).to.equal(newLPConfig.liquidityCap);
+                expect(lpConfig.withdrawalLockoutInCalendarUnit).to.equal(
+                    newLPConfig.withdrawalLockoutInCalendarUnit,
+                );
+                expect(lpConfig.maxSeniorJuniorRatio).to.equal(newLPConfig.maxSeniorJuniorRatio);
+                expect(lpConfig.fixedSeniorYieldInBps).to.equal(newLPConfig.fixedSeniorYieldInBps);
+                expect(lpConfig.tranchesRiskAdjustmentInBps).to.equal(
+                    newLPConfig.tranchesRiskAdjustmentInBps,
+                );
+            });
+
+            it("Should reject non-owner or admin to set the LP config", async function () {
+                await expect(
+                    poolConfigContract.connect(regularUser).setLPConfig(newLPConfig),
+                ).to.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+            });
+        });
+
+        describe("setFirstLossCoverConfig", function () {
+            let newFirstLossCoverConfig: FirstLossCoverConfigStruct;
+
+            before(async function () {
+                newFirstLossCoverConfig = {
+                    poolCapCoverageInBps: 100,
+                    poolValueCoverageInBps: 200,
+                    coverRateInBps: 300,
+                    coverCap: toToken(1_000_000),
+                };
+            });
+
+            it("Should allow the pool owner to set the first loss cover config", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setFirstLossCoverConfig(newFirstLossCoverConfig),
+                )
+                    .to.emit(poolConfigContract, "FirstLossCoverConfigChanged")
+                    .withArgs(
+                        newFirstLossCoverConfig.poolCapCoverageInBps,
+                        newFirstLossCoverConfig.poolValueCoverageInBps,
+                        newFirstLossCoverConfig.coverRateInBps,
+                        newFirstLossCoverConfig.coverCap,
+                        poolOwner.address,
+                    );
+                const firstLossCoverConfig = await poolConfigContract.getFirstLossCoverConfig();
+                expect(firstLossCoverConfig.poolCapCoverageInBps).to.equal(
+                    newFirstLossCoverConfig.poolCapCoverageInBps,
+                );
+                expect(firstLossCoverConfig.poolValueCoverageInBps).to.equal(
+                    newFirstLossCoverConfig.poolValueCoverageInBps,
+                );
+                expect(firstLossCoverConfig.coverRateInBps).to.equal(
+                    newFirstLossCoverConfig.coverRateInBps,
+                );
+                expect(firstLossCoverConfig.coverCap).to.equal(newFirstLossCoverConfig.coverCap);
+            });
+
+            it("Should allow the Huma master admin to set the first loss cover config", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(protocolOwner)
+                        .setFirstLossCoverConfig(newFirstLossCoverConfig),
+                )
+                    .to.emit(poolConfigContract, "FirstLossCoverConfigChanged")
+                    .withArgs(
+                        newFirstLossCoverConfig.poolCapCoverageInBps,
+                        newFirstLossCoverConfig.poolValueCoverageInBps,
+                        newFirstLossCoverConfig.coverRateInBps,
+                        newFirstLossCoverConfig.coverCap,
+                        protocolOwner.address,
+                    );
+                const firstLossCoverConfig = await poolConfigContract.getFirstLossCoverConfig();
+                expect(firstLossCoverConfig.poolCapCoverageInBps).to.equal(
+                    newFirstLossCoverConfig.poolCapCoverageInBps,
+                );
+                expect(firstLossCoverConfig.poolValueCoverageInBps).to.equal(
+                    newFirstLossCoverConfig.poolValueCoverageInBps,
+                );
+                expect(firstLossCoverConfig.coverRateInBps).to.equal(
+                    newFirstLossCoverConfig.coverRateInBps,
+                );
+                expect(firstLossCoverConfig.coverCap).to.equal(newFirstLossCoverConfig.coverCap);
+            });
+
+            it("Should reject non-owner or admin to set the first loss cover config", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(regularUser)
+                        .setFirstLossCoverConfig(newFirstLossCoverConfig),
+                ).to.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+            });
+        });
+
+        describe("setFrontLoadingFees", function () {
+            let newFrontLoadingFeeStructure: FrontLoadingFeesStructureStruct;
+
+            before(async function () {
+                newFrontLoadingFeeStructure = {
+                    frontLoadingFeeFlat: toToken(50),
+                    frontLoadingFeeBps: BN.from(100),
+                };
+            });
+
+            it("Should allow the pool owner to set the front loading fees", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setFrontLoadingFees(newFrontLoadingFeeStructure),
+                )
+                    .to.emit(poolConfigContract, "FrontLoadingFeesChanged")
+                    .withArgs(
+                        newFrontLoadingFeeStructure.frontLoadingFeeFlat,
+                        newFrontLoadingFeeStructure.frontLoadingFeeBps,
+                        poolOwner.address,
+                    );
+                const frontLoadingFees = await poolConfigContract.getFrontLoadingFees();
+                expect(frontLoadingFees[0]).to.equal(
+                    newFrontLoadingFeeStructure.frontLoadingFeeFlat,
+                );
+                expect(frontLoadingFees[1]).to.equal(
+                    newFrontLoadingFeeStructure.frontLoadingFeeBps,
+                );
+            });
+
+            it("Should allow the Huma master admin to set the front loading fees", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(protocolOwner)
+                        .setFrontLoadingFees(newFrontLoadingFeeStructure),
+                )
+                    .to.emit(poolConfigContract, "FrontLoadingFeesChanged")
+                    .withArgs(
+                        newFrontLoadingFeeStructure.frontLoadingFeeFlat,
+                        newFrontLoadingFeeStructure.frontLoadingFeeBps,
+                        protocolOwner.address,
+                    );
+                const frontLoadingFees = await poolConfigContract.getFrontLoadingFees();
+                expect(frontLoadingFees[0]).to.equal(
+                    newFrontLoadingFeeStructure.frontLoadingFeeFlat,
+                );
+                expect(frontLoadingFees[1]).to.equal(
+                    newFrontLoadingFeeStructure.frontLoadingFeeBps,
+                );
+            });
+
+            it("Should reject non-owner or admin to set the front loading fees", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(regularUser)
+                        .setFrontLoadingFees(newFrontLoadingFeeStructure),
+                ).to.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+            });
+        });
+
+        describe("setFeeStructure", function () {
+            let newFeeStructure: FeeStructureStruct;
+
+            before(async function () {
+                newFeeStructure = {
+                    yieldInBps: BN.from(1000),
+                    minPrincipalRateInBps: BN.from(2000),
+                    lateFeeFlat: toToken(1_000),
+                    lateFeeBps: BN.from(3000),
+                    membershipFee: toToken(50),
+                };
+            });
+
+            it("Should allow the pool owner to set the fee structure", async function () {
+                await expect(
+                    poolConfigContract.connect(poolOwner).setFeeStructure(newFeeStructure),
+                )
+                    .to.emit(poolConfigContract, "FeeStructureChanged")
+                    .withArgs(
+                        newFeeStructure.yieldInBps,
+                        newFeeStructure.minPrincipalRateInBps,
+                        newFeeStructure.lateFeeFlat,
+                        newFeeStructure.lateFeeBps,
+                        newFeeStructure.membershipFee,
+                        poolOwner.address,
+                    );
+                const poolSummary = await poolConfigContract.getPoolSummary();
+                const fees = await poolConfigContract.getFees();
+                const minPrincipalRateInBps = await poolConfigContract.getMinPrincipalRateInBps();
+                expect(poolSummary[1]).to.equal(newFeeStructure.yieldInBps);
+                expect(fees[0]).to.equal(newFeeStructure.lateFeeFlat);
+                expect(fees[1]).to.equal(newFeeStructure.lateFeeBps);
+                expect(fees[2]).to.equal(newFeeStructure.membershipFee);
+                expect(minPrincipalRateInBps).to.equal(newFeeStructure.minPrincipalRateInBps);
+            });
+
+            it("Should allow the Huma master admin to set the fee structure", async function () {
+                await expect(
+                    poolConfigContract.connect(protocolOwner).setFeeStructure(newFeeStructure),
+                )
+                    .to.emit(poolConfigContract, "FeeStructureChanged")
+                    .withArgs(
+                        newFeeStructure.yieldInBps,
+                        newFeeStructure.minPrincipalRateInBps,
+                        newFeeStructure.lateFeeFlat,
+                        newFeeStructure.lateFeeBps,
+                        newFeeStructure.membershipFee,
+                        protocolOwner.address,
+                    );
+                const poolSummary = await poolConfigContract.getPoolSummary();
+                const fees = await poolConfigContract.getFees();
+                const minPrincipalRateInBps = await poolConfigContract.getMinPrincipalRateInBps();
+                expect(poolSummary[1]).to.equal(newFeeStructure.yieldInBps);
+                expect(fees[0]).to.equal(newFeeStructure.lateFeeFlat);
+                expect(fees[1]).to.equal(newFeeStructure.lateFeeBps);
+                expect(fees[2]).to.equal(newFeeStructure.membershipFee);
+                expect(minPrincipalRateInBps).to.equal(newFeeStructure.minPrincipalRateInBps);
+            });
+
+            it("Should reject non-owner or admin to set the fee structure", async function () {
+                await expect(
+                    poolConfigContract.connect(regularUser).setFeeStructure(newFeeStructure),
+                ).to.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+            });
+        });
+
+        // TODO(jiatu): add test for `checkFirstLossCoverRequirement`
     });
 });

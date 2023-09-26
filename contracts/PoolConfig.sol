@@ -21,7 +21,7 @@ struct PoolSettings {
     // the maximum credit line for an address in terms of the amount of poolTokens
     uint96 maxCreditLine;
     // calendarType and numPerPeriod are used together to measure the duration
-    // of a pay period. For example, 14 days, 2 SemiMonth (1 month), 6 SemiMonth (1 quarter)
+    // of a pay period. For example, 14 days, 1 month.
     CalendarUnit calendarUnit;
     // It is the pay period in terms of the calendar unit for borrowers.
     // It is the duration of an epoch for lenders withdrawing.
@@ -456,7 +456,7 @@ contract PoolConfig is AccessControl, Initializable {
      */
     function setPoolDefaultGracePeriod(CalendarUnit unit, uint256 gracePeriod) external {
         _onlyOwnerOrHumaMasterAdmin();
-        if (unit != _poolSettings.calendarUnit) revert();
+        if (unit != _poolSettings.calendarUnit) revert Errors.invalidCalendarUnit();
         _poolSettings.defaultGracePeriodInCalendarUnit = uint16(gracePeriod);
         emit PoolDefaultGracePeriodChanged(unit, gracePeriod, msg.sender);
     }
@@ -517,7 +517,7 @@ contract PoolConfig is AccessControl, Initializable {
 
     function setTranches(address _seniorTranche, address _juniorTranche) external {
         _onlyOwnerOrHumaMasterAdmin();
-        if (seniorTranche == address(0) || juniorTranche == address(0))
+        if (_seniorTranche == address(0) || _juniorTranche == address(0))
             revert Errors.zeroAddressProvided();
         seniorTranche = _seniorTranche;
         juniorTranche = _juniorTranche;
@@ -592,12 +592,63 @@ contract PoolConfig is AccessControl, Initializable {
      */
     function setWithdrawalLockoutPeriod(CalendarUnit unit, uint256 lockoutPeriod) external {
         _onlyOwnerOrHumaMasterAdmin();
-        if (unit != _poolSettings.calendarUnit) revert();
+        if (unit != _poolSettings.calendarUnit) revert Errors.invalidCalendarUnit();
         _lpConfig.withdrawalLockoutInCalendarUnit = uint8(lockoutPeriod);
         emit WithdrawalLockoutPeriodChanged(unit, lockoutPeriod, msg.sender);
     }
 
-    /// Checks to make sure both EA and pool owner treasury meet the pool's first loss cover requirements
+    function setLPConfig(LPConfig calldata lpConfig) external {
+        _onlyOwnerOrHumaMasterAdmin();
+        _lpConfig = lpConfig;
+        emit LPConfigChanged(
+            lpConfig.permissioned,
+            lpConfig.liquidityCap,
+            lpConfig.withdrawalLockoutInCalendarUnit,
+            lpConfig.maxSeniorJuniorRatio,
+            lpConfig.fixedSeniorYieldInBps,
+            lpConfig.tranchesRiskAdjustmentInBps,
+            msg.sender
+        );
+    }
+
+    function setFirstLossCoverConfig(FirstLossCoverConfig calldata firstLossCoverConfig) external {
+        _onlyOwnerOrHumaMasterAdmin();
+        _firstLossCoverConfig = firstLossCoverConfig;
+        emit FirstLossCoverConfigChanged(
+            firstLossCoverConfig.poolCapCoverageInBps,
+            firstLossCoverConfig.poolValueCoverageInBps,
+            firstLossCoverConfig.coverRateInBps,
+            firstLossCoverConfig.coverCap,
+            msg.sender
+        );
+    }
+
+    function setFrontLoadingFees(FrontLoadingFeesStructure calldata frontFees) external {
+        _onlyOwnerOrHumaMasterAdmin();
+        _frontFees = frontFees;
+        emit FrontLoadingFeesChanged(
+            frontFees.frontLoadingFeeFlat,
+            frontFees.frontLoadingFeeBps,
+            msg.sender
+        );
+    }
+
+    function setFeeStructure(FeeStructure calldata feeStructure) external {
+        _onlyOwnerOrHumaMasterAdmin();
+        _feeStructure = feeStructure;
+        emit FeeStructureChanged(
+            feeStructure.yieldInBps,
+            feeStructure.minPrincipalRateInBps,
+            feeStructure.lateFeeFlat,
+            feeStructure.lateFeeBps,
+            feeStructure.membershipFee,
+            msg.sender
+        );
+    }
+
+    /**
+     * @notice Checks to make sure both EA and pool owner treasury meet the pool's first loss cover requirements
+     */
     function checkFirstLossCoverRequirement() public view {
         if (!IFirstLossCover(poolOwnerOrEAFirstLossCover).isSufficient(poolOwnerTreasury))
             revert Errors.lessThanRequiredCover();
@@ -652,7 +703,7 @@ contract PoolConfig is AccessControl, Initializable {
         return _adminRnR;
     }
 
-    function getFirstLossCover() external view returns (FirstLossCoverConfig memory) {
+    function getFirstLossCoverConfig() external view returns (FirstLossCoverConfig memory) {
         return _firstLossCoverConfig;
     }
 
@@ -668,6 +719,26 @@ contract PoolConfig is AccessControl, Initializable {
         return (account == poolOwnerTreasury || account == evaluationAgent);
     }
 
+    function getFrontLoadingFees() external view returns (uint256, uint256) {
+        return (_frontFees.frontLoadingFeeFlat, _frontFees.frontLoadingFeeBps);
+    }
+
+    /**
+     * @notice Gets the fee structure for the pool
+     */
+    function getFees()
+    external
+    view
+    virtual
+    returns (uint256 _lateFeeFlat, uint256 _lateFeeBps, uint256 _membershipFee)
+    {
+        return (_feeStructure.lateFeeFlat, _feeStructure.lateFeeBps, _feeStructure.membershipFee);
+    }
+
+    function getMinPrincipalRateInBps() external view virtual returns (uint256 _minPrincipalRate) {
+        return _feeStructure.minPrincipalRateInBps;
+    }
+
     function onlyPoolOwner(address account) public view {
         // Treat DEFAULT_ADMIN_ROLE role as owner role
         if (!hasRole(DEFAULT_ADMIN_ROLE, account)) revert Errors.notPoolOwner();
@@ -678,101 +749,33 @@ contract PoolConfig is AccessControl, Initializable {
         return poolOwnerTreasury;
     }
 
-    /// "Modifier" function that limits access to pool owner or EA.
+    /**
+     * @notice "Modifier" function that limits access to pool owner or EA.
+     */
     function onlyPoolOwnerOrEA(address account) public view returns (address) {
         if (
             !hasRole(DEFAULT_ADMIN_ROLE, account) &&
-            account != evaluationAgent &&
-            account != address(this)
+        account != evaluationAgent &&
+        account != address(this)
         ) revert Errors.notPoolOwnerOrEA();
         return evaluationAgent;
     }
 
-    /// "Modifier" function that limits access to pool owner treasury or EA.
+    /**
+     * @notice "Modifier" function that limits access to pool owner treasury or EA.
+     */
     function onlyPoolOwnerTreasuryOrEA(address account) public view {
         if (!isPoolOwnerTreasuryOrEA(account)) revert Errors.notPoolOwnerTreasuryOrEA();
     }
 
-    // Allow for sensitive pool functions only to be called by
-    // the pool owner and the huma master admin
+    /**
+     * @notice Allow for sensitive pool functions only to be called by
+     * the pool owner and the huma master admin
+     */
     function onlyOwnerOrHumaMasterAdmin(address account) public view {
         if (!hasRole(DEFAULT_ADMIN_ROLE, account) && account != humaConfig.owner()) {
             revert Errors.permissionDeniedNotAdmin();
         }
-    }
-
-    /// "Modifier" function that limits access to pool owner or Huma protocol owner
-    function _onlyOwnerOrHumaMasterAdmin() internal view {
-        onlyOwnerOrHumaMasterAdmin(msg.sender);
-    }
-
-    function getFrontLoadingFee() external view returns (uint256, uint256) {
-        return (_frontFees.frontLoadingFeeFlat, _frontFees.frontLoadingFeeBps);
-    }
-
-    /**
-     * @notice Gets the fee structure for the pool
-     */
-    function getFees()
-        external
-        view
-        virtual
-        returns (uint256 _lateFeeFlat, uint256 _lateFeeBps, uint256 _membershipFee)
-    {
-        return (_feeStructure.lateFeeFlat, _feeStructure.lateFeeBps, _feeStructure.membershipFee);
-    }
-
-    function getMinPrincipalRateInBps() external view virtual returns (uint256 _minPrincipalRate) {
-        return _feeStructure.minPrincipalRateInBps;
-    }
-
-    function setLPConfig(LPConfig calldata lpConfig) external {
-        _onlyOwnerOrHumaMasterAdmin();
-        _lpConfig = lpConfig;
-        emit LPConfigChanged(
-        lpConfig.permissioned,
-        lpConfig.liquidityCap,
-        lpConfig.withdrawalLockoutInCalendarUnit,
-        lpConfig.maxSeniorJuniorRatio,
-        lpConfig.fixedSeniorYieldInBps,
-        lpConfig.tranchesRiskAdjustmentInBps,
-        msg.sender
-    );
-    }
-
-    function setFirstLossCoverConfig(FirstLossCoverConfig calldata firstLossCoverConfig) external {
-        _onlyOwnerOrHumaMasterAdmin();
-        _firstLossCoverConfig = firstLossCoverConfig;
-        emit FirstLossCoverConfigChanged(
-        firstLossCoverConfig.poolCapCoverageInBps,
-        firstLossCoverConfig.poolValueCoverageInBps,
-        firstLossCoverConfig.coverRateInBps,
-        firstLossCoverConfig.coverCap,
-        msg.sender
-    );
-    }
-
-    function setFrontLoadingFees(FrontLoadingFeesStructure calldata frontFees) external {
-        _onlyOwnerOrHumaMasterAdmin();
-        _frontFees = frontFees;
-        emit FrontLoadingFeesChanged(
-        frontFees.frontLoadingFeeFlat,
-        frontFees.frontLoadingFeeBps,
-        msg.sender
-    );
-    }
-
-    function setFeeStructure(FeeStructure calldata feeStructure) external {
-        _onlyOwnerOrHumaMasterAdmin();
-        _feeStructure = feeStructure;
-        emit FeeStructureChanged(
-        feeStructure.yieldInBps,
-        feeStructure.minPrincipalRateInBps,
-        feeStructure.lateFeeFlat,
-        feeStructure.lateFeeBps,
-        feeStructure.membershipFee,
-        msg.sender
-    );
     }
 
     function onlyEpochManager(address account) external view {
@@ -810,5 +813,12 @@ contract PoolConfig is AccessControl, Initializable {
 
     function onlyPoolOperator(address account) external view {
         if (!hasRole(POOL_OPERATOR_ROLE, account)) revert Errors.poolOperatorRequired();
+    }
+
+    /**
+     * @notice "Modifier" function that limits access to pool owner or Huma protocol owner
+     */
+    function _onlyOwnerOrHumaMasterAdmin() internal view {
+        onlyOwnerOrHumaMasterAdmin(msg.sender);
     }
 }
