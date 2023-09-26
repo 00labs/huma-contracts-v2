@@ -5,12 +5,12 @@ import "./SharedDefs.sol";
 import {PoolConfig, PoolSettings, AdminRnR} from "./PoolConfig.sol";
 import {PoolConfigCache} from "./PoolConfigCache.sol";
 import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
-import {IPlatformFeeManager} from "./interfaces/IPlatformFeeManager.sol";
+import {IPoolFeeManager} from "./interfaces/IPoolFeeManager.sol";
 import {IFirstLossCover} from "./interfaces/IFirstLossCover.sol";
 import {HumaConfig} from "./HumaConfig.sol";
 import {Errors} from "./Errors.sol";
 
-contract PlatformFeeManager is PoolConfigCache, IPlatformFeeManager {
+contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
     struct AccruedIncomes {
         uint96 protocolIncome;
         uint96 poolOwnerIncome;

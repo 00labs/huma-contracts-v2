@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {IPool} from "./interfaces/IPool.sol";
-import {IPlatformFeeManager} from "./interfaces/IPlatformFeeManager.sol";
+import {IPoolFeeManager} from "./interfaces/IPoolFeeManager.sol";
 import {ITranchesPolicy} from "./interfaces/ITranchesPolicy.sol";
 import {IPoolCredit} from "./credit/interfaces/IPoolCredit.sol";
 import {IFirstLossCover} from "./interfaces/IFirstLossCover.sol";
@@ -29,7 +29,7 @@ contract Pool is PoolConfigCache, IPool {
     ITranchesPolicy public tranchesPolicy;
     IFirstLossCover[] internal _firstLossCovers;
     IPoolCredit public credit;
-    IPlatformFeeManager public feeManager;
+    IPoolFeeManager public feeManager;
     IEpochManager public epochManager;
 
     TranchesAssets public tranchesAssets;
@@ -73,9 +73,9 @@ contract Pool is PoolConfigCache, IPool {
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         credit = IPoolCredit(addr);
 
-        addr = _poolConfig.platformFeeManager();
+        addr = _poolConfig.poolFeeManager();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
-        feeManager = IPlatformFeeManager(addr);
+        feeManager = IPoolFeeManager(addr);
 
         addr = _poolConfig.epochManager();
         if (addr == address(0)) revert Errors.zeroAddressProvided();

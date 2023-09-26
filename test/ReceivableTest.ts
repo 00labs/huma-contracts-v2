@@ -18,7 +18,7 @@ import {
     FirstLossCover,
     MockPoolCredit,
     MockToken,
-    PlatformFeeManager,
+    PoolFeeManager,
     Pool,
     PoolConfig,
     PoolSafe,
@@ -42,7 +42,7 @@ let eaNFTContract: EvaluationAgentNFT,
     humaConfigContract: HumaConfig,
     mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
-    platformFeeManagerContract: PlatformFeeManager,
+    poolFeeManagerContract: PoolFeeManager,
     poolSafeContract: PoolSafe,
     calendarContract: Calendar,
     borrowerFirstLossCoverContract: FirstLossCover,
@@ -85,7 +85,7 @@ describe("Receivable Test", function () {
 
             [
                 poolConfigContract,
-                platformFeeManagerContract,
+                poolFeeManagerContract,
                 poolSafeContract,
                 calendarContract,
                 borrowerFirstLossCoverContract,
@@ -252,7 +252,7 @@ describe("Receivable Test", function () {
 
             [
                 poolConfigContract,
-                platformFeeManagerContract,
+                poolFeeManagerContract,
                 poolSafeContract,
                 calendarContract,
                 borrowerFirstLossCoverContract,

@@ -35,7 +35,7 @@ import {
     FirstLossCover,
     HumaConfig,
     MockToken,
-    PlatformFeeManager,
+    PoolFeeManager,
     Pool,
     PoolConfig,
     PoolSafe,
@@ -62,7 +62,7 @@ let eaNFTContract: EvaluationAgentNFT,
     humaConfigContract: HumaConfig,
     mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
-    platformFeeManagerContract: PlatformFeeManager,
+    poolFeeManagerContract: PoolFeeManager,
     poolSafeContract: PoolSafe,
     calendarContract: Calendar,
     borrowerFirstLossCover: FirstLossCover,
@@ -245,7 +245,7 @@ describe("CreditLine Test", function () {
 
         [
             poolConfigContract,
-            platformFeeManagerContract,
+            poolFeeManagerContract,
             poolSafeContract,
             calendarContract,
             borrowerFirstLossCover,

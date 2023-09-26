@@ -141,7 +141,7 @@ contract FirstLossCover is
     ) external returns (uint256 shares) {
         if (assets == 0) revert Errors.zeroAmountProvided();
         if (receiver == address(0)) revert Errors.zeroAddressProvided();
-        poolConfig.onlyPlatformFeeManager(msg.sender);
+        poolConfig.onlyPoolFeeManager(msg.sender);
 
         return _deposit(assets, receiver);
     }
