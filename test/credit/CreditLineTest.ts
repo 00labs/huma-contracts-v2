@@ -17,12 +17,12 @@ import {
 import {
     getNextTime,
     getNextMonth,
-    getNextDate,
     getStartDateOfPeriod,
     mineNextBlockWithTimestamp,
     toToken,
     getLatestBlock,
     timestampToMoment,
+    getMinFirstLossCoverRequirement,
 } from "../TestUtils";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import {
@@ -65,7 +65,7 @@ let poolConfigContract: PoolConfig,
     poolFeeManagerContract: PoolFeeManager,
     poolSafeContract: PoolSafe,
     calendarContract: Calendar,
-    borrowerFirstLossCover: FirstLossCover,
+    borrowerFirstLossCoverContract: FirstLossCover,
     affiliateFeeManagerContract: FirstLossCover,
     affiliateFirstLossCoverProfitEscrowContract: ProfitEscrow,
     tranchesPolicyContract: RiskAdjustedTranchesPolicy,
@@ -96,12 +96,10 @@ function calcProfitRateWithCR(cr: CreditRecordStructOutput, yieldInBps: number):
 }
 
 function calcProfitRateWithPrincipal(principal: BN, yieldInBps: number): BN {
-    let profitRate = principal
+    return principal
         .mul(BN.from(yieldInBps))
         .mul(CONSTANTS.DEFAULT_DECIMALS_FACTOR)
         .div(CONSTANTS.BP_FACTOR.mul(CONSTANTS.SECONDS_IN_YEAR));
-
-    return profitRate;
 }
 
 function calcYield(principal: BN, yieldInBps: number, seconds: number): BN {
@@ -248,7 +246,7 @@ describe("CreditLine Test", function () {
             poolFeeManagerContract,
             poolSafeContract,
             calendarContract,
-            borrowerFirstLossCover,
+            borrowerFirstLossCoverContract,
             affiliateFeeManagerContract,
             affiliateFirstLossCoverProfitEscrowContract,
             tranchesPolicyContract,
@@ -273,19 +271,35 @@ describe("CreditLine Test", function () {
             [lender, borrower, borrower2],
         );
 
-        await borrowerFirstLossCover.connect(poolOwner).setOperator(borrower.address, {
+        await borrowerFirstLossCoverContract.connect(poolOwner).setOperator(borrower.address, {
             poolCapCoverageInBps: 1,
             poolValueCoverageInBps: 100,
         });
+        await borrowerFirstLossCoverContract
+            .connect(borrower)
+            .depositCover(
+                await getMinFirstLossCoverRequirement(
+                    borrowerFirstLossCoverContract,
+                    poolConfigContract,
+                    poolContract,
+                    borrower.address,
+                ),
+            );
 
-        await borrowerFirstLossCover.connect(borrower).depositCover(toToken(200_000));
-
-        await borrowerFirstLossCover.connect(poolOwner).setOperator(borrower2.address, {
+        await borrowerFirstLossCoverContract.connect(poolOwner).setOperator(borrower2.address, {
             poolCapCoverageInBps: 1,
             poolValueCoverageInBps: 100,
         });
-
-        await borrowerFirstLossCover.connect(borrower2).depositCover(toToken(200_000));
+        await borrowerFirstLossCoverContract
+            .connect(borrower2)
+            .depositCover(
+                await getMinFirstLossCoverRequirement(
+                    borrowerFirstLossCoverContract,
+                    poolConfigContract,
+                    poolContract,
+                    borrower2.address,
+                ),
+            );
     }
 
     beforeEach(async function () {
@@ -532,8 +546,8 @@ describe("CreditLine Test", function () {
 
         it("Should not borrow while borrow amount exceeds front loading fees after updateDueInfo", async function () {});
 
-        it("Should borrow first time successfully", async function () {
-            let frontLoadingFeeBps = BN.from(100);
+        it("Should allow the borrower to borrow for the first time successfully", async function () {
+            const frontLoadingFeeBps = BN.from(100);
             await poolConfigContract.connect(poolOwner).setFrontLoadingFees({
                 frontLoadingFeeFlat: 0,
                 frontLoadingFeeBps: frontLoadingFeeBps,
@@ -543,14 +557,27 @@ describe("CreditLine Test", function () {
                 .connect(poolOwner)
                 .setPoolPayPeriod(CONSTANTS.CALENDAR_UNIT_MONTH, 1);
 
-            let juniorDepositAmount = toToken(300_000);
+            const juniorDepositAmount = toToken(300_000);
             await juniorTrancheVaultContract
                 .connect(lender)
                 .deposit(juniorDepositAmount, lender.address);
-            let seniorDepositAmount = toToken(100_000);
+            const seniorDepositAmount = toToken(100_000);
             await seniorTrancheVaultContract
                 .connect(lender)
                 .deposit(seniorDepositAmount, lender.address);
+
+            // The borrower needs to make additional first loss cover deposits in order to
+            // cover for the new funds made by the lenders.
+            await borrowerFirstLossCoverContract
+                .connect(borrower)
+                .depositCover(
+                    await getMinFirstLossCoverRequirement(
+                        borrowerFirstLossCoverContract,
+                        poolConfigContract,
+                        poolContract,
+                        borrower.address,
+                    ),
+                );
 
             const yieldInBps = 1217;
             await creditContract
@@ -571,26 +598,26 @@ describe("CreditLine Test", function () {
                 ),
             );
 
-            let borrowAmount = toToken(50_000);
-            let netBorrowAmount = borrowAmount
+            const borrowAmount = toToken(50_000);
+            const netBorrowAmount = borrowAmount
                 .mul(CONSTANTS.BP_FACTOR.sub(frontLoadingFeeBps))
                 .div(CONSTANTS.BP_FACTOR);
-            let nextTime = await getNextTime(3);
+            const nextTime = await getNextTime(3);
             await mineNextBlockWithTimestamp(nextTime);
 
-            let [nextDueDate] = getNextMonth(0, nextTime, 1);
-            let yieldDue = calcYield(borrowAmount, yieldInBps, nextDueDate - nextTime);
+            const [nextDueDate] = getNextMonth(0, nextTime, 1);
+            const yieldDue = calcYield(borrowAmount, yieldInBps, nextDueDate - nextTime);
 
-            let beforeBalance = await mockTokenContract.balanceOf(borrower.address);
+            const beforeBalance = await mockTokenContract.balanceOf(borrower.address);
             await expect(creditContract.connect(borrower).drawdown(borrower.address, borrowAmount))
                 .to.emit(creditContract, "DrawdownMade")
                 .withArgs(borrower.address, borrowAmount, netBorrowAmount)
                 .to.emit(creditContract, "BillRefreshed")
                 .withArgs(creditHash, nextDueDate, yieldDue);
-            let afterBalance = await mockTokenContract.balanceOf(borrower.address);
+            const afterBalance = await mockTokenContract.balanceOf(borrower.address);
             expect(afterBalance.sub(beforeBalance)).to.equal(netBorrowAmount);
 
-            let creditRecord = await creditContract.creditRecordMap(creditHash);
+            const creditRecord = await creditContract.creditRecordMap(creditHash);
             checkCreditRecord(
                 creditRecord,
                 borrowAmount,
@@ -603,7 +630,7 @@ describe("CreditLine Test", function () {
                 4,
             );
 
-            let pnlTracker = await creditPnlManagerContract.getPnL();
+            const pnlTracker = await creditPnlManagerContract.getPnL();
             checkPnLTracker(
                 pnlTracker,
                 borrowAmount
@@ -619,7 +646,7 @@ describe("CreditLine Test", function () {
             );
         });
 
-        it("Should borrow second time in the same period successfully", async function () {
+        it("Should allow the borrower to borrow for the second time in the same period successfully", async function () {
             let frontLoadingFeeBps = BN.from(100);
             await poolConfigContract.connect(poolOwner).setFrontLoadingFees({
                 frontLoadingFeeFlat: 0,
@@ -638,6 +665,19 @@ describe("CreditLine Test", function () {
             await seniorTrancheVaultContract
                 .connect(lender)
                 .deposit(seniorDepositAmount, lender.address);
+
+            // The borrower needs to make additional first loss cover deposits in order to
+            // cover for the new funds made by the lenders.
+            await borrowerFirstLossCoverContract
+                .connect(borrower)
+                .depositCover(
+                    await getMinFirstLossCoverRequirement(
+                        borrowerFirstLossCoverContract,
+                        poolConfigContract,
+                        poolContract,
+                        borrower.address,
+                    ),
+                );
 
             const yieldInBps = 1217;
             await creditContract
@@ -865,6 +905,19 @@ describe("CreditLine Test", function () {
             await seniorTrancheVaultContract
                 .connect(lender)
                 .deposit(seniorDepositAmount, lender.address);
+
+            // The borrower needs to make additional first loss cover deposits in order to
+            // cover for the new funds made by the lenders.
+            await borrowerFirstLossCoverContract
+                .connect(borrower)
+                .depositCover(
+                    await getMinFirstLossCoverRequirement(
+                        borrowerFirstLossCoverContract,
+                        poolConfigContract,
+                        poolContract,
+                        borrower.address,
+                    ),
+                );
 
             await creditContract
                 .connect(eaServiceAccount)
@@ -1469,8 +1522,19 @@ describe("CreditLine Test", function () {
                     true,
                 );
 
-            // move forward 30 days for borrower2 drawdown
+            // Make sure borrower2 has enough first loss cover.
+            await borrowerFirstLossCoverContract
+                .connect(borrower2)
+                .depositCover(
+                    await getMinFirstLossCoverRequirement(
+                        borrowerFirstLossCoverContract,
+                        poolConfigContract,
+                        poolContract,
+                        borrower2.address,
+                    ),
+                );
 
+            // move forward 30 days for borrower2 drawdown
             block = await getLatestBlock();
             let nextTime = timestampToMoment(block.timestamp).add(1, "months").unix();
             console.log(`nextTime: ${nextTime}`);

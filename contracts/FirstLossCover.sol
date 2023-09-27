@@ -165,7 +165,7 @@ contract FirstLossCover is
     }
 
     function redeemCover(uint256 shares, address receiver) external returns (uint256 assets) {
-        if (assets == 0) revert Errors.zeroAmountProvided();
+        if (shares == 0) revert Errors.zeroAmountProvided();
         if (receiver == address(0)) revert Errors.zeroAddressProvided();
         if (!pool.readyForFirstLossCoverWithdrawal())
             revert Errors.poolIsNotReadyForFirstLossCoverWithdrawal();
@@ -321,6 +321,7 @@ contract FirstLossCover is
         uint256 poolCap = lpConfig.liquidityCap;
         uint256 minFromPoolCap = (poolCap * config.poolCapCoverageInBps) / HUNDRED_PERCENT_IN_BPS;
         uint256 poolValue = pool.totalAssets();
+        console.log("Pool value %d", poolValue);
         uint256 minFromPoolValue = (poolValue * config.poolValueCoverageInBps) /
             HUNDRED_PERCENT_IN_BPS;
         return minFromPoolCap > minFromPoolValue ? minFromPoolCap : minFromPoolValue;

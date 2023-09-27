@@ -1,5 +1,5 @@
 import { expect } from "chai";
-import { BigNumber as BN } from "ethers";
+import { BigNumber as BN, Contract } from "ethers";
 import { getNextDate, getNextMonth, toToken } from "./TestUtils";
 import { EpochInfoStruct } from "../typechain-types/contracts/interfaces/IEpoch";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
@@ -294,13 +294,13 @@ export async function setupPoolContracts(
     poolOperator: SignerWithAddress,
     accounts: SignerWithAddress[],
 ): Promise<void> {
-    await poolConfigContract.connect(poolOwner).setPoolLiquidityCap(toToken(1_000_000_000));
+    const poolLiquidityCap = toToken(1_000_000_000);
+    await poolConfigContract.connect(poolOwner).setPoolLiquidityCap(poolLiquidityCap);
     await poolConfigContract.connect(poolOwner).setMaxCreditLine(toToken(10_000_000));
 
     await poolConfigContract
         .connect(poolOwner)
         .setPoolOwnerTreasury(poolOwnerTreasury.getAddress());
-    await poolConfigContract.connect(poolOwner).setPoolOwnerRewardsAndLiquidity(625, 10);
 
     let eaNFTTokenId;
     const tx = await eaNFTContract.mintNFT(evaluationAgent.address);
@@ -313,48 +313,65 @@ export async function setupPoolContracts(
     await poolConfigContract
         .connect(poolOwner)
         .setEvaluationAgent(eaNFTTokenId, evaluationAgent.getAddress());
-    await poolConfigContract.connect(poolOwner).setEARewardsAndLiquidity(1875, 10);
 
+    // Deposit enough liquidity for the pool owner and EA in the junior tranche.
+    const adminRnR = await poolConfigContract.getAdminRnR();
+    await mockTokenContract
+        .connect(poolOwnerTreasury)
+        .approve(poolSafeContract.address, ethers.constants.MaxUint256);
+    await mockTokenContract.mint(poolOwnerTreasury.getAddress(), toToken(1_000_000_000));
+    const poolOwnerLiquidity = BN.from(adminRnR.liquidityRateInBpsByPoolOwner)
+        .mul(poolLiquidityCap)
+        .div(CONSTANTS.BP_FACTOR);
+    await juniorTrancheVaultContract
+        .connect(poolOwnerTreasury)
+        .makeInitialDeposit(poolOwnerLiquidity);
+
+    await mockTokenContract
+        .connect(evaluationAgent)
+        .approve(poolSafeContract.address, ethers.constants.MaxUint256);
+    await mockTokenContract.mint(evaluationAgent.getAddress(), toToken(1_000_000_000));
+    const evaluationAgentLiquidity = BN.from(adminRnR.liquidityRateInBpsByPoolOwner)
+        .mul(poolLiquidityCap)
+        .div(CONSTANTS.BP_FACTOR);
+    await juniorTrancheVaultContract
+        .connect(evaluationAgent)
+        .makeInitialDeposit(evaluationAgentLiquidity);
+
+    const firstLossCoverageInBps = 100;
     await affiliateFirstLossCoverContract
         .connect(poolOwner)
         .setOperator(poolOwnerTreasury.getAddress(), {
-            poolCapCoverageInBps: 100,
-            poolValueCoverageInBps: 100,
+            poolCapCoverageInBps: firstLossCoverageInBps,
+            poolValueCoverageInBps: firstLossCoverageInBps,
         });
     await affiliateFirstLossCoverContract
         .connect(poolOwner)
         .setOperator(evaluationAgent.getAddress(), {
-            poolCapCoverageInBps: 100,
-            poolValueCoverageInBps: 100,
+            poolCapCoverageInBps: firstLossCoverageInBps,
+            poolValueCoverageInBps: firstLossCoverageInBps,
         });
 
-    let role = await poolConfigContract.POOL_OPERATOR_ROLE();
+    const role = await poolConfigContract.POOL_OPERATOR_ROLE();
     await poolConfigContract.connect(poolOwner).grantRole(role, poolOwner.getAddress());
     await poolConfigContract.connect(poolOwner).grantRole(role, poolOperator.getAddress());
 
-    await mockTokenContract
-        .connect(poolOwnerTreasury)
-        .approve(poolSafeContract.address, ethers.constants.MaxUint256);
-    await mockTokenContract.mint(poolOwnerTreasury.getAddress(), toToken(100_000_000));
     await affiliateFirstLossCoverContract
         .connect(poolOwnerTreasury)
-        .depositCover(toToken(10_000_000));
-
-    await mockTokenContract
-        .connect(evaluationAgent)
-        .approve(poolSafeContract.address, ethers.constants.MaxUint256);
-    await mockTokenContract.mint(evaluationAgent.getAddress(), toToken(100_000_000));
+        .depositCover(poolLiquidityCap.mul(firstLossCoverageInBps).div(CONSTANTS.BP_FACTOR));
     await affiliateFirstLossCoverContract
         .connect(evaluationAgent)
-        .depositCover(toToken(10_000_000));
+        .depositCover(poolLiquidityCap.mul(firstLossCoverageInBps).div(CONSTANTS.BP_FACTOR));
+    await poolContract.connect(poolOwner).setReadyForFirstLossCoverWithdrawal(true);
 
     // Set pool epoch window to 3 days for testing purposes
     await poolConfigContract.connect(poolOwner).setPoolPayPeriod(CONSTANTS.CALENDAR_UNIT_DAY, 3);
 
     await poolContract.connect(poolOwner).enablePool();
-    expect(await poolContract.totalAssets()).to.equal(0);
-    expect(await juniorTrancheVaultContract.totalAssets()).to.equal(0);
-    expect(await juniorTrancheVaultContract.totalSupply()).to.equal(0);
+    const expectedInitialLiquidity = poolOwnerLiquidity.add(evaluationAgentLiquidity);
+    expect(await poolContract.totalAssets()).to.equal(expectedInitialLiquidity);
+    expect(await juniorTrancheVaultContract.totalAssets()).to.equal(expectedInitialLiquidity);
+    expect(await juniorTrancheVaultContract.totalSupply()).to.equal(expectedInitialLiquidity);
     expect(await seniorTrancheVaultContract.totalAssets()).to.equal(0);
     expect(await seniorTrancheVaultContract.totalSupply()).to.equal(0);
 
@@ -371,7 +388,7 @@ export async function setupPoolContracts(
         await mockTokenContract
             .connect(accounts[i])
             .approve(creditContract.address, ethers.constants.MaxUint256);
-        await mockTokenContract.mint(accounts[i].getAddress(), toToken(100_000_000));
+        await mockTokenContract.mint(accounts[i].getAddress(), toToken(1_000_000_000));
     }
 }
 

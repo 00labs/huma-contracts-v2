@@ -165,7 +165,7 @@ contract TrancheVault is
      * which will cause a permanent loss and we cannot help reverse transactions
      * or retrieve assets from the contracts.
      *
-     * @param assets The number of underlyingToken to be deposited
+     * @param assets The number of underlyingTokens to be deposited
      * @param receiver The address to receive the minted tranche token
      * @return shares The number of tranche token to be minted
      */
@@ -176,6 +176,15 @@ contract TrancheVault is
         _onlyLender(receiver);
         poolConfig.onlyProtocolAndPoolOn();
         return _deposit(assets, receiver);
+    }
+
+    /**
+     * @notice Allows the pool owner and EA to make initial deposit before the pool goes live
+     * @param assets The amount of underlyingTokens to be deposited
+     */
+    function makeInitialDeposit(uint256 assets) external returns (uint256 shares) {
+        poolConfig.onlyPoolOwnerTreasuryOrEA(msg.sender);
+        return _deposit(assets, msg.sender);
     }
 
     function _deposit(uint256 assets, address receiver) internal returns (uint256 shares) {
@@ -214,17 +223,16 @@ contract TrancheVault is
      * @param shares The number of shares the lender wants to redeem
      */
     function addRedemptionRequest(uint256 shares) external {
-        poolConfig.checkWithdrawLiquidityRequirementForAdmin(msg.sender);
-
         if (shares == 0) revert Errors.zeroAmountProvided();
         poolConfig.onlyProtocolAndPoolOn();
 
+        poolConfig.checkFirstLossCoverRequirementsForRedemption(msg.sender);
         uint256 sharesBalance = ERC20Upgradeable.balanceOf(msg.sender);
         if (shares > sharesBalance) {
             revert Errors.withdrawnAmountHigherThanBalance();
         }
         uint256 assetsAfterRedemption = convertToAssets(sharesBalance - shares);
-        poolConfig.checkRedemptionLiquidityRequirement(
+        poolConfig.checkLiquidityRequirementForRedemption(
             msg.sender,
             address(this),
             assetsAfterRedemption

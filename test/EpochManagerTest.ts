@@ -267,7 +267,7 @@ describe("EpochManager Test", function () {
         let allShares = shares;
         await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
 
-        // Move all assets out of pool vault
+        // Move all assets out of pool safe
 
         let availableAssets = await poolSafeContract.totalAssets();
         await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
@@ -354,7 +354,7 @@ describe("EpochManager Test", function () {
         let allShares = shares;
         await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
 
-        // Move all assets out of pool vault
+        // Move all assets out of pool safe
 
         let availableAssets = await poolSafeContract.totalAssets();
         await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
@@ -549,7 +549,7 @@ describe("EpochManager Test", function () {
         let allShares = shares;
         await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
 
-        // Move all assets out of pool vault
+        // Move all assets out of pool safe
 
         let availableAssets = await poolSafeContract.totalAssets();
         await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
@@ -672,7 +672,7 @@ describe("EpochManager Test", function () {
         let allShares = shares;
         await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
 
-        // Move all assets out of pool vault
+        // Move all assets out of pool safe
 
         let availableAssets = await poolSafeContract.totalAssets();
         await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
@@ -901,7 +901,7 @@ describe("EpochManager Test", function () {
         allShares = allShares.add(shares);
         await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
 
-        // Move all assets out of pool vault
+        // Move all assets out of pool safe
 
         let availableAssets = await poolSafeContract.totalAssets();
         await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
@@ -1072,7 +1072,7 @@ describe("EpochManager Test", function () {
         await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
         let unprocessed = unprocessedJ.add(unprocessedS);
 
-        // Move all assets out of pool vault
+        // Move all assets out of pool safe
 
         let totalAssets = await poolSafeContract.totalAssets();
         let paidS = unprocessedS;
@@ -1329,7 +1329,7 @@ describe("EpochManager Test", function () {
             let allShares = shares;
             await seniorTrancheVaultContract.connect(lender2).addRedemptionRequest(shares);
 
-            // Move all assets out of pool vault
+            // Move all assets out of pool safe
 
             let availableAssets = await poolSafeContract.totalAssets();
             await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
@@ -1418,7 +1418,7 @@ describe("EpochManager Test", function () {
             let allShares = shares;
             await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
 
-            // Move all assets out of pool vault
+            // Move all assets out of pool safe
 
             let availableAssets = await poolSafeContract.totalAssets();
             await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
@@ -1614,7 +1614,7 @@ describe("EpochManager Test", function () {
             let allShares = shares;
             await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
 
-            // Move all assets out of pool vault
+            // Move all assets out of pool safe
 
             let availableAssets = await poolSafeContract.totalAssets();
             await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
@@ -1739,7 +1739,7 @@ describe("EpochManager Test", function () {
             let allShares = shares;
             await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
 
-            // Move all assets out of pool vault
+            // Move all assets out of pool safe
 
             let availableAssets = await poolSafeContract.totalAssets();
             await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
@@ -1901,7 +1901,7 @@ describe("EpochManager Test", function () {
             await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
             let unprocessed = unprocessedJ.add(unprocessedS);
 
-            // Move all assets out of pool vault
+            // Move all assets out of pool safe
 
             let totalAssets = await poolSafeContract.totalAssets();
             await creditContract.drawdown(ethers.constants.HashZero, totalAssets);
@@ -2014,7 +2014,7 @@ describe("EpochManager Test", function () {
             let unprocessedS = shares;
             await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
 
-            // Move all assets out of pool vault
+            // Move all assets out of pool safe
 
             let paidS = toToken(242);
             let totalAssets = await poolSafeContract.totalAssets();
@@ -2209,13 +2209,13 @@ describe("EpochManager Test", function () {
         multiple immature junior epochs are unprocessed", async function () {
             await poolConfigContract.connect(poolOwner).setPoolFlexCall(true, 2);
 
-            let settings = await poolConfigContract.getPoolSettings();
-            let lpConfig = await poolConfigContract.getLPConfig();
+            const settings = await poolConfigContract.getPoolSettings();
+            const lpConfig = await poolConfigContract.getLPConfig();
 
             let seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
             let juniorTotalAssets = await juniorTrancheVaultContract.totalAssets();
 
-            let availableSeniorAmount = juniorTotalAssets
+            const availableSeniorAmount = juniorTotalAssets
                 .mul(lpConfig.maxSeniorJuniorRatio)
                 .sub(seniorTotalAssets);
             // console.log(
@@ -2234,7 +2234,7 @@ describe("EpochManager Test", function () {
             let unprocessedS = shares;
             await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
 
-            // Move all assets out of pool vault
+            // Move all assets out of pool safe
 
             let totalAssets = await poolSafeContract.totalAssets();
             await creditContract.drawdown(ethers.constants.HashZero, totalAssets);
@@ -2459,7 +2459,7 @@ describe("EpochManager Test", function () {
             let unprocessedS = shares;
             await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
 
-            // Move all assets out of pool vault
+            // Move all assets out of pool safe
 
             let totalAssets = await poolSafeContract.totalAssets();
             await creditContract.drawdown(ethers.constants.HashZero, totalAssets);
@@ -2652,7 +2652,7 @@ describe("EpochManager Test", function () {
             );
         });
 
-        it("Should reserve balance in pool vault while mature junior epochs are processed partially because of maxSeniorJuniorRatio", async function () {
+        it("Should reserve balance in pool safe while mature junior epochs are processed partially because of maxSeniorJuniorRatio", async function () {
             await poolConfigContract.connect(poolOwner).setPoolFlexCall(true, 1);
 
             let settings = await poolConfigContract.getPoolSettings();
@@ -2677,7 +2677,7 @@ describe("EpochManager Test", function () {
             let unprocessedS = shares;
             await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
 
-            // Move all assets out of pool vault
+            // Move all assets out of pool safe
 
             let totalAssets = await poolSafeContract.totalAssets();
             await creditContract.drawdown(ethers.constants.HashZero, totalAssets);

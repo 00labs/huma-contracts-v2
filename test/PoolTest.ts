@@ -12,6 +12,9 @@ import {
 import {
     copyLPConfigWithOverrides,
     getLatestBlock,
+    getMinFirstLossCoverRequirement,
+    getMinLiquidityRequirementForEA,
+    getMinLiquidityRequirementForPoolOwner,
     setNextBlockTimestamp,
     toToken,
 } from "./TestUtils";
@@ -82,6 +85,9 @@ describe("Pool Test", function () {
     });
 
     describe("Before the pool is enabled", function () {
+        let minPoolOwnerFirstLossCover: BN, minEAFirstLossCover: BN;
+        let minPoolOwnerLiquidity: BN, minEALiquidity: BN;
+
         async function prepare() {
             [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
                 protocolOwner,
@@ -115,11 +121,89 @@ describe("Pool Test", function () {
                 poolOwner,
                 "MockPoolCredit",
             );
+
+            // Set up first loss cover requirements.
+            await poolConfigContract.connect(poolOwner).setPoolLiquidityCap(toToken(1_000_000));
+            await poolConfigContract
+                .connect(poolOwner)
+                .setPoolOwnerTreasury(poolOwnerTreasury.address);
+            await affiliateFeeManagerContract
+                .connect(poolOwner)
+                .setOperator(poolOwnerTreasury.address, {
+                    poolCapCoverageInBps: 1000,
+                    poolValueCoverageInBps: 1000,
+                });
+
+            let eaNFTTokenId;
+            const tx = await eaNFTContract.mintNFT(evaluationAgent.address);
+            const receipt = await tx.wait();
+            for (const evt of receipt.events!) {
+                if (evt.event === "NFTGenerated") {
+                    eaNFTTokenId = evt.args!.tokenId;
+                }
+            }
+            await poolConfigContract
+                .connect(poolOwner)
+                .setEvaluationAgent(eaNFTTokenId, evaluationAgent.address);
+            await affiliateFeeManagerContract
+                .connect(poolOwner)
+                .setOperator(evaluationAgent.address, {
+                    poolCapCoverageInBps: 1000,
+                    poolValueCoverageInBps: 1000,
+                });
+
+            minPoolOwnerFirstLossCover = await getMinFirstLossCoverRequirement(
+                affiliateFeeManagerContract,
+                poolConfigContract,
+                poolContract,
+                poolOwnerTreasury.address,
+            );
+            minEAFirstLossCover = await getMinFirstLossCoverRequirement(
+                affiliateFeeManagerContract,
+                poolConfigContract,
+                poolContract,
+                evaluationAgent.address,
+            );
+            minPoolOwnerLiquidity =
+                await getMinLiquidityRequirementForPoolOwner(poolConfigContract);
+            minEALiquidity = await getMinLiquidityRequirementForEA(poolConfigContract);
         }
 
         beforeEach(async function () {
             await loadFixture(prepare);
         });
+
+        async function addFirstLossCover(poolOwnerAmount: BN, eaAmount: BN) {
+            await mockTokenContract
+                .connect(poolOwnerTreasury)
+                .approve(poolSafeContract.address, ethers.constants.MaxUint256);
+            await mockTokenContract.mint(poolOwnerTreasury.address, toToken(10_000_000));
+            await affiliateFeeManagerContract
+                .connect(poolOwnerTreasury)
+                .depositCover(poolOwnerAmount);
+
+            await mockTokenContract
+                .connect(evaluationAgent)
+                .approve(poolSafeContract.address, ethers.constants.MaxUint256);
+            await mockTokenContract.mint(evaluationAgent.address, toToken(10_000_000));
+            await affiliateFeeManagerContract.connect(evaluationAgent).depositCover(eaAmount);
+        }
+
+        async function addLiquidity(poolOwnerAmount: BN, eaAmount: BN) {
+            await mockTokenContract
+                .connect(poolOwnerTreasury)
+                .approve(poolSafeContract.address, ethers.constants.MaxUint256);
+            await mockTokenContract.mint(poolOwnerTreasury.address, toToken(10_000_000));
+            await juniorTrancheVaultContract
+                .connect(poolOwnerTreasury)
+                .makeInitialDeposit(poolOwnerAmount);
+
+            await mockTokenContract
+                .connect(evaluationAgent)
+                .approve(poolSafeContract.address, ethers.constants.MaxUint256);
+            await mockTokenContract.mint(evaluationAgent.address, toToken(10_000_000));
+            await juniorTrancheVaultContract.connect(evaluationAgent).makeInitialDeposit(eaAmount);
+        }
 
         it("Should not allow non-poolOwner and non-protocolAdmin to enable a pool", async function () {
             await expect(poolContract.enablePool()).to.be.revertedWithCustomError(
@@ -130,68 +214,8 @@ describe("Pool Test", function () {
             expect(isPoolOn).to.be.false;
         });
 
-        it("Should not enable a pool when there is not enough first loss cover", async function () {
-            await expect(
-                poolContract.connect(protocolOwner).enablePool(),
-            ).to.be.revertedWithCustomError(affiliateFeeManagerContract, "notOperator");
-
-            await poolConfigContract.connect(poolOwner).setPoolLiquidityCap(toToken(1_000_000));
-            await poolConfigContract
-                .connect(poolOwner)
-                .setPoolOwnerTreasury(poolOwnerTreasury.address);
-            await affiliateFeeManagerContract
-                .connect(poolOwner)
-                .setOperator(poolOwnerTreasury.address, {
-                    poolCapCoverageInBps: 1000,
-                    poolValueCoverageInBps: 1000,
-                });
-
-            await expect(
-                poolContract.connect(protocolOwner).enablePool(),
-            ).to.be.revertedWithCustomError(poolConfigContract, "lessThanRequiredCover");
-
-            await mockTokenContract
-                .connect(poolOwnerTreasury)
-                .approve(poolSafeContract.address, ethers.constants.MaxUint256);
-            await mockTokenContract.mint(poolOwnerTreasury.address, toToken(10_000_000));
-            await affiliateFeeManagerContract
-                .connect(poolOwnerTreasury)
-                .depositCover(toToken(200_000));
-
-            await expect(
-                poolContract.connect(protocolOwner).enablePool(),
-            ).to.be.revertedWithCustomError(affiliateFeeManagerContract, "notOperator");
-
-            let eaNFTTokenId;
-            // Mint EANFT to the ea
-            const tx = await eaNFTContract.mintNFT(evaluationAgent.address);
-            const receipt = await tx.wait();
-            for (const evt of receipt.events!) {
-                if (evt.event === "NFTGenerated") {
-                    eaNFTTokenId = evt.args!.tokenId;
-                }
-            }
-            await poolConfigContract
-                .connect(poolOwner)
-                .setEvaluationAgent(eaNFTTokenId, evaluationAgent.address);
-            await affiliateFeeManagerContract
-                .connect(poolOwner)
-                .setOperator(evaluationAgent.address, {
-                    poolCapCoverageInBps: 1000,
-                    poolValueCoverageInBps: 1000,
-                });
-
-            await expect(
-                poolContract.connect(protocolOwner).enablePool(),
-            ).to.be.revertedWithCustomError(poolConfigContract, "lessThanRequiredCover");
-
-            await mockTokenContract
-                .connect(evaluationAgent)
-                .approve(poolSafeContract.address, ethers.constants.MaxUint256);
-            await mockTokenContract.mint(evaluationAgent.address, toToken(10_000_000));
-            await affiliateFeeManagerContract
-                .connect(evaluationAgent)
-                .depositCover(toToken(50_000));
+        it("Should not enable a pool when there is not enough first loss cover for the pool owner", async function () {
+            await addFirstLossCover(minPoolOwnerFirstLossCover.sub(1), minEAFirstLossCover);
 
             await expect(
                 poolContract.connect(protocolOwner).enablePool(),
@@ -200,56 +224,48 @@ describe("Pool Test", function () {
             expect(isPoolOn).to.be.false;
         });
 
-        it("Should allow the pool owner to enable a pool then conditions are met", async function () {
-            await poolConfigContract.connect(poolOwner).setPoolLiquidityCap(toToken(1_000_000));
-            await poolConfigContract
-                .connect(poolOwner)
-                .setPoolOwnerTreasury(poolOwnerTreasury.address);
-            await affiliateFeeManagerContract
-                .connect(poolOwner)
-                .setOperator(poolOwnerTreasury.address, {
-                    poolCapCoverageInBps: 1000,
-                    poolValueCoverageInBps: 1000,
-                });
+        it("Should not enable a pool when there is not enough first loss cover for the EA", async function () {
+            await addFirstLossCover(minPoolOwnerFirstLossCover, minEAFirstLossCover.sub(1));
 
-            await mockTokenContract
-                .connect(poolOwnerTreasury)
-                .approve(poolSafeContract.address, ethers.constants.MaxUint256);
-            await mockTokenContract.mint(poolOwnerTreasury.address, toToken(10_000_000));
-            await affiliateFeeManagerContract
-                .connect(poolOwnerTreasury)
-                .depositCover(toToken(200_000));
+            await expect(
+                poolContract.connect(protocolOwner).enablePool(),
+            ).to.be.revertedWithCustomError(poolConfigContract, "lessThanRequiredCover");
+            const isPoolOn = await poolContract.isPoolOn();
+            expect(isPoolOn).to.be.false;
+        });
 
-            let eaNFTTokenId;
-            const tx = await eaNFTContract.mintNFT(evaluationAgent.address);
-            const receipt = await tx.wait();
-            for (const evt of receipt.events!) {
-                if (evt.event === "NFTGenerated") {
-                    eaNFTTokenId = evt.args!.tokenId;
-                }
-            }
-            await poolConfigContract
-                .connect(poolOwner)
-                .setEvaluationAgent(eaNFTTokenId, evaluationAgent.address);
-            await affiliateFeeManagerContract
-                .connect(poolOwner)
-                .setOperator(evaluationAgent.address, {
-                    poolCapCoverageInBps: 1000,
-                    poolValueCoverageInBps: 1000,
-                });
+        it("Should not enable a pool when there is not enough liquidity for the pool owner", async function () {
+            await addFirstLossCover(minPoolOwnerFirstLossCover, minEAFirstLossCover);
+            await addLiquidity(minPoolOwnerLiquidity.sub(1), minEALiquidity);
 
-            await mockTokenContract
-                .connect(evaluationAgent)
-                .approve(poolSafeContract.address, ethers.constants.MaxUint256);
-            await mockTokenContract.mint(evaluationAgent.address, toToken(10_000_000));
-            await affiliateFeeManagerContract
-                .connect(evaluationAgent)
-                .depositCover(toToken(200_000));
+            await expect(
+                poolContract.connect(protocolOwner).enablePool(),
+            ).to.be.revertedWithCustomError(poolConfigContract, "poolOwnerNotEnoughLiquidity");
+            const isPoolOn = await poolContract.isPoolOn();
+            expect(isPoolOn).to.be.false;
+        });
+
+        it("Should not enable a pool when there is not enough liquidity for the EA", async function () {
+            await addFirstLossCover(minPoolOwnerFirstLossCover, minEAFirstLossCover);
+            await addLiquidity(minPoolOwnerLiquidity, minEALiquidity.sub(1));
+
+            await expect(
+                poolContract.connect(protocolOwner).enablePool(),
+            ).to.be.revertedWithCustomError(
+                poolConfigContract,
+                "evaluationAgentNotEnoughLiquidity",
+            );
+            const isPoolOn = await poolContract.isPoolOn();
+            expect(isPoolOn).to.be.false;
+        });
+
+        it("Should allow the pool owner to enable a pool when conditions are met", async function () {
+            await addFirstLossCover(minPoolOwnerFirstLossCover, minEAFirstLossCover);
+            await addLiquidity(minPoolOwnerLiquidity, minEALiquidity);
 
             await expect(poolContract.connect(protocolOwner).enablePool())
                 .to.emit(poolContract, "PoolEnabled")
                 .withArgs(protocolOwner.address);
-
             const isPoolOn = await poolContract.isPoolOn();
             expect(isPoolOn).to.be.true;
         });

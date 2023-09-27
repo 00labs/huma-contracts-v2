@@ -228,7 +228,7 @@ describe("TrancheVault Test", function () {
             );
         });
 
-        it("Should not deposit while protocol is paused or pool is not on", async function () {
+        it("Should not allow deposits while protocol is paused or pool is not on", async function () {
             await humaConfigContract.connect(protocolOwner).pause();
             await expect(
                 juniorTrancheVaultContract.connect(lender).deposit(toToken(1), lender.address),
@@ -242,7 +242,7 @@ describe("TrancheVault Test", function () {
             await poolContract.connect(poolOwner).enablePool();
         });
 
-        it("Should not deposit the amount exceeding cap", async function () {
+        it("Should not allow deposits that would result in the liquidity cap being exceeded", async function () {
             let lpConfig = await poolConfigContract.getLPConfig();
             await expect(
                 juniorTrancheVaultContract
@@ -254,9 +254,14 @@ describe("TrancheVault Test", function () {
             );
         });
 
-        it("Should not deposit while new senior total assets exceeds maxSeniorJuniorRatio", async function () {
+        it("Should not allow deposits if the new senior total assets would exceed the maxSeniorJuniorRatio", async function () {
+            const lpConfig = await poolConfigContract.getLPConfig();
+            const juniorAssets = await juniorTrancheVaultContract.totalAssets();
+            const seniorDepositAmount = juniorAssets.mul(lpConfig.maxSeniorJuniorRatio).add(1);
             await expect(
-                seniorTrancheVaultContract.connect(lender).deposit(toToken(1), lender.address),
+                seniorTrancheVaultContract
+                    .connect(lender)
+                    .deposit(seniorDepositAmount, lender.address),
             ).to.be.revertedWithCustomError(
                 seniorTrancheVaultContract,
                 "maxSeniorJuniorRatioExceeded",
@@ -265,6 +270,9 @@ describe("TrancheVault Test", function () {
 
         it("Should allow lenders to deposit", async function () {
             const juniorAmount = toToken(40_000);
+            const existingJuniorAssets = await juniorTrancheVaultContract.totalAssets();
+            const existingJuniorShares = await juniorTrancheVaultContract.totalSupply();
+            const juniorShares = juniorAmount.mul(existingJuniorShares).div(existingJuniorAssets);
             const lenderBalanceBeforeJuniorDeposit = await mockTokenContract.balanceOf(
                 lender.address,
             );
@@ -272,14 +280,20 @@ describe("TrancheVault Test", function () {
                 juniorTrancheVaultContract.connect(lender).deposit(juniorAmount, lender.address),
             )
                 .to.emit(juniorTrancheVaultContract, "LiquidityDeposited")
-                .withArgs(lender.address, juniorAmount, juniorAmount);
+                .withArgs(lender.address, juniorAmount, juniorShares);
 
-            expect(await poolContract.totalAssets()).to.equal(juniorAmount);
+            expect(await poolContract.totalAssets()).to.equal(
+                existingJuniorAssets.add(juniorAmount),
+            );
             const poolAssets = await poolContract.totalAssets();
-            expect(await juniorTrancheVaultContract.totalAssets()).to.equal(juniorAmount);
-            expect(await juniorTrancheVaultContract.totalSupply()).to.equal(juniorAmount);
+            expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
+                existingJuniorAssets.add(juniorAmount),
+            );
+            expect(await juniorTrancheVaultContract.totalSupply()).to.equal(
+                existingJuniorShares.add(juniorShares),
+            );
             expect(await juniorTrancheVaultContract.balanceOf(lender.address)).to.equal(
-                juniorAmount,
+                juniorShares,
             );
             expect(await mockTokenContract.balanceOf(lender.address)).to.equal(
                 lenderBalanceBeforeJuniorDeposit.sub(juniorAmount),
@@ -315,16 +329,15 @@ describe("TrancheVault Test", function () {
             });
 
             async function testDepositWithPnL(profit: BN, loss: BN, lossRecovery: BN) {
-                // Make initial deposits into the junior and senior tranches.
-                // Initially, token price : asset is 1 : 1 w/o PnL.
-                const initialJuniorTokens = juniorAmount,
-                    initialSeniorTokens = seniorAmount;
+                // Have lenders make some initial deposits into the junior and senior tranches.
                 await juniorTrancheVaultContract
                     .connect(lender)
                     .deposit(juniorAmount, lender.address);
                 await seniorTrancheVaultContract
                     .connect(lender2)
                     .deposit(seniorAmount, lender2.address);
+                const initialJuniorShares = await juniorTrancheVaultContract.totalSupply();
+                const initialSeniorShares = await seniorTrancheVaultContract.totalSupply();
 
                 // Distribute profit in the pool so that LP tokens increase in value.
                 await creditContract.setRefreshPnLReturns(profit, loss, lossRecovery);
@@ -363,8 +376,8 @@ describe("TrancheVault Test", function () {
                 // and the correct number of tokens are minted.
                 // First check the junior tranche.
                 const expectedJuniorAssets = juniorAssets.add(juniorAmount);
-                const expectedNewJuniorTokens = juniorAmount
-                    .mul(initialJuniorTokens)
+                const expectedNewJuniorShares = juniorAmount
+                    .mul(initialJuniorShares)
                     .div(juniorAssets);
                 await expect(
                     juniorTrancheVaultContract
@@ -372,7 +385,7 @@ describe("TrancheVault Test", function () {
                         .deposit(juniorAmount, lender3.address),
                 )
                     .to.emit(juniorTrancheVaultContract, "LiquidityDeposited")
-                    .withArgs(lender3.address, juniorAmount, expectedNewJuniorTokens);
+                    .withArgs(lender3.address, juniorAmount, expectedNewJuniorShares);
                 const poolAssets = await poolContract.totalAssets();
                 expect(poolAssets).to.equal(expectedJuniorAssets.add(seniorAssets));
                 expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
@@ -380,16 +393,16 @@ describe("TrancheVault Test", function () {
                 );
                 // Check junior LP token.
                 expect(await juniorTrancheVaultContract.totalSupply()).to.equal(
-                    expectedNewJuniorTokens.add(initialJuniorTokens),
+                    expectedNewJuniorShares.add(initialJuniorShares),
                 );
                 expect(await juniorTrancheVaultContract.balanceOf(lender3.address)).to.equal(
-                    expectedNewJuniorTokens,
+                    expectedNewJuniorShares,
                 );
 
                 // Then check the senior tranche.
                 const expectedSeniorAssets = seniorAssets.add(seniorAmount);
-                const expectedNewSeniorTokens = seniorAmount
-                    .mul(initialSeniorTokens)
+                const expectedNewSeniorShares = seniorAmount
+                    .mul(initialSeniorShares)
                     .div(seniorAssets);
                 await expect(
                     seniorTrancheVaultContract
@@ -397,17 +410,17 @@ describe("TrancheVault Test", function () {
                         .deposit(seniorAmount, lender4.address),
                 )
                     .to.emit(seniorTrancheVaultContract, "LiquidityDeposited")
-                    .withArgs(lender4.address, seniorAmount, expectedNewSeniorTokens);
+                    .withArgs(lender4.address, seniorAmount, expectedNewSeniorShares);
                 expect(await poolContract.totalAssets()).to.equal(poolAssets.add(seniorAmount));
                 expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
                     expectedSeniorAssets,
                 );
                 // Check senior LP token.
                 expect(await seniorTrancheVaultContract.totalSupply()).to.equal(
-                    expectedNewSeniorTokens.add(initialSeniorTokens),
+                    expectedNewSeniorShares.add(initialSeniorShares),
                 );
                 expect(await seniorTrancheVaultContract.balanceOf(lender4.address)).to.equal(
-                    expectedNewSeniorTokens,
+                    expectedNewSeniorShares,
                 );
             }
 
@@ -947,7 +960,7 @@ describe("TrancheVault Test", function () {
                 let allShares = shares;
                 let allShares2 = shares2;
 
-                // Move all assets out of pool vault
+                // Move all assets out of pool safe
 
                 let availableAssets = await poolSafeContract.totalAssets();
                 await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
@@ -966,7 +979,7 @@ describe("TrancheVault Test", function () {
                 allShares = allShares.add(shares);
                 allShares2 = allShares2.add(shares2);
 
-                // Move assets into pool vault for full processing
+                // Move assets into pool safe for full processing
 
                 await creditContract.makePayment(
                     ethers.constants.HashZero,
@@ -1022,7 +1035,7 @@ describe("TrancheVault Test", function () {
                 await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
                 await seniorTrancheVaultContract.connect(lender2).addRedemptionRequest(shares2);
 
-                // Move assets out of pool vault for partial processing
+                // Move assets out of pool safe for partial processing
 
                 let availableAmount = toToken(1000);
                 let availableAssets = await poolSafeContract.totalAssets();
@@ -1085,7 +1098,7 @@ describe("TrancheVault Test", function () {
                 await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
                 await seniorTrancheVaultContract.connect(lender2).addRedemptionRequest(shares2);
 
-                // Move assets into pool vault for partial processing
+                // Move assets into pool safe for partial processing
 
                 await creditContract.makePayment(
                     ethers.constants.HashZero,
@@ -1147,7 +1160,7 @@ describe("TrancheVault Test", function () {
                 let availableAmountBefore = availableAmount;
                 availableAmount = toToken(3000).add(availableAmountBefore);
 
-                // Move assets into pool vault for partial processing
+                // Move assets into pool safe for partial processing
 
                 await creditContract.makePayment(
                     ethers.constants.HashZero,
@@ -1227,7 +1240,7 @@ describe("TrancheVault Test", function () {
                 await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
                 await seniorTrancheVaultContract.connect(lender2).addRedemptionRequest(shares2);
 
-                // Move assets into pool vault for full processing
+                // Move assets into pool safe for full processing
 
                 await creditContract.makePayment(
                     ethers.constants.HashZero,
@@ -1326,7 +1339,7 @@ describe("TrancheVault Test", function () {
                 let allShares = shares;
                 await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
 
-                // Move all assets out of pool vault
+                // Move all assets out of pool safe
 
                 let availableAmount = toToken(0);
                 let availableAssets = await poolSafeContract.totalAssets();
@@ -1429,7 +1442,7 @@ describe("TrancheVault Test", function () {
                 let shares = toToken(3000);
                 await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
 
-                // Move assets out of pool vault for partial processing
+                // Move assets out of pool safe for partial processing
 
                 let availableAmount = toToken(1000);
                 let availableAssets = await poolSafeContract.totalAssets();
@@ -1469,7 +1482,7 @@ describe("TrancheVault Test", function () {
                 let shares = toToken(3000);
                 await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
 
-                // Move assets out of pool vault for partial processing
+                // Move assets out of pool safe for partial processing
 
                 let availableAmount = toToken(1000);
                 let availableAssets = await poolSafeContract.totalAssets();

@@ -1,12 +1,4 @@
 import { ethers } from "hardhat";
-import { expect } from "chai";
-import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import {
-    deployAndSetupPoolContracts,
-    deployPoolContracts,
-    deployProtocolContracts,
-} from "./BaseTest";
-import { toToken } from "./TestUtils";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import {
     BaseCreditFeeManager,
@@ -14,17 +6,17 @@ import {
     Calendar,
     EpochManager,
     EvaluationAgentNFT,
-    HumaConfig,
     FirstLossCover,
+    HumaConfig,
     MockPoolCredit,
     MockToken,
-    PoolFeeManager,
     Pool,
     PoolConfig,
+    PoolFeeManager,
     PoolSafe,
+    ProfitEscrow,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
-    ProfitEscrow,
 } from "../typechain-types";
 
 let defaultDeployer: SignerWithAddress,
@@ -73,229 +65,5 @@ describe("Receivable Test", function () {
         ] = await ethers.getSigners();
     });
 
-    describe("Tests before Pool is enabled", function () {
-        async function prepare() {
-            [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
-                protocolOwner,
-                treasury,
-                eaServiceAccount,
-                pdsServiceAccount,
-                poolOwner,
-            );
-
-            [
-                poolConfigContract,
-                poolFeeManagerContract,
-                poolSafeContract,
-                calendarContract,
-                borrowerFirstLossCoverContract,
-                affiliateFeeManagerContract,
-                affiliateFirstLossCoverProfitEscrowContract,
-                tranchesPolicyContract,
-                poolContract,
-                epochManagerContract,
-                seniorTrancheVaultContract,
-                juniorTrancheVaultContract,
-                creditContract as unknown,
-                creditFeeManagerContract,
-                creditPnlManagerContract,
-            ] = await deployPoolContracts(
-                humaConfigContract,
-                mockTokenContract,
-                "RiskAdjustedTranchesPolicy",
-                defaultDeployer,
-                poolOwner,
-                "MockPoolCredit",
-            );
-        }
-
-        beforeEach(async function () {
-            await loadFixture(prepare);
-        });
-
-        it("Should not allow non-poolOwner and non-protocolAdmin to enable a pool", async function () {
-            await expect(poolContract.enablePool()).to.be.revertedWithCustomError(
-                poolConfigContract,
-                "permissionDeniedNotAdmin",
-            );
-        });
-
-        it("Should not enable a pool while no enough first loss cover", async function () {
-            await expect(
-                poolContract.connect(protocolOwner).enablePool(),
-            ).to.be.revertedWithCustomError(affiliateFeeManagerContract, "notOperator");
-
-            await poolConfigContract.connect(poolOwner).setPoolLiquidityCap(toToken(1_000_000));
-            await poolConfigContract
-                .connect(poolOwner)
-                .setPoolOwnerTreasury(poolOwnerTreasury.address);
-            await affiliateFeeManagerContract
-                .connect(poolOwner)
-                .setOperator(poolOwnerTreasury.address, {
-                    poolCapCoverageInBps: 1000,
-                    poolValueCoverageInBps: 1000,
-                });
-
-            await expect(
-                poolContract.connect(protocolOwner).enablePool(),
-            ).to.be.revertedWithCustomError(poolConfigContract, "lessThanRequiredCover");
-
-            await mockTokenContract
-                .connect(poolOwnerTreasury)
-                .approve(poolSafeContract.address, ethers.constants.MaxUint256);
-            await mockTokenContract.mint(poolOwnerTreasury.address, toToken(10_000_000));
-            await affiliateFeeManagerContract
-                .connect(poolOwnerTreasury)
-                .depositCover(toToken(200_000));
-
-            await expect(
-                poolContract.connect(protocolOwner).enablePool(),
-            ).to.be.revertedWithCustomError(affiliateFeeManagerContract, "notOperator");
-
-            let eaNFTTokenId;
-            // Mint EANFT to the ea
-            const tx = await eaNFTContract.mintNFT(evaluationAgent.address);
-            const receipt = await tx.wait();
-            for (const evt of receipt.events!) {
-                if (evt.event === "NFTGenerated") {
-                    eaNFTTokenId = evt.args!.tokenId;
-                }
-            }
-            await poolConfigContract
-                .connect(poolOwner)
-                .setEvaluationAgent(eaNFTTokenId, evaluationAgent.address);
-            await affiliateFeeManagerContract
-                .connect(poolOwner)
-                .setOperator(evaluationAgent.address, {
-                    poolCapCoverageInBps: 1000,
-                    poolValueCoverageInBps: 1000,
-                });
-
-            await expect(
-                poolContract.connect(protocolOwner).enablePool(),
-            ).to.be.revertedWithCustomError(poolConfigContract, "lessThanRequiredCover");
-
-            await mockTokenContract
-                .connect(evaluationAgent)
-                .approve(poolSafeContract.address, ethers.constants.MaxUint256);
-            await mockTokenContract.mint(evaluationAgent.address, toToken(10_000_000));
-            await affiliateFeeManagerContract
-                .connect(evaluationAgent)
-                .depositCover(toToken(50_000));
-
-            await expect(
-                poolContract.connect(protocolOwner).enablePool(),
-            ).to.be.revertedWithCustomError(poolConfigContract, "lessThanRequiredCover");
-        });
-
-        it("Should enable a pool", async function () {
-            await poolConfigContract.connect(poolOwner).setPoolLiquidityCap(toToken(1_000_000));
-            await poolConfigContract
-                .connect(poolOwner)
-                .setPoolOwnerTreasury(poolOwnerTreasury.address);
-            await affiliateFeeManagerContract
-                .connect(poolOwner)
-                .setOperator(poolOwnerTreasury.address, {
-                    poolCapCoverageInBps: 1000,
-                    poolValueCoverageInBps: 1000,
-                });
-
-            await mockTokenContract
-                .connect(poolOwnerTreasury)
-                .approve(poolSafeContract.address, ethers.constants.MaxUint256);
-            await mockTokenContract.mint(poolOwnerTreasury.address, toToken(10_000_000));
-            await affiliateFeeManagerContract
-                .connect(poolOwnerTreasury)
-                .depositCover(toToken(200_000));
-
-            let eaNFTTokenId;
-            const tx = await eaNFTContract.mintNFT(evaluationAgent.address);
-            const receipt = await tx.wait();
-            for (const evt of receipt.events!) {
-                if (evt.event === "NFTGenerated") {
-                    eaNFTTokenId = evt.args!.tokenId;
-                }
-            }
-            await poolConfigContract
-                .connect(poolOwner)
-                .setEvaluationAgent(eaNFTTokenId, evaluationAgent.address);
-            await affiliateFeeManagerContract
-                .connect(poolOwner)
-                .setOperator(evaluationAgent.address, {
-                    poolCapCoverageInBps: 1000,
-                    poolValueCoverageInBps: 1000,
-                });
-
-            await mockTokenContract
-                .connect(evaluationAgent)
-                .approve(poolSafeContract.address, ethers.constants.MaxUint256);
-            await mockTokenContract.mint(evaluationAgent.address, toToken(10_000_000));
-            await affiliateFeeManagerContract
-                .connect(evaluationAgent)
-                .depositCover(toToken(200_000));
-
-            await expect(poolContract.connect(protocolOwner).enablePool())
-                .to.emit(poolContract, "PoolEnabled")
-                .withArgs(protocolOwner.address);
-        });
-    });
-
-    describe("Tests after Pool is enabled", function () {
-        async function prepare() {
-            [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
-                protocolOwner,
-                treasury,
-                eaServiceAccount,
-                pdsServiceAccount,
-                poolOwner,
-            );
-
-            [
-                poolConfigContract,
-                poolFeeManagerContract,
-                poolSafeContract,
-                calendarContract,
-                borrowerFirstLossCoverContract,
-                affiliateFeeManagerContract,
-                affiliateFirstLossCoverProfitEscrowContract,
-                tranchesPolicyContract,
-                poolContract,
-                epochManagerContract,
-                seniorTrancheVaultContract,
-                juniorTrancheVaultContract,
-                creditContract as unknown,
-                creditFeeManagerContract,
-                creditPnlManagerContract,
-            ] = await deployAndSetupPoolContracts(
-                humaConfigContract,
-                mockTokenContract,
-                eaNFTContract,
-                "RiskAdjustedTranchesPolicy",
-                defaultDeployer,
-                poolOwner,
-                "MockPoolCredit",
-                evaluationAgent,
-                poolOwnerTreasury,
-                poolOperator,
-                [lender],
-            );
-        }
-
-        beforeEach(async function () {
-            await loadFixture(prepare);
-        });
-
-        it("Should not allow non-Operator to disable a pool", async function () {
-            await expect(poolContract.disablePool()).to.be.revertedWithCustomError(
-                poolConfigContract,
-                "poolOperatorRequired",
-            );
-        });
-
-        it("Should disable a pool", async function () {
-            await expect(poolContract.connect(poolOperator).disablePool())
-                .to.emit(poolContract, "PoolDisabled")
-                .withArgs(poolOperator.address);
-        });
-    });
+    // TODO(jiatu): add receivable tests.
 });
