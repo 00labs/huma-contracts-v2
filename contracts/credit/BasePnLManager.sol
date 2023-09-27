@@ -50,6 +50,8 @@ abstract contract BasePnLManager is PoolConfigCache, IPnLManager {
         );
     }
 
+    //* Reserved for Richard review, to be deleted
+    // Update profitDiff and lossDiff from uint96 to int96 because they are possible to be negative
     function _updateTracker(
         int96 profitRateDiff,
         int96 lossRateDiff,
@@ -66,6 +68,8 @@ abstract contract BasePnLManager is PoolConfigCache, IPnLManager {
         );
     }
 
+    //* Reserved for Richard review, to be deleted
+    // Provide this function to get the latest tracker without updating the tracker
     function _getLatestTracker(
         int96 profitRateDiff,
         int96 lossRateDiff,
@@ -130,6 +134,8 @@ abstract contract BasePnLManager is PoolConfigCache, IPnLManager {
         accruedLoss = t.accruedLoss;
         accruedLossRecovery = t.accruedLossRecovery;
 
+        //* Reserved for Richard review, to be deleted
+        // Set them to 0 because pool needs incremental values rather than cumulative values
         t.accruedProfit = 0;
         t.accruedLoss = 0;
         t.accruedLossRecovery = 0;

@@ -26,7 +26,9 @@ contract LinearMarkdownPnLManager is BasePnLManager {
         bool oldGoodStanding,
         bool isFullyRecovered
     ) external {
-        // todo access control
+        //* Reserved for Richard review, to be deleted, please review this function
+
+        onlyCreditContract();
         int96 profitRateDiff = -int96(
             uint96(
                 (principalPaid * yield * DEFAULT_DECIMALS_FACTOR) /
@@ -45,6 +47,9 @@ contract LinearMarkdownPnLManager is BasePnLManager {
             creditLoss.totalAccruedLoss = uint96(int96(creditLoss.totalAccruedLoss) + profitDiff);
             creditLoss.lossRate = uint96(int96(creditLoss.lossRate) + profitRateDiff);
             creditLoss.lastLossUpdateDate = uint64(block.timestamp);
+
+            //* Reserved for Richard review, to be deleted
+            // It is more clear to update pnl tracker to the lastest value first, then handle recovery.
 
             // Update tracker till  now
             PnLTracker memory tracker = _getLatestTracker(
@@ -73,6 +78,7 @@ contract LinearMarkdownPnLManager is BasePnLManager {
 
             pnlTracker = tracker;
 
+            //* Reserved for Richard review, to be deleted, the following is the old code for reference
             // note todo need to think if the lossRate for both global and this individual creditRecord
             // be updated due to principalPaid.
 
@@ -85,6 +91,8 @@ contract LinearMarkdownPnLManager is BasePnLManager {
         CreditConfig memory cc,
         CreditRecord memory cr
     ) external {
+        //* Reserved for Richard review, to be deleted, please review this function
+
         onlyCreditContract();
         CreditLoss memory creditLoss = _creditLossMap[creditHash];
 
@@ -95,6 +103,10 @@ contract LinearMarkdownPnLManager is BasePnLManager {
         //     tracker.lossRate,
         //     creditLoss.lossRate
         // );
+
+        //* Reserved for Richard review, to be deleted
+        // Here may have accurancy issue, so need this check tracker.lossRate > creditLoss.lossRate
+
         // deduct loss rate
         tracker.lossRate = tracker.lossRate > creditLoss.lossRate
             ? tracker.lossRate - creditLoss.lossRate
@@ -110,6 +122,9 @@ contract LinearMarkdownPnLManager is BasePnLManager {
         //     deductedProfitRate,
         //     tracker.profitRate
         // );
+
+        //* Reserved for Richard review, to be deleted
+        // Here may have accurancy issue, so need this check
         tracker.profitRate = tracker.profitRate > deductedProfitRate
             ? tracker.profitRate - deductedProfitRate
             : 0;
@@ -124,6 +139,9 @@ contract LinearMarkdownPnLManager is BasePnLManager {
         //     deductedProfit,
         //     tracker.accruedProfit
         // );
+
+        //* Reserved for Richard review, to be deleted
+        // Here may have accurancy issue, so need this check
         tracker.accruedProfit = tracker.accruedProfit > deductedProfit
             ? tracker.accruedProfit - deductedProfit
             : 0;
@@ -133,17 +151,23 @@ contract LinearMarkdownPnLManager is BasePnLManager {
             (creditLoss.lossRate * (block.timestamp - creditLoss.lossExpiringDate)) /
                 DEFAULT_DECIMALS_FACTOR
         );
+
         // console.log(
         //     "deductedLoss: %s, tracker.accruedLoss: %s",
         //     deductedLoss,
         //     tracker.accruedLoss
         // );
+
+        //* Reserved for Richard review, to be deleted
+        // Here may have accurancy issue, so need this check
         tracker.accruedLoss = tracker.accruedLoss > deductedLoss
             ? tracker.accruedLoss - deductedLoss
             : 0;
 
         pnlTracker = tracker;
 
+        //* Reserved for Richard review, to be deleted
+        // Here may have accurancy issue, so need this check
         creditLoss.totalAccruedLoss = creditLoss.totalAccruedLoss > deductedLoss
             ? creditLoss.totalAccruedLoss - deductedLoss
             : 0;
@@ -160,6 +184,9 @@ contract LinearMarkdownPnLManager is BasePnLManager {
         CreditConfig memory cc,
         CreditRecord memory cr
     ) external {
+        //* Reserved for Richard review, to be deleted, please review this function
+        // cr is the old due info when credit becomes late
+
         onlyCreditContract();
         int96 markdownRateDiff = 0;
         uint96 markdown = 0;
@@ -170,12 +197,20 @@ contract LinearMarkdownPnLManager is BasePnLManager {
             )
         );
 
+        //* Reserved for Richard review, to be deleted
+        // lossImpact has 2 effects
+        // 1) it shows if the credit is late
+        // 2) its value is the profit impact for the first time late
         if (lossImpact > 0) {
             CreditLoss memory creditLoss = _creditLossMap[creditHash];
+            //* Reserved for Richard review, to be deleted
+            // creditLoss.lastLossUpdateDate is used to determine if the credit is late for the first time
             if (creditLoss.lastLossUpdateDate == 0) {
                 // process late first time
                 console.log("process late first time - cr.nextDueDate: %s", cr.nextDueDate);
                 (markdownRateDiff, creditLoss.lossExpiringDate) = _getMarkdownRate(cr);
+                //* Reserved for Richard review, to be deleted
+                // markdown has 2 parts, 1) the profit impact for the first time late, 2) the markdown for the time passed since the first time late
                 markdown =
                     uint96(
                         (uint96(markdownRateDiff) * (block.timestamp - cr.nextDueDate)) /
@@ -204,6 +239,8 @@ contract LinearMarkdownPnLManager is BasePnLManager {
                 creditLoss.totalAccruedLoss = markdown;
                 creditLoss.lossRate = uint96(markdownRateDiff);
             } else {
+                //* Reserved for Richard review, to be deleted
+                // only add profit rate to loss rate, and add profit diff to loss diff after the first time late
                 markdownRateDiff = profitRateDiff;
                 markdown = missedProfit;
 
