@@ -100,6 +100,8 @@ struct FacilityConfig {
     bool autoApproval;
 }
 
+//* Reserved for Richard review, to be deleted
+// Update last 3 fileds name from totalXXX to accruedXXX because they are set to 0 when refreshPnL is called
 struct PnLTracker {
     uint96 profitRate;
     uint96 lossRate;
