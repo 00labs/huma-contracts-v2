@@ -405,7 +405,9 @@ contract PoolConfig is AccessControl, Initializable {
                 !IFirstLossCover(_firstLossCovers[AFFILIATE_FIRST_LOSS_COVER_INDEX]).isSufficient(
                     agent
                 )
-            ) {revert Errors.lessThanRequiredCover();}
+            ) {
+                revert Errors.lessThanRequiredCover();
+            }
             ITrancheVaultLike juniorTrancheVault = ITrancheVaultLike(juniorTranche);
             checkLiquidityRequirementForEA(juniorTrancheVault.totalAssetsOf(agent));
         }

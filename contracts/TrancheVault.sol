@@ -224,7 +224,7 @@ contract TrancheVault is
             revert Errors.withdrawnAmountHigherThanBalance();
         }
         uint256 assetsAfterRedemption = convertToAssets(sharesBalance - shares);
-        poolConfig.checkLiquidityRequirementForPoolOwner(
+        poolConfig.checkRedemptionLiquidityRequirement(
             msg.sender,
             address(this),
             assetsAfterRedemption
@@ -366,21 +366,14 @@ contract TrancheVault is
         return pool.trancheTotalAssets(trancheIndex);
     }
 
-    function convertToAssets(uint256 shares) public view returns (uint256 assets) {
-        uint256 tempTotalAssets = totalAssets();
-        uint256 tempTotalSupply = ERC20Upgradeable.totalSupply();
-
-        return tempTotalSupply == 0 ? shares : (shares * tempTotalAssets) / tempTotalSupply;
-    }
-
     function convertToShares(uint256 assets) external view returns (uint256 shares) {
         shares = _convertToShares(assets, totalAssets());
     }
 
-    function convertToAssets(uint256 shares) external view returns (uint256 assets) {
-        uint256 totalAssets = totalAssets();
-        uint256 totalSupply = ERC20Upgradeable.totalSupply();
-        return totalSupply == 0 ? shares : (shares * totalAssets) / totalSupply;
+    function convertToAssets(uint256 shares) public view returns (uint256 assets) {
+        uint256 tempTotalAssets = totalAssets();
+        uint256 tempTotalSupply = ERC20Upgradeable.totalSupply();
+        return tempTotalSupply == 0 ? shares : (shares * tempTotalAssets) / tempTotalSupply;
     }
 
     function totalAssetsOf(address account) external view returns (uint256 assets) {
