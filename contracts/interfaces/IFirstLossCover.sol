@@ -9,7 +9,7 @@ interface IFirstLossCover {
     function depositCover(uint256 assets) external returns (uint256 shares);
 
     /**
-     * @notice Withdraws excess assets from the first loss cover.
+     * @notice Withdraws excessive assets from the first loss cover.
      * The remaining assets should meet the requirements specified by poolCapCoverageInBps and poolValueCoverageInBps.
      */
     function redeemCover(uint256 shares, address receiver) external returns (uint256 assets);

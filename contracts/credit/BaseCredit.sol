@@ -539,7 +539,7 @@ abstract contract BaseCredit is
      * @notice drawdown helper function.
      * @param creditHash the credit hash
      * @param borrowAmount the amount to borrow
-     * @dev Access control and eligibility check is done outside this function.
+     * @dev Access control and eligibility check is done outside of this function.
      */
     function _drawdown(
         address borrower,
@@ -554,7 +554,7 @@ abstract contract BaseCredit is
 
         if (cr.state == CreditState.Approved) {
             // Flow for first drawdown
-            // Sets the prinicpal, then generates the first bill and sets credit status
+            // Sets the principal, then generates the first bill and sets credit status
             _creditRecordMap[creditHash].unbilledPrincipal = uint96(borrowAmount);
             cr = _updateDueInfo(creditHash);
             console.log("cr.nextDueDate: %s", cr.nextDueDate);
@@ -617,7 +617,7 @@ abstract contract BaseCredit is
      * @param amount the payment amount
      * @return amountPaid the actual amount paid to the contract. When the tendered
      * amount is larger than the payoff amount, the contract only accepts the payoff amount.
-     * @return paidoff a flag indciating whether the account has been paid off.
+     * @return paidoff a flag indicating whether the account has been paid off.
      * @return isReviewRequired a flag indicating whether this payment transaction has been
      * flagged for review.
      */

@@ -99,6 +99,10 @@ struct FeeStructure {
     uint96 membershipFee;
 }
 
+interface ITrancheVaultLike {
+    function totalAssetsOf(address account) external view returns (uint256 assets);
+}
+
 contract PoolConfig is AccessControl, Initializable {
     bytes32 public constant POOL_OPERATOR_ROLE = keccak256("POOL_OPERATOR");
 
@@ -126,7 +130,6 @@ contract PoolConfig is AccessControl, Initializable {
 
     // Evaluation Agents (EA) are the risk underwriting agents that associated with the pool.
     address public evaluationAgent;
-
     uint256 public evaluationAgentId;
 
     // The maximum number of first loss covers we allow is 16, which should be sufficient for now.
@@ -396,13 +399,17 @@ contract PoolConfig is AccessControl, Initializable {
             feeManager.withdrawEAFee(eaWithdrawable);
         }
 
-        // Make sure the new EA has met the liquidity requirements
+        // Make sure the new EA has met the liquidity requirements.
         if (IPool(pool).isPoolOn()) {
             if (
                 !IFirstLossCover(_firstLossCovers[AFFILIATE_FIRST_LOSS_COVER_INDEX]).isSufficient(
                     agent
                 )
-            ) revert Errors.lessThanRequiredCover();
+            ) {
+                revert Errors.lessThanRequiredCover();
+            }
+            ITrancheVaultLike juniorTrancheVault = ITrancheVaultLike(juniorTranche);
+            checkLiquidityRequirementForEA(juniorTrancheVault.totalAssetsOf(agent));
         }
 
         evaluationAgent = agent;
@@ -645,7 +652,7 @@ contract PoolConfig is AccessControl, Initializable {
     /**
      * @notice Checks to make sure both EA and pool owner treasury meet the pool's first loss cover requirements
      */
-    function checkFirstLossCoverRequirementForAdmin() public view {
+    function checkFirstLossCoverRequirementsForAdmin() public view {
         IFirstLossCover firstLossCover = IFirstLossCover(
             _firstLossCovers[AFFILIATE_FIRST_LOSS_COVER_INDEX]
         );
@@ -653,37 +660,61 @@ contract PoolConfig is AccessControl, Initializable {
         if (!firstLossCover.isSufficient(evaluationAgent)) revert Errors.lessThanRequiredCover();
     }
 
-    /// When the pool owner treasury or EA wants to withdraw liquidity from the pool,
-    /// checks to make sure 1. first loss cover liquidity meets the requirement
-    ///                TODO 2. the remaining liquidity meets the pool's requirements
-    function checkWithdrawLiquidityRequirementForAdmin(address lender) public view {
-        IFirstLossCover firstLossCover = IFirstLossCover(
-            _firstLossCovers[AFFILIATE_FIRST_LOSS_COVER_INDEX]
-        );
+    /**
+     * @notice Checks whether the pool owner and EA has met their first loss cover liquidity requirements
+     * when they try to withdraw liquidity from other tranches.
+     * @param lender The lender address
+     */
+    function checkFirstLossCoverRequirementsForRedemption(address lender) public view {
         if (lender == evaluationAgent || lender == poolOwnerTreasury) {
+            IFirstLossCover firstLossCover = IFirstLossCover(
+                _firstLossCovers[AFFILIATE_FIRST_LOSS_COVER_INDEX]
+            );
             if (!firstLossCover.isSufficient(lender)) revert Errors.lessThanRequiredCover();
         }
     }
 
     function checkLiquidityRequirementForPoolOwner(uint256 balance) public view {
-        if (
-            balance <
-            (_lpConfig.liquidityCap * _adminRnR.liquidityRateInBpsByPoolOwner) /
-                HUNDRED_PERCENT_IN_BPS
-        ) revert Errors.poolOwnerNotEnoughLiquidity();
+        if (balance < _getRequiredLiquidityForPoolOwner())
+            revert Errors.poolOwnerNotEnoughLiquidity();
     }
 
     function checkLiquidityRequirementForEA(uint256 balance) public view {
-        if (
-            balance <
-            (_lpConfig.liquidityCap * _adminRnR.liquidityRateInBpsByEA) / HUNDRED_PERCENT_IN_BPS
-        ) revert Errors.evaluationAgentNotEnoughLiquidity();
+        if (balance < _getRequiredLiquidityForEA())
+            revert Errors.evaluationAgentNotEnoughLiquidity();
     }
 
     /**
      * @notice Checks whether both the EA and the pool owner treasury have met the pool's liquidity requirements
      */
-    function checkLiquidityRequirements() public view {}
+    function checkLiquidityRequirements() public view {
+        ITrancheVaultLike juniorTrancheVault = ITrancheVaultLike(juniorTranche);
+        checkLiquidityRequirementForPoolOwner(juniorTrancheVault.totalAssetsOf(poolOwnerTreasury));
+        checkLiquidityRequirementForEA(juniorTrancheVault.totalAssetsOf(evaluationAgent));
+    }
+
+    /**
+     * @notice Checks whether the lender can still meet the liquidity requirements after redemption.
+     * @param lender The lender address
+     * @param trancheVault The tranche vault address
+     * @param newBalance The resulting balance of the lender after redemption
+     */
+    function checkLiquidityRequirementForRedemption(
+        address lender,
+        address trancheVault,
+        uint256 newBalance
+    ) public view {
+        if (trancheVault != juniorTranche) {
+            // There is no liquidity requirement for the senior tranche.
+            return;
+        }
+        if (lender == poolOwnerTreasury) {
+            checkLiquidityRequirementForPoolOwner(newBalance);
+        }
+        if (lender == evaluationAgent) {
+            checkLiquidityRequirementForEA(newBalance);
+        }
+    }
 
     /**
      * Returns a summary information of the pool.
@@ -775,6 +806,17 @@ contract PoolConfig is AccessControl, Initializable {
 
     function getMinPrincipalRateInBps() external view virtual returns (uint256 _minPrincipalRate) {
         return _feeStructure.minPrincipalRateInBps;
+    }
+
+    function _getRequiredLiquidityForPoolOwner() internal view returns (uint256 amount) {
+        return
+            (_lpConfig.liquidityCap * _adminRnR.liquidityRateInBpsByPoolOwner) /
+            HUNDRED_PERCENT_IN_BPS;
+    }
+
+    function _getRequiredLiquidityForEA() internal view returns (uint256 amount) {
+        return
+            (_lpConfig.liquidityCap * _adminRnR.liquidityRateInBpsByEA) / HUNDRED_PERCENT_IN_BPS;
     }
 
     function onlyPoolOwner(address account) public view {

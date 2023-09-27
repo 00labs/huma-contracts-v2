@@ -1,8 +1,9 @@
 import { ethers, network } from "hardhat";
 import { BigNumber as BN } from "ethers";
 import moment from "moment";
-import { LPConfigStructOutput } from "../typechain-types/contracts/PoolConfig";
+import { LPConfigStructOutput } from "../typechain-types/contracts/PoolConfig.sol/PoolConfig";
 import { CONSTANTS } from "./BaseTest";
+import { FirstLossCover, Pool, PoolConfig } from "../typechain-types";
 
 export function toBN(number: string | number, decimals: number): BN {
     return BN.from(number).mul(BN.from(10).pow(BN.from(decimals)));
@@ -94,6 +95,18 @@ export async function getLatestBlock() {
     return await ethers.provider.getBlock("latest");
 }
 
+export function timestampToMoment(timestamp: number, format?: string): moment.Moment {
+    if (format) {
+        const date = moment.unix(timestamp).utc().format(format);
+        return moment.unix(dateToTimestamp(date)).utc();
+    }
+    return moment.unix(timestamp).utc();
+}
+
+export function dateToTimestamp(date: string): number {
+    return moment.utc(date).unix();
+}
+
 export function copyLPConfigWithOverrides(
     lpConfig: LPConfigStructOutput,
     overrides: Partial<LPConfigStructOutput>,
@@ -111,14 +124,42 @@ export function copyLPConfigWithOverrides(
     };
 }
 
-export function timestampToMoment(timestamp: number, format?: string): moment.Moment {
-    if (format) {
-        const date = moment.unix(timestamp).utc().format(format);
-        return moment.unix(dateToTimestamp(date)).utc();
-    }
-    return moment.unix(timestamp).utc();
+export async function getMinFirstLossCoverRequirement(
+    firstLossCoverContract: FirstLossCover,
+    poolConfigContract: PoolConfig,
+    poolContract: Pool,
+    account: string,
+): Promise<BN> {
+    const lossCoverConfig = await firstLossCoverContract.getOperatorConfig(account);
+    const lpConfig = await poolConfigContract.getLPConfig();
+    const poolCap = lpConfig.liquidityCap;
+    const minFromPoolCap = poolCap
+        .mul(lossCoverConfig.poolCapCoverageInBps)
+        .div(CONSTANTS.BP_FACTOR);
+    const poolValue = await poolContract.totalAssets();
+    const minFromPoolValue = poolValue
+        .mul(lossCoverConfig.poolValueCoverageInBps)
+        .div(CONSTANTS.BP_FACTOR);
+    console.log(
+        `Pool cap: ${poolCap}. Pool value: ${poolValue}. minFromPoolCap: ${minFromPoolCap}. minFromPoolValue: ${minFromPoolValue}`,
+    );
+    return minFromPoolCap.gt(minFromPoolValue) ? minFromPoolCap : minFromPoolValue;
 }
 
-export function dateToTimestamp(date: string): number {
-    return moment.utc(date).unix();
+export async function getMinLiquidityRequirementForPoolOwner(
+    poolConfigContract: PoolConfig,
+): Promise<BN> {
+    const lpConfig = await poolConfigContract.getLPConfig();
+    const poolCap = lpConfig.liquidityCap;
+    const adminRnR = await poolConfigContract.getAdminRnR();
+    return poolCap.mul(adminRnR.liquidityRateInBpsByPoolOwner).div(CONSTANTS.BP_FACTOR);
+}
+
+export async function getMinLiquidityRequirementForEA(
+    poolConfigContract: PoolConfig,
+): Promise<BN> {
+    const lpConfig = await poolConfigContract.getLPConfig();
+    const poolCap = lpConfig.liquidityCap;
+    const adminRnR = await poolConfigContract.getAdminRnR();
+    return poolCap.mul(adminRnR.liquidityRateInBpsByEA).div(CONSTANTS.BP_FACTOR);
 }

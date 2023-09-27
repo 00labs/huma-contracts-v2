@@ -165,7 +165,7 @@ contract TrancheVault is
      * which will cause a permanent loss and we cannot help reverse transactions
      * or retrieve assets from the contracts.
      *
-     * @param assets The number of underlyingToken to be deposited
+     * @param assets The number of underlyingTokens to be deposited
      * @param receiver The address to receive the minted tranche token
      * @return shares The number of tranche token to be minted
      */
@@ -176,6 +176,15 @@ contract TrancheVault is
         _onlyLender(receiver);
         poolConfig.onlyProtocolAndPoolOn();
         return _deposit(assets, receiver);
+    }
+
+    /**
+     * @notice Allows the pool owner and EA to make initial deposit before the pool goes live
+     * @param assets The amount of underlyingTokens to be deposited
+     */
+    function makeInitialDeposit(uint256 assets) external returns (uint256 shares) {
+        poolConfig.onlyPoolOwnerTreasuryOrEA(msg.sender);
+        return _deposit(assets, msg.sender);
     }
 
     function _deposit(uint256 assets, address receiver) internal returns (uint256 shares) {
@@ -214,15 +223,20 @@ contract TrancheVault is
      * @param shares The number of shares the lender wants to redeem
      */
     function addRedemptionRequest(uint256 shares) external {
-        poolConfig.checkWithdrawLiquidityRequirementForAdmin(msg.sender);
-
         if (shares == 0) revert Errors.zeroAmountProvided();
         poolConfig.onlyProtocolAndPoolOn();
 
+        poolConfig.checkFirstLossCoverRequirementsForRedemption(msg.sender);
         uint256 sharesBalance = ERC20Upgradeable.balanceOf(msg.sender);
         if (shares > sharesBalance) {
-            revert Errors.withdrawnAmountHigherThanBalance(); // assets is too big
+            revert Errors.withdrawnAmountHigherThanBalance();
         }
+        uint256 assetsAfterRedemption = convertToAssets(sharesBalance - shares);
+        poolConfig.checkLiquidityRequirementForRedemption(
+            msg.sender,
+            address(this),
+            assetsAfterRedemption
+        );
 
         uint256 currentEpochId = epochManager.currentEpochId();
         EpochInfo memory currentEpochInfo = epochInfoByEpochId[currentEpochId];
@@ -360,15 +374,18 @@ contract TrancheVault is
         return pool.trancheTotalAssets(trancheIndex);
     }
 
+    function convertToShares(uint256 assets) external view returns (uint256 shares) {
+        shares = _convertToShares(assets, totalAssets());
+    }
+
     function convertToAssets(uint256 shares) public view returns (uint256 assets) {
         uint256 tempTotalAssets = totalAssets();
         uint256 tempTotalSupply = ERC20Upgradeable.totalSupply();
-
         return tempTotalSupply == 0 ? shares : (shares * tempTotalAssets) / tempTotalSupply;
     }
 
-    function convertToShares(uint256 assets) external view returns (uint256 shares) {
-        shares = _convertToShares(assets, totalAssets());
+    function totalAssetsOf(address account) external view returns (uint256 assets) {
+        return convertToAssets(ERC20Upgradeable.balanceOf(account));
     }
 
     function getNumEpochsWithRedemption() external view returns (uint256) {
@@ -416,6 +433,8 @@ contract TrancheVault is
 
         for (uint256 i = disbursementInfo.requestsIndex; i < requests.length; i++) {
             RedemptionRequest memory request = requests[i];
+            // It's impossible for the request epoch ID to exceed the unprocessed epoch ID.
+            assert(request.epochId <= firstUnprocessedEpochId);
             if (request.epochId < firstUnprocessedEpochId) {
                 // The redemption requests in the epoch have been fully processed.
                 EpochInfo memory epoch = epochInfoByEpochId[request.epochId];
@@ -433,7 +452,7 @@ contract TrancheVault is
 
                 withdrawableAmount += amountProcessed;
                 disbursementInfo.requestsIndex += 1;
-            } else if (request.epochId == firstUnprocessedEpochId) {
+            } else {
                 // The redemption requests in the epoch have been partially processed or unprocessed.
                 EpochInfo memory epoch = epochInfoByEpochId[request.epochId];
                 if (epoch.totalSharesProcessed > 0) {
@@ -446,9 +465,6 @@ contract TrancheVault is
                     disbursementInfo.actualAmountProcessed = uint96(amountProcessed);
                 }
                 break;
-            } else {
-                // It's impossible for the request epoch ID to exceed the unprocessed epoch ID.
-                assert(false);
             }
         }
     }

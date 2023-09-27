@@ -95,7 +95,8 @@ contract Pool is PoolConfigCache, IPool {
      */
     function enablePool() external {
         poolConfig.onlyOwnerOrHumaMasterAdmin(msg.sender);
-        poolConfig.checkFirstLossCoverRequirementForAdmin();
+        poolConfig.checkFirstLossCoverRequirementsForAdmin();
+        poolConfig.checkLiquidityRequirements();
 
         epochManager.startNewEpoch();
         _status = PoolStatus.On;
