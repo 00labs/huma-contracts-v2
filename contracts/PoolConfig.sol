@@ -18,30 +18,33 @@ import {Errors} from "./Errors.sol";
 import "hardhat/console.sol";
 
 struct PoolSettings {
-    // the maximum credit line for an address in terms of the amount of poolTokens
+    // The maximum credit line for an address in terms of the amount of poolTokens
     uint96 maxCreditLine;
     // calendarType and numPerPeriod are used together to measure the duration
     // of a pay period. For example, 14 days, 1 month.
     CalendarUnit calendarUnit;
-    // It is the pay period in terms of the calendar unit for borrowers.
-    // It is the duration of an epoch for lenders withdrawing.
+    // This field is the pay period in terms of calendar units for borrowers
+    // and the duration of an epoch for lender redemptions.
     uint8 payPeriodInCalendarUnit;
-    // the duration of a credit line without an initial drawdown
+    // The duration of a credit line without an initial drawdown
     uint16 creditApprovalExpirationInDays;
-    // the grace period before a late fee can be charged, in the unit of number of days
+    // The grace period before a late fee can be charged, in the unit of number of days
     uint8 latePaymentGracePeriodInDays;
-    // the grace period before a default can be triggered, in the unit of the pool's CalendarUnit
+    // The grace period before a default can be triggered, in the unit of the pool's CalendarUnit
     uint16 defaultGracePeriodInCalendarUnit;
-    // percentage of the receivable amount applied towards available credit
+    // Percentage (in basis points) of the receivable amount applied towards available credit
+    uint16 receivableRequiredInBps;
+    // Specifies the max credit line as a percentage (in basis points) of the receivable amount.
+    // E.g., for a receivable of $100 with an advance rate of 9000 bps, the credit line can be up to $90.
     uint16 advanceRateInBps;
     // The duration between a capital withdrawal request and capital availability, in the unit of epochs.
     // For example, if flexCallWindowInEpoch = 2, then a withdrawal request will be processed 2 epochs from now.
     uint8 flexCallWindowInEpochs;
-    // if the pool is exclusive to one borrower
+    // Whether the pool is exclusive to one borrower
     bool singleBorrower;
-    // if the dues are combined into one credit if the borrower has multiple receivables
+    // Whether the dues are combined into one credit if the borrower has multiple receivables
     bool singleCreditPerBorrower;
-    // if flexCredit is enabled
+    // Whether flexCredit is enabled
     bool flexCreditEnabled;
 }
 
@@ -182,7 +185,8 @@ contract PoolConfig is AccessControl, Initializable {
 
     event PoolRewardsWithdrawn(address receiver, uint256 amount);
     event ProtocolRewardsWithdrawn(address receiver, uint256 amount, address by);
-    event ReceivableRequiredInBpsChanged(uint256 receivableInBps, address by);
+    event ReceivableRequiredInBpsChanged(uint256 receivableRequiredInBps, address by);
+    event AdvanceRateInBpsChanged(uint256 advanceRateInBps, address by);
     event WithdrawalLockoutPeriodChanged(
         CalendarUnit unit,
         uint256 lockoutPeriodInDays,
@@ -299,13 +303,14 @@ contract PoolConfig is AccessControl, Initializable {
         // Default values for the pool configurations. The pool owners are expected to reset
         // these values when setting up the pools. Setting these default values to avoid
         // strange behaviors when the pool owner missed setting up these configurations.
-        PoolSettings memory _pSettings = _poolSettings;
-        _pSettings.calendarUnit = CalendarUnit.Month;
-        _pSettings.payPeriodInCalendarUnit = 1; // 1 month
-        _pSettings.advanceRateInBps = 10000; // 100%
-        _pSettings.latePaymentGracePeriodInDays = 5;
-        _pSettings.defaultGracePeriodInCalendarUnit = 3; // 3 months
-        _poolSettings = _pSettings;
+        PoolSettings memory tempPoolSettings = _poolSettings;
+        tempPoolSettings.calendarUnit = CalendarUnit.Month;
+        tempPoolSettings.payPeriodInCalendarUnit = 1; // 1 month
+        tempPoolSettings.receivableRequiredInBps = 10000; // 100%
+        tempPoolSettings.advanceRateInBps = 10000; // 100%
+        tempPoolSettings.latePaymentGracePeriodInDays = 5;
+        tempPoolSettings.defaultGracePeriodInCalendarUnit = 3; // 3 months
+        _poolSettings = tempPoolSettings;
 
         AdminRnR memory adminRnRConfig = _adminRnR;
         adminRnRConfig.rewardRateInBpsForEA = 300; // 3%
@@ -565,13 +570,28 @@ contract PoolConfig is AccessControl, Initializable {
      * @notice Set the receivable rate in terms of basis points.
      * When the rate is higher than 10000, it means the backing is higher than the borrow amount,
      * similar to an over-collateral situation.
-     * @param receivableInBps the percentage. A percentage over 10000 means over-receivablization.
+     * @param receivableRequiredInBps the percentage in basis points. A percentage over 10000 means over-receivablization.
      */
-    function setReceivableRequiredInBps(uint256 receivableInBps) external {
+    function setReceivableRequiredInBps(uint256 receivableRequiredInBps) external {
         _onlyOwnerOrHumaMasterAdmin();
         // note: this rate can be over 10000 when it requires more backing than the credit limit
-        _poolSettings.advanceRateInBps = uint16(receivableInBps);
-        emit ReceivableRequiredInBpsChanged(receivableInBps, msg.sender);
+        _poolSettings.receivableRequiredInBps = uint16(receivableRequiredInBps);
+        emit ReceivableRequiredInBpsChanged(receivableRequiredInBps, msg.sender);
+    }
+
+    /**
+     * @notice Set the advance rate in terms of basis points.
+     * The rate cannot exceed 10000 (100%).
+     * @param advanceRateInBps the percentage in basis points.
+     */
+    function setAdvanceRateInBps(uint256 advanceRateInBps) external {
+        _onlyOwnerOrHumaMasterAdmin();
+        if (advanceRateInBps > 10000) {
+            revert Errors.invalidBasisPointHigherThan10000();
+        }
+        // note: this rate can be over 10000 when it requires more backing than the credit limit
+        _poolSettings.advanceRateInBps = uint16(advanceRateInBps);
+        emit AdvanceRateInBpsChanged(advanceRateInBps, msg.sender);
     }
 
     /**
