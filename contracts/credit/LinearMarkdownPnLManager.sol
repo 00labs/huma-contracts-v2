@@ -14,17 +14,17 @@ import "hardhat/console.sol";
 contract LinearMarkdownPnLManager is BasePnLManager {
     function processDrawdown(uint96 poolIncome, uint96 profitRateDiff) external {
         onlyCreditContract();
-        _updateTracker(int96(uint96(profitRateDiff)), 0, poolIncome, 0, 0);
+        _updateTracker(int96(uint96(profitRateDiff)), 0, int96(poolIncome), 0, 0);
     }
 
     function processPayback(
         bytes32 creditHash,
         uint96 principalPaid,
         uint96 yieldPaid,
-        uint96 feesPaid,
+        int96 profitDiff,
         uint16 yield,
         bool oldGoodStanding,
-        bool newGoodStanding
+        bool isFullyRecovered
     ) external {
         // todo access control
         int96 profitRateDiff = -int96(
@@ -34,35 +34,49 @@ contract LinearMarkdownPnLManager is BasePnLManager {
             )
         );
         if (oldGoodStanding) {
-            _updateTracker(profitRateDiff, 0, uint96(feesPaid), 0, 0);
+            _updateTracker(profitRateDiff, 0, profitDiff, 0, 0);
         } else {
-            // handle recovery.
+            // Update credit loss
             CreditLoss memory creditLoss = _creditLossMap[creditHash];
             creditLoss.totalAccruedLoss += uint96(
                 ((block.timestamp - creditLoss.lastLossUpdateDate) * creditLoss.lossRate) /
                     DEFAULT_DECIMALS_FACTOR
             );
+            creditLoss.totalAccruedLoss = uint96(int96(creditLoss.totalAccruedLoss) + profitDiff);
+            creditLoss.lossRate = uint96(int96(creditLoss.lossRate) + profitRateDiff);
             creditLoss.lastLossUpdateDate = uint64(block.timestamp);
 
+            // Update tracker till  now
+            PnLTracker memory tracker = _getLatestTracker(
+                profitRateDiff,
+                profitRateDiff,
+                profitDiff,
+                profitDiff,
+                0
+            );
+
+            // Handle receovery
             uint96 lossRecovery;
-            int96 lossRateDiff;
-            if (newGoodStanding) {
+            if (isFullyRecovered) {
                 // recover all markdown for this user
                 lossRecovery = creditLoss.totalAccruedLoss - creditLoss.totalLossRecovery;
-                creditLoss.totalLossRecovery = creditLoss.totalAccruedLoss;
-                lossRateDiff = int96(0 - creditLoss.lossRate);
+                tracker.accruedLossRecovery += lossRecovery;
+                tracker.lossRate -= creditLoss.lossRate;
+                delete _creditLossMap[creditHash];
             } else {
                 // only recover the amount paid
                 lossRecovery = principalPaid + yieldPaid;
                 creditLoss.totalLossRecovery += uint96(lossRecovery);
+                tracker.accruedLossRecovery += lossRecovery;
+                _creditLossMap[creditHash] = creditLoss;
             }
+
+            pnlTracker = tracker;
 
             // note todo need to think if the lossRate for both global and this individual creditRecord
             // be updated due to principalPaid.
 
-            _creditLossMap[creditHash] = creditLoss;
-
-            _updateTracker(profitRateDiff, lossRateDiff, feesPaid, 0, lossRecovery);
+            // _updateTracker(profitRateDiff, lossRateDiff, profitDiff, 0, lossRecovery);
         }
     }
 
@@ -204,6 +218,6 @@ contract LinearMarkdownPnLManager is BasePnLManager {
             creditLoss.lastLossUpdateDate = uint64(block.timestamp);
             _creditLossMap[creditHash] = creditLoss;
         }
-        _updateTracker(profitRateDiff, markdownRateDiff, missedProfit, markdown, 0);
+        _updateTracker(profitRateDiff, markdownRateDiff, int96(missedProfit), int96(markdown), 0);
     }
 }

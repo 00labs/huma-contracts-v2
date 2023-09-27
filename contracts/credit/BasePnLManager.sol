@@ -53,8 +53,8 @@ abstract contract BasePnLManager is PoolConfigCache, IPnLManager {
     function _updateTracker(
         int96 profitRateDiff,
         int96 lossRateDiff,
-        uint96 profitDiff,
-        uint96 lossDiff,
+        int96 profitDiff,
+        int96 lossDiff,
         uint96 recoveryDiff
     ) internal {
         pnlTracker = _getLatestTracker(
@@ -69,8 +69,8 @@ abstract contract BasePnLManager is PoolConfigCache, IPnLManager {
     function _getLatestTracker(
         int96 profitRateDiff,
         int96 lossRateDiff,
-        uint96 profitDiff,
-        uint96 lossDiff,
+        int96 profitDiff,
+        int96 lossDiff,
         uint96 recoveryDiff
     ) internal view returns (PnLTracker memory newTracker) {
         PnLTracker memory tracker = pnlTracker;
@@ -96,14 +96,16 @@ abstract contract BasePnLManager is PoolConfigCache, IPnLManager {
         //     profitDiff
         // );
 
-        newTracker.accruedProfit =
-            tracker.accruedProfit +
-            profitDiff +
-            uint96((tracker.profitRate * timeLapsed) / DEFAULT_DECIMALS_FACTOR);
-        newTracker.accruedLoss =
-            tracker.accruedLoss +
-            lossDiff +
-            uint96((tracker.lossRate * timeLapsed) / DEFAULT_DECIMALS_FACTOR);
+        newTracker.accruedProfit = uint96(
+            int96(tracker.accruedProfit) +
+                profitDiff +
+                int96(uint96((tracker.profitRate * timeLapsed) / DEFAULT_DECIMALS_FACTOR))
+        );
+        newTracker.accruedLoss = uint96(
+            int96(tracker.accruedLoss) +
+                lossDiff +
+                int96(uint96((tracker.lossRate * timeLapsed) / DEFAULT_DECIMALS_FACTOR))
+        );
         newTracker.accruedLossRecovery = tracker.accruedLossRecovery + recoveryDiff;
         newTracker.profitRate = uint96(int96(tracker.profitRate) + profitRateDiff);
         newTracker.lossRate = uint96(int96(tracker.lossRate) + lossRateDiff);
