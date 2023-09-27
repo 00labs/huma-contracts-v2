@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {CreditConfig, CreditRecord, ReceivableInfo, FacilityConfig, ReceivableState} from "./CreditStructs.sol";
-import {ReceivableCredit} from "./ReceivableCredit.sol";
+import {ReceivableCredit_old} from "./ReceivableCredit_old.sol";
 import {ICreditFacility} from "./interfaces/ICreditFacility.sol";
 import {Receivable} from "./Receivable.sol";
 import {Errors} from "../Errors.sol";
@@ -10,7 +10,7 @@ import {Errors} from "../Errors.sol";
 /**
  * ReceivableCredit is a credit backed by receivables.
  */
-contract CreditFacility is ReceivableCredit, ICreditFacility {
+contract CreditFacility is ReceivableCredit_old, ICreditFacility {
     function addReceivable(address borrower, uint256 receivableId) public virtual override {
         // todo onlyBorrower
         // todo makes sure the borrower owns the receivable

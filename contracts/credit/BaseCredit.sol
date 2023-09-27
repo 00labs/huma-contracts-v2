@@ -469,11 +469,6 @@ abstract contract BaseCredit is
         return pnlManager.getPnLSum();
     }
 
-    function getCreditHash(
-        address borrower,
-        uint256 receivableId
-    ) public view virtual returns (bytes32 creditHash) {}
-
     function isApproved(bytes32 creditHash) public view virtual returns (bool) {
         if ((_creditRecordMap[creditHash].state >= CreditState.Approved)) return true;
         else return false;

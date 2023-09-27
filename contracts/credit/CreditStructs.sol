@@ -119,3 +119,9 @@ struct Payment {
     bool oldLateFlag;
     bool newLateFlag;
 }
+
+struct ReceivableInput {
+    address receivableAsset;
+    uint96 receivableAmount;
+    uint256 receivableId;
+}
