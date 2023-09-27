@@ -1481,7 +1481,7 @@ describe("CreditLine Test", function () {
                 accruedProfit,
                 accruedLoss,
                 BN.from(0),
-                3,
+                4,
             );
 
             creditLoss = await creditPnlManagerContract.getCreditLoss(creditHash);
