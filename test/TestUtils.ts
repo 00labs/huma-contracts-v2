@@ -1,7 +1,7 @@
 import { ethers, network } from "hardhat";
-import { BigNumber, BigNumber as BN } from "ethers";
+import { BigNumber as BN } from "ethers";
 import moment from "moment";
-import { LPConfigStructOutput } from "../typechain-types/contracts/PoolConfig";
+import { LPConfigStructOutput } from "../typechain-types/contracts/PoolConfig.sol/PoolConfig";
 import { CONSTANTS } from "./BaseTest";
 import { FirstLossCover, Pool, PoolConfig } from "../typechain-types";
 

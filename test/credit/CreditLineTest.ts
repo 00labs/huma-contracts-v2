@@ -45,7 +45,6 @@ import {
 } from "../../typechain-types";
 import { CreditRecordStructOutput } from "../../typechain-types/contracts/credit/utils/interfaces/ICreditFeeManager";
 import { CreditConfigStructOutput } from "../../typechain-types/contracts/credit/BaseCredit";
-import { FeeStructureStructOutput } from "../../typechain-types/contracts/PoolConfig";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
@@ -851,6 +850,16 @@ describe("CreditLine Test", function () {
                     yieldInBps,
                     toToken(100_000),
                     true,
+                );
+            await borrowerFirstLossCoverContract
+                .connect(borrower)
+                .depositCover(
+                    await getMinFirstLossCoverRequirement(
+                        borrowerFirstLossCoverContract,
+                        poolConfigContract,
+                        poolContract,
+                        borrower.address,
+                    ),
                 );
 
             borrowAmount = toToken(50_000);
@@ -1865,7 +1874,6 @@ describe("CreditLine Test", function () {
 
             // move forward, refresh browser2 credit and its state becomes defaulted
 
-            preTime = nextTime;
             nextTime =
                 getNextMonth(
                     preCreditRecord2.nextDueDate.toNumber(),

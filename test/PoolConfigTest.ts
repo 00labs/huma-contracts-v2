@@ -33,7 +33,7 @@ import {
     FeeStructureStruct,
     FrontLoadingFeesStructureStruct,
     LPConfigStruct,
-} from "../typechain-types/contracts/PoolConfig";
+} from "../typechain-types/contracts/PoolConfig.sol/PoolConfig";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
