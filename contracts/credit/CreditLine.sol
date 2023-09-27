@@ -8,6 +8,8 @@ import {Errors} from "../Errors.sol";
 
 import "hardhat/console.sol";
 
+//* Reserved for Richard review, to be deleted, please review this contract
+
 /**
  * Credit is the basic borrowing entry in Huma Protocol.
  * BaseCredit is the base form of a Credit.

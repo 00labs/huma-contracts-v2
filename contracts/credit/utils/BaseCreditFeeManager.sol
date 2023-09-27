@@ -63,19 +63,16 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
         CreditRecord memory cr,
         uint256 yieldInBps
     ) external view virtual override returns (uint256 payoffAmount) {
+        uint256 principal = cr.unbilledPrincipal + cr.totalDue - cr.yieldDue - cr.feesDue;
         payoffAmount = uint256(cr.totalDue + cr.unbilledPrincipal);
-        uint256 remainingInterest = (yieldInBps *
-            (cr.unbilledPrincipal + cr.totalDue - cr.yieldDue - cr.feesDue) *
-            (cr.nextDueDate - block.timestamp)) / (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS);
-        console.log(
-            "payoffAmount: %s, remainingInterest: %s, (cr.unbilledPrincipal + cr.totalDue - cr.yieldDue - cr.feesDue): %s",
-            payoffAmount,
-            remainingInterest,
-            cr.unbilledPrincipal + cr.totalDue - cr.yieldDue - cr.feesDue
-        );
-        console.log("cr.nextDueDate: %s, block.timestamp: %s", cr.nextDueDate, block.timestamp);
-        assert(payoffAmount >= remainingInterest);
-        payoffAmount -= remainingInterest;
+        if (block.timestamp < cr.nextDueDate) {
+            // Deduct interest of days from now to due date while makes payment before due date
+            uint256 remainingYield = (yieldInBps *
+                principal *
+                (cr.nextDueDate - block.timestamp)) / (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS);
+            assert(payoffAmount >= remainingYield);
+            payoffAmount -= remainingYield;
+        }
     }
 
     /**
@@ -154,6 +151,8 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
             uint96 lossImpact
         )
     {
+        //* Reserved for Richard review, to be deleted, please review this function
+
         // If the due is nonzero and has passed late payment grace period, the account is considered late
         bool isLate = (_cr.totalDue != 0 &&
             block.timestamp >
@@ -219,6 +218,8 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
             if (cr.totalDue > 0) {
                 cr.unbilledPrincipal += cr.totalDue;
                 principalDifference += cr.yieldDue + cr.feesDue;
+                //* Reserved for Richard review, to be deleted
+                // Add late fees to profit difference too
                 pnlImpact += cr.feesDue;
                 cr.feesDue = uint96(calcLateFee(cr.unbilledPrincipal));
                 // console.log(
@@ -256,6 +257,8 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
             );
 
             // Step 5. captures undercounted profit for this period.
+            //* Reserved for Richard review, to be deleted
+            // block.timestamp > newNextDueDate, it is necessary to avoid to add the interest of principal difference of future time (from now to next due date)
             if (principalDifference > 0 && block.timestamp > newNextDueDate) {
                 uint256 yieldInBps = _cc.yieldInBps;
                 pnlImpact += uint96(
@@ -275,6 +278,11 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
         }
 
         if (isLate) {
+            //* Reserved for Richard review, to be deleted
+            // lossImpact is used for the profit difference when the credit becomes late
+            // lossImpact consists of 2 parts: 1) the principla of next due - the principal of due when the credit become late
+            // e.g. credit due is 10.1, runs this function on 11.3, the next due becomes 12.1
+            // 1st part of lossImpact = the principal of 12.1 - the principal of 11.1
             lossImpact =
                 (cr.unbilledPrincipal + cr.totalDue - cr.yieldDue - cr.feesDue) -
                 (_cr.unbilledPrincipal + _cr.totalDue - _cr.yieldDue - _cr.feesDue);
@@ -291,6 +299,8 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
         uint256 preDueDate = cr.nextDueDate - secondsOfThisPeriod;
         console.log("preDueDate: %s, block.timestamp: %s", preDueDate, block.timestamp);
         if (block.timestamp > preDueDate) {
+            //* Reserved for Richard review, to be deleted
+            // Add profit difference of the interest of principal difference from the begining of next due to now
             pnlImpact += uint96(
                 (principalDifference * _cc.yieldInBps * (block.timestamp - preDueDate)) /
                     (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
@@ -304,6 +314,11 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
                     (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
             );
             if (isLate) {
+                //* Reserved for Richard review, to be deleted
+                // lossImpact is used for the profit difference when the credit becomes late
+                // lossImpact consists of 2 parts: 2) the interest from the begining of next due to now
+                // e.g. credit due is 10.1, runs this function on 11.3, the next due becomes 12.1
+                // 2nd part of lossImpact = the interest of the principal of 12.1 from 11.1 to 11.3
                 lossImpact += uint96(
                     ((cr.unbilledPrincipal + cr.totalDue - cr.yieldDue - cr.feesDue) *
                         _cc.yieldInBps *
@@ -315,6 +330,7 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
             }
         }
 
+        //* Reserved for Richard review, to be deleted, the following is old code for reference
         // uint256 secondsPerPeriod = calendar.getSecondsPerPeriod(
         //     _cc.calendarUnit,
         //     _cc.periodDuration

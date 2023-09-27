@@ -50,11 +50,13 @@ abstract contract BasePnLManager is PoolConfigCache, IPnLManager {
         );
     }
 
+    //* Reserved for Richard review, to be deleted
+    // Update profitDiff and lossDiff from uint96 to int96 because they are possible to be negative
     function _updateTracker(
         int96 profitRateDiff,
         int96 lossRateDiff,
-        uint96 profitDiff,
-        uint96 lossDiff,
+        int96 profitDiff,
+        int96 lossDiff,
         uint96 recoveryDiff
     ) internal {
         pnlTracker = _getLatestTracker(
@@ -66,11 +68,13 @@ abstract contract BasePnLManager is PoolConfigCache, IPnLManager {
         );
     }
 
+    //* Reserved for Richard review, to be deleted
+    // Provide this function to get the latest tracker without updating the tracker
     function _getLatestTracker(
         int96 profitRateDiff,
         int96 lossRateDiff,
-        uint96 profitDiff,
-        uint96 lossDiff,
+        int96 profitDiff,
+        int96 lossDiff,
         uint96 recoveryDiff
     ) internal view returns (PnLTracker memory newTracker) {
         PnLTracker memory tracker = pnlTracker;
@@ -96,14 +100,16 @@ abstract contract BasePnLManager is PoolConfigCache, IPnLManager {
         //     profitDiff
         // );
 
-        newTracker.accruedProfit =
-            tracker.accruedProfit +
-            profitDiff +
-            uint96((tracker.profitRate * timeLapsed) / DEFAULT_DECIMALS_FACTOR);
-        newTracker.accruedLoss =
-            tracker.accruedLoss +
-            lossDiff +
-            uint96((tracker.lossRate * timeLapsed) / DEFAULT_DECIMALS_FACTOR);
+        newTracker.accruedProfit = uint96(
+            int96(tracker.accruedProfit) +
+                profitDiff +
+                int96(uint96((tracker.profitRate * timeLapsed) / DEFAULT_DECIMALS_FACTOR))
+        );
+        newTracker.accruedLoss = uint96(
+            int96(tracker.accruedLoss) +
+                lossDiff +
+                int96(uint96((tracker.lossRate * timeLapsed) / DEFAULT_DECIMALS_FACTOR))
+        );
         newTracker.accruedLossRecovery = tracker.accruedLossRecovery + recoveryDiff;
         newTracker.profitRate = uint96(int96(tracker.profitRate) + profitRateDiff);
         newTracker.lossRate = uint96(int96(tracker.lossRate) + lossRateDiff);
@@ -128,6 +134,8 @@ abstract contract BasePnLManager is PoolConfigCache, IPnLManager {
         accruedLoss = t.accruedLoss;
         accruedLossRecovery = t.accruedLossRecovery;
 
+        //* Reserved for Richard review, to be deleted
+        // Set them to 0 because pool needs incremental values rather than cumulative values
         t.accruedProfit = 0;
         t.accruedLoss = 0;
         t.accruedLossRecovery = 0;

@@ -817,8 +817,13 @@ describe("CreditLine Test", function () {
     });
 
     describe("MakePayment Tests", function () {
+        const yieldInBps = 1217;
+        const frontLoadingFeeBps = 100;
+        const periodDuration = 2;
+
+        let borrowAmount: BN, creditHash: string;
+
         async function prepareForMakePayment() {
-            let frontLoadingFeeBps = BN.from(100);
             await poolConfigContract.connect(poolOwner).setFrontLoadingFees({
                 frontLoadingFeeFlat: 0,
                 frontLoadingFeeBps: frontLoadingFeeBps,
@@ -826,7 +831,7 @@ describe("CreditLine Test", function () {
 
             await poolConfigContract
                 .connect(poolOwner)
-                .setPoolPayPeriod(CONSTANTS.CALENDAR_UNIT_MONTH, 2);
+                .setPoolPayPeriod(CONSTANTS.CALENDAR_UNIT_MONTH, periodDuration);
 
             let juniorDepositAmount = toToken(300_000);
             await juniorTrancheVaultContract
@@ -837,17 +842,26 @@ describe("CreditLine Test", function () {
                 .connect(lender)
                 .deposit(seniorDepositAmount, lender.address);
 
-            // const yieldInBps = 1217;
-            // await creditContract
-            //     .connect(eaServiceAccount)
-            //     .approveBorrower(
-            //         borrower.address,
-            //         toToken(100_000),
-            //         3,
-            //         yieldInBps,
-            //         toToken(100_000),
-            //         true,
-            //     );
+            await creditContract
+                .connect(eaServiceAccount)
+                .approveBorrower(
+                    borrower.address,
+                    toToken(100_000),
+                    3,
+                    yieldInBps,
+                    toToken(100_000),
+                    true,
+                );
+
+            borrowAmount = toToken(50_000);
+            await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
+
+            creditHash = ethers.utils.keccak256(
+                ethers.utils.defaultAbiCoder.encode(
+                    ["address", "address"],
+                    [creditContract.address, borrower.address],
+                ),
+            );
         }
 
         beforeEach(async function () {
@@ -872,9 +886,17 @@ describe("CreditLine Test", function () {
 
         it("Should not makePayment with invalid parameters", async function () {});
 
-        it("Should make partially payment successfully in GoodStanding state", async function () {});
+        it("Should make payment partially payment successfully in GoodStanding state and before due date", async function () {});
 
-        it("Should pay off successfully in GoodStanding state", async function () {});
+        it("Should make payment partially payment successfully in GoodStanding state and between due date and grace late period", async function () {});
+
+        it("Should make payment fully successfully in GoodStanding state and before due date", async function () {});
+
+        it("Should make payment fully successfully in GoodStanding state and between due date and grace late period", async function () {});
+
+        it("Should pay off successfully in GoodStanding state and before due date", async function () {});
+
+        it("Should pay off successfully in GoodStanding state and between due date and grace late period", async function () {});
     });
 
     describe("RefreshCredit Tests", function () {
