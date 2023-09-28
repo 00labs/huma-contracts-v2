@@ -22,11 +22,11 @@ import {
     TrancheVault,
     ProfitEscrow,
 } from "../typechain-types";
+import { CreditLossStructOutput } from "../typechain-types/contracts/credit/BasePnLManager";
 import {
     CreditConfigStruct,
     CreditRecordStruct,
-} from "../typechain-types/contracts/credit/interfaces/ICredit";
-import { CreditLossStructOutput } from "../typechain-types/contracts/credit/BasePnLManager";
+} from "../typechain-types/contracts/credit/BaseCredit";
 
 export type ProtocolContracts = [EvaluationAgentNFT, HumaConfig, MockToken];
 export type PoolContracts = [
