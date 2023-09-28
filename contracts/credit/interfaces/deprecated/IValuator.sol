@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
-import {CreditRecord} from "../CreditStructs.sol";
+import {CreditRecord} from "../../CreditStructs.sol";
 
 /**
  * @notice IValuator defines the present value of a credit record based on the default and discount policy
  */
+
+//* Reserved for Richard review, to be deleted
+// Is this interface used?
 
 interface IValuator {
     function getCreditPresentProfit(

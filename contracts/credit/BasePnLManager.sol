@@ -7,14 +7,13 @@ import {PoolConfig} from "../PoolConfig.sol";
 import {PnLTracker, CreditLoss, CreditRecord, CreditConfig} from "./CreditStructs.sol";
 import {IPnLManager} from "./interfaces/IPnLManager.sol";
 import {PoolConfigCache} from "../PoolConfigCache.sol";
-import {ICredit} from "./interfaces/ICredit.sol";
 import {PoolConfig, PoolSettings} from "../PoolConfig.sol";
 import {ICalendar} from "./interfaces/ICalendar.sol";
 
 import "hardhat/console.sol";
 
 abstract contract BasePnLManager is PoolConfigCache, IPnLManager {
-    ICredit public credit;
+    address public creditContract;
     ICalendar public calendar;
 
     PnLTracker internal pnlTracker;
@@ -23,7 +22,7 @@ abstract contract BasePnLManager is PoolConfigCache, IPnLManager {
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = _poolConfig.credit();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
-        credit = ICredit(addr);
+        creditContract = addr;
 
         addr = _poolConfig.calendar();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
@@ -187,6 +186,6 @@ abstract contract BasePnLManager is PoolConfigCache, IPnLManager {
     }
 
     function onlyCreditContract() internal view {
-        if (msg.sender != address(credit)) revert Errors.todo();
+        if (msg.sender != creditContract) revert Errors.todo();
     }
 }

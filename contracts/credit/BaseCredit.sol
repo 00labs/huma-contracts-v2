@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {CreditConfig, CreditRecord, CreditQuota, BorrowerQuota, CreditLoss, CreditState, PaymentStatus, PnLTracker, Payment} from "./CreditStructs.sol";
+import {CreditConfig, CreditRecord, CreditLimit, CreditLoss, CreditState, PaymentStatus, PnLTracker, Payment} from "./CreditStructs.sol";
 import {IFlexCredit} from "./interfaces/IFlexCredit.sol";
 import {IPoolCredit} from "./interfaces/IPoolCredit.sol";
 import {ICalendar} from "./interfaces/ICalendar.sol";
@@ -242,6 +242,8 @@ abstract contract BaseCredit is
         cr.remainingPeriods = remainingPeriods;
         cr.state = CreditState.Approved;
         _setCreditRecord(creditHash, cr);
+
+        _creditBorrowerMap[creditHash] = borrower;
     }
 
     /**
@@ -250,8 +252,8 @@ abstract contract BaseCredit is
      * @dev Revert if there is still balance due
      * @dev Revert if the committed amount is non-zero and there are periods remaining
      */
-    function _closeCredit(address borrower, bytes32 creditHash) internal virtual {
-        onlyBorrowerOrEAServiceAccount(borrower);
+    function _closeCredit(bytes32 creditHash) internal virtual {
+        _onlyBorrowerOrEAServiceAccount(_creditBorrowerMap[creditHash]);
 
         CreditRecord memory cr = _getCreditRecord(creditHash);
         if (cr.totalDue != 0 || cr.unbilledPrincipal != 0) {
@@ -292,6 +294,7 @@ abstract contract BaseCredit is
     }
 
     function _pauseCredit(bytes32 creditHash) internal {
+        onlyEAServiceAccount();
         CreditRecord memory cr = _getCreditRecord(creditHash);
         if (cr.state == CreditState.GoodStanding) {
             cr.state = CreditState.Paused;
@@ -349,36 +352,29 @@ abstract contract BaseCredit is
      * receivable factoring cases.
      */
     function _triggerDefault(bytes32 creditHash) internal virtual returns (uint256 losses) {
-        //TODO need to review this function
+        //* Reserved for Richard review, to be deleted
+        // TODO Its current logic is same as refreshCredit.
+        // I remember Richard said it should be used to set the credit to default state manually at sometime, correct?
 
-        poolConfig.onlyProtocolAndPoolOn();
-
-        // check to make sure the default grace period has passed.
-        CreditRecord memory cr = _getCreditRecord(creditHash);
-
-        if (cr.state == CreditState.Defaulted) revert Errors.defaultHasAlreadyBeenTriggered();
-
-        if (block.timestamp > cr.nextDueDate) {
-            cr = _updateDueInfo(creditHash);
-        }
-
+        losses;
+        // poolConfig.onlyProtocolAndPoolOn();
+        // // check to make sure the default grace period has passed.
+        // CreditRecord memory cr = _getCreditRecord(creditHash);
+        // if (cr.state == CreditState.Defaulted) revert Errors.defaultHasAlreadyBeenTriggered();
+        // if (block.timestamp > cr.nextDueDate) {
+        //     cr = _updateDueInfo(creditHash);
+        // }
         // Check if grace period has exceeded. Please note it takes a full pay period
         // before the account is considered to be late. The time passed should be one pay period
         // plus the grace period.
         // if (!isDefaultReady(borrower)) revert Errors.defaultTriggeredTooEarly();
-
         // // default amount includes all outstanding principals
         // losses = cr.unbilledPrincipal + cr.totalDue - cr.feesAndInterestDue;
-
         // _creditRecordMap[borrower].state = BS.CreditState.Defaulted;
-
         // _creditRecordStaticMap[borrower].defaultAmount = uint96(losses);
-
         // distributeLosses(losses);
-
         // emit DefaultTriggered(borrower, losses, msg.sender);
-
-        return losses;
+        // return losses;
     }
 
     /**
@@ -390,6 +386,9 @@ abstract contract BaseCredit is
      * @dev only Evaluation Agent can call
      */
     function updateAvailableCredit(bytes32 creditHash, uint96 newAvailableCredit) public virtual {
+        //* Reserved for Richard review, to be deleted
+        // Is it still used?
+
         poolConfig.onlyProtocolAndPoolOn();
         onlyEAServiceAccount();
 
@@ -399,9 +398,9 @@ abstract contract BaseCredit is
         if (newAvailableCredit > _creditConfigMap[creditHash].creditLimit) {
             revert Errors.greaterThanMaxCreditLine();
         }
-        CreditQuota memory quota = _creditQuotaMap[creditHash];
-        quota.availableCredit = newAvailableCredit;
-        _creditQuotaMap[creditHash] = quota;
+        CreditLimit memory limit = _creditLimitMap[creditHash];
+        limit.availableCredit = newAvailableCredit;
+        _creditLimitMap[creditHash] = limit;
 
         // Delete the credit record if the new limit is 0 and no outstanding balance
         if (newAvailableCredit == 0) {
@@ -424,24 +423,29 @@ abstract contract BaseCredit is
      * @dev only Evaluation Agent can call
      */
     function updateBorrowerLimit(address borrower, uint96 newCreditLimit) public virtual {
+        //* Reserved for Richard review, to be deleted
+        // It is for borrower, not very useful, does credit need this function?
+
         poolConfig.onlyProtocolAndPoolOn();
         onlyEAServiceAccount();
         // Credit limit needs to be lower than max for the pool.
         if (newCreditLimit > poolConfig.getPoolSettings().maxCreditLine) {
             revert Errors.greaterThanMaxCreditLine();
         }
-        BorrowerQuota memory quota = _borrowerQuotaMap[borrower];
-        quota.creditLimit = newCreditLimit;
-        _borrowerQuotaMap[borrower] = quota;
+        CreditLimit memory limit = _borrowerLimitMap[borrower];
+        limit.creditLimit = newCreditLimit;
+        _borrowerLimitMap[borrower] = limit;
 
         // emit CreditLineChanged(borrower, oldCreditLimit, newCreditLimit);
     }
 
-    function updateYield(address borrower, uint256 yieldInBps) public virtual {
+    function _updateYield(bytes32 creditHash, uint256 yieldInBps) internal virtual {
+        //* Reserved for Richard review, to be deleted
         //TODO implement this function
     }
 
     function _unpauseCredit(bytes32 creditHash) internal virtual {
+        onlyEAServiceAccount();
         CreditRecord memory cr = _getCreditRecord(creditHash);
         if (cr.state == CreditState.Paused) {
             cr.state = CreditState.GoodStanding;
@@ -468,11 +472,6 @@ abstract contract BaseCredit is
     {
         return pnlManager.getPnLSum();
     }
-
-    function getCreditHash(
-        address borrower,
-        uint256 receivableId
-    ) public view virtual returns (bytes32 creditHash) {}
 
     function isApproved(bytes32 creditHash) public view virtual returns (bool) {
         if ((_creditRecordMap[creditHash].state >= CreditState.Approved)) return true;
@@ -546,6 +545,8 @@ abstract contract BaseCredit is
         bytes32 creditHash,
         uint256 borrowAmount
     ) internal virtual {
+        //* Reserved for Richard review, to be deleted, review this function
+
         if (!firstLossCover.isSufficient(borrower)) revert Errors.todo();
 
         CreditRecord memory cr = _getCreditRecord(creditHash);
@@ -629,8 +630,8 @@ abstract contract BaseCredit is
         //* Reserved for Richard review, to be deleted, please review this function
 
         // TODO Borrowers cannot make payment for defaulted credits
-
         if (amount == 0) revert Errors.zeroAmountProvided();
+
         CreditRecord memory cr = _getCreditRecord(creditHash);
         CreditConfig memory cc = _getCreditConfig(creditHash);
 
@@ -854,7 +855,7 @@ abstract contract BaseCredit is
         }
 
         if (p.amountToCollect > 0) {
-            poolSafe.deposit(borrower, p.amountToCollect);
+            poolSafe.deposit(msg.sender, p.amountToCollect);
             emit PaymentMade(
                 borrower,
                 p.amountToCollect,
@@ -991,7 +992,7 @@ abstract contract BaseCredit is
     function _isOverdue(uint256 dueDate) internal view returns (bool) {}
 
     /// "Modifier" function that limits access to eaServiceAccount only
-    function onlyBorrowerOrEAServiceAccount(address borrower) internal view {
+    function _onlyBorrowerOrEAServiceAccount(address borrower) internal view {
         if (msg.sender != borrower && msg.sender != _humaConfig.eaServiceAccount())
             revert Errors.evaluationAgentServiceAccountRequired();
     }

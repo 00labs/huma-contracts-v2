@@ -152,6 +152,8 @@ contract PoolConfig is AccessControl, Initializable {
     // liquidity deposits, liquidity withdrawals, and reward withdrawals
     address public poolOwnerTreasury;
 
+    address public receivableAsset;
+
     event YieldChanged(uint256 aprInBps, address by);
     event CreditApprovalExpirationChanged(uint256 durationInDays, address by);
     event EARewardsAndLiquidityChanged(
@@ -185,6 +187,7 @@ contract PoolConfig is AccessControl, Initializable {
     event CreditChanged(address credit, address by);
     event FirstLossCoversChanged(address[] firstLossCovers, address by);
     event CalendarChanged(address calendar, address by);
+    event ReceivableAssetChanged(address receivableAsset, address by);
 
     event PoolRewardsWithdrawn(address receiver, uint256 amount);
     event ProtocolRewardsWithdrawn(address receiver, uint256 amount, address by);
@@ -571,6 +574,13 @@ contract PoolConfig is AccessControl, Initializable {
         if (_calendar == address(0)) revert Errors.zeroAddressProvided();
         calendar = _calendar;
         emit CalendarChanged(_calendar, msg.sender);
+    }
+
+    function setReceivableAsset(address _receivableAsset) external {
+        _onlyOwnerOrHumaMasterAdmin();
+        if (_receivableAsset == address(0)) revert Errors.zeroAddressProvided();
+        receivableAsset = _receivableAsset;
+        emit ReceivableAssetChanged(_receivableAsset, msg.sender);
     }
 
     /**

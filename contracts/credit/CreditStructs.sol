@@ -34,8 +34,8 @@ struct CreditRecord {
     // bool revolving; // whether repeated borrowing is allowed
 }
 
-struct CreditQuota {
-    address borrower;
+struct CreditLimit {
+    uint96 creditLimit;
     uint96 availableCredit;
 }
 
@@ -45,11 +45,6 @@ struct CreditLoss {
     uint64 lastLossUpdateDate;
     uint64 lossExpiringDate;
     uint96 lossRate;
-}
-
-struct BorrowerQuota {
-    uint96 creditLimit;
-    uint96 availableCredit;
 }
 
 enum CreditState {
@@ -118,4 +113,9 @@ struct Payment {
     uint96 amountToCollect;
     bool oldLateFlag;
     bool newLateFlag;
+}
+
+struct ReceivableInput {
+    uint96 receivableAmount;
+    uint64 receivableId;
 }

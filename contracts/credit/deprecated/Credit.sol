@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {ICredit} from "./interfaces/ICredit.sol";
-import {BaseCredit} from "./BaseCredit.sol";
-import {CreditRecord, CreditConfig, CreditQuota} from "./CreditStructs.sol";
-import {Errors} from "../Errors.sol";
+import {ICredit} from "../interfaces/deprecated/ICredit.sol";
+import {BaseCredit} from "../BaseCredit.sol";
+import {CreditRecord, CreditConfig, CreditLimit} from "../CreditStructs.sol";
+import {Errors} from "../../Errors.sol";
 
 import "hardhat/console.sol";
+
+//* Reserved for Richard review, to be deleted
+// Delete this interface because of no real case
 
 /**
  * Credit is the basic borrowing entry in Huma Protocol.
@@ -57,8 +60,7 @@ contract Credit is BaseCredit, ICredit {
      */
     function drawdown(bytes32 creditHash, uint256 borrowAmount) external {
         if (borrowAmount == 0) revert Errors.zeroAmountProvided();
-        CreditQuota memory quota = _creditQuotaMap[creditHash];
-        _drawdown(quota.borrower, creditHash, borrowAmount);
+        _drawdown(_creditBorrowerMap[creditHash], creditHash, borrowAmount);
     }
 
     /**
@@ -76,10 +78,9 @@ contract Credit is BaseCredit, ICredit {
         uint256 amount
     ) external returns (uint256 amountPaid, bool paidoff) {
         if (amount == 0) revert Errors.zeroAmountProvided();
-        CreditQuota memory quota = _creditQuotaMap[creditHash];
-        if (msg.sender != quota.borrower) onlyPDSServiceAccount();
-
-        (amountPaid, paidoff, ) = _makePayment(quota.borrower, creditHash, amount);
+        address borrower = _creditBorrowerMap[creditHash];
+        if (msg.sender != borrower) onlyPDSServiceAccount();
+        (amountPaid, paidoff, ) = _makePayment(borrower, creditHash, amount);
     }
 
     /**
@@ -115,7 +116,7 @@ contract Credit is BaseCredit, ICredit {
      */
     function closeCredit(bytes32 creditHash) external {
         address borrower;
-        _closeCredit(borrower, creditHash);
+        _closeCredit(creditHash);
     }
 
     function pauseCredit(bytes32 creditHash) external {
@@ -126,12 +127,9 @@ contract Credit is BaseCredit, ICredit {
         _unpauseCredit(creditHash);
     }
 
-    function updateYield(
-        address borrower,
-        uint256 yieldInBps
-    ) public override(BaseCredit, ICredit) {
-        BaseCredit.updateYield(borrower, yieldInBps);
-    }
+    // function updateYield(address borrower, uint256 yieldInBps) public {
+    //     BaseCredit.updateYield(borrower, yieldInBps);
+    // }
 
     function extendCreditLineDuration(
         bytes32 creditHash,
