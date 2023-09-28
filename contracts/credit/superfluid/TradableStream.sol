@@ -11,6 +11,9 @@ import {CFALib} from "./CFALib.sol";
 
 import {Errors} from "../../Errors.sol";
 
+//* Reserved for Richard review, to be deleted
+// It is copied from V1
+
 struct TradableStreamMetadata {
     uint256 duration;
     uint256 started;

@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import {IReceivableCredit} from "./interfaces/IReceivableCredit.sol";
 import {BaseCredit} from "./BaseCredit.sol";
 import {ReceivableInput} from "./CreditStructs.sol";
-import {CreditRecord} from "./CreditStructs.sol";
+import {CreditConfig, CreditRecord} from "./CreditStructs.sol";
 import {Errors} from "../Errors.sol";
 
 //* Reserved for Richard review, to be deleted
@@ -95,6 +95,16 @@ contract ReceivableCredit is BaseCredit, IReceivableCredit {
     function updateYield(uint256 receivableId, uint256 yieldInBps) external {
         bytes32 creditHash = getCreditHash(receivableId);
         _updateYield(creditHash, yieldInBps);
+    }
+
+    function getCreditConfig(uint256 receivableId) external view returns (CreditConfig memory) {
+        bytes32 creditHash = getCreditHash(receivableId);
+        return _getCreditConfig(creditHash);
+    }
+
+    function getCreditRecord(uint256 receivableId) external view returns (CreditRecord memory) {
+        bytes32 creditHash = getCreditHash(receivableId);
+        return _getCreditRecord(creditHash);
     }
 
     //* Reserved for Richard review, to be deleted

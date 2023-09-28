@@ -8,7 +8,7 @@ interface IReceivable {
         uint96 receivableAmount,
         uint64 maturityDate,
         string memory uri
-    ) external;
+    ) external returns (uint256 tokenId);
 
     function declarePayment(uint256 tokenId, uint96 paymentAmount) external;
 

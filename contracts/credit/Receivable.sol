@@ -91,8 +91,8 @@ contract Receivable is
         uint96 receivableAmount,
         uint64 maturityDate,
         string memory uri
-    ) public onlyRole(MINTER_ROLE) {
-        uint256 tokenId = _tokenIdCounter.current();
+    ) public onlyRole(MINTER_ROLE) returns (uint256 tokenId) {
+        tokenId = _tokenIdCounter.current();
         _tokenIdCounter.increment();
         _safeMint(msg.sender, tokenId);
 

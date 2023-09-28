@@ -5,6 +5,9 @@ import {ISuperToken} from "@superfluid-finance/ethereum-contracts/contracts/inte
 import {IConstantFlowAgreementV1} from "@superfluid-finance/ethereum-contracts/contracts/interfaces/agreements/IConstantFlowAgreementV1.sol";
 import {CFAv1Library} from "@superfluid-finance/ethereum-contracts/contracts/apps/CFAv1Library.sol";
 
+//* Reserved for Richard review, to be deleted
+// It is copied from V1
+
 library CFALib {
     using CFAv1Library for CFAv1Library.InitData;
 
