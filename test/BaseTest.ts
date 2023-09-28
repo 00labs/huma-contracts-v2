@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { BigNumber as BN, Contract } from "ethers";
-import { getNextDate, getNextMonth, toToken } from "./TestUtils";
+import { getNextDate, getNextMonth, sumBNArray, toToken } from "./TestUtils";
 import { EpochInfoStruct } from "../typechain-types/contracts/interfaces/IEpoch";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { ethers } from "hardhat";
@@ -477,6 +477,23 @@ export function getNextDueDate(
     }
 }
 
+function calcProfitForFirstLossCovers(
+    profit: BN,
+    juniorTotalAssets: BN,
+    coverTotalAssets: BN[],
+    riskYieldMultipliers: number[],
+): [BN, BN[]] {
+    const riskWeightedCoverTotalAssets = coverTotalAssets.map((value, index) =>
+        value.mul(riskYieldMultipliers[index]),
+    );
+    const totalWeight = juniorTotalAssets.add(sumBNArray(riskWeightedCoverTotalAssets));
+    const profitsForFirstLossCovers = riskWeightedCoverTotalAssets.map((value) =>
+        profit.mul(value).div(totalWeight),
+    );
+    const juniorProfit = profit.sub(sumBNArray(profitsForFirstLossCovers));
+    return [juniorProfit, profitsForFirstLossCovers];
+}
+
 function calcProfitForFixedAprPolicy(
     profit: BN,
     assets: BN[],
@@ -508,7 +525,13 @@ function calcProfitForFixedAprPolicy(
     ];
 }
 
-function calcProfitForRiskAdjustedPolicy(profit: BN, assets: BN[], riskAdjustment: BN): BN[] {
+function calcProfitForRiskAdjustedPolicy(
+    profit: BN,
+    assets: BN[],
+    riskAdjustment: BN,
+    firstLossCoverTotalAssets: BN[],
+    riskYieldMultipliers: number[],
+): BN[] {
     const totalAssets = assets[CONSTANTS.SENIOR_TRANCHE_INDEX].add(
         assets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
     );
@@ -516,10 +539,17 @@ function calcProfitForRiskAdjustedPolicy(profit: BN, assets: BN[], riskAdjustmen
     let seniorProfit = profit.mul(assets[CONSTANTS.SENIOR_TRANCHE_INDEX]).div(totalAssets);
     const adjustedProfit = seniorProfit.mul(riskAdjustment).div(CONSTANTS.BP_FACTOR);
     seniorProfit = seniorProfit.sub(adjustedProfit);
+    const initialJuniorProfit = profit.sub(seniorProfit);
+    const [remainingJuniorProfit] = calcProfitForFirstLossCovers(
+        initialJuniorProfit,
+        assets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+        firstLossCoverTotalAssets,
+        riskYieldMultipliers,
+    );
 
     return [
         assets[CONSTANTS.SENIOR_TRANCHE_INDEX].add(seniorProfit),
-        assets[CONSTANTS.JUNIOR_TRANCHE_INDEX].add(profit).sub(seniorProfit),
+        assets[CONSTANTS.JUNIOR_TRANCHE_INDEX].add(remainingJuniorProfit),
     ];
 }
 

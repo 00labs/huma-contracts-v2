@@ -49,7 +49,7 @@ let poolConfigContract: PoolConfig,
     poolSafeContract: PoolSafe,
     calendarContract: Calendar,
     borrowerFirstLossCoverContract: FirstLossCover,
-    affiliateFeeManagerContract: FirstLossCover,
+    affiliateFirstLossCoverContract: FirstLossCover,
     affiliateFirstLossCoverProfitEscrowContract: ProfitEscrow,
     tranchesPolicyContract: RiskAdjustedTranchesPolicy,
     poolContract: Pool,
@@ -91,7 +91,7 @@ describe("RiskAdjustedTranchesPolicy Test", function () {
             poolSafeContract,
             calendarContract,
             borrowerFirstLossCoverContract,
-            affiliateFeeManagerContract,
+            affiliateFirstLossCoverContract,
             affiliateFirstLossCoverProfitEscrowContract,
             tranchesPolicyContract,
             poolContract,
@@ -141,10 +141,18 @@ describe("RiskAdjustedTranchesPolicy Test", function () {
         const assets = await poolContract.currentTranchesAssets();
         const profit = toToken(14837);
 
+        const firstLossCoverTotalAssets = await Promise.all(
+            [borrowerFirstLossCoverContract, affiliateFirstLossCoverContract].map(
+                async (contract) => await contract.totalAssets(),
+            ),
+        );
+        const riskYieldMultipliers = await poolConfigContract.getRiskYieldMultipliers();
         const newAssets = PnLCalculator.calcProfitForRiskAdjustedPolicy(
             profit,
             assets,
             BN.from(adjustment),
+            firstLossCoverTotalAssets,
+            riskYieldMultipliers,
         );
         const result = await tranchesPolicyContract.calcTranchesAssetsForProfit(
             profit,

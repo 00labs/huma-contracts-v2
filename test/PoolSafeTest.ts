@@ -44,7 +44,7 @@ let poolConfigContract: PoolConfig,
     poolSafeContract: PoolSafe,
     calendarContract: Calendar,
     borrowerFirstLossCoverContract: FirstLossCover,
-    affiliateFeeManagerContract: FirstLossCover,
+    affiliateFirstLossCoverContract: FirstLossCover,
     affiliateFirstLossCoverProfitEscrowContract: ProfitEscrow,
     tranchesPolicyContract: RiskAdjustedTranchesPolicy,
     poolContract: Pool,
@@ -86,7 +86,7 @@ describe("PoolSafe.sol Test", function () {
             poolSafeContract,
             calendarContract,
             borrowerFirstLossCoverContract,
-            affiliateFeeManagerContract,
+            affiliateFirstLossCoverContract,
             affiliateFirstLossCoverProfitEscrowContract,
             tranchesPolicyContract,
             poolContract,
@@ -126,7 +126,7 @@ describe("PoolSafe.sol Test", function () {
             await mockTokenContract.mint(lender.address, amount);
             await mockTokenContract
                 .connect(lender)
-                .approve(affiliateFeeManagerContract.address, amount);
+                .approve(affiliateFirstLossCoverContract.address, amount);
 
             const oldBalance = await poolSafeContract.totalAssets();
             await poolSafeContract.deposit(lender.address, amount);
