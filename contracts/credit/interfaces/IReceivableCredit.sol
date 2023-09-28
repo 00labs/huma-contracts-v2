@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 import {ReceivableInput} from "../CreditStructs.sol";
-import {CreditRecord} from "../CreditStructs.sol";
+import {CreditConfig, CreditRecord} from "../CreditStructs.sol";
 
 interface IReceivableCredit {
     function approveReceivable(
         address borrower,
-        ReceivableInput memory receivable,
+        ReceivableInput memory receivableInput,
         uint96 creditLimit,
         uint16 remainingPeriods,
         uint16 yieldInBps,
@@ -36,4 +36,8 @@ interface IReceivableCredit {
     function unpauseCredit(uint256 receivableId) external;
 
     function updateYield(uint256 receivableId, uint256 yieldInBps) external;
+
+    function getCreditConfig(uint256 receivableId) external view returns (CreditConfig memory);
+
+    function getCreditRecord(uint256 receivableId) external view returns (CreditRecord memory);
 }

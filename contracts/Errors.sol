@@ -110,6 +110,13 @@ contract Errors {
     error flowIsNotTerminated(); // 0xe9c5922f
     error invalidSuperfluidCallback(); // 0xd2747f83
     error invalidSuperfluidAction(); // 0x2f2cd9e9
+    error notTradableStreamOwner();
+    error tradableStreamNotExisting();
+    error tradableStreamNotMatured();
+    error notEnoughAvailableFlowrate();
+    error AuthorizationExpired();
+    error InvalidAuthorization();
+    error newReceiverSameToOrigin();
 
     error invalidCalendarUnit(); // 0x353226f1
     error zeroPayPeriods(); // 0xd991f55d
