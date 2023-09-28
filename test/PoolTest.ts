@@ -369,6 +369,11 @@ describe("Pool Test", function () {
                     ];
                     const profitAfterFees =
                         await poolFeeManagerContract.calcPlatformFeeDistribution(profit);
+                    const assetsWithProfits = PnLCalculator.calcProfitForRiskAdjustedPolicy(
+                        profitAfterFees,
+                        assets,
+                        BN.from(adjustment),
+                    );
                     const firstLossCoverTotalAssets = await Promise.all(
                         [borrowerFirstLossCoverContract, affiliateFirstLossCoverContract].map(
                             async (contract) => await contract.totalAssets(),
@@ -376,17 +381,21 @@ describe("Pool Test", function () {
                     );
                     const riskYieldMultipliers =
                         await poolConfigContract.getRiskYieldMultipliers();
-                    const assetsWithProfits = PnLCalculator.calcProfitForRiskAdjustedPolicy(
-                        profitAfterFees,
-                        assets,
-                        BN.from(adjustment),
-                        firstLossCoverTotalAssets,
-                        riskYieldMultipliers,
-                    );
-                    const [assetsWithLosses, losses] = PnLCalculator.calcLoss(
-                        loss,
-                        assetsWithProfits,
-                    );
+                    const [juniorProfitAfterFirstLossCoverProfitDistribution] =
+                        PnLCalculator.calcProfitForFirstLossCovers(
+                            assetsWithProfits[CONSTANTS.JUNIOR_TRANCHE_INDEX].sub(
+                                assets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                            ),
+                            assets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                            firstLossCoverTotalAssets,
+                            riskYieldMultipliers,
+                        );
+                    const [assetsWithLosses, losses] = PnLCalculator.calcLoss(loss, [
+                        assetsWithProfits[CONSTANTS.SENIOR_TRANCHE_INDEX],
+                        assets[CONSTANTS.JUNIOR_TRANCHE_INDEX].add(
+                            juniorProfitAfterFirstLossCoverProfitDistribution,
+                        ),
+                    ]);
                     const [, assetsWithRecovery, lossesWithRecovery] =
                         PnLCalculator.calcLossRecovery(recovery, assetsWithLosses, losses);
 
@@ -520,6 +529,11 @@ describe("Pool Test", function () {
                     ];
                     const profitAfterFees =
                         await poolFeeManagerContract.calcPlatformFeeDistribution(profit);
+                    const assetsWithProfits = PnLCalculator.calcProfitForRiskAdjustedPolicy(
+                        profitAfterFees,
+                        assets,
+                        BN.from(adjustment),
+                    );
                     const firstLossCoverTotalAssets = await Promise.all(
                         [borrowerFirstLossCoverContract, affiliateFirstLossCoverContract].map(
                             async (contract) => await contract.totalAssets(),
@@ -527,17 +541,21 @@ describe("Pool Test", function () {
                     );
                     const riskYieldMultipliers =
                         await poolConfigContract.getRiskYieldMultipliers();
-                    const assetsWithProfits = PnLCalculator.calcProfitForRiskAdjustedPolicy(
-                        profitAfterFees,
-                        assets,
-                        BN.from(adjustment),
-                        firstLossCoverTotalAssets,
-                        riskYieldMultipliers,
-                    );
-                    const [assetsWithLosses, losses] = PnLCalculator.calcLoss(
-                        loss,
-                        assetsWithProfits,
-                    );
+                    const [juniorProfitAfterFirstLossCoverProfitDistribution] =
+                        PnLCalculator.calcProfitForFirstLossCovers(
+                            assetsWithProfits[CONSTANTS.JUNIOR_TRANCHE_INDEX].sub(
+                                assets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                            ),
+                            assets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                            firstLossCoverTotalAssets,
+                            riskYieldMultipliers,
+                        );
+                    const [assetsWithLosses, losses] = PnLCalculator.calcLoss(loss, [
+                        assetsWithProfits[CONSTANTS.SENIOR_TRANCHE_INDEX],
+                        assets[CONSTANTS.JUNIOR_TRANCHE_INDEX].add(
+                            juniorProfitAfterFirstLossCoverProfitDistribution,
+                        ),
+                    ]);
                     const [, assetsWithRecovery] = PnLCalculator.calcLossRecovery(
                         recovery,
                         assetsWithLosses,

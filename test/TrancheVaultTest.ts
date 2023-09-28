@@ -404,20 +404,32 @@ describe("TrancheVault Test", function () {
                 ];
                 const profitAfterFees =
                     await poolFeeManagerContract.calcPlatformFeeDistribution(profit);
+                const assetsWithProfits = PnLCalculator.calcProfitForRiskAdjustedPolicy(
+                    profitAfterFees,
+                    assets,
+                    BN.from(adjustment),
+                );
                 const firstLossCoverTotalAssets = await Promise.all(
                     [borrowerFirstLossCoverContract, affiliateFirstLossCoverContract].map(
                         async (contract) => await contract.totalAssets(),
                     ),
                 );
                 const riskYieldMultipliers = await poolConfigContract.getRiskYieldMultipliers();
-                const assetsWithProfits = PnLCalculator.calcProfitForRiskAdjustedPolicy(
-                    profitAfterFees,
-                    assets,
-                    BN.from(adjustment),
-                    firstLossCoverTotalAssets,
-                    riskYieldMultipliers,
-                );
-                const [assetsWithLosses, losses] = PnLCalculator.calcLoss(loss, assetsWithProfits);
+                const [juniorProfitAfterFirstLossCoverProfitDistribution] =
+                    PnLCalculator.calcProfitForFirstLossCovers(
+                        assetsWithProfits[CONSTANTS.JUNIOR_TRANCHE_INDEX].sub(
+                            assets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                        ),
+                        assets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                        firstLossCoverTotalAssets,
+                        riskYieldMultipliers,
+                    );
+                const [assetsWithLosses, losses] = PnLCalculator.calcLoss(loss, [
+                    assetsWithProfits[CONSTANTS.SENIOR_TRANCHE_INDEX],
+                    assets[CONSTANTS.JUNIOR_TRANCHE_INDEX].add(
+                        juniorProfitAfterFirstLossCoverProfitDistribution,
+                    ),
+                ]);
                 const [, assetsWithRecovery] = PnLCalculator.calcLossRecovery(
                     lossRecovery,
                     assetsWithLosses,
@@ -514,10 +526,10 @@ describe("TrancheVault Test", function () {
             });
 
             it("Should mint the correct number of LP tokens if there is all types of PnL in the pool", async function () {
-                // const profit = toToken(10_000),
-                //     loss = toToken(1_000),
-                //     lossRecovery = toToken(500);
-                // await testDepositWithPnL(profit, loss, lossRecovery);
+                const profit = toToken(10_000),
+                    loss = toToken(1_000),
+                    lossRecovery = toToken(500);
+                await testDepositWithPnL(profit, loss, lossRecovery);
             });
         });
     });

@@ -141,18 +141,10 @@ describe("RiskAdjustedTranchesPolicy Test", function () {
         const assets = await poolContract.currentTranchesAssets();
         const profit = toToken(14837);
 
-        const firstLossCoverTotalAssets = await Promise.all(
-            [borrowerFirstLossCoverContract, affiliateFirstLossCoverContract].map(
-                async (contract) => await contract.totalAssets(),
-            ),
-        );
-        const riskYieldMultipliers = await poolConfigContract.getRiskYieldMultipliers();
         const newAssets = PnLCalculator.calcProfitForRiskAdjustedPolicy(
             profit,
             assets,
             BN.from(adjustment),
-            firstLossCoverTotalAssets,
-            riskYieldMultipliers,
         );
         const result = await tranchesPolicyContract.calcTranchesAssetsForProfit(
             profit,
