@@ -157,6 +157,15 @@ contract TrancheVault is
     }
 
     /**
+     * @notice Allows the pool owner and EA to make initial deposit before the pool goes live
+     * @param assets The amount of underlyingTokens to be deposited
+     */
+    function makeInitialDeposit(uint256 assets) external returns (uint256 shares) {
+        poolConfig.onlyPoolOwnerTreasuryOrEA(msg.sender);
+        return _deposit(assets, msg.sender);
+    }
+
+    /**
      * @notice LP deposits to the pool to earn interest, and share losses
      *
      * @notice All deposits should be made by calling this function and
@@ -176,15 +185,6 @@ contract TrancheVault is
         _onlyLender(receiver);
         poolConfig.onlyProtocolAndPoolOn();
         return _deposit(assets, receiver);
-    }
-
-    /**
-     * @notice Allows the pool owner and EA to make initial deposit before the pool goes live
-     * @param assets The amount of underlyingTokens to be deposited
-     */
-    function makeInitialDeposit(uint256 assets) external returns (uint256 shares) {
-        poolConfig.onlyPoolOwnerTreasuryOrEA(msg.sender);
-        return _deposit(assets, msg.sender);
     }
 
     function _deposit(uint256 assets, address receiver) internal returns (uint256 shares) {
