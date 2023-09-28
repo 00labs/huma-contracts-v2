@@ -68,6 +68,7 @@
     "solidity-coverage": "^0.8.1",
     "ts-node": "^10.9.1",
     "typechain": "^8.1.0",
-    "typescript": "^5.2.2"
+    "typescript": "^5.2.2",
+    "@superfluid-finance/ethereum-contracts": "^1.5.0"
   }
 }

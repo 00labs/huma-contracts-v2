@@ -13,7 +13,7 @@ import {Errors} from "../Errors.sol";
 contract ReceivableCredit is BaseCredit, IReceivableCredit {
     function approveReceivable(
         address borrower,
-        ReceivableInput memory receivable,
+        ReceivableInput memory receivableInput,
         uint96 creditLimit,
         uint16 remainingPeriods,
         uint16 yieldInBps,
@@ -22,7 +22,7 @@ contract ReceivableCredit is BaseCredit, IReceivableCredit {
         poolConfig.onlyProtocolAndPoolOn();
         onlyEAServiceAccount();
 
-        bytes32 creditHash = getCreditHash(receivable.receivableId);
+        bytes32 creditHash = getCreditHash(receivableInput.receivableId);
         _approveCredit(
             borrower,
             creditHash,
@@ -34,22 +34,24 @@ contract ReceivableCredit is BaseCredit, IReceivableCredit {
         );
 
         //* Reserved for Richard review, to be deleted
-        // is there any action for receivable?
+        // is there any action for receivable? validate the receivable amount if is greater than creditLimit?
     }
 
     function drawdownWithReceivable(
         address borrower,
         uint256 receivableId,
         uint256 amount
-    ) external {
+    ) external virtual {
         //* Reserved for Richard review, to be deleted
         // TODO poolConfig.onlyProtocolAndPoolOn(); ?
+        // Verify the owner of the receivable is the borrower?
 
         if (msg.sender != borrower) revert Errors.notBorrower();
         if (receivableId == 0) revert Errors.todo();
         if (amount == 0) revert Errors.zeroAmountProvided();
         bytes32 creditHash = getCreditHash(receivableId);
         if (borrower != _creditBorrowerMap[creditHash]) revert Errors.notBorrower();
+
         _drawdown(borrower, creditHash, amount);
     }
 
@@ -57,7 +59,7 @@ contract ReceivableCredit is BaseCredit, IReceivableCredit {
         address borrower,
         uint256 receivableId,
         uint256 amount
-    ) external returns (uint256 amountPaid, bool paidoff) {
+    ) public virtual returns (uint256 amountPaid, bool paidoff) {
         poolConfig.onlyProtocolAndPoolOn();
         if (msg.sender != borrower) onlyPDSServiceAccount();
         bytes32 creditHash = getCreditHash(receivableId);

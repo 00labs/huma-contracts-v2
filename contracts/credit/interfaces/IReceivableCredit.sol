@@ -6,7 +6,7 @@ import {CreditRecord} from "../CreditStructs.sol";
 interface IReceivableCredit {
     function approveReceivable(
         address borrower,
-        ReceivableInput memory receivable,
+        ReceivableInput memory receivableInput,
         uint96 creditLimit,
         uint16 remainingPeriods,
         uint16 yieldInBps,
