@@ -7,7 +7,6 @@ import {PoolConfig} from "../PoolConfig.sol";
 import {PnLTracker, CreditLoss, CreditRecord, CreditConfig} from "./CreditStructs.sol";
 import {BasePnLManager} from "./BasePnLManager.sol";
 import {PoolConfigCache} from "../PoolConfigCache.sol";
-import {ICredit} from "./interfaces/ICredit.sol";
 
 import "hardhat/console.sol";
 

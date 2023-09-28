@@ -13,11 +13,19 @@ interface IReceivableCredit {
         uint96 committedAmount
     ) external;
 
-    function drawdownWithReceivable(uint256 receivableId, uint256 amount) external;
+    function drawdownWithReceivable(
+        address borrower,
+        uint256 receivableId,
+        uint256 amount
+    ) external;
 
-    function makePaymentWithReceivable(uint256 receivableId, uint256 amount) external;
+    function makePaymentWithReceivable(
+        address borrower,
+        uint256 receivableId,
+        uint256 amount
+    ) external returns (uint256 amountPaid, bool paidoff);
 
-    function refreshCredit(uint256 receivableId) external returns (CreditRecord memory cr);
+    function refreshCredit(uint256 receivableId) external;
 
     function triggerDefault(uint256 receivableId) external returns (uint256 losses);
 

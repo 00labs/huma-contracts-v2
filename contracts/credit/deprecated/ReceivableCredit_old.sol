@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {CreditConfig, CreditRecord, CreditQuota, ReceivableInfo, FacilityConfig, ReceivableState} from "./CreditStructs.sol";
+import {CreditConfig, CreditRecord, CreditLimit, ReceivableInfo, FacilityConfig, ReceivableState} from "../CreditStructs.sol";
 import {Credit} from "./Credit.sol";
-import {IReceivableCredit_old} from "./interfaces/IReceivableCredit_old.sol";
-import {Receivable} from "./Receivable.sol";
-import {Errors} from "../Errors.sol";
-import {PoolConfig, PoolSettings} from "../PoolConfig.sol";
+import {IReceivableCredit_old} from "../interfaces/deprecated/IReceivableCredit_old.sol";
+import {Receivable} from "../Receivable.sol";
+import {Errors} from "../../Errors.sol";
+import {PoolConfig, PoolSettings} from "../../PoolConfig.sol";
+
+//* Reserved for Richard review, to be deleted
+// Delete this interface because new IReceivableCredit is used
 
 /**
  * ReceivableCredit is a credit backed by receivables.
@@ -91,11 +94,11 @@ contract ReceivableCredit_old is Credit, IReceivableCredit_old {
         receivable.approveOrRejectReceivable(receivableId, true);
         bytes32 creditHash = _getCreditHash(borrower, receivableId);
 
-        CreditQuota memory quota = _creditQuotaMap[creditHash];
-        quota.availableCredit +=
+        CreditLimit memory limit = _creditLimitMap[creditHash];
+        limit.availableCredit +=
             receivable.getReceivable(receivableId).receivableAmount *
             facilityConfig[creditHash].advanceRateInBps;
-        _creditQuotaMap[creditHash] = quota;
+        _creditLimitMap[creditHash] = limit;
 
         // todo emit event
     }

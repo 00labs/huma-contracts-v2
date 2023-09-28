@@ -57,7 +57,7 @@ interface ICreditLine {
      * to the LPs. Unfortunately, this special business consideration added more complexity
      * and cognitive load to _updateDueInfo(...).
      */
-    function refreshCredit(address borrower) external returns (CreditRecord memory cr);
+    function refreshCredit(address borrower) external;
 
     /**
      * @notice Triggers the default process

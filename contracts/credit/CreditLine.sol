@@ -83,10 +83,13 @@ contract CreditLine is BaseCredit, ICreditLine {
      * @dev Only the owner of the credit line can drawdown.
      */
     function drawdown(address borrower, uint256 borrowAmount) external {
+        //* Reserved for Richard review, to be deleted
         // TODO poolConfig.onlyProtocolAndPoolOn(); ?
-        if (borrower == address(0)) revert Errors.zeroAddressProvided();
+
+        if (borrower != msg.sender) revert Errors.notBorrower();
         if (borrowAmount == 0) revert Errors.zeroAmountProvided();
         bytes32 creditHash = getCreditHash(borrower);
+        if (borrower != _creditBorrowerMap[creditHash]) revert Errors.notBorrower();
         _drawdown(borrower, creditHash, borrowAmount);
     }
 
@@ -107,6 +110,7 @@ contract CreditLine is BaseCredit, ICreditLine {
         poolConfig.onlyProtocolAndPoolOn();
         if (msg.sender != borrower) onlyPDSServiceAccount();
         bytes32 creditHash = getCreditHash(borrower);
+        if (borrower != _creditBorrowerMap[creditHash]) revert Errors.notBorrower();
         (amountPaid, paidoff, ) = _makePayment(borrower, creditHash, amount);
     }
 
@@ -121,7 +125,7 @@ contract CreditLine is BaseCredit, ICreditLine {
      * to the LPs. Unfortunately, this special business consideration added more complexity
      * and cognitive load to _updateDueInfo(...).
      */
-    function refreshCredit(address borrower) external returns (CreditRecord memory cr) {
+    function refreshCredit(address borrower) external {
         bytes32 creditHash = getCreditHash(borrower);
         _refreshCredit(creditHash);
     }
@@ -145,7 +149,7 @@ contract CreditLine is BaseCredit, ICreditLine {
      */
     function closeCredit(address borrower) external {
         bytes32 creditHash = getCreditHash(borrower);
-        _closeCredit(borrower, creditHash);
+        _closeCredit(creditHash);
     }
 
     function pauseCredit(address borrower) external {
@@ -158,11 +162,9 @@ contract CreditLine is BaseCredit, ICreditLine {
         _unpauseCredit(creditHash);
     }
 
-    function updateYield(
-        address borrower,
-        uint256 yieldInBps
-    ) public override(BaseCredit, ICreditLine) {
-        BaseCredit.updateYield(borrower, yieldInBps);
+    function updateYield(address borrower, uint256 yieldInBps) external {
+        bytes32 creditHash = getCreditHash(borrower);
+        _updateYield(creditHash, yieldInBps);
     }
 
     function getCreditHash(address borrower) internal view virtual returns (bytes32 creditHash) {

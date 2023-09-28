@@ -47,14 +47,7 @@ export type PoolContracts = [
     BasePnLManager,
 ];
 export type TranchesPolicyContractName = "FixedAprTranchesPolicy" | "RiskAdjustedTranchesPolicy";
-export type CreditContractName =
-    | "Credit"
-    | "DynamicYieldCredit"
-    | "ReceivableFactoringCredit"
-    | "CreditFacility"
-    | "CreditLine"
-    | "ReceivableCredit"
-    | "MockPoolCredit";
+export type CreditContractName = "CreditLine" | "MockPoolCredit";
 
 const CALENDAR_UNIT_DAY = 0;
 const CALENDAR_UNIT_MONTH = 1;
@@ -731,17 +724,7 @@ async function getCreditContractFactory(creditContractName: CreditContractName) 
     // The TypeScript compiler cannot deduce the specific return types based solely on the input values,
     // so this approach ensures correct type association for each possible input.
     switch (creditContractName) {
-        case "Credit":
-            return await ethers.getContractFactory(creditContractName);
-        case "DynamicYieldCredit":
-            return await ethers.getContractFactory(creditContractName);
-        case "ReceivableFactoringCredit":
-            return await ethers.getContractFactory(creditContractName);
-        case "CreditFacility":
-            return await ethers.getContractFactory(creditContractName);
         case "CreditLine":
-            return await ethers.getContractFactory(creditContractName);
-        case "ReceivableCredit":
             return await ethers.getContractFactory(creditContractName);
         case "MockPoolCredit":
             return await ethers.getContractFactory(creditContractName);

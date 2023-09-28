@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
-import {CreditRecord, CreditConfig} from "../CreditStructs.sol";
+import {CreditRecord, CreditConfig} from "../../CreditStructs.sol";
+
+//* Reserved for Richard review, to be deleted
+// Delete this interface because of no real case
 
 interface ICredit {
     // /**
@@ -42,7 +45,7 @@ interface ICredit {
 
     // function updateAvailableCredit(bytes32 creditHash, uint96 newAvailableCredit) external;
 
-    function updateYield(address borrower, uint yieldInBps) external;
+    // function updateYield(address borrower, uint yieldInBps) external;
 
     function unpauseCredit(bytes32 creditHash) external;
 

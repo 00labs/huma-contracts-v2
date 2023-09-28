@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {CreditConfig, CreditRecord, ReceivableInfo, FacilityConfig, ReceivableState} from "./CreditStructs.sol";
-import {ReceivableCredit_old} from "./ReceivableCredit_old.sol";
-import {ICreditFacility} from "./interfaces/ICreditFacility.sol";
-import {Receivable} from "./Receivable.sol";
-import {Errors} from "../Errors.sol";
+import {CreditConfig, CreditRecord, ReceivableInfo, FacilityConfig, ReceivableState} from "../CreditStructs.sol";
+import {ReceivableCredit_old} from "../deprecated/ReceivableCredit_old.sol";
+import {ICreditFacility} from "../interfaces/experimental/ICreditFacility.sol";
+import {Receivable} from "../Receivable.sol";
+import {Errors} from "../../Errors.sol";
+
+//* Reserved for Richard review, to be deleted
+// This is not in V2 scope?
 
 /**
  * ReceivableCredit is a credit backed by receivables.
