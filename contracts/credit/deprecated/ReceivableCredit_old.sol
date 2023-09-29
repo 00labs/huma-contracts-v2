@@ -54,7 +54,7 @@ contract ReceivableCredit_old is Credit, IReceivableCredit_old {
         bool borrowerLevelCredit
     ) external virtual override {
         poolConfig.onlyProtocolAndPoolOn();
-        onlyEAServiceAccount();
+        _onlyEAServiceAccount();
 
         if (creditLimit <= 0) revert();
         if (numOfPeriods <= 0) revert();
@@ -86,7 +86,7 @@ contract ReceivableCredit_old is Credit, IReceivableCredit_old {
     }
 
     function approveReceivable(address borrower, uint256 receivableId) public {
-        onlyEAServiceAccount();
+        _onlyEAServiceAccount();
         _approveReceivable(borrower, receivableId);
     }
 
@@ -104,7 +104,7 @@ contract ReceivableCredit_old is Credit, IReceivableCredit_old {
     }
 
     function rejectReceivable(address borrower, uint256 receivableId) public {
-        onlyEAServiceAccount();
+        _onlyEAServiceAccount();
         receivable.approveOrRejectReceivable(receivableId, false);
         // todo emit event
     }
