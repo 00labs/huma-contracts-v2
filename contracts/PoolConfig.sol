@@ -156,6 +156,7 @@ contract PoolConfig is AccessControl, Initializable {
 
     event YieldChanged(uint256 aprInBps, address by);
     event CreditApprovalExpirationChanged(uint256 durationInDays, address by);
+    event LatePaymentGracePeriodChanged(uint256 gracePeriodInDays, address by);
     event EARewardsAndLiquidityChanged(
         uint256 rewardsRate,
         uint256 liquidityRate,
@@ -358,6 +359,12 @@ contract PoolConfig is AccessControl, Initializable {
         _onlyOwnerOrHumaMasterAdmin();
         _poolSettings.creditApprovalExpirationInDays = uint16(durationInDays);
         emit CreditApprovalExpirationChanged(durationInDays, msg.sender);
+    }
+
+    function setLatePaymentGracePeriodInDays(uint256 gracePeriodInDays) external {
+        _onlyOwnerOrHumaMasterAdmin();
+        _poolSettings.latePaymentGracePeriodInDays = uint8(gracePeriodInDays);
+        emit LatePaymentGracePeriodChanged(gracePeriodInDays, msg.sender);
     }
 
     function setPoolOwnerRewardsAndLiquidity(uint256 rewardsRate, uint256 liquidityRate) external {

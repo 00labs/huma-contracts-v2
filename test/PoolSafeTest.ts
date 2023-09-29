@@ -1,7 +1,7 @@
 import { ethers } from "hardhat";
 
 import { expect } from "chai";
-import { CONSTANTS, deployAndSetupPoolContracts, deployProtocolContracts } from "./BaseTest";
+import { deployAndSetupPoolContracts, deployProtocolContracts } from "./BaseTest";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import {
