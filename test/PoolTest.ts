@@ -57,7 +57,7 @@ let poolConfigContract: PoolConfig,
     poolSafeContract: PoolSafe,
     calendarContract: Calendar,
     borrowerFirstLossCoverContract: FirstLossCover,
-    affiliateFeeManagerContract: FirstLossCover,
+    affiliateFirstLossCoverContract: FirstLossCover,
     affiliateFirstLossCoverProfitEscrowContract: ProfitEscrow,
     tranchesPolicyContract: RiskAdjustedTranchesPolicy,
     poolContract: Pool,
@@ -103,7 +103,7 @@ describe("Pool Test", function () {
                 poolSafeContract,
                 calendarContract,
                 borrowerFirstLossCoverContract,
-                affiliateFeeManagerContract,
+                affiliateFirstLossCoverContract,
                 affiliateFirstLossCoverProfitEscrowContract,
                 tranchesPolicyContract,
                 poolContract,
@@ -127,7 +127,7 @@ describe("Pool Test", function () {
             await poolConfigContract
                 .connect(poolOwner)
                 .setPoolOwnerTreasury(poolOwnerTreasury.address);
-            await affiliateFeeManagerContract
+            await affiliateFirstLossCoverContract
                 .connect(poolOwner)
                 .setOperator(poolOwnerTreasury.address, {
                     poolCapCoverageInBps: 1000,
@@ -145,7 +145,7 @@ describe("Pool Test", function () {
             await poolConfigContract
                 .connect(poolOwner)
                 .setEvaluationAgent(eaNFTTokenId, evaluationAgent.address);
-            await affiliateFeeManagerContract
+            await affiliateFirstLossCoverContract
                 .connect(poolOwner)
                 .setOperator(evaluationAgent.address, {
                     poolCapCoverageInBps: 1000,
@@ -153,13 +153,13 @@ describe("Pool Test", function () {
                 });
 
             minPoolOwnerFirstLossCover = await getMinFirstLossCoverRequirement(
-                affiliateFeeManagerContract,
+                affiliateFirstLossCoverContract,
                 poolConfigContract,
                 poolContract,
                 poolOwnerTreasury.address,
             );
             minEAFirstLossCover = await getMinFirstLossCoverRequirement(
-                affiliateFeeManagerContract,
+                affiliateFirstLossCoverContract,
                 poolConfigContract,
                 poolContract,
                 evaluationAgent.address,
@@ -178,7 +178,7 @@ describe("Pool Test", function () {
                 .connect(poolOwnerTreasury)
                 .approve(poolSafeContract.address, ethers.constants.MaxUint256);
             await mockTokenContract.mint(poolOwnerTreasury.address, toToken(10_000_000));
-            await affiliateFeeManagerContract
+            await affiliateFirstLossCoverContract
                 .connect(poolOwnerTreasury)
                 .depositCover(poolOwnerAmount);
 
@@ -186,7 +186,7 @@ describe("Pool Test", function () {
                 .connect(evaluationAgent)
                 .approve(poolSafeContract.address, ethers.constants.MaxUint256);
             await mockTokenContract.mint(evaluationAgent.address, toToken(10_000_000));
-            await affiliateFeeManagerContract.connect(evaluationAgent).depositCover(eaAmount);
+            await affiliateFirstLossCoverContract.connect(evaluationAgent).depositCover(eaAmount);
         }
 
         async function addLiquidity(poolOwnerAmount: BN, eaAmount: BN) {
@@ -287,7 +287,7 @@ describe("Pool Test", function () {
                 poolSafeContract,
                 calendarContract,
                 borrowerFirstLossCoverContract,
-                affiliateFeeManagerContract,
+                affiliateFirstLossCoverContract,
                 affiliateFirstLossCoverProfitEscrowContract,
                 tranchesPolicyContract,
                 poolContract,
@@ -374,10 +374,28 @@ describe("Pool Test", function () {
                         assets,
                         BN.from(adjustment),
                     );
-                    const [assetsWithLosses, losses] = PnLCalculator.calcLoss(
-                        loss,
-                        assetsWithProfits,
+                    const firstLossCoverTotalAssets = await Promise.all(
+                        [borrowerFirstLossCoverContract, affiliateFirstLossCoverContract].map(
+                            async (contract) => await contract.totalAssets(),
+                        ),
                     );
+                    const riskYieldMultipliers =
+                        await poolConfigContract.getRiskYieldMultipliers();
+                    const [juniorProfitAfterFirstLossCoverProfitDistribution] =
+                        PnLCalculator.calcProfitForFirstLossCovers(
+                            assetsWithProfits[CONSTANTS.JUNIOR_TRANCHE_INDEX].sub(
+                                assets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                            ),
+                            assets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                            firstLossCoverTotalAssets,
+                            riskYieldMultipliers,
+                        );
+                    const [assetsWithLosses, losses] = PnLCalculator.calcLoss(loss, [
+                        assetsWithProfits[CONSTANTS.SENIOR_TRANCHE_INDEX],
+                        assets[CONSTANTS.JUNIOR_TRANCHE_INDEX].add(
+                            juniorProfitAfterFirstLossCoverProfitDistribution,
+                        ),
+                    ]);
                     const [, assetsWithRecovery, lossesWithRecovery] =
                         PnLCalculator.calcLossRecovery(recovery, assetsWithLosses, losses);
 
@@ -416,10 +434,10 @@ describe("Pool Test", function () {
                 }
 
                 it("Should distribute profit correctly", async function () {
-                    // const profit = toToken(12387);
-                    // const loss = toToken(0);
-                    // const recovery = toToken(0);
-                    // await testDistribution(profit, loss, recovery);
+                    const profit = toToken(12387);
+                    const loss = toToken(0);
+                    const recovery = toToken(0);
+                    await testDistribution(profit, loss, recovery);
                 });
 
                 it("Should distribute loss correctly when first loss covers can cover loss", async function () {});
@@ -471,10 +489,10 @@ describe("Pool Test", function () {
                 it("Should distribute loss recovery correctly when first loss can be recovered", async function () {});
 
                 it("Should distribute profit, loss and loss recovery correctly", async function () {
-                    // const profit = toToken(12387);
-                    // const loss = toToken(8493);
-                    // const recovery = toToken(3485);
-                    // await testDistribution(profit, loss, recovery);
+                    const profit = toToken(12387);
+                    const loss = toToken(8493);
+                    const recovery = toToken(3485);
+                    await testDistribution(profit, loss, recovery);
                 });
 
                 it("Should not allow non-tranche vault or non-epoch manager to distribute PnL", async function () {
@@ -516,10 +534,28 @@ describe("Pool Test", function () {
                         assets,
                         BN.from(adjustment),
                     );
-                    const [assetsWithLosses, losses] = PnLCalculator.calcLoss(
-                        loss,
-                        assetsWithProfits,
+                    const firstLossCoverTotalAssets = await Promise.all(
+                        [borrowerFirstLossCoverContract, affiliateFirstLossCoverContract].map(
+                            async (contract) => await contract.totalAssets(),
+                        ),
                     );
+                    const riskYieldMultipliers =
+                        await poolConfigContract.getRiskYieldMultipliers();
+                    const [juniorProfitAfterFirstLossCoverProfitDistribution] =
+                        PnLCalculator.calcProfitForFirstLossCovers(
+                            assetsWithProfits[CONSTANTS.JUNIOR_TRANCHE_INDEX].sub(
+                                assets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                            ),
+                            assets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                            firstLossCoverTotalAssets,
+                            riskYieldMultipliers,
+                        );
+                    const [assetsWithLosses, losses] = PnLCalculator.calcLoss(loss, [
+                        assetsWithProfits[CONSTANTS.SENIOR_TRANCHE_INDEX],
+                        assets[CONSTANTS.JUNIOR_TRANCHE_INDEX].add(
+                            juniorProfitAfterFirstLossCoverProfitDistribution,
+                        ),
+                    ]);
                     const [, assetsWithRecovery] = PnLCalculator.calcLossRecovery(
                         recovery,
                         assetsWithLosses,
@@ -547,10 +583,10 @@ describe("Pool Test", function () {
                 }
 
                 it("Should return the correct asset distribution when there is only profit", async function () {
-                    // const profit = toToken(12387);
-                    // const loss = toToken(0);
-                    // const recovery = toToken(0);
-                    // await testAssetCalculation(profit, loss, recovery);
+                    const profit = toToken(12387);
+                    const loss = toToken(0);
+                    const recovery = toToken(0);
+                    await testAssetCalculation(profit, loss, recovery);
                 });
 
                 it(
@@ -626,10 +662,10 @@ describe("Pool Test", function () {
                 );
 
                 it("Should return the correct profit, loss and loss recovery distribution", async function () {
-                    // const profit = toToken(12387);
-                    // const loss = toToken(8493);
-                    // const recovery = toToken(3485);
-                    // await testAssetCalculation(profit, loss, recovery);
+                    const profit = toToken(12387);
+                    const loss = toToken(8493);
+                    const recovery = toToken(3485);
+                    await testAssetCalculation(profit, loss, recovery);
                 });
             });
         });

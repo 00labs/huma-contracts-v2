@@ -24,9 +24,9 @@ contract RiskAdjustedTranchesPolicy is BaseTranchesPolicy {
         uint256 seniorProfit = (profit * seniorAssets) / (seniorAssets + juniorAssets);
 
         LPConfig memory lpConfig = poolConfig.getLPConfig();
-        uint256 adjustProfit = (seniorProfit * lpConfig.tranchesRiskAdjustmentInBps) /
+        uint256 profitAdjustment = (seniorProfit * lpConfig.tranchesRiskAdjustmentInBps) /
             HUNDRED_PERCENT_IN_BPS;
-        seniorProfit = seniorProfit - adjustProfit;
+        seniorProfit = seniorProfit - profitAdjustment;
 
         newAssets[SENIOR_TRANCHE_INDEX] = uint96(seniorAssets + seniorProfit);
         newAssets[JUNIOR_TRANCHE_INDEX] = uint96(juniorAssets + profit - seniorProfit);
