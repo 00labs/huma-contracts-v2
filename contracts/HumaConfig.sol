@@ -247,15 +247,15 @@ contract HumaConfig is Ownable, Pausable {
 
     /**
      * @notice Sets the treasury fee (in basis points). Only proto admin can do so.
-     * @param fee the new treasury fee (in bps)
+     * @param feeInBps the new treasury fee (in bps)
      * @dev Treasury fee cannot exceed 5000 bps, i.e. 50%
      * @dev Emits a TreasuryFeeChanged event
      */
-    function setTreasuryFee(uint256 fee) external onlyOwner {
-        if (fee > TREASURY_FEE_UPPER_BOUND) revert Errors.treasuryFeeHighThanUpperLimit();
+    function setTreasuryFee(uint256 feeInBps) external onlyOwner {
+        if (feeInBps > TREASURY_FEE_UPPER_BOUND) revert Errors.treasuryFeeHighThanUpperLimit();
         uint256 oldFee = protocolFeeInBps;
-        protocolFeeInBps = uint16(fee);
-        emit TreasuryFeeChanged(oldFee, fee);
+        protocolFeeInBps = uint16(feeInBps);
+        emit TreasuryFeeChanged(oldFee, feeInBps);
     }
 
     /**
