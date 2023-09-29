@@ -177,7 +177,7 @@ contract Pool is PoolConfigCache, IPool {
         uint256 profit,
         TranchesAssets memory assets
     ) internal returns (uint96[2] memory newAssets) {
-        uint256 poolProfit = feeManager.distributePlatformFees(profit);
+        uint256 poolProfit = feeManager.distributePoolFees(profit);
 
         if (poolProfit > 0) {
             newAssets = tranchesPolicy.calcTranchesAssetsForProfit(

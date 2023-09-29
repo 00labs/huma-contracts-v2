@@ -58,7 +58,7 @@ let poolConfigContract: PoolConfig,
 let profit: BN;
 let expectedProtocolIncome: BN, expectedPoolOwnerIncome: BN, expectedEAIncome: BN, totalFees: BN;
 
-describe("PoolFeeManager.sol Test", function () {
+describe("PoolFeeManager Tests", function () {
     before(async function () {
         [
             defaultDeployer,
@@ -130,20 +130,19 @@ describe("PoolFeeManager.sol Test", function () {
         await loadFixture(prepare);
     });
 
-    describe("distributePlatformFees", function () {
+    describe("distributePoolFees", function () {
         it("Should distribute platform fees to all parties and allow them to withdraw", async function () {
             await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.address);
 
             // Make sure all the fees are distributed correctly.
-            const oldReserve = await poolSafeContract.reserves();
-            await poolFeeManagerContract.distributePlatformFees(profit);
+            const oldReserve = await poolSafeContract.reservedForRedemption();
+            await poolFeeManagerContract.distributePoolFees(profit);
             const newAccruedIncomes = await poolFeeManagerContract.getAccruedIncomes();
-            const newReserve = await poolSafeContract.reserves();
+            const newReserve = await poolSafeContract.reservedForRedemption();
             expect(newAccruedIncomes.protocolIncome).to.equal(expectedProtocolIncome);
             expect(newAccruedIncomes.poolOwnerIncome).to.equal(expectedPoolOwnerIncome);
             expect(newAccruedIncomes.eaIncome).to.equal(expectedEAIncome);
-            // expect(newReserve.forPlatformFees).to.equal(oldReserve.forPlatformFees.add(totalFees));
-            expect(newReserve.forRedemption).to.equal(oldReserve.forRedemption);
+            expect(newReserve).to.equal(oldReserve);
 
             // Make sure all parties can withdraw their fees. First, mint enough tokens for distribution.
             await mockTokenContract.mint(poolSafeContract.address, totalFees);
@@ -218,7 +217,7 @@ describe("PoolFeeManager.sol Test", function () {
 
         it("Should disallow non-pool to distribute platform fees", async function () {
             await expect(
-                poolFeeManagerContract.connect(lender).distributePlatformFees(profit),
+                poolFeeManagerContract.connect(lender).distributePoolFees(profit),
             ).to.be.revertedWithCustomError(poolConfigContract, "notPool");
         });
     });
@@ -324,7 +323,7 @@ describe("PoolFeeManager.sol Test", function () {
             await mockTokenContract.mint(poolSafeContract.address, totalFees);
             await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.address);
 
-            await poolFeeManagerContract.distributePlatformFees(profit);
+            await poolFeeManagerContract.distributePoolFees(profit);
             await poolFeeManagerContract
                 .connect(protocolOwner)
                 .withdrawProtocolFee(withdrawalAmount);
