@@ -1,23 +1,22 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
+import {Errors} from "../Errors.sol";
+import {HumaConfig} from "../HumaConfig.sol";
+import {PoolConfig, PoolSettings} from "../PoolConfig.sol";
+import {PoolConfigCache} from "../PoolConfigCache.sol";
+import "../SharedDefs.sol";
+import {BaseCreditStorage} from "./BaseCreditStorage.sol";
 import {CreditConfig, CreditRecord, CreditLimit, CreditLoss, CreditState, PaymentStatus, PnLTracker, Payment} from "./CreditStructs.sol";
+import {ICalendar} from "./interfaces/ICalendar.sol";
+import {IFirstLossCover} from "../interfaces/IFirstLossCover.sol";
 import {IFlexCredit} from "./interfaces/IFlexCredit.sol";
 import {IPoolCredit} from "./interfaces/IPoolCredit.sol";
-import {ICalendar} from "./interfaces/ICalendar.sol";
+import {IPoolSafe} from "../interfaces/IPoolSafe.sol";
 import {IPnLManager} from "./interfaces/IPnLManager.sol";
 import {ICreditFeeManager} from "./utils/interfaces/ICreditFeeManager.sol";
-import {BaseCreditStorage} from "./BaseCreditStorage.sol";
-import {Errors} from "../Errors.sol";
-import {PoolConfig, PoolSettings} from "../PoolConfig.sol";
-import "../SharedDefs.sol";
-import {HumaConfig} from "../HumaConfig.sol";
-import {CalendarUnit} from "../SharedDefs.sol";
 import {IERC20, IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {PoolConfigCache} from "../PoolConfigCache.sol";
-import {IPoolSafe} from "../interfaces/IPoolSafe.sol";
-import {IFirstLossCover} from "../interfaces/IFirstLossCover.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 import "hardhat/console.sol";
 
@@ -151,30 +150,165 @@ abstract contract BaseCredit is
         address by
     );
 
-    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
-        address addr = address(_poolConfig.humaConfig());
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
-        _humaConfig = HumaConfig(addr);
+    /**
+     * @notice Extend the expiration (maturity) date of a credit line
+     * @param creditHash the hashcode of the credit
+     * @param numOfPeriods the number of pay periods to be extended
+     */
+    function extendCreditLineDuration(bytes32 creditHash, uint256 numOfPeriods) public virtual {
+        _onlyEAServiceAccount();
+        // Although it is not essential to call _updateDueInfo() to extend the credit line duration
+        // it is good practice to bring the account current while we update one of the fields.
+        // Also, only if we call _updateDueInfo(), we can write proper tests.
+        _updateDueInfo(creditHash);
+        _creditRecordMap[creditHash].remainingPeriods += uint16(numOfPeriods);
+        emit CreditLineExtended(
+            creditHash,
+            numOfPeriods,
+            _creditRecordMap[creditHash].remainingPeriods,
+            msg.sender
+        );
+    }
 
-        addr = _poolConfig.creditFeeManager();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
-        _feeManager = ICreditFeeManager(addr);
+    function refreshPnL() external returns (uint256 profit, uint256 loss, uint256 lossRecovery) {
+        return pnlManager.refreshPnL();
+    }
 
-        addr = _poolConfig.calendar();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
-        calendar = ICalendar(addr);
+    /**
+     * @notice Request the borrower to make extra principal payment in the next bill
+     * @param amount the extra amount of principal to be paid
+     * @dev the BaseCredit contract increases the due immediately, it is the caller's job
+     * to call this function at the right time.
+     * todo Add a new storage to record the extra principal due. We include it when calculate
+     * the next bill so that the caller of this function does not have to time the request.
+     */
+    function requestEarlyPrincipalWithdrawal(
+        bytes32 creditHash,
+        uint96 amount
+    ) external virtual override {
+        // todo Only allows the Pool(?) contract to call
+        // todo Check against poolConfig to make sure FlexCredit is allowed by this pool
+        _onlyPDSServiceAccount();
+        CreditRecord memory cr = _getCreditRecord(creditHash);
+        if (amount > cr.unbilledPrincipal) revert Errors.todo();
+        cr.totalDue = uint96(cr.totalDue + amount);
+        cr.unbilledPrincipal = uint96(cr.unbilledPrincipal - amount);
+        _setCreditRecord(creditHash, cr);
+    }
 
-        addr = _poolConfig.creditPnLManager();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
-        pnlManager = IPnLManager(addr);
+    /**
+     * @notice changes the available credit for a credit line. This is an administrative overwrite.
+     * @param creditHash the owner of the credit line
+     * @param newAvailableCredit the new available credit
+     * @dev The credit line is marked as Deleted if 1) the new credit line is 0 AND
+     * 2) there is no due or unbilled principals.
+     * @dev only Evaluation Agent can call
+     */
+    function updateAvailableCredit(bytes32 creditHash, uint96 newAvailableCredit) public virtual {
+        //* Reserved for Richard review, to be deleted
+        // Is it still used?
 
-        addr = _poolConfig.poolSafe();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
-        poolSafe = IPoolSafe(addr);
+        poolConfig.onlyProtocolAndPoolOn();
+        _onlyEAServiceAccount();
 
-        addr = _poolConfig.getFirstLossCover(BORROWER_FIRST_LOSS_COVER_INDEX);
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
-        firstLossCover = IFirstLossCover(addr);
+        if (newAvailableCredit > poolConfig.getPoolSettings().maxCreditLine) {
+            revert Errors.greaterThanMaxCreditLine();
+        }
+        if (newAvailableCredit > _creditConfigMap[creditHash].creditLimit) {
+            revert Errors.greaterThanMaxCreditLine();
+        }
+        CreditLimit memory limit = _creditLimitMap[creditHash];
+        limit.availableCredit = newAvailableCredit;
+        _creditLimitMap[creditHash] = limit;
+
+        // Delete the credit record if the new limit is 0 and no outstanding balance
+        if (newAvailableCredit == 0) {
+            CreditRecord memory cr = _getCreditRecord(creditHash);
+            if (cr.unbilledPrincipal == 0 && cr.totalDue == 0) {
+                cr.state == CreditState.Deleted;
+            }
+            _setCreditRecord(creditHash, cr);
+        }
+
+        // emit CreditLineChanged(borrower, oldCreditLimit, newCreditLimit);
+    }
+
+    /**
+     * @notice changes borrower's credit limit
+     * @param borrower the borrower address
+     * @param newCreditLimit the new limit of the line in the unit of pool token
+     * @dev The credit line is marked as Deleted if 1) the new credit line is 0 AND
+     * 2) there is no due or unbilled principals.
+     * @dev only Evaluation Agent can call
+     */
+    function updateBorrowerLimit(address borrower, uint96 newCreditLimit) public virtual {
+        //* Reserved for Richard review, to be deleted
+        // It is for borrower, not very useful, does credit need this function?
+
+        poolConfig.onlyProtocolAndPoolOn();
+        _onlyEAServiceAccount();
+        // Credit limit needs to be lower than max for the pool.
+        if (newCreditLimit > poolConfig.getPoolSettings().maxCreditLine) {
+            revert Errors.greaterThanMaxCreditLine();
+        }
+        CreditLimit memory limit = _borrowerLimitMap[borrower];
+        limit.creditLimit = newCreditLimit;
+        _borrowerLimitMap[borrower] = limit;
+
+        // emit CreditLineChanged(borrower, oldCreditLimit, newCreditLimit);
+    }
+
+    function creditRecordMap(
+        bytes32 creditHash
+    ) public view virtual returns (CreditRecord memory) {
+        return _creditRecordMap[creditHash];
+    }
+
+    function creditConfigMap(
+        bytes32 creditHash
+    ) public view virtual returns (CreditConfig memory) {
+        return _creditConfigMap[creditHash];
+    }
+
+    function getAccruedPnL()
+        external
+        view
+        returns (uint256 accruedProfit, uint256 accruedLoss, uint256 accruedLossRecovery)
+    {
+        return pnlManager.getPnLSum();
+    }
+
+    function isApproved(bytes32 creditHash) public view virtual returns (bool) {
+        if ((_creditRecordMap[creditHash].state >= CreditState.Approved)) return true;
+        else return false;
+    }
+
+    /**
+     * @notice checks if the credit line is ready to be triggered as defaulted
+     */
+    function isDefaultReady(bytes32 creditHash) public view virtual returns (bool isDefault) {
+        // uint16 intervalInDays = _creditRecordStaticMap[creditHash].intervalInDays;
+        // return
+        //     _creditRecordMap[creditHash].missedPeriods * intervalInDays * SECONDS_IN_A_DAY >
+        //         _poolConfig.poolDefaultGracePeriodInSeconds()
+        //         ? true
+        //         : false;
+    }
+
+    /** 
+     * @notice checks if the credit line is behind in payments
+     * @dev When the account is in Approved state, there is no borrowing yet, thus being late
+     * does not apply. Thus the check on account state. 
+     * @dev after the bill is refreshed, the due date is updated, it is possible that the new due 
+     // date is in the future, but if the bill refresh has set missedPeriods, the account is late.
+     */
+    function isLate(bytes32 creditHash) public view virtual returns (bool lateFlag) {
+        return
+            (_creditRecordMap[creditHash].state > CreditState.Approved &&
+                (_creditRecordMap[creditHash].missedPeriods > 0 ||
+                    block.timestamp > _creditRecordMap[creditHash].nextDueDate))
+                ? true
+                : false;
     }
 
     function _approveCredit(
@@ -270,267 +404,6 @@ abstract contract BaseCredit is
             cc.creditLimit = 0;
             _setCreditConfig(creditHash, cc);
             //todo emit event
-        }
-    }
-
-    /**
-     * @notice Extend the expiration (maturity) date of a credit line
-     * @param creditHash the hashcode of the credit
-     * @param numOfPeriods the number of pay periods to be extended
-     */
-    function extendCreditLineDuration(bytes32 creditHash, uint256 numOfPeriods) public virtual {
-        onlyEAServiceAccount();
-        // Although it is not essential to call _updateDueInfo() to extend the credit line duration
-        // it is good practice to bring the account current while we update one of the fields.
-        // Also, only if we call _updateDueInfo(), we can write proper tests.
-        _updateDueInfo(creditHash);
-        _creditRecordMap[creditHash].remainingPeriods += uint16(numOfPeriods);
-        emit CreditLineExtended(
-            creditHash,
-            numOfPeriods,
-            _creditRecordMap[creditHash].remainingPeriods,
-            msg.sender
-        );
-    }
-
-    function _pauseCredit(bytes32 creditHash) internal {
-        onlyEAServiceAccount();
-        CreditRecord memory cr = _getCreditRecord(creditHash);
-        if (cr.state == CreditState.GoodStanding) {
-            cr.state = CreditState.Paused;
-            _setCreditRecord(creditHash, cr);
-        }
-    }
-
-    /**
-     * @notice Updates the account and brings its billing status current
-     * @dev If the account is defaulted, no need to update the account anymore.
-     * @dev If the account is ready to be defaulted but not yet, update the account without
-     * distributing the income for the upcoming period. Otherwise, update and distribute income
-     * note the reason that we do not distribute income for the final cycle anymore since
-     * it does not make sense to distribute income that we know cannot be collected to the
-     * administrators (e.g. protocol, pool owner and EA) since it will only add more losses
-     * to the LPs. Unfortunately, this special business consideration added more complexity
-     * and cognitive load to _updateDueInfo(...).
-     */
-    function _refreshCredit(bytes32 creditHash) internal returns (CreditRecord memory cr) {
-        if (_creditRecordMap[creditHash].state != CreditState.Defaulted) {
-            return _updateDueInfo(creditHash);
-        }
-    }
-
-    function refreshPnL() external returns (uint256 profit, uint256 loss, uint256 lossRecovery) {
-        return pnlManager.refreshPnL();
-    }
-
-    /**
-     * @notice Request the borrower to make extra principal payment in the next bill
-     * @param amount the extra amount of principal to be paid
-     * @dev the BaseCredit contract increases the due immediately, it is the caller's job
-     * to call this function at the right time.
-     * todo Add a new storage to record the extra principal due. We include it when calculate
-     * the next bill so that the caller of this function does not have to time the request.
-     */
-    function requestEarlyPrincipalWithdrawal(
-        bytes32 creditHash,
-        uint96 amount
-    ) external virtual override {
-        // todo Only allows the Pool(?) contract to call
-        // todo Check against poolConfig to make sure FlexCredit is allowed by this pool
-        onlyPDSServiceAccount();
-        CreditRecord memory cr = _getCreditRecord(creditHash);
-        if (amount > cr.unbilledPrincipal) revert Errors.todo();
-        cr.totalDue = uint96(cr.totalDue + amount);
-        cr.unbilledPrincipal = uint96(cr.unbilledPrincipal - amount);
-        _setCreditRecord(creditHash, cr);
-    }
-
-    /**
-     * @notice Triggers the default process
-     * @return losses the amount of remaining losses to the pool
-     * @dev It is possible for the borrower to payback even after default, especially in
-     * receivable factoring cases.
-     */
-    function _triggerDefault(bytes32 creditHash) internal virtual returns (uint256 losses) {
-        //* Reserved for Richard review, to be deleted
-        // TODO Its current logic is same as refreshCredit.
-        // I remember Richard said it should be used to set the credit to default state manually at sometime, correct?
-
-        losses;
-        // poolConfig.onlyProtocolAndPoolOn();
-        // // check to make sure the default grace period has passed.
-        // CreditRecord memory cr = _getCreditRecord(creditHash);
-        // if (cr.state == CreditState.Defaulted) revert Errors.defaultHasAlreadyBeenTriggered();
-        // if (block.timestamp > cr.nextDueDate) {
-        //     cr = _updateDueInfo(creditHash);
-        // }
-        // Check if grace period has exceeded. Please note it takes a full pay period
-        // before the account is considered to be late. The time passed should be one pay period
-        // plus the grace period.
-        // if (!isDefaultReady(borrower)) revert Errors.defaultTriggeredTooEarly();
-        // // default amount includes all outstanding principals
-        // losses = cr.unbilledPrincipal + cr.totalDue - cr.feesAndInterestDue;
-        // _creditRecordMap[borrower].state = BS.CreditState.Defaulted;
-        // _creditRecordStaticMap[borrower].defaultAmount = uint96(losses);
-        // distributeLosses(losses);
-        // emit DefaultTriggered(borrower, losses, msg.sender);
-        // return losses;
-    }
-
-    /**
-     * @notice changes the available credit for a credit line. This is an administrative overwrite.
-     * @param creditHash the owner of the credit line
-     * @param newAvailableCredit the new available credit
-     * @dev The credit line is marked as Deleted if 1) the new credit line is 0 AND
-     * 2) there is no due or unbilled principals.
-     * @dev only Evaluation Agent can call
-     */
-    function updateAvailableCredit(bytes32 creditHash, uint96 newAvailableCredit) public virtual {
-        //* Reserved for Richard review, to be deleted
-        // Is it still used?
-
-        poolConfig.onlyProtocolAndPoolOn();
-        onlyEAServiceAccount();
-
-        if (newAvailableCredit > poolConfig.getPoolSettings().maxCreditLine) {
-            revert Errors.greaterThanMaxCreditLine();
-        }
-        if (newAvailableCredit > _creditConfigMap[creditHash].creditLimit) {
-            revert Errors.greaterThanMaxCreditLine();
-        }
-        CreditLimit memory limit = _creditLimitMap[creditHash];
-        limit.availableCredit = newAvailableCredit;
-        _creditLimitMap[creditHash] = limit;
-
-        // Delete the credit record if the new limit is 0 and no outstanding balance
-        if (newAvailableCredit == 0) {
-            CreditRecord memory cr = _getCreditRecord(creditHash);
-            if (cr.unbilledPrincipal == 0 && cr.totalDue == 0) {
-                cr.state == CreditState.Deleted;
-            }
-            _setCreditRecord(creditHash, cr);
-        }
-
-        // emit CreditLineChanged(borrower, oldCreditLimit, newCreditLimit);
-    }
-
-    /**
-     * @notice changes borrower's credit limit
-     * @param borrower the borrower address
-     * @param newCreditLimit the new limit of the line in the unit of pool token
-     * @dev The credit line is marked as Deleted if 1) the new credit line is 0 AND
-     * 2) there is no due or unbilled principals.
-     * @dev only Evaluation Agent can call
-     */
-    function updateBorrowerLimit(address borrower, uint96 newCreditLimit) public virtual {
-        //* Reserved for Richard review, to be deleted
-        // It is for borrower, not very useful, does credit need this function?
-
-        poolConfig.onlyProtocolAndPoolOn();
-        onlyEAServiceAccount();
-        // Credit limit needs to be lower than max for the pool.
-        if (newCreditLimit > poolConfig.getPoolSettings().maxCreditLine) {
-            revert Errors.greaterThanMaxCreditLine();
-        }
-        CreditLimit memory limit = _borrowerLimitMap[borrower];
-        limit.creditLimit = newCreditLimit;
-        _borrowerLimitMap[borrower] = limit;
-
-        // emit CreditLineChanged(borrower, oldCreditLimit, newCreditLimit);
-    }
-
-    function _updateYield(bytes32 creditHash, uint256 yieldInBps) internal virtual {
-        //* Reserved for Richard review, to be deleted
-        //TODO implement this function
-    }
-
-    function _unpauseCredit(bytes32 creditHash) internal virtual {
-        onlyEAServiceAccount();
-        CreditRecord memory cr = _getCreditRecord(creditHash);
-        if (cr.state == CreditState.Paused) {
-            cr.state = CreditState.GoodStanding;
-            _setCreditRecord(creditHash, cr);
-        }
-    }
-
-    function creditRecordMap(
-        bytes32 creditHash
-    ) public view virtual returns (CreditRecord memory) {
-        return _creditRecordMap[creditHash];
-    }
-
-    function creditConfigMap(
-        bytes32 creditHash
-    ) public view virtual returns (CreditConfig memory) {
-        return _creditConfigMap[creditHash];
-    }
-
-    function getAccruedPnL()
-        external
-        view
-        returns (uint256 accruedProfit, uint256 accruedLoss, uint256 accruedLossRecovery)
-    {
-        return pnlManager.getPnLSum();
-    }
-
-    function isApproved(bytes32 creditHash) public view virtual returns (bool) {
-        if ((_creditRecordMap[creditHash].state >= CreditState.Approved)) return true;
-        else return false;
-    }
-
-    /**
-     * @notice checks if the credit line is ready to be triggered as defaulted
-     */
-    function isDefaultReady(bytes32 creditHash) public view virtual returns (bool isDefault) {
-        // uint16 intervalInDays = _creditRecordStaticMap[creditHash].intervalInDays;
-        // return
-        //     _creditRecordMap[creditHash].missedPeriods * intervalInDays * SECONDS_IN_A_DAY >
-        //         _poolConfig.poolDefaultGracePeriodInSeconds()
-        //         ? true
-        //         : false;
-    }
-
-    /** 
-     * @notice checks if the credit line is behind in payments
-     * @dev When the account is in Approved state, there is no borrowing yet, thus being late
-     * does not apply. Thus the check on account state. 
-     * @dev after the bill is refreshed, the due date is updated, it is possible that the new due 
-     // date is in the future, but if the bill refresh has set missedPeriods, the account is late.
-     */
-    function isLate(bytes32 creditHash) public view virtual returns (bool lateFlag) {
-        return
-            (_creditRecordMap[creditHash].state > CreditState.Approved &&
-                (_creditRecordMap[creditHash].missedPeriods > 0 ||
-                    block.timestamp > _creditRecordMap[creditHash].nextDueDate))
-                ? true
-                : false;
-    }
-
-    /**
-     * @notice Checks if drawdown is allowed for the credit line at this point of time
-     * @dev Checks to make sure the following conditions are met:
-     * 1) In Approved or Goodstanding state
-     * 2) For first time drawdown, the approval is not expired
-     * 3) Drawdown amount is no more than available credit
-     * @dev Please note cr.nextDueDate is the credit expiration date for the first drawdown.
-     */
-    function _checkDrawdownEligibility(
-        CreditRecord memory cr,
-        uint256 borrowAmount,
-        uint256 creditLimit
-    ) internal view {
-        if (cr.state != CreditState.GoodStanding && cr.state != CreditState.Approved)
-            revert Errors.creditLineNotInStateForDrawdown();
-        else if (cr.state == CreditState.Approved) {
-            // After the credit approval, if the pool has credit expiration for the 1st drawdown,
-            // the borrower must complete the first drawdown before the expiration date, which
-            // is set in cr.nextDueDate in approveCredit().
-            // note For pools without credit expiration for first drawdown, cr.nextDueDate is 0
-            // before the first drawdown, thus the cr.nextDueDate > 0 condition in the check
-            if (cr.nextDueDate > 0 && block.timestamp > cr.nextDueDate)
-                revert Errors.creditExpiredDueToFirstDrawdownTooLate();
-
-            if (borrowAmount > creditLimit) revert Errors.creditLineExceeded();
         }
     }
 
@@ -869,6 +742,32 @@ abstract contract BaseCredit is
         return (p.amountToCollect, p.amountToCollect >= payoffAmount, false);
     }
 
+    function _pauseCredit(bytes32 creditHash) internal {
+        _onlyEAServiceAccount();
+        CreditRecord memory cr = _getCreditRecord(creditHash);
+        if (cr.state == CreditState.GoodStanding) {
+            cr.state = CreditState.Paused;
+            _setCreditRecord(creditHash, cr);
+        }
+    }
+
+    /**
+     * @notice Updates the account and brings its billing status current
+     * @dev If the account is defaulted, no need to update the account anymore.
+     * @dev If the account is ready to be defaulted but not yet, update the account without
+     * distributing the income for the upcoming period. Otherwise, update and distribute income
+     * note the reason that we do not distribute income for the final cycle anymore since
+     * it does not make sense to distribute income that we know cannot be collected to the
+     * administrators (e.g. protocol, pool owner and EA) since it will only add more losses
+     * to the LPs. Unfortunately, this special business consideration added more complexity
+     * and cognitive load to _updateDueInfo(...).
+     */
+    function _refreshCredit(bytes32 creditHash) internal returns (CreditRecord memory cr) {
+        if (_creditRecordMap[creditHash].state != CreditState.Defaulted) {
+            return _updateDueInfo(creditHash);
+        }
+    }
+
     /// Shared setter to the credit config mapping
     function _setCreditConfig(bytes32 creditHash, CreditConfig memory cc) internal {
         _creditConfigMap[creditHash] = cc;
@@ -877,6 +776,47 @@ abstract contract BaseCredit is
     /// Shared setter to the credit record mapping for contract size consideration
     function _setCreditRecord(bytes32 creditHash, CreditRecord memory cr) internal {
         _creditRecordMap[creditHash] = cr;
+    }
+
+    /**
+     * @notice Triggers the default process
+     * @return losses the amount of remaining losses to the pool
+     * @dev It is possible for the borrower to payback even after default, especially in
+     * receivable factoring cases.
+     */
+    function _triggerDefault(bytes32 creditHash) internal virtual returns (uint256 losses) {
+        //* Reserved for Richard review, to be deleted
+        // TODO Its current logic is same as refreshCredit.
+        // I remember Richard said it should be used to set the credit to default state manually at sometime, correct?
+
+        losses;
+        // poolConfig.onlyProtocolAndPoolOn();
+        // // check to make sure the default grace period has passed.
+        // CreditRecord memory cr = _getCreditRecord(creditHash);
+        // if (cr.state == CreditState.Defaulted) revert Errors.defaultHasAlreadyBeenTriggered();
+        // if (block.timestamp > cr.nextDueDate) {
+        //     cr = _updateDueInfo(creditHash);
+        // }
+        // Check if grace period has exceeded. Please note it takes a full pay period
+        // before the account is considered to be late. The time passed should be one pay period
+        // plus the grace period.
+        // if (!isDefaultReady(borrower)) revert Errors.defaultTriggeredTooEarly();
+        // // default amount includes all outstanding principals
+        // losses = cr.unbilledPrincipal + cr.totalDue - cr.feesAndInterestDue;
+        // _creditRecordMap[borrower].state = BS.CreditState.Defaulted;
+        // _creditRecordStaticMap[borrower].defaultAmount = uint96(losses);
+        // distributeLosses(losses);
+        // emit DefaultTriggered(borrower, losses, msg.sender);
+        // return losses;
+    }
+
+    function _unpauseCredit(bytes32 creditHash) internal virtual {
+        _onlyEAServiceAccount();
+        CreditRecord memory cr = _getCreditRecord(creditHash);
+        if (cr.state == CreditState.Paused) {
+            cr.state = CreditState.GoodStanding;
+            _setCreditRecord(creditHash, cr);
+        }
     }
 
     /**
@@ -974,6 +914,44 @@ abstract contract BaseCredit is
         }
     }
 
+    function _updateYield(bytes32 creditHash, uint256 yieldInBps) internal virtual {
+        //* Reserved for Richard review, to be deleted
+        //TODO implement this function
+    }
+
+    /**
+     * @notice Checks if drawdown is allowed for the credit line at this point of time
+     * @dev Checks to make sure the following conditions are met:
+     * 1) In Approved or Goodstanding state
+     * 2) For first time drawdown, the approval is not expired
+     * 3) Drawdown amount is no more than available credit
+     * @dev Please note cr.nextDueDate is the credit expiration date for the first drawdown.
+     */
+    function _checkDrawdownEligibility(
+        CreditRecord memory cr,
+        uint256 borrowAmount,
+        uint256 creditLimit
+    ) internal view {
+        if (cr.state != CreditState.GoodStanding && cr.state != CreditState.Approved)
+            revert Errors.creditLineNotInStateForDrawdown();
+        else if (cr.state == CreditState.Approved) {
+            // After the credit approval, if the pool has credit expiration for the 1st drawdown,
+            // the borrower must complete the first drawdown before the expiration date, which
+            // is set in cr.nextDueDate in approveCredit().
+            // note For pools without credit expiration for first drawdown, cr.nextDueDate is 0
+            // before the first drawdown, thus the cr.nextDueDate > 0 condition in the check
+            if (cr.nextDueDate > 0 && block.timestamp > cr.nextDueDate)
+                revert Errors.creditExpiredDueToFirstDrawdownTooLate();
+
+            if (borrowAmount > creditLimit) revert Errors.creditLineExceeded();
+        }
+    }
+
+    /// Shared accessor to the credit record mapping for contract size consideration
+    function _getBorrowerRecord(address borrower) internal view returns (CreditConfig memory) {
+        return _borrowerConfigMap[borrower];
+    }
+
     /// Shared accessor to the credit config mapping for contract size consideration
     function _getCreditConfig(bytes32 creditHash) internal view returns (CreditConfig memory) {
         return _creditConfigMap[creditHash];
@@ -982,11 +960,6 @@ abstract contract BaseCredit is
     /// Shared accessor to the credit record mapping for contract size consideration
     function _getCreditRecord(bytes32 creditHash) internal view returns (CreditRecord memory) {
         return _creditRecordMap[creditHash];
-    }
-
-    /// Shared accessor to the credit record mapping for contract size consideration
-    function _getBorrowerRecord(address borrower) internal view returns (CreditConfig memory) {
-        return _borrowerConfigMap[borrower];
     }
 
     function _isOverdue(uint256 dueDate) internal view returns (bool) {}
@@ -998,15 +971,41 @@ abstract contract BaseCredit is
     }
 
     /// "Modifier" function that limits access to eaServiceAccount only
-    function onlyEAServiceAccount() internal view {
+    function _onlyEAServiceAccount() internal view {
         if (msg.sender != _humaConfig.eaServiceAccount())
             revert Errors.evaluationAgentServiceAccountRequired();
     }
 
     /// "Modifier" function that limits access to pdsServiceAccount only.
-    function onlyPDSServiceAccount() internal view {
+    function _onlyPDSServiceAccount() internal view {
         if (msg.sender != HumaConfig(_humaConfig).pdsServiceAccount())
             revert Errors.paymentDetectionServiceAccountRequired();
+    }
+
+    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
+        address addr = address(_poolConfig.humaConfig());
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        _humaConfig = HumaConfig(addr);
+
+        addr = _poolConfig.creditFeeManager();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        _feeManager = ICreditFeeManager(addr);
+
+        addr = _poolConfig.calendar();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        calendar = ICalendar(addr);
+
+        addr = _poolConfig.creditPnLManager();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        pnlManager = IPnLManager(addr);
+
+        addr = _poolConfig.poolSafe();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        poolSafe = IPoolSafe(addr);
+
+        addr = _poolConfig.getFirstLossCover(BORROWER_FIRST_LOSS_COVER_INDEX);
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        firstLossCover = IFirstLossCover(addr);
     }
 
     // todo provide an external view function for credit payment due list ?

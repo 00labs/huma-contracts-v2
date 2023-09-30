@@ -79,7 +79,7 @@ contract Credit is BaseCredit, ICredit {
     ) external returns (uint256 amountPaid, bool paidoff) {
         if (amount == 0) revert Errors.zeroAmountProvided();
         address borrower = _creditBorrowerMap[creditHash];
-        if (msg.sender != borrower) onlyPDSServiceAccount();
+        if (msg.sender != borrower) _onlyPDSServiceAccount();
         (amountPaid, paidoff, ) = _makePayment(borrower, creditHash, amount);
     }
 

@@ -20,7 +20,7 @@ contract ReceivableCredit is BaseCredit, IReceivableCredit {
         uint96 committedAmount
     ) external {
         poolConfig.onlyProtocolAndPoolOn();
-        onlyEAServiceAccount();
+        _onlyEAServiceAccount();
 
         bytes32 creditHash = getCreditHash(receivableInput.receivableId);
         _approveCredit(
@@ -61,7 +61,7 @@ contract ReceivableCredit is BaseCredit, IReceivableCredit {
         uint256 amount
     ) public virtual returns (uint256 amountPaid, bool paidoff) {
         poolConfig.onlyProtocolAndPoolOn();
-        if (msg.sender != borrower) onlyPDSServiceAccount();
+        if (msg.sender != borrower) _onlyPDSServiceAccount();
         bytes32 creditHash = getCreditHash(receivableId);
         if (borrower != _creditBorrowerMap[creditHash]) revert Errors.notBorrower();
         (amountPaid, paidoff, ) = _makePayment(borrower, creditHash, amount);
