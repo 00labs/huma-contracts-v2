@@ -364,8 +364,8 @@ describe("Pool Test", function () {
 
                     const assetInfo = await poolContract.tranchesAssets();
                     const assets = [
-                        assetInfo[CONSTANTS.SENIOR_TRANCHE_INDEX],
-                        assetInfo[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                        assetInfo[CONSTANTS.SENIOR_TRANCHE],
+                        assetInfo[CONSTANTS.JUNIOR_TRANCHE],
                     ];
                     const profitAfterFees =
                         await poolFeeManagerContract.calcPlatformFeeDistribution(profit);
@@ -383,16 +383,16 @@ describe("Pool Test", function () {
                         await poolConfigContract.getRiskYieldMultipliers();
                     const [juniorProfitAfterFirstLossCoverProfitDistribution] =
                         PnLCalculator.calcProfitForFirstLossCovers(
-                            assetsWithProfits[CONSTANTS.JUNIOR_TRANCHE_INDEX].sub(
-                                assets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                            assetsWithProfits[CONSTANTS.JUNIOR_TRANCHE].sub(
+                                assets[CONSTANTS.JUNIOR_TRANCHE],
                             ),
-                            assets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                            assets[CONSTANTS.JUNIOR_TRANCHE],
                             firstLossCoverTotalAssets,
                             riskYieldMultipliers,
                         );
                     const [assetsWithLosses, losses] = PnLCalculator.calcLoss(loss, [
-                        assetsWithProfits[CONSTANTS.SENIOR_TRANCHE_INDEX],
-                        assets[CONSTANTS.JUNIOR_TRANCHE_INDEX].add(
+                        assetsWithProfits[CONSTANTS.SENIOR_TRANCHE],
+                        assets[CONSTANTS.JUNIOR_TRANCHE].add(
                             juniorProfitAfterFirstLossCoverProfitDistribution,
                         ),
                     ]);
@@ -406,31 +406,27 @@ describe("Pool Test", function () {
                             profit,
                             loss,
                             recovery,
-                            assetsWithRecovery[CONSTANTS.SENIOR_TRANCHE_INDEX],
-                            assetsWithRecovery[CONSTANTS.JUNIOR_TRANCHE_INDEX],
-                            lossesWithRecovery[CONSTANTS.SENIOR_TRANCHE_INDEX],
-                            lossesWithRecovery[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                            assetsWithRecovery[CONSTANTS.SENIOR_TRANCHE],
+                            assetsWithRecovery[CONSTANTS.JUNIOR_TRANCHE],
+                            lossesWithRecovery[CONSTANTS.SENIOR_TRANCHE],
+                            lossesWithRecovery[CONSTANTS.JUNIOR_TRANCHE],
                         );
 
                     // All getters now should return the most up-to-date data.
                     const totalAssets = await poolContract.totalAssets();
                     expect(totalAssets).to.equal(
-                        assetsWithRecovery[CONSTANTS.SENIOR_TRANCHE_INDEX].add(
-                            assetsWithRecovery[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                        assetsWithRecovery[CONSTANTS.SENIOR_TRANCHE].add(
+                            assetsWithRecovery[CONSTANTS.JUNIOR_TRANCHE],
                         ),
                     );
                     const seniorAssets = await poolContract.trancheTotalAssets(
-                        CONSTANTS.SENIOR_TRANCHE_INDEX,
+                        CONSTANTS.SENIOR_TRANCHE,
                     );
-                    expect(seniorAssets).to.equal(
-                        assetsWithRecovery[CONSTANTS.SENIOR_TRANCHE_INDEX],
-                    );
+                    expect(seniorAssets).to.equal(assetsWithRecovery[CONSTANTS.SENIOR_TRANCHE]);
                     const juniorAssets = await poolContract.trancheTotalAssets(
-                        CONSTANTS.JUNIOR_TRANCHE_INDEX,
+                        CONSTANTS.JUNIOR_TRANCHE,
                     );
-                    expect(juniorAssets).to.equal(
-                        assetsWithRecovery[CONSTANTS.JUNIOR_TRANCHE_INDEX],
-                    );
+                    expect(juniorAssets).to.equal(assetsWithRecovery[CONSTANTS.JUNIOR_TRANCHE]);
                 }
 
                 it("Should distribute profit correctly", async function () {
@@ -445,7 +441,7 @@ describe("Pool Test", function () {
                 it("Should distribute loss correctly when the junior tranche can cover loss", async function () {
                     const assets = await poolContract.currentTranchesAssets();
                     const profit = toToken(0);
-                    const loss = assets[CONSTANTS.JUNIOR_TRANCHE_INDEX];
+                    const loss = assets[CONSTANTS.JUNIOR_TRANCHE];
                     const recovery = toToken(0);
 
                     await testDistribution(profit, loss, recovery);
@@ -454,8 +450,8 @@ describe("Pool Test", function () {
                 it("Should distribute loss correctly when the senior tranche needs to cover loss", async function () {
                     const assets = await poolContract.currentTranchesAssets();
                     const profit = toToken(0);
-                    const loss = assets[CONSTANTS.JUNIOR_TRANCHE_INDEX].add(
-                        assets[CONSTANTS.SENIOR_TRANCHE_INDEX],
+                    const loss = assets[CONSTANTS.JUNIOR_TRANCHE].add(
+                        assets[CONSTANTS.SENIOR_TRANCHE],
                     );
                     const recovery = toToken(0);
 
@@ -465,10 +461,10 @@ describe("Pool Test", function () {
                 it("Should distribute loss recovery correctly when senior loss can be recovered", async function () {
                     const assets = await poolContract.currentTranchesAssets();
                     const profit = toToken(0);
-                    const loss = assets[CONSTANTS.SENIOR_TRANCHE_INDEX].add(
-                        assets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                    const loss = assets[CONSTANTS.SENIOR_TRANCHE].add(
+                        assets[CONSTANTS.JUNIOR_TRANCHE],
                     );
-                    const recovery = assets[CONSTANTS.JUNIOR_TRANCHE_INDEX];
+                    const recovery = assets[CONSTANTS.JUNIOR_TRANCHE];
 
                     await testDistribution(profit, loss, recovery);
                 });
@@ -476,11 +472,11 @@ describe("Pool Test", function () {
                 it("Should distribute loss recovery correctly when junior loss can be recovered", async function () {
                     const assets = await poolContract.currentTranchesAssets();
                     const profit = toToken(0);
-                    const loss = assets[CONSTANTS.JUNIOR_TRANCHE_INDEX].add(
-                        assets[CONSTANTS.SENIOR_TRANCHE_INDEX],
+                    const loss = assets[CONSTANTS.JUNIOR_TRANCHE].add(
+                        assets[CONSTANTS.SENIOR_TRANCHE],
                     );
-                    const recovery = assets[CONSTANTS.JUNIOR_TRANCHE_INDEX].add(
-                        assets[CONSTANTS.SENIOR_TRANCHE_INDEX],
+                    const recovery = assets[CONSTANTS.JUNIOR_TRANCHE].add(
+                        assets[CONSTANTS.SENIOR_TRANCHE],
                     );
 
                     await testDistribution(profit, loss, recovery);
@@ -524,8 +520,8 @@ describe("Pool Test", function () {
 
                     const assetInfo = await poolContract.tranchesAssets();
                     const assets = [
-                        assetInfo[CONSTANTS.SENIOR_TRANCHE_INDEX],
-                        assetInfo[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                        assetInfo[CONSTANTS.SENIOR_TRANCHE],
+                        assetInfo[CONSTANTS.JUNIOR_TRANCHE],
                     ];
                     const profitAfterFees =
                         await poolFeeManagerContract.calcPlatformFeeDistribution(profit);
@@ -543,16 +539,16 @@ describe("Pool Test", function () {
                         await poolConfigContract.getRiskYieldMultipliers();
                     const [juniorProfitAfterFirstLossCoverProfitDistribution] =
                         PnLCalculator.calcProfitForFirstLossCovers(
-                            assetsWithProfits[CONSTANTS.JUNIOR_TRANCHE_INDEX].sub(
-                                assets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                            assetsWithProfits[CONSTANTS.JUNIOR_TRANCHE].sub(
+                                assets[CONSTANTS.JUNIOR_TRANCHE],
                             ),
-                            assets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                            assets[CONSTANTS.JUNIOR_TRANCHE],
                             firstLossCoverTotalAssets,
                             riskYieldMultipliers,
                         );
                     const [assetsWithLosses, losses] = PnLCalculator.calcLoss(loss, [
-                        assetsWithProfits[CONSTANTS.SENIOR_TRANCHE_INDEX],
-                        assets[CONSTANTS.JUNIOR_TRANCHE_INDEX].add(
+                        assetsWithProfits[CONSTANTS.SENIOR_TRANCHE],
+                        assets[CONSTANTS.JUNIOR_TRANCHE].add(
                             juniorProfitAfterFirstLossCoverProfitDistribution,
                         ),
                     ]);
@@ -564,22 +560,18 @@ describe("Pool Test", function () {
 
                     const totalAssets = await poolContract.totalAssets();
                     expect(totalAssets).to.equal(
-                        assetsWithRecovery[CONSTANTS.SENIOR_TRANCHE_INDEX].add(
-                            assetsWithRecovery[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                        assetsWithRecovery[CONSTANTS.SENIOR_TRANCHE].add(
+                            assetsWithRecovery[CONSTANTS.JUNIOR_TRANCHE],
                         ),
                     );
                     const seniorAssets = await poolContract.trancheTotalAssets(
-                        CONSTANTS.SENIOR_TRANCHE_INDEX,
+                        CONSTANTS.SENIOR_TRANCHE,
                     );
-                    expect(seniorAssets).to.equal(
-                        assetsWithRecovery[CONSTANTS.SENIOR_TRANCHE_INDEX],
-                    );
+                    expect(seniorAssets).to.equal(assetsWithRecovery[CONSTANTS.SENIOR_TRANCHE]);
                     const juniorAssets = await poolContract.trancheTotalAssets(
-                        CONSTANTS.JUNIOR_TRANCHE_INDEX,
+                        CONSTANTS.JUNIOR_TRANCHE,
                     );
-                    expect(juniorAssets).to.equal(
-                        assetsWithRecovery[CONSTANTS.JUNIOR_TRANCHE_INDEX],
-                    );
+                    expect(juniorAssets).to.equal(assetsWithRecovery[CONSTANTS.JUNIOR_TRANCHE]);
                 }
 
                 it("Should return the correct asset distribution when there is only profit", async function () {
@@ -601,7 +593,7 @@ describe("Pool Test", function () {
                     async function () {
                         const assets = await poolContract.currentTranchesAssets();
                         const profit = toToken(0);
-                        const loss = assets[CONSTANTS.JUNIOR_TRANCHE_INDEX];
+                        const loss = assets[CONSTANTS.JUNIOR_TRANCHE];
                         const recovery = toToken(0);
 
                         await testAssetCalculation(profit, loss, recovery);
@@ -614,8 +606,8 @@ describe("Pool Test", function () {
                     async function () {
                         const assets = await poolContract.currentTranchesAssets();
                         const profit = toToken(0);
-                        const loss = assets[CONSTANTS.SENIOR_TRANCHE_INDEX].add(
-                            assets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                        const loss = assets[CONSTANTS.SENIOR_TRANCHE].add(
+                            assets[CONSTANTS.JUNIOR_TRANCHE],
                         );
                         const recovery = toToken(0);
 
@@ -629,10 +621,10 @@ describe("Pool Test", function () {
                     async function () {
                         const assets = await poolContract.currentTranchesAssets();
                         const profit = toToken(0);
-                        const loss = assets[CONSTANTS.SENIOR_TRANCHE_INDEX].add(
-                            assets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                        const loss = assets[CONSTANTS.SENIOR_TRANCHE].add(
+                            assets[CONSTANTS.JUNIOR_TRANCHE],
                         );
-                        const recovery = assets[CONSTANTS.JUNIOR_TRANCHE_INDEX];
+                        const recovery = assets[CONSTANTS.JUNIOR_TRANCHE];
 
                         await testAssetCalculation(profit, loss, recovery);
                     },
@@ -644,11 +636,11 @@ describe("Pool Test", function () {
                     async function () {
                         const assets = await poolContract.currentTranchesAssets();
                         const profit = toToken(0);
-                        const loss = assets[CONSTANTS.SENIOR_TRANCHE_INDEX].add(
-                            assets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                        const loss = assets[CONSTANTS.SENIOR_TRANCHE].add(
+                            assets[CONSTANTS.JUNIOR_TRANCHE],
                         );
-                        const recovery = assets[CONSTANTS.SENIOR_TRANCHE_INDEX].add(
-                            assets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                        const recovery = assets[CONSTANTS.SENIOR_TRANCHE].add(
+                            assets[CONSTANTS.JUNIOR_TRANCHE],
                         );
 
                         await testAssetCalculation(profit, loss, recovery);

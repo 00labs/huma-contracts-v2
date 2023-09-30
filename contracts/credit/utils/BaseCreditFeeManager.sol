@@ -286,18 +286,18 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
             lossImpact =
                 (cr.unbilledPrincipal + cr.totalDue - cr.yieldDue - cr.feesDue) -
                 (_cr.unbilledPrincipal + _cr.totalDue - _cr.yieldDue - _cr.feesDue);
-            console.log(
-                "lossImpact: %s, cr.unbilledPrincipal: %s, _cr.unbilledPrincipal",
-                lossImpact,
-                cr.unbilledPrincipal,
-                _cr.unbilledPrincipal
-            );
+            // console.log(
+            //     "lossImpact: %s, cr.unbilledPrincipal: %s, _cr.unbilledPrincipal",
+            //     lossImpact,
+            //     cr.unbilledPrincipal,
+            //     _cr.unbilledPrincipal
+            // );
         }
 
         // captures undercounted profit from previous due date to current time
 
         uint256 preDueDate = cr.nextDueDate - secondsOfThisPeriod;
-        console.log("preDueDate: %s, block.timestamp: %s", preDueDate, block.timestamp);
+        //console.log("preDueDate: %s, block.timestamp: %s", preDueDate, block.timestamp);
         if (block.timestamp > preDueDate) {
             //* Reserved for Richard review, to be deleted
             // Add profit difference of the interest of principal difference from the begining of next due to now
@@ -306,13 +306,13 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
                     (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
             );
 
-            console.log(
-                "principalDifference: %s, timelapsed: %s, pnlImpact: %s",
-                principalDifference,
-                block.timestamp - preDueDate,
-                (principalDifference * _cc.yieldInBps * (block.timestamp - preDueDate)) /
-                    (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
-            );
+            // console.log(
+            //     "principalDifference: %s, timelapsed: %s, pnlImpact: %s",
+            //     principalDifference,
+            //     block.timestamp - preDueDate,
+            //     (principalDifference * _cc.yieldInBps * (block.timestamp - preDueDate)) /
+            //         (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
+            // );
             if (isLate) {
                 //* Reserved for Richard review, to be deleted
                 // lossImpact is used for the profit difference when the credit becomes late
@@ -326,7 +326,7 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
                         (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
                 );
 
-                console.log("lossImpact: %s", lossImpact);
+                //console.log("lossImpact: %s", lossImpact);
             }
         }
 

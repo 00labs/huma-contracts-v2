@@ -2,9 +2,8 @@
 pragma solidity ^0.8.0;
 
 import {BaseTranchesPolicy} from "./BaseTranchesPolicy.sol";
-import {PoolConfig, LPConfig} from "./PoolConfig.sol";
-import {Errors} from "./Errors.sol";
-import "./SharedDefs.sol";
+import {LPConfig} from "./PoolConfig.sol";
+import {SENIOR_TRANCHE, JUNIOR_TRANCHE, HUNDRED_PERCENT_IN_BPS} from "./SharedDefs.sol";
 
 /**
  * @notice RiskAdjustedTranchesPolicy is one tranche policy implementation. In this policy,
@@ -14,13 +13,17 @@ contract RiskAdjustedTranchesPolicy is BaseTranchesPolicy {
     /**
      * @notice Distribute profit between tranches.
      */
-    function calcTranchesAssetsForProfit(
+    function distProfitToTranches(
         uint256 profit,
         uint96[2] memory assets,
-        uint256 lastUpdatedTime
+        uint256 /*lastUpdatedTime*/
     ) external view returns (uint96[2] memory newAssets) {
-        uint256 seniorAssets = assets[SENIOR_TRANCHE_INDEX];
-        uint256 juniorAssets = assets[JUNIOR_TRANCHE_INDEX];
+        uint256 seniorAssets = assets[SENIOR_TRANCHE];
+        uint256 juniorAssets = assets[JUNIOR_TRANCHE];
+
+        // todo the following logic is critically flawed. seniorProfit is calculated
+        // using the entire senior assets in the pool. It should be based on senior
+        // assets that has been DEPLOYED
         uint256 seniorProfit = (profit * seniorAssets) / (seniorAssets + juniorAssets);
 
         LPConfig memory lpConfig = poolConfig.getLPConfig();
@@ -28,8 +31,8 @@ contract RiskAdjustedTranchesPolicy is BaseTranchesPolicy {
             HUNDRED_PERCENT_IN_BPS;
         seniorProfit = seniorProfit - profitAdjustment;
 
-        newAssets[SENIOR_TRANCHE_INDEX] = uint96(seniorAssets + seniorProfit);
-        newAssets[JUNIOR_TRANCHE_INDEX] = uint96(juniorAssets + profit - seniorProfit);
+        newAssets[SENIOR_TRANCHE] = uint96(seniorAssets + seniorProfit);
+        newAssets[JUNIOR_TRANCHE] = uint96(juniorAssets + profit - seniorProfit);
         return newAssets;
     }
 }

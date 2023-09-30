@@ -89,9 +89,9 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         uint96[2] memory tranchesAssets = pool.refreshPool();
 
         // calculate senior/junior LP token prices
-        uint256 seniorPrice = (tranchesAssets[SENIOR_TRANCHE_INDEX] * DEFAULT_DECIMALS_FACTOR) /
+        uint256 seniorPrice = (tranchesAssets[SENIOR_TRANCHE] * DEFAULT_DECIMALS_FACTOR) /
             seniorTranche.totalSupply();
-        uint256 juniorPrice = (tranchesAssets[JUNIOR_TRANCHE_INDEX] * DEFAULT_DECIMALS_FACTOR) /
+        uint256 juniorPrice = (tranchesAssets[JUNIOR_TRANCHE] * DEFAULT_DECIMALS_FACTOR) /
             juniorTranche.totalSupply();
 
         // get unprocessed redemption requests
@@ -159,8 +159,8 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         // console.log(
         //     "id: %s, juniorTotalAssets: %s, seniorTotalAssets: %s",
         //     uint256(ce.id),
-        //     tranches[JUNIOR_TRANCHE_INDEX],
-        //     tranches[SENIOR_TRANCHE_INDEX]
+        //     tranches[JUNIOR_TRANCHE],
+        //     tranches[SENIOR_TRANCHE]
         // );
 
         // console.log(
@@ -172,9 +172,9 @@ contract EpochManager is PoolConfigCache, IEpochManager {
 
         emit EpochClosed(
             ce.id,
-            tranchesAssets[SENIOR_TRANCHE_INDEX],
+            tranchesAssets[SENIOR_TRANCHE],
             seniorPrice,
-            tranchesAssets[JUNIOR_TRANCHE_INDEX],
+            tranchesAssets[JUNIOR_TRANCHE],
             juniorPrice,
             unprocessedAmounts
         );
@@ -213,7 +213,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
 
     /**
      * @notice Process previously unprocessed redemption requests
-     * @param tranchesAssets tranches assets indexed by SENIOR_ or JUNIOR_TRANCHE_INDEX, i.e. tranches[0] is the
+     * @param tranchesAssets tranches assets indexed by SENIOR_ or JUNIOR_TRANCHE, i.e. tranches[0] is the
      * senior tranche assets and tranches[1] is the junior tranche assets
      * @param seniorEpochs the list of unprocessed/partially processed epochs for the senior tranche
      * @param seniorPrice the senior LP token price
@@ -407,7 +407,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
 
     /**
      * @notice Processes redemption requests for the senior tranche
-     * @param tranchesAssets tranches assets indexed by SENIOR_ or JUNIOR_TRANCHE_INDEX, i.e. tranches[0] is the
+     * @param tranchesAssets tranches assets indexed by SENIOR_ or JUNIOR_TRANCHE, i.e. tranches[0] is the
      * senior tranche assets and tranches[1] is the junior tranche assets
      * @param lpTokenPrice the price of the senior LP tokens
      * @param epochInfos the list of epoch infos in each epoch for the senior tranche
@@ -462,7 +462,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
             redemptionResult.numEpochsProcessed += 1;
             redemptionResult.sharesRedeemed += sharesToRedeem;
             redemptionResult.amountRedeemed += redemptionAmount;
-            tranchesAssets[SENIOR_TRANCHE_INDEX] -= uint96(redemptionAmount);
+            tranchesAssets[SENIOR_TRANCHE] -= uint96(redemptionAmount);
 
             // console.log(
             //     "trancheResult.count: %s, trancheResult.shares: %s, trancheResult.amounts: %s",
@@ -480,7 +480,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
     /**
      * @notice Processes redemption requests for the junior tranche. When processing junior requests, special care
      * has to be taken to ensure that the max senior : junior ratio is not breached.
-     * @param tranchesAssets tranches assets indexed by SENIOR_ or JUNIOR_TRANCHE_INDEX, i.e. tranches[0] is the
+     * @param tranchesAssets tranches assets indexed by SENIOR_ or JUNIOR_TRANCHE, i.e. tranches[0] is the
      * senior tranche assets and tranches[1] is the junior tranche assets
      * @param lpTokenPrice the price of the junior LP tokens
      * @param epochInfos the list of epoch infos in each epoch for the junior tranche
@@ -504,17 +504,17 @@ contract EpochManager is PoolConfigCache, IEpochManager {
     ) internal pure returns (uint256 remainingAmount) {
         // Calculate the minimum amount of junior assets required to maintain the senior : junior ratio.
         // Since integer division rounds down, add 1 to minJuniorAmount in order to maintain the ratio.
-        uint256 minJuniorAmount = tranchesAssets[SENIOR_TRANCHE_INDEX] / maxSeniorJuniorRatio;
-        if (minJuniorAmount * maxSeniorJuniorRatio < tranchesAssets[SENIOR_TRANCHE_INDEX])
+        uint256 minJuniorAmount = tranchesAssets[SENIOR_TRANCHE] / maxSeniorJuniorRatio;
+        if (minJuniorAmount * maxSeniorJuniorRatio < tranchesAssets[SENIOR_TRANCHE])
             minJuniorAmount += 1;
         // console.log(
-        //     "minJuniorAmounts: %s, tranches[SENIOR_TRANCHE_INDEX]: %s",
+        //     "minJuniorAmounts: %s, tranches[SENIOR_TRANCHE]: %s",
         //     minJuniorAmounts,
-        //     tranches[SENIOR_TRANCHE_INDEX]
+        //     tranches[SENIOR_TRANCHE]
         // );
 
-        uint256 maxRedeemableAmount = tranchesAssets[JUNIOR_TRANCHE_INDEX] > minJuniorAmount
-            ? tranchesAssets[JUNIOR_TRANCHE_INDEX] - minJuniorAmount
+        uint256 maxRedeemableAmount = tranchesAssets[JUNIOR_TRANCHE] > minJuniorAmount
+            ? tranchesAssets[JUNIOR_TRANCHE] - minJuniorAmount
             : 0;
         if (maxRedeemableAmount <= 0) return availableAmount;
 
@@ -536,7 +536,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
             epochInfo.totalAmountProcessed += uint96(redemptionAmount);
             availableAmount -= redemptionAmount;
             maxRedeemableAmount -= redemptionAmount;
-            tranchesAssets[JUNIOR_TRANCHE_INDEX] -= uint96(redemptionAmount);
+            tranchesAssets[JUNIOR_TRANCHE] -= uint96(redemptionAmount);
 
             // If the redemption requests in the epoch were partially processed in the last round,
             // then they will be processed again in this round (by decrementing `epochsRange.startIndex` by 1 in

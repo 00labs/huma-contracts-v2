@@ -59,7 +59,7 @@ let poolConfigContract: PoolConfig,
     creditFeeManagerContract: BaseCreditFeeManager,
     creditPnlManagerContract: BasePnLManager;
 
-describe("FixedAprTranchesPolicy Test", function () {
+describe("FixedSeniorYieldTranchePolicy Test", function () {
     before(async function () {
         [
             defaultDeployer,
@@ -104,7 +104,7 @@ describe("FixedAprTranchesPolicy Test", function () {
             humaConfigContract,
             mockTokenContract,
             eaNFTContract,
-            "FixedAprTranchesPolicy",
+            "FixedSeniorYieldTranchePolicy",
             defaultDeployer,
             poolOwner,
             "MockPoolCredit",
@@ -128,7 +128,7 @@ describe("FixedAprTranchesPolicy Test", function () {
         await loadFixture(prepare);
     });
 
-    it("Should call calcTranchesAssetsForProfit correctly", async function () {
+    it("Should call distProfitToTranches correctly", async function () {
         const apy = 1217;
         const lpConfig = await poolConfigContract.getLPConfig();
         const newLpConfig = copyLPConfigWithOverrides(lpConfig, { fixedSeniorYieldInBps: apy });
@@ -141,7 +141,7 @@ describe("FixedAprTranchesPolicy Test", function () {
         let lastBlock = await getLatestBlock();
         let nextDate = lastBlock.timestamp + 10;
         await mineNextBlockWithTimestamp(nextDate);
-        let newAssets = PnLCalculator.calcProfitForFixedAprPolicy(
+        let newAssets = PnLCalculator.calcProfitForFixedSeniorYieldPolicy(
             profit,
             assets,
             lastDate,
@@ -149,16 +149,12 @@ describe("FixedAprTranchesPolicy Test", function () {
             deployedAssets,
             apy,
         );
-        let result = await tranchesPolicyContract.calcTranchesAssetsForProfit(
-            profit,
-            assets,
-            lastDate,
-        );
-        // expect(result[CONSTANTS.SENIOR_TRANCHE_INDEX]).to.equal(
-        //     newAssets[CONSTANTS.SENIOR_TRANCHE_INDEX]
+        let result = await tranchesPolicyContract.distProfitToTranches(profit, assets, lastDate);
+        // expect(result[CONSTANTS.SENIOR_TRANCHE]).to.equal(
+        //     newAssets[CONSTANTS.SENIOR_TRANCHE]
         // );
-        // expect(result[CONSTANTS.JUNIOR_TRANCHE_INDEX]).to.equal(
-        //     newAssets[CONSTANTS.JUNIOR_TRANCHE_INDEX]
+        // expect(result[CONSTANTS.JUNIOR_TRANCHE]).to.equal(
+        //     newAssets[CONSTANTS.JUNIOR_TRANCHE]
         // );
     });
 });

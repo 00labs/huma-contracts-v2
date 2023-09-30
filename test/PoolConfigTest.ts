@@ -596,7 +596,7 @@ describe("PoolConfig Tests", function () {
                 humaConfigContract,
                 mockTokenContract,
                 eaNFTContract,
-                "FixedAprTranchesPolicy",
+                "FixedSeniorYieldTranchePolicy",
                 defaultDeployer,
                 poolOwner,
                 "MockPoolCredit",

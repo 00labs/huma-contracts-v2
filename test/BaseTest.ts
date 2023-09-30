@@ -46,13 +46,15 @@ export type PoolContracts = [
     BaseCreditFeeManager,
     BasePnLManager,
 ];
-export type TranchesPolicyContractName = "FixedAprTranchesPolicy" | "RiskAdjustedTranchesPolicy";
+export type TranchesPolicyContractName =
+    | "FixedSeniorYieldTranchePolicy"
+    | "RiskAdjustedTranchesPolicy";
 export type CreditContractName = "CreditLine" | "MockPoolCredit";
 
 const CALENDAR_UNIT_DAY = 0;
 const CALENDAR_UNIT_MONTH = 1;
-const SENIOR_TRANCHE_INDEX = 0;
-const JUNIOR_TRANCHE_INDEX = 1;
+const SENIOR_TRANCHE = 0;
+const JUNIOR_TRANCHE = 1;
 const DEFAULT_DECIMALS_FACTOR = 10n ** 18n;
 const BP_FACTOR = BN.from(10000);
 const SECONDS_IN_YEAR = 60 * 60 * 24 * 365;
@@ -62,8 +64,8 @@ const AFFILIATE_FIRST_LOSS_COVER_INDEX = 1;
 export const CONSTANTS = {
     CALENDAR_UNIT_DAY,
     CALENDAR_UNIT_MONTH,
-    SENIOR_TRANCHE_INDEX,
-    JUNIOR_TRANCHE_INDEX,
+    SENIOR_TRANCHE,
+    JUNIOR_TRANCHE,
     DEFAULT_DECIMALS_FACTOR,
     BP_FACTOR,
     SECONDS_IN_YEAR,
@@ -238,13 +240,13 @@ export async function deployPoolContracts(
         "Senior Tranche Vault",
         "STV",
         poolConfigContract.address,
-        SENIOR_TRANCHE_INDEX,
+        SENIOR_TRANCHE,
     );
     await juniorTrancheVaultContract["initialize(string,string,address,uint8)"](
         "Junior Tranche Vault",
         "JTV",
         poolConfigContract.address,
-        JUNIOR_TRANCHE_INDEX,
+        JUNIOR_TRANCHE,
     );
     await creditContract.connect(poolOwner).initialize(poolConfigContract.address);
     await creditFeeManagerContract.initialize(poolConfigContract.address);
@@ -477,7 +479,7 @@ export function getNextDueDate(
     }
 }
 
-function calcProfitForFixedAprPolicy(
+function calcProfitForFixedSeniorYieldPolicy(
     profit: BN,
     assets: BN[],
     lastUpdateTS: number,
@@ -485,11 +487,9 @@ function calcProfitForFixedAprPolicy(
     deployedAssets: BN,
     yieldInBps: number,
 ): BN[] {
-    const totalAssets = assets[CONSTANTS.SENIOR_TRANCHE_INDEX].add(
-        assets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
-    );
+    const totalAssets = assets[CONSTANTS.SENIOR_TRANCHE].add(assets[CONSTANTS.JUNIOR_TRANCHE]);
     const seniorDeployedAssets = deployedAssets
-        .mul(assets[CONSTANTS.SENIOR_TRANCHE_INDEX])
+        .mul(assets[CONSTANTS.SENIOR_TRANCHE])
         .div(totalAssets);
     let seniorProfit = BN.from(0);
     if (currentTS > lastUpdateTS) {
@@ -503,23 +503,21 @@ function calcProfitForFixedAprPolicy(
     const juniorProfit = profit.sub(seniorProfit);
 
     return [
-        assets[CONSTANTS.SENIOR_TRANCHE_INDEX].add(seniorProfit),
-        assets[CONSTANTS.JUNIOR_TRANCHE_INDEX].add(juniorProfit),
+        assets[CONSTANTS.SENIOR_TRANCHE].add(seniorProfit),
+        assets[CONSTANTS.JUNIOR_TRANCHE].add(juniorProfit),
     ];
 }
 
 function calcProfitForRiskAdjustedPolicy(profit: BN, assets: BN[], riskAdjustment: BN): BN[] {
-    const totalAssets = assets[CONSTANTS.SENIOR_TRANCHE_INDEX].add(
-        assets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
-    );
+    const totalAssets = assets[CONSTANTS.SENIOR_TRANCHE].add(assets[CONSTANTS.JUNIOR_TRANCHE]);
 
-    let seniorProfit = profit.mul(assets[CONSTANTS.SENIOR_TRANCHE_INDEX]).div(totalAssets);
+    let seniorProfit = profit.mul(assets[CONSTANTS.SENIOR_TRANCHE]).div(totalAssets);
     const adjustedProfit = seniorProfit.mul(riskAdjustment).div(CONSTANTS.BP_FACTOR);
     seniorProfit = seniorProfit.sub(adjustedProfit);
 
     return [
-        assets[CONSTANTS.SENIOR_TRANCHE_INDEX].add(seniorProfit),
-        assets[CONSTANTS.JUNIOR_TRANCHE_INDEX].add(profit).sub(seniorProfit),
+        assets[CONSTANTS.SENIOR_TRANCHE].add(seniorProfit),
+        assets[CONSTANTS.JUNIOR_TRANCHE].add(profit).sub(seniorProfit),
     ];
 }
 
@@ -541,45 +539,45 @@ function calcProfitForFirstLossCovers(
 }
 
 function calcLoss(loss: BN, assets: BN[]): BN[][] {
-    const juniorLoss = loss.gt(assets[CONSTANTS.JUNIOR_TRANCHE_INDEX])
-        ? assets[CONSTANTS.JUNIOR_TRANCHE_INDEX]
+    const juniorLoss = loss.gt(assets[CONSTANTS.JUNIOR_TRANCHE])
+        ? assets[CONSTANTS.JUNIOR_TRANCHE]
         : loss;
     const seniorLoss = loss.sub(juniorLoss);
 
     return [
         [
-            assets[CONSTANTS.SENIOR_TRANCHE_INDEX].sub(seniorLoss),
-            assets[CONSTANTS.JUNIOR_TRANCHE_INDEX].sub(juniorLoss),
+            assets[CONSTANTS.SENIOR_TRANCHE].sub(seniorLoss),
+            assets[CONSTANTS.JUNIOR_TRANCHE].sub(juniorLoss),
         ],
         [seniorLoss, juniorLoss],
     ];
 }
 
 function calcLossRecovery(lossRecovery: BN, assets: BN[], losses: BN[]): [BN, BN[], BN[]] {
-    const seniorRecovery = lossRecovery.gt(losses[CONSTANTS.SENIOR_TRANCHE_INDEX])
-        ? losses[CONSTANTS.SENIOR_TRANCHE_INDEX]
+    const seniorRecovery = lossRecovery.gt(losses[CONSTANTS.SENIOR_TRANCHE])
+        ? losses[CONSTANTS.SENIOR_TRANCHE]
         : lossRecovery;
     lossRecovery = lossRecovery.sub(seniorRecovery);
-    const juniorRecovery = lossRecovery.gt(losses[CONSTANTS.JUNIOR_TRANCHE_INDEX])
-        ? losses[CONSTANTS.JUNIOR_TRANCHE_INDEX]
+    const juniorRecovery = lossRecovery.gt(losses[CONSTANTS.JUNIOR_TRANCHE])
+        ? losses[CONSTANTS.JUNIOR_TRANCHE]
         : lossRecovery;
     lossRecovery = lossRecovery.sub(juniorRecovery);
 
     return [
         lossRecovery,
         [
-            assets[CONSTANTS.SENIOR_TRANCHE_INDEX].add(seniorRecovery),
-            assets[CONSTANTS.JUNIOR_TRANCHE_INDEX].add(juniorRecovery),
+            assets[CONSTANTS.SENIOR_TRANCHE].add(seniorRecovery),
+            assets[CONSTANTS.JUNIOR_TRANCHE].add(juniorRecovery),
         ],
         [
-            losses[CONSTANTS.SENIOR_TRANCHE_INDEX].sub(seniorRecovery),
-            losses[CONSTANTS.JUNIOR_TRANCHE_INDEX].sub(juniorRecovery),
+            losses[CONSTANTS.SENIOR_TRANCHE].sub(seniorRecovery),
+            losses[CONSTANTS.JUNIOR_TRANCHE].sub(juniorRecovery),
         ],
     ];
 }
 
 export const PnLCalculator = {
-    calcProfitForFixedAprPolicy,
+    calcProfitForFixedSeniorYieldPolicy,
     calcProfitForRiskAdjustedPolicy,
     calcProfitForFirstLossCovers,
     calcLoss,
@@ -727,7 +725,7 @@ async function getTranchesPolicyContractFactory(
     // The TypeScript compiler cannot deduce the specific return types based solely on the input values,
     // so this approach ensures correct type association for each possible input.
     switch (tranchesPolicyContractName) {
-        case "FixedAprTranchesPolicy":
+        case "FixedSeniorYieldTranchePolicy":
             return await ethers.getContractFactory(tranchesPolicyContractName);
         case "RiskAdjustedTranchesPolicy":
             return await ethers.getContractFactory(tranchesPolicyContractName);

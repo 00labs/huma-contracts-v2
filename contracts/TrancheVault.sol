@@ -198,12 +198,11 @@ contract TrancheVault is
             revert Errors.poolLiquidityCapExceeded();
         }
 
-        if (trancheIndex == SENIOR_TRANCHE_INDEX) {
+        if (trancheIndex == SENIOR_TRANCHE) {
             // Make sure that the max senior : junior asset ratio is still valid.
             LPConfig memory lpConfig = poolConfig.getLPConfig();
             if (
-                (trancheAssets + assets) >
-                tranches[JUNIOR_TRANCHE_INDEX] * lpConfig.maxSeniorJuniorRatio
+                (trancheAssets + assets) > tranches[JUNIOR_TRANCHE] * lpConfig.maxSeniorJuniorRatio
             ) revert Errors.maxSeniorJuniorRatioExceeded();
         }
 

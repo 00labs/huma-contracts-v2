@@ -150,14 +150,14 @@ contract Pool is PoolConfigCache, IPool {
             lossesUpdated = true;
         }
 
-        tempTranchesAssets.seniorTotalAssets = assets[SENIOR_TRANCHE_INDEX];
-        tempTranchesAssets.juniorTotalAssets = assets[JUNIOR_TRANCHE_INDEX];
+        tempTranchesAssets.seniorTotalAssets = assets[SENIOR_TRANCHE];
+        tempTranchesAssets.juniorTotalAssets = assets[JUNIOR_TRANCHE];
         tempTranchesAssets.lastUpdatedTime = uint64(block.timestamp);
         tranchesAssets = tempTranchesAssets;
 
         if (lossesUpdated) {
-            tempTranchesLosses.seniorLoss = losses[SENIOR_TRANCHE_INDEX];
-            tempTranchesLosses.juniorLoss = losses[JUNIOR_TRANCHE_INDEX];
+            tempTranchesLosses.seniorLoss = losses[SENIOR_TRANCHE];
+            tempTranchesLosses.juniorLoss = losses[JUNIOR_TRANCHE];
             tranchesLosses = tempTranchesLosses;
         }
 
@@ -166,10 +166,10 @@ contract Pool is PoolConfigCache, IPool {
             profit,
             loss,
             lossRecovery,
-            assets[SENIOR_TRANCHE_INDEX],
-            assets[JUNIOR_TRANCHE_INDEX],
-            losses[SENIOR_TRANCHE_INDEX],
-            losses[JUNIOR_TRANCHE_INDEX]
+            assets[SENIOR_TRANCHE],
+            assets[JUNIOR_TRANCHE],
+            losses[SENIOR_TRANCHE],
+            losses[JUNIOR_TRANCHE]
         );
     }
 
@@ -180,16 +180,16 @@ contract Pool is PoolConfigCache, IPool {
         uint256 poolProfit = feeManager.distributePoolFees(profit);
 
         if (poolProfit > 0) {
-            newAssets = tranchesPolicy.calcTranchesAssetsForProfit(
+            newAssets = tranchesPolicy.distProfitToTranches(
                 poolProfit,
                 [assets.seniorTotalAssets, assets.juniorTotalAssets],
                 assets.lastUpdatedTime
             );
 
             // Distribute profit to first loss covers from profits in the junior tranche.
-            newAssets[JUNIOR_TRANCHE_INDEX] = uint96(
+            newAssets[JUNIOR_TRANCHE] = uint96(
                 _distributeProfitForFirstLossCovers(
-                    newAssets[JUNIOR_TRANCHE_INDEX] - assets.juniorTotalAssets,
+                    newAssets[JUNIOR_TRANCHE] - assets.juniorTotalAssets,
                     assets.juniorTotalAssets
                 )
             );
@@ -244,7 +244,7 @@ contract Pool is PoolConfigCache, IPool {
         uint96[2] memory losses
     ) internal returns (uint96[2] memory newAssets, uint96[2] memory newLosses) {
         if (loss > 0) {
-            uint256 poolAssets = assets[SENIOR_TRANCHE_INDEX] + assets[JUNIOR_TRANCHE_INDEX];
+            uint256 poolAssets = assets[SENIOR_TRANCHE] + assets[JUNIOR_TRANCHE];
             uint256 coverCount = _firstLossCovers.length;
             for (uint256 i; i < coverCount && loss > 0; i++) {
                 loss = _firstLossCovers[i].coverLoss(poolAssets, loss);
@@ -253,10 +253,10 @@ contract Pool is PoolConfigCache, IPool {
             if (loss > 0) {
                 // If there are losses remaining, let the junior and senior tranches cover the losses.
                 uint96[2] memory lossesDelta;
-                (assets, lossesDelta) = tranchesPolicy.calcTranchesAssetsForLoss(loss, assets);
+                (assets, lossesDelta) = tranchesPolicy.distLossToTranches(loss, assets);
 
-                losses[SENIOR_TRANCHE_INDEX] += lossesDelta[SENIOR_TRANCHE_INDEX];
-                losses[JUNIOR_TRANCHE_INDEX] += lossesDelta[JUNIOR_TRANCHE_INDEX];
+                losses[SENIOR_TRANCHE] += lossesDelta[SENIOR_TRANCHE];
+                losses[JUNIOR_TRANCHE] += lossesDelta[JUNIOR_TRANCHE];
             }
         }
 
@@ -269,7 +269,7 @@ contract Pool is PoolConfigCache, IPool {
         uint96[2] memory losses
     ) internal returns (uint96[2] memory newAssets, uint96[2] memory newLosses) {
         if (lossRecovery > 0) {
-            (lossRecovery, assets, losses) = tranchesPolicy.calcTranchesAssetsForLossRecovery(
+            (lossRecovery, assets, losses) = tranchesPolicy.distLossRecoveryToTranches(
                 lossRecovery,
                 assets,
                 losses
@@ -292,7 +292,7 @@ contract Pool is PoolConfigCache, IPool {
 
     function totalAssets() external view returns (uint256) {
         uint96[2] memory assets = currentTranchesAssets();
-        return assets[SENIOR_TRANCHE_INDEX] + assets[JUNIOR_TRANCHE_INDEX];
+        return assets[SENIOR_TRANCHE] + assets[JUNIOR_TRANCHE];
     }
 
     function currentTranchesAssets() public view returns (uint96[2] memory assets) {
@@ -306,8 +306,8 @@ contract Pool is PoolConfigCache, IPool {
         }
 
         (uint256 profit, uint256 loss, uint256 lossRecovery) = credit.getAccruedPnL();
-        assets[SENIOR_TRANCHE_INDEX] = tempTranchesAssets.seniorTotalAssets;
-        assets[JUNIOR_TRANCHE_INDEX] = tempTranchesAssets.juniorTotalAssets;
+        assets[SENIOR_TRANCHE] = tempTranchesAssets.seniorTotalAssets;
+        assets[JUNIOR_TRANCHE] = tempTranchesAssets.juniorTotalAssets;
 
         if (profit > 0) {
             assets = _calcProfitDistributions(profit, tempTranchesAssets);
@@ -333,18 +333,18 @@ contract Pool is PoolConfigCache, IPool {
     ) internal view returns (uint96[2] memory newAssets) {
         uint256 poolProfit = feeManager.calcPlatformFeeDistribution(profit);
         if (poolProfit > 0) {
-            newAssets = tranchesPolicy.calcTranchesAssetsForProfit(
+            newAssets = tranchesPolicy.distProfitToTranches(
                 poolProfit,
                 [assets.seniorTotalAssets, assets.juniorTotalAssets],
                 assets.lastUpdatedTime
             );
 
-            uint256 juniorProfit = newAssets[JUNIOR_TRANCHE_INDEX] - assets.juniorTotalAssets;
+            uint256 juniorProfit = newAssets[JUNIOR_TRANCHE] - assets.juniorTotalAssets;
             (juniorProfit, ) = _calcProfitForFirstLossCovers(
                 juniorProfit,
                 assets.juniorTotalAssets
             );
-            newAssets[JUNIOR_TRANCHE_INDEX] = uint96(assets.juniorTotalAssets + juniorProfit);
+            newAssets[JUNIOR_TRANCHE] = uint96(assets.juniorTotalAssets + juniorProfit);
         }
     }
 
@@ -355,17 +355,17 @@ contract Pool is PoolConfigCache, IPool {
     ) internal view returns (uint96[2] memory newAssets, uint96[2] memory newLosses) {
         if (loss > 0) {
             // First loss cover
-            uint256 poolAssets = assets[SENIOR_TRANCHE_INDEX] + assets[JUNIOR_TRANCHE_INDEX];
+            uint256 poolAssets = assets[SENIOR_TRANCHE] + assets[JUNIOR_TRANCHE];
             uint256 coverCount = _firstLossCovers.length;
             for (uint256 i; i < coverCount && loss > 0; i++) {
                 IFirstLossCover cover = _firstLossCovers[i];
                 loss = cover.calcLossCover(poolAssets, loss);
             }
             uint96[2] memory lossesDelta;
-            (assets, lossesDelta) = tranchesPolicy.calcTranchesAssetsForLoss(loss, assets);
+            (assets, lossesDelta) = tranchesPolicy.distLossToTranches(loss, assets);
 
-            losses[SENIOR_TRANCHE_INDEX] += lossesDelta[SENIOR_TRANCHE_INDEX];
-            losses[JUNIOR_TRANCHE_INDEX] += lossesDelta[JUNIOR_TRANCHE_INDEX];
+            losses[SENIOR_TRANCHE] += lossesDelta[SENIOR_TRANCHE];
+            losses[JUNIOR_TRANCHE] += lossesDelta[JUNIOR_TRANCHE];
         }
 
         return (assets, losses);
@@ -377,7 +377,7 @@ contract Pool is PoolConfigCache, IPool {
         uint96[2] memory losses
     ) internal view returns (uint96[2] memory newAssets, uint96[2] memory newLosses) {
         if (lossRecovery > 0) {
-            (lossRecovery, assets, losses) = tranchesPolicy.calcTranchesAssetsForLossRecovery(
+            (lossRecovery, assets, losses) = tranchesPolicy.distLossRecoveryToTranches(
                 lossRecovery,
                 assets,
                 losses
@@ -409,8 +409,8 @@ contract Pool is PoolConfigCache, IPool {
         // updates can be made. The asset data can be brought up-to-date usually by calling
         // `refreshPool` before calling this function.
         assert(tempTranchesAssets.lastUpdatedTime == block.timestamp);
-        tempTranchesAssets.seniorTotalAssets = assets[SENIOR_TRANCHE_INDEX];
-        tempTranchesAssets.juniorTotalAssets = assets[JUNIOR_TRANCHE_INDEX];
+        tempTranchesAssets.seniorTotalAssets = assets[SENIOR_TRANCHE];
+        tempTranchesAssets.juniorTotalAssets = assets[JUNIOR_TRANCHE];
         tranchesAssets = tempTranchesAssets;
     }
 

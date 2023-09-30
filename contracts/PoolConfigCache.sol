@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {PoolConfig} from "./PoolConfig.sol";
 import {Errors} from "./Errors.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 /**
  * @notice All contract addresses and configurations at the pool level are stored in the PoolConfig contract.
