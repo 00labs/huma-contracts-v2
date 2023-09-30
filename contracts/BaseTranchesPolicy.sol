@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {ITranchesPolicy} from "./interfaces/ITranchesPolicy.sol";
-import {Errors} from "./Errors.sol";
 import {PoolConfig} from "./PoolConfig.sol";
 import {PoolConfigCache} from "./PoolConfigCache.sol";
-import "./SharedDefs.sol";
+import {ITranchesPolicy} from "./interfaces/ITranchesPolicy.sol";
+import {JUNIOR_TRANCHE, SENIOR_TRANCHE} from "./SharedDefs.sol";
 
 abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {}

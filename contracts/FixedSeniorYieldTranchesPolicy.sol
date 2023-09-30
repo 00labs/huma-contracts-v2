@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {Errors} from "./Errors.sol";
 import {BaseTranchesPolicy} from "./BaseTranchesPolicy.sol";
-import {PoolConfig, LPConfig} from "./PoolConfig.sol";
+import {LPConfig} from "./PoolConfig.sol";
 import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
-import "./SharedDefs.sol";
-import "hardhat/console.sol";
+import {SENIOR_TRANCHE, JUNIOR_TRANCHE, SECONDS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS} from "./SharedDefs.sol";
+
+//import "hardhat/console.sol";
 
 /**
  * @notice Tranche policy when the yield for the senior tranche is fixed as long as
