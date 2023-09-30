@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { BigNumber as BN, Contract } from "ethers";
-import { getNextDate, getNextMonth, toToken } from "./TestUtils";
+import { getNextDate, getNextMonth, sumBNArray, toToken } from "./TestUtils";
 import { EpochInfoStruct } from "../typechain-types/contracts/interfaces/IEpoch";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { ethers } from "hardhat";
@@ -523,6 +523,23 @@ function calcProfitForRiskAdjustedPolicy(profit: BN, assets: BN[], riskAdjustmen
     ];
 }
 
+function calcProfitForFirstLossCovers(
+    profit: BN,
+    juniorTotalAssets: BN,
+    coverTotalAssets: BN[],
+    riskYieldMultipliers: number[],
+): [BN, BN[]] {
+    const riskWeightedCoverTotalAssets = coverTotalAssets.map((value, index) =>
+        value.mul(riskYieldMultipliers[index]),
+    );
+    const totalWeight = juniorTotalAssets.add(sumBNArray(riskWeightedCoverTotalAssets));
+    const profitsForFirstLossCovers = riskWeightedCoverTotalAssets.map((value) =>
+        profit.mul(value).div(totalWeight),
+    );
+    const juniorProfit = profit.sub(sumBNArray(profitsForFirstLossCovers));
+    return [juniorProfit, profitsForFirstLossCovers];
+}
+
 function calcLoss(loss: BN, assets: BN[]): BN[][] {
     const juniorLoss = loss.gt(assets[CONSTANTS.JUNIOR_TRANCHE_INDEX])
         ? assets[CONSTANTS.JUNIOR_TRANCHE_INDEX]
@@ -564,6 +581,7 @@ function calcLossRecovery(lossRecovery: BN, assets: BN[], losses: BN[]): [BN, BN
 export const PnLCalculator = {
     calcProfitForFixedAprPolicy,
     calcProfitForRiskAdjustedPolicy,
+    calcProfitForFirstLossCovers,
     calcLoss,
     calcLossRecovery,
 };

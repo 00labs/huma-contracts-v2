@@ -177,7 +177,7 @@ contract Pool is PoolConfigCache, IPool {
         uint256 profit,
         TranchesAssets memory assets
     ) internal returns (uint96[2] memory newAssets) {
-        uint256 poolProfit = feeManager.distributePlatformFees(profit);
+        uint256 poolProfit = feeManager.distributePoolFees(profit);
 
         if (poolProfit > 0) {
             newAssets = tranchesPolicy.calcTranchesAssetsForProfit(
@@ -186,6 +186,7 @@ contract Pool is PoolConfigCache, IPool {
                 assets.lastUpdatedTime
             );
 
+            // Distribute profit to first loss covers from profits in the junior tranche.
             newAssets[JUNIOR_TRANCHE_INDEX] = uint96(
                 _distributeProfitForFirstLossCovers(
                     newAssets[JUNIOR_TRANCHE_INDEX] - assets.juniorTotalAssets,
@@ -230,6 +231,9 @@ contract Pool is PoolConfigCache, IPool {
         juniorProfit = profit;
         for (uint256 i; i < len; i++) {
             profitsForFirstLossCovers[i] = (profit * profitsForFirstLossCovers[i]) / totalWeight;
+            // Note that juniorProfit is always positive because `totalWeight` consists both junior assets
+            // and risk adjusted assets from each first loss cover. Thus we don't need to check whether
+            // `juniorProfit` ever reaches 0.
             juniorProfit -= profitsForFirstLossCovers[i];
         }
     }

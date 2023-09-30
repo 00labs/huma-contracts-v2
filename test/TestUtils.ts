@@ -13,6 +13,10 @@ export function toToken(number: string | number, decimals: number = 6): BN {
     return toBN(number, decimals);
 }
 
+export function sumBNArray(arr: BN[]): BN {
+    return arr.reduce((acc, curValue) => acc.add(curValue), BN.from(0));
+}
+
 export async function setNextBlockTimestamp(nextTS: BN | number) {
     await network.provider.request({
         method: "evm_setNextBlockTimestamp",

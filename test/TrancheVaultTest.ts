@@ -57,7 +57,7 @@ let poolConfigContract: PoolConfig,
     poolSafeContract: PoolSafe,
     calendarContract: Calendar,
     borrowerFirstLossCoverContract: FirstLossCover,
-    affiliateFeeManagerContract: FirstLossCover,
+    affiliateFirstLossCoverContract: FirstLossCover,
     affiliateFirstLossCoverProfitEscrowContract: ProfitEscrow,
     tranchesPolicyContract: RiskAdjustedTranchesPolicy,
     poolContract: Pool,
@@ -115,7 +115,7 @@ describe("TrancheVault Test", function () {
             poolSafeContract,
             calendarContract,
             borrowerFirstLossCoverContract,
-            affiliateFeeManagerContract,
+            affiliateFirstLossCoverContract,
             affiliateFirstLossCoverProfitEscrowContract,
             tranchesPolicyContract,
             poolContract,
@@ -409,7 +409,27 @@ describe("TrancheVault Test", function () {
                     assets,
                     BN.from(adjustment),
                 );
-                const [assetsWithLosses, losses] = PnLCalculator.calcLoss(loss, assetsWithProfits);
+                const firstLossCoverTotalAssets = await Promise.all(
+                    [borrowerFirstLossCoverContract, affiliateFirstLossCoverContract].map(
+                        async (contract) => await contract.totalAssets(),
+                    ),
+                );
+                const riskYieldMultipliers = await poolConfigContract.getRiskYieldMultipliers();
+                const [juniorProfitAfterFirstLossCoverProfitDistribution] =
+                    PnLCalculator.calcProfitForFirstLossCovers(
+                        assetsWithProfits[CONSTANTS.JUNIOR_TRANCHE_INDEX].sub(
+                            assets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                        ),
+                        assets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                        firstLossCoverTotalAssets,
+                        riskYieldMultipliers,
+                    );
+                const [assetsWithLosses, losses] = PnLCalculator.calcLoss(loss, [
+                    assetsWithProfits[CONSTANTS.SENIOR_TRANCHE_INDEX],
+                    assets[CONSTANTS.JUNIOR_TRANCHE_INDEX].add(
+                        juniorProfitAfterFirstLossCoverProfitDistribution,
+                    ),
+                ]);
                 const [, assetsWithRecovery] = PnLCalculator.calcLossRecovery(
                     lossRecovery,
                     assetsWithLosses,
@@ -471,10 +491,10 @@ describe("TrancheVault Test", function () {
             }
 
             it("Should mint the correct number of LP tokens if there is profit in the pool", async function () {
-                // const profit = toToken(10_000),
-                //     loss = toToken(0),
-                //     lossRecovery = toToken(0);
-                // await testDepositWithPnL(profit, loss, lossRecovery);
+                const profit = toToken(10_000),
+                    loss = toToken(0),
+                    lossRecovery = toToken(0);
+                await testDepositWithPnL(profit, loss, lossRecovery);
             });
 
             it("Should mint the correct number of LP tokens if the junior tranche has to take loss", async function () {
@@ -484,6 +504,8 @@ describe("TrancheVault Test", function () {
                 await testDepositWithPnL(profit, loss, lossRecovery);
             });
 
+            // TODO(jiatu): re-enable this test after we figure out what we should do if totalAssets == 0
+            // when converting assets to shares.
             // it("Should mint the correct number of LP tokens if the senior tranche has to take loss", async function () {
             //     const profit = toToken(0), loss = juniorAmount.add(seniorAmount), lossRecovery = toToken(0);
             //     await testDepositWithPnL(profit, loss, lossRecovery);
@@ -504,10 +526,10 @@ describe("TrancheVault Test", function () {
             });
 
             it("Should mint the correct number of LP tokens if there is all types of PnL in the pool", async function () {
-                // const profit = toToken(10_000),
-                //     loss = toToken(1_000),
-                //     lossRecovery = toToken(500);
-                // await testDepositWithPnL(profit, loss, lossRecovery);
+                const profit = toToken(10_000),
+                    loss = toToken(1_000),
+                    lossRecovery = toToken(500);
+                await testDepositWithPnL(profit, loss, lossRecovery);
             });
         });
     });
@@ -1375,7 +1397,7 @@ describe("TrancheVault Test", function () {
                     availableAmount.sub(availableAmountBefore),
                 );
 
-                // Finish 3nd epoch and process epoch2 partially
+                // Finish 3rd epoch and process epoch2 partially
 
                 lastEpoch = await epochManagerContract.currentEpoch();
                 ts = lastEpoch.endTime.toNumber() + 60 * 5;

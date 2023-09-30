@@ -640,7 +640,7 @@ describe("PoolConfig Tests", function () {
         describe("setCreditApprovalExpiration", function () {
             const durationInDays = 5;
 
-            it("Should allow the pool owner set the yield for the pool", async function () {
+            it("Should allow the pool owner set the credit approval expiration", async function () {
                 await expect(
                     poolConfigContract
                         .connect(poolOwner)
@@ -652,7 +652,7 @@ describe("PoolConfig Tests", function () {
                 expect(poolSettings[3]).to.equal(durationInDays);
             });
 
-            it("Should allow the Huma master admin set the yield for the pool", async function () {
+            it("Should allow the Huma master admin set the credit approval expiration", async function () {
                 await expect(
                     poolConfigContract
                         .connect(protocolOwner)
@@ -664,11 +664,47 @@ describe("PoolConfig Tests", function () {
                 expect(poolSettings[3]).to.equal(durationInDays);
             });
 
-            it("Should reject non-owner or Huma master admin", async function () {
+            it("Should reject non-owner or non-Huma master admin", async function () {
                 await expect(
                     poolConfigContract
                         .connect(regularUser)
                         .setCreditApprovalExpiration(durationInDays),
+                ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+            });
+        });
+
+        describe("setLatePaymentGracePeriodInDays", function () {
+            const gracePeriodInDays = 5;
+
+            it("Should allow the pool owner set the late payment period", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setLatePaymentGracePeriodInDays(gracePeriodInDays),
+                )
+                    .to.emit(poolConfigContract, "LatePaymentGracePeriodChanged")
+                    .withArgs(gracePeriodInDays, poolOwner.address);
+                const poolSettings = await poolConfigContract.getPoolSettings();
+                expect(poolSettings[4]).to.equal(gracePeriodInDays);
+            });
+
+            it("Should allow the Huma master admin set the late payment periodl", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(protocolOwner)
+                        .setLatePaymentGracePeriodInDays(gracePeriodInDays),
+                )
+                    .to.emit(poolConfigContract, "LatePaymentGracePeriodChanged")
+                    .withArgs(gracePeriodInDays, protocolOwner.address);
+                const poolSettings = await poolConfigContract.getPoolSettings();
+                expect(poolSettings[4]).to.equal(gracePeriodInDays);
+            });
+
+            it("Should reject non-owner or non-Huma master admin", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(regularUser)
+                        .setLatePaymentGracePeriodInDays(gracePeriodInDays),
                 ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
             });
         });

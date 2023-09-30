@@ -10,16 +10,11 @@ import {PoolConfigCache} from "./PoolConfigCache.sol";
 import {Errors} from "./Errors.sol";
 
 contract PoolSafe is PoolConfigCache, IPoolSafe {
-    struct Reserves {
-        uint96 forRedemption;
-        uint96 forPlatformFees;
-    }
-
     IERC20 public underlyingToken;
     IFirstLossCover[] internal _firstLossCovers;
     IPoolFeeManager public poolFeeManager;
 
-    Reserves public reserves;
+    uint96 public reservedForRedemption;
 
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = _poolConfig.underlyingToken();
@@ -31,7 +26,7 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
         poolFeeManager = IPoolFeeManager(addr);
 
         address[16] memory covers = _poolConfig.getFirstLossCovers();
-        for (uint256 i = 0; i < covers.length; i++) {
+        for (uint256 i; i < covers.length; i++) {
             if (covers[i] != address(0)) _firstLossCovers.push(IFirstLossCover(covers[i]));
             else break;
         }
@@ -49,43 +44,22 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
         underlyingToken.transfer(to, amount);
     }
 
-    function addPlatformFeesReserve(uint256 reserve) external {
-        poolConfig.onlyPoolFeeManager(msg.sender);
-
-        Reserves memory rs = reserves;
-        rs.forPlatformFees += uint96(reserve);
-        reserves = rs;
-    }
-
-    function withdrawFees(address to, uint256 amount) external {
-        poolConfig.onlyPoolFeeManager(msg.sender);
-
-        Reserves memory rs = reserves;
-        rs.forPlatformFees -= uint96(amount);
-        reserves = rs;
-        underlyingToken.transfer(to, amount);
-    }
-
     function setRedemptionReserve(uint256 reserve) external {
         poolConfig.onlyPool(msg.sender);
 
-        Reserves memory rs = reserves;
-        rs.forRedemption = uint96(reserve);
-        reserves = rs;
+        reservedForRedemption = uint96(reserve);
     }
 
     function getAvailableLiquidity() external view returns (uint256 assets) {
         assets = totalAssets();
-        Reserves memory rs = reserves;
-        uint256 reserve = rs.forRedemption + rs.forPlatformFees;
-        assets = assets > reserve ? assets - reserve : 0;
+        uint96 tempReservedForRedemption = reservedForRedemption;
+        assets = assets > tempReservedForRedemption ? assets - tempReservedForRedemption : 0;
     }
 
     function getAvailableReservation() external view returns (uint256 assets) {
         assets = totalAssets();
-        Reserves memory rs = reserves;
-        uint256 reserve = rs.forRedemption + rs.forPlatformFees;
-        assets = assets < reserve ? assets : reserve;
+        uint96 tempReservedForRedemption = reservedForRedemption;
+        assets = assets < tempReservedForRedemption ? assets : tempReservedForRedemption;
     }
 
     function getPoolAssets() external view returns (uint256 assets) {
@@ -95,7 +69,7 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
     function totalAssets() public view returns (uint256 assets) {
         uint256 reserved;
         uint256 len = _firstLossCovers.length;
-        for (uint256 i = 0; i < len; i++) {
+        for (uint256 i; i < len; i++) {
             reserved += _firstLossCovers[i].totalAssets();
         }
         reserved += poolFeeManager.getTotalAvailableFees();

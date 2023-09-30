@@ -51,10 +51,10 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         firstLossCover = IFirstLossCover(addr);
     }
 
-    function distributePlatformFees(uint256 profit) external returns (uint256) {
+    function distributePoolFees(uint256 profit) external returns (uint256) {
         poolConfig.onlyPool(msg.sender);
 
-        (AccruedIncomes memory incomes, uint256 remaining) = _getPlatformFees(profit);
+        (AccruedIncomes memory incomes, uint256 remaining) = _getPoolFees(profit);
         uint256 totalFees = incomes.protocolIncome + incomes.poolOwnerIncome + incomes.eaIncome;
         uint256 liquidityCapacity = firstLossCover.availableLiquidityCapacity();
 
@@ -118,7 +118,7 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
     function calcPlatformFeeDistribution(
         uint256 profit
     ) external view returns (uint256 remaining) {
-        (, remaining) = _getPlatformFees(profit);
+        (, remaining) = _getPoolFees(profit);
     }
 
     function withdrawProtocolFee(uint256 amount) external {
@@ -206,9 +206,11 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         eaWithdrawable = incomes.eaIncome < eaWithdrawn ? 0 : incomes.eaIncome - eaWithdrawn;
     }
 
-    /// @notice Returns the incomes of the Huma protocol, pool owner and EA and the remaining profit
-    /// after deducting the incomes as fees.
-    function _getPlatformFees(
+    /**
+     * @notice Returns the incomes of the Huma protocol, pool owner and EA and the remaining profit
+     * after deducting the incomes as fees.
+     */
+    function _getPoolFees(
         uint256 profit
     ) internal view returns (AccruedIncomes memory incomes, uint256 remaining) {
         AdminRnR memory adminRnR = poolConfig.getAdminRnR();
