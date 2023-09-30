@@ -127,13 +127,13 @@ describe("BaseTranchesPolicy Test", function () {
         await loadFixture(prepare);
     });
 
-    describe("calcTranchesAssetsForLoss", function () {
+    describe("distLossToTranches", function () {
         it("Calculates the correct loss when the junior tranche loss can be covered by assets", async function () {
             const assets = await poolContract.currentTranchesAssets();
             const loss = assets[CONSTANTS.JUNIOR_TRANCHE];
 
             const [newAssets, newLosses] = PnLCalculator.calcLoss(loss, assets);
-            const result = await tranchesPolicyContract.calcTranchesAssetsForLoss(loss, assets);
+            const result = await tranchesPolicyContract.distLossToTranches(loss, assets);
 
             expect(result[0][CONSTANTS.SENIOR_TRANCHE]).to.equal(
                 newAssets[CONSTANTS.SENIOR_TRANCHE],
@@ -154,7 +154,7 @@ describe("BaseTranchesPolicy Test", function () {
             const loss = assets[CONSTANTS.JUNIOR_TRANCHE].add(1);
 
             const [newAssets, newLosses] = PnLCalculator.calcLoss(loss, assets);
-            const result = await tranchesPolicyContract.calcTranchesAssetsForLoss(loss, assets);
+            const result = await tranchesPolicyContract.distLossToTranches(loss, assets);
 
             expect(result[0][CONSTANTS.SENIOR_TRANCHE]).to.equal(
                 newAssets[CONSTANTS.SENIOR_TRANCHE],
@@ -173,21 +173,20 @@ describe("BaseTranchesPolicy Test", function () {
         });
     });
 
-    describe("calcTranchesAssetsForLossRecovery", function () {
+    describe("distLossRecoveryToTranches", function () {
         it("Calculates the correct loss when only the senior loss can be recovered", async function () {
             const assets = await poolContract.currentTranchesAssets();
             const loss = assets[CONSTANTS.SENIOR_TRANCHE].add(assets[CONSTANTS.JUNIOR_TRANCHE]);
             const recovery = assets[CONSTANTS.SENIOR_TRANCHE];
 
-            const result = await tranchesPolicyContract.calcTranchesAssetsForLoss(loss, assets);
+            const result = await tranchesPolicyContract.distLossToTranches(loss, assets);
             const [, newAssetsWithLossRecovery, newLossesWithLossRecovery] =
                 PnLCalculator.calcLossRecovery(recovery, result[0], result[1]);
-            const resultWithLossRecovery =
-                await tranchesPolicyContract.calcTranchesAssetsForLossRecovery(
-                    recovery,
-                    result[0],
-                    result[1],
-                );
+            const resultWithLossRecovery = await tranchesPolicyContract.distLossRecoveryToTranches(
+                recovery,
+                result[0],
+                result[1],
+            );
             expect(resultWithLossRecovery[0]).to.equal(0);
             expect(resultWithLossRecovery[1][CONSTANTS.SENIOR_TRANCHE]).to.equal(
                 newAssetsWithLossRecovery[CONSTANTS.SENIOR_TRANCHE],
@@ -212,15 +211,14 @@ describe("BaseTranchesPolicy Test", function () {
             const loss = assets[CONSTANTS.SENIOR_TRANCHE].add(assets[CONSTANTS.JUNIOR_TRANCHE]);
             const recovery = loss;
 
-            const result = await tranchesPolicyContract.calcTranchesAssetsForLoss(loss, assets);
+            const result = await tranchesPolicyContract.distLossToTranches(loss, assets);
             const [, newAssetsWithLossRecovery, newLossesWithLossRecovery] =
                 PnLCalculator.calcLossRecovery(recovery, result[0], result[1]);
-            const resultWithLossRecovery =
-                await tranchesPolicyContract.calcTranchesAssetsForLossRecovery(
-                    recovery,
-                    result[0],
-                    result[1],
-                );
+            const resultWithLossRecovery = await tranchesPolicyContract.distLossRecoveryToTranches(
+                recovery,
+                result[0],
+                result[1],
+            );
             expect(resultWithLossRecovery[0]).to.equal(0);
             expect(resultWithLossRecovery[1][CONSTANTS.SENIOR_TRANCHE]).to.equal(
                 newAssetsWithLossRecovery[CONSTANTS.SENIOR_TRANCHE],

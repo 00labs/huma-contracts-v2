@@ -14,13 +14,17 @@ contract RiskAdjustedTranchesPolicy is BaseTranchesPolicy {
     /**
      * @notice Distribute profit between tranches.
      */
-    function calcTranchesAssetsForProfit(
+    function distProfitToTranches(
         uint256 profit,
         uint96[2] memory assets,
-        uint256 lastUpdatedTime
+        uint256 /*lastUpdatedTime*/
     ) external view returns (uint96[2] memory newAssets) {
         uint256 seniorAssets = assets[SENIOR_TRANCHE];
         uint256 juniorAssets = assets[JUNIOR_TRANCHE];
+
+        // todo the following logic is critically flawed. seniorProfit is calculated
+        // using the entire senior assets in the pool. It should be based on senior
+        // assets that has been DEPLOYED
         uint256 seniorProfit = (profit * seniorAssets) / (seniorAssets + juniorAssets);
 
         LPConfig memory lpConfig = poolConfig.getLPConfig();

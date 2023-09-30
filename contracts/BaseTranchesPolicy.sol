@@ -11,7 +11,7 @@ abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {}
 
     /// @inheritdoc ITranchesPolicy
-    function calcTranchesAssetsForLoss(
+    function distLossToTranches(
         uint256 loss,
         uint96[2] memory assets
     ) external pure returns (uint96[2] memory updatedAssets, uint96[2] memory losses) {
@@ -25,7 +25,7 @@ abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
     }
 
     /// @inheritdoc ITranchesPolicy
-    function calcTranchesAssetsForLossRecovery(
+    function distLossRecoveryToTranches(
         uint256 lossRecovery,
         uint96[2] memory assets,
         uint96[2] memory losses

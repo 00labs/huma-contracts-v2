@@ -14,7 +14,7 @@ interface ITranchesPolicy {
      * @return updatedAssets updated total assets for each tranche
      * @return losses losses for each tranche
      */
-    function calcTranchesAssetsForLoss(
+    function distLossToTranches(
         uint256 loss,
         uint96[2] memory assets
     ) external view returns (uint96[2] memory updatedAssets, uint96[2] memory losses);
@@ -29,7 +29,7 @@ interface ITranchesPolicy {
      * @return newAssets updated total assets for each tranche, index 0 for senior, 1 for junior
      * @return newLosses updated total losses for each tranche, index 0 for senior, 1 for junior
      */
-    function calcTranchesAssetsForLossRecovery(
+    function distLossRecoveryToTranches(
         uint256 lossRecovery,
         uint96[2] memory assets,
         uint96[2] memory losses
@@ -50,7 +50,7 @@ interface ITranchesPolicy {
      * @param lastUpdatedTime the corresponding updated timestamp for @param assets
      * @return newAssets updated total assets for each tranche, index 0 for senior, 1 for junior
      */
-    function calcTranchesAssetsForProfit(
+    function distProfitToTranches(
         uint256 profit,
         uint96[2] memory assets,
         uint256 lastUpdatedTime

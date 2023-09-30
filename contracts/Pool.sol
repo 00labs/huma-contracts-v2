@@ -180,7 +180,7 @@ contract Pool is PoolConfigCache, IPool {
         uint256 poolProfit = feeManager.distributePoolFees(profit);
 
         if (poolProfit > 0) {
-            newAssets = tranchesPolicy.calcTranchesAssetsForProfit(
+            newAssets = tranchesPolicy.distProfitToTranches(
                 poolProfit,
                 [assets.seniorTotalAssets, assets.juniorTotalAssets],
                 assets.lastUpdatedTime
@@ -253,7 +253,7 @@ contract Pool is PoolConfigCache, IPool {
             if (loss > 0) {
                 // If there are losses remaining, let the junior and senior tranches cover the losses.
                 uint96[2] memory lossesDelta;
-                (assets, lossesDelta) = tranchesPolicy.calcTranchesAssetsForLoss(loss, assets);
+                (assets, lossesDelta) = tranchesPolicy.distLossToTranches(loss, assets);
 
                 losses[SENIOR_TRANCHE] += lossesDelta[SENIOR_TRANCHE];
                 losses[JUNIOR_TRANCHE] += lossesDelta[JUNIOR_TRANCHE];
@@ -269,7 +269,7 @@ contract Pool is PoolConfigCache, IPool {
         uint96[2] memory losses
     ) internal returns (uint96[2] memory newAssets, uint96[2] memory newLosses) {
         if (lossRecovery > 0) {
-            (lossRecovery, assets, losses) = tranchesPolicy.calcTranchesAssetsForLossRecovery(
+            (lossRecovery, assets, losses) = tranchesPolicy.distLossRecoveryToTranches(
                 lossRecovery,
                 assets,
                 losses
@@ -333,7 +333,7 @@ contract Pool is PoolConfigCache, IPool {
     ) internal view returns (uint96[2] memory newAssets) {
         uint256 poolProfit = feeManager.calcPlatformFeeDistribution(profit);
         if (poolProfit > 0) {
-            newAssets = tranchesPolicy.calcTranchesAssetsForProfit(
+            newAssets = tranchesPolicy.distProfitToTranches(
                 poolProfit,
                 [assets.seniorTotalAssets, assets.juniorTotalAssets],
                 assets.lastUpdatedTime
@@ -362,7 +362,7 @@ contract Pool is PoolConfigCache, IPool {
                 loss = cover.calcLossCover(poolAssets, loss);
             }
             uint96[2] memory lossesDelta;
-            (assets, lossesDelta) = tranchesPolicy.calcTranchesAssetsForLoss(loss, assets);
+            (assets, lossesDelta) = tranchesPolicy.distLossToTranches(loss, assets);
 
             losses[SENIOR_TRANCHE] += lossesDelta[SENIOR_TRANCHE];
             losses[JUNIOR_TRANCHE] += lossesDelta[JUNIOR_TRANCHE];
@@ -377,7 +377,7 @@ contract Pool is PoolConfigCache, IPool {
         uint96[2] memory losses
     ) internal view returns (uint96[2] memory newAssets, uint96[2] memory newLosses) {
         if (lossRecovery > 0) {
-            (lossRecovery, assets, losses) = tranchesPolicy.calcTranchesAssetsForLossRecovery(
+            (lossRecovery, assets, losses) = tranchesPolicy.distLossRecoveryToTranches(
                 lossRecovery,
                 assets,
                 losses

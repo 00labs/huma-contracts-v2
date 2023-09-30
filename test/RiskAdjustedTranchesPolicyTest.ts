@@ -129,7 +129,7 @@ describe("RiskAdjustedTranchesPolicy Test", function () {
         await loadFixture(prepare);
     });
 
-    it("Should call calcTranchesAssetsForProfit correctly", async function () {
+    it("Should call distProfitToTranches correctly", async function () {
         const adjustment = 8000;
 
         const lpConfig = await poolConfigContract.getLPConfig();
@@ -146,11 +146,7 @@ describe("RiskAdjustedTranchesPolicy Test", function () {
             assets,
             BN.from(adjustment),
         );
-        const result = await tranchesPolicyContract.calcTranchesAssetsForProfit(
-            profit,
-            [...assets],
-            0,
-        );
+        const result = await tranchesPolicyContract.distProfitToTranches(profit, [...assets], 0);
         expect(result[CONSTANTS.SENIOR_TRANCHE]).to.equal(newAssets[CONSTANTS.SENIOR_TRANCHE]);
         expect(result[CONSTANTS.JUNIOR_TRANCHE]).to.equal(newAssets[CONSTANTS.JUNIOR_TRANCHE]);
     });

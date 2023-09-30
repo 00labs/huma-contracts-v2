@@ -128,7 +128,7 @@ describe("FixedSeniorYieldTranchePolicy Test", function () {
         await loadFixture(prepare);
     });
 
-    it("Should call calcTranchesAssetsForProfit correctly", async function () {
+    it("Should call distProfitToTranches correctly", async function () {
         const apy = 1217;
         const lpConfig = await poolConfigContract.getLPConfig();
         const newLpConfig = copyLPConfigWithOverrides(lpConfig, { fixedSeniorYieldInBps: apy });
@@ -149,11 +149,7 @@ describe("FixedSeniorYieldTranchePolicy Test", function () {
             deployedAssets,
             apy,
         );
-        let result = await tranchesPolicyContract.calcTranchesAssetsForProfit(
-            profit,
-            assets,
-            lastDate,
-        );
+        let result = await tranchesPolicyContract.distProfitToTranches(profit, assets, lastDate);
         // expect(result[CONSTANTS.SENIOR_TRANCHE]).to.equal(
         //     newAssets[CONSTANTS.SENIOR_TRANCHE]
         // );

@@ -9,19 +9,26 @@ import "./SharedDefs.sol";
 import "hardhat/console.sol";
 
 /**
- * @notice This is fixed yield implementation. In the fixed yield mode,
- * the yield for the senior tranches is fixed as long as the risk loss does not make this impossible.
+ * @notice Tranche policy when the yield for the senior tranche is fixed as long as
+ * the risk loss does not make it impossible.
  */
-
 contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
-    function calcTranchesAssetsForProfit(
+    function distProfitToTranches(
         uint256 profit,
         uint96[2] memory assets,
         uint256 lastUpdatedTime
     ) external view returns (uint96[2] memory newAssets) {
         uint256 poolSafeAssets = IPoolSafe(poolConfig.poolSafe()).getPoolAssets();
         uint256 totalAssets = assets[SENIOR_TRANCHE] + assets[JUNIOR_TRANCHE];
+        // todo deployedTotalAssets below is not really true deployedTotalAsset.
+        // It is the total asset in the pool including the undeployed. For the calculation
+        // in this contract, we should use deployed. Overall: there are three kind of
+        // assets related to the pool: deployed (borrowed by the borrowers), idle in the pool,
+        // saved in the safe.
         uint256 deployedTotalAssets = totalAssets - poolSafeAssets;
+
+        // todo this calculation might be flawed. It assumed the same distribution of senior in
+        // the safe as the overall pool. This is not always the case.
         uint256 deployedSeniorAssets = (deployedTotalAssets * assets[SENIOR_TRANCHE]) /
             totalAssets;
 
