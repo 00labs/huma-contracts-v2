@@ -19,8 +19,8 @@ contract RiskAdjustedTranchesPolicy is BaseTranchesPolicy {
         uint96[2] memory assets,
         uint256 lastUpdatedTime
     ) external view returns (uint96[2] memory newAssets) {
-        uint256 seniorAssets = assets[SENIOR_TRANCHE_INDEX];
-        uint256 juniorAssets = assets[JUNIOR_TRANCHE_INDEX];
+        uint256 seniorAssets = assets[SENIOR_TRANCHE];
+        uint256 juniorAssets = assets[JUNIOR_TRANCHE];
         uint256 seniorProfit = (profit * seniorAssets) / (seniorAssets + juniorAssets);
 
         LPConfig memory lpConfig = poolConfig.getLPConfig();
@@ -28,8 +28,8 @@ contract RiskAdjustedTranchesPolicy is BaseTranchesPolicy {
             HUNDRED_PERCENT_IN_BPS;
         seniorProfit = seniorProfit - profitAdjustment;
 
-        newAssets[SENIOR_TRANCHE_INDEX] = uint96(seniorAssets + seniorProfit);
-        newAssets[JUNIOR_TRANCHE_INDEX] = uint96(juniorAssets + profit - seniorProfit);
+        newAssets[SENIOR_TRANCHE] = uint96(seniorAssets + seniorProfit);
+        newAssets[JUNIOR_TRANCHE] = uint96(juniorAssets + profit - seniorProfit);
         return newAssets;
     }
 }

@@ -262,7 +262,6 @@ contract FirstLossCover is
         _onlyOperator(account);
         uint256 operatorBalance = convertToAssets(balanceOf(account));
         uint256 min = _getMinCoverAmount(account);
-        console.log("operatorBalance: %s, min: %s", operatorBalance, min);
         return operatorBalance >= min;
     }
 
@@ -321,7 +320,6 @@ contract FirstLossCover is
         uint256 poolCap = lpConfig.liquidityCap;
         uint256 minFromPoolCap = (poolCap * config.poolCapCoverageInBps) / HUNDRED_PERCENT_IN_BPS;
         uint256 poolValue = pool.totalAssets();
-        console.log("Pool value %d", poolValue);
         uint256 minFromPoolValue = (poolValue * config.poolValueCoverageInBps) /
             HUNDRED_PERCENT_IN_BPS;
         return minFromPoolCap > minFromPoolValue ? minFromPoolCap : minFromPoolValue;

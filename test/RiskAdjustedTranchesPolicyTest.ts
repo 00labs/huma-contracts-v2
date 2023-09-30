@@ -151,11 +151,7 @@ describe("RiskAdjustedTranchesPolicy Test", function () {
             [...assets],
             0,
         );
-        expect(result[CONSTANTS.SENIOR_TRANCHE_INDEX]).to.equal(
-            newAssets[CONSTANTS.SENIOR_TRANCHE_INDEX],
-        );
-        expect(result[CONSTANTS.JUNIOR_TRANCHE_INDEX]).to.equal(
-            newAssets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
-        );
+        expect(result[CONSTANTS.SENIOR_TRANCHE]).to.equal(newAssets[CONSTANTS.SENIOR_TRANCHE]);
+        expect(result[CONSTANTS.JUNIOR_TRANCHE]).to.equal(newAssets[CONSTANTS.JUNIOR_TRANCHE]);
     });
 });

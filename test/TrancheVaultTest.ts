@@ -399,8 +399,8 @@ describe("TrancheVault Test", function () {
 
                 const assetInfo = await poolContract.tranchesAssets();
                 const assets = [
-                    assetInfo[CONSTANTS.SENIOR_TRANCHE_INDEX],
-                    assetInfo[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                    assetInfo[CONSTANTS.SENIOR_TRANCHE],
+                    assetInfo[CONSTANTS.JUNIOR_TRANCHE],
                 ];
                 const profitAfterFees =
                     await poolFeeManagerContract.calcPlatformFeeDistribution(profit);
@@ -417,16 +417,16 @@ describe("TrancheVault Test", function () {
                 const riskYieldMultipliers = await poolConfigContract.getRiskYieldMultipliers();
                 const [juniorProfitAfterFirstLossCoverProfitDistribution] =
                     PnLCalculator.calcProfitForFirstLossCovers(
-                        assetsWithProfits[CONSTANTS.JUNIOR_TRANCHE_INDEX].sub(
-                            assets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                        assetsWithProfits[CONSTANTS.JUNIOR_TRANCHE].sub(
+                            assets[CONSTANTS.JUNIOR_TRANCHE],
                         ),
-                        assets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
+                        assets[CONSTANTS.JUNIOR_TRANCHE],
                         firstLossCoverTotalAssets,
                         riskYieldMultipliers,
                     );
                 const [assetsWithLosses, losses] = PnLCalculator.calcLoss(loss, [
-                    assetsWithProfits[CONSTANTS.SENIOR_TRANCHE_INDEX],
-                    assets[CONSTANTS.JUNIOR_TRANCHE_INDEX].add(
+                    assetsWithProfits[CONSTANTS.SENIOR_TRANCHE],
+                    assets[CONSTANTS.JUNIOR_TRANCHE].add(
                         juniorProfitAfterFirstLossCoverProfitDistribution,
                     ),
                 ]);
@@ -435,8 +435,8 @@ describe("TrancheVault Test", function () {
                     assetsWithLosses,
                     losses,
                 );
-                const seniorAssets = assetsWithRecovery[CONSTANTS.SENIOR_TRANCHE_INDEX],
-                    juniorAssets = assetsWithRecovery[CONSTANTS.JUNIOR_TRANCHE_INDEX];
+                const seniorAssets = assetsWithRecovery[CONSTANTS.SENIOR_TRANCHE],
+                    juniorAssets = assetsWithRecovery[CONSTANTS.JUNIOR_TRANCHE];
 
                 // Make a second round of deposits to make sure the LP token price has increased
                 // and the correct number of tokens are minted.

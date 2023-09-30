@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
+import {Errors} from "./Errors.sol";
 import {BaseTranchesPolicy} from "./BaseTranchesPolicy.sol";
 import {PoolConfig, LPConfig} from "./PoolConfig.sol";
 import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
-import {Errors} from "./Errors.sol";
 import "./SharedDefs.sol";
-
 import "hardhat/console.sol";
 
 /**
@@ -14,16 +13,16 @@ import "hardhat/console.sol";
  * the yield for the senior tranches is fixed as long as the risk loss does not make this impossible.
  */
 
-contract FixedAprTranchesPolicy is BaseTranchesPolicy {
+contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
     function calcTranchesAssetsForProfit(
         uint256 profit,
         uint96[2] memory assets,
         uint256 lastUpdatedTime
     ) external view returns (uint96[2] memory newAssets) {
         uint256 poolSafeAssets = IPoolSafe(poolConfig.poolSafe()).getPoolAssets();
-        uint256 totalAssets = assets[SENIOR_TRANCHE_INDEX] + assets[JUNIOR_TRANCHE_INDEX];
+        uint256 totalAssets = assets[SENIOR_TRANCHE] + assets[JUNIOR_TRANCHE];
         uint256 deployedTotalAssets = totalAssets - poolSafeAssets;
-        uint256 deployedSeniorAssets = (deployedTotalAssets * assets[SENIOR_TRANCHE_INDEX]) /
+        uint256 deployedSeniorAssets = (deployedTotalAssets * assets[SENIOR_TRANCHE]) /
             totalAssets;
 
         uint256 seniorProfit;
@@ -41,10 +40,10 @@ contract FixedAprTranchesPolicy is BaseTranchesPolicy {
         seniorProfit = seniorProfit > profit ? profit : seniorProfit;
         uint256 juniorProfit = profit - seniorProfit;
 
-        console.log("seniorProfit: %s, juniorProfit: %s", seniorProfit, juniorProfit);
+        //console.log("seniorProfit: %s, juniorProfit: %s", seniorProfit, juniorProfit);
 
-        newAssets[SENIOR_TRANCHE_INDEX] = assets[SENIOR_TRANCHE_INDEX] + uint96(seniorProfit);
-        newAssets[JUNIOR_TRANCHE_INDEX] = assets[JUNIOR_TRANCHE_INDEX] + uint96(juniorProfit);
+        newAssets[SENIOR_TRANCHE] = assets[SENIOR_TRANCHE] + uint96(seniorProfit);
+        newAssets[JUNIOR_TRANCHE] = assets[JUNIOR_TRANCHE] + uint96(juniorProfit);
         return newAssets;
     }
 }

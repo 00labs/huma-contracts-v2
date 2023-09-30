@@ -21,15 +21,8 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import "hardhat/console.sol";
 
 /**
- * Credit is the basic borrowing entry in Huma Protocol.
- * BaseCredit is the base form of a Credit.
- * The key functions include: approve, drawdown, makePayment, refreshProfitAndLoss
- * Supporting functions include: updateCreditLine, closeCreditLine,
- *
- * Key design considerations:
- * 1) Refresh profit and loss by using an IProfitLossRefersher
- * 2) separate lastUpdateDate for profit and loss
- * 3) Mostly Credit-level limit, also supports borrower-level limit
+ * Credit represents a borrowing entry in Huma Protocol. BaseCredit is an abstract contract that
+ * captures the basic functions of of a Credit.
  */
 abstract contract BaseCredit is
     Initializable,
@@ -431,7 +424,7 @@ abstract contract BaseCredit is
             // Sets the principal, then generates the first bill and sets credit status
             _creditRecordMap[creditHash].unbilledPrincipal = uint96(borrowAmount);
             cr = _updateDueInfo(creditHash);
-            console.log("cr.nextDueDate: %s", cr.nextDueDate);
+            //console.log("cr.nextDueDate: %s", cr.nextDueDate);
             cr.state = CreditState.GoodStanding;
         } else {
             // Disallow repeated drawdown for non-revolving credit
@@ -853,13 +846,13 @@ abstract contract BaseCredit is
             cr,
             cc
         );
-        console.log(
-            "cr.totalDue: %s, cr.yieldDue: %s, periodsPassed: %s",
-            cr.totalDue,
-            cr.yieldDue,
-            periodsPassed
-        );
-        console.log("missedProfit: %s, principalDiff: %s", missedProfit, principalDiff);
+        // console.log(
+        //     "cr.totalDue: %s, cr.yieldDue: %s, periodsPassed: %s",
+        //     cr.totalDue,
+        //     cr.yieldDue,
+        //     periodsPassed
+        // );
+        // console.log("missedProfit: %s, principalDiff: %s", missedProfit, principalDiff);
 
         if (periodsPassed > 0) {
             //* Reserved for Richard review, to be deleted

@@ -206,7 +206,7 @@ contract LinearMarkdownPnLManager is BasePnLManager {
             // creditLoss.lastLossUpdateDate is used to determine if the credit is late for the first time
             if (creditLoss.lastLossUpdateDate == 0) {
                 // process late first time
-                console.log("process late first time - cr.nextDueDate: %s", cr.nextDueDate);
+                // console.log("process late first time - cr.nextDueDate: %s", cr.nextDueDate);
                 (markdownRateDiff, creditLoss.lossExpiringDate) = _getMarkdownRate(cr);
                 //* Reserved for Richard review, to be deleted
                 // markdown has 2 parts, 1) the profit impact for the first time late, 2) the markdown for the time passed since the first time late
@@ -216,17 +216,17 @@ contract LinearMarkdownPnLManager is BasePnLManager {
                             DEFAULT_DECIMALS_FACTOR
                     ) +
                     lossImpact;
-                console.log(
-                    "markdown: %s, part1: %s, part2: %s",
-                    uint256(markdown),
-                    uint256(lossImpact),
-                    uint256(
-                        uint96(
-                            (uint96(markdownRateDiff) * (block.timestamp - cr.nextDueDate)) /
-                                DEFAULT_DECIMALS_FACTOR
-                        )
-                    )
-                );
+                // console.log(
+                //     "markdown: %s, part1: %s, part2: %s",
+                //     uint256(markdown),
+                //     uint256(lossImpact),
+                //     uint256(
+                //         uint96(
+                //             (uint96(markdownRateDiff) * (block.timestamp - cr.nextDueDate)) /
+                //                 DEFAULT_DECIMALS_FACTOR
+                //         )
+                //     )
+                // );
                 markdownRateDiff += int96(
                     uint96(
                         ((principalDiff + getPrincipal(cr)) *

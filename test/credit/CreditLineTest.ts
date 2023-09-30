@@ -1034,7 +1034,7 @@ describe("CreditLine Test", function () {
             checkTwoCreditRecords(creditRecord, newCreditRecord);
 
             let pnlTracker = await creditPnlManagerContract.getPnL();
-            console.log(`pnlTracker: ${pnlTracker}`);
+            // console.log(`pnlTracker: ${pnlTracker}`);
 
             let accruedProfit = preCreditRecord.yieldDue
                 .add(
@@ -1047,7 +1047,7 @@ describe("CreditLine Test", function () {
                 .add(borrowAmount.mul(frontLoadingFeeBps).div(CONSTANTS.BP_FACTOR));
 
             let profitRate = calcProfitRateWithCR(creditRecord, yieldInBps);
-            console.log(`accruedProfit: ${accruedProfit}, profitRate: ${profitRate}`);
+            // console.log(`accruedProfit: ${accruedProfit}, profitRate: ${profitRate}`);
 
             let [originalLossRate, defaultDate] = calcLossRate(
                 preCreditRecord,
@@ -1073,9 +1073,9 @@ describe("CreditLine Test", function () {
                             ),
                     ),
                 );
-            console.log(
-                `originalLossRate: ${originalLossRate}, lossRate: ${lossRate}, accruedLoss: ${accruedLoss}`,
-            );
+            // console.log(
+            //     `originalLossRate: ${originalLossRate}, lossRate: ${lossRate}, accruedLoss: ${accruedLoss}`,
+            // );
 
             checkPnLTracker(
                 pnlTracker,
@@ -1089,7 +1089,7 @@ describe("CreditLine Test", function () {
             );
 
             let creditLoss = await creditPnlManagerContract.getCreditLoss(creditHash);
-            console.log(`creditLoss: ${creditLoss}`);
+            // console.log(`creditLoss: ${creditLoss}`);
 
             checkCreditLoss(
                 creditLoss,
@@ -1115,7 +1115,7 @@ describe("CreditLine Test", function () {
                 )[0] +
                 60 * 10;
             await mineNextBlockWithTimestamp(nextTime);
-            console.log(`nextTime: ${nextTime}`);
+            // console.log(`nextTime: ${nextTime}`);
 
             let preCreditRecord = creditRecord;
             await creditContract.refreshCredit(borrower.address);
@@ -1136,7 +1136,7 @@ describe("CreditLine Test", function () {
             checkTwoCreditRecords(creditRecord, newCreditRecord);
 
             let pnlTracker = await creditPnlManagerContract.getPnL();
-            console.log(`pnlTracker: ${pnlTracker}`);
+            // console.log(`pnlTracker: ${pnlTracker}`);
 
             // accrued profit though multiple periods
             // 1. front loading fee
@@ -1161,7 +1161,7 @@ describe("CreditLine Test", function () {
 
             // profit rate = [principal of current due] * yieldInBps / [seconds in a year]
             let profitRate = calcProfitRateWithCR(creditRecord, yieldInBps);
-            console.log(`accruedProfit: ${accruedProfit}, profitRate: ${profitRate}`);
+            // console.log(`accruedProfit: ${accruedProfit}, profitRate: ${profitRate}`);
 
             // original loss rate = [principal of the late due] / [default grace period length]
             let [originalLossRate, defaultDate] = calcLossRate(
@@ -1194,9 +1194,9 @@ describe("CreditLine Test", function () {
                     ),
                 );
 
-            console.log(
-                `originalLossRate: ${originalLossRate}, lossRate: ${lossRate}, accruedLoss: ${accruedLoss}`,
-            );
+            // console.log(
+            //     `originalLossRate: ${originalLossRate}, lossRate: ${lossRate}, accruedLoss: ${accruedLoss}`,
+            // );
 
             checkPnLTracker(
                 pnlTracker,
@@ -1269,7 +1269,7 @@ describe("CreditLine Test", function () {
             await creditContract.refreshCredit(borrower.address);
             creditRecord = await creditContract.creditRecordMap(creditHash);
 
-            console.log(`nextTime: ${nextTime}`);
+            // console.log(`nextTime: ${nextTime}`);
             printCreditRecord(`preCreditRecord`, preCreditRecord);
             printCreditRecord(`creditRecord`, creditRecord);
 
@@ -1283,7 +1283,7 @@ describe("CreditLine Test", function () {
             checkTwoCreditRecords(creditRecord, newCreditRecord);
 
             let pnlTracker = await creditPnlManagerContract.getPnL();
-            console.log(`pnlTracker: ${pnlTracker}`);
+            // console.log(`pnlTracker: ${pnlTracker}`);
 
             let accruedProfit = BN.from(
                 borrowAmount.mul(frontLoadingFeeBps).div(CONSTANTS.BP_FACTOR),
@@ -1303,15 +1303,15 @@ describe("CreditLine Test", function () {
                 );
 
             let profitRate = calcProfitRateWithCR(creditRecord, yieldInBps);
-            console.log(`accruedProfit: ${accruedProfit}, profitRate: ${profitRate}`);
+            // console.log(`accruedProfit: ${accruedProfit}, profitRate: ${profitRate}`);
 
             let lossRate = originalLossRate.add(profitRate);
 
-            console.log(
-                `lossStartPrincipal: ${lossStartPrincipal}, current principal: ${getPrincipal(
-                    creditRecord,
-                )}`,
-            );
+            // console.log(
+            //     `lossStartPrincipal: ${lossStartPrincipal}, current principal: ${getPrincipal(
+            //         creditRecord,
+            //     )}`,
+            // );
 
             let accruedLoss = BN.from(
                 originalLossRate
@@ -1332,15 +1332,15 @@ describe("CreditLine Test", function () {
                     ),
                 );
 
-            console.log(
-                `lossStartDate: ${lossStartDate}, nextTime: ${nextTime}, loss part1: ${originalLossRate
-                    .mul(BN.from(nextTime).sub(lossStartDate))
-                    .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR)}`,
-            );
+            // console.log(
+            //     `lossStartDate: ${lossStartDate}, nextTime: ${nextTime}, loss part1: ${originalLossRate
+            //         .mul(BN.from(nextTime).sub(lossStartDate))
+            //         .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR)}`,
+            // );
 
-            console.log(
-                `originalLossRate: ${originalLossRate}, lossRate: ${lossRate}, accruedLoss: ${accruedLoss}`,
-            );
+            // console.log(
+            //     `originalLossRate: ${originalLossRate}, lossRate: ${lossRate}, accruedLoss: ${accruedLoss}`,
+            // );
 
             checkPnLTracker(
                 pnlTracker,
@@ -1401,7 +1401,7 @@ describe("CreditLine Test", function () {
             let lossStartPrincipal = getPrincipal(preCreditRecord);
 
             let creditLoss = await creditPnlManagerContract.getCreditLoss(creditHash);
-            console.log(`creditLoss: ${creditLoss}`);
+            // console.log(`creditLoss: ${creditLoss}`);
 
             let lossRate = originalLossRate.add(calcProfitRateWithCR(creditRecord, yieldInBps));
 
@@ -1423,7 +1423,7 @@ describe("CreditLine Test", function () {
                             ),
                     ),
                 );
-            console.log(`accruedLoss: ${accruedLoss}, lossRate: ${lossRate}`);
+            // console.log(`accruedLoss: ${accruedLoss}, lossRate: ${lossRate}`);
 
             checkCreditLoss(
                 creditLoss,
@@ -1448,7 +1448,7 @@ describe("CreditLine Test", function () {
             await creditContract.refreshCredit(borrower.address);
             creditRecord = await creditContract.creditRecordMap(creditHash);
 
-            console.log(`nextTime: ${nextTime}`);
+            // console.log(`nextTime: ${nextTime}`);
             printCreditRecord(`preCreditRecord`, preCreditRecord);
             printCreditRecord(`creditRecord`, creditRecord);
 
@@ -1463,15 +1463,15 @@ describe("CreditLine Test", function () {
             checkTwoCreditRecords(creditRecord, newCreditRecord);
 
             let pnlTracker = await creditPnlManagerContract.getPnL();
-            console.log(`pnlTracker: ${pnlTracker}`);
+            // console.log(`pnlTracker: ${pnlTracker}`);
 
             let accruedProfit = BN.from(
                 borrowAmount.mul(frontLoadingFeeBps).div(CONSTANTS.BP_FACTOR),
             ).add(getPrincipal(creditRecord).sub(borrowAmount));
-            console.log(`accruedProfit: ${accruedProfit}`);
+            // console.log(`accruedProfit: ${accruedProfit}`);
 
             accruedLoss = getPrincipal(creditRecord);
-            console.log(`accruedLoss: ${accruedLoss}`);
+            // console.log(`accruedLoss: ${accruedLoss}`);
 
             checkPnLTracker(
                 pnlTracker,
@@ -1485,7 +1485,7 @@ describe("CreditLine Test", function () {
             );
 
             creditLoss = await creditPnlManagerContract.getCreditLoss(creditHash);
-            console.log(`creditLoss: ${creditLoss}`);
+            // console.log(`creditLoss: ${creditLoss}`);
             checkCreditLoss(
                 creditLoss,
                 accruedLoss,
@@ -1515,10 +1515,10 @@ describe("CreditLine Test", function () {
             let profitRate = calcProfitRateWithCR(creditRecord, yieldInBps);
             let accruedProfit = borrowAmount.mul(frontLoadingFeeBps).div(CONSTANTS.BP_FACTOR);
             let block = await getLatestBlock();
-            console.log(`accruedProfit: ${accruedProfit}`);
+            // console.log(`accruedProfit: ${accruedProfit}`);
 
             let pnlTracker = await creditPnlManagerContract.getPnL();
-            console.log(`pnlTracker: ${pnlTracker}`);
+            // console.log(`pnlTracker: ${pnlTracker}`);
 
             checkPnLTracker(
                 pnlTracker,
@@ -1568,7 +1568,7 @@ describe("CreditLine Test", function () {
             // move forward 30 days for borrower2 drawdown
             block = await getLatestBlock();
             let nextTime = timestampToMoment(block.timestamp).add(1, "months").unix();
-            console.log(`nextTime: ${nextTime}`);
+            // console.log(`nextTime: ${nextTime}`);
             await mineNextBlockWithTimestamp(nextTime);
 
             borrowAmount2 = toToken(15_000);
@@ -1770,17 +1770,17 @@ describe("CreditLine Test", function () {
             accruedLoss = accruedLoss.add(
                 lossRate.mul(nextTime - preTime).div(CONSTANTS.DEFAULT_DECIMALS_FACTOR),
             );
-            console.log(
-                `profitRate.add(profitRate2): ${profitRate.add(
-                    profitRate2,
-                )}, lossRate.add(lossRate2): ${lossRate.add(
-                    lossRate2,
-                )}, accruedProfit.add(accruedProfit2): ${accruedProfit.add(
-                    accruedProfit2,
-                )}, accruedLoss.add(accruedLoss2): ${accruedLoss.add(accruedLoss2)}`,
-            );
+            // console.log(
+            //     `profitRate.add(profitRate2): ${profitRate.add(
+            //         profitRate2,
+            //     )}, lossRate.add(lossRate2): ${lossRate.add(
+            //         lossRate2,
+            //     )}, accruedProfit.add(accruedProfit2): ${accruedProfit.add(
+            //         accruedProfit2,
+            //     )}, accruedLoss.add(accruedLoss2): ${accruedLoss.add(accruedLoss2)}`,
+            // );
             pnlTracker = await creditPnlManagerContract.getPnL();
-            console.log(`pnlTracker: ${pnlTracker}`);
+            // console.log(`pnlTracker: ${pnlTracker}`);
             checkPnLTracker(
                 pnlTracker,
                 profitRate.add(profitRate2),
@@ -1842,14 +1842,14 @@ describe("CreditLine Test", function () {
             accruedLoss2 = accruedLoss2.add(
                 lossRate2.mul(nextTime - preTime).div(CONSTANTS.DEFAULT_DECIMALS_FACTOR),
             );
-            console.log(
-                `profitRate.add(profitRate2): ${profitRate2}, lossRate.add(lossRate2): ${lossRate2}, accruedProfit.add(accruedProfit2): ${accruedProfit.add(
-                    accruedProfit2,
-                )}, accruedLoss.add(accruedLoss2): ${accruedLoss.add(accruedLoss2)}`,
-            );
+            // console.log(
+            //     `profitRate.add(profitRate2): ${profitRate2}, lossRate.add(lossRate2): ${lossRate2}, accruedProfit.add(accruedProfit2): ${accruedProfit.add(
+            //         accruedProfit2,
+            //     )}, accruedLoss.add(accruedLoss2): ${accruedLoss.add(accruedLoss2)}`,
+            // );
 
             pnlTracker = await creditPnlManagerContract.getPnL();
-            console.log(`pnlTracker: ${pnlTracker}`);
+            // console.log(`pnlTracker: ${pnlTracker}`);
             checkPnLTracker(
                 pnlTracker,
                 profitRate2,
