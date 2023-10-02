@@ -226,10 +226,10 @@ describe("EpochManager Test", function () {
     ) {
         const settings = await poolConfigContract.getPoolSettings();
 
-        let lastEpoch = await epochManagerContract.currentEpoch();
-        let ts = lastEpoch.endTime.toNumber() + 60 * 5;
+        const lastEpoch = await epochManagerContract.currentEpoch();
+        const ts = lastEpoch.endTime.toNumber() + 60 * 5;
         await setNextBlockTimestamp(ts);
-        let [endTime] = getNextDueDate(
+        const [endTime] = getNextDueDate(
             settings.calendarUnit,
             lastEpoch.endTime.toNumber(),
             ts,
