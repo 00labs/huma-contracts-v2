@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import "./SharedDefs.sol";
-import {IERC20MetadataUpgradeable, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-import {TrancheVaultStorage, IERC20} from "./TrancheVaultStorage.sol";
-import {IEpoch, EpochInfo} from "./interfaces/IEpoch.sol";
-import {IEpochManager} from "./interfaces/IEpochManager.sol";
 import {Errors} from "./Errors.sol";
 import {PoolConfig, LPConfig} from "./PoolConfig.sol";
 import {PoolConfigCache} from "./PoolConfigCache.sol";
+import {JUNIOR_TRANCHE, SENIOR_TRANCHE} from "./SharedDefs.sol";
+import {TrancheVaultStorage, IERC20} from "./TrancheVaultStorage.sol";
+import {IEpoch, EpochInfo} from "./interfaces/IEpoch.sol";
+import {IEpochManager} from "./interfaces/IEpochManager.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {IERC20MetadataUpgradeable, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 
 contract TrancheVault is
     AccessControlUpgradeable,
@@ -22,11 +22,6 @@ contract TrancheVault is
 {
     bytes32 public constant LENDER_ROLE = keccak256("LENDER");
 
-    event LiquidityDeposited(address indexed account, uint256 assetAmount, uint256 shareAmount);
-
-    event RedemptionRequestAdded(address indexed account, uint256 shareAmount, uint256 epochId);
-    event RedemptionRequestRemoved(address indexed account, uint256 shareAmount, uint256 epochId);
-
     event EpochsProcessed(
         uint256 epochCount,
         uint256 sharesProcessed,
@@ -34,7 +29,13 @@ contract TrancheVault is
         uint256 unprocessedIndexOfEpochIds
     );
 
+    event LiquidityDeposited(address indexed account, uint256 assetAmount, uint256 shareAmount);
+
     event LenderFundDisbursed(address indexed account, address receiver, uint256 withdrawnAmount);
+
+    event RedemptionRequestAdded(address indexed account, uint256 shareAmount, uint256 epochId);
+
+    event RedemptionRequestRemoved(address indexed account, uint256 shareAmount, uint256 epochId);
 
     constructor() {
         // _disableInitializers();
@@ -54,6 +55,9 @@ contract TrancheVault is
         trancheIndex = seniorTrancheOrJuniorTranche;
     }
 
+    /**
+     * Gets address for underlyingToken, pool, poolSafe, and epochManager from poolConfig
+     */
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = _poolConfig.underlyingToken();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
@@ -85,7 +89,7 @@ contract TrancheVault is
     }
 
     /**
-     * @notice Disables a lender. This prevents the lender from making more deposits.
+     * @notice Removes a lender. This prevents the lender from making more deposits.
      * The capital that the lender has contributed can continue to work as normal.
      */
     function removeApprovedLender(address lender) external {
@@ -97,12 +101,18 @@ contract TrancheVault is
     /**
      * @notice Returns the list of all unprocessed/partially processed epochs infos.
      */
-    function unprocessedEpochInfos() external view override returns (EpochInfo[] memory infos) {
+    function unprocessedEpochInfos()
+        external
+        view
+        override
+        returns (EpochInfo[] memory epochInfos)
+    {
         uint256 numUnprocessedEpochs = epochIds.length - firstUnprocessedEpochIndex;
-        infos = new EpochInfo[](numUnprocessedEpochs);
-        for (uint256 i; i < numUnprocessedEpochs; i++) {
-            infos[i] = epochInfoByEpochId[epochIds[firstUnprocessedEpochIndex + i]];
+        epochInfos = new EpochInfo[](numUnprocessedEpochs);
+        for (uint256 i = 0; i < numUnprocessedEpochs; i++) {
+            epochInfos[i] = epochInfoByEpochId[epochIds[firstUnprocessedEpochIndex + i]];
         }
+        return epochInfos;
     }
 
     function decimals() public view override returns (uint8) {
@@ -114,9 +124,9 @@ contract TrancheVault is
     }
 
     /**
-     * @notice Updates processed epochs
+     * @notice Executes processed epochs
      */
-    function processEpochs(
+    function executeEpochs(
         EpochInfo[] memory epochsProcessed,
         uint256 sharesProcessed,
         uint256 amountProcessed

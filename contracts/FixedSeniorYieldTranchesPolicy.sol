@@ -20,14 +20,14 @@ contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
     ) external view returns (uint96[2] memory newAssets) {
         uint256 poolSafeAssets = IPoolSafe(poolConfig.poolSafe()).getPoolAssets();
         uint256 totalAssets = assets[SENIOR_TRANCHE] + assets[JUNIOR_TRANCHE];
-        // todo deployedTotalAssets below is not really true deployedTotalAsset.
+        //* todo deployedTotalAssets below is not really true deployedTotalAsset.
         // It is the total asset in the pool including the undeployed. For the calculation
         // in this contract, we should use deployed. Overall: there are three kind of
         // assets related to the pool: deployed (borrowed by the borrowers), idle in the pool,
         // saved in the safe.
         uint256 deployedTotalAssets = totalAssets - poolSafeAssets;
 
-        // todo this calculation might be flawed. It assumed the same distribution of senior in
+        //* todo this calculation might be flawed. It assumed the same distribution of senior in
         // the safe as the overall pool. This is not always the case.
         uint256 deployedSeniorAssets = (deployedTotalAssets * assets[SENIOR_TRANCHE]) /
             totalAssets;

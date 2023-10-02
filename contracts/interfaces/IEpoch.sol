@@ -11,7 +11,7 @@ struct EpochInfo {
 interface IEpoch {
     function unprocessedEpochInfos() external view returns (EpochInfo[] memory);
 
-    function processEpochs(
+    function executeEpochs(
         EpochInfo[] memory epochsProcessed,
         uint256 sharesProcessed,
         uint256 amountProcessed
