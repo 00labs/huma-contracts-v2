@@ -1530,7 +1530,7 @@ describe("TrancheVault Test", function () {
         describe("Process Epochs Tests", function () {
             it("Should not allow non-EpochManager to process epochs", async function () {
                 await expect(
-                    juniorTrancheVaultContract.processEpochs([], 0, 0),
+                    juniorTrancheVaultContract.executeEpochs([], 0, 0),
                 ).to.be.revertedWithCustomError(poolConfigContract, "notEpochManager");
             });
 

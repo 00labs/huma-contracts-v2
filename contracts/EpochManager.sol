@@ -109,7 +109,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
             for (uint256 i; i < seniorResult.numEpochsProcessed; i++) {
                 processedEpochs[i] = seniorEpochs[i];
             }
-            seniorTranche.processEpochs(
+            seniorTranche.executeEpochs(
                 processedEpochs,
                 seniorResult.sharesRedeemed,
                 seniorResult.amountRedeemed
@@ -121,7 +121,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
             for (uint256 i; i < juniorResult.numEpochsProcessed; i++) {
                 processedEpochs[i] = juniorEpochs[i];
             }
-            juniorTranche.processEpochs(
+            juniorTranche.executeEpochs(
                 processedEpochs,
                 juniorResult.sharesRedeemed,
                 juniorResult.amountRedeemed

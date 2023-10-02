@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {EpochInfo} from "./interfaces/IEpoch.sol";
+import {IEpochManager} from "./interfaces/IEpochManager.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
-import {IEpochManager} from "./interfaces/IEpochManager.sol";
-import {EpochInfo} from "./interfaces/IEpoch.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract TrancheVaultStorage {
     struct RedemptionRequest {
@@ -26,21 +26,23 @@ contract TrancheVaultStorage {
     }
 
     IERC20 public underlyingToken;
-    IPool public pool;
-    IPoolSafe public poolSafe;
-    IEpochManager public epochManager;
     uint8 internal _decimals;
     // Senior or junior tranche index
     uint8 public trancheIndex;
 
+    IPool public pool;
+    IPoolSafe public poolSafe;
+    IEpochManager public epochManager;
+
     // The IDs of all epochs where there is at least one redemption request.
-    // Note that the index may not be contiguous: if there is no redemption request then the ID won't be recorded
-    // in this array.
+    // Note that the index may not be contiguous: if there is no redemption request,
+    // the ID won't be recorded in this array.
     uint256[] public epochIds;
     mapping(uint256 => EpochInfo) public epochInfoByEpochId;
+
     // The index of the epoch ID whose corresponding epoch is unprocessed/partially processed.
-    // We cache the index so that we don't have to traverse through all epoch IDs to figure out which ones
-    // haven't been fully processed yet.
+    // We store the index so that we don't have to traverse through all epoch IDs to figure out 
+    // which ones haven't been fully processed yet.
     uint256 public firstUnprocessedEpochIndex;
 
     mapping(address => RedemptionRequest[]) public redemptionRequestsByLender;
