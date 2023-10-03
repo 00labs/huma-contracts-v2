@@ -34,7 +34,8 @@ let poolOwner: SignerWithAddress,
     evaluationAgent: SignerWithAddress,
     poolOperator: SignerWithAddress,
     protocolTreasury: SignerWithAddress,
-    lender: SignerWithAddress;
+    lender: SignerWithAddress,
+    borrower: SignerWithAddress;
 
 let eaNFTContract: EvaluationAgentNFT,
     humaConfigContract: HumaConfig,
@@ -68,6 +69,7 @@ describe("PoolSafe Tests", function () {
             evaluationAgent,
             poolOperator,
             lender,
+            borrower,
         ] = await ethers.getSigners();
     });
 

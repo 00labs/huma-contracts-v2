@@ -21,6 +21,7 @@ import {
     PoolSafe,
     TrancheVault,
     ProfitEscrow,
+    Receivable,
 } from "../typechain-types";
 import { CreditLossStructOutput } from "../typechain-types/contracts/credit/BasePnLManager";
 import {
@@ -45,6 +46,7 @@ export type PoolContracts = [
     IPoolCredit,
     BaseCreditFeeManager,
     BasePnLManager,
+    Receivable,
 ];
 export type TranchesPolicyContractName =
     | "FixedSeniorYieldTranchePolicy"
@@ -180,6 +182,10 @@ export async function deployPoolContracts(
     const creditPnlManagerContract = await CreditPnLManager.deploy();
     await creditPnlManagerContract.deployed();
 
+    const Receivable = await ethers.getContractFactory("Receivable");
+    const receivableContract = await Receivable.deploy();
+    await receivableContract.deployed();
+
     await poolConfigContract.initialize("Test Pool", [
         humaConfigContract.address,
         mockTokenContract.address,
@@ -251,6 +257,8 @@ export async function deployPoolContracts(
     await creditContract.connect(poolOwner).initialize(poolConfigContract.address);
     await creditFeeManagerContract.initialize(poolConfigContract.address);
     await creditPnlManagerContract.initialize(poolConfigContract.address);
+    console.log("init");
+    await receivableContract.connect(poolOwner).initialize();
 
     return [
         poolConfigContract,
@@ -268,6 +276,7 @@ export async function deployPoolContracts(
         creditContract,
         creditFeeManagerContract,
         creditPnlManagerContract,
+        receivableContract,
     ];
 }
 
@@ -416,6 +425,7 @@ export async function deployAndSetupPoolContracts(
         creditContract,
         creditFeeManagerContract,
         creditPnlManagerContract,
+        receivableContract,
     ] = await deployPoolContracts(
         humaConfigContract,
         mockTokenContract,
@@ -460,6 +470,7 @@ export async function deployAndSetupPoolContracts(
         creditContract,
         creditFeeManagerContract,
         creditPnlManagerContract,
+        receivableContract,
     ];
 }
 

@@ -12,6 +12,7 @@ import "../Errors.sol";
 import "./ReceivableStorage.sol";
 import "./interfaces/IReceivable.sol";
 import {ReceivableInfo, ReceivableState} from "./CreditStructs.sol";
+import "hardhat/console.sol";
 
 /**
  * @title RealWorldReceivable
@@ -68,15 +69,23 @@ contract Receivable is
      * @dev Initializer that sets the default admin and minter roles
      */
     function initialize() public initializer {
+        console.log("initialize");
         // todo change the upgradability to be consistent with what we will use in v2
-        __ERC721_init("RealWorldReceivable", "RWR");
+        __ERC721_init("Receivable", "REC");
+        console.log("1");
         __ERC721Enumerable_init();
+        console.log("2");
         __ERC721URIStorage_init();
+        console.log("3");
         __ERC721Burnable_init();
+        console.log("4");
         __AccessControl_init();
+        console.log("5");
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        console.log("6");
         _grantRole(MINTER_ROLE, msg.sender);
+        console.log("7");
     }
 
     /**
