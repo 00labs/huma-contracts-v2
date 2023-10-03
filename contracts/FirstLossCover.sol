@@ -13,7 +13,7 @@ import {IProfitEscrow} from "./interfaces/IProfitEscrow.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20MetadataUpgradeable, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 
-import "hardhat/console.sol";
+// import "hardhat/console.sol";
 
 interface ITrancheVaultLike {
     function convertToAssets(uint256 shares) external view returns (uint256 assets);
@@ -204,9 +204,9 @@ contract FirstLossCover is
         if (!pool.readyForFirstLossCoverWithdrawal())
             revert Errors.poolIsNotReadyForFirstLossCoverWithdrawal();
 
-        //* todo should we check msg.sender has this many shared? 
+        //* todo should we check msg.sender has this many shared?
         assets = convertToAssets(shares);
-        
+
         ERC20Upgradeable._burn(msg.sender, shares);
         _coverAssets -= assets;
 

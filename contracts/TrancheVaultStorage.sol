@@ -41,7 +41,7 @@ contract TrancheVaultStorage {
     mapping(uint256 => EpochInfo) public epochInfoByEpochId;
 
     // The index of the epoch ID whose corresponding epoch is unprocessed/partially processed.
-    // We store the index so that we don't have to traverse through all epoch IDs to figure out 
+    // We store the index so that we don't have to traverse through all epoch IDs to figure out
     // which ones haven't been fully processed yet.
     uint256 public firstUnprocessedEpochIndex;
 

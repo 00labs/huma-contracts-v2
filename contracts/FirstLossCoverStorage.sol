@@ -7,7 +7,7 @@ import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import {IProfitEscrow} from "./interfaces/IProfitEscrow.sol";
 
 contract FirstLossCoverStorage {
-    //* todo should we combine these two structs? 
+    //* todo should we combine these two structs?
     struct LossCoverConfig {
         // Percentage of the pool cap required to be covered by first loss cover
         uint16 poolCapCoverageInBps;

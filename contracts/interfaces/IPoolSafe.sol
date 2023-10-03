@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 /**
- * @title IPoolSafe 
+ * @title IPoolSafe
  * @notice IPoolSafe defines the flow of the underlying token in and out of the pool safe
  */
 interface IPoolSafe {
