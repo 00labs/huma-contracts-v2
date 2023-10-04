@@ -17,6 +17,10 @@ interface ITrancheVaultLike is IEpoch {
     function totalSupply() external view returns (uint256);
 }
 
+/**
+ * @title EpochManager
+ * @notice EpochManager processes redemption requests at the end of each billing cycle
+ */
 contract EpochManager is PoolConfigCache, IEpochManager {
     struct RedemptionResult {
         uint256 numEpochsProcessed;
@@ -52,6 +56,10 @@ contract EpochManager is PoolConfigCache, IEpochManager {
     );
     event NewEpochStarted(uint256 epochId, uint256 endTime);
 
+    /**
+     * @notice Syndicates the address of dependent contracts from pool config:
+     * PoolSafe, Pool, Senior TrancheVault, Junior TrancheValut, and Calendar.
+     */
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = _poolConfig.poolSafe();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
@@ -76,7 +84,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
 
     /**
      * @notice Closes current epoch and handles senior and junior tranche redemption requests.
-     * @dev The intention is for this function to be called by a cron-like mechanism like autotask,
+     * @dev Expects to be called by a cron-like mechanism like autotask,
      * although anyone can call it to trigger epoch closure.
      */
     function closeEpoch() public virtual {
@@ -101,12 +109,12 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         (
             RedemptionResult memory seniorResult,
             RedemptionResult memory juniorResult
-        ) = _executeEpoch(tranchesAssets, seniorEpochs, seniorPrice, juniorEpochs, juniorPrice);
+        ) = _processEpoch(tranchesAssets, seniorEpochs, seniorPrice, juniorEpochs, juniorPrice);
 
         EpochInfo[] memory processedEpochs;
         if (seniorResult.numEpochsProcessed > 0) {
             processedEpochs = new EpochInfo[](seniorResult.numEpochsProcessed);
-            for (uint256 i; i < seniorResult.numEpochsProcessed; i++) {
+            for (uint256 i = 0; i < seniorResult.numEpochsProcessed; i++) {
                 processedEpochs[i] = seniorEpochs[i];
             }
             seniorTranche.executeEpochs(
@@ -118,7 +126,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
 
         if (juniorResult.numEpochsProcessed > 0) {
             processedEpochs = new EpochInfo[](juniorResult.numEpochsProcessed);
-            for (uint256 i; i < juniorResult.numEpochsProcessed; i++) {
+            for (uint256 i = 0; i < juniorResult.numEpochsProcessed; i++) {
                 processedEpochs[i] = juniorEpochs[i];
             }
             juniorTranche.executeEpochs(
@@ -225,7 +233,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
      * seniorEpochs: will be updated to reflect the latest redemption request states for the senior tranche
      * juniorEpochs: will be updated to reflect the latest redemption request states for the junior tranche
      */
-    function _executeEpoch(
+    function _processEpoch(
         uint96[2] memory tranchesAssets,
         EpochInfo[] memory seniorEpochs,
         uint256 seniorPrice,
@@ -383,12 +391,12 @@ contract EpochManager is PoolConfigCache, IEpochManager {
     ) private pure returns (uint256 numEpochsToProcess) {
         if (settings.flexCreditEnabled) {
             // If flex loan is enabled for a pool, then we can only process redemption requests after the
-            // the call window has passed so that the borrower can have the capital ready for redemption
+            // call window has passed so that the borrower can have the capital ready for redemption
             // E.g. if a redemption request is submitted in epoch 1, and the call window
             // is 2, then the redemption requests can only be processed in or after epoch 3.
             if (maxEpochId > settings.flexCallWindowInEpochs) {
                 uint256 maxEligibleEpochId = maxEpochId - settings.flexCallWindowInEpochs;
-                for (uint256 i; i < epochInfos.length; i++) {
+                for (uint256 i = 0; i < epochInfos.length; i++) {
                     if (epochInfos[i].epochId <= maxEligibleEpochId) {
                         numEpochsToProcess += 1;
                     } else {
@@ -407,8 +415,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
 
     /**
      * @notice Processes redemption requests for the senior tranche
-     * @param tranchesAssets tranches assets indexed by SENIOR_ or JUNIOR_TRANCHE, i.e. tranches[0] is the
-     * senior tranche assets and tranches[1] is the junior tranche assets
+     * @param tranchesAssets tranches assets indexed by SENIOR_TRANCHE or JUNIOR_TRANCHE
      * @param lpTokenPrice the price of the senior LP tokens
      * @param epochInfos the list of epoch infos in each epoch for the senior tranche
      * @param epochsRange the range of epochs in the list of epoch infos to be processed
@@ -540,7 +547,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
 
             // If the redemption requests in the epoch were partially processed in the last round,
             // then they will be processed again in this round (by decrementing `epochsRange.startIndex` by 1 in
-            // `_executeEpoch`, which means the same epoch would be double-counted if we simply increment the count
+            // `_processEpoch`, which means the same epoch would be double-counted if we simply increment the count
             // by 1 all the time, hence the conditional increment only if the value of `i` satisfies the condition
             // below. Note that we use i + 1 > redemptionResult.numEpochsProcessed instead of
             // i > redemptionResult.numEpochsProcessed - 1 because the latter underflows if numEpochsProcessed is 0.

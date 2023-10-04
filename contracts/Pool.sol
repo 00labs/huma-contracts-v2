@@ -1,23 +1,28 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {IPool} from "./interfaces/IPool.sol";
-import {IPoolFeeManager} from "./interfaces/IPoolFeeManager.sol";
-import {ITranchesPolicy} from "./interfaces/ITranchesPolicy.sol";
-import {IPoolCredit} from "./credit/interfaces/IPoolCredit.sol";
-import {IFirstLossCover} from "./interfaces/IFirstLossCover.sol";
-import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
-import {IEpochManager} from "./interfaces/IEpochManager.sol";
-import "./SharedDefs.sol";
+import {Errors} from "./Errors.sol";
 import {PoolConfig} from "./PoolConfig.sol";
 import {PoolConfigCache} from "./PoolConfigCache.sol";
-import {Errors} from "./Errors.sol";
+import {JUNIOR_TRANCHE, SENIOR_TRANCHE} from "./SharedDefs.sol";
+import {IEpochManager} from "./interfaces/IEpochManager.sol";
+import {IFirstLossCover} from "./interfaces/IFirstLossCover.sol";
+import {IPool} from "./interfaces/IPool.sol";
+import {IPoolCredit} from "./credit/interfaces/IPoolCredit.sol";
+import {IPoolFeeManager} from "./interfaces/IPoolFeeManager.sol";
+import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
+import {ITranchesPolicy} from "./interfaces/ITranchesPolicy.sol";
 
+/**
+ * @title Pool
+ * @notice Pool is a core contract that connects the lender side (via Tranches)
+ * and the borrower side (via Credit)
+ */
 contract Pool is PoolConfigCache, IPool {
     struct TranchesAssets {
         uint96 seniorTotalAssets; // total assets of senior tranche
         uint96 juniorTotalAssets; // total assets of junior tranche
-        uint64 lastUpdatedTime; // the updated timestamp of seniorTotalAssets and juniorTotalAssets
+        uint64 lastUpdatedTime; // the updated timestamp of the tranche assets
     }
 
     struct TranchesLosses {
@@ -25,20 +30,20 @@ contract Pool is PoolConfigCache, IPool {
         uint96 juniorLoss; // total losses of junior tranche
     }
 
-    IPoolSafe public poolSafe;
-    ITranchesPolicy public tranchesPolicy;
-    IFirstLossCover[] internal _firstLossCovers;
-    IPoolCredit public credit;
-    IPoolFeeManager public feeManager;
-    IEpochManager public epochManager;
-
-    TranchesAssets public tranchesAssets;
-    TranchesLosses public tranchesLosses;
-
     enum PoolStatus {
         Off,
         On
     }
+
+    IEpochManager public epochManager;
+    IFirstLossCover[] internal _firstLossCovers;
+    IPoolCredit public credit;
+    IPoolFeeManager public feeManager;
+    IPoolSafe public poolSafe;
+    ITranchesPolicy public tranchesPolicy;
+
+    TranchesAssets public tranchesAssets;
+    TranchesLosses public tranchesLosses;
 
     // Whether the pool is ON or OFF
     PoolStatus internal _status;
