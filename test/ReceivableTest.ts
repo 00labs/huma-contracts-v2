@@ -107,6 +107,10 @@ describe("Receivable Test", function () {
             poolOperator,
             [lender],
         );
+
+        await receivableContract
+            .connect(poolOwner)
+            .grantRole(receivableContract.MINTER_ROLE(), borrower.address);
     }
 
     beforeEach(async function () {
@@ -122,7 +126,7 @@ describe("Receivable Test", function () {
                 "Test URI",
             ),
         ).to.be.revertedWith(
-            `AccessControl: account ${eaServiceAccount.address.toLowerCase()} is missing role ${receivableContract.MINTER_ROLE()}`,
+            `AccessControl: account ${eaServiceAccount.address.toLowerCase()} is missing role ${await receivableContract.MINTER_ROLE()}`,
         );
     });
 
@@ -222,7 +226,7 @@ describe("Receivable Test", function () {
         it("Unpaid", async function () {
             const tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
             const status = await receivableContract.getStatus(tokenId);
-            expect(status).to.equal(0);
+            expect(status).to.equal(1);
         });
 
         it("Partially Paid", async function () {
@@ -230,7 +234,7 @@ describe("Receivable Test", function () {
             await receivableContract.connect(borrower).declarePayment(tokenId, 100);
 
             const status = await receivableContract.getStatus(tokenId);
-            expect(status).to.equal(2);
+            expect(status).to.equal(3);
         });
 
         it("Paid", async function () {
@@ -238,7 +242,7 @@ describe("Receivable Test", function () {
             await receivableContract.connect(borrower).declarePayment(tokenId, 1000);
 
             const status = await receivableContract.getStatus(tokenId);
-            expect(status).to.equal(1);
+            expect(status).to.equal(4);
         });
     });
 });

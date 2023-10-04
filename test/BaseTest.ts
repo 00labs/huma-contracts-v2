@@ -185,6 +185,15 @@ export async function deployPoolContracts(
     const Receivable = await ethers.getContractFactory("Receivable");
     const receivableContract = await Receivable.deploy();
     await receivableContract.deployed();
+    await receivableContract.initialize();
+    await receivableContract.grantRole(
+        receivableContract.DEFAULT_ADMIN_ROLE(),
+        poolOwner.getAddress(),
+    );
+    await receivableContract.renounceRole(
+        receivableContract.DEFAULT_ADMIN_ROLE(),
+        deployer.getAddress(),
+    );
 
     await poolConfigContract.initialize("Test Pool", [
         humaConfigContract.address,
@@ -257,8 +266,6 @@ export async function deployPoolContracts(
     await creditContract.connect(poolOwner).initialize(poolConfigContract.address);
     await creditFeeManagerContract.initialize(poolConfigContract.address);
     await creditPnlManagerContract.initialize(poolConfigContract.address);
-    console.log("init");
-    await receivableContract.connect(poolOwner).initialize();
 
     return [
         poolConfigContract,
