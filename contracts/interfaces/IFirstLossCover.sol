@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
+/**
+ * @title IFirstLossCover
+ * @notice Interface for first loss cover
+ */
 interface IFirstLossCover {
     /**
      * @notice Adds assets in the first loss cover
-
      */
     function depositCover(uint256 assets) external returns (uint256 shares);
 
@@ -31,7 +34,7 @@ interface IFirstLossCover {
 
     function isSufficient(address account) external view returns (bool sufficient);
 
-    function availableLiquidityCapacity() external view returns (uint256);
+    function availableCoverCapacity() external view returns (uint256);
 
     function depositCoverWithAffiliateFees(
         uint256 assets,

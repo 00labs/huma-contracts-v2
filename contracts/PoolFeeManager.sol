@@ -56,7 +56,7 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
 
         (AccruedIncomes memory incomes, uint256 remaining) = _getPoolFees(profit);
         uint256 totalFees = incomes.protocolIncome + incomes.poolOwnerIncome + incomes.eaIncome;
-        uint256 liquidityCapacity = firstLossCover.availableLiquidityCapacity();
+        uint256 liquidityCapacity = firstLossCover.availableCoverCapacity();
 
         if (liquidityCapacity > totalFees) {
             // TODO these deposits are expensive, it is better to move them to an autotask

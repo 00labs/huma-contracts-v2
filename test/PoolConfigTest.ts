@@ -176,7 +176,7 @@ describe("PoolConfig Tests", function () {
             expect(poolSettings.calendarUnit).to.equal(1);
             expect(poolSettings.payPeriodInCalendarUnit).to.equal(1);
             expect(poolSettings.receivableRequiredInBps).to.equal(10000);
-            expect(poolSettings.advanceRateInBps).to.equal(10000);
+            expect(poolSettings.advanceRateInBps).to.equal(8000);
             expect(poolSettings.latePaymentGracePeriodInDays).to.equal(5);
             expect(poolSettings.defaultGracePeriodInCalendarUnit).to.equal(3);
 

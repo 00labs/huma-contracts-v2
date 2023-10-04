@@ -1,24 +1,27 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IERC20MetadataUpgradeable, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import {Errors} from "./Errors.sol";
+import {FirstLossCoverStorage, IERC20} from "./FirstLossCoverStorage.sol";
+import {PoolConfig, LPConfig} from "./PoolConfig.sol";
+import {PoolConfigCache} from "./PoolConfigCache.sol";
+import {HUNDRED_PERCENT_IN_BPS} from "./SharedDefs.sol";
+import {IFirstLossCover} from "./interfaces/IFirstLossCover.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
-import {PoolConfigCache} from "./PoolConfigCache.sol";
-import {PoolConfig, LPConfig} from "./PoolConfig.sol";
-import {FirstLossCoverStorage, IERC20} from "./FirstLossCoverStorage.sol";
-import {IFirstLossCover} from "./interfaces/IFirstLossCover.sol";
 import {IProfitEscrow} from "./interfaces/IProfitEscrow.sol";
-import "./SharedDefs.sol";
-import {Errors} from "./Errors.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20MetadataUpgradeable, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 
-import "hardhat/console.sol";
+// import "hardhat/console.sol";
 
 interface ITrancheVaultLike {
     function convertToAssets(uint256 shares) external view returns (uint256 assets);
 }
 
+/**
+ * @title FirstLossCover
+ */
 contract FirstLossCover is
     ERC20Upgradeable,
     PoolConfigCache,
@@ -82,11 +85,16 @@ contract FirstLossCover is
         _decimals = IERC20MetadataUpgradeable(addr).decimals();
 
         addr = _poolConfig.getFirstLossCoverProfitEscrow(address(this));
+        //* todo the following comment is strange. We should not allow zero address.
+        // A careless change may get us into a situation of losing funds into
+        // zero address. We should find a different way to handle this.
+
         // It is possible to be null for borrower first loss cover
         // if (addr == address(0)) revert Errors.zeroAddressProvided();
         profitEscrow = IProfitEscrow(addr);
     }
 
+    //* todo passing the parameter inside the struct instead of the struct itself.
     function setPayoutConfig(LossCoverPayoutConfig memory config) external {
         poolConfig.onlyPoolOwner(msg.sender);
         lossCoverPayoutConfig = config;
@@ -94,6 +102,9 @@ contract FirstLossCover is
         emit PayoutConfigSet(config.coverRateInBps, config.coverCap, config.liquidityCap);
     }
 
+    //* todo do not understand the purpose of operator for a pool cover. It seems you
+    // want to make this a permissioned, and the permission is different from the pool
+    // permission. Feels like overkill
     function setOperator(address account, LossCoverConfig memory config) external {
         poolConfig.onlyPoolOwner(msg.sender);
         if (account == address(0)) revert Errors.zeroAddressProvided();
@@ -106,6 +117,7 @@ contract FirstLossCover is
         if (assets == 0) revert Errors.zeroAmountProvided();
         _onlyOperator(msg.sender);
 
+        //* todo I prefer we store the cover money outsdie the pool.
         poolSafe.deposit(msg.sender, assets);
 
         return _deposit(assets, msg.sender);
@@ -135,6 +147,11 @@ contract FirstLossCover is
     /**
      * @notice Adds to the cover using fees of protocol owner, pool owner and/or EA.
      */
+    //* todo I do not think this belongs to first loss cover. This is the logic on how to
+    // grow coverage. Including it here makes this contract convoluted.
+    // Let us first not to consider it. We can add the capability
+    // from the pool side. We can choose to implement a withdraw constraint for the admins
+    // that they cannot withdraw until there is sufficient first loss cover.
     function depositCoverWithAffiliateFees(
         uint256 assets,
         address receiver
@@ -146,33 +163,52 @@ contract FirstLossCover is
         return _deposit(assets, receiver);
     }
 
+    /**
+     * @notice Distributes profit to the cover. If there is still room in the cover, this profit
+     * is applied towards increasing coverage. The remainder of the profit is distributed to the
+     * first loss cover providers.
+     * @param profit the profit to be distributed
+     * @dev Only pool can call this function
+     */
     function distributeProfit(uint256 profit) external {
         poolConfig.onlyPool(msg.sender);
 
-        uint256 liquidityCapacity = availableLiquidityCapacity();
-        uint256 profitToLock = profit > liquidityCapacity ? liquidityCapacity : profit;
-        if (profitToLock > 0) {
-            uint256 tempTotalAssets = _totalAssets;
-            tempTotalAssets += profitToLock;
-            _totalAssets = tempTotalAssets;
-            emit ProfitDistributed(profitToLock, tempTotalAssets);
+        uint256 availableCapacity = availableCoverCapacity();
+        uint256 profitToInvestInCover = profit > availableCapacity ? availableCapacity : profit;
+
+        // Invests into the cover until it reaches capacity
+        if (profitToInvestInCover > 0) {
+            uint256 tempCoverAssets = _coverAssets;
+            tempCoverAssets += profitToInvestInCover;
+            _coverAssets = tempCoverAssets;
+            emit ProfitDistributed(profitToInvestInCover, tempCoverAssets);
         }
 
-        uint256 remainingProfit = profit - profitToLock;
+        // Distributes the remainder profit to the cover providers
+        uint256 remainingProfit = profit - profitToInvestInCover;
         if (remainingProfit > 0) {
             profitEscrow.addProfit(remainingProfit);
         }
     }
 
+    /**
+     * @notice Cover provider redeems from the pool
+     * @param shares the number of shares to be redeemed
+     * @param receiver the address to receive the redemption assets
+     * @dev Anyone can call this function, but they will have to burn their own shares
+     */
     function redeemCover(uint256 shares, address receiver) external returns (uint256 assets) {
         if (shares == 0) revert Errors.zeroAmountProvided();
         if (receiver == address(0)) revert Errors.zeroAddressProvided();
+        //: todo pool.readyForFirstLossCoverWithdrawal() is a tricky design.
         if (!pool.readyForFirstLossCoverWithdrawal())
             revert Errors.poolIsNotReadyForFirstLossCoverWithdrawal();
 
+        //* todo should we check msg.sender has this many shared?
         assets = convertToAssets(shares);
+
         ERC20Upgradeable._burn(msg.sender, shares);
-        _totalAssets -= assets;
+        _coverAssets -= assets;
 
         if (address(profitEscrow) != address(0)) profitEscrow.withdraw(msg.sender, shares);
 
@@ -181,22 +217,37 @@ contract FirstLossCover is
         emit CoverRedeemed(msg.sender, receiver, shares, assets);
     }
 
+    /**
+     * @notice Applies loss against the first loss cover
+     * @param poolAssets the total asset in the pool
+     * @param loss the loss amount to be covered by the loss cover or reported as default
+     * @return remainingLoss the remaining loss after applying this cover
+     */
     function coverLoss(uint256 poolAssets, uint256 loss) external returns (uint256 remainingLoss) {
         poolConfig.onlyPool(msg.sender);
 
         uint256 coveredAmount;
         (remainingLoss, coveredAmount) = _calcLossCover(poolAssets, loss);
+
         if (coveredAmount > 0) {
-            uint256 tempTotalAssets = _totalAssets;
-            tempTotalAssets -= coveredAmount;
-            _totalAssets = tempTotalAssets;
-            uint256 tempCoveredLoss = coveredLoss;
-            tempCoveredLoss += coveredAmount;
-            coveredLoss = tempCoveredLoss;
-            emit LossCovered(coveredAmount, remainingLoss, tempTotalAssets, tempCoveredLoss);
+            uint256 newCoverAssets = _coverAssets;
+            newCoverAssets -= coveredAmount;
+            _coverAssets = newCoverAssets;
+
+            uint256 newCoveredLoss = coveredLoss;
+            newCoveredLoss += coveredAmount;
+            coveredLoss = newCoveredLoss;
+
+            emit LossCovered(coveredAmount, remainingLoss, newCoverAssets, newCoveredLoss);
         }
     }
 
+    /**
+     * @notice Applies recovered amount to this first loss cover
+     * @param recovery the recovery amount available for distribution to this cover
+     * and other covers that are more junior than this one.
+     * @dev Only pool contract tied with the cover can call this function.
+     */
     function recoverLoss(uint256 recovery) external returns (uint256 remainingRecovery) {
         poolConfig.onlyPool(msg.sender);
 
@@ -205,11 +256,14 @@ contract FirstLossCover is
         (remainingRecovery, recoveredAmount) = _calcLossRecover(tempCoveredLoss, recovery);
         // There may be multiple loss covers, the remainingRecovery may be positive.
         if (recoveredAmount > 0) {
-            uint256 tempTotalAssets = _totalAssets;
+            uint256 tempTotalAssets = _coverAssets;
             tempTotalAssets += recoveredAmount;
-            _totalAssets = tempTotalAssets;
+            _coverAssets = tempTotalAssets;
             tempCoveredLoss -= recoveredAmount;
             coveredLoss = tempCoveredLoss;
+
+            //* todo If there are multiple first loss covers, do we need something to identify
+            // the cover that received the recovery in the event?
             emit LossRecovered(
                 recoveredAmount,
                 remainingRecovery,
@@ -224,25 +278,25 @@ contract FirstLossCover is
     }
 
     function totalAssets() public view virtual returns (uint256) {
-        return _totalAssets;
+        return _coverAssets;
     }
 
-    function availableLiquidityCapacity() public view returns (uint256) {
+    function availableCoverCapacity() public view returns (uint256 coverCapacity) {
         LossCoverPayoutConfig memory config = lossCoverPayoutConfig;
-        uint256 tempTotalAssets = totalAssets();
-        return config.liquidityCap > tempTotalAssets ? config.liquidityCap - tempTotalAssets : 0;
+        uint256 tempCoverAssets = _coverAssets;
+        return config.liquidityCap > tempCoverAssets ? config.liquidityCap - tempCoverAssets : 0;
     }
 
     function convertToShares(uint256 assets) public view virtual returns (uint256) {
         uint256 totalSupply = totalSupply();
-        uint256 tempTotalAssets = _totalAssets;
+        uint256 tempTotalAssets = _coverAssets;
 
         return totalSupply == 0 ? assets : (assets * totalSupply) / tempTotalAssets;
     }
 
     function convertToAssets(uint256 shares) public view virtual returns (uint256) {
         uint256 totalSupply = totalSupply();
-        uint256 tempTotalAssets = _totalAssets;
+        uint256 tempTotalAssets = _coverAssets;
 
         return totalSupply == 0 ? shares : (shares * tempTotalAssets) / totalSupply;
     }
@@ -280,7 +334,7 @@ contract FirstLossCover is
     function _deposit(uint256 assets, address account) internal returns (uint256 shares) {
         shares = convertToShares(assets);
         ERC20Upgradeable._mint(account, shares);
-        _totalAssets += assets;
+        _coverAssets += assets;
 
         if (address(profitEscrow) != address(0)) profitEscrow.deposit(account, shares);
 
@@ -292,12 +346,14 @@ contract FirstLossCover is
         uint256 loss
     ) internal view returns (uint256 remainingLoss, uint256 coveredAmount) {
         LossCoverPayoutConfig memory config = lossCoverPayoutConfig;
+
+        //* todo BUG. coverRateInBps should be applied against loss, not the pool asset value
         uint256 availableAmount = (poolAssets * config.coverRateInBps) / HUNDRED_PERCENT_IN_BPS;
         if (availableAmount >= config.coverCap) {
             availableAmount = config.coverCap;
         }
 
-        uint256 tempTotalAssets = _totalAssets;
+        uint256 tempTotalAssets = _coverAssets;
         if (availableAmount >= tempTotalAssets) {
             availableAmount = tempTotalAssets;
         }
@@ -308,10 +364,10 @@ contract FirstLossCover is
 
     function _calcLossRecover(
         uint256 coveredLoss,
-        uint256 recovery
+        uint256 recoveryAmount
     ) public pure returns (uint256 remainingRecovery, uint256 recoveredAmount) {
-        recoveredAmount = coveredLoss < recovery ? coveredLoss : recovery;
-        remainingRecovery = recovery - recoveredAmount;
+        recoveredAmount = coveredLoss < recoveryAmount ? coveredLoss : recoveryAmount;
+        remainingRecovery = recoveryAmount - recoveredAmount;
     }
 
     function _getMinCoverAmount(address account) internal view returns (uint256 minCoverAmount) {

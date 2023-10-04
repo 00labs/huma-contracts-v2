@@ -2,23 +2,23 @@
 pragma solidity ^0.8.0;
 
 import {CalendarUnit} from "./SharedDefs.sol";
-import "@openzeppelin/contracts/access/AccessControl.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import {IERC20, IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IPoolFeeManager} from "./interfaces/IPoolFeeManager.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IFirstLossCover} from "./interfaces/IFirstLossCover.sol";
 
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import {IERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "./SharedDefs.sol";
 
 import {HumaConfig} from "./HumaConfig.sol";
 import {Errors} from "./Errors.sol";
 
-import "hardhat/console.sol";
+//import "hardhat/console.sol";
 
 struct PoolSettings {
-    // The maximum credit line for an address in terms of the amount of poolTokens
+    // The maximum credit line for a borrower in terms of the amount of poolTokens
     uint96 maxCreditLine;
     // calendarType and numPerPeriod are used together to measure the duration
     // of a pay period. For example, 14 days, 1 month.
@@ -314,7 +314,7 @@ contract PoolConfig is AccessControl, Initializable {
         tempPoolSettings.calendarUnit = CalendarUnit.Month;
         tempPoolSettings.payPeriodInCalendarUnit = 1; // 1 month
         tempPoolSettings.receivableRequiredInBps = 10000; // 100%
-        tempPoolSettings.advanceRateInBps = 10000; // 100%
+        tempPoolSettings.advanceRateInBps = 8000; // 80%
         tempPoolSettings.latePaymentGracePeriodInDays = 5;
         tempPoolSettings.defaultGracePeriodInCalendarUnit = 3; // 3 months
         _poolSettings = tempPoolSettings;
