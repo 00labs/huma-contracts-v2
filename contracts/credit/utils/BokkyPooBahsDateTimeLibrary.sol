@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
 // ----------------------------------------------------------------------------
@@ -26,18 +27,18 @@ pragma solidity ^0.8.0;
 // ----------------------------------------------------------------------------
 
 library BokkyPooBahsDateTimeLibrary {
-    uint constant SECONDS_PER_DAY = 24 * 60 * 60;
-    uint constant SECONDS_PER_HOUR = 60 * 60;
-    uint constant SECONDS_PER_MINUTE = 60;
-    int constant OFFSET19700101 = 2440588;
+    uint internal constant SECONDS_PER_DAY = 24 * 60 * 60;
+    uint internal constant SECONDS_PER_HOUR = 60 * 60;
+    uint internal constant SECONDS_PER_MINUTE = 60;
+    int internal constant OFFSET19700101 = 2440588;
 
-    uint constant DOW_MON = 1;
-    uint constant DOW_TUE = 2;
-    uint constant DOW_WED = 3;
-    uint constant DOW_THU = 4;
-    uint constant DOW_FRI = 5;
-    uint constant DOW_SAT = 6;
-    uint constant DOW_SUN = 7;
+    uint internal constant DOW_MON = 1;
+    uint internal constant DOW_TUE = 2;
+    uint internal constant DOW_WED = 3;
+    uint internal constant DOW_THU = 4;
+    uint internal constant DOW_FRI = 5;
+    uint internal constant DOW_SAT = 6;
+    uint internal constant DOW_SUN = 7;
 
     // ------------------------------------------------------------------------
     // Calculate the number of days from 1970/01/01 to year/month/day using
