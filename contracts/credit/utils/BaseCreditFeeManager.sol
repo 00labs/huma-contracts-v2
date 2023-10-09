@@ -209,7 +209,7 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
                 "newNextDueDate: %s, cr.nextDueDate: %s, secondsPerPeriod: %s",
                 newNextDueDate,
                 cr.nextDueDate,
-                secondsOfThisPeriod
+                currentPeriodInSeconds
             );
 
             console.log(
@@ -274,7 +274,7 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
                 // console.log(
                 //     "principalDifference: %s, timelapsed: %s, pnlImpact: %s",
                 //     principalDifference,
-                //     secondsOfThisPeriod,
+                //     currentPeriodInSeconds,
                 //     pnlImpact
                 // );
             }
