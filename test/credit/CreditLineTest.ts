@@ -402,7 +402,10 @@ describe("CreditLine Test", function () {
                         toToken(10_001),
                         true,
                     ),
-            ).to.be.revertedWithCustomError(creditContract, "committedAmountGreatThanCreditLimit");
+            ).to.be.revertedWithCustomError(
+                creditContract,
+                "committedAmountGreaterThanCreditLimit",
+            );
 
             let poolSettings = await poolConfigContract.getPoolSettings();
             let creditLimit = poolSettings.maxCreditLine.add(1);

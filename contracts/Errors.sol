@@ -92,7 +92,7 @@ contract Errors {
     error settlementTooSoon(); // 0x0453e75e
     error defaultTriggeredTooEarly(); // 0x7872424e
     error defaultHasAlreadyBeenTriggered(); // 0xeb8d2ccc
-    error committedAmountGreaterThanCreditLimit(); // 0x663ce1a8
+    error committedAmountGreaterThanCreditLimit(); // 0x4ff6cc6f // 0x663ce1a8
 
     // receivable operation
     error receivableAssetMismatch(); // 0x41dbeec1
@@ -110,13 +110,13 @@ contract Errors {
     error flowIsNotTerminated(); // 0xe9c5922f
     error invalidSuperfluidCallback(); // 0xd2747f83
     error invalidSuperfluidAction(); // 0x2f2cd9e9
-    error notTradableStreamOwner();
-    error tradableStreamNotExisting();
-    error tradableStreamNotMatured();
-    error notEnoughAvailableFlowrate();
-    error AuthorizationExpired();
-    error InvalidAuthorization();
-    error newReceiverSameToOrigin();
+    error notTradableStreamOwner(); // 0x5709a724
+    error tradableStreamNotExisting(); // 0xb78e2a5b
+    error tradableStreamNotMatured(); // 0xa42ebb88
+    error notEnoughAvailableFlowrate(); // 0x9c808ab8
+    error AuthorizationExpired(); // 0x0f05f5bf
+    error InvalidAuthorization(); // 0x2ce87eeb
+    error newReceiverSameToOrigin(); // 0x6d79ce50
 
     error invalidCalendarUnit(); // 0x353226f1
     error zeroPayPeriods(); // 0xd991f55d
