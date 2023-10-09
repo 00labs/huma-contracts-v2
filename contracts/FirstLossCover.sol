@@ -29,7 +29,7 @@ contract FirstLossCover is
     IFirstLossCover
 {
     event PayoutConfigSet(uint256 coverRateInBps, uint256 coverCap, uint256 liquidityCap);
-    event OperatorSet(
+    event CoverProviderSet(
         address indexed account,
         uint256 poolCapCoverageInBps,
         uint256 poolValueCoverageInBps
@@ -102,15 +102,12 @@ contract FirstLossCover is
         emit PayoutConfigSet(config.coverRateInBps, config.coverCap, config.liquidityCap);
     }
 
-    //* todo do not understand the purpose of operator for a pool cover. It seems you
-    // want to make this a permissioned, and the permission is different from the pool
-    // permission. Feels like overkill
-    function setOperator(address account, LossCoverConfig memory config) external {
+    function setCoverProvider(address account, LossCoverConfig memory config) external {
         poolConfig.onlyPoolOwner(msg.sender);
         if (account == address(0)) revert Errors.zeroAddressProvided();
         operatorConfigs[account] = config;
 
-        emit OperatorSet(account, config.poolCapCoverageInBps, config.poolValueCoverageInBps);
+        emit CoverProviderSet(account, config.poolCapCoverageInBps, config.poolValueCoverageInBps);
     }
 
     function depositCover(uint256 assets) external returns (uint256 shares) {

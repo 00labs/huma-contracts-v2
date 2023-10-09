@@ -843,7 +843,7 @@ describe("PoolConfig Tests", function () {
                 // Set the EA to be an operator.
                 await affiliateFirstLossCoverContract
                     .connect(poolOwner)
-                    .setOperator(evaluationAgent2.getAddress(), {
+                    .setCoverProvider(evaluationAgent2.getAddress(), {
                         poolCapCoverageInBps: 100,
                         poolValueCoverageInBps: 100,
                     });

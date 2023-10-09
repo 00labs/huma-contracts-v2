@@ -129,7 +129,7 @@ describe("Pool Test", function () {
                 .setPoolOwnerTreasury(poolOwnerTreasury.address);
             await affiliateFirstLossCoverContract
                 .connect(poolOwner)
-                .setOperator(poolOwnerTreasury.address, {
+                .setCoverProvider(poolOwnerTreasury.address, {
                     poolCapCoverageInBps: 1000,
                     poolValueCoverageInBps: 1000,
                 });
@@ -147,7 +147,7 @@ describe("Pool Test", function () {
                 .setEvaluationAgent(eaNFTTokenId, evaluationAgent.address);
             await affiliateFirstLossCoverContract
                 .connect(poolOwner)
-                .setOperator(evaluationAgent.address, {
+                .setCoverProvider(evaluationAgent.address, {
                     poolCapCoverageInBps: 1000,
                     poolValueCoverageInBps: 1000,
                 });
