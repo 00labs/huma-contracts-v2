@@ -270,10 +270,12 @@ describe("CreditLine Test", function () {
             [lender, borrower, borrower2],
         );
 
-        await borrowerFirstLossCoverContract.connect(poolOwner).setOperator(borrower.address, {
-            poolCapCoverageInBps: 1,
-            poolValueCoverageInBps: 100,
-        });
+        await borrowerFirstLossCoverContract
+            .connect(poolOwner)
+            .setCoverProvider(borrower.address, {
+                poolCapCoverageInBps: 1,
+                poolValueCoverageInBps: 100,
+            });
         await borrowerFirstLossCoverContract
             .connect(borrower)
             .depositCover(
@@ -285,10 +287,12 @@ describe("CreditLine Test", function () {
                 ),
             );
 
-        await borrowerFirstLossCoverContract.connect(poolOwner).setOperator(borrower2.address, {
-            poolCapCoverageInBps: 1,
-            poolValueCoverageInBps: 100,
-        });
+        await borrowerFirstLossCoverContract
+            .connect(poolOwner)
+            .setCoverProvider(borrower2.address, {
+                poolCapCoverageInBps: 1,
+                poolValueCoverageInBps: 100,
+            });
         await borrowerFirstLossCoverContract
             .connect(borrower2)
             .depositCover(

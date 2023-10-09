@@ -336,13 +336,13 @@ export async function setupPoolContracts(
     const firstLossCoverageInBps = 100;
     await affiliateFirstLossCoverContract
         .connect(poolOwner)
-        .setOperator(poolOwnerTreasury.getAddress(), {
+        .setCoverProvider(poolOwnerTreasury.getAddress(), {
             poolCapCoverageInBps: firstLossCoverageInBps,
             poolValueCoverageInBps: firstLossCoverageInBps,
         });
     await affiliateFirstLossCoverContract
         .connect(poolOwner)
-        .setOperator(evaluationAgent.getAddress(), {
+        .setCoverProvider(evaluationAgent.getAddress(), {
             poolCapCoverageInBps: firstLossCoverageInBps,
             poolValueCoverageInBps: firstLossCoverageInBps,
         });
