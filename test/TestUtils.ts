@@ -3,7 +3,7 @@ import { BigNumber as BN } from "ethers";
 import moment from "moment";
 import { LPConfigStructOutput } from "../typechain-types/contracts/PoolConfig.sol/PoolConfig";
 import { CONSTANTS } from "./BaseTest";
-import { FirstLossCover, Pool, PoolConfig } from "../typechain-types";
+import { FirstLossCover, Pool, PoolConfig, TrancheVault } from "../typechain-types";
 
 export function toBN(number: string | number, decimals: number): BN {
     return BN.from(number).mul(BN.from(10).pow(BN.from(decimals)));
@@ -144,9 +144,6 @@ export async function getMinFirstLossCoverRequirement(
     const minFromPoolValue = poolValue
         .mul(lossCoverConfig.poolValueCoverageInBps)
         .div(CONSTANTS.BP_FACTOR);
-    console.log(
-        `Pool cap: ${poolCap}. Pool value: ${poolValue}. minFromPoolCap: ${minFromPoolCap}. minFromPoolValue: ${minFromPoolValue}`,
-    );
     return minFromPoolCap.gt(minFromPoolValue) ? minFromPoolCap : minFromPoolValue;
 }
 
