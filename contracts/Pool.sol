@@ -249,10 +249,9 @@ contract Pool is PoolConfigCache, IPool {
         uint96[2] memory losses
     ) internal returns (uint96[2] memory newAssets, uint96[2] memory newLosses) {
         if (loss > 0) {
-            uint256 poolAssets = assets[SENIOR_TRANCHE] + assets[JUNIOR_TRANCHE];
             uint256 coverCount = _firstLossCovers.length;
             for (uint256 i; i < coverCount && loss > 0; i++) {
-                loss = _firstLossCovers[i].coverLoss(poolAssets, loss);
+                loss = _firstLossCovers[i].coverLoss(loss);
             }
 
             if (loss > 0) {
@@ -360,11 +359,10 @@ contract Pool is PoolConfigCache, IPool {
     ) internal view returns (uint96[2] memory newAssets, uint96[2] memory newLosses) {
         if (loss > 0) {
             // First loss cover
-            uint256 poolAssets = assets[SENIOR_TRANCHE] + assets[JUNIOR_TRANCHE];
             uint256 coverCount = _firstLossCovers.length;
             for (uint256 i; i < coverCount && loss > 0; i++) {
                 IFirstLossCover cover = _firstLossCovers[i];
-                loss = cover.calcLossCover(poolAssets, loss);
+                loss = cover.calcLossCover(loss);
             }
             uint96[2] memory lossesDelta;
             (assets, lossesDelta) = tranchesPolicy.distLossToTranches(loss, assets);
