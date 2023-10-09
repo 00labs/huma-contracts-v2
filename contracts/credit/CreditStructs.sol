@@ -26,10 +26,10 @@ struct CreditRecord {
     uint96 unbilledPrincipal;
     uint64 nextDueDate; // the due date of the next payment
     uint96 totalDue; // the due amount of the next payment
-    uint96 yieldDue; // yield and fees due for the next payment
-    uint96 feesDue;
-    uint16 missedPeriods;
-    uint16 remainingPeriods;
+    uint96 yieldDue; // yield due for the next payment
+    uint96 feesDue; // fees due for the next payment
+    uint16 missedPeriods; // the number of consecutive missed payments, for default processing
+    uint16 remainingPeriods; // the number of payment periods until the maturity of the credit line
     CreditState state;
     // bool revolving; // whether repeated borrowing is allowed
 }
@@ -77,13 +77,13 @@ enum PaymentStatus {
 struct ReceivableInfo {
     // The total expected payment amount of the receivable
     uint96 receivableAmount;
-    // The amount of the receivable that has been paid so far
+    // The date at which the receivable is created
     uint64 creationDate;
-    // The date at which the receivable is expected to be fully paid
+    // The amount of the receivable that has been paid so far
     uint96 paidAmount;
     // The ISO 4217 currency code that the receivable is denominated in
     uint16 currencyCode;
-    // The date at which the receivable is created
+    // The date at which the receivable is expected to be fully paid
     uint64 maturityDate;
     ReceivableState state;
 }

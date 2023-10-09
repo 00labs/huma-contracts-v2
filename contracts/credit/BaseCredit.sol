@@ -22,7 +22,7 @@ import "hardhat/console.sol";
 
 /**
  * Credit represents a borrowing entry in Huma Protocol. BaseCredit is an abstract contract that
- * captures the basic functions of of a Credit.
+ * captures the basic functions of a Credit.
  */
 abstract contract BaseCredit is
     Initializable,
@@ -292,16 +292,13 @@ abstract contract BaseCredit is
      * @notice checks if the credit line is behind in payments
      * @dev When the account is in Approved state, there is no borrowing yet, thus being late
      * does not apply. Thus the check on account state. 
-     * @dev after the bill is refreshed, the due date is updated, it is possible that the new due 
+     * @dev After the bill is refreshed, the due date is updated, it is possible that the new due
      // date is in the future, but if the bill refresh has set missedPeriods, the account is late.
      */
     function isLate(bytes32 creditHash) public view virtual returns (bool lateFlag) {
-        return
-            (_creditRecordMap[creditHash].state > CreditState.Approved &&
-                (_creditRecordMap[creditHash].missedPeriods > 0 ||
-                    block.timestamp > _creditRecordMap[creditHash].nextDueDate))
-                ? true
-                : false;
+        return (_creditRecordMap[creditHash].state > CreditState.Approved &&
+            (_creditRecordMap[creditHash].missedPeriods > 0 ||
+                block.timestamp > _creditRecordMap[creditHash].nextDueDate));
     }
 
     function _approveCredit(
@@ -319,14 +316,14 @@ abstract contract BaseCredit is
         if (remainingPeriods == 0) revert Errors.zeroPayPeriods();
         // if (yieldInBps == 0) revert Errors.zeroAmountProvided(); ？
         // if (committedAmount == 0) revert Errors.zeroAmountProvided(); ？
-        if (committedAmount > creditLimit) revert Errors.committedAmountGreatThanCreditLimit();
+        if (committedAmount > creditLimit) revert Errors.committedAmountGreaterThanCreditLimit();
 
         PoolSettings memory ps = poolConfig.getPoolSettings();
         if (creditLimit > ps.maxCreditLine) {
             revert Errors.greaterThanMaxCreditLine();
         }
 
-        // Before a drawdown happens, it is allowed to re-approve a credit to change ther terms.
+        // Before a drawdown happens, it is allowed to re-approve a credit to change the terms.
         // Once a drawdown has happened, it is disallowed to re-approve a credit. One has call
         // other functions to change the terms of the credit.
         CreditRecord memory cr = _getCreditRecord(creditHash);
@@ -358,9 +355,10 @@ abstract contract BaseCredit is
         // Note: Special logic. dueDate is normally used to track the next bill due.
         // Before the first drawdown, it is also used to set the deadline for the first
         // drawdown to happen, otherwise, the credit line expires.
+        // TODO: is the compromise described below still applicable?
         // Decided to use this field in this way to save one field for the struct.
         // Although we have room in the struct after split struct creditRecord and
-        // struct creditRecordStatic, we keep it unchanged to leave room for the struct
+        // struct CreditConfig, we keep it unchanged to leave room for the struct
         // to expand in the future (note Solidity has limit on 13 fields in a struct)
         if (ps.creditApprovalExpirationInDays > 0)
             cr.nextDueDate = uint64(
@@ -437,9 +435,9 @@ abstract contract BaseCredit is
                     revert Errors.creditLineNotInGoodStandingState();
             }
 
-            // note Drawdown is not allowed in the final pay period since the payment due for
+            // Note: drawdown is not allowed in the final pay period since the payment due for
             // such drawdown will fall outside of the window of the credit line.
-            // note since we bill at the beginning of a period, cr.remainingPeriods is zero
+            // Note that since we bill at the beginning of a period, cr.remainingPeriods is zero
             // in the final period.
             if (cr.remainingPeriods == 0) revert Errors.creditExpiredDueToMaturity();
 
@@ -543,7 +541,7 @@ abstract contract BaseCredit is
 
                 // process order - 1. fees, 2. yieldTillNow, 3. principal
 
-                uint256 printcipal = cr.totalDue - cr.feesDue - cr.yieldDue;
+                uint256 principal = cr.totalDue - cr.feesDue - cr.yieldDue;
 
                 // Handle fee payment.
                 p.feesPaid = amount < cr.feesDue ? uint96(amount) : cr.feesDue;
@@ -559,7 +557,7 @@ abstract contract BaseCredit is
 
                 // Handle principal payment
                 if (amount > 0) {
-                    p.principalPaid = (amount < printcipal) ? uint96(amount) : uint96(printcipal);
+                    p.principalPaid = (amount < principal) ? uint96(amount) : uint96(principal);
                     amount -= p.principalPaid;
                 }
 
@@ -931,7 +929,7 @@ abstract contract BaseCredit is
             // After the credit approval, if the pool has credit expiration for the 1st drawdown,
             // the borrower must complete the first drawdown before the expiration date, which
             // is set in cr.nextDueDate in approveCredit().
-            // note For pools without credit expiration for first drawdown, cr.nextDueDate is 0
+            // Note: for pools without credit expiration for first drawdown, cr.nextDueDate is 0
             // before the first drawdown, thus the cr.nextDueDate > 0 condition in the check
             if (cr.nextDueDate > 0 && block.timestamp > cr.nextDueDate)
                 revert Errors.creditExpiredDueToFirstDrawdownTooLate();
