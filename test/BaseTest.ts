@@ -1,5 +1,5 @@
 import { expect } from "chai";
-import { BigNumber as BN, Contract } from "ethers";
+import { BigNumber as BN } from "ethers";
 import { getNextDate, getNextMonth, sumBNArray, toToken } from "./TestUtils";
 import { EpochInfoStruct } from "../typechain-types/contracts/interfaces/IEpoch";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
@@ -55,7 +55,7 @@ const CALENDAR_UNIT_DAY = 0;
 const CALENDAR_UNIT_MONTH = 1;
 const SENIOR_TRANCHE = 0;
 const JUNIOR_TRANCHE = 1;
-const DEFAULT_DECIMALS_FACTOR = 10n ** 18n;
+const DEFAULT_DECIMALS_FACTOR = BN.from(10).pow(18);
 const BP_FACTOR = BN.from(10000);
 const SECONDS_IN_YEAR = 60 * 60 * 24 * 365;
 const BORROWER_FIRST_LOSS_COVER_INDEX = 0;
@@ -576,12 +576,42 @@ function calcLossRecovery(lossRecovery: BN, assets: BN[], losses: BN[]): [BN, BN
     ];
 }
 
+function calcRiskAdjustedProfitAndLoss(
+    profit: BN,
+    loss: BN,
+    lossRecovery: BN,
+    coverTotalAssets: BN[],
+    assets: BN[],
+    riskAdjustment: BN,
+    riskYieldMultipliers: number[],
+) {
+    const assetsAfterProfit = calcProfitForRiskAdjustedPolicy(profit, assets, riskAdjustment);
+    const [juniorProfitAfterFirstLossCoverProfitDistribution] =
+        PnLCalculator.calcProfitForFirstLossCovers(
+            assetsAfterProfit[CONSTANTS.JUNIOR_TRANCHE].sub(assets[CONSTANTS.JUNIOR_TRANCHE]),
+            assets[CONSTANTS.JUNIOR_TRANCHE],
+            coverTotalAssets,
+            riskYieldMultipliers,
+        );
+    const [assetsAfterLoss, remainingLosses] = PnLCalculator.calcLoss(loss, [
+        assetsAfterProfit[CONSTANTS.SENIOR_TRANCHE],
+        assets[CONSTANTS.JUNIOR_TRANCHE].add(juniorProfitAfterFirstLossCoverProfitDistribution),
+    ]);
+    const [, assetsAfterRecovery, lossesAfterRecovery] = PnLCalculator.calcLossRecovery(
+        lossRecovery,
+        assetsAfterLoss,
+        remainingLosses,
+    );
+    return [assetsAfterRecovery, lossesAfterRecovery];
+}
+
 export const PnLCalculator = {
     calcProfitForFixedSeniorYieldPolicy,
     calcProfitForRiskAdjustedPolicy,
     calcProfitForFirstLossCovers,
     calcLoss,
     calcLossRecovery,
+    calcRiskAdjustedProfitAndLoss,
 };
 
 export function checkEpochInfo(

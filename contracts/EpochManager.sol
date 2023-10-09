@@ -11,8 +11,6 @@ import {IEpochManager} from "./interfaces/IEpochManager.sol";
 import {Errors} from "./Errors.sol";
 import {ICalendar} from "./credit/interfaces/ICalendar.sol";
 
-import "hardhat/console.sol";
-
 interface ITrancheVaultLike is IEpoch {
     function totalSupply() external view returns (uint256);
 }
@@ -247,7 +245,6 @@ contract EpochManager is PoolConfigCache, IEpochManager {
     {
         // get available underlying token amount
         uint256 availableAmount = poolSafe.totalAssets();
-        // console.log("availableAmount: %s", availableAmount);
         if (availableAmount <= 0) return (seniorResult, juniorResult);
 
         PoolSettings memory settings = poolConfig.getPoolSettings();
@@ -266,7 +263,6 @@ contract EpochManager is PoolConfigCache, IEpochManager {
                 availableAmount,
                 seniorResult
             );
-            // console.log("availableAmount: %s", availableAmount);
             // console.log(
             //     "seniorResult.count: %s, seniorResult.shares: %s, seniorResult.amounts: %s",
             //     seniorResult.count,
@@ -280,10 +276,8 @@ contract EpochManager is PoolConfigCache, IEpochManager {
 
         // Process junior tranche redemption requests.
         numEpochsToProcess = _getNumEpochsToProcess(settings, juniorEpochs, maxEpochId);
-        // console.log("availableCount: %s", availableCount);
         uint256 maxSeniorJuniorRatio = lpConfig.maxSeniorJuniorRatio;
         if (numEpochsToProcess > 0) {
-            // console.log("processing mature junior withdrawal requests...");
             availableAmount = _processJuniorRedemptionRequests(
                 tranchesAssets,
                 juniorPrice,
@@ -514,11 +508,6 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         uint256 minJuniorAmount = tranchesAssets[SENIOR_TRANCHE] / maxSeniorJuniorRatio;
         if (minJuniorAmount * maxSeniorJuniorRatio < tranchesAssets[SENIOR_TRANCHE])
             minJuniorAmount += 1;
-        // console.log(
-        //     "minJuniorAmounts: %s, tranches[SENIOR_TRANCHE]: %s",
-        //     minJuniorAmounts,
-        //     tranches[SENIOR_TRANCHE]
-        // );
 
         uint256 maxRedeemableAmount = tranchesAssets[JUNIOR_TRANCHE] > minJuniorAmount
             ? tranchesAssets[JUNIOR_TRANCHE] - minJuniorAmount
@@ -533,12 +522,13 @@ contract EpochManager is PoolConfigCache, IEpochManager {
             uint256 redemptionAmount = (sharesToRedeem * lpTokenPrice) / DEFAULT_DECIMALS_FACTOR;
             if (availableAmount < redemptionAmount) {
                 redemptionAmount = availableAmount;
+                sharesToRedeem = (redemptionAmount * DEFAULT_DECIMALS_FACTOR) / lpTokenPrice;
             }
             if (maxRedeemableAmount < redemptionAmount) {
                 redemptionAmount = maxRedeemableAmount;
+                sharesToRedeem = (redemptionAmount * DEFAULT_DECIMALS_FACTOR) / lpTokenPrice;
             }
 
-            sharesToRedeem = (redemptionAmount * DEFAULT_DECIMALS_FACTOR) / lpTokenPrice;
             epochInfo.totalSharesProcessed += uint96(sharesToRedeem);
             epochInfo.totalAmountProcessed += uint96(redemptionAmount);
             availableAmount -= redemptionAmount;
