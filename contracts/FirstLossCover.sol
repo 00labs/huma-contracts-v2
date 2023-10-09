@@ -216,15 +216,14 @@ contract FirstLossCover is
 
     /**
      * @notice Applies loss against the first loss cover
-     * @param poolAssets the total asset in the pool
      * @param loss the loss amount to be covered by the loss cover or reported as default
      * @return remainingLoss the remaining loss after applying this cover
      */
-    function coverLoss(uint256 poolAssets, uint256 loss) external returns (uint256 remainingLoss) {
+    function coverLoss(uint256 loss) external returns (uint256 remainingLoss) {
         poolConfig.onlyPool(msg.sender);
 
         uint256 coveredAmount;
-        (remainingLoss, coveredAmount) = _calcLossCover(poolAssets, loss);
+        (remainingLoss, coveredAmount) = _calcLossCover(loss);
 
         if (coveredAmount > 0) {
             uint256 newCoverAssets = _coverAssets;
@@ -298,11 +297,8 @@ contract FirstLossCover is
         return totalSupply == 0 ? shares : (shares * tempTotalAssets) / totalSupply;
     }
 
-    function calcLossCover(
-        uint256 poolAssets,
-        uint256 loss
-    ) public view returns (uint256 remainingLoss) {
-        (remainingLoss, ) = _calcLossCover(poolAssets, loss);
+    function calcLossCover(uint256 loss) public view returns (uint256 remainingLoss) {
+        (remainingLoss, ) = _calcLossCover(loss);
     }
 
     function calcLossRecover(uint256 recovery) public view returns (uint256 remainingRecovery) {
@@ -339,13 +335,11 @@ contract FirstLossCover is
     }
 
     function _calcLossCover(
-        uint256 poolAssets,
         uint256 loss
     ) internal view returns (uint256 remainingLoss, uint256 coveredAmount) {
         LossCoverPayoutConfig memory config = lossCoverPayoutConfig;
 
-        //* todo BUG. coverRateInBps should be applied against loss, not the pool asset value
-        uint256 availableAmount = (poolAssets * config.coverRateInBps) / HUNDRED_PERCENT_IN_BPS;
+        uint256 availableAmount = (loss * config.coverRateInBps) / HUNDRED_PERCENT_IN_BPS;
         if (availableAmount >= config.coverCap) {
             availableAmount = config.coverCap;
         }
