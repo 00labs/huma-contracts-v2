@@ -3,7 +3,9 @@ pragma solidity ^0.8.0;
 
 import {CalendarUnit} from "../SharedDefs.sol";
 
-// a CreditConfig is created after approval
+// CreditConfig keeps track of the static settings of a credit line,
+// i.e. settings that do not change between pay periods.
+// It is created after the credit approval.
 struct CreditConfig {
     uint96 creditLimit;
     uint96 committedAmount;
@@ -17,13 +19,14 @@ struct CreditConfig {
     uint16 yieldInBps;
     bool revolving; // if repeated borrowing is allowed
     bool receivableBacked; // if the credit is receivable-backed
-    bool borrowerLevelCredit; // borrower-level vs receivable-level
-    bool exclusive; // if the credit pool exclusive to a borrower
+    bool borrowerLevelCredit; // whether the credit line is at the borrower-level vs receivable-level
+    bool exclusive; // if the credit pool is exclusive to a borrower
 }
 
-// a CreditRecord is created after the first drawdown
+// CreditRecord keep track of the dynamic stats of a credit line that change
+// from pay period to pay period, e.g. due info for each bill.
 struct CreditRecord {
-    uint96 unbilledPrincipal;
+    uint96 unbilledPrincipal; // the amount of principal not included in the bill
     uint64 nextDueDate; // the due date of the next payment
     uint96 totalDue; // the due amount of the next payment
     uint96 yieldDue; // yield due for the next payment

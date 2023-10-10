@@ -48,7 +48,7 @@ contract LinearMarkdownPnLManager is BasePnLManager {
             creditLoss.lastLossUpdateDate = uint64(block.timestamp);
 
             //* Reserved for Richard review, to be deleted
-            // It is more clear to update pnl tracker to the lastest value first, then handle recovery.
+            // It is more clear to update pnl tracker to the latest value first, then handle recovery.
 
             // Update tracker till  now
             PnLTracker memory tracker = _getLatestTracker(

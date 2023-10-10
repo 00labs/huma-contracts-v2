@@ -46,15 +46,21 @@ interface ICreditFeeManager {
     /**
      * @notice Gets the current total due, fees and interest due, and payoff amount.
      * Because there is no "cron" kind of mechanism, it is possible that the account is behind
-     * for multiple cycles due to a lack of activities. This function will traverse through
+     * for multiple cycles due to lack of activities. This function will traverse through
      * these cycles to get the most up-to-date due information.
-     * @param _cr the credit record associated the account
-     * @return cr
-     * @return periodsPassed the number of billing periods has passed since the last statement.
-     * @return pnlImpact the pnl impact of the account since the last statement
+     * @dev This is a view only function, it does not update the account status. It is used to
+     * help the borrowers to get their balances without paying gases.
+     * @dev the difference between totalDue and the sum of yieldDue and feesDue is the required principal payment
+     * @dev please note the first due date is set after the initial drawdown. All the future due
+     * dates are computed by adding multiples of the payment interval to the first due date.
+     * @param _cr the credit record associated with the account
+     * @param _cc the credit config associated with with account
+     * @return cr the updated credit record with the most up-to-date due information
+     * @return periodsPassed the number of billing periods has passed since the last statement
+     * @return profitImpact the understated profit of the account since the last statement
      * @return principalDifference the principal difference of the account since the last statement
-     * @return lossImpact the loss impact of the account since the last statement. If it is great than 0,
-     * it means the credit is delayed, otherwise it means the credit is good standing.
+     * @return lossImpact the loss impact of the account since the last statement. If it is greater than 0,
+     * it means the credit is delayed, otherwise it means the credit is in good standing.
      * If it is within the same period, it will be 0.
      */
     function getDueInfo(
@@ -66,7 +72,7 @@ interface ICreditFeeManager {
         returns (
             CreditRecord memory cr,
             uint256 periodsPassed,
-            uint96 pnlImpact,
+            uint96 profitImpact,
             uint96 principalDifference,
             uint96 lossImpact
         );
