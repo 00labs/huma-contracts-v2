@@ -11,6 +11,7 @@ import {IPool} from "./interfaces/IPool.sol";
 import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import {IProfitEscrow} from "./interfaces/IProfitEscrow.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20MetadataUpgradeable, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 
 // import "hardhat/console.sol";
@@ -28,6 +29,8 @@ contract FirstLossCover is
     FirstLossCoverStorage,
     IFirstLossCover
 {
+    using SafeERC20 for IERC20;
+
     event PayoutConfigSet(uint256 coverRateInBps, uint256 coverCap, uint256 liquidityCap);
     event CoverProviderSet(
         address indexed account,
@@ -105,17 +108,19 @@ contract FirstLossCover is
     function setCoverProvider(address account, LossCoverConfig memory config) external {
         poolConfig.onlyPoolOwner(msg.sender);
         if (account == address(0)) revert Errors.zeroAddressProvided();
-        operatorConfigs[account] = config;
+        providerConfigs[account] = config;
 
         emit CoverProviderSet(account, config.poolCapCoverageInBps, config.poolValueCoverageInBps);
     }
 
     function depositCover(uint256 assets) external returns (uint256 shares) {
         if (assets == 0) revert Errors.zeroAmountProvided();
-        _onlyOperator(msg.sender);
+        _onlyCoverProvider(msg.sender);
 
         //* todo I prefer we store the cover money outsdie the pool.
         poolSafe.deposit(msg.sender, assets);
+
+        // underlyingToken.safeTransferFrom(msg.sender, address(this), assets);
 
         return _deposit(assets, msg.sender);
     }
@@ -131,7 +136,7 @@ contract FirstLossCover is
     ) external returns (uint256 shares) {
         if (tokenAmount == 0) revert Errors.zeroAmountProvided();
         poolConfig.onlyTrancheVault(trancheVaultAddress);
-        _onlyOperator(msg.sender);
+        _onlyCoverProvider(msg.sender);
 
         ITrancheVaultLike trancheVault = ITrancheVaultLike(trancheVaultAddress);
         uint256 assets = trancheVault.convertToAssets(tokenAmount);
@@ -306,7 +311,7 @@ contract FirstLossCover is
     }
 
     function isSufficient(address account) external view returns (bool) {
-        _onlyOperator(account);
+        _onlyCoverProvider(account);
         uint256 operatorBalance = convertToAssets(balanceOf(account));
         uint256 min = _getMinCoverAmount(account);
         return operatorBalance >= min;
@@ -320,8 +325,10 @@ contract FirstLossCover is
         return maxCoverConfig;
     }
 
-    function getOperatorConfig(address account) external view returns (LossCoverConfig memory) {
-        return operatorConfigs[account];
+    function getCoverProviderConfig(
+        address account
+    ) external view returns (LossCoverConfig memory) {
+        return providerConfigs[account];
     }
 
     function _deposit(uint256 assets, address account) internal returns (uint256 shares) {
@@ -362,7 +369,7 @@ contract FirstLossCover is
     }
 
     function _getMinCoverAmount(address account) internal view returns (uint256 minCoverAmount) {
-        LossCoverConfig memory config = operatorConfigs[account];
+        LossCoverConfig memory config = providerConfigs[account];
         LPConfig memory lpConfig = poolConfig.getLPConfig();
         uint256 poolCap = lpConfig.liquidityCap;
         uint256 minFromPoolCap = (poolCap * config.poolCapCoverageInBps) / HUNDRED_PERCENT_IN_BPS;
@@ -372,8 +379,8 @@ contract FirstLossCover is
         return minFromPoolCap > minFromPoolValue ? minFromPoolCap : minFromPoolValue;
     }
 
-    function _onlyOperator(address account) internal view {
-        LossCoverConfig memory config = operatorConfigs[account];
+    function _onlyCoverProvider(address account) internal view {
+        LossCoverConfig memory config = providerConfigs[account];
         if (config.poolCapCoverageInBps == 0 && config.poolValueCoverageInBps == 0)
             revert Errors.notOperator();
     }
