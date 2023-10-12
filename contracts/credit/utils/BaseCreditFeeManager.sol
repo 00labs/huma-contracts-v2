@@ -134,9 +134,6 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
             uint256 periodsPassed,
             uint96 profitImpact,
             uint96 principalDifference,
-            // TODO: the name pnlImpact implies that both profit and loss are included, but there there
-            // is the separate `lossImpact`, which seems confusing.
-            // IMO the word "impact" is vague in general. Is there a more specific term for this?
             uint96 lossImpact
         )
     {
@@ -267,59 +264,38 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
             newCreditRecord.nextDueDate = uint64(newNextDueDate);
         }
 
-        if (isLate) {
-            //* Reserved for Richard review, to be deleted
-            // lossImpact is used for the loss difference when the credit becomes late.
-            // lossImpact consists of 2 parts:
-            // (1) the principal due for the next bill - the principal due when the credit first became late;
-            // (2) the interest from the beginning of next due to now.
-
-            // Part (1) of lossImpact. Example:
-            // The payment was due on 10/1. We run this function on 11/3, and the next due date becomes 12/1.
-            // So 1st part of lossImpact = the principal due on 12/1 - the principal due on 10/1.
-            lossImpact =
-                (newCreditRecord.unbilledPrincipal +
-                    newCreditRecord.totalDue -
-                    newCreditRecord.yieldDue -
-                    newCreditRecord.feesDue) -
-                (_cr.unbilledPrincipal + _cr.totalDue - _cr.yieldDue - _cr.feesDue);
-            // console.log(
-            //     "lossImpact: %s, cr.unbilledPrincipal: %s, _cr.unbilledPrincipal",
-            //     lossImpact,
-            //     cr.unbilledPrincipal,
-            //     _cr.unbilledPrincipal
-            // );
-        }
-
         // Capture understated profit from the previous due date to the current moment, i.e. the last
         // partial/whole period.
         uint256 previousDueDate = newCreditRecord.nextDueDate - currentPeriodInSeconds;
-        //console.log("preDueDate: %s, block.timestamp: %s", preDueDate, block.timestamp);
-        // TODO: Update the if condition to be the following assert statement instead, since
-        // it's impossible for it to not be true.
-        // assert(block.timestamp > previousDueDate);
-        if (block.timestamp > previousDueDate) {
-            //* Reserved for Richard review, to be deleted
-            // Add profit difference of the interest of principal difference from the beginning of next due to now
-            profitImpact += uint96(
-                (principalDifference * _cc.yieldInBps * (block.timestamp - previousDueDate)) /
-                    (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
-            );
+        // Since the current block timestamp is either in the middle of the billing cycle or equal to
+        // cr.nextDueDate after the while loop above is executed, it must be greater than the previous due date,
+        // hence the assertion below.
+        assert(block.timestamp > previousDueDate);
+        //* Reserved for Richard review, to be deleted
+        // Add profit difference of the interest of principal difference from the beginning of next due to now
+        profitImpact += uint96(
+            (principalDifference * _cc.yieldInBps * (block.timestamp - previousDueDate)) /
+                (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
+        );
 
-            // console.log(
-            //     "principalDifference: %s, timelapsed: %s, pnlImpact: %s",
-            //     principalDifference,
-            //     block.timestamp - preDueDate,
-            //     (principalDifference * _cc.yieldInBps * (block.timestamp - preDueDate)) /
-            //         (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
-            // );
-            if (isLate) {
-                //* Reserved for Richard review, to be deleted
-                // Part (2) of lossImpact. Example:
-                // The payment was due on 10/1. We run this function on 11/3, and the next due date becomes 12/1.
-                // The previous due date is 11/1.
-                // 2nd part of lossImpact = the interest of the principal of 12/1 from 11/1 to 11/3.
-                lossImpact += uint96(
+        // console.log(
+        //     "principalDifference: %s, timelapsed: %s, pnlImpact: %s",
+        //     principalDifference,
+        //     block.timestamp - preDueDate,
+        //     (principalDifference * _cc.yieldInBps * (block.timestamp - preDueDate)) /
+        //         (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
+        // );
+        if (isLate) {
+            //* Reserved for Richard review, to be deleted
+            // `lossImpact` is the amount of missed profit to markdown due to the late payment.
+            // It consists of 2 parts:
+            // (1) the `principalDifference`, which is the total yield and fields overdue since the first late payment;
+            // (2) the yield from for the last partial billing cycle, i.e. from the beginning of the previous due date
+            //     to the current moment. E.g., if the previous due date is 11/1, and the current date is 11/15, then
+            //     this part is the yield from 11/1 to 11/15.
+            lossImpact =
+                principalDifference +
+                uint96(
                     ((newCreditRecord.unbilledPrincipal +
                         newCreditRecord.totalDue -
                         newCreditRecord.yieldDue -
@@ -329,8 +305,7 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
                         (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
                 );
 
-                //console.log("lossImpact: %s", lossImpact);
-            }
+            //console.log("lossImpact: %s", lossImpact);
         }
 
         //* Reserved for Richard review, to be deleted, the following is old code for reference
