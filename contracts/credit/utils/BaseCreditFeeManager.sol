@@ -264,38 +264,40 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
             newCreditRecord.nextDueDate = uint64(newNextDueDate);
         }
 
-        // Capture understated profit from the previous due date to the current moment, i.e. the last
-        // partial/whole period.
-        uint256 previousDueDate = newCreditRecord.nextDueDate - currentPeriodInSeconds;
-        // Since the current block timestamp is either in the middle of the billing cycle or equal to
-        // cr.nextDueDate after the while loop above is executed, it must be greater than the previous due date,
-        // hence the assertion below.
-        assert(block.timestamp > previousDueDate);
-        //* Reserved for Richard review, to be deleted
-        // Add profit difference of the interest of principal difference from the beginning of next due to now
-        profitImpact += uint96(
-            (principalDifference * _cc.yieldInBps * (block.timestamp - previousDueDate)) /
-                (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
-        );
-
-        // console.log(
-        //     "principalDifference: %s, timelapsed: %s, pnlImpact: %s",
-        //     principalDifference,
-        //     block.timestamp - preDueDate,
-        //     (principalDifference * _cc.yieldInBps * (block.timestamp - preDueDate)) /
-        //         (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
-        // );
         if (isLate) {
-            //* Reserved for Richard review, to be deleted
-            // `lossImpact` is the amount of missed profit to markdown due to the late payment.
-            // It consists of 2 parts:
+            // `lossImpact` is the amount of missed profit to markdown due to the late payment,
+            // which consists of 2 parts:
             // (1) the `principalDifference`, which is the total yield and fields overdue since the first late payment;
             // (2) the yield from for the last partial billing cycle, i.e. from the beginning of the previous due date
             //     to the current moment. E.g., if the previous due date is 11/1, and the current date is 11/15, then
             //     this part is the yield from 11/1 to 11/15.
-            lossImpact =
-                principalDifference +
-                uint96(
+            // Below is part (1).
+            lossImpact = principalDifference;
+        }
+
+        // Capture understated profit from the previous due date to the current moment, i.e. the last
+        // partial/whole period.
+        uint256 previousDueDate = newCreditRecord.nextDueDate - currentPeriodInSeconds;
+        if (block.timestamp > previousDueDate) {
+            //* Reserved for Richard review, to be deleted
+            // Calculate the yield generated from the principal difference for the last partial billing cycle
+            // (from the precious due date until now) and add it to `profitImpact`.
+            profitImpact += uint96(
+                (principalDifference * _cc.yieldInBps * (block.timestamp - previousDueDate)) /
+                    (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
+            );
+
+            // console.log(
+            //     "principalDifference: %s, timelapsed: %s, pnlImpact: %s",
+            //     principalDifference,
+            //     block.timestamp - preDueDate,
+            //     (principalDifference * _cc.yieldInBps * (block.timestamp - preDueDate)) /
+            //         (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
+            // );
+            if (isLate) {
+                //* Reserved for Richard review, to be deleted
+                // The second part of `lossImpact`.
+                lossImpact += uint96(
                     ((newCreditRecord.unbilledPrincipal +
                         newCreditRecord.totalDue -
                         newCreditRecord.yieldDue -
@@ -305,7 +307,8 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
                         (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
                 );
 
-            //console.log("lossImpact: %s", lossImpact);
+                //console.log("lossImpact: %s", lossImpact);
+            }
         }
 
         //* Reserved for Richard review, to be deleted, the following is old code for reference
