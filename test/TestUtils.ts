@@ -134,7 +134,7 @@ export async function getMinFirstLossCoverRequirement(
     poolContract: Pool,
     account: string,
 ): Promise<BN> {
-    const lossCoverConfig = await firstLossCoverContract.getOperatorConfig(account);
+    const lossCoverConfig = await firstLossCoverContract.getCoverProviderConfig(account);
     const lpConfig = await poolConfigContract.getLPConfig();
     const poolCap = lpConfig.liquidityCap;
     const minFromPoolCap = poolCap

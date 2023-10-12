@@ -34,7 +34,7 @@ contract FirstLossCoverStorage {
     // The cumulative amount of loss covered.
     uint256 public coveredLoss;
 
-    mapping(address => LossCoverConfig) internal operatorConfigs;
+    mapping(address => LossCoverConfig) internal providerConfigs;
     LossCoverConfig internal maxCoverConfig;
     LossCoverPayoutConfig internal lossCoverPayoutConfig;
 
