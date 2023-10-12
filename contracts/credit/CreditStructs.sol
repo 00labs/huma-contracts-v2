@@ -3,7 +3,9 @@ pragma solidity ^0.8.0;
 
 import {CalendarUnit} from "../SharedDefs.sol";
 
-// a CreditConfig is created after approval
+// CreditConfig keeps track of the static settings of a credit line,
+// i.e. settings that do not change between pay periods.
+// It is created after the credit approval.
 struct CreditConfig {
     uint96 creditLimit;
     uint96 committedAmount;
@@ -17,19 +19,20 @@ struct CreditConfig {
     uint16 yieldInBps;
     bool revolving; // if repeated borrowing is allowed
     bool receivableBacked; // if the credit is receivable-backed
-    bool borrowerLevelCredit; // borrower-level vs receivable-level
-    bool exclusive; // if the credit pool exclusive to a borrower
+    bool borrowerLevelCredit; // whether the credit line is at the borrower-level vs receivable-level
+    bool exclusive; // if the credit pool is exclusive to a borrower
 }
 
-// a CreditRecord is created after the first drawdown
+// CreditRecord keep track of the dynamic stats of a credit line that change
+// from pay period to pay period, e.g. due info for each bill.
 struct CreditRecord {
-    uint96 unbilledPrincipal;
+    uint96 unbilledPrincipal; // the amount of principal not included in the bill
     uint64 nextDueDate; // the due date of the next payment
     uint96 totalDue; // the due amount of the next payment
-    uint96 yieldDue; // yield and fees due for the next payment
-    uint96 feesDue;
-    uint16 missedPeriods;
-    uint16 remainingPeriods;
+    uint96 yieldDue; // yield due for the next payment
+    uint96 feesDue; // fees due for the next payment
+    uint16 missedPeriods; // the number of consecutive missed payments, for default processing
+    uint16 remainingPeriods; // the number of payment periods until the maturity of the credit line
     CreditState state;
     // bool revolving; // whether repeated borrowing is allowed
 }
@@ -77,13 +80,13 @@ enum PaymentStatus {
 struct ReceivableInfo {
     // The total expected payment amount of the receivable
     uint96 receivableAmount;
-    // The amount of the receivable that has been paid so far
+    // The date at which the receivable is created
     uint64 creationDate;
-    // The date at which the receivable is expected to be fully paid
+    // The amount of the receivable that has been paid so far
     uint96 paidAmount;
     // The ISO 4217 currency code that the receivable is denominated in
     uint16 currencyCode;
-    // The date at which the receivable is created
+    // The date at which the receivable is expected to be fully paid
     uint64 maturityDate;
     ReceivableState state;
 }
