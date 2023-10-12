@@ -40,6 +40,7 @@ contract Errors {
     error notTrancheVaultOrEpochManager(); // 0x31c76c83
     error notCurrentEpoch(); // 0x50c5dd13
     error notTrancheVault(); // 0x3d7640fb
+    error notCoverProvider();
 
     // system config
     error defaultGracePeriodLessThanMinAllowed(); // 0xa733ff9c

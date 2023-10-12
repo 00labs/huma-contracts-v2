@@ -276,6 +276,9 @@ describe("CreditLine Test", function () {
                 poolCapCoverageInBps: 1,
                 poolValueCoverageInBps: 100,
             });
+        await mockTokenContract
+            .connect(borrower)
+            .approve(borrowerFirstLossCoverContract.address, ethers.constants.MaxUint256);
         await borrowerFirstLossCoverContract
             .connect(borrower)
             .depositCover(
@@ -293,6 +296,9 @@ describe("CreditLine Test", function () {
                 poolCapCoverageInBps: 1,
                 poolValueCoverageInBps: 100,
             });
+        await mockTokenContract
+            .connect(borrower2)
+            .approve(borrowerFirstLossCoverContract.address, ethers.constants.MaxUint256);
         await borrowerFirstLossCoverContract
             .connect(borrower2)
             .depositCover(

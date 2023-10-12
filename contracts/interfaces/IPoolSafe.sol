@@ -41,4 +41,8 @@ interface IPoolSafe {
     // todo confirm the difference between totalAssets and getPoolAssets. We probably
     // only need one.
     function totalAssets() external view returns (uint256 assets);
+
+    function totalLiquidity() external view returns (uint256 liquidity);
+
+    function getAvailableLiquidityForFees() external view returns (uint256 liquidity);
 }
