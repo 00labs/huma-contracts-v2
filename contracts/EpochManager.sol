@@ -244,7 +244,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         returns (RedemptionResult memory seniorResult, RedemptionResult memory juniorResult)
     {
         // get available underlying token amount
-        uint256 availableAmount = poolSafe.totalAssets();
+        uint256 availableAmount = poolSafe.getPoolLiquidity();
         if (availableAmount <= 0) return (seniorResult, juniorResult);
 
         PoolSettings memory settings = poolConfig.getPoolSettings();

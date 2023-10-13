@@ -1183,7 +1183,7 @@ describe("TrancheVault Test", function () {
 
                 // Move all assets out of pool safe
 
-                let availableAssets = await poolSafeContract.totalAssets();
+                let availableAssets = await poolSafeContract.getPoolLiquidity();
                 await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
 
                 // Finish 1st epoch
@@ -1259,7 +1259,7 @@ describe("TrancheVault Test", function () {
                 // Move assets out of pool safe for partial processing
 
                 let availableAmount = toToken(1000);
-                let availableAssets = await poolSafeContract.totalAssets();
+                let availableAssets = await poolSafeContract.getPoolLiquidity();
                 await creditContract.drawdown(
                     ethers.constants.HashZero,
                     availableAssets.sub(availableAmount),
@@ -1563,7 +1563,7 @@ describe("TrancheVault Test", function () {
                 // Move all assets out of pool safe
 
                 let availableAmount = toToken(0);
-                let availableAssets = await poolSafeContract.totalAssets();
+                let availableAssets = await poolSafeContract.getPoolLiquidity();
                 await creditContract.drawdown(
                     ethers.constants.HashZero,
                     availableAssets.sub(availableAmount),
@@ -1666,7 +1666,7 @@ describe("TrancheVault Test", function () {
                 // Move assets out of pool safe for partial processing
 
                 let availableAmount = toToken(1000);
-                let availableAssets = await poolSafeContract.totalAssets();
+                let availableAssets = await poolSafeContract.getPoolLiquidity();
                 await creditContract.drawdown(
                     ethers.constants.HashZero,
                     availableAssets.sub(availableAmount),
@@ -1706,7 +1706,7 @@ describe("TrancheVault Test", function () {
                 // Move assets out of pool safe for partial processing
 
                 let availableAmount = toToken(1000);
-                let availableAssets = await poolSafeContract.totalAssets();
+                let availableAssets = await poolSafeContract.getPoolLiquidity();
                 await creditContract.drawdown(
                     ethers.constants.HashZero,
                     availableAssets.sub(availableAmount),
