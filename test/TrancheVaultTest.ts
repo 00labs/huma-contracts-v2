@@ -409,7 +409,16 @@ describe("TrancheVault Test", function () {
                         async (contract) => await contract.totalAssets(),
                     ),
                 );
-                const riskYieldMultipliers = await poolConfigContract.getRiskYieldMultipliers();
+                const riskYieldMultipliers = await Promise.all(
+                    [
+                        borrowerFirstLossCoverContract.address,
+                        affiliateFirstLossCoverContract.address,
+                    ].map(
+                        async (address) =>
+                            (await poolConfigContract.getFirstLossCoverConfig(address))
+                                .riskYieldMultipliers,
+                    ),
+                );
                 const [[seniorAssets, juniorAssets]] = PnLCalculator.calcRiskAdjustedProfitAndLoss(
                     profitAfterFees,
                     loss,

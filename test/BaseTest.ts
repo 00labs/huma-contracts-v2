@@ -198,13 +198,25 @@ export async function deployPoolContracts(
     await poolConfigContract.setFirstLossCover(
         BORROWER_FIRST_LOSS_COVER_INDEX,
         borrowerFirstLossCoverContract.address,
-        0,
+        {
+            coverRateInBps: 0,
+            coverCap: 0,
+            liquidityCap: 0,
+            maxPercentOfPoolValueInBps: 0,
+            riskYieldMultipliers: 0,
+        },
         ethers.constants.AddressZero,
     );
     await poolConfigContract.setFirstLossCover(
         AFFILIATE_FIRST_LOSS_COVER_INDEX,
         affiliateFirstLossCoverContract.address,
-        20000,
+        {
+            coverRateInBps: 0,
+            coverCap: 0,
+            liquidityCap: 0,
+            maxPercentOfPoolValueInBps: 0,
+            riskYieldMultipliers: 20000,
+        },
         affiliateFirstLossCoverProfitEscrowContract.address,
     );
 
@@ -333,6 +345,12 @@ export async function setupPoolContracts(
         .connect(evaluationAgent)
         .makeInitialDeposit(evaluationAgentLiquidity);
 
+    await mockTokenContract
+        .connect(poolOwnerTreasury)
+        .approve(affiliateFirstLossCoverContract.address, ethers.constants.MaxUint256);
+    await mockTokenContract
+        .connect(evaluationAgent)
+        .approve(affiliateFirstLossCoverContract.address, ethers.constants.MaxUint256);
     const firstLossCoverageInBps = 100;
     await affiliateFirstLossCoverContract
         .connect(poolOwner)

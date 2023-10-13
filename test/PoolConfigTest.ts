@@ -865,7 +865,10 @@ describe("PoolConfig Tests", function () {
                 );
                 await mockTokenContract
                     .connect(evaluationAgent2)
-                    .approve(poolSafeContract.address, firstLossCoverAmount.add(minLiquidity));
+                    .approve(
+                        affiliateFirstLossCoverContract.address,
+                        firstLossCoverAmount.add(minLiquidity),
+                    );
                 await affiliateFirstLossCoverContract
                     .connect(evaluationAgent2)
                     .depositCover(firstLossCoverAmount);
@@ -920,7 +923,7 @@ describe("PoolConfig Tests", function () {
                 await mockTokenContract.mint(evaluationAgent2.address, firstLossCoverAmount);
                 await mockTokenContract
                     .connect(evaluationAgent2)
-                    .approve(poolSafeContract.address, firstLossCoverAmount);
+                    .approve(affiliateFirstLossCoverContract.address, firstLossCoverAmount);
                 await affiliateFirstLossCoverContract
                     .connect(evaluationAgent2)
                     .depositCover(firstLossCoverAmount);
@@ -946,7 +949,7 @@ describe("PoolConfig Tests", function () {
                 await mockTokenContract.mint(evaluationAgent2.address, firstLossCoverAmount);
                 await mockTokenContract
                     .connect(evaluationAgent2)
-                    .approve(poolSafeContract.address, firstLossCoverAmount);
+                    .approve(affiliateFirstLossCoverContract.address, firstLossCoverAmount);
                 await affiliateFirstLossCoverContract
                     .connect(evaluationAgent2)
                     .depositCover(firstLossCoverAmount);

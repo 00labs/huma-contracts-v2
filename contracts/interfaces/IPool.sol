@@ -41,4 +41,11 @@ interface IPool {
     function isPoolOn() external view returns (bool status);
 
     function readyForFirstLossCoverWithdrawal() external view returns (bool ready);
+
+    function getReservedAssetsForFirstLossCovers() external view returns (uint256 reservedAssets);
+
+    function getFirstLossCoverAvailableCap(
+        address coverAddress,
+        uint256 poolAssets
+    ) external view returns (uint256 availableCap);
 }

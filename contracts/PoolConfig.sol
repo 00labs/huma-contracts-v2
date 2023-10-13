@@ -99,6 +99,21 @@ struct FeeStructure {
     uint96 membershipFee;
 }
 
+struct FirstLossCoverConfig {
+    // The percentage of a default to be paid by the first loss cover
+    uint16 coverRateInBps;
+    // The max amount that first loss cover can spend on one default
+    uint96 coverCap;
+    // The max liquidity allowed for the first loss cover
+    uint96 liquidityCap;
+    // The max percent of pool assets that first loss cover can reach
+    uint16 maxPercentOfPoolValueInBps;
+    // riskYieldMultipliers is used to adjust the yield of the first loss covers relative to each other.
+    // The higher the multiplier, the higher the yield the first loss cover will get during profit distribution
+    // compared to other first loss covers.
+    uint16 riskYieldMultipliers;
+}
+
 interface ITrancheVaultLike {
     function totalAssetsOf(address account) external view returns (uint256 assets);
 }
@@ -134,13 +149,9 @@ contract PoolConfig is AccessControl, Initializable {
 
     // The maximum number of first loss covers we allow is 16, which should be sufficient for now.
     address[16] internal _firstLossCovers;
-    // _riskYieldMultipliers is used to adjust the yield of the first loss covers relative to each other.
-    // The higher the multiplier, the higher the yield the first loss cover will get during profit distribution
-    // compared to other first loss covers. Each element in this array is the multiplier of the first loss cover
-    // at the corresponding index in _firstLossCovers. Note that The entire array occupies just one slot.
-    uint16[16] internal _riskYieldMultipliers;
     // first loss cover address => profit escrow address
     mapping(address => address) internal _profitEscrowByFirstLossCover;
+    mapping(address => FirstLossCoverConfig) internal _firstLossCoverConfigs;
 
     PoolSettings internal _poolSettings;
     LPConfig internal _lpConfig;
@@ -563,16 +574,17 @@ contract PoolConfig is AccessControl, Initializable {
         emit CreditChanged(_credit, msg.sender);
     }
 
+    //* todo passing the parameter inside the struct instead of the struct itself.
     function setFirstLossCover(
         uint8 index,
         address firstLossCover,
-        uint16 riskYieldMultiplier,
+        FirstLossCoverConfig memory config,
         address profitEscrow
     ) external {
         _onlyOwnerOrHumaMasterAdmin();
         _firstLossCovers[index] = firstLossCover;
-        _riskYieldMultipliers[index] = riskYieldMultiplier;
         _profitEscrowByFirstLossCover[firstLossCover] = profitEscrow;
+        _firstLossCoverConfigs[firstLossCover] = config;
         // todo emit event
     }
 
@@ -787,8 +799,10 @@ contract PoolConfig is AccessControl, Initializable {
         return _firstLossCovers[index];
     }
 
-    function getRiskYieldMultipliers() external view returns (uint16[16] memory) {
-        return _riskYieldMultipliers;
+    function getFirstLossCoverConfig(
+        address firstLossCover
+    ) external view returns (FirstLossCoverConfig memory) {
+        return _firstLossCoverConfigs[firstLossCover];
     }
 
     function getFirstLossCoverProfitEscrow(
@@ -910,6 +924,15 @@ contract PoolConfig is AccessControl, Initializable {
     function onlyTrancheVaultOrEpochManager(address account) external view {
         if (account != juniorTranche && account != seniorTranche && account != epochManager)
             revert Errors.notTrancheVaultOrEpochManager();
+    }
+
+    function onlyTrancheVaultOrEpochManagerOrPoolFeeManager(address account) external view {
+        if (
+            account != juniorTranche &&
+            account != seniorTranche &&
+            account != epochManager &&
+            account != poolFeeManager
+        ) revert Errors.notTrancheVaultOrEpochManager();
     }
 
     function onlyProtocolAndPoolOn() external view {

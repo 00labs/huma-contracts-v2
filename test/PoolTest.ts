@@ -176,7 +176,7 @@ describe("Pool Test", function () {
         async function addFirstLossCover(poolOwnerAmount: BN, eaAmount: BN) {
             await mockTokenContract
                 .connect(poolOwnerTreasury)
-                .approve(poolSafeContract.address, ethers.constants.MaxUint256);
+                .approve(affiliateFirstLossCoverContract.address, ethers.constants.MaxUint256);
             await mockTokenContract.mint(poolOwnerTreasury.address, toToken(10_000_000));
             await affiliateFirstLossCoverContract
                 .connect(poolOwnerTreasury)
@@ -184,7 +184,7 @@ describe("Pool Test", function () {
 
             await mockTokenContract
                 .connect(evaluationAgent)
-                .approve(poolSafeContract.address, ethers.constants.MaxUint256);
+                .approve(affiliateFirstLossCoverContract.address, ethers.constants.MaxUint256);
             await mockTokenContract.mint(evaluationAgent.address, toToken(10_000_000));
             await affiliateFirstLossCoverContract.connect(evaluationAgent).depositCover(eaAmount);
         }
@@ -379,8 +379,16 @@ describe("Pool Test", function () {
                             async (contract) => await contract.totalAssets(),
                         ),
                     );
-                    const riskYieldMultipliers =
-                        await poolConfigContract.getRiskYieldMultipliers();
+                    const riskYieldMultipliers = await Promise.all(
+                        [
+                            borrowerFirstLossCoverContract.address,
+                            affiliateFirstLossCoverContract.address,
+                        ].map(
+                            async (address) =>
+                                (await poolConfigContract.getFirstLossCoverConfig(address))
+                                    .riskYieldMultipliers,
+                        ),
+                    );
                     const [juniorProfitAfterFirstLossCoverProfitDistribution] =
                         PnLCalculator.calcProfitForFirstLossCovers(
                             assetsWithProfits[CONSTANTS.JUNIOR_TRANCHE].sub(
@@ -535,8 +543,16 @@ describe("Pool Test", function () {
                             async (contract) => await contract.totalAssets(),
                         ),
                     );
-                    const riskYieldMultipliers =
-                        await poolConfigContract.getRiskYieldMultipliers();
+                    const riskYieldMultipliers = await Promise.all(
+                        [
+                            borrowerFirstLossCoverContract.address,
+                            affiliateFirstLossCoverContract.address,
+                        ].map(
+                            async (address) =>
+                                (await poolConfigContract.getFirstLossCoverConfig(address))
+                                    .riskYieldMultipliers,
+                        ),
+                    );
                     const [juniorProfitAfterFirstLossCoverProfitDistribution] =
                         PnLCalculator.calcProfitForFirstLossCovers(
                             assetsWithProfits[CONSTANTS.JUNIOR_TRANCHE].sub(

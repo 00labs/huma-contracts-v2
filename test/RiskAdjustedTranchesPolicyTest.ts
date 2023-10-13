@@ -28,7 +28,6 @@ import {
     TrancheVault,
     ProfitEscrow,
 } from "../typechain-types";
-import { ProfitDistributedEvent } from "../typechain-types/contracts/FirstLossCover.sol/FirstLossCover";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
