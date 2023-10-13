@@ -163,9 +163,9 @@ describe("Receivable Test", function () {
                 "Test URI",
             );
 
-            expect(await receivableContract.balanceOf(borrower.address)).to.equal(2);
+            expect(await receivableContract.balanceOf(borrower.address)).to.equal(3);
 
-            const tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
+            const tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 1);
 
             const tokenDetails = await receivableContract.receivableInfoMap(tokenId);
             expect(tokenDetails.currencyCode).to.equal(0);
@@ -176,7 +176,7 @@ describe("Receivable Test", function () {
             const tokenURI = await receivableContract.tokenURI(tokenId);
             expect(tokenURI).to.equal("Test URI");
 
-            const tokenId2 = await receivableContract.tokenOfOwnerByIndex(borrower.address, 1);
+            const tokenId2 = await receivableContract.tokenOfOwnerByIndex(borrower.address, 2);
 
             const tokenDetails2 = await receivableContract.receivableInfoMap(tokenId2);
             expect(tokenDetails2.currencyCode).to.equal(5);
