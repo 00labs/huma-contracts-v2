@@ -5,7 +5,7 @@ import {Errors} from "./Errors.sol";
 import {FirstLossCoverStorage} from "./FirstLossCoverStorage.sol";
 import {PoolConfig, LPConfig, FirstLossCoverConfig} from "./PoolConfig.sol";
 import {PoolConfigCache} from "./PoolConfigCache.sol";
-import {HUNDRED_PERCENT_IN_BPS} from "./SharedDefs.sol";
+import {HUNDRED_PERCENT_IN_BPS, JUNIOR_TRANCHE, SENIOR_TRANCHE} from "./SharedDefs.sol";
 import {IFirstLossCover} from "./interfaces/IFirstLossCover.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
@@ -13,7 +13,6 @@ import {IProfitEscrow} from "./interfaces/IProfitEscrow.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20MetadataUpgradeable, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-import "./SharedDefs.sol";
 
 import "hardhat/console.sol";
 
@@ -91,31 +90,32 @@ contract FirstLossCover is
         emit CoverProviderSet(account, config.poolCapCoverageInBps, config.poolValueCoverageInBps);
     }
 
+    /// @inheritdoc IFirstLossCover
     function depositCover(uint256 assets) external returns (uint256 shares) {
         if (assets == 0) revert Errors.zeroAmountProvided();
         _onlyCoverProvider(msg.sender);
 
+        // Note: we have to mint the shares first by calling _deposit() before transferring the assets.
+        // Transferring assets first would increase the total cover assets without increasing the supply, resulting in
+        // the depositor receiving fewer shares than they should.
         shares = _deposit(assets, msg.sender);
         underlyingToken.safeTransferFrom(msg.sender, address(this), assets);
     }
 
-    /**
-     * @notice Adds the cover by pool contracts, PoolFeeManager will call it to deposit fees of
-     * protocol owner, pool owner and/or EA.
-     */
+    /// @inheritdoc IFirstLossCover
     function depositCoverFor(uint256 assets, address receiver) external returns (uint256 shares) {
         if (assets == 0) revert Errors.zeroAmountProvided();
         if (receiver == address(0)) revert Errors.zeroAddressProvided();
         poolConfig.onlyPoolFeeManager(msg.sender);
 
+        // Note: we have to mint the shares first by calling _deposit() before transferring the assets.
+        // Transferring assets first would increase the total cover assets without increasing the supply, resulting in
+        // the depositor receiving fewer shares than they should.
         shares = _deposit(assets, receiver);
         underlyingToken.safeTransferFrom(msg.sender, address(this), assets);
     }
 
-    /**
-     * @notice Adds to the cover using its profit.
-     * @dev Only pool can call this function
-     */
+    /// @inheritdoc IFirstLossCover
     function addCoverAssets(uint256 assets) external {
         poolConfig.onlyPool(msg.sender);
         poolSafe.withdraw(address(this), assets);
@@ -123,12 +123,7 @@ contract FirstLossCover is
         emit AssetsAdded(assets);
     }
 
-    /**
-     * @notice Cover provider redeems from the pool
-     * @param shares the number of shares to be redeemed
-     * @param receiver the address to receive the redemption assets
-     * @dev Anyone can call this function, but they will have to burn their own shares
-     */
+    /// @inheritdoc IFirstLossCover
     function redeemCover(uint256 shares, address receiver) external returns (uint256 assets) {
         if (shares == 0) revert Errors.zeroAmountProvided();
         if (receiver == address(0)) revert Errors.zeroAddressProvided();
@@ -142,13 +137,13 @@ contract FirstLossCover is
 
         //: todo pool.readyForFirstLossCoverWithdrawal() is a tricky design.
         bool ready = pool.readyForFirstLossCoverWithdrawal();
-        // if ready, we can withdraw all assets, if not ready, we can only withdraw excess assets over cap
+        // If ready, all assets can be withdrawn. Otherwise, only the excessive assets over the cap can be withdrawn.
         if (currTotalAssets <= cap && !ready)
             revert Errors.poolIsNotReadyForFirstLossCoverWithdrawal();
 
         if (shares > balanceOf(msg.sender)) revert Errors.insufficientSharesForRequest();
         assets = convertToAssets(shares);
-        // Revert if the pool is not ready and the assets to be withdrawn is more than the available value
+        // Revert if the pool is not ready and the assets to be withdrawn is more than the available value.
         if (!ready && assets > currTotalAssets - cap) revert Errors.todo();
 
         ERC20Upgradeable._burn(msg.sender, shares);
@@ -157,11 +152,7 @@ contract FirstLossCover is
         emit CoverRedeemed(msg.sender, receiver, shares, assets);
     }
 
-    /**
-     * @notice Applies loss against the first loss cover
-     * @param loss the loss amount to be covered by the loss cover or reported as default
-     * @return remainingLoss the remaining loss after applying this cover
-     */
+    /// @inheritdoc IFirstLossCover
     function coverLoss(uint256 loss) external returns (uint256 remainingLoss) {
         poolConfig.onlyPool(msg.sender);
 
@@ -179,12 +170,7 @@ contract FirstLossCover is
         }
     }
 
-    /**
-     * @notice Applies recovered amount to this first loss cover
-     * @param recovery the recovery amount available for distribution to this cover
-     * and other covers that are more junior than this one.
-     * @dev Only pool contract tied with the cover can call this function.
-     */
+    /// @inheritdoc IFirstLossCover
     function recoverLoss(uint256 recovery) external {
         poolConfig.onlyPool(msg.sender);
 

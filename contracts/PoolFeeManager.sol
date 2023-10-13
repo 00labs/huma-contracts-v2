@@ -142,9 +142,7 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         return _accruedIncomes;
     }
 
-    /**
-     * @notice Gets total available incomes, PoolSafe uses this function to reserve the balance of fees
-     */
+    /// @inheritdoc IPoolFeeManager
     function getTotalAvailableFees() public view returns (uint256) {
         AccruedIncomes memory incomes = _getAvailableIncomes();
         return incomes.protocolIncome + incomes.poolOwnerIncome + incomes.eaIncome;
@@ -185,13 +183,13 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
     /**
      * @notice PoolOwner can call this function to know if there are some available fees to be able to invested in FirstLossCover.
      */
-    function getAvailableFeesToInvestInFirestLossCover() external view returns (uint256 fees) {
+    function getAvailableFeesToInvestInFirstLossCover() external view returns (uint256 fees) {
         (fees, ) = _getAvailableFeesToInvestInFirstLossCover(pool.totalAssets());
     }
 
     /**
      * @notice PoolOwner calls this function to invest available fees in FirstLossCover
-     * while getAvailableFeesToInvestInFirestLossCover returns a positive value.
+     * while getAvailableFeesToInvestInFirstLossCover returns a positive value.
      */
     function investFeesInFirstLossCover() external {
         poolConfig.onlyPoolOwner(msg.sender);
