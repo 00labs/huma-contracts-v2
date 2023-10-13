@@ -53,6 +53,17 @@ export type TranchesPolicyContractName =
     | "RiskAdjustedTranchesPolicy";
 export type CreditContractName = "CreditLine" | "MockPoolCredit";
 
+export enum ReceivableState {
+    Deleted,
+    Minted,
+    Approved,
+    PartiallyPaid,
+    Paid,
+    Rejected,
+    Delayed,
+    Defaulted,
+}
+
 const CALENDAR_UNIT_DAY = 0;
 const CALENDAR_UNIT_MONTH = 1;
 const SENIOR_TRANCHE = 0;
