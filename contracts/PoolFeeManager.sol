@@ -105,37 +105,37 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
     }
 
     function withdrawPoolOwnerFee(uint256 amount) external {
-        address poolOwnerTreasure = poolConfig.onlyPoolOwnerTreasury(msg.sender);
+        address poolOwnerTreasury = poolConfig.onlyPoolOwnerTreasury(msg.sender);
         // Invests available fees in FirstLossCover first
         AccruedIncomes memory incomes = _investFeesInFirstLossCover();
         // Checks if the required cover is sufficient
-        if (!firstLossCover.isSufficient(poolOwnerTreasure)) revert Errors.lessThanRequiredCover();
+        if (!firstLossCover.isSufficient(poolOwnerTreasury)) revert Errors.lessThanRequiredCover();
 
         uint256 incomeWithdrawn = poolOwnerIncomeWithdrawn;
         if (incomeWithdrawn + amount > incomes.poolOwnerIncome)
             revert Errors.withdrawnAmountHigherThanBalance();
 
         poolOwnerIncomeWithdrawn = incomeWithdrawn + amount;
-        poolSafe.withdraw(poolOwnerTreasure, amount);
-        emit PoolRewardsWithdrawn(poolOwnerTreasure, amount, msg.sender);
+        poolSafe.withdraw(poolOwnerTreasury, amount);
+        emit PoolRewardsWithdrawn(poolOwnerTreasury, amount, msg.sender);
     }
 
     function withdrawEAFee(uint256 amount) external {
         // Either Pool owner or EA can trigger reward withdraw for EA.
         // When it is triggered by pool owner, the fund still flows to the EA's account.
-        address eaAgent = poolConfig.onlyPoolOwnerOrEA(msg.sender);
+        address ea = poolConfig.onlyPoolOwnerOrEA(msg.sender);
         // Invests available fees in FirstLossCover first
         AccruedIncomes memory incomes = _investFeesInFirstLossCover();
         // Checks if the required cover is sufficient
-        if (!firstLossCover.isSufficient(eaAgent)) revert Errors.lessThanRequiredCover();
+        if (!firstLossCover.isSufficient(ea)) revert Errors.lessThanRequiredCover();
 
         uint256 incomeWithdrawn = eaIncomeWithdrawn;
         if (incomeWithdrawn + amount > incomes.eaIncome)
             revert Errors.withdrawnAmountHigherThanBalance();
 
         eaIncomeWithdrawn = incomeWithdrawn + amount;
-        poolSafe.withdraw(eaAgent, amount);
-        emit EvaluationAgentRewardsWithdrawn(eaAgent, amount, msg.sender);
+        poolSafe.withdraw(ea, amount);
+        emit EvaluationAgentRewardsWithdrawn(ea, amount, msg.sender);
     }
 
     function getAccruedIncomes() external view returns (AccruedIncomes memory) {
@@ -183,10 +183,10 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
     }
 
     /**
-     * @notice PoolOwner can call this function to know if there are some available fees to be abel to invested in FirstLossCover.
+     * @notice PoolOwner can call this function to know if there are some available fees to be able to invested in FirstLossCover.
      */
     function getAvailableFeesToInvestInFirestLossCover() external view returns (uint256 fees) {
-        (fees, ) = _getAvailableFeesToInvestInFirestLossCover(pool.totalAssets());
+        (fees, ) = _getAvailableFeesToInvestInFirstLossCover(pool.totalAssets());
     }
 
     /**
@@ -203,7 +203,7 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         (
             uint256 feesLiquidity,
             AccruedIncomes memory availableIncomes
-        ) = _getAvailableFeesToInvestInFirestLossCover(
+        ) = _getAvailableFeesToInvestInFirstLossCover(
                 assets[SENIOR_TRANCHE] + assets[JUNIOR_TRANCHE]
             );
         if (feesLiquidity == 0) return _accruedIncomes;
@@ -215,50 +215,33 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
             availableIncomes.poolOwnerIncome +
             availableIncomes.eaIncome;
         incomes = _accruedIncomes;
-        if (feesLiquidity == totalAvailableFees) {
-            //* todo protocol owner needs to do this?
-            firstLossCover.depositCoverFor(
-                availableIncomes.protocolIncome,
-                humaConfig.humaTreasury()
-            );
-            firstLossCover.depositCoverFor(
-                availableIncomes.poolOwnerIncome,
-                poolConfig.poolOwnerTreasury()
-            );
-            firstLossCover.depositCoverFor(
-                availableIncomes.eaIncome,
-                poolConfig.evaluationAgent()
-            );
-            incomes.protocolIncome -= availableIncomes.protocolIncome;
-            incomes.poolOwnerIncome -= availableIncomes.poolOwnerIncome;
-            incomes.eaIncome -= availableIncomes.eaIncome;
-        } else {
-            uint256 poolOwnerFees = (availableIncomes.poolOwnerIncome * feesLiquidity) /
-                totalAvailableFees;
-            firstLossCover.depositCoverFor(poolOwnerFees, poolConfig.poolOwnerTreasury());
-            uint256 eaFees = (availableIncomes.eaIncome * feesLiquidity) / totalAvailableFees;
-            firstLossCover.depositCoverFor(eaFees, poolConfig.evaluationAgent());
-            uint256 protocolFees = feesLiquidity - poolOwnerFees - eaFees;
-            //* todo protocol owner needs to do this?
-            firstLossCover.depositCoverFor(protocolFees, humaConfig.humaTreasury());
-            incomes.protocolIncome -= uint96(protocolFees);
-            incomes.poolOwnerIncome -= uint96(poolOwnerFees);
-            incomes.eaIncome -= uint96(eaFees);
-        }
+
+        uint256 poolOwnerFees = (availableIncomes.poolOwnerIncome * feesLiquidity) /
+            totalAvailableFees;
+        firstLossCover.depositCoverFor(poolOwnerFees, poolConfig.poolOwnerTreasury());
+        uint256 eaFees = (availableIncomes.eaIncome * feesLiquidity) / totalAvailableFees;
+        firstLossCover.depositCoverFor(eaFees, poolConfig.evaluationAgent());
+        uint256 protocolFees = feesLiquidity - poolOwnerFees - eaFees;
+        //* todo protocol owner needs to do this?
+        firstLossCover.depositCoverFor(protocolFees, humaConfig.humaTreasury());
+        incomes.protocolIncome -= uint96(protocolFees);
+        incomes.poolOwnerIncome -= uint96(poolOwnerFees);
+        incomes.eaIncome -= uint96(eaFees);
+
         _accruedIncomes = incomes;
     }
 
     /**
      * @notice Gets the available liquidity of fees to be invested in FirstLossCover.
-     * @return availablefees The available fees which meet
+     * @return availableFees The available fees which meet
      *   1. the available liquidity of PoolSafe
      *   2. the available cap of FirstLossCover
      *   3. the available value of _accruedIncomes
      * @return availableIncomes The available incomes of the Huma protocol, pool owner and EA.
      */
-    function _getAvailableFeesToInvestInFirestLossCover(
+    function _getAvailableFeesToInvestInFirstLossCover(
         uint256 poolAssets
-    ) internal view returns (uint256 availablefees, AccruedIncomes memory availableIncomes) {
+    ) internal view returns (uint256 availableFees, AccruedIncomes memory availableIncomes) {
         availableIncomes = _getAvailableIncomes();
         uint256 availableTotalFees = availableIncomes.protocolIncome +
             availableIncomes.poolOwnerIncome +
@@ -267,9 +250,9 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
             address(firstLossCover),
             poolAssets
         );
-        availablefees = availableTotalFees > availableCap ? availableCap : availableTotalFees;
+        availableFees = availableTotalFees > availableCap ? availableCap : availableTotalFees;
         uint256 availableLiquidity = poolSafe.getAvailableLiquidityForFees();
-        availablefees = availablefees > availableLiquidity ? availableLiquidity : availablefees;
+        availableFees = availableFees > availableLiquidity ? availableLiquidity : availableFees;
     }
 
     /**
