@@ -926,6 +926,15 @@ contract PoolConfig is AccessControl, Initializable {
             revert Errors.notTrancheVaultOrEpochManager();
     }
 
+    function onlyTrancheVaultOrEpochManagerOrPoolFeeManager(address account) external view {
+        if (
+            account != juniorTranche &&
+            account != seniorTranche &&
+            account != epochManager &&
+            account != poolFeeManager
+        ) revert Errors.notTrancheVaultOrEpochManager();
+    }
+
     function onlyProtocolAndPoolOn() external view {
         if (humaConfig.paused()) revert Errors.protocolIsPaused();
         if (!IPool(pool).isPoolOn()) revert Errors.poolIsNotOn();

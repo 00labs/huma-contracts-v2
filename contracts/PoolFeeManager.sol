@@ -186,7 +186,7 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
      * @notice PoolOwner can call this function to know if there are some available fees to be abel to invested in FirstLossCover.
      */
     function getAvailableFeesToInvestInFirestLossCover() external view returns (uint256 fees) {
-        (fees, ) = _getAvailableFeesToInvestInFirestLossCover();
+        (fees, ) = _getAvailableFeesToInvestInFirestLossCover(pool.totalAssets());
     }
 
     /**
@@ -199,14 +199,17 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
     }
 
     function _investFeesInFirstLossCover() internal returns (AccruedIncomes memory incomes) {
+        uint96[2] memory assets = pool.refreshPool();
         (
             uint256 feesLiquidity,
             AccruedIncomes memory availableIncomes
-        ) = _getAvailableFeesToInvestInFirestLossCover();
+        ) = _getAvailableFeesToInvestInFirestLossCover(
+                assets[SENIOR_TRANCHE] + assets[JUNIOR_TRANCHE]
+            );
         if (feesLiquidity == 0) return _accruedIncomes;
 
         // Transfers tokens from PoolSafe to this contract, firstLossCover will transfer token from this contract
-        // to itself while calling depositCoverByContract.
+        // to itself while calling depositCoverFor.
         poolSafe.withdraw(address(this), feesLiquidity);
         uint256 totalAvailableFees = availableIncomes.protocolIncome +
             availableIncomes.poolOwnerIncome +
@@ -214,15 +217,15 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         incomes = _accruedIncomes;
         if (feesLiquidity == totalAvailableFees) {
             //* todo protocol owner needs to do this?
-            firstLossCover.depositCoverByContract(
+            firstLossCover.depositCoverFor(
                 availableIncomes.protocolIncome,
                 humaConfig.humaTreasury()
             );
-            firstLossCover.depositCoverByContract(
+            firstLossCover.depositCoverFor(
                 availableIncomes.poolOwnerIncome,
                 poolConfig.poolOwnerTreasury()
             );
-            firstLossCover.depositCoverByContract(
+            firstLossCover.depositCoverFor(
                 availableIncomes.eaIncome,
                 poolConfig.evaluationAgent()
             );
@@ -232,12 +235,12 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         } else {
             uint256 poolOwnerFees = (availableIncomes.poolOwnerIncome * feesLiquidity) /
                 totalAvailableFees;
-            firstLossCover.depositCoverByContract(poolOwnerFees, poolConfig.poolOwnerTreasury());
+            firstLossCover.depositCoverFor(poolOwnerFees, poolConfig.poolOwnerTreasury());
             uint256 eaFees = (availableIncomes.eaIncome * feesLiquidity) / totalAvailableFees;
-            firstLossCover.depositCoverByContract(eaFees, poolConfig.evaluationAgent());
+            firstLossCover.depositCoverFor(eaFees, poolConfig.evaluationAgent());
             uint256 protocolFees = feesLiquidity - poolOwnerFees - eaFees;
             //* todo protocol owner needs to do this?
-            firstLossCover.depositCoverByContract(protocolFees, humaConfig.humaTreasury());
+            firstLossCover.depositCoverFor(protocolFees, humaConfig.humaTreasury());
             incomes.protocolIncome -= uint96(protocolFees);
             incomes.poolOwnerIncome -= uint96(poolOwnerFees);
             incomes.eaIncome -= uint96(eaFees);
@@ -253,16 +256,17 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
      *   3. the available value of _accruedIncomes
      * @return availableIncomes The available incomes of the Huma protocol, pool owner and EA.
      */
-    function _getAvailableFeesToInvestInFirestLossCover()
-        internal
-        view
-        returns (uint256 availablefees, AccruedIncomes memory availableIncomes)
-    {
+    function _getAvailableFeesToInvestInFirestLossCover(
+        uint256 poolAssets
+    ) internal view returns (uint256 availablefees, AccruedIncomes memory availableIncomes) {
         availableIncomes = _getAvailableIncomes();
         uint256 availableTotalFees = availableIncomes.protocolIncome +
             availableIncomes.poolOwnerIncome +
             availableIncomes.eaIncome;
-        uint256 availableCap = pool.getFirstLossCoverAvailableCap(address(firstLossCover));
+        uint256 availableCap = pool.getFirstLossCoverAvailableCap(
+            address(firstLossCover),
+            poolAssets
+        );
         availablefees = availableTotalFees > availableCap ? availableCap : availableTotalFees;
         uint256 availableLiquidity = poolSafe.getAvailableLiquidityForFees();
         availablefees = availablefees > availableLiquidity ? availableLiquidity : availablefees;

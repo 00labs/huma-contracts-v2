@@ -45,6 +45,7 @@ interface IPool {
     function getReservedAssetsForFirstLossCovers() external view returns (uint256 reservedAssets);
 
     function getFirstLossCoverAvailableCap(
-        address coverAddress
+        address coverAddress,
+        uint256 poolAssets
     ) external view returns (uint256 availableCap);
 }

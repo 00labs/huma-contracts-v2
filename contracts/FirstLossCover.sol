@@ -13,6 +13,7 @@ import {IProfitEscrow} from "./interfaces/IProfitEscrow.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20MetadataUpgradeable, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import "./SharedDefs.sol";
 
 import "hardhat/console.sol";
 
@@ -102,10 +103,7 @@ contract FirstLossCover is
      * @notice Adds the cover by pool contracts, PoolFeeManager will call it to deposit fees of
      * protocol owner, pool owner and/or EA.
      */
-    function depositCoverByContract(
-        uint256 assets,
-        address receiver
-    ) external returns (uint256 shares) {
+    function depositCoverFor(uint256 assets, address receiver) external returns (uint256 shares) {
         if (assets == 0) revert Errors.zeroAmountProvided();
         if (receiver == address(0)) revert Errors.zeroAddressProvided();
         poolConfig.onlyPoolFeeManager(msg.sender);
@@ -135,7 +133,11 @@ contract FirstLossCover is
         if (shares == 0) revert Errors.zeroAmountProvided();
         if (receiver == address(0)) revert Errors.zeroAddressProvided();
 
-        uint256 cap = pool.getFirstLossCoverAvailableCap(address(this));
+        uint96[2] memory tranchesAssets = pool.refreshPool();
+        uint256 cap = pool.getFirstLossCoverAvailableCap(
+            address(this),
+            tranchesAssets[SENIOR_TRANCHE] + tranchesAssets[JUNIOR_TRANCHE]
+        );
         uint256 currTotalAssets = totalAssets();
 
         //: todo pool.readyForFirstLossCoverWithdrawal() is a tricky design.

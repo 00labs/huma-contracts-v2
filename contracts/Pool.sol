@@ -137,7 +137,7 @@ contract Pool is PoolConfigCache, IPool {
 
     /// @inheritdoc IPool
     function refreshPool() external returns (uint96[2] memory assets) {
-        poolConfig.onlyTrancheVaultOrEpochManager(msg.sender);
+        poolConfig.onlyTrancheVaultOrEpochManagerOrPoolFeeManager(msg.sender);
         assets = _refreshPool();
     }
 
@@ -197,6 +197,7 @@ contract Pool is PoolConfigCache, IPool {
         uint256 remainingAssets = poolSafe.totalLiquidity();
         uint256 len = _firstLossCovers.length;
         uint256 availableAssets;
+        uint256 poolAssets;
         for (uint256 i; i < len && remainingAssets > 0; i++) {
             bool synced = false;
             IFirstLossCover cover = _firstLossCovers[i];
@@ -221,7 +222,11 @@ contract Pool is PoolConfigCache, IPool {
                 // first loss cover providers.
 
                 // Invests into the cover until it reaches capacity
-                uint256 availableCapacity = _getFirstLossCoverAvailableCap(cover, 0);
+                if (poolAssets == 0) {
+                    uint96[2] memory assets = _refreshPool();
+                    poolAssets = assets[SENIOR_TRANCHE] + assets[JUNIOR_TRANCHE];
+                }
+                uint256 availableCapacity = _getFirstLossCoverAvailableCap(cover, 0, poolAssets);
                 if (availableCapacity > 0) {
                     uint256 profitToInvestInCover = reservedAssets.profit > availableCapacity
                         ? availableCapacity
@@ -529,7 +534,8 @@ contract Pool is PoolConfigCache, IPool {
      * PoolFeeManager uses this function to invest available liquidity of fees in first loss cover
      */
     function getFirstLossCoverAvailableCap(
-        address coverAddress
+        address coverAddress,
+        uint256 poolAssets
     ) external view returns (uint256 availableCap) {
         IFirstLossCover cover = IFirstLossCover(coverAddress);
         ReservedAssetsForFirstLossCover memory reservedAssets = _reservedAssetsForFirstLossCovers[
@@ -537,20 +543,19 @@ contract Pool is PoolConfigCache, IPool {
         ];
         availableCap = _getFirstLossCoverAvailableCap(
             cover,
-            reservedAssets.profit + reservedAssets.lossRecovery
+            reservedAssets.profit + reservedAssets.lossRecovery,
+            poolAssets
         );
     }
 
     function _getFirstLossCoverAvailableCap(
         IFirstLossCover cover,
-        uint256 reservedForCover
+        uint256 reservedForCover,
+        uint256 poolAssets
     ) internal view returns (uint256 availableCap) {
         FirstLossCoverConfig memory config = poolConfig.getFirstLossCoverConfig(address(cover));
         uint256 currTotalAssets = cover.totalAssets() + reservedForCover;
 
-        //* todo use pool assets cache here, because doesn't want to call heavy function refreshPool
-        TranchesAssets memory assets = tranchesAssets;
-        uint256 poolAssets = assets.juniorTotalAssets + assets.seniorTotalAssets;
         uint256 maxCapOfPoolAssets = (poolAssets * config.maxPercentOfPoolValueInBps) /
             HUNDRED_PERCENT_IN_BPS;
         uint256 maxCap = config.liquidityCap > maxCapOfPoolAssets

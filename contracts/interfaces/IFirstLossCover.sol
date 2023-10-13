@@ -33,8 +33,5 @@ interface IFirstLossCover {
 
     function isSufficient(address account) external view returns (bool sufficient);
 
-    function depositCoverByContract(
-        uint256 assets,
-        address receiver
-    ) external returns (uint256 shares);
+    function depositCoverFor(uint256 assets, address receiver) external returns (uint256 shares);
 }
