@@ -34,6 +34,14 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
         pool = IPool(addr);
     }
 
+    //: todo Need to evaluate this API more carefully. An alternative approach
+    // is to increase or decrease redemption reserve.
+    function setRedemptionReserve(uint256 reserve) external virtual {
+        poolConfig.onlyPool(msg.sender);
+
+        reservedForRedemption = uint96(reserve);
+    }
+
     /// @inheritdoc IPoolSafe
     function deposit(address from, uint256 amount) external virtual {
         poolConfig.onlyTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManager(msg.sender);
@@ -49,43 +57,15 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
         underlyingToken.transfer(to, amount);
     }
 
-    //: todo Need to evaluate this API more carefully. An alternative approach
-    // is to increase or decrease redemption reserve.
-    function setRedemptionReserve(uint256 reserve) external virtual {
-        poolConfig.onlyPool(msg.sender);
-
-        reservedForRedemption = uint96(reserve);
-    }
-
-    /// @inheritdoc IPoolSafe
-    function getAvailableLiquidity() external view virtual returns (uint256 assets) {
-        assets = totalAssets();
-        uint96 tempReservedForRedemption = reservedForRedemption;
-        assets = assets > tempReservedForRedemption ? assets - tempReservedForRedemption : 0;
-    }
-
     /**
-     * @notice Gets pool assets that can be used for redemption. It should be the lower of
-     * the sum of redemption requests and available liquidity in the pool.
+     * @notice Gets the total available underlying tokens in the pool
+     * @return liquidity the quantity of underlying tokens in the pool
      */
-    function getAvailableReservation() external view virtual returns (uint256 assets) {
-        //* todo This does not look right. It used the totalAsset. The assets may not be available.
-        assets = totalAssets();
-        uint96 tempReservedForRedemption = reservedForRedemption;
-        assets = assets < tempReservedForRedemption ? assets : tempReservedForRedemption;
-    }
-
-    /// @inheritdoc IPoolSafe
-    function getPoolAssets() external view virtual returns (uint256 assets) {
-        return totalAssets();
-    }
-
-    /// @inheritdoc IPoolSafe
-    function totalAssets() public view virtual returns (uint256 assets) {
+    function getPoolLiquidity() external view virtual returns (uint256 liquidity) {
         uint256 reserved = pool.getReservedAssetsForFirstLossCovers();
         reserved += poolFeeManager.getTotalAvailableFees();
         uint256 balance = underlyingToken.balanceOf(address(this));
-        return balance > reserved ? balance - reserved : 0;
+        liquidity = balance > reserved ? balance - reserved : 0;
     }
 
     /**
