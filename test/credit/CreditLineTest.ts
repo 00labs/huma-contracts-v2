@@ -270,10 +270,15 @@ describe("CreditLine Test", function () {
             [lender, borrower, borrower2],
         );
 
-        await borrowerFirstLossCoverContract.connect(poolOwner).setOperator(borrower.address, {
-            poolCapCoverageInBps: 1,
-            poolValueCoverageInBps: 100,
-        });
+        await borrowerFirstLossCoverContract
+            .connect(poolOwner)
+            .setCoverProvider(borrower.address, {
+                poolCapCoverageInBps: 1,
+                poolValueCoverageInBps: 100,
+            });
+        await mockTokenContract
+            .connect(borrower)
+            .approve(borrowerFirstLossCoverContract.address, ethers.constants.MaxUint256);
         await borrowerFirstLossCoverContract
             .connect(borrower)
             .depositCover(
@@ -285,10 +290,15 @@ describe("CreditLine Test", function () {
                 ),
             );
 
-        await borrowerFirstLossCoverContract.connect(poolOwner).setOperator(borrower2.address, {
-            poolCapCoverageInBps: 1,
-            poolValueCoverageInBps: 100,
-        });
+        await borrowerFirstLossCoverContract
+            .connect(poolOwner)
+            .setCoverProvider(borrower2.address, {
+                poolCapCoverageInBps: 1,
+                poolValueCoverageInBps: 100,
+            });
+        await mockTokenContract
+            .connect(borrower2)
+            .approve(borrowerFirstLossCoverContract.address, ethers.constants.MaxUint256);
         await borrowerFirstLossCoverContract
             .connect(borrower2)
             .depositCover(
@@ -398,7 +408,10 @@ describe("CreditLine Test", function () {
                         toToken(10_001),
                         true,
                     ),
-            ).to.be.revertedWithCustomError(creditContract, "committedAmountGreatThanCreditLimit");
+            ).to.be.revertedWithCustomError(
+                creditContract,
+                "committedAmountGreaterThanCreditLimit",
+            );
 
             let poolSettings = await poolConfigContract.getPoolSettings();
             let creditLimit = poolSettings.maxCreditLine.add(1);

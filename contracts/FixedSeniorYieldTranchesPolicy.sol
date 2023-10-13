@@ -18,7 +18,7 @@ contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
         uint96[2] memory assets,
         uint256 lastUpdatedTime
     ) external view returns (uint96[2] memory newAssets) {
-        uint256 poolSafeAssets = IPoolSafe(poolConfig.poolSafe()).getPoolAssets();
+        uint256 poolSafeAssets = IPoolSafe(poolConfig.poolSafe()).getPoolLiquidity();
         uint256 totalAssets = assets[SENIOR_TRANCHE] + assets[JUNIOR_TRANCHE];
         //* todo deployedTotalAssets below is not really true deployedTotalAsset.
         // It is the total asset in the pool including the undeployed. For the calculation

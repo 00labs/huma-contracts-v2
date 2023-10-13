@@ -17,27 +17,21 @@ interface IFirstLossCover {
      */
     function redeemCover(uint256 shares, address receiver) external returns (uint256 assets);
 
-    function distributeProfit(uint256 profit) external;
+    function addCoverAssets(uint256 assets) external;
 
-    function coverLoss(uint256 poolAssets, uint256 loss) external returns (uint256 remainingLoss);
+    function coverLoss(uint256 loss) external returns (uint256 remainingLoss);
 
-    function recoverLoss(uint256 recovery) external returns (uint256 remainingRecovery);
+    function recoverLoss(uint256 recovery) external;
 
     function totalAssets() external view returns (uint256);
 
-    function calcLossCover(
-        uint256 poolAssets,
-        uint256 loss
-    ) external view returns (uint256 remainingLoss);
+    function calcLossCover(uint256 loss) external view returns (uint256 remainingLoss);
 
-    function calcLossRecover(uint256 recovery) external view returns (uint256 remainingRecovery);
+    function calcLossRecover(
+        uint256 recovery
+    ) external view returns (uint256 remainingRecovery, uint256 recoveredAmount);
 
     function isSufficient(address account) external view returns (bool sufficient);
 
-    function availableCoverCapacity() external view returns (uint256);
-
-    function depositCoverWithAffiliateFees(
-        uint256 assets,
-        address receiver
-    ) external returns (uint256 shares);
+    function depositCoverFor(uint256 assets, address receiver) external returns (uint256 shares);
 }
