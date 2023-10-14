@@ -160,6 +160,7 @@ contract FirstLossCover is
         (remainingLoss, coveredAmount) = _calcLossCover(loss);
 
         if (coveredAmount > 0) {
+            underlyingToken.approve(address(poolSafe), coveredAmount);
             poolSafe.deposit(address(this), coveredAmount);
 
             uint256 newCoveredLoss = coveredLoss;
