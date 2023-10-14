@@ -261,10 +261,7 @@ contract Pool is PoolConfigCache, IPool {
         }
     }
 
-    /**
-     * @notice Gets all the reserved assets for first loss covers. PoolSafe uses this function to reserve
-     * the balance of first loss covers
-     */
+    /// @inheritdoc IPool
     function getReservedAssetsForFirstLossCovers() external view returns (uint256 reservedAssets) {
         uint256 len = _firstLossCovers.length;
         for (uint256 i; i < len; i++) {
@@ -529,10 +526,7 @@ contract Pool is PoolConfigCache, IPool {
         return _firstLossCovers;
     }
 
-    /**
-     * @notice Gets the available cap of specified first loss cover including reserved profit and loss recovery
-     * PoolFeeManager uses this function to invest available liquidity of fees in first loss cover
-     */
+    /// @inheritdoc IPool
     function getFirstLossCoverAvailableCap(
         address coverAddress,
         uint256 poolAssets

@@ -57,10 +57,7 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
         underlyingToken.transfer(to, amount);
     }
 
-    /**
-     * @notice Gets the total available underlying tokens in the pool
-     * @return liquidity the quantity of underlying tokens in the pool
-     */
+    /// @inheritdoc IPoolSafe
     function getPoolLiquidity() external view virtual returns (uint256 liquidity) {
         uint256 reserved = pool.getReservedAssetsForFirstLossCovers();
         reserved += poolFeeManager.getTotalAvailableFees();
@@ -68,18 +65,12 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
         liquidity = balance > reserved ? balance - reserved : 0;
     }
 
-    /**
-     * @notice Gets total available balance of pool safe. Pool calls this function for profit and loss recoevery cases.
-     */
+    /// @inheritdoc IPoolSafe
     function totalLiquidity() external view returns (uint256 liquidity) {
         liquidity = underlyingToken.balanceOf(address(this));
     }
 
-    /**
-     * @notice Gets total available balance of admin fees. PoolFeeManager calls this function to
-     * 1. invest in FirstLossCover if there is still room.
-     * 2. withdraw by admins
-     */
+    /// @inheritdoc IPoolSafe
     function getAvailableLiquidityForFees() external view returns (uint256 liquidity) {
         uint256 balance = underlyingToken.balanceOf(address(this));
         uint256 reserved = pool.getReservedAssetsForFirstLossCovers();
