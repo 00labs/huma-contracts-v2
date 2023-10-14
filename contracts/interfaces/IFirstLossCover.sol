@@ -55,4 +55,6 @@ interface IFirstLossCover {
     ) external view returns (uint256 remainingRecovery, uint256 recoveredAmount);
 
     function isSufficient(address account) external view returns (bool sufficient);
+
+    function getCapacity(uint256 poolAssets) public view returns (uint256);
 }
