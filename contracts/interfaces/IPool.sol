@@ -42,8 +42,16 @@ interface IPool {
 
     function readyForFirstLossCoverWithdrawal() external view returns (bool ready);
 
+    /**
+     * @notice Gets all the reserved assets for first loss covers. PoolSafe uses this function to reserve
+     * the balance of first loss covers
+     */
     function getReservedAssetsForFirstLossCovers() external view returns (uint256 reservedAssets);
 
+    /**
+     * @notice Gets the available cap of specified first loss cover including reserved profit and loss recovery
+     * PoolFeeManager uses this function to invest available liquidity of fees in first loss cover
+     */
     function getFirstLossCoverAvailableCap(
         address coverAddress,
         uint256 poolAssets
