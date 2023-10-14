@@ -23,7 +23,7 @@ import {
     TrancheVault,
     ProfitEscrow,
 } from "../typechain-types";
-import { FirstLossCoverStorage } from "../typechain-types/contracts/FirstLossCover.sol/FirstLossCover";
+import { FirstLossCoverStorage } from "../typechain-types/contracts/FirstLossCover";
 import { copyLPConfigWithOverrides, minBigNumber, toToken } from "./TestUtils";
 
 let defaultDeployer: SignerWithAddress,
