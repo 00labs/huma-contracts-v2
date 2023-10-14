@@ -28,5 +28,8 @@ interface IPoolFeeManager {
             uint256 eaWithdrawable
         );
 
+    /**
+     * @notice Gets total available incomes, PoolSafe uses this function to reserve the balance of fees
+     */
     function getTotalAvailableFees() external view returns (uint256);
 }
