@@ -31,6 +31,7 @@ import {
 import { BigNumber as BN } from "ethers";
 import {
     FeeStructureStruct,
+    FirstLossCoverConfigStruct,
     FrontLoadingFeesStructureStruct,
     LPConfigStruct,
 } from "../typechain-types/contracts/PoolConfig.sol/PoolConfig";
@@ -1615,7 +1616,85 @@ describe("PoolConfig Tests", function () {
             });
         });
 
-        // TODO(jiatu): add first loss cover setter tests after it's updated.
+        describe("setFirstLossCover", function () {
+            let config: FirstLossCoverConfigStruct;
+
+            before(function () {
+                config = {
+                    coverRateInBps: 1_000,
+                    coverCap: toToken(1_000_000),
+                    liquidityCap: toToken(2_000_000),
+                    maxPercentOfPoolValueInBps: CONSTANTS.BP_FACTOR,
+                    riskYieldMultipliers: 10,
+                };
+            });
+
+            async function testSetterAndGetter(actor: SignerWithAddress) {
+                await expect(
+                    poolConfigContract
+                        .connect(actor)
+                        .setFirstLossCover(
+                            CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                            affiliateFirstLossCoverContract.address,
+                            config,
+                            affiliateFirstLossCoverProfitEscrowContract.address,
+                        ),
+                )
+                    .to.emit(poolConfigContract, "FirstLossCoverChanged")
+                    .withArgs(
+                        CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                        affiliateFirstLossCoverContract.address,
+                        config.coverRateInBps,
+                        config.coverCap,
+                        config.liquidityCap,
+                        config.maxPercentOfPoolValueInBps,
+                        config.riskYieldMultipliers,
+                        affiliateFirstLossCoverProfitEscrowContract.address,
+                        await actor.getAddress(),
+                    );
+
+                const coverConfig = await poolConfigContract.getFirstLossCoverConfig(
+                    affiliateFirstLossCoverContract.address,
+                );
+                expect(coverConfig.coverRateInBps).to.equal(config.coverRateInBps);
+                expect(coverConfig.coverCap).to.equal(config.coverCap);
+                expect(coverConfig.liquidityCap).to.equal(config.liquidityCap);
+                expect(coverConfig.maxPercentOfPoolValueInBps).to.equal(
+                    config.maxPercentOfPoolValueInBps,
+                );
+                expect(coverConfig.riskYieldMultipliers).to.equal(config.riskYieldMultipliers);
+
+                const profitEscrowContractAddress =
+                    await poolConfigContract.getFirstLossCoverProfitEscrow(
+                        affiliateFirstLossCoverContract.address,
+                    );
+                expect(profitEscrowContractAddress).to.equal(
+                    affiliateFirstLossCoverProfitEscrowContract.address,
+                );
+            }
+
+            it("Should allow the pool owner to set the first loss cover", async function () {
+                await testSetterAndGetter(poolOwner);
+            });
+
+            it("Should allow the Huma master admin to set the first loss cover", async function () {
+                await testSetterAndGetter(protocolOwner);
+            });
+
+            it("Should not allow others to set the first loss cover", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(regularUser)
+                        .setFirstLossCover(
+                            CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                            affiliateFirstLossCoverContract.address,
+                            config,
+                            affiliateFirstLossCoverProfitEscrowContract.address,
+                        ),
+                ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+            });
+        });
+
         describe("setCalendar", function () {
             it("Should allow the pool owner to set the calendar contract", async function () {
                 await expect(
@@ -2089,6 +2168,21 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract,
                     "evaluationAgentNotEnoughLiquidity",
                 );
+            });
+        });
+
+        describe("First loss cover getters", function () {
+            it("Should return the correct first loss cover(s)", async function () {
+                const firstLossCovers = await poolConfigContract.getFirstLossCovers();
+                expect(firstLossCovers.length).to.equal(2);
+
+                for (const index of [
+                    CONSTANTS.BORROWER_FIRST_LOSS_COVER_INDEX,
+                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                ]) {
+                    const firstLossCover = await poolConfigContract.getFirstLossCover(index);
+                    expect(firstLossCover).to.equal(firstLossCovers[index]);
+                }
             });
         });
     });
