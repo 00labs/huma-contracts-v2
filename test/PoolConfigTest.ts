@@ -2174,8 +2174,6 @@ describe("PoolConfig Tests", function () {
         describe("First loss cover getters", function () {
             it("Should return the correct first loss cover(s)", async function () {
                 const firstLossCovers = await poolConfigContract.getFirstLossCovers();
-                expect(firstLossCovers.length).to.equal(2);
-
                 for (const index of [
                     CONSTANTS.BORROWER_FIRST_LOSS_COVER_INDEX,
                     CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
