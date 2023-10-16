@@ -59,9 +59,13 @@ contract FirstLossCover is
     }
 
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
+        // Reset the old pool safe allowance to 0.
+        _resetPoolSafeAllowance();
         address addr = _poolConfig.poolSafe();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         poolSafe = IPoolSafe(addr);
+        // Approve the new pool safe to move funds from this contract to cover loss.
+        _approvePoolSafeAllowance();
 
         addr = _poolConfig.pool();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
@@ -236,6 +240,26 @@ contract FirstLossCover is
         address account
     ) external view returns (LossCoverProviderConfig memory) {
         return providerConfigs[account];
+    }
+
+    /**
+     * @notice Resets the pool safe's allowance to transfer funds from this contract to 0.
+     * @dev This function is called when setting the pool safe address in `_updatePoolConfigData()`.
+     */
+    function _resetPoolSafeAllowance() internal {
+        address poolSafeAddr = address(poolSafe);
+        if (poolSafeAddr == address(0)) return;
+        uint256 allowance = underlyingToken.allowance(address(this), poolSafeAddr);
+        underlyingToken.safeDecreaseAllowance(poolSafeAddr, allowance);
+    }
+
+    /**
+     * @notice Approves the pool safe's to transfer funds from this contract to cover losses in the pool.
+     * @dev This function is called when setting the pool safe address in `_updatePoolConfigData()`.
+     */
+    function _approvePoolSafeAllowance() internal {
+        address poolSafeAddr = address(poolSafe);
+        underlyingToken.safeIncreaseAllowance(poolSafeAddr, type(uint256).max);
     }
 
     function _deposit(uint256 assets, address account) internal returns (uint256 shares) {
