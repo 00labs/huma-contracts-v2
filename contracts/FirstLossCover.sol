@@ -129,10 +129,7 @@ contract FirstLossCover is
         if (receiver == address(0)) revert Errors.zeroAddressProvided();
 
         uint96[2] memory tranchesAssets = pool.refreshPool();
-        uint256 cap = pool.getFirstLossCoverAvailableCap(
-            address(this),
-            tranchesAssets[SENIOR_TRANCHE] + tranchesAssets[JUNIOR_TRANCHE]
-        );
+        uint256 cap = getCapacity(tranchesAssets[SENIOR_TRANCHE] + tranchesAssets[JUNIOR_TRANCHE]);
         uint256 currTotalAssets = totalAssets();
 
         //: todo pool.readyForFirstLossCoverWithdrawal() is a tricky design.
@@ -221,6 +218,18 @@ contract FirstLossCover is
         uint256 min = _getMinCoverAmount(account);
         console.log("balance: %s, min: %s", balance, min);
         return balance >= min;
+    }
+
+    function getCapacity(uint256 poolAssets) public view returns (uint256) {
+        FirstLossCoverConfig memory lossCoverConfig = poolConfig.getFirstLossCoverConfig(
+            address(this)
+        );
+        uint256 capFromPoolAssets = (poolAssets * lossCoverConfig.maxPercentOfPoolValueInBps) /
+            HUNDRED_PERCENT_IN_BPS;
+        return
+            lossCoverConfig.liquidityCap > capFromPoolAssets
+                ? lossCoverConfig.liquidityCap
+                : capFromPoolAssets;
     }
 
     function getCoverProviderConfig(

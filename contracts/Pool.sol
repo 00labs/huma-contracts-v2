@@ -547,14 +547,8 @@ contract Pool is PoolConfigCache, IPool {
         uint256 reservedForCover,
         uint256 poolAssets
     ) internal view returns (uint256 availableCap) {
-        FirstLossCoverConfig memory config = poolConfig.getFirstLossCoverConfig(address(cover));
         uint256 currTotalAssets = cover.totalAssets() + reservedForCover;
-
-        uint256 maxCapOfPoolAssets = (poolAssets * config.maxPercentOfPoolValueInBps) /
-            HUNDRED_PERCENT_IN_BPS;
-        uint256 maxCap = config.liquidityCap > maxCapOfPoolAssets
-            ? config.liquidityCap
-            : maxCapOfPoolAssets;
-        availableCap = maxCap > currTotalAssets ? maxCap - currTotalAssets : 0;
+        uint256 totalCap = cover.getCapacity(poolAssets);
+        return totalCap > currTotalAssets ? totalCap - currTotalAssets : 0;
     }
 }
