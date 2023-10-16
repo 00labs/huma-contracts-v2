@@ -197,7 +197,17 @@ contract PoolConfig is AccessControl, Initializable {
     event TranchesPolicyChanged(address tranchesPolicy, address by);
     event EpochManagerChanged(address epochManager, address by);
     event CreditChanged(address credit, address by);
-    event FirstLossCoversChanged(address[] firstLossCovers, address by);
+    event FirstLossCoverChanged(
+        uint8 index,
+        address firstLossCover,
+        uint16 coverRateInBps,
+        uint96 coverCap,
+        uint96 liquidityCap,
+        uint16 maxPercentOfPoolValueInBps,
+        uint16 riskYieldMultipliers,
+        address profitEscrow,
+        address by
+    );
     event CalendarChanged(address calendar, address by);
     event ReceivableAssetChanged(address receivableAsset, address by);
 
@@ -585,7 +595,18 @@ contract PoolConfig is AccessControl, Initializable {
         _firstLossCovers[index] = firstLossCover;
         _profitEscrowByFirstLossCover[firstLossCover] = profitEscrow;
         _firstLossCoverConfigs[firstLossCover] = config;
-        // todo emit event
+
+        emit FirstLossCoverChanged(
+            index,
+            firstLossCover,
+            config.coverRateInBps,
+            config.coverCap,
+            config.liquidityCap,
+            config.maxPercentOfPoolValueInBps,
+            config.riskYieldMultipliers,
+            profitEscrow,
+            msg.sender
+        );
     }
 
     function setCalendar(address _calendar) external {
