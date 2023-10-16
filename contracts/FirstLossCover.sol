@@ -138,7 +138,7 @@ contract FirstLossCover is
         //: todo pool.readyForFirstLossCoverWithdrawal() is a tricky design.
         bool ready = pool.readyForFirstLossCoverWithdrawal();
         // If ready, all assets can be withdrawn. Otherwise, only the excessive assets over the cap can be withdrawn.
-        if (currTotalAssets <= cap && !ready)
+        if (!ready && currTotalAssets <= cap)
             revert Errors.poolIsNotReadyForFirstLossCoverWithdrawal();
 
         if (shares > balanceOf(msg.sender)) revert Errors.insufficientSharesForRequest();
@@ -160,7 +160,6 @@ contract FirstLossCover is
         (remainingLoss, coveredAmount) = _calcLossCover(loss);
 
         if (coveredAmount > 0) {
-            underlyingToken.approve(address(poolSafe), coveredAmount);
             poolSafe.deposit(address(this), coveredAmount);
 
             uint256 newCoveredLoss = coveredLoss;

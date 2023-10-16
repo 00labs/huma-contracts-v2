@@ -377,8 +377,6 @@ describe("FirstLossCover Tests", function () {
     });
 
     describe("redeemCover", function () {
-        // TODO(jiatu): add more tests after clarifying if the comparison between totalAssets
-        // and the cap is correct.
         async function depositCover(assets: BN) {
             // Add the evaluation agent as a cover provider.
             affiliateFirstLossCoverContract
@@ -397,17 +395,23 @@ describe("FirstLossCover Tests", function () {
         }
 
         describe("When the pool is not ready for first loss cover withdrawal", function () {
+            async function setFirstLossCoverWithdrawalToNotReady() {
+                await poolContract.connect(poolOwner).setReadyForFirstLossCoverWithdrawal(false);
+            }
+
+            beforeEach(async function () {
+                await loadFixture(setFirstLossCoverWithdrawalToNotReady);
+            });
+
             it("Should allow the cover provider to redeem excessive assets over the cover cap", async function () {
                 const tranchesAssets = await poolContract.tranchesAssets();
                 const totalTrancheAssets = tranchesAssets.seniorTotalAssets.add(
                     tranchesAssets.juniorTotalAssets,
                 );
-                const coverAvailableCap = await poolContract.getFirstLossCoverAvailableCap(
-                    affiliateFirstLossCoverContract.address,
-                    totalTrancheAssets,
-                );
+                const coverCap =
+                    await affiliateFirstLossCoverContract.getCapacity(totalTrancheAssets);
                 const assetsToRedeem = toToken(5_000);
-                await depositCover(coverAvailableCap.add(assetsToRedeem));
+                await depositCover(coverCap.add(assetsToRedeem));
 
                 const oldSupply = await affiliateFirstLossCoverContract.totalSupply();
                 const oldAssets = await affiliateFirstLossCoverContract.totalAssets();
@@ -458,31 +462,228 @@ describe("FirstLossCover Tests", function () {
                 ).to.equal(oldEASharesInEscrow.sub(sharesToRedeem));
             });
 
-            // it("Should disallow the cover provider to redeem assets if the cap hasn't been reached", async function () {
-            //     const tranchesAssets = await poolContract.tranchesAssets();
-            //     const totalTrancheAssets = tranchesAssets.seniorTotalAssets.add(tranchesAssets.juniorTotalAssets);
-            //     const coverAvailableCap = await poolContract.getFirstLossCoverAvailableCap(affiliateFirstLossCoverContract.address, totalTrancheAssets);
-            //     const assetsToRedeem = toToken(5_000);
-            //     await depositCover(coverAvailableCap.add(assetsToRedeem));
-            //
-            //     const oldSupply = await affiliateFirstLossCoverContract.totalSupply();
-            //     const oldAssets = await affiliateFirstLossCoverContract.totalAssets();
-            //     const sharesToRedeem = assetsToRedeem.mul(oldSupply).div(oldAssets);
-            //
-            //     await expect(affiliateFirstLossCoverContract.connect(evaluationAgent).redeemCover(sharesToRedeem, evaluationAgent.getAddress())).to.be.revertedWithCustomError(affiliateFirstLossCoverContract, "poolIsNotReadyForFirstLossCoverWithdrawal")
-            // })
+            it("Should disallow the cover provider to redeem assets if the cap hasn't been reached", async function () {
+                // Make the cap large enough so that the first loss cover total assets fall below the cover cap.
+                const coverAssets = await affiliateFirstLossCoverContract.totalAssets();
+                const config = await poolConfigContract.getFirstLossCoverConfig(
+                    affiliateFirstLossCoverContract.address,
+                );
+                const newConfig = {
+                    ...config,
+                    ...{
+                        liquidityCap: coverAssets.add(1),
+                    },
+                };
+                await poolConfigContract
+                    .connect(poolOwner)
+                    .setFirstLossCover(
+                        CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                        affiliateFirstLossCoverContract.address,
+                        newConfig,
+                        affiliateFirstLossCoverProfitEscrowContract.address,
+                    );
+                const assetsToRedeem = toToken(5_000);
+
+                const oldSupply = await affiliateFirstLossCoverContract.totalSupply();
+                const oldAssets = await affiliateFirstLossCoverContract.totalAssets();
+                const sharesToRedeem = assetsToRedeem.mul(oldSupply).div(oldAssets);
+
+                await expect(
+                    affiliateFirstLossCoverContract
+                        .connect(evaluationAgent)
+                        .redeemCover(sharesToRedeem, evaluationAgent.getAddress()),
+                ).to.be.revertedWithCustomError(
+                    affiliateFirstLossCoverContract,
+                    "poolIsNotReadyForFirstLossCoverWithdrawal",
+                );
+            });
 
             it("Should disallow the cover provider to redeem more shares than they own", async function () {
                 const tranchesAssets = await poolContract.tranchesAssets();
                 const totalTrancheAssets = tranchesAssets.seniorTotalAssets.add(
                     tranchesAssets.juniorTotalAssets,
                 );
-                const coverAvailableCap = await poolContract.getFirstLossCoverAvailableCap(
-                    affiliateFirstLossCoverContract.address,
-                    totalTrancheAssets,
-                );
+                const coverCap =
+                    await affiliateFirstLossCoverContract.getCapacity(totalTrancheAssets);
                 const assetsToRedeem = toToken(5_000);
-                await depositCover(coverAvailableCap.add(assetsToRedeem));
+                await depositCover(coverCap.add(assetsToRedeem));
+
+                const eaShares = await affiliateFirstLossCoverContract.balanceOf(
+                    evaluationAgent.getAddress(),
+                );
+
+                await expect(
+                    affiliateFirstLossCoverContract
+                        .connect(evaluationAgent)
+                        .redeemCover(eaShares.add(1), evaluationAgent.getAddress()),
+                ).to.be.revertedWithCustomError(
+                    affiliateFirstLossCoverContract,
+                    "insufficientSharesForRequest",
+                );
+            });
+
+            it("Should disallow the cover provider to redeem more assets than the excessive amount over cap", async function () {
+                // Make sure the cap is determined by tge liquidity cap for easier testing.
+                const config = await poolConfigContract.getFirstLossCoverConfig(
+                    affiliateFirstLossCoverContract.address,
+                );
+                const newConfig = {
+                    ...config,
+                    ...{
+                        liquidityCap: toToken(1_000_000_000),
+                        maxPercentOfPoolValueInBps: 0,
+                    },
+                };
+                await poolConfigContract
+                    .connect(poolOwner)
+                    .setFirstLossCover(
+                        CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                        affiliateFirstLossCoverContract.address,
+                        newConfig,
+                        affiliateFirstLossCoverProfitEscrowContract.address,
+                    );
+                const coverTotalAssets = await affiliateFirstLossCoverContract.totalAssets();
+                // Make sure the total assets exceeds the cap by depositing the shortfall plus some buffer
+                // as the excessive amount.
+                const assetsToRedeem = toToken(1_000);
+                await depositCover(
+                    newConfig.liquidityCap
+                        .sub(coverTotalAssets)
+                        .add(assetsToRedeem)
+                        .sub(toToken(500)),
+                );
+                const sharesToRedeem =
+                    await affiliateFirstLossCoverContract.convertToShares(assetsToRedeem);
+
+                await expect(
+                    affiliateFirstLossCoverContract
+                        .connect(evaluationAgent)
+                        .redeemCover(sharesToRedeem, evaluationAgent.getAddress()),
+                ).to.be.revertedWithCustomError(affiliateFirstLossCoverContract, "todo");
+            });
+
+            it("Should disallow 0 as the number of shares", async function () {
+                await expect(
+                    affiliateFirstLossCoverContract
+                        .connect(evaluationAgent)
+                        .redeemCover(ethers.constants.Zero, evaluationAgent.getAddress()),
+                ).to.be.revertedWithCustomError(
+                    affiliateFirstLossCoverContract,
+                    "zeroAmountProvided",
+                );
+            });
+
+            it("Should disallow 0 zero as the receiver", async function () {
+                await expect(
+                    affiliateFirstLossCoverContract
+                        .connect(evaluationAgent)
+                        .redeemCover(toToken(5_000), ethers.constants.AddressZero),
+                ).to.be.revertedWithCustomError(
+                    affiliateFirstLossCoverContract,
+                    "zeroAddressProvided",
+                );
+            });
+        });
+
+        describe("When the pool is ready for first loss cover withdrawal", function () {
+            async function setFirstLossCoverWithdrawalToReady() {
+                await poolContract.connect(poolOwner).setReadyForFirstLossCoverWithdrawal(true);
+            }
+
+            beforeEach(async function () {
+                await loadFixture(setFirstLossCoverWithdrawalToReady);
+            });
+
+            it("Should allow the cover provider to redeem any valid amount", async function () {
+                // Make sure the cap is determined by tge liquidity cap for easier testing.
+                const config = await poolConfigContract.getFirstLossCoverConfig(
+                    affiliateFirstLossCoverContract.address,
+                );
+                const newConfig = {
+                    ...config,
+                    ...{
+                        liquidityCap: toToken(1_000_000_000),
+                        maxPercentOfPoolValueInBps: 0,
+                    },
+                };
+                await poolConfigContract
+                    .connect(poolOwner)
+                    .setFirstLossCover(
+                        CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                        affiliateFirstLossCoverContract.address,
+                        newConfig,
+                        affiliateFirstLossCoverProfitEscrowContract.address,
+                    );
+                const coverTotalAssets = await affiliateFirstLossCoverContract.totalAssets();
+                // Make sure the total assets exceeds the cap by depositing the shortfall plus some buffer
+                // as the excessive amount.
+                const assetsToRedeem = toToken(1_000);
+                await depositCover(
+                    newConfig.liquidityCap
+                        .sub(coverTotalAssets)
+                        .add(assetsToRedeem)
+                        .sub(toToken(500)),
+                );
+                const sharesToRedeem =
+                    await affiliateFirstLossCoverContract.convertToShares(assetsToRedeem);
+
+                const oldSupply = await affiliateFirstLossCoverContract.totalSupply();
+                const oldAssets = await affiliateFirstLossCoverContract.totalAssets();
+                const oldEABalance = await mockTokenContract.balanceOf(
+                    evaluationAgent.getAddress(),
+                );
+                const oldFirstLossCoverContractBalance = await mockTokenContract.balanceOf(
+                    affiliateFirstLossCoverContract.address,
+                );
+                const oldEASharesInEscrow = (
+                    await affiliateFirstLossCoverProfitEscrowContract.userInfo(
+                        evaluationAgent.getAddress(),
+                    )
+                ).amount;
+
+                await expect(
+                    affiliateFirstLossCoverContract
+                        .connect(evaluationAgent)
+                        .redeemCover(sharesToRedeem, evaluationAgent.getAddress()),
+                )
+                    .to.emit(affiliateFirstLossCoverContract, "CoverRedeemed")
+                    .withArgs(
+                        await evaluationAgent.getAddress(),
+                        await evaluationAgent.getAddress(),
+                        sharesToRedeem,
+                        assetsToRedeem,
+                    );
+
+                expect(await affiliateFirstLossCoverContract.totalSupply()).to.equal(
+                    oldSupply.sub(sharesToRedeem),
+                );
+                expect(await affiliateFirstLossCoverContract.totalAssets()).to.equal(
+                    oldAssets.sub(assetsToRedeem),
+                );
+                expect(await mockTokenContract.balanceOf(evaluationAgent.getAddress())).to.equal(
+                    oldEABalance.add(assetsToRedeem),
+                );
+                expect(
+                    await mockTokenContract.balanceOf(affiliateFirstLossCoverContract.address),
+                ).to.equal(oldFirstLossCoverContractBalance.sub(assetsToRedeem));
+                expect(
+                    (
+                        await affiliateFirstLossCoverProfitEscrowContract.userInfo(
+                            evaluationAgent.getAddress(),
+                        )
+                    ).amount,
+                ).to.equal(oldEASharesInEscrow.sub(sharesToRedeem));
+            });
+
+            it("Should disallow the cover provider to redeem more shares than they own", async function () {
+                const tranchesAssets = await poolContract.tranchesAssets();
+                const totalTrancheAssets = tranchesAssets.seniorTotalAssets.add(
+                    tranchesAssets.juniorTotalAssets,
+                );
+                const coverCap =
+                    await affiliateFirstLossCoverContract.getCapacity(totalTrancheAssets);
+                const assetsToRedeem = toToken(5_000);
+                await depositCover(coverCap.add(assetsToRedeem));
 
                 const eaShares = await affiliateFirstLossCoverContract.balanceOf(
                     evaluationAgent.getAddress(),
@@ -796,6 +997,75 @@ describe("FirstLossCover Tests", function () {
                     ),
                 ).to.be.false;
             });
+        });
+    });
+
+    describe("getCapacity", function () {
+        it("Should return the liquidity cap if it's higher", async function () {
+            const tranchesAssets = await poolContract.tranchesAssets();
+            const totalTrancheAssets = tranchesAssets.seniorTotalAssets.add(
+                tranchesAssets.juniorTotalAssets,
+            );
+            const config = await poolConfigContract.getFirstLossCoverConfig(
+                affiliateFirstLossCoverContract.address,
+            );
+            const capFromPoolAssets = totalTrancheAssets
+                .mul(config.maxPercentOfPoolValueInBps)
+                .div(CONSTANTS.BP_FACTOR);
+            const newConfig = {
+                ...config,
+                ...{
+                    liquidityCap: capFromPoolAssets.add(1),
+                },
+            };
+            await poolConfigContract
+                .connect(poolOwner)
+                .setFirstLossCover(
+                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                    affiliateFirstLossCoverContract.address,
+                    newConfig,
+                    affiliateFirstLossCoverProfitEscrowContract.address,
+                );
+            expect(await affiliateFirstLossCoverContract.getCapacity(totalTrancheAssets)).to.equal(
+                newConfig.liquidityCap,
+            );
+        });
+
+        it("Should return the cap from pool assets if it's higher", async function () {
+            const config = await poolConfigContract.getFirstLossCoverConfig(
+                affiliateFirstLossCoverContract.address,
+            );
+            const newConfig = {
+                ...config,
+                ...{
+                    liquidityCap: toToken(1),
+                    maxPercentOfPoolValueInBps: CONSTANTS.BP_FACTOR,
+                },
+            };
+            await poolConfigContract
+                .connect(poolOwner)
+                .setFirstLossCover(
+                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                    affiliateFirstLossCoverContract.address,
+                    newConfig,
+                    affiliateFirstLossCoverProfitEscrowContract.address,
+                );
+            // Deposit the amount of the liquidity cap into the pool to make sure the cap calculated from
+            // pool assets is higher.
+            await juniorTrancheVaultContract
+                .connect(lender)
+                .deposit(newConfig.liquidityCap, lender.getAddress());
+
+            const tranchesAssets = await poolContract.tranchesAssets();
+            const totalTrancheAssets = tranchesAssets.seniorTotalAssets.add(
+                tranchesAssets.juniorTotalAssets,
+            );
+            const capFromPoolAssets = totalTrancheAssets
+                .mul(newConfig.maxPercentOfPoolValueInBps)
+                .div(CONSTANTS.BP_FACTOR);
+            expect(await affiliateFirstLossCoverContract.getCapacity(totalTrancheAssets)).to.equal(
+                capFromPoolAssets,
+            );
         });
     });
 });
