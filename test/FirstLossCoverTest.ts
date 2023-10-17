@@ -116,6 +116,196 @@ describe("FirstLossCover Tests", function () {
         await loadFixture(prepare);
     });
 
+    describe("updatePoolConfigData", function () {
+        async function spendAllowance() {
+            // Spend some of the allowance by covering loss in the pool.
+            const coverTotalAssets = await affiliateFirstLossCoverContract.totalAssets();
+            const coverRateInBps = BN.from(9_000),
+                coverCap = coverTotalAssets.add(1_000),
+                loss = toToken(5_000);
+            const config = await poolConfigContract.getFirstLossCoverConfig(
+                affiliateFirstLossCoverContract.address,
+            );
+            const newConfig = {
+                ...config,
+                ...{
+                    coverRateInBps: coverRateInBps,
+                    coverCap: coverCap,
+                },
+            };
+            await poolConfigContract
+                .connect(poolOwner)
+                .setFirstLossCover(
+                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                    affiliateFirstLossCoverContract.address,
+                    newConfig,
+                    affiliateFirstLossCoverProfitEscrowContract.address,
+                );
+            const amountLossCovered = minBigNumber(
+                loss.mul(config.coverRateInBps).div(CONSTANTS.BP_FACTOR),
+                config.coverCap,
+                coverTotalAssets,
+            );
+            await mockTokenContract.mint(
+                affiliateFirstLossCoverContract.address,
+                amountLossCovered,
+            );
+            await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.getAddress());
+            await affiliateFirstLossCoverContract.coverLoss(loss);
+        }
+
+        async function performUpdate(
+            newPoolSafeContract: PoolSafe,
+            newMockTokenContract: MockToken,
+        ) {
+            await spendAllowance();
+            const PoolConfig = await ethers.getContractFactory("PoolConfig");
+            const newPoolConfigContract = await PoolConfig.deploy();
+            await newPoolConfigContract.deployed();
+
+            // Update the contract addresses.
+            await newPoolConfigContract.initialize("Test Pool", [
+                humaConfigContract.address,
+                newMockTokenContract.address,
+                calendarContract.address,
+                poolContract.address,
+                newPoolSafeContract.address,
+                poolFeeManagerContract.address,
+                tranchesPolicyContract.address,
+                epochManagerContract.address,
+                seniorTrancheVaultContract.address,
+                juniorTrancheVaultContract.address,
+                creditContract.address,
+                creditFeeManagerContract.address,
+                creditPnlManagerContract.address,
+            ]);
+            await newPoolConfigContract.setFirstLossCover(
+                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                affiliateFirstLossCoverContract.address,
+                {
+                    coverRateInBps: 0,
+                    coverCap: 0,
+                    liquidityCap: 0,
+                    maxPercentOfPoolValueInBps: 0,
+                    riskYieldMultipliers: 20000,
+                },
+                affiliateFirstLossCoverProfitEscrowContract.address,
+            );
+            await affiliateFirstLossCoverContract
+                .connect(poolOwner)
+                .setPoolConfig(newPoolConfigContract.address);
+        }
+
+        describe("When both the pool safe and the underlying token contracts are updated", function () {
+            it("Should reset the allowance of the pool safe contract", async function () {
+                const PoolSafe = await ethers.getContractFactory("PoolSafe");
+                const newPoolSafeContract = await PoolSafe.deploy();
+                await newPoolSafeContract.deployed();
+                const MockToken = await ethers.getContractFactory("MockToken");
+                const newMockTokenContract = await MockToken.deploy();
+                await newMockTokenContract.deployed();
+                await humaConfigContract
+                    .connect(protocolOwner)
+                    .setLiquidityAsset(newMockTokenContract.address, true);
+                await performUpdate(newPoolSafeContract, newMockTokenContract);
+
+                // Make sure the old allowance has been reduced to 0, and the new allowance has been increase to uint256.max.
+                expect(
+                    await mockTokenContract.allowance(
+                        affiliateFirstLossCoverContract.address,
+                        poolSafeContract.address,
+                    ),
+                ).to.equal(0);
+                expect(
+                    await newMockTokenContract.allowance(
+                        affiliateFirstLossCoverContract.address,
+                        newPoolSafeContract.address,
+                    ),
+                ).to.equal(ethers.constants.MaxUint256);
+                // Make sure there is no allowance for the new pool in the old token contract, or the old pool in the
+                // new token contract.
+                expect(
+                    await mockTokenContract.allowance(
+                        affiliateFirstLossCoverContract.address,
+                        newPoolSafeContract.address,
+                    ),
+                ).to.equal(0);
+                expect(
+                    await newMockTokenContract.allowance(
+                        affiliateFirstLossCoverContract.address,
+                        poolSafeContract.address,
+                    ),
+                ).to.equal(0);
+            });
+        });
+
+        describe("When only the pool safe contract is updated", function () {
+            it("Should reset the allowance of the pool safe contract", async function () {
+                const PoolSafe = await ethers.getContractFactory("PoolSafe");
+                const newPoolSafeContract = await PoolSafe.deploy();
+                await newPoolSafeContract.deployed();
+                await performUpdate(newPoolSafeContract, mockTokenContract);
+
+                // Make sure the old allowance has been reduced to 0, and the new allowance has been increase to uint256.max.
+                expect(
+                    await mockTokenContract.allowance(
+                        affiliateFirstLossCoverContract.address,
+                        poolSafeContract.address,
+                    ),
+                ).to.equal(0);
+                expect(
+                    await mockTokenContract.allowance(
+                        affiliateFirstLossCoverContract.address,
+                        newPoolSafeContract.address,
+                    ),
+                ).to.equal(ethers.constants.MaxUint256);
+            });
+        });
+
+        describe("When only the underlying token contract is updated", function () {
+            it("Should reset the allowance of the pool safe contract", async function () {
+                const MockToken = await ethers.getContractFactory("MockToken");
+                const newMockTokenContract = await MockToken.deploy();
+                await newMockTokenContract.deployed();
+                await humaConfigContract
+                    .connect(protocolOwner)
+                    .setLiquidityAsset(newMockTokenContract.address, true);
+                await performUpdate(poolSafeContract, newMockTokenContract);
+
+                // Make sure the old allowance has been reduced to 0, and the new allowance has been increase to uint256.max.
+                expect(
+                    await mockTokenContract.allowance(
+                        affiliateFirstLossCoverContract.address,
+                        poolSafeContract.address,
+                    ),
+                ).to.equal(0);
+                expect(
+                    await newMockTokenContract.allowance(
+                        affiliateFirstLossCoverContract.address,
+                        poolSafeContract.address,
+                    ),
+                ).to.equal(ethers.constants.MaxUint256);
+            });
+        });
+
+        describe("When neither the pool safe nor the underlying token contract is updated", function () {
+            it("Should not change the allowance", async function () {
+                const existingAllowance = await mockTokenContract.allowance(
+                    affiliateFirstLossCoverContract.address,
+                    poolSafeContract.address,
+                );
+                await performUpdate(poolSafeContract, mockTokenContract);
+
+                expect(
+                    await mockTokenContract.allowance(
+                        affiliateFirstLossCoverContract.address,
+                        poolSafeContract.address,
+                    ),
+                ).to.equal(existingAllowance);
+            });
+        });
+    });
+
     describe("setCoverProvider and getCoverProviderConfig", function () {
         let lossCoverProviderConfig: FirstLossCoverStorage.LossCoverProviderConfigStruct;
 
@@ -377,7 +567,16 @@ describe("FirstLossCover Tests", function () {
     });
 
     describe("redeemCover", function () {
-        async function depositCover(assets: BN) {
+        async function depositCover(
+            assets: BN,
+            profit: BN = BN.from(0),
+            loss: BN = BN.from(0),
+            lossRecovery: BN = BN.from(0),
+        ) {
+            // Distribute PnL so that the LP token isn't always 1:1 with the asset
+            // when PnL is non-zero.
+            await creditContract.setRefreshPnLReturns(profit, loss, lossRecovery);
+
             // Add the evaluation agent as a cover provider.
             affiliateFirstLossCoverContract
                 .connect(poolOwner)
@@ -399,19 +598,19 @@ describe("FirstLossCover Tests", function () {
                 await poolContract.connect(poolOwner).setReadyForFirstLossCoverWithdrawal(false);
             }
 
-            beforeEach(async function () {
-                await loadFixture(setFirstLossCoverWithdrawalToNotReady);
-            });
-
-            it("Should allow the cover provider to redeem excessive assets over the cover cap", async function () {
+            async function testRedeemCover(
+                assetsToRedeem: BN,
+                profit: BN = BN.from(0),
+                loss: BN = BN.from(0),
+                lossRecovery: BN = BN.from(0),
+            ) {
                 const tranchesAssets = await poolContract.tranchesAssets();
                 const totalTrancheAssets = tranchesAssets.seniorTotalAssets.add(
                     tranchesAssets.juniorTotalAssets,
                 );
                 const coverCap =
                     await affiliateFirstLossCoverContract.getCapacity(totalTrancheAssets);
-                const assetsToRedeem = toToken(5_000);
-                await depositCover(coverCap.add(assetsToRedeem));
+                await depositCover(coverCap.add(assetsToRedeem), profit, loss, lossRecovery);
 
                 const oldSupply = await affiliateFirstLossCoverContract.totalSupply();
                 const oldAssets = await affiliateFirstLossCoverContract.totalAssets();
@@ -460,6 +659,31 @@ describe("FirstLossCover Tests", function () {
                         )
                     ).amount,
                 ).to.equal(oldEASharesInEscrow.sub(sharesToRedeem));
+            }
+
+            beforeEach(async function () {
+                await loadFixture(setFirstLossCoverWithdrawalToNotReady);
+            });
+
+            it("Should allow the cover provider to redeem excessive assets over the cover cap", async function () {
+                const assetsToRedeem = toToken(5_000);
+                await testRedeemCover(assetsToRedeem);
+            });
+
+            it("Should allow the cover provider to redeem excessive assets over the cover cap when there is more profit than loss", async function () {
+                const assetsToRedeem = toToken(5_000);
+                const profit = toToken(178),
+                    loss = toToken(132),
+                    lossRecovery = toToken(59);
+                await testRedeemCover(assetsToRedeem, profit, loss, lossRecovery);
+            });
+
+            it("Should allow the cover provider to redeem excessive assets over the cover cap when there is more loss than profit", async function () {
+                const assetsToRedeem = toToken(5_000);
+                const profit = toToken(132),
+                    loss = toToken(1908),
+                    lossRecovery = toToken(59);
+                await testRedeemCover(assetsToRedeem, profit, loss, lossRecovery);
             });
 
             it("Should disallow the cover provider to redeem assets if the cap hasn't been reached", async function () {
@@ -590,11 +814,14 @@ describe("FirstLossCover Tests", function () {
                 await poolContract.connect(poolOwner).setReadyForFirstLossCoverWithdrawal(true);
             }
 
-            beforeEach(async function () {
-                await loadFixture(setFirstLossCoverWithdrawalToReady);
-            });
+            async function testRedeemCover(
+                assetsToRedeem: BN,
+                profit: BN = BN.from(0),
+                loss: BN = BN.from(0),
+                lossRecovery: BN = BN.from(0),
+            ) {
+                await creditContract.setRefreshPnLReturns(profit, loss, lossRecovery);
 
-            it("Should allow the cover provider to redeem any valid amount", async function () {
                 // Make sure the cap is determined by tge liquidity cap for easier testing.
                 const config = await poolConfigContract.getFirstLossCoverConfig(
                     affiliateFirstLossCoverContract.address,
@@ -617,12 +844,8 @@ describe("FirstLossCover Tests", function () {
                 const coverTotalAssets = await affiliateFirstLossCoverContract.totalAssets();
                 // Make sure the total assets exceeds the cap by depositing the shortfall plus some buffer
                 // as the excessive amount.
-                const assetsToRedeem = toToken(1_000);
                 await depositCover(
-                    newConfig.liquidityCap
-                        .sub(coverTotalAssets)
-                        .add(assetsToRedeem)
-                        .sub(toToken(500)),
+                    newConfig.liquidityCap.sub(coverTotalAssets).add(assetsToRedeem.div(2)),
                 );
                 const sharesToRedeem =
                     await affiliateFirstLossCoverContract.convertToShares(assetsToRedeem);
@@ -673,6 +896,32 @@ describe("FirstLossCover Tests", function () {
                         )
                     ).amount,
                 ).to.equal(oldEASharesInEscrow.sub(sharesToRedeem));
+            }
+
+            beforeEach(async function () {
+                await loadFixture(setFirstLossCoverWithdrawalToReady);
+            });
+
+            it("Should allow the cover provider to redeem any valid amount", async function () {
+                const assetsToRedeem = toToken(1_000);
+                await testRedeemCover(assetsToRedeem);
+                await testRedeemCover(assetsToRedeem);
+            });
+
+            it("Should allow the cover provider to redeem any valid amount when there is more profit than loss", async function () {
+                const assetsToRedeem = toToken(1_000);
+                const profit = toToken(578),
+                    loss = toToken(216),
+                    lossRecovery = toToken(120);
+                await testRedeemCover(assetsToRedeem, profit, loss, lossRecovery);
+            });
+
+            it("Should allow the cover provider to redeem any valid amount when there is more loss than profit", async function () {
+                const assetsToRedeem = toToken(1_000);
+                const profit = toToken(578),
+                    loss = toToken(1230),
+                    lossRecovery = toToken(120);
+                await testRedeemCover(assetsToRedeem, profit, loss, lossRecovery);
             });
 
             it("Should disallow the cover provider to redeem more shares than they own", async function () {
@@ -784,8 +1033,12 @@ describe("FirstLossCover Tests", function () {
                 );
             }
 
-            beforeEach(async function () {
+            async function setPool() {
                 await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.getAddress());
+            }
+
+            beforeEach(async function () {
+                await loadFixture(setPool);
             });
 
             it("Should allow the pool to partially cover the loss", async function () {
