@@ -135,14 +135,11 @@ describe("PoolFeeManager Tests", function () {
             await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.address);
 
             // Make sure all the fees are distributed correctly.
-            const oldReserve = await poolSafeContract.reservedForRedemption();
             await poolFeeManagerContract.distributePoolFees(profit);
             const newAccruedIncomes = await poolFeeManagerContract.getAccruedIncomes();
-            const newReserve = await poolSafeContract.reservedForRedemption();
             expect(newAccruedIncomes.protocolIncome).to.equal(expectedProtocolIncome);
             expect(newAccruedIncomes.poolOwnerIncome).to.equal(expectedPoolOwnerIncome);
             expect(newAccruedIncomes.eaIncome).to.equal(expectedEAIncome);
-            expect(newReserve).to.equal(oldReserve);
 
             // Make sure all parties can withdraw their fees. First, mint enough tokens for distribution.
             await mockTokenContract.mint(poolSafeContract.address, totalFees);

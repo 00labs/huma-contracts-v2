@@ -501,14 +501,6 @@ contract Pool is PoolConfigCache, IPool {
         return (assets, losses);
     }
 
-    function submitRedemptionRequest(uint256 amounts) external {
-        poolConfig.onlyEpochManager(msg.sender);
-
-        poolSafe.setRedemptionReserve(amounts);
-
-        // :handle redemption request for flex loan
-    }
-
     function updateTranchesAssets(uint96[2] memory assets) external {
         poolConfig.onlyTrancheVaultOrEpochManager(msg.sender);
 

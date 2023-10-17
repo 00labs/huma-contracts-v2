@@ -26,11 +26,6 @@ interface IPool {
     function refreshPool() external returns (uint96[2] memory assets);
 
     /**
-     * @notice Submits redemption request to the pool
-     */
-    function submitRedemptionRequest(uint256 amounts) external;
-
-    /**
      * @notice Updates the assets for the two tranches with the specified values.
      * @dev This function should only be called after `refreshPool` is called to bring
      * the assets data up-to-date.

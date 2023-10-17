@@ -1271,46 +1271,6 @@ describe("PoolConfig Tests", function () {
             });
         });
 
-        describe("setPoolFlexCall", function () {
-            let enabled = true,
-                flexCallWindowInEpoch = 3;
-            it("Should allow the pool owner to set the flex call config", async function () {
-                await expect(
-                    poolConfigContract
-                        .connect(poolOwner)
-                        .setPoolFlexCall(enabled, flexCallWindowInEpoch),
-                )
-                    .to.emit(poolConfigContract, "PoolFlexCallChanged")
-                    .withArgs(enabled, flexCallWindowInEpoch, poolOwner.address);
-                expect(await poolConfigContract.pool()).to.equal(poolContract.address);
-            });
-
-            it("Should allow the Huma master admin to set the flex call config", async function () {
-                await expect(
-                    poolConfigContract
-                        .connect(protocolOwner)
-                        .setPoolFlexCall(enabled, flexCallWindowInEpoch),
-                )
-                    .to.emit(poolConfigContract, "PoolFlexCallChanged")
-                    .withArgs(enabled, flexCallWindowInEpoch, protocolOwner.address);
-                expect(await poolConfigContract.pool()).to.equal(poolContract.address);
-            });
-
-            it("Should reject non-owner or admin to set the flex call config", async function () {
-                await expect(
-                    poolConfigContract
-                        .connect(regularUser)
-                        .setPoolFlexCall(enabled, flexCallWindowInEpoch),
-                ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
-            });
-
-            it("Should reject zero-valued windows", async function () {
-                await expect(
-                    poolConfigContract.connect(poolOwner).setPoolFlexCall(enabled, 0),
-                ).to.be.revertedWithCustomError(poolConfigContract, "zeroAmountProvided");
-            });
-        });
-
         describe("setPoolName", function () {
             const poolName = "Test pool";
 
