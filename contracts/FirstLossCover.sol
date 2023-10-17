@@ -251,6 +251,10 @@ contract FirstLossCover is
         address oldUnderlyingToken,
         address newUnderlyingToken
     ) internal {
+        if (oldPoolSafe == newPoolSafe & oldUnderlyingToken == newUnderlyingToken) {
+            // No need to do anything if none of the addresses changed.
+            return;
+        }
         if (oldPoolSafe != address(0) && oldUnderlyingToken != address(0)) {
             // Old pool safe address and the old underlying token address may be 0 if this is
             // the first ever initialization of the contract.
