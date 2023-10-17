@@ -57,7 +57,7 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         firstLossCover = IFirstLossCover(addr);
     }
 
-    function distributePoolFees(uint256 profit) external returns (uint256) {
+    function distributePoolFees(uint256 profit) external returns (uint256 remaining) {
         poolConfig.onlyPool(msg.sender);
 
         (AccruedIncomes memory incomes, uint256 remaining) = _getPoolFees(profit);
@@ -78,9 +78,7 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         return remaining;
     }
 
-    function calcPlatformFeeDistribution(
-        uint256 profit
-    ) external view returns (uint256 remaining) {
+    function calcPoolFeeDistribution(uint256 profit) external view returns (uint256 remaining) {
         (, remaining) = _getPoolFees(profit);
     }
 
@@ -230,7 +228,7 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
     }
 
     /**
-     * @notice Gets the available liquidity of fees to be invested in FirstLossCover.
+     * @notice Returns the available fees to be invested in FirstLossCover.
      * @return availableFees The available fees which meet
      *   1. the available liquidity of PoolSafe
      *   2. the available cap of FirstLossCover

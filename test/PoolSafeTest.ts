@@ -257,14 +257,6 @@ describe("PoolSafe Tests", function () {
             amount = toToken(2_000);
         });
 
-        it("Should allow the pool to set the redemption reserve", async function () {
-            await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.address);
-            const originalReserve = await poolSafeContract.reservedForRedemption();
-            await poolSafeContract.setRedemptionReserve(amount);
-            const reserveAfterAddition = await poolSafeContract.reservedForRedemption();
-            expect(reserveAfterAddition).to.equal(originalReserve.add(amount));
-        });
-
         it("Should disallow non-qualified addresses to withdraw", async function () {
             await expect(
                 poolSafeContract.connect(lender).withdraw(lender.address, amount),

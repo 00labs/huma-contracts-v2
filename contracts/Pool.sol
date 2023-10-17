@@ -137,7 +137,7 @@ contract Pool is PoolConfigCache, IPool {
 
     /// @inheritdoc IPool
     function refreshPool() external returns (uint96[2] memory assets) {
-        poolConfig.onlyTrancheVaultOrEpochManagerOrPoolFeeManager(msg.sender);
+        poolConfig.onlyTrancheVaultOrEpochManagerOrPoolFeeManagerOrFirstLossCover(msg.sender);
         assets = _refreshPool();
     }
 
@@ -440,7 +440,7 @@ contract Pool is PoolConfigCache, IPool {
         uint256 profit,
         TranchesAssets memory assets
     ) internal view returns (uint96[2] memory newAssets) {
-        uint256 poolProfit = feeManager.calcPlatformFeeDistribution(profit);
+        uint256 poolProfit = feeManager.calcPoolFeeDistribution(profit);
         if (poolProfit > 0) {
             newAssets = tranchesPolicy.distProfitToTranches(
                 poolProfit,
@@ -499,14 +499,6 @@ contract Pool is PoolConfigCache, IPool {
         }
 
         return (assets, losses);
-    }
-
-    function submitRedemptionRequest(uint256 amounts) external {
-        poolConfig.onlyEpochManager(msg.sender);
-
-        poolSafe.setRedemptionReserve(amounts);
-
-        // :handle redemption request for flex loan
     }
 
     function updateTranchesAssets(uint96[2] memory assets) external {

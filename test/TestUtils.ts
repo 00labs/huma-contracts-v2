@@ -3,7 +3,7 @@ import { BigNumber as BN } from "ethers";
 import moment from "moment";
 import { LPConfigStructOutput } from "../typechain-types/contracts/PoolConfig.sol/PoolConfig";
 import { CONSTANTS } from "./BaseTest";
-import { FirstLossCover, Pool, PoolConfig, TrancheVault } from "../typechain-types";
+import { FirstLossCover, Pool, PoolConfig } from "../typechain-types";
 
 export function toBN(number: string | number, decimals: number): BN {
     return BN.from(number).mul(BN.from(10).pow(BN.from(decimals)));
@@ -163,4 +163,16 @@ export async function getMinLiquidityRequirementForEA(
     const poolCap = lpConfig.liquidityCap;
     const adminRnR = await poolConfigContract.getAdminRnR();
     return poolCap.mul(adminRnR.liquidityRateInBpsByEA).div(CONSTANTS.BP_FACTOR);
+}
+
+export function maxBigNumber(...values: BN[]): BN {
+    return values.reduce((acc, currentValue) => {
+        return acc.gt(currentValue) ? acc : currentValue;
+    }, BN.from(0));
+}
+
+export function minBigNumber(...values: BN[]): BN {
+    return values.reduce((acc, currentValue) => {
+        return acc.lt(currentValue) ? acc : currentValue;
+    }, BN.from(ethers.constants.MaxUint256));
 }

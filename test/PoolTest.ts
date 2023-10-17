@@ -368,7 +368,7 @@ describe("Pool Test", function () {
                         assetInfo[CONSTANTS.JUNIOR_TRANCHE],
                     ];
                     const profitAfterFees =
-                        await poolFeeManagerContract.calcPlatformFeeDistribution(profit);
+                        await poolFeeManagerContract.calcPoolFeeDistribution(profit);
                     const assetsWithProfits = PnLCalculator.calcProfitForRiskAdjustedPolicy(
                         profitAfterFees,
                         assets,
@@ -499,12 +499,12 @@ describe("Pool Test", function () {
                     await testDistribution(profit, loss, recovery);
                 });
 
-                it("Should not allow non-tranche vault or non-epoch manager to distribute PnL", async function () {
+                it("Should not allow unqualified accounts to distribute PnL", async function () {
                     await expect(
                         poolContract.connect(lender).refreshPool(),
                     ).to.be.revertedWithCustomError(
                         poolConfigContract,
-                        "notTrancheVaultOrEpochManager",
+                        "notTrancheVaultOrEpochManagerOrPoolFeeManagerOrFirstLossCover",
                     );
                 });
             });
@@ -532,7 +532,7 @@ describe("Pool Test", function () {
                         assetInfo[CONSTANTS.JUNIOR_TRANCHE],
                     ];
                     const profitAfterFees =
-                        await poolFeeManagerContract.calcPlatformFeeDistribution(profit);
+                        await poolFeeManagerContract.calcPoolFeeDistribution(profit);
                     const assetsWithProfits = PnLCalculator.calcProfitForRiskAdjustedPolicy(
                         profitAfterFees,
                         assets,
