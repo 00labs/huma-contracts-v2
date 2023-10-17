@@ -3,7 +3,7 @@ import { expect } from "chai";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { EvaluationAgentNFT, HumaConfig, MockToken } from "../typechain-types";
 
-describe("HumaConfig Test", function () {
+describe("HumaConfig Tests", function () {
     let eaNFTContract: EvaluationAgentNFT,
         configContract: HumaConfig,
         mockTokenContract: MockToken;

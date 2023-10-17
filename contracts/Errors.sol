@@ -38,10 +38,10 @@ contract Errors {
     error notPoolFeeManager(); // 0xe94f3252 // 0xd4017ec2
     error notTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManager(); // 0xdef0fded
     error notTrancheVaultOrEpochManager(); // 0x31c76c83
-    error notTrancheVaultOrEpochManagerOrPoolFeeManager();
+    error notTrancheVaultOrEpochManagerOrPoolFeeManagerOrFirstLossCover(); // 0x9c8c659b
     error notCurrentEpoch(); // 0x50c5dd13
     error notTrancheVault(); // 0x3d7640fb
-    error notCoverProvider();
+    error notCoverProvider(); // 0xed74bd11
 
     // system config
     error defaultGracePeriodLessThanMinAllowed(); // 0xa733ff9c

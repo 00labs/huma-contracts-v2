@@ -137,7 +137,7 @@ contract Pool is PoolConfigCache, IPool {
 
     /// @inheritdoc IPool
     function refreshPool() external returns (uint96[2] memory assets) {
-        poolConfig.onlyTrancheVaultOrEpochManagerOrPoolFeeManager(msg.sender);
+        poolConfig.onlyTrancheVaultOrEpochManagerOrPoolFeeManagerOrFirstLossCover(msg.sender);
         assets = _refreshPool();
     }
 

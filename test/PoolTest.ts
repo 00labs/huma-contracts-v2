@@ -499,12 +499,12 @@ describe("Pool Test", function () {
                     await testDistribution(profit, loss, recovery);
                 });
 
-                it("Should not allow non-tranche vault or non-epoch manager to distribute PnL", async function () {
+                it("Should not allow unqualified accounts to distribute PnL", async function () {
                     await expect(
                         poolContract.connect(lender).refreshPool(),
                     ).to.be.revertedWithCustomError(
                         poolConfigContract,
-                        "notTrancheVaultOrEpochManager",
+                        "notTrancheVaultOrEpochManagerOrPoolFeeManagerOrFirstLossCover",
                     );
                 });
             });

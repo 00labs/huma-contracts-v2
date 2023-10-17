@@ -932,13 +932,22 @@ contract PoolConfig is AccessControl, Initializable {
             revert Errors.notTrancheVaultOrEpochManager();
     }
 
-    function onlyTrancheVaultOrEpochManagerOrPoolFeeManager(address account) external view {
+    function onlyTrancheVaultOrEpochManagerOrPoolFeeManagerOrFirstLossCover(
+        address account
+    ) external view {
+        bool valid;
         if (
-            account != juniorTranche &&
-            account != seniorTranche &&
-            account != epochManager &&
-            account != poolFeeManager
-        ) revert Errors.notTrancheVaultOrEpochManager();
+            account == seniorTranche ||
+            account == juniorTranche ||
+            account == epochManager ||
+            account == poolFeeManager
+        ) return;
+        uint256 numCovers = _firstLossCovers.length;
+        for (uint256 i; i < numCovers; i++) {
+            if (account == address(_firstLossCovers[i])) return;
+        }
+
+        if (!valid) revert Errors.notTrancheVaultOrEpochManagerOrPoolFeeManagerOrFirstLossCover();
     }
 
     function onlyProtocolAndPoolOn() external view {
