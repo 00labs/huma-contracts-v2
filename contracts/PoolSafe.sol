@@ -18,8 +18,6 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
     IPool public pool;
     IPoolFeeManager public poolFeeManager;
 
-    uint96 public reservedForRedemption;
-
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = _poolConfig.underlyingToken();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
@@ -32,14 +30,6 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
         addr = _poolConfig.pool();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         pool = IPool(addr);
-    }
-
-    //: todo Need to evaluate this API more carefully. An alternative approach
-    // is to increase or decrease redemption reserve.
-    function setRedemptionReserve(uint256 reserve) external virtual {
-        poolConfig.onlyPool(msg.sender);
-
-        reservedForRedemption = uint96(reserve);
     }
 
     /// @inheritdoc IPoolSafe

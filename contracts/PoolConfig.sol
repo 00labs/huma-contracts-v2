@@ -37,15 +37,10 @@ struct PoolSettings {
     // Specifies the max credit line as a percentage (in basis points) of the receivable amount.
     // E.g., for a receivable of $100 with an advance rate of 9000 bps, the credit line can be up to $90.
     uint16 advanceRateInBps;
-    // The duration between a capital withdrawal request and capital availability, in the unit of epochs.
-    // For example, if flexCallWindowInEpoch = 2, then a withdrawal request will be processed 2 epochs from now.
-    uint8 flexCallWindowInEpochs;
     // Whether the pool is exclusive to one borrower
     bool singleBorrower;
     // Whether the dues are combined into one credit if the borrower has multiple receivables
     bool singleCreditPerBorrower;
-    // Whether flexCredit is enabled
-    bool flexCreditEnabled;
 }
 
 /**
@@ -512,16 +507,6 @@ contract PoolConfig is AccessControl, Initializable {
         _settings.payPeriodInCalendarUnit = uint8(number);
         _poolSettings = _settings;
         emit PoolPayPeriodChanged(unit, number, msg.sender);
-    }
-
-    function setPoolFlexCall(bool enabled, uint256 windowInEpoch) external {
-        _onlyOwnerOrHumaMasterAdmin();
-        if (windowInEpoch == 0) revert Errors.zeroAmountProvided();
-        PoolSettings memory _settings = _poolSettings;
-        _settings.flexCreditEnabled = enabled;
-        _settings.flexCallWindowInEpochs = uint8(windowInEpoch);
-        _poolSettings = _settings;
-        emit PoolFlexCallChanged(enabled, windowInEpoch, msg.sender);
     }
 
     /**
