@@ -59,18 +59,21 @@ contract FirstLossCover is
     }
 
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
+        address oldUnderlyingToken = address(underlyingToken);
+        address newUnderlyingToken = _poolConfig.underlyingToken();
+        if (newUnderlyingToken == address(0)) revert Errors.zeroAddressProvided();
+        underlyingToken = IERC20(newUnderlyingToken);
+        _decimals = IERC20MetadataUpgradeable(newUnderlyingToken).decimals();
+
+        address oldPoolSafe = address(poolSafe);
         address addr = _poolConfig.poolSafe();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         poolSafe = IPoolSafe(addr);
+        _resetPoolSafeAllowance(oldPoolSafe, addr, oldUnderlyingToken, newUnderlyingToken);
 
         addr = _poolConfig.pool();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         pool = IPool(addr);
-
-        addr = _poolConfig.underlyingToken();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
-        underlyingToken = IERC20(addr);
-        _decimals = IERC20MetadataUpgradeable(addr).decimals();
 
         addr = _poolConfig.getFirstLossCoverProfitEscrow(address(this));
         //* todo the following comment is strange. We should not allow zero address.
@@ -236,6 +239,33 @@ contract FirstLossCover is
         address account
     ) external view returns (LossCoverProviderConfig memory) {
         return providerConfigs[account];
+    }
+
+    /**
+     * @notice Resets the allowance of the old pool safe to 0 and approve a new allowance for the new pool safe.
+     * @dev This function is called when setting the pool safe address in `_updatePoolConfigData()`.
+     */
+    function _resetPoolSafeAllowance(
+        address oldPoolSafe,
+        address newPoolSafe,
+        address oldUnderlyingToken,
+        address newUnderlyingToken
+    ) internal {
+        if (oldPoolSafe == newPoolSafe && oldUnderlyingToken == newUnderlyingToken) {
+            // No need to do anything if none of the addresses changed.
+            return;
+        }
+        if (oldPoolSafe != address(0) && oldUnderlyingToken != address(0)) {
+            // Old pool safe address and the old underlying token address may be 0 if this is
+            // the first ever initialization of the contract.
+            uint256 allowance = IERC20(oldUnderlyingToken).allowance(address(this), oldPoolSafe);
+            IERC20(oldUnderlyingToken).safeDecreaseAllowance(oldPoolSafe, allowance);
+        }
+        // The caller should have checked that the new underlying token and new pool safe
+        // are not zero-addresses.
+        assert(newPoolSafe != address(0));
+        assert(newUnderlyingToken != address(0));
+        IERC20(newUnderlyingToken).safeIncreaseAllowance(newPoolSafe, type(uint256).max);
     }
 
     function _deposit(uint256 assets, address account) internal returns (uint256 shares) {
