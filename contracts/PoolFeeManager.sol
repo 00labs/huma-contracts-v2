@@ -228,7 +228,7 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
     }
 
     /**
-     * @notice Gets the available liquidity of fees to be invested in FirstLossCover.
+     * @notice Returns the available fees to be invested in FirstLossCover.
      * @return availableFees The available fees which meet
      *   1. the available liquidity of PoolSafe
      *   2. the available cap of FirstLossCover
