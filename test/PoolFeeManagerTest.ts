@@ -131,7 +131,7 @@ describe("PoolFeeManager Tests", function () {
     });
 
     describe("distributePoolFees", function () {
-        it("Should distribute platform fees to all parties and allow them to withdraw", async function () {
+        it("Should distribute pool fees to all parties and allow them to withdraw", async function () {
             await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.address);
 
             // Make sure all the fees are distributed correctly.
@@ -212,19 +212,18 @@ describe("PoolFeeManager Tests", function () {
             expect(newEABalance).to.equal(oldEABalance.add(expectedEAIncome));
         });
 
-        it("Should disallow non-pool to distribute platform fees", async function () {
+        it("Should disallow non-pool to distribute pool fees", async function () {
             await expect(
                 poolFeeManagerContract.connect(lender).distributePoolFees(profit),
             ).to.be.revertedWithCustomError(poolConfigContract, "notPool");
         });
     });
 
-    describe("calcPlatformFeeDistribution", function () {
+    describe("calcPoolFeeDistribution", function () {
         it("Should return the remaining profit after taking out fees", async function () {
             await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.address);
 
-            const remainingProfit =
-                await poolFeeManagerContract.calcPlatformFeeDistribution(profit);
+            const remainingProfit = await poolFeeManagerContract.calcPoolFeeDistribution(profit);
             expect(remainingProfit).to.equal(profit.sub(totalFees));
         });
     });

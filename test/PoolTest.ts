@@ -368,7 +368,7 @@ describe("Pool Test", function () {
                         assetInfo[CONSTANTS.JUNIOR_TRANCHE],
                     ];
                     const profitAfterFees =
-                        await poolFeeManagerContract.calcPlatformFeeDistribution(profit);
+                        await poolFeeManagerContract.calcPoolFeeDistribution(profit);
                     const assetsWithProfits = PnLCalculator.calcProfitForRiskAdjustedPolicy(
                         profitAfterFees,
                         assets,
@@ -532,7 +532,7 @@ describe("Pool Test", function () {
                         assetInfo[CONSTANTS.JUNIOR_TRANCHE],
                     ];
                     const profitAfterFees =
-                        await poolFeeManagerContract.calcPlatformFeeDistribution(profit);
+                        await poolFeeManagerContract.calcPoolFeeDistribution(profit);
                     const assetsWithProfits = PnLCalculator.calcProfitForRiskAdjustedPolicy(
                         profitAfterFees,
                         assets,

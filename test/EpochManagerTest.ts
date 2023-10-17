@@ -236,7 +236,7 @@ describe("EpochManager Test", function () {
 
         const assetInfo = await poolContract.tranchesAssets();
         const assets = [assetInfo[CONSTANTS.SENIOR_TRANCHE], assetInfo[CONSTANTS.JUNIOR_TRANCHE]];
-        const profitAfterFees = await poolFeeManagerContract.calcPlatformFeeDistribution(profit);
+        const profitAfterFees = await poolFeeManagerContract.calcPoolFeeDistribution(profit);
         const firstLossCoverTotalAssets = await Promise.all(
             [borrowerFirstLossCoverContract, affiliateFirstLossCoverContract].map(
                 async (contract) => await contract.totalAssets(),
@@ -792,7 +792,7 @@ describe("EpochManager Test", function () {
                     .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR);
                 const amountProcessable = seniorAmountProcessable.add(juniorAmountProcessable);
                 const poolFees = profit.sub(
-                    await poolFeeManagerContract.calcPlatformFeeDistribution(profit),
+                    await poolFeeManagerContract.calcPoolFeeDistribution(profit),
                 );
                 // Payment needs to include pool fees since it's excluded from the total assets of the pool safe,
                 // and it was 0 when we made the drawdown in the beginning of this test.

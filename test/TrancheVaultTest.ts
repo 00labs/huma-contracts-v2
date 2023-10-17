@@ -403,7 +403,7 @@ describe("TrancheVault Test", function () {
                     assetInfo[CONSTANTS.JUNIOR_TRANCHE],
                 ];
                 const profitAfterFees =
-                    await poolFeeManagerContract.calcPlatformFeeDistribution(profit);
+                    await poolFeeManagerContract.calcPoolFeeDistribution(profit);
                 const firstLossCoverTotalAssets = await Promise.all(
                     [borrowerFirstLossCoverContract, affiliateFirstLossCoverContract].map(
                         async (contract) => await contract.totalAssets(),
