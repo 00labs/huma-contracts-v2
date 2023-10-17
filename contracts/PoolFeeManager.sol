@@ -57,7 +57,7 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         firstLossCover = IFirstLossCover(addr);
     }
 
-    function distributePoolFees(uint256 profit) external returns (uint256) {
+    function distributePoolFees(uint256 profit) external returns (uint256 remaining) {
         poolConfig.onlyPool(msg.sender);
 
         (AccruedIncomes memory incomes, uint256 remaining) = _getPoolFees(profit);
