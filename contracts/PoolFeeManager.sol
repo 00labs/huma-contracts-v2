@@ -78,9 +78,7 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         return remaining;
     }
 
-    function calcPlatformFeeDistribution(
-        uint256 profit
-    ) external view returns (uint256 remaining) {
+    function calcPoolFeeDistribution(uint256 profit) external view returns (uint256 remaining) {
         (, remaining) = _getPoolFees(profit);
     }
 
