@@ -10,8 +10,14 @@ import {IPoolFeeManager} from "./interfaces/IPoolFeeManager.sol";
 import {IFirstLossCover} from "./interfaces/IFirstLossCover.sol";
 import {HumaConfig} from "./HumaConfig.sol";
 import {Errors} from "./Errors.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+
+import "hardhat/console.sol";
 
 contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
+    using SafeERC20 for IERC20;
+
     struct AccruedIncomes {
         uint96 protocolIncome;
         uint96 poolOwnerIncome;
@@ -22,6 +28,7 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
     IPoolSafe public poolSafe;
     IPool public pool;
     IFirstLossCover public firstLossCover;
+    IERC20 public underlyingToken;
 
     AccruedIncomes internal _accruedIncomes;
     uint256 public protocolIncomeWithdrawn;
@@ -40,6 +47,11 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
     event EvaluationAgentRewardsWithdrawn(address receiver, uint256 amount, address by);
 
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
+        address oldUnderlyingToken = address(underlyingToken);
+        address newUnderlyingToken = _poolConfig.underlyingToken();
+        if (newUnderlyingToken == address(0)) revert Errors.zeroAddressProvided();
+        underlyingToken = IERC20(newUnderlyingToken);
+
         address addr = _poolConfig.poolSafe();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         poolSafe = IPoolSafe(addr);
@@ -52,12 +64,19 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         humaConfig = HumaConfig(addr);
 
+        address oldFirstLossCover = address(firstLossCover);
         addr = _poolConfig.getFirstLossCover(AFFILIATE_FIRST_LOSS_COVER_INDEX);
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         firstLossCover = IFirstLossCover(addr);
+        _resetFirstLossCoverAllowance(
+            oldFirstLossCover,
+            addr,
+            oldUnderlyingToken,
+            newUnderlyingToken
+        );
     }
 
-    function distributePoolFees(uint256 profit) external returns (uint256 remaining) {
+    function distributePoolFees(uint256 profit) external returns (uint256) {
         poolConfig.onlyPool(msg.sender);
 
         (AccruedIncomes memory incomes, uint256 remaining) = _getPoolFees(profit);
@@ -192,6 +211,38 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
     function investFeesInFirstLossCover() external {
         poolConfig.onlyPoolOwner(msg.sender);
         _investFeesInFirstLossCover();
+    }
+
+    /**
+     * @notice Resets the allowance of the old first loss cover to 0 and approve a new allowance
+     * for the new first loss cover.
+     * @dev This function is called when setting the first loss cover address in `_updatePoolConfigData()`,
+     * and is needed because the first loss cover needs
+     */
+    function _resetFirstLossCoverAllowance(
+        address oldFirstLossCover,
+        address newFirstLossCover,
+        address oldUnderlyingToken,
+        address newUnderlyingToken
+    ) internal {
+        if (oldFirstLossCover == newFirstLossCover && oldUnderlyingToken == newUnderlyingToken) {
+            // No need to do anything if none of the addresses changed.
+            return;
+        }
+        if (oldFirstLossCover != address(0) && oldUnderlyingToken != address(0)) {
+            // Old first loss cover address and the old underlying token address may be 0 if this is
+            // the first ever initialization of the contract.
+            uint256 allowance = IERC20(oldUnderlyingToken).allowance(
+                address(this),
+                oldFirstLossCover
+            );
+            IERC20(oldUnderlyingToken).safeDecreaseAllowance(oldFirstLossCover, allowance);
+        }
+        // The caller should have checked that the new underlying token and new first loss cover
+        // are not zero-addresses.
+        assert(newFirstLossCover != address(0));
+        assert(newUnderlyingToken != address(0));
+        IERC20(newUnderlyingToken).safeIncreaseAllowance(newFirstLossCover, type(uint256).max);
     }
 
     function _investFeesInFirstLossCover() internal returns (AccruedIncomes memory incomes) {
