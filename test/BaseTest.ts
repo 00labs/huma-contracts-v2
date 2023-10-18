@@ -21,6 +21,7 @@ import {
     PoolSafe,
     TrancheVault,
     ProfitEscrow,
+    Receivable,
 } from "../typechain-types";
 import { CreditLossStructOutput } from "../typechain-types/contracts/credit/BasePnLManager";
 import {
@@ -45,11 +46,23 @@ export type PoolContracts = [
     IPoolCredit,
     BaseCreditFeeManager,
     BasePnLManager,
+    Receivable,
 ];
 export type TranchesPolicyContractName =
     | "FixedSeniorYieldTranchePolicy"
     | "RiskAdjustedTranchesPolicy";
 export type CreditContractName = "CreditLine" | "MockPoolCredit";
+
+export enum ReceivableState {
+    Deleted,
+    Minted,
+    Approved,
+    PartiallyPaid,
+    Paid,
+    Rejected,
+    Delayed,
+    Defaulted,
+}
 
 const CALENDAR_UNIT_DAY = 0;
 const CALENDAR_UNIT_MONTH = 1;
@@ -180,6 +193,19 @@ export async function deployPoolContracts(
     const creditPnlManagerContract = await CreditPnLManager.deploy();
     await creditPnlManagerContract.deployed();
 
+    const Receivable = await ethers.getContractFactory("Receivable");
+    const receivableContract = await Receivable.deploy();
+    await receivableContract.deployed();
+    await receivableContract.initialize();
+    await receivableContract.grantRole(
+        receivableContract.DEFAULT_ADMIN_ROLE(),
+        poolOwner.getAddress(),
+    );
+    await receivableContract.renounceRole(
+        receivableContract.DEFAULT_ADMIN_ROLE(),
+        deployer.getAddress(),
+    );
+
     await poolConfigContract.initialize("Test Pool", [
         humaConfigContract.address,
         mockTokenContract.address,
@@ -280,6 +306,7 @@ export async function deployPoolContracts(
         creditContract,
         creditFeeManagerContract,
         creditPnlManagerContract,
+        receivableContract,
     ];
 }
 
@@ -434,6 +461,7 @@ export async function deployAndSetupPoolContracts(
         creditContract,
         creditFeeManagerContract,
         creditPnlManagerContract,
+        receivableContract,
     ] = await deployPoolContracts(
         humaConfigContract,
         mockTokenContract,
@@ -478,6 +506,7 @@ export async function deployAndSetupPoolContracts(
         creditContract,
         creditFeeManagerContract,
         creditPnlManagerContract,
+        receivableContract,
     ];
 }
 
