@@ -12,6 +12,7 @@ import {
 } from "./BaseTest";
 import {
     copyLPConfigWithOverrides,
+    getFirstLossCoverInfo,
     mineNextBlockWithTimestamp,
     setNextBlockTimestamp,
     sumBNArray,
@@ -237,27 +238,19 @@ describe("EpochManager Test", function () {
         const assetInfo = await poolContract.tranchesAssets();
         const assets = [assetInfo[CONSTANTS.SENIOR_TRANCHE], assetInfo[CONSTANTS.JUNIOR_TRANCHE]];
         const profitAfterFees = await poolFeeManagerContract.calcPoolFeeDistribution(profit);
-        const firstLossCoverTotalAssets = await Promise.all(
+        const firstLossCoverInfos = await Promise.all(
             [borrowerFirstLossCoverContract, affiliateFirstLossCoverContract].map(
-                async (contract) => await contract.totalAssets(),
-            ),
-        );
-        const riskYieldMultipliers = await Promise.all(
-            [borrowerFirstLossCoverContract.address, affiliateFirstLossCoverContract.address].map(
-                async (address) =>
-                    (await poolConfigContract.getFirstLossCoverConfig(address))
-                        .riskYieldMultipliers,
+                async (contract) => await getFirstLossCoverInfo(contract, poolConfigContract),
             ),
         );
 
-        return PnLCalculator.calcRiskAdjustedProfitAndLoss(
+        return await PnLCalculator.calcRiskAdjustedProfitAndLoss(
             profitAfterFees,
             loss,
             lossRecovery,
-            firstLossCoverTotalAssets,
             assets,
             BN.from(adjustment),
-            riskYieldMultipliers,
+            firstLossCoverInfos,
         );
     }
 

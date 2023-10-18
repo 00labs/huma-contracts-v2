@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { BigNumber as BN } from "ethers";
-import { getNextDate, getNextMonth, sumBNArray, toToken } from "./TestUtils";
+import { getNextDate, getNextMonth, minBigNumber, sumBNArray, toToken } from "./TestUtils";
 import { EpochInfoStruct } from "../typechain-types/contracts/interfaces/IEpoch";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { ethers } from "hardhat";
@@ -28,6 +28,7 @@ import {
     CreditConfigStruct,
     CreditRecordStruct,
 } from "../typechain-types/contracts/credit/BaseCredit";
+import { FirstLossCoverConfigStruct } from "../typechain-types/contracts/PoolConfig.sol/PoolConfig";
 
 export type ProtocolContracts = [EvaluationAgentNFT, HumaConfig, MockToken];
 export type PoolContracts = [
@@ -229,7 +230,7 @@ export async function deployPoolContracts(
             coverCap: 0,
             liquidityCap: 0,
             maxPercentOfPoolValueInBps: 0,
-            riskYieldMultipliers: 0,
+            riskYieldMultiplier: 0,
         },
         ethers.constants.AddressZero,
     );
@@ -241,7 +242,7 @@ export async function deployPoolContracts(
             coverCap: 0,
             liquidityCap: 0,
             maxPercentOfPoolValueInBps: 0,
-            riskYieldMultipliers: 20000,
+            riskYieldMultiplier: 20000,
         },
         affiliateFirstLossCoverProfitEscrowContract.address,
     );
@@ -568,14 +569,15 @@ function calcProfitForRiskAdjustedPolicy(profit: BN, assets: BN[], riskAdjustmen
     ];
 }
 
-function calcProfitForFirstLossCovers(
+async function calcProfitForFirstLossCovers(
     profit: BN,
     juniorTotalAssets: BN,
-    coverTotalAssets: BN[],
-    riskYieldMultipliers: number[],
-): [BN, BN[]] {
-    const riskWeightedCoverTotalAssets = coverTotalAssets.map((value, index) =>
-        value.mul(riskYieldMultipliers[index]),
+    firstLossCoverInfos: FirstLossCoverInfo[],
+): Promise<[BN, BN[]]> {
+    const riskWeightedCoverTotalAssets = await Promise.all(
+        firstLossCoverInfos.map(async (info, index) =>
+            info.asset.mul(await info.config.riskYieldMultiplier),
+        ),
     );
     const totalWeight = juniorTotalAssets.add(sumBNArray(riskWeightedCoverTotalAssets));
     const profitsForFirstLossCovers = riskWeightedCoverTotalAssets.map((value) =>
@@ -585,7 +587,32 @@ function calcProfitForFirstLossCovers(
     return [juniorProfit, profitsForFirstLossCovers];
 }
 
-function calcLoss(loss: BN, assets: BN[]): BN[][] {
+export interface FirstLossCoverInfo {
+    config: FirstLossCoverConfigStruct;
+    asset: BN;
+}
+
+async function calcLossCover(loss: BN, firstLossCoverInfo: FirstLossCoverInfo): Promise<BN[]> {
+    const coveredAmount = minBigNumber(
+        loss.mul(await firstLossCoverInfo.config.coverRateInBps).div(CONSTANTS.BP_FACTOR),
+        BN.from(await firstLossCoverInfo.config.coverCap),
+        firstLossCoverInfo.asset,
+        loss,
+    );
+    return [loss.sub(coveredAmount), coveredAmount];
+}
+
+async function calcLoss(
+    loss: BN,
+    assets: BN[],
+    firstLossCoverInfos: FirstLossCoverInfo[],
+): Promise<BN[][]> {
+    const lossesCoveredByFirstLossCovers = [];
+    let coveredAmount;
+    for (const info of firstLossCoverInfos) {
+        [loss, coveredAmount] = await calcLossCover(loss, info);
+        lossesCoveredByFirstLossCovers.push(coveredAmount);
+    }
     const juniorLoss = loss.gt(assets[CONSTANTS.JUNIOR_TRANCHE])
         ? assets[CONSTANTS.JUNIOR_TRANCHE]
         : loss;
@@ -597,10 +624,30 @@ function calcLoss(loss: BN, assets: BN[]): BN[][] {
             assets[CONSTANTS.JUNIOR_TRANCHE].sub(juniorLoss),
         ],
         [seniorLoss, juniorLoss],
+        lossesCoveredByFirstLossCovers,
     ];
 }
 
-function calcLossRecovery(lossRecovery: BN, assets: BN[], losses: BN[]): [BN, BN[], BN[]] {
+function calcLossRecoveryForFirstLossCover(coveredLoss: BN, recoveryAmount: BN): BN[] {
+    const recoveredAmount = minBigNumber(coveredLoss, recoveryAmount);
+    return [recoveryAmount.sub(recoveredAmount), recoveredAmount];
+}
+
+async function calcLossRecovery(
+    lossRecovery: BN,
+    assets: BN[],
+    losses: BN[],
+    lossesCoveredByFirstLossCovers: BN[],
+): Promise<[BN, BN[], BN[], BN[]]> {
+    const lossRecoveredInFirstLossCovers = [];
+    let recoveredAmount;
+    for (const coveredLoss of lossesCoveredByFirstLossCovers) {
+        [lossRecovery, recoveredAmount] = calcLossRecoveryForFirstLossCover(
+            coveredLoss,
+            lossRecovery,
+        );
+        lossRecoveredInFirstLossCovers.push(recoveredAmount);
+    }
     const seniorRecovery = lossRecovery.gt(losses[CONSTANTS.SENIOR_TRANCHE])
         ? losses[CONSTANTS.SENIOR_TRANCHE]
         : lossRecovery;
@@ -620,34 +667,41 @@ function calcLossRecovery(lossRecovery: BN, assets: BN[], losses: BN[]): [BN, BN
             losses[CONSTANTS.SENIOR_TRANCHE].sub(seniorRecovery),
             losses[CONSTANTS.JUNIOR_TRANCHE].sub(juniorRecovery),
         ],
+        lossRecoveredInFirstLossCovers,
     ];
 }
 
-function calcRiskAdjustedProfitAndLoss(
+async function calcRiskAdjustedProfitAndLoss(
     profit: BN,
     loss: BN,
     lossRecovery: BN,
-    coverTotalAssets: BN[],
     assets: BN[],
     riskAdjustment: BN,
-    riskYieldMultipliers: number[],
-) {
+    firstLossCoverInfos: FirstLossCoverInfo[],
+): Promise<BN[][]> {
     const assetsAfterProfit = calcProfitForRiskAdjustedPolicy(profit, assets, riskAdjustment);
     const [juniorProfitAfterFirstLossCoverProfitDistribution] =
-        PnLCalculator.calcProfitForFirstLossCovers(
+        await PnLCalculator.calcProfitForFirstLossCovers(
             assetsAfterProfit[CONSTANTS.JUNIOR_TRANCHE].sub(assets[CONSTANTS.JUNIOR_TRANCHE]),
             assets[CONSTANTS.JUNIOR_TRANCHE],
-            coverTotalAssets,
-            riskYieldMultipliers,
+            firstLossCoverInfos,
         );
-    const [assetsAfterLoss, remainingLosses] = PnLCalculator.calcLoss(loss, [
-        assetsAfterProfit[CONSTANTS.SENIOR_TRANCHE],
-        assets[CONSTANTS.JUNIOR_TRANCHE].add(juniorProfitAfterFirstLossCoverProfitDistribution),
-    ]);
-    const [, assetsAfterRecovery, lossesAfterRecovery] = PnLCalculator.calcLossRecovery(
+    const [assetsAfterLoss, remainingLosses, lossesCoveredByFirstLossCovers] =
+        await PnLCalculator.calcLoss(
+            loss,
+            [
+                assetsAfterProfit[CONSTANTS.SENIOR_TRANCHE],
+                assets[CONSTANTS.JUNIOR_TRANCHE].add(
+                    juniorProfitAfterFirstLossCoverProfitDistribution,
+                ),
+            ],
+            firstLossCoverInfos,
+        );
+    const [, assetsAfterRecovery, lossesAfterRecovery] = await PnLCalculator.calcLossRecovery(
         lossRecovery,
         assetsAfterLoss,
         remainingLosses,
+        lossesCoveredByFirstLossCovers,
     );
     return [assetsAfterRecovery, lossesAfterRecovery];
 }
