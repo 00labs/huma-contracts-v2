@@ -598,7 +598,7 @@ describe("Pool Test", function () {
                 });
 
                 it(
-                    "Should return the correct asset distribution when there is profit ans loss," +
+                    "Should return the correct asset distribution when there is profit and loss," +
                         " and first loss cover can cover the loss",
                     async function () {},
                 );
@@ -674,6 +674,85 @@ describe("Pool Test", function () {
                     const loss = toToken(8493);
                     const recovery = toToken(3485);
                     await testAssetCalculation(profit, loss, recovery);
+                });
+            });
+
+            describe("getFirstLossCoverAvailableCap", function () {
+                it(
+                    "Should return the difference between the cover capacity and its total assets" +
+                        " if the capacity exceeds the assets",
+                    async function () {
+                        const tranchesAssets = await poolContract.tranchesAssets();
+                        const totalTrancheAssets = tranchesAssets.seniorTotalAssets.add(
+                            tranchesAssets.juniorTotalAssets,
+                        );
+                        // Deposit the amount of the cap into the first loss cover contract to make sure there
+                        // is no availability.
+                        const config = await poolConfigContract.getFirstLossCoverConfig(
+                            affiliateFirstLossCoverContract.address,
+                        );
+                        const coverTotalAssets =
+                            await affiliateFirstLossCoverContract.totalAssets();
+                        const coverCap = coverTotalAssets.add(1);
+                        const newConfig = {
+                            ...config,
+                            ...{
+                                liquidityCap: coverCap,
+                                maxPercentOfPoolValueInBps: 0,
+                            },
+                        };
+                        await poolConfigContract
+                            .connect(poolOwner)
+                            .setFirstLossCover(
+                                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                                affiliateFirstLossCoverContract.address,
+                                newConfig,
+                                affiliateFirstLossCoverProfitEscrowContract.address,
+                            );
+
+                        const availableCap = await poolContract.getFirstLossCoverAvailableCap(
+                            affiliateFirstLossCoverContract.address,
+                            totalTrancheAssets,
+                        );
+                        expect(availableCap).to.equal(coverCap.sub(coverTotalAssets));
+                    },
+                );
+
+                it("Should return 0 if there is no room left from the cover's capacity", async function () {
+                    const tranchesAssets = await poolContract.tranchesAssets();
+                    const totalTrancheAssets = tranchesAssets.seniorTotalAssets.add(
+                        tranchesAssets.juniorTotalAssets,
+                    );
+                    // Deposit the amount of the cap into the first loss cover contract to make sure there
+                    // is no availability.
+                    const config = await poolConfigContract.getFirstLossCoverConfig(
+                        affiliateFirstLossCoverContract.address,
+                    );
+                    const newConfig = {
+                        ...config,
+                        ...{
+                            liquidityCap: toToken(1_000_000),
+                        },
+                    };
+                    await poolConfigContract
+                        .connect(poolOwner)
+                        .setFirstLossCover(
+                            CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                            affiliateFirstLossCoverContract.address,
+                            newConfig,
+                            affiliateFirstLossCoverProfitEscrowContract.address,
+                        );
+                    const coverCap =
+                        await affiliateFirstLossCoverContract.getCapacity(totalTrancheAssets);
+                    await affiliateFirstLossCoverContract
+                        .connect(evaluationAgent)
+                        .depositCover(coverCap);
+
+                    const availableCap = await poolContract.getFirstLossCoverAvailableCap(
+                        affiliateFirstLossCoverContract.address,
+                        totalTrancheAssets,
+                    );
+                    expect(availableCap).to.equal(ethers.constants.Zero);
                 });
             });
         });

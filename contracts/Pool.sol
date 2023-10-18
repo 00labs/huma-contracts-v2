@@ -539,8 +539,8 @@ contract Pool is PoolConfigCache, IPool {
         uint256 reservedForCover,
         uint256 poolAssets
     ) internal view returns (uint256 availableCap) {
-        uint256 currTotalAssets = cover.totalAssets() + reservedForCover;
+        uint256 coverTotalAssets = cover.totalAssets() + reservedForCover;
         uint256 totalCap = cover.getCapacity(poolAssets);
-        return totalCap > currTotalAssets ? totalCap - currTotalAssets : 0;
+        return totalCap > coverTotalAssets ? totalCap - coverTotalAssets : 0;
     }
 }
