@@ -13,7 +13,6 @@ import {IPoolFeeManager} from "./interfaces/IPoolFeeManager.sol";
 import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import {ITranchesPolicy} from "./interfaces/ITranchesPolicy.sol";
 import {IProfitEscrow} from "./interfaces/IProfitEscrow.sol";
-import "./SharedDefs.sol";
 
 /**
  * @title Pool
@@ -189,22 +188,24 @@ contract Pool is PoolConfigCache, IPool {
     }
 
     /**
-     * @notice Pool owner calls this function to add available liquidity of reserved profit and loss recovery in first loss covers
+     * @notice Allows the pool owner to top up the first loss covers using
+     * the reserved profit and loss recovery until they're full. Once max capacity is hit,
+     * any extra profit is given to the first loss covers as their income.
      */
     function syncFirstLossCovers() external {
         poolConfig.onlyPoolOwner(msg.sender);
 
         uint256 remainingAssets = poolSafe.totalLiquidity();
-        uint256 len = _firstLossCovers.length;
+        uint256 numFirstLossCovers = _firstLossCovers.length;
         uint256 availableAssets;
         uint256 poolAssets;
-        for (uint256 i; i < len && remainingAssets > 0; i++) {
+        for (uint256 i = 0; i < numFirstLossCovers && remainingAssets > 0; i++) {
             bool synced = false;
             IFirstLossCover cover = _firstLossCovers[i];
             ReservedAssetsForFirstLossCover
                 memory reservedAssets = _reservedAssetsForFirstLossCovers[cover];
 
-            // Recovers loss in the FirstLossCover with available liquidity
+            // Recovers loss in the FirstLossCover with available liquidity.
             if (reservedAssets.lossRecovery > 0) {
                 availableAssets = remainingAssets > reservedAssets.lossRecovery
                     ? reservedAssets.lossRecovery
@@ -215,13 +216,13 @@ contract Pool is PoolConfigCache, IPool {
                 synced = true;
             }
 
-            // Adds profit in the FirstLossCover with available liquidity
+            // Adds profit in the FirstLossCover with available liquidity.
             if (reservedAssets.profit > 0 && remainingAssets > 0) {
                 // Distributes profit to the cover. If there is still room in the cover, this profit
                 // is applied towards increasing coverage. The remainder of the profit is distributed to the
-                // first loss cover providers.
+                // first loss cover providers as their income.
 
-                // Invests into the cover until it reaches capacity
+                // Invests into the cover until it reaches capacity.
                 if (poolAssets == 0) {
                     uint96[2] memory assets = _refreshPool();
                     poolAssets = assets[SENIOR_TRANCHE] + assets[JUNIOR_TRANCHE];
@@ -239,7 +240,7 @@ contract Pool is PoolConfigCache, IPool {
                     reservedAssets.profit -= uint96(availableAssets);
                 }
 
-                // Distributes the remainder profit to the cover providers
+                // Distributes the remaining profit to the cover providers.
                 if (reservedAssets.profit > 0 && remainingAssets > 0) {
                     availableAssets = remainingAssets > reservedAssets.profit
                         ? reservedAssets.profit
@@ -263,8 +264,8 @@ contract Pool is PoolConfigCache, IPool {
 
     /// @inheritdoc IPool
     function getReservedAssetsForFirstLossCovers() external view returns (uint256 reservedAssets) {
-        uint256 len = _firstLossCovers.length;
-        for (uint256 i; i < len; i++) {
+        uint256 numFirstLossCovers = _firstLossCovers.length;
+        for (uint256 i = 0; i < numFirstLossCovers; i++) {
             IFirstLossCover cover = _firstLossCovers[i];
             ReservedAssetsForFirstLossCover memory assets = _reservedAssetsForFirstLossCovers[
                 cover
@@ -286,7 +287,7 @@ contract Pool is PoolConfigCache, IPool {
                 assets.lastUpdatedTime
             );
 
-            // Distribute profit to first loss covers from profits in the junior tranche.
+            // Distribute profit to first loss covers using profits in the junior tranche.
             newAssets[JUNIOR_TRANCHE] = uint96(
                 _distributeProfitForFirstLossCovers(
                     newAssets[JUNIOR_TRANCHE] - assets.juniorTotalAssets,
@@ -306,7 +307,7 @@ contract Pool is PoolConfigCache, IPool {
             uint256[16] memory profitsForFirstLossCovers
         ) = _calcProfitForFirstLossCovers(profit, juniorTotalAssets);
         uint256 len = _firstLossCovers.length;
-        for (uint256 i; i < len && profitsForFirstLossCovers[i] > 0; i++) {
+        for (uint256 i = 0; i < len && profitsForFirstLossCovers[i] > 0; i++) {
             IFirstLossCover cover = _firstLossCovers[i];
             ReservedAssetsForFirstLossCover
                 memory reservedAssets = _reservedAssetsForFirstLossCovers[cover];
@@ -323,18 +324,18 @@ contract Pool is PoolConfigCache, IPool {
         if (profit == 0) return (juniorProfit, profitsForFirstLossCovers);
         uint256 len = _firstLossCovers.length;
         uint256 totalWeight = juniorTotalAssets;
-        for (uint256 i; i < len; i++) {
+        for (uint256 i = 0; i < len; i++) {
             IFirstLossCover cover = _firstLossCovers[i];
             // We use profitsForFirstLossCovers to store the effective amount of assets of first loss covers so that
             // we don't have to create another array, which helps to save on gas.
             FirstLossCoverConfig memory config = poolConfig.getFirstLossCoverConfig(
                 address(cover)
             );
-            profitsForFirstLossCovers[i] = cover.totalAssets() * config.riskYieldMultipliers;
+            profitsForFirstLossCovers[i] = cover.totalAssets() * config.riskYieldMultiplier;
             totalWeight += profitsForFirstLossCovers[i];
         }
         juniorProfit = profit;
-        for (uint256 i; i < len; i++) {
+        for (uint256 i = 0; i < len; i++) {
             profitsForFirstLossCovers[i] = (profit * profitsForFirstLossCovers[i]) / totalWeight;
             // Note that juniorProfit is always positive because `totalWeight` consists both junior assets
             // and risk adjusted assets from each first loss cover. Thus we don't need to check whether
@@ -350,7 +351,7 @@ contract Pool is PoolConfigCache, IPool {
     ) internal returns (uint96[2] memory newAssets, uint96[2] memory newLosses) {
         if (loss > 0) {
             uint256 coverCount = _firstLossCovers.length;
-            for (uint256 i; i < coverCount && loss > 0; i++) {
+            for (uint256 i = 0; i < coverCount && loss > 0; i++) {
                 loss = _firstLossCovers[i].coverLoss(loss);
             }
 
@@ -379,10 +380,10 @@ contract Pool is PoolConfigCache, IPool {
                 losses
             );
 
-            uint256 len = _firstLossCovers.length;
+            uint256 numFirstLossCovers = _firstLossCovers.length;
             uint256 recoveredAmount;
-            for (uint256 i = 0; i < len && lossRecovery > 0; i++) {
-                IFirstLossCover cover = _firstLossCovers[len - i - 1];
+            for (uint256 i = 0; i < numFirstLossCovers && lossRecovery > 0; i++) {
+                IFirstLossCover cover = _firstLossCovers[numFirstLossCovers - i - 1];
                 (lossRecovery, recoveredAmount) = cover.calcLossRecover(lossRecovery);
                 ReservedAssetsForFirstLossCover
                     memory reserveAssets = _reservedAssetsForFirstLossCovers[cover];
@@ -539,8 +540,8 @@ contract Pool is PoolConfigCache, IPool {
         uint256 reservedForCover,
         uint256 poolAssets
     ) internal view returns (uint256 availableCap) {
-        uint256 currTotalAssets = cover.totalAssets() + reservedForCover;
+        uint256 coverTotalAssets = cover.totalAssets() + reservedForCover;
         uint256 totalCap = cover.getCapacity(poolAssets);
-        return totalCap > currTotalAssets ? totalCap - currTotalAssets : 0;
+        return totalCap > coverTotalAssets ? totalCap - coverTotalAssets : 0;
     }
 }

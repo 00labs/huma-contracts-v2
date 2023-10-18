@@ -1,8 +1,11 @@
 import { ethers, network } from "hardhat";
 import { BigNumber as BN } from "ethers";
 import moment from "moment";
-import { LPConfigStructOutput } from "../typechain-types/contracts/PoolConfig.sol/PoolConfig";
-import { CONSTANTS } from "./BaseTest";
+import {
+    FirstLossCoverConfigStruct,
+    LPConfigStructOutput,
+} from "../typechain-types/contracts/PoolConfig.sol/PoolConfig";
+import { CONSTANTS, FirstLossCoverInfo } from "./BaseTest";
 import { FirstLossCover, Pool, PoolConfig } from "../typechain-types";
 
 export function toBN(number: string | number, decimals: number): BN {
@@ -163,6 +166,20 @@ export async function getMinLiquidityRequirementForEA(
     const poolCap = lpConfig.liquidityCap;
     const adminRnR = await poolConfigContract.getAdminRnR();
     return poolCap.mul(adminRnR.liquidityRateInBpsByEA).div(CONSTANTS.BP_FACTOR);
+}
+
+export async function getFirstLossCoverInfo(
+    firstLossCoverContract: FirstLossCover,
+    poolConfigContract: PoolConfig,
+): Promise<FirstLossCoverInfo> {
+    const totalAssets = await firstLossCoverContract.totalAssets();
+    const config = await poolConfigContract.getFirstLossCoverConfig(
+        firstLossCoverContract.address,
+    );
+    return {
+        config,
+        asset: totalAssets,
+    };
 }
 
 export function maxBigNumber(...values: BN[]): BN {

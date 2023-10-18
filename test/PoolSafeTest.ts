@@ -150,7 +150,7 @@ describe("PoolSafe Tests", function () {
                     coverCap: 0,
                     liquidityCap: 0,
                     maxPercentOfPoolValueInBps: 0,
-                    riskYieldMultipliers: 0,
+                    riskYieldMultiplier: 0,
                 },
                 affiliateFirstLossCoverProfitEscrowContract.address,
             );
@@ -209,7 +209,7 @@ describe("PoolSafe Tests", function () {
                     coverCap: 0,
                     liquidityCap: 0,
                     maxPercentOfPoolValueInBps: 0,
-                    riskYieldMultipliers: 0,
+                    riskYieldMultiplier: 0,
                 },
                 affiliateFirstLossCoverProfitEscrowContract.address,
             );

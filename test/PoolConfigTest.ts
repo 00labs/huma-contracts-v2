@@ -1585,7 +1585,7 @@ describe("PoolConfig Tests", function () {
                     coverCap: toToken(1_000_000),
                     liquidityCap: toToken(2_000_000),
                     maxPercentOfPoolValueInBps: CONSTANTS.BP_FACTOR,
-                    riskYieldMultipliers: 10,
+                    riskYieldMultiplier: 10,
                 };
             });
 
@@ -1608,7 +1608,7 @@ describe("PoolConfig Tests", function () {
                         config.coverCap,
                         config.liquidityCap,
                         config.maxPercentOfPoolValueInBps,
-                        config.riskYieldMultipliers,
+                        config.riskYieldMultiplier,
                         affiliateFirstLossCoverProfitEscrowContract.address,
                         await actor.getAddress(),
                     );
@@ -1622,7 +1622,7 @@ describe("PoolConfig Tests", function () {
                 expect(coverConfig.maxPercentOfPoolValueInBps).to.equal(
                     config.maxPercentOfPoolValueInBps,
                 );
-                expect(coverConfig.riskYieldMultipliers).to.equal(config.riskYieldMultipliers);
+                expect(coverConfig.riskYieldMultiplier).to.equal(config.riskYieldMultiplier);
 
                 const profitEscrowContractAddress =
                     await poolConfigContract.getFirstLossCoverProfitEscrow(

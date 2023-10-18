@@ -187,7 +187,7 @@ describe("FirstLossCover Tests", function () {
                     coverCap: 0,
                     liquidityCap: 0,
                     maxPercentOfPoolValueInBps: 0,
-                    riskYieldMultipliers: 20000,
+                    riskYieldMultiplier: 20000,
                 },
                 affiliateFirstLossCoverProfitEscrowContract.address,
             );

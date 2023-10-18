@@ -11,6 +11,7 @@ import {
 } from "./BaseTest";
 import {
     copyLPConfigWithOverrides,
+    getFirstLossCoverInfo,
     mineNextBlockWithTimestamp,
     setNextBlockTimestamp,
     toToken,
@@ -404,30 +405,21 @@ describe("TrancheVault Test", function () {
                 ];
                 const profitAfterFees =
                     await poolFeeManagerContract.calcPoolFeeDistribution(profit);
-                const firstLossCoverTotalAssets = await Promise.all(
+                const firstLossCoverInfos = await Promise.all(
                     [borrowerFirstLossCoverContract, affiliateFirstLossCoverContract].map(
-                        async (contract) => await contract.totalAssets(),
+                        async (contract) =>
+                            await getFirstLossCoverInfo(contract, poolConfigContract),
                     ),
                 );
-                const riskYieldMultipliers = await Promise.all(
-                    [
-                        borrowerFirstLossCoverContract.address,
-                        affiliateFirstLossCoverContract.address,
-                    ].map(
-                        async (address) =>
-                            (await poolConfigContract.getFirstLossCoverConfig(address))
-                                .riskYieldMultipliers,
-                    ),
-                );
-                const [[seniorAssets, juniorAssets]] = PnLCalculator.calcRiskAdjustedProfitAndLoss(
-                    profitAfterFees,
-                    loss,
-                    lossRecovery,
-                    firstLossCoverTotalAssets,
-                    assets,
-                    BN.from(adjustment),
-                    riskYieldMultipliers,
-                );
+                const [[seniorAssets, juniorAssets]] =
+                    await PnLCalculator.calcRiskAdjustedProfitAndLoss(
+                        profitAfterFees,
+                        loss,
+                        lossRecovery,
+                        assets,
+                        BN.from(adjustment),
+                        firstLossCoverInfos,
+                    );
 
                 // Make a second round of deposits to make sure the LP token price has increased
                 // and the correct number of tokens are minted.

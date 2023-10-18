@@ -7,15 +7,18 @@ import {
     deployAndSetupPoolContracts,
     deployPoolContracts,
     deployProtocolContracts,
+    FirstLossCoverInfo,
     PnLCalculator,
 } from "./BaseTest";
 import {
     copyLPConfigWithOverrides,
+    getFirstLossCoverInfo,
     getLatestBlock,
     getMinFirstLossCoverRequirement,
     getMinLiquidityRequirementForEA,
     getMinLiquidityRequirementForPoolOwner,
     setNextBlockTimestamp,
+    sumBNArray,
     toToken,
 } from "./TestUtils";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
@@ -374,38 +377,44 @@ describe("Pool Test", function () {
                         assets,
                         BN.from(adjustment),
                     );
-                    const firstLossCoverTotalAssets = await Promise.all(
+                    const firstLossCoverInfos = await Promise.all(
                         [borrowerFirstLossCoverContract, affiliateFirstLossCoverContract].map(
-                            async (contract) => await contract.totalAssets(),
+                            async (contract) =>
+                                await getFirstLossCoverInfo(contract, poolConfigContract),
                         ),
                     );
-                    const riskYieldMultipliers = await Promise.all(
-                        [
-                            borrowerFirstLossCoverContract.address,
-                            affiliateFirstLossCoverContract.address,
-                        ].map(
-                            async (address) =>
-                                (await poolConfigContract.getFirstLossCoverConfig(address))
-                                    .riskYieldMultipliers,
-                        ),
-                    );
-                    const [juniorProfitAfterFirstLossCoverProfitDistribution] =
-                        PnLCalculator.calcProfitForFirstLossCovers(
-                            assetsWithProfits[CONSTANTS.JUNIOR_TRANCHE].sub(
-                                assets[CONSTANTS.JUNIOR_TRANCHE],
-                            ),
+                    const [
+                        juniorProfitAfterFirstLossCoverProfitDistribution,
+                        firstLossCoverProfits,
+                    ] = await PnLCalculator.calcProfitForFirstLossCovers(
+                        assetsWithProfits[CONSTANTS.JUNIOR_TRANCHE].sub(
                             assets[CONSTANTS.JUNIOR_TRANCHE],
-                            firstLossCoverTotalAssets,
-                            riskYieldMultipliers,
-                        );
-                    const [assetsWithLosses, losses] = PnLCalculator.calcLoss(loss, [
-                        assetsWithProfits[CONSTANTS.SENIOR_TRANCHE],
-                        assets[CONSTANTS.JUNIOR_TRANCHE].add(
-                            juniorProfitAfterFirstLossCoverProfitDistribution,
                         ),
-                    ]);
-                    const [, assetsWithRecovery, lossesWithRecovery] =
-                        PnLCalculator.calcLossRecovery(recovery, assetsWithLosses, losses);
+                        assets[CONSTANTS.JUNIOR_TRANCHE],
+                        firstLossCoverInfos,
+                    );
+                    const [assetsWithLosses, losses, lossesCoveredByFirstLossCovers] =
+                        await PnLCalculator.calcLoss(
+                            loss,
+                            [
+                                assetsWithProfits[CONSTANTS.SENIOR_TRANCHE],
+                                assets[CONSTANTS.JUNIOR_TRANCHE].add(
+                                    juniorProfitAfterFirstLossCoverProfitDistribution,
+                                ),
+                            ],
+                            firstLossCoverInfos,
+                        );
+                    const [
+                        ,
+                        assetsWithRecovery,
+                        lossesWithRecovery,
+                        lossRecoveredInFirstLossCovers,
+                    ] = await PnLCalculator.calcLossRecovery(
+                        recovery,
+                        assetsWithLosses,
+                        losses,
+                        lossesCoveredByFirstLossCovers,
+                    );
 
                     await expect(poolContract.refreshPool())
                         .to.emit(poolContract, "PoolAssetsRefreshed")
@@ -435,6 +444,10 @@ describe("Pool Test", function () {
                         CONSTANTS.JUNIOR_TRANCHE,
                     );
                     expect(juniorAssets).to.equal(assetsWithRecovery[CONSTANTS.JUNIOR_TRANCHE]);
+
+                    // TODO(jiatu): re-enable after bug fix.
+                    // const assetsReservedForFirstLossCovers = await poolContract.getReservedAssetsForFirstLossCovers()
+                    // expect(assetsReservedForFirstLossCovers).to.equal(sumBNArray([...firstLossCoverProfits, ...lossRecoveredInFirstLossCovers]));
                 }
 
                 it("Should distribute profit correctly", async function () {
@@ -538,40 +551,36 @@ describe("Pool Test", function () {
                         assets,
                         BN.from(adjustment),
                     );
-                    const firstLossCoverTotalAssets = await Promise.all(
+                    const firstLossCoverInfos = await Promise.all(
                         [borrowerFirstLossCoverContract, affiliateFirstLossCoverContract].map(
-                            async (contract) => await contract.totalAssets(),
-                        ),
-                    );
-                    const riskYieldMultipliers = await Promise.all(
-                        [
-                            borrowerFirstLossCoverContract.address,
-                            affiliateFirstLossCoverContract.address,
-                        ].map(
-                            async (address) =>
-                                (await poolConfigContract.getFirstLossCoverConfig(address))
-                                    .riskYieldMultipliers,
+                            async (contract) =>
+                                await getFirstLossCoverInfo(contract, poolConfigContract),
                         ),
                     );
                     const [juniorProfitAfterFirstLossCoverProfitDistribution] =
-                        PnLCalculator.calcProfitForFirstLossCovers(
+                        await PnLCalculator.calcProfitForFirstLossCovers(
                             assetsWithProfits[CONSTANTS.JUNIOR_TRANCHE].sub(
                                 assets[CONSTANTS.JUNIOR_TRANCHE],
                             ),
                             assets[CONSTANTS.JUNIOR_TRANCHE],
-                            firstLossCoverTotalAssets,
-                            riskYieldMultipliers,
+                            firstLossCoverInfos,
                         );
-                    const [assetsWithLosses, losses] = PnLCalculator.calcLoss(loss, [
-                        assetsWithProfits[CONSTANTS.SENIOR_TRANCHE],
-                        assets[CONSTANTS.JUNIOR_TRANCHE].add(
-                            juniorProfitAfterFirstLossCoverProfitDistribution,
-                        ),
-                    ]);
-                    const [, assetsWithRecovery] = PnLCalculator.calcLossRecovery(
+                    const [assetsWithLosses, losses, lossesCoveredBuFirstLossCovers] =
+                        await PnLCalculator.calcLoss(
+                            loss,
+                            [
+                                assetsWithProfits[CONSTANTS.SENIOR_TRANCHE],
+                                assets[CONSTANTS.JUNIOR_TRANCHE].add(
+                                    juniorProfitAfterFirstLossCoverProfitDistribution,
+                                ),
+                            ],
+                            firstLossCoverInfos,
+                        );
+                    const [, assetsWithRecovery] = await PnLCalculator.calcLossRecovery(
                         recovery,
                         assetsWithLosses,
                         losses,
+                        lossesCoveredBuFirstLossCovers,
                     );
 
                     const totalAssets = await poolContract.totalAssets();
@@ -598,7 +607,7 @@ describe("Pool Test", function () {
                 });
 
                 it(
-                    "Should return the correct asset distribution when there is profit ans loss," +
+                    "Should return the correct asset distribution when there is profit and loss," +
                         " and first loss cover can cover the loss",
                     async function () {},
                 );
@@ -674,6 +683,85 @@ describe("Pool Test", function () {
                     const loss = toToken(8493);
                     const recovery = toToken(3485);
                     await testAssetCalculation(profit, loss, recovery);
+                });
+            });
+
+            describe("getFirstLossCoverAvailableCap", function () {
+                it(
+                    "Should return the difference between the cover capacity and its total assets" +
+                        " if the capacity exceeds the assets",
+                    async function () {
+                        const tranchesAssets = await poolContract.tranchesAssets();
+                        const totalTrancheAssets = tranchesAssets.seniorTotalAssets.add(
+                            tranchesAssets.juniorTotalAssets,
+                        );
+                        // Deposit the amount of the cap into the first loss cover contract to make sure there
+                        // is no availability.
+                        const config = await poolConfigContract.getFirstLossCoverConfig(
+                            affiliateFirstLossCoverContract.address,
+                        );
+                        const coverTotalAssets =
+                            await affiliateFirstLossCoverContract.totalAssets();
+                        const coverCap = coverTotalAssets.add(1);
+                        const newConfig = {
+                            ...config,
+                            ...{
+                                liquidityCap: coverCap,
+                                maxPercentOfPoolValueInBps: 0,
+                            },
+                        };
+                        await poolConfigContract
+                            .connect(poolOwner)
+                            .setFirstLossCover(
+                                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                                affiliateFirstLossCoverContract.address,
+                                newConfig,
+                                affiliateFirstLossCoverProfitEscrowContract.address,
+                            );
+
+                        const availableCap = await poolContract.getFirstLossCoverAvailableCap(
+                            affiliateFirstLossCoverContract.address,
+                            totalTrancheAssets,
+                        );
+                        expect(availableCap).to.equal(coverCap.sub(coverTotalAssets));
+                    },
+                );
+
+                it("Should return 0 if there is no room left from the cover's capacity", async function () {
+                    const tranchesAssets = await poolContract.tranchesAssets();
+                    const totalTrancheAssets = tranchesAssets.seniorTotalAssets.add(
+                        tranchesAssets.juniorTotalAssets,
+                    );
+                    // Deposit the amount of the cap into the first loss cover contract to make sure there
+                    // is no availability.
+                    const config = await poolConfigContract.getFirstLossCoverConfig(
+                        affiliateFirstLossCoverContract.address,
+                    );
+                    const newConfig = {
+                        ...config,
+                        ...{
+                            liquidityCap: toToken(1_000_000),
+                        },
+                    };
+                    await poolConfigContract
+                        .connect(poolOwner)
+                        .setFirstLossCover(
+                            CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                            affiliateFirstLossCoverContract.address,
+                            newConfig,
+                            affiliateFirstLossCoverProfitEscrowContract.address,
+                        );
+                    const coverCap =
+                        await affiliateFirstLossCoverContract.getCapacity(totalTrancheAssets);
+                    await affiliateFirstLossCoverContract
+                        .connect(evaluationAgent)
+                        .depositCover(coverCap);
+
+                    const availableCap = await poolContract.getFirstLossCoverAvailableCap(
+                        affiliateFirstLossCoverContract.address,
+                        totalTrancheAssets,
+                    );
+                    expect(availableCap).to.equal(ethers.constants.Zero);
                 });
             });
         });
