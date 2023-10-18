@@ -388,6 +388,7 @@ contract PoolConfig is AccessControl, Initializable {
         if (rewardsRate > HUNDRED_PERCENT_IN_BPS || liquidityRate > HUNDRED_PERCENT_IN_BPS)
             revert Errors.invalidBasisPointHigherThan10000();
 
+        // TODO(jiatu): Assert here that the combined reward rate for pool owner and EA cannot exceed 100%?
         _adminRnR.rewardRateInBpsForPoolOwner = uint16(rewardsRate);
         _adminRnR.liquidityRateInBpsByPoolOwner = uint16(liquidityRate);
         emit PoolOwnerRewardsAndLiquidityChanged(rewardsRate, liquidityRate, msg.sender);
