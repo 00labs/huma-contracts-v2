@@ -445,9 +445,11 @@ describe("Pool Test", function () {
                     );
                     expect(juniorAssets).to.equal(assetsWithRecovery[CONSTANTS.JUNIOR_TRANCHE]);
 
-                    // TODO(jiatu): re-enable after bug fix.
-                    // const assetsReservedForFirstLossCovers = await poolContract.getReservedAssetsForFirstLossCovers()
-                    // expect(assetsReservedForFirstLossCovers).to.equal(sumBNArray([...firstLossCoverProfits, ...lossRecoveredInFirstLossCovers]));
+                    const assetsReservedForFirstLossCovers =
+                        await poolContract.getReservedAssetsForFirstLossCovers();
+                    expect(assetsReservedForFirstLossCovers).to.equal(
+                        sumBNArray([...firstLossCoverProfits, ...lossRecoveredInFirstLossCovers]),
+                    );
                 }
 
                 it("Should distribute profit correctly", async function () {
