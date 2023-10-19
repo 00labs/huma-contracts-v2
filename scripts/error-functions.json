@@ -44,6 +44,7 @@
   "minPrincipalPaymentRateSettingTooHigh()": "0xc11fc042",
   "proposedEADoesNotOwnProvidedEANFT()": "0x75b0da3b",
   "underlyingTokenNotApprovedForHumaProtocol()": "0xce179d6d",
+  "adminRewardRateTooHigh()": "0x2d664ed8",
   "poolOwnerNotEnoughLiquidity()": "0xe95282e2",
   "evaluationAgentNotEnoughLiquidity()": "0x67e26217",
   "protocolIsPaused()": "0x8f6fa2d4",
