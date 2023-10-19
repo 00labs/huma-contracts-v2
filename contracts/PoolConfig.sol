@@ -8,14 +8,10 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IPoolFeeManager} from "./interfaces/IPoolFeeManager.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IFirstLossCover} from "./interfaces/IFirstLossCover.sol";
-
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "./SharedDefs.sol";
-
+import {AFFILIATE_FIRST_LOSS_COVER_INDEX, HUNDRED_PERCENT_IN_BPS, JUNIOR_TRANCHE, SENIOR_TRANCHE} from "./SharedDefs.sol";
 import {HumaConfig} from "./HumaConfig.sol";
 import {Errors} from "./Errors.sol";
-
-//import "hardhat/console.sol";
 
 struct PoolSettings {
     // The maximum credit line for a borrower in terms of the amount of poolTokens
@@ -404,7 +400,7 @@ contract PoolConfig is AccessControl, Initializable {
         if (rewardRate > HUNDRED_PERCENT_IN_BPS || liquidityRate > HUNDRED_PERCENT_IN_BPS)
             revert Errors.invalidBasisPointHigherThan10000();
         AdminRnR memory tempAdminRnR = _adminRnR;
-        if (rewardRate + tempAdminRnR.rewardRateInBpsForPoolOwner) {
+        if (rewardRate + tempAdminRnR.rewardRateInBpsForPoolOwner > HUNDRED_PERCENT_IN_BPS) {
             // Since we split the profit between the pool owner and EA, their combined reward rate cannot exceed 100%.
             revert Errors.adminRewardRateTooHigh();
         }
