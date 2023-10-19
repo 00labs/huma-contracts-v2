@@ -56,6 +56,7 @@ contract Errors {
     // pool config
     error proposedEADoesNotOwnProvidedEANFT(); // 0x75b0da3b
     error underlyingTokenNotApprovedForHumaProtocol(); // 0xce179d6d
+    error adminRewardRateTooHigh();
     error poolOwnerNotEnoughLiquidity(); // 0xe95282e2
     error evaluationAgentNotEnoughLiquidity(); // 0x67e26217
 

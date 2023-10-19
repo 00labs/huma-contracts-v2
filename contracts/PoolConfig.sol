@@ -164,7 +164,7 @@ contract PoolConfig is AccessControl, Initializable {
     event CreditApprovalExpirationChanged(uint256 durationInDays, address by);
     event LatePaymentGracePeriodChanged(uint256 gracePeriodInDays, address by);
     event EARewardsAndLiquidityChanged(
-        uint256 rewardsRate,
+        uint256 rewardRate,
         uint256 liquidityRate,
         address indexed by
     );
@@ -180,7 +180,7 @@ contract PoolConfig is AccessControl, Initializable {
     event PoolPayPeriodChanged(CalendarUnit unit, uint256 number, address by);
     event PoolNameChanged(string name, address by);
     event PoolOwnerRewardsAndLiquidityChanged(
-        uint256 rewardsRate,
+        uint256 rewardRate,
         uint256 liquidityRate,
         address indexed by
     );
@@ -383,25 +383,36 @@ contract PoolConfig is AccessControl, Initializable {
         emit LatePaymentGracePeriodChanged(gracePeriodInDays, msg.sender);
     }
 
-    function setPoolOwnerRewardsAndLiquidity(uint256 rewardsRate, uint256 liquidityRate) external {
+    function setPoolOwnerRewardsAndLiquidity(uint256 rewardRate, uint256 liquidityRate) external {
         _onlyOwnerOrHumaMasterAdmin();
-        if (rewardsRate > HUNDRED_PERCENT_IN_BPS || liquidityRate > HUNDRED_PERCENT_IN_BPS)
+        if (rewardRate > HUNDRED_PERCENT_IN_BPS || liquidityRate > HUNDRED_PERCENT_IN_BPS)
             revert Errors.invalidBasisPointHigherThan10000();
+        AdminRnR memory tempAdminRnR = _adminRnR;
+        if (rewardRate + tempAdminRnR.rewardRateInBpsForEA > HUNDRED_PERCENT_IN_BPS) {
+            // Since we split the profit between the pool owner and EA, their combined reward rate cannot exceed 100%.
+            revert Errors.adminRewardRateTooHigh();
+        }
 
-        // TODO(jiatu): Assert here that the combined reward rate for pool owner and EA cannot exceed 100%?
-        _adminRnR.rewardRateInBpsForPoolOwner = uint16(rewardsRate);
-        _adminRnR.liquidityRateInBpsByPoolOwner = uint16(liquidityRate);
-        emit PoolOwnerRewardsAndLiquidityChanged(rewardsRate, liquidityRate, msg.sender);
+        tempAdminRnR.rewardRateInBpsForPoolOwner = uint16(rewardRate);
+        tempAdminRnR.liquidityRateInBpsByPoolOwner = uint16(liquidityRate);
+        _adminRnR = tempAdminRnR;
+        emit PoolOwnerRewardsAndLiquidityChanged(rewardRate, liquidityRate, msg.sender);
     }
 
-    function setEARewardsAndLiquidity(uint256 rewardsRate, uint256 liquidityRate) external {
+    function setEARewardsAndLiquidity(uint256 rewardRate, uint256 liquidityRate) external {
         _onlyOwnerOrHumaMasterAdmin();
-
-        if (rewardsRate > HUNDRED_PERCENT_IN_BPS || liquidityRate > HUNDRED_PERCENT_IN_BPS)
+        if (rewardRate > HUNDRED_PERCENT_IN_BPS || liquidityRate > HUNDRED_PERCENT_IN_BPS)
             revert Errors.invalidBasisPointHigherThan10000();
-        _adminRnR.rewardRateInBpsForEA = uint16(rewardsRate);
-        _adminRnR.liquidityRateInBpsByEA = uint16(liquidityRate);
-        emit EARewardsAndLiquidityChanged(rewardsRate, liquidityRate, msg.sender);
+        AdminRnR memory tempAdminRnR = _adminRnR;
+        if (rewardRate + tempAdminRnR.rewardRateInBpsForPoolOwner) {
+            // Since we split the profit between the pool owner and EA, their combined reward rate cannot exceed 100%.
+            revert Errors.adminRewardRateTooHigh();
+        }
+
+        tempAdminRnR.rewardRateInBpsForEA = uint16(rewardRate);
+        tempAdminRnR.liquidityRateInBpsByEA = uint16(liquidityRate);
+        _adminRnR = tempAdminRnR;
+        emit EARewardsAndLiquidityChanged(rewardRate, liquidityRate, msg.sender);
     }
 
     /**
