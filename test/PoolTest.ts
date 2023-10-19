@@ -17,6 +17,7 @@ import {
     getMinFirstLossCoverRequirement,
     getMinLiquidityRequirementForEA,
     getMinLiquidityRequirementForPoolOwner,
+    overrideFirstLossCoverConfig,
     setNextBlockTimestamp,
     sumBNArray,
     toToken,
@@ -701,21 +702,17 @@ describe("Pool Test", function () {
                         const coverTotalAssets =
                             await affiliateFirstLossCoverContract.totalAssets();
                         const coverCap = coverTotalAssets.add(1);
-                        const newConfig = {
-                            ...config,
-                            ...{
+                        await overrideFirstLossCoverConfig(
+                            affiliateFirstLossCoverContract,
+                            affiliateFirstLossCoverProfitEscrowContract,
+                            CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                            poolConfigContract,
+                            poolOwner,
+                            {
                                 liquidityCap: coverCap,
                                 maxPercentOfPoolValueInBps: 0,
                             },
-                        };
-                        await poolConfigContract
-                            .connect(poolOwner)
-                            .setFirstLossCover(
-                                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
-                                affiliateFirstLossCoverContract.address,
-                                newConfig,
-                                affiliateFirstLossCoverProfitEscrowContract.address,
-                            );
+                        );
 
                         const availableCap = await poolContract.getFirstLossCoverAvailableCap(
                             affiliateFirstLossCoverContract.address,
@@ -732,23 +729,16 @@ describe("Pool Test", function () {
                     );
                     // Deposit the amount of the cap into the first loss cover contract to make sure there
                     // is no availability.
-                    const config = await poolConfigContract.getFirstLossCoverConfig(
-                        affiliateFirstLossCoverContract.address,
-                    );
-                    const newConfig = {
-                        ...config,
-                        ...{
+                    await overrideFirstLossCoverConfig(
+                        affiliateFirstLossCoverContract,
+                        affiliateFirstLossCoverProfitEscrowContract,
+                        CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                        poolConfigContract,
+                        poolOwner,
+                        {
                             liquidityCap: toToken(1_000_000),
                         },
-                    };
-                    await poolConfigContract
-                        .connect(poolOwner)
-                        .setFirstLossCover(
-                            CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
-                            affiliateFirstLossCoverContract.address,
-                            newConfig,
-                            affiliateFirstLossCoverProfitEscrowContract.address,
-                        );
+                    );
                     const coverCap =
                         await affiliateFirstLossCoverContract.getCapacity(totalTrancheAssets);
                     await affiliateFirstLossCoverContract
