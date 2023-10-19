@@ -14,8 +14,6 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20MetadataUpgradeable, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 
-import "hardhat/console.sol";
-
 /**
  * @title FirstLossCover
  */
@@ -219,7 +217,6 @@ contract FirstLossCover is
         _onlyCoverProvider(account);
         uint256 balance = convertToAssets(balanceOf(account));
         uint256 min = _getMinCoverAmount(account);
-        console.log("balance: %s, min: %s", balance, min);
         return balance >= min;
     }
 
@@ -305,13 +302,15 @@ contract FirstLossCover is
     }
 
     function _getMinCoverAmount(address account) internal view returns (uint256 minCoverAmount) {
-        LossCoverProviderConfig memory config = providerConfigs[account];
+        LossCoverProviderConfig memory providerConfig = providerConfigs[account];
         LPConfig memory lpConfig = poolConfig.getLPConfig();
         uint256 poolCap = lpConfig.liquidityCap;
-        uint256 minFromPoolCap = (poolCap * config.poolCapCoverageInBps) / HUNDRED_PERCENT_IN_BPS;
-        uint256 poolValue = pool.totalAssets();
-        uint256 minFromPoolValue = (poolValue * config.poolValueCoverageInBps) /
+        uint256 minFromPoolCap = (poolCap * providerConfig.poolCapCoverageInBps) /
             HUNDRED_PERCENT_IN_BPS;
+        uint256 poolValue = pool.totalAssets();
+        uint256 minFromPoolValue = (poolValue * providerConfig.poolValueCoverageInBps) /
+            HUNDRED_PERCENT_IN_BPS;
+        // We use the larger of the two values as the minimum cover amount.
         return minFromPoolCap > minFromPoolValue ? minFromPoolCap : minFromPoolValue;
     }
 

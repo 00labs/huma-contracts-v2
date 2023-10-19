@@ -8,6 +8,8 @@ import {
 import { CONSTANTS, FirstLossCoverInfo } from "./BaseTest";
 import { FirstLossCover, Pool, PoolConfig, ProfitEscrow } from "../typechain-types";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { FirstLossCoverStorage } from "../typechain-types/contracts/FirstLossCover";
+import LossCoverProviderConfigStruct = FirstLossCoverStorage.LossCoverProviderConfigStruct;
 
 export function toBN(number: string | number, decimals: number): BN {
     return BN.from(number).mul(BN.from(10).pow(BN.from(decimals)));
@@ -132,6 +134,19 @@ export function copyLPConfigWithOverrides(
     };
 }
 
+export async function overrideLPConfig(
+    poolConfigContract: PoolConfig,
+    poolOwner: SignerWithAddress,
+    overrides: Partial<LPConfigStructOutput>,
+) {
+    const lpConfig = await poolConfigContract.getLPConfig();
+    const newLPConfig = {
+        ...lpConfig,
+        ...overrides,
+    };
+    await poolConfigContract.connect(poolOwner).setLPConfig(newLPConfig);
+}
+
 export async function getMinFirstLossCoverRequirement(
     firstLossCoverContract: FirstLossCover,
     poolConfigContract: PoolConfig,
@@ -181,6 +196,22 @@ export async function getFirstLossCoverInfo(
         config,
         asset: totalAssets,
     };
+}
+
+export async function overrideLossCoverProviderConfig(
+    firstLossCoverContract: FirstLossCover,
+    provider: SignerWithAddress,
+    poolOwner: SignerWithAddress,
+    override: Partial<LossCoverProviderConfigStruct>,
+) {
+    const config = await firstLossCoverContract.getCoverProviderConfig(provider.getAddress());
+    const newConfig = {
+        ...config,
+        ...override,
+    };
+    await firstLossCoverContract
+        .connect(poolOwner)
+        .setCoverProvider(provider.getAddress(), newConfig);
 }
 
 export async function overrideFirstLossCoverConfig(
