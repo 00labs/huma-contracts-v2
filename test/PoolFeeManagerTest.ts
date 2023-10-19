@@ -22,7 +22,7 @@ import {
     TrancheVault,
     ProfitEscrow,
 } from "../typechain-types";
-import { toToken } from "./TestUtils";
+import { overrideFirstLossCoverConfig, toToken } from "./TestUtils";
 import { BigNumber as BN } from "ethers";
 
 let defaultDeployer: SignerWithAddress,
@@ -137,23 +137,16 @@ describe("PoolFeeManager Tests", function () {
             await creditContract.setRefreshPnLReturns(profit, toToken(0), toToken(0));
 
             // Make sure the first loss cover has room for investment.
-            const config = await poolConfigContract.getFirstLossCoverConfig(
-                affiliateFirstLossCoverContract.address,
-            );
-            const newConfig = {
-                ...config,
-                ...{
+            await overrideFirstLossCoverConfig(
+                affiliateFirstLossCoverContract,
+                affiliateFirstLossCoverProfitEscrowContract,
+                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                poolConfigContract,
+                poolOwner,
+                {
                     liquidityCap: toToken(1_000_000_000),
                 },
-            };
-            await poolConfigContract
-                .connect(poolOwner)
-                .setFirstLossCover(
-                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
-                    affiliateFirstLossCoverContract.address,
-                    newConfig,
-                    affiliateFirstLossCoverProfitEscrowContract.address,
-                );
+            );
 
             // Make sure the pool safe has liquidity for fee investment.
             await mockTokenContract.mint(poolSafeContract.address, toToken(1_000_000));
@@ -336,31 +329,6 @@ describe("PoolFeeManager Tests", function () {
             // Make sure all parties can withdraw their fees. First, mint enough tokens for distribution.
             await mockTokenContract.mint(poolSafeContract.address, totalFees);
 
-            // Protocol owner fees.
-            const oldProtocolIncomeWithdrawn =
-                await poolFeeManagerContract.protocolIncomeWithdrawn();
-            const oldProtocolTreasuryBalance = await mockTokenContract.balanceOf(
-                protocolTreasury.address,
-            );
-            await expect(
-                poolFeeManagerContract
-                    .connect(protocolOwner)
-                    .withdrawProtocolFee(expectedProtocolIncome),
-            )
-                .to.emit(poolFeeManagerContract, "ProtocolRewardsWithdrawn")
-                .withArgs(protocolTreasury.address, expectedProtocolIncome, protocolOwner.address);
-            const newProtocolIncomeWithdrawn =
-                await poolFeeManagerContract.protocolIncomeWithdrawn();
-            const newProtocolTreasuryBalance = await mockTokenContract.balanceOf(
-                protocolTreasury.address,
-            );
-            expect(newProtocolIncomeWithdrawn).to.equal(
-                oldProtocolIncomeWithdrawn.add(expectedProtocolIncome),
-            );
-            expect(newProtocolTreasuryBalance).to.equal(
-                oldProtocolTreasuryBalance.add(expectedProtocolIncome),
-            );
-
             // Pool owner fees.
             const oldPoolOwnerIncomeWithdrawn =
                 await poolFeeManagerContract.poolOwnerIncomeWithdrawn();
@@ -426,6 +394,42 @@ describe("PoolFeeManager Tests", function () {
         before(function () {
             amount = toToken(1_000);
         });
+
+        it(
+            "Should allow the protocol owner to withdraw the fee when there is" +
+                " no more capacity in the first loss cover for fee investment",
+            async function () {
+                await mockTokenContract.mint(poolSafeContract.address, expectedProtocolIncome);
+
+                const oldProtocolIncomeWithdrawn =
+                    await poolFeeManagerContract.protocolIncomeWithdrawn();
+                const oldProtocolTreasuryBalance = await mockTokenContract.balanceOf(
+                    protocolTreasury.address,
+                );
+                await expect(
+                    poolFeeManagerContract
+                        .connect(protocolOwner)
+                        .withdrawProtocolFee(expectedProtocolIncome),
+                )
+                    .to.emit(poolFeeManagerContract, "ProtocolRewardsWithdrawn")
+                    .withArgs(
+                        protocolTreasury.address,
+                        expectedProtocolIncome,
+                        protocolOwner.address,
+                    );
+                const newProtocolIncomeWithdrawn =
+                    await poolFeeManagerContract.protocolIncomeWithdrawn();
+                const newProtocolTreasuryBalance = await mockTokenContract.balanceOf(
+                    protocolTreasury.address,
+                );
+                expect(newProtocolIncomeWithdrawn).to.equal(
+                    oldProtocolIncomeWithdrawn.add(expectedProtocolIncome),
+                );
+                expect(newProtocolTreasuryBalance).to.equal(
+                    oldProtocolTreasuryBalance.add(expectedProtocolIncome),
+                );
+            },
+        );
 
         it("Should disallow non-protocol owner owner to withdraw protocol fees", async function () {
             await expect(
