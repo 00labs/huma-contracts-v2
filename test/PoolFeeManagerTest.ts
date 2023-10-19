@@ -130,6 +130,198 @@ describe("PoolFeeManager Tests", function () {
         await loadFixture(prepare);
     });
 
+    describe("updatePoolConfigData", function () {
+        async function spendAllowance() {
+            // Spend some of the allowance by investing fees into the first loss cover contract.
+            const profit = toToken(500_000);
+            await creditContract.setRefreshPnLReturns(profit, toToken(0), toToken(0));
+
+            // Make sure the first loss cover has room for investment.
+            const config = await poolConfigContract.getFirstLossCoverConfig(
+                affiliateFirstLossCoverContract.address,
+            );
+            const newConfig = {
+                ...config,
+                ...{
+                    liquidityCap: toToken(1_000_000_000),
+                },
+            };
+            await poolConfigContract
+                .connect(poolOwner)
+                .setFirstLossCover(
+                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                    affiliateFirstLossCoverContract.address,
+                    newConfig,
+                    affiliateFirstLossCoverProfitEscrowContract.address,
+                );
+
+            // Make sure the pool safe has liquidity for fee investment.
+            await mockTokenContract.mint(poolSafeContract.address, toToken(1_000_000));
+
+            // Refresh pool proactively so that we can get the amount of investable fees, and make sure
+            // it's non-zero for the test to be meaningful.
+            await poolConfigContract
+                .connect(poolOwner)
+                .setEpochManager(defaultDeployer.getAddress());
+            await poolContract.refreshPool();
+            const feesInvestable =
+                await poolFeeManagerContract.getAvailableFeesToInvestInFirstLossCover();
+            expect(feesInvestable).to.not.equal(ethers.constants.Zero);
+            await poolFeeManagerContract.connect(poolOwner).investFeesInFirstLossCover();
+        }
+
+        async function performUpdate(
+            newFirstLossCoverContract: FirstLossCover,
+            newMockTokenContract: MockToken,
+        ) {
+            await spendAllowance();
+            const PoolConfig = await ethers.getContractFactory("PoolConfig");
+            const newPoolConfigContract = await PoolConfig.deploy();
+            await newPoolConfigContract.deployed();
+
+            // Update the contract addresses.
+            await newPoolConfigContract.initialize("Test Pool", [
+                humaConfigContract.address,
+                newMockTokenContract.address,
+                calendarContract.address,
+                poolContract.address,
+                newFirstLossCoverContract.address,
+                poolFeeManagerContract.address,
+                tranchesPolicyContract.address,
+                epochManagerContract.address,
+                seniorTrancheVaultContract.address,
+                juniorTrancheVaultContract.address,
+                creditContract.address,
+                creditFeeManagerContract.address,
+                creditPnlManagerContract.address,
+            ]);
+            await newPoolConfigContract.setFirstLossCover(
+                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                newFirstLossCoverContract.address,
+                {
+                    coverRateInBps: 0,
+                    coverCap: 0,
+                    liquidityCap: 0,
+                    maxPercentOfPoolValueInBps: 0,
+                    riskYieldMultiplier: 20000,
+                },
+                affiliateFirstLossCoverProfitEscrowContract.address,
+            );
+            await poolFeeManagerContract
+                .connect(poolOwner)
+                .setPoolConfig(newPoolConfigContract.address);
+        }
+
+        describe("When both the first loss cover and the underlying token contracts are updated", function () {
+            it("Should reset the allowance of the first loss cover contract", async function () {
+                const FirstLossCover = await ethers.getContractFactory("FirstLossCover");
+                const newFirstLossCoverContract = await FirstLossCover.deploy();
+                await newFirstLossCoverContract.deployed();
+                const MockToken = await ethers.getContractFactory("MockToken");
+                const newMockTokenContract = await MockToken.deploy();
+                await newMockTokenContract.deployed();
+                await humaConfigContract
+                    .connect(protocolOwner)
+                    .setLiquidityAsset(newMockTokenContract.address, true);
+                await performUpdate(newFirstLossCoverContract, newMockTokenContract);
+
+                // Make sure the old allowance has been reduced to 0, and the new allowance has been increase to uint256.max.
+                expect(
+                    await mockTokenContract.allowance(
+                        poolFeeManagerContract.address,
+                        affiliateFirstLossCoverContract.address,
+                    ),
+                ).to.equal(0);
+                expect(
+                    await newMockTokenContract.allowance(
+                        poolFeeManagerContract.address,
+                        newFirstLossCoverContract.address,
+                    ),
+                ).to.equal(ethers.constants.MaxUint256);
+                // Make sure there is no allowance for the new pool in the old token contract, or the old pool in the
+                // new token contract.
+                expect(
+                    await mockTokenContract.allowance(
+                        poolFeeManagerContract.address,
+                        newFirstLossCoverContract.address,
+                    ),
+                ).to.equal(0);
+                expect(
+                    await newMockTokenContract.allowance(
+                        poolFeeManagerContract.address,
+                        affiliateFirstLossCoverContract.address,
+                    ),
+                ).to.equal(0);
+            });
+        });
+
+        describe("When only the first loss cover contract is updated", function () {
+            it("Should reset the allowance of the first loss cover contract", async function () {
+                const FirstLossCover = await ethers.getContractFactory("FirstLossCover");
+                const newFirstLossCoverContract = await FirstLossCover.deploy();
+                await newFirstLossCoverContract.deployed();
+                await performUpdate(newFirstLossCoverContract, mockTokenContract);
+
+                // Make sure the old allowance has been reduced to 0, and the new allowance has been increase to uint256.max.
+                expect(
+                    await mockTokenContract.allowance(
+                        poolFeeManagerContract.address,
+                        affiliateFirstLossCoverContract.address,
+                    ),
+                ).to.equal(0);
+                expect(
+                    await mockTokenContract.allowance(
+                        poolFeeManagerContract.address,
+                        newFirstLossCoverContract.address,
+                    ),
+                ).to.equal(ethers.constants.MaxUint256);
+            });
+        });
+
+        describe("When only the underlying token contract is updated", function () {
+            it("Should reset the allowance of the first loss cover contract", async function () {
+                const MockToken = await ethers.getContractFactory("MockToken");
+                const newMockTokenContract = await MockToken.deploy();
+                await newMockTokenContract.deployed();
+                await humaConfigContract
+                    .connect(protocolOwner)
+                    .setLiquidityAsset(newMockTokenContract.address, true);
+                await performUpdate(affiliateFirstLossCoverContract, newMockTokenContract);
+
+                // Make sure the old allowance has been reduced to 0, and the new allowance has been increase to uint256.max.
+                expect(
+                    await mockTokenContract.allowance(
+                        poolFeeManagerContract.address,
+                        affiliateFirstLossCoverContract.address,
+                    ),
+                ).to.equal(0);
+                expect(
+                    await newMockTokenContract.allowance(
+                        poolFeeManagerContract.address,
+                        affiliateFirstLossCoverContract.address,
+                    ),
+                ).to.equal(ethers.constants.MaxUint256);
+            });
+        });
+
+        describe("When neither the first loss cover nor the underlying token contract is updated", function () {
+            it("Should not change the allowance", async function () {
+                const existingAllowance = await mockTokenContract.allowance(
+                    poolFeeManagerContract.address,
+                    affiliateFirstLossCoverContract.address,
+                );
+                await performUpdate(affiliateFirstLossCoverContract, mockTokenContract);
+
+                expect(
+                    await mockTokenContract.allowance(
+                        poolFeeManagerContract.address,
+                        affiliateFirstLossCoverContract.address,
+                    ),
+                ).to.equal(existingAllowance);
+            });
+        });
+    });
+
     describe("distributePoolFees", function () {
         it("Should distribute pool fees to all parties and allow them to withdraw", async function () {
             await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.address);
