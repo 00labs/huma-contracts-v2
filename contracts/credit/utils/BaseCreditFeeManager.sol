@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {ICreditFeeManager} from "./interfaces/ICreditFeeManager.sol";
 import {CreditConfig, CreditRecord, CreditState} from "../CreditStructs.sol";
-import {PoolConfig} from "../../PoolConfig.sol";
+import {PoolConfig, PoolSettings} from "../../PoolConfig.sol";
 import {ICalendar} from "../interfaces/ICalendar.sol";
 import "../../SharedDefs.sol";
 import {Errors} from "../../Errors.sol";
@@ -129,27 +129,20 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
         view
         virtual
         override
-        returns (
-            CreditRecord memory newCreditRecord,
-            uint256 periodsPassed,
-            uint96 profitImpact,
-            uint96 principalDifference,
-            uint96 lossImpact
-        )
+        returns (CreditRecord memory newCreditRecord, uint256 periodsPassed, bool isLate)
     {
         //* Reserved for Richard review, to be deleted, please review this function
 
+        PoolSettings memory settings = poolConfig.getPoolSettings();
         // If the due is nonzero and has passed late payment grace period, the account is considered late
-        bool isLate = (_cr.totalDue != 0 &&
+        isLate = (_cr.totalDue != 0 &&
             block.timestamp >
-            _cr.nextDueDate +
-                poolConfig.getPoolSettings().latePaymentGracePeriodInDays *
-                SECONDS_IN_A_DAY);
+            _cr.nextDueDate + settings.latePaymentGracePeriodInDays * SECONDS_IN_A_DAY);
 
         // Directly return if it is still within the current period or within late payment grace
         // period when there is still a balance due
         if ((block.timestamp <= _cr.nextDueDate) || (_cr.totalDue != 0 && !isLate)) {
-            return (_cr, 0, 0, 0, 0);
+            return (_cr, 0, false);
         }
 
         /**
@@ -159,7 +152,6 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
          * 2. Compute yield for the next period
          * 3. Add membership fee
          * 4. Calculate the principal due, and subtract it from the unbilled principal amount
-         * 5. Compute the understated profit due to the increased principal caused by accrued yield and fees
          */
         newCreditRecord = CreditRecord(
             _cr.unbilledPrincipal,
@@ -172,6 +164,7 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
             _cr.state
         );
         uint256 currentPeriodInSeconds;
+        uint256 totalMissedPeriods = _cr.missedPeriods;
         while (block.timestamp > newCreditRecord.nextDueDate) {
             uint256 newNextDueDate = calendar.getNextPeriod(
                 _cc.calendarUnit,
@@ -181,36 +174,11 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
             currentPeriodInSeconds = newCreditRecord.nextDueDate > 0
                 ? newNextDueDate - newCreditRecord.nextDueDate
                 : newNextDueDate - block.timestamp;
-            // console.log(
-            //     "newNextDueDate: %s, cr.nextDueDate: %s, secondsPerPeriod: %s",
-            //     newNextDueDate,
-            //     cr.nextDueDate,
-            //     currentPeriodInSeconds
-            // );
-            // console.log(
-            //     "cr.unbilledPrincipal: %s, cr.totalDue: %s",
-            //     cr.unbilledPrincipal,
-            //     cr.totalDue
-            // );
 
             // Step 1. calculate late fees
             if (newCreditRecord.totalDue > 0) {
                 newCreditRecord.unbilledPrincipal += newCreditRecord.totalDue;
-                // If the borrower had settled the bill punctually, their yield and fee payments would've been added
-                // to the principal, leading to extra profit from this increased principal.
-                // Therefore, we track the unsettled yield and fees using the `principalDifference` variable below
-                // to observe the understated profit.
-                principalDifference += newCreditRecord.yieldDue + newCreditRecord.feesDue;
-                //* Reserved for Richard review, to be deleted
-                // Account late fees as part of the understated profit
-                profitImpact += newCreditRecord.feesDue;
                 newCreditRecord.feesDue = uint96(calcLateFee(newCreditRecord.unbilledPrincipal));
-                // console.log(
-                //     "cr.unbilledPrincipal: %s, principalDifference: %s, cr.feesDue: %s",
-                //     cr.unbilledPrincipal,
-                //     principalDifference,
-                //     cr.feesDue
-                // );
             }
 
             // Step 2. compute the yield for the next period
@@ -236,116 +204,20 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
             newCreditRecord.unbilledPrincipal = uint96(
                 newCreditRecord.unbilledPrincipal - principalDue
             );
-            // console.log(
-            //     "cr.unbilledPrincipal: %s, cr.totalDue: %s, principalToBill: %s",
-            //     cr.unbilledPrincipal,
-            //     cr.totalDue,
-            //     principalToBill
-            // );
-
-            // Step 5. capture understated profit for this period.
-            //* Reserved for Richard review, to be deleted
-            // block.timestamp > newNextDueDate, it is necessary to avoid to add the interest of principal difference of future time (from now to next due date)
-            if (principalDifference > 0 && block.timestamp > newNextDueDate) {
-                uint256 yieldInBps = _cc.yieldInBps;
-                profitImpact += uint96(
-                    (principalDifference * yieldInBps * currentPeriodInSeconds) /
-                        (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
-                );
-                // console.log(
-                //     "principalDifference: %s, timelapsed: %s, pnlImpact: %s",
-                //     principalDifference,
-                //     currentPeriodInSeconds,
-                //     pnlImpact
-                // );
-            }
 
             periodsPassed++;
+            totalMissedPeriods++;
             newCreditRecord.nextDueDate = uint64(newNextDueDate);
-        }
 
-        if (isLate) {
-            // `lossImpact` is the amount of missed profit to markdown due to the late payment,
-            // which consists of 2 parts:
-            // (1) the `principalDifference`, which is the total yield and fields overdue since the first late payment;
-            // (2) the yield from for the last partial billing cycle, i.e. from the beginning of the previous due date
-            //     to the current moment. E.g., if the previous due date is 11/1, and the current date is 11/15, then
-            //     this part is the yield from 11/1 to 11/15.
-            // Below is part (1).
-            lossImpact = principalDifference;
-        }
-
-        // Capture understated profit from the previous due date to the current moment, i.e. the last
-        // partial/whole period.
-        uint256 previousDueDate = newCreditRecord.nextDueDate - currentPeriodInSeconds;
-        if (block.timestamp > previousDueDate) {
-            //* Reserved for Richard review, to be deleted
-            // Calculate the yield generated from the principal difference for the last partial billing cycle
-            // (from the precious due date until now) and add it to `profitImpact`.
-            profitImpact += uint96(
-                (principalDifference * _cc.yieldInBps * (block.timestamp - previousDueDate)) /
-                    (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
-            );
-
-            // console.log(
-            //     "principalDifference: %s, timelapsed: %s, pnlImpact: %s",
-            //     principalDifference,
-            //     block.timestamp - preDueDate,
-            //     (principalDifference * _cc.yieldInBps * (block.timestamp - preDueDate)) /
-            //         (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
-            // );
-            if (isLate) {
-                //* Reserved for Richard review, to be deleted
-                // The second part of `lossImpact`.
-                lossImpact += uint96(
-                    ((newCreditRecord.unbilledPrincipal +
-                        newCreditRecord.totalDue -
-                        newCreditRecord.yieldDue -
-                        newCreditRecord.feesDue) *
-                        _cc.yieldInBps *
-                        (block.timestamp - previousDueDate)) /
-                        (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
-                );
-
-                //console.log("lossImpact: %s", lossImpact);
+            if (
+                (totalMissedPeriods - 1) * settings.payPeriodInCalendarUnit >
+                settings.defaultGracePeriodInCalendarUnit
+            ) {
+                // If the borrower has missed more than default grace periods, the credit line is defaulted
+                // and stops to accrue interest.
+                break;
             }
         }
-
-        //* Reserved for Richard review, to be deleted, the following is old code for reference
-        // uint256 secondsPerPeriod = calendar.getSecondsPerPeriod(
-        //     _cc.calendarUnit,
-        //     _cc.periodDuration
-        // );
-
-        // for (uint256 i = 0; i < periodsPassed; i++) {
-        //     // step 1. calculates late fees
-        //     if (_cr.totalDue > 0) {
-        //         _cr.unbilledPrincipal += _cr.totalDue;
-        //         principalDifference += _cr.totalDue;
-        //         _cr.feesDue = uint96(calcLateFee(_cr.unbilledPrincipal + _cr.totalDue));
-        //     }
-
-        //     // step 2. computes yield for the next period
-        //     _cr.yieldDue = uint96(
-        //         (((_cr.unbilledPrincipal * _cc.yieldInBps) / HUNDRED_PERCENT_IN_BPS) *
-        //             secondsPerPeriod) / SECONDS_IN_A_YEAR
-        //     );
-
-        //     // step 3. handles membership fee.
-        //     (, , uint256 membershipFee) = poolConfig.getFees();
-        //     _cr.yieldDue += uint96(membershipFee);
-
-        //     // step 4. computes principal due and adjust unbilled principal
-        //     uint256 principalToBill = (_cr.unbilledPrincipal *
-        //         poolConfig.getMinPrincipalRateInBps()) / HUNDRED_PERCENT_IN_BPS;
-        //     _cr.totalDue = uint96(_cr.feesDue + _cr.yieldDue + principalToBill);
-        //     _cr.unbilledPrincipal = uint96(_cr.unbilledPrincipal - principalToBill);
-
-        //     // Step 5. captures undercounted profit for this period.
-        //     pnlImpact += uint96(
-        //         (principalDifference * _cc.yieldInBps * secondsPerPeriod) / SECONDS_IN_A_YEAR
-        //     );
-        // }
 
         // If passed final period, all principal is due
         if (periodsPassed >= newCreditRecord.remainingPeriods) {

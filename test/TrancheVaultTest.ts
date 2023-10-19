@@ -19,7 +19,6 @@ import {
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import {
     BaseCreditFeeManager,
-    BasePnLManager,
     Calendar,
     EpochManager,
     EvaluationAgentNFT,
@@ -66,8 +65,7 @@ let poolConfigContract: PoolConfig,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: MockPoolCredit,
-    creditFeeManagerContract: BaseCreditFeeManager,
-    creditPnlManagerContract: BasePnLManager;
+    creditFeeManagerContract: BaseCreditFeeManager;
 
 function checkRedemptionDisbursementInfo(
     // TODO(jiatu): find a way to get rid of the `any`
@@ -125,7 +123,6 @@ describe("TrancheVault Test", function () {
             juniorTrancheVaultContract,
             creditContract as unknown,
             creditFeeManagerContract,
-            creditPnlManagerContract,
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,

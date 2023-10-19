@@ -7,13 +7,12 @@ import {PoolConfig, PoolSettings} from "../PoolConfig.sol";
 import {PoolConfigCache} from "../PoolConfigCache.sol";
 import "../SharedDefs.sol";
 import {BaseCreditStorage} from "./BaseCreditStorage.sol";
-import {CreditConfig, CreditRecord, CreditLimit, CreditLoss, CreditState, PaymentStatus, PnLTracker, Payment} from "./CreditStructs.sol";
+import {CreditConfig, CreditRecord, CreditLimit, CreditLoss, CreditState, PaymentStatus, Payment} from "./CreditStructs.sol";
 import {ICalendar} from "./interfaces/ICalendar.sol";
 import {IFirstLossCover} from "../interfaces/IFirstLossCover.sol";
 import {IFlexCredit} from "./interfaces/IFlexCredit.sol";
 import {IPoolCredit} from "./interfaces/IPoolCredit.sol";
 import {IPoolSafe} from "../interfaces/IPoolSafe.sol";
-import {IPnLManager} from "./interfaces/IPnLManager.sol";
 import {ICreditFeeManager} from "./utils/interfaces/ICreditFeeManager.sol";
 import {IERC20, IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -112,11 +111,11 @@ abstract contract BaseCredit is
     );
     /**
      * @notice The credit line has been marked as Defaulted.
-     * @param borrower the address of the borrower
+     * @param creditHash the credit hash
      * @param losses the total losses to be written off because of the default.
      * @param by the address who has triggered the default
      */
-    event DefaultTriggered(address indexed borrower, uint256 losses, address by);
+    event DefaultTriggered(bytes32 indexed creditHash, uint256 losses, address by);
     /**
      * @notice A borrowing event has happened to the credit line
      * @param borrower the address of the borrower
@@ -163,9 +162,7 @@ abstract contract BaseCredit is
         );
     }
 
-    function refreshPnL() external returns (uint256 profit, uint256 loss, uint256 lossRecovery) {
-        return pnlManager.refreshPnL();
-    }
+    function refreshPnL() external returns (uint256 profit, uint256 loss, uint256 lossRecovery) {}
 
     /**
      * @notice Request the borrower to make extra principal payment in the next bill
@@ -267,9 +264,7 @@ abstract contract BaseCredit is
         external
         view
         returns (uint256 accruedProfit, uint256 accruedLoss, uint256 accruedLossRecovery)
-    {
-        return pnlManager.getPnLSum();
-    }
+    {}
 
     function isApproved(bytes32 creditHash) public view virtual returns (bool) {
         if ((_creditRecordMap[creditHash].state >= CreditState.Approved)) return true;
@@ -280,12 +275,15 @@ abstract contract BaseCredit is
      * @notice checks if the credit line is ready to be triggered as defaulted
      */
     function isDefaultReady(bytes32 creditHash) public view virtual returns (bool isDefault) {
-        // uint16 intervalInDays = _creditRecordStaticMap[creditHash].intervalInDays;
-        // return
-        //     _creditRecordMap[creditHash].missedPeriods * intervalInDays * SECONDS_IN_A_DAY >
-        //         _poolConfig.poolDefaultGracePeriodInSeconds()
-        //         ? true
-        //         : false;
+        isDefault = _isDefaultReady(_getCreditRecord(creditHash));
+    }
+
+    function _isDefaultReady(CreditRecord memory cr) internal view returns (bool isDefault) {
+        PoolSettings memory settings = poolConfig.getPoolSettings();
+        isDefault =
+            cr.missedPeriods > 1 &&
+            (cr.missedPeriods - 1) * settings.payPeriodInCalendarUnit >=
+            settings.defaultGracePeriodInCalendarUnit;
     }
 
     /** 
@@ -461,13 +459,7 @@ abstract contract BaseCredit is
             borrowAmount
         );
 
-        pnlManager.processDrawdown(
-            uint96(platformProfit),
-            uint96(
-                (borrowAmount * cc.yieldInBps * DEFAULT_DECIMALS_FACTOR) /
-                    (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
-            )
-        );
+        //* todo call a new function of pool to distribute profit
 
         // Transfer funds to the borrower
         poolSafe.withdraw(borrower, netAmountToBorrower);
@@ -603,19 +595,7 @@ abstract contract BaseCredit is
                             );
                     }
 
-                    //* Reserved for Richard review, to be deleted
-                    // The parameters of calling processPayback() are different in the 3 cases,
-                    // 1) pay part total due, 2) pay full total due, 3) payoff
-                    // The simple way is to call processPayback() in each case, see if it can be moved to a common place later.
-                    pnlManager.processPayback(
-                        creditHash,
-                        p.principalPaid,
-                        p.yieldPaid,
-                        profitDiff,
-                        uint16(cc.yieldInBps),
-                        p.oldLateFlag,
-                        false
-                    );
+                    //* todo call a new function of pool to distribute profit or loss recovery
                 }
             } else {
                 // Apply extra payments towards principal, reduce unbilledPrincipal amount
@@ -658,15 +638,7 @@ abstract contract BaseCredit is
                     );
                 }
 
-                pnlManager.processPayback(
-                    creditHash,
-                    p.principalPaid,
-                    p.yieldPaid,
-                    profitDiff,
-                    uint16(cc.yieldInBps),
-                    p.oldLateFlag,
-                    true
-                );
+                //* todo call a new function of pool to distribute profit or loss recovery
 
                 //* Reserved for Richard review, to be deleted
                 // Generate next due info immediately, no need to wait for next refreshCredit
@@ -708,15 +680,8 @@ abstract contract BaseCredit is
                     )
                 );
             }
-            pnlManager.processPayback(
-                creditHash,
-                p.principalPaid,
-                p.yieldPaid,
-                profitDiff,
-                uint16(cc.yieldInBps),
-                p.oldLateFlag,
-                true
-            );
+
+            //* todo call a new function of pool to distribute profit or loss recovery
         }
 
         if (p.amountToCollect > 0) {
@@ -781,25 +746,35 @@ abstract contract BaseCredit is
         // TODO Its current logic is same as refreshCredit.
         // I remember Richard said it should be used to set the credit to default state manually at sometime, correct?
 
-        losses;
-        // poolConfig.onlyProtocolAndPoolOn();
-        // // check to make sure the default grace period has passed.
-        // CreditRecord memory cr = _getCreditRecord(creditHash);
-        // if (cr.state == CreditState.Defaulted) revert Errors.defaultHasAlreadyBeenTriggered();
-        // if (block.timestamp > cr.nextDueDate) {
-        //     cr = _updateDueInfo(creditHash);
-        // }
+        poolConfig.onlyProtocolAndPoolOn();
+
+        // check to make sure the default grace period has passed.
+        CreditRecord memory cr = _getCreditRecord(creditHash);
+        if (cr.state == CreditState.Defaulted) revert Errors.defaultHasAlreadyBeenTriggered();
+
+        if (block.timestamp > cr.nextDueDate) {
+            cr = _updateDueInfo(creditHash);
+        }
+
         // Check if grace period has exceeded. Please note it takes a full pay period
         // before the account is considered to be late. The time passed should be one pay period
         // plus the grace period.
-        // if (!isDefaultReady(borrower)) revert Errors.defaultTriggeredTooEarly();
-        // // default amount includes all outstanding principals
-        // losses = cr.unbilledPrincipal + cr.totalDue - cr.feesAndInterestDue;
-        // _creditRecordMap[borrower].state = BS.CreditState.Defaulted;
-        // _creditRecordStaticMap[borrower].defaultAmount = uint96(losses);
-        // distributeLosses(losses);
-        // emit DefaultTriggered(borrower, losses, msg.sender);
-        // return losses;
+        if (!_isDefaultReady(cr)) revert Errors.defaultTriggeredTooEarly();
+
+        // default amount includes all outstanding principal
+        losses = cr.unbilledPrincipal + cr.totalDue - cr.feesDue - cr.yieldDue;
+
+        CreditConfig memory cc = _getCreditConfig(creditHash);
+        uint256 defaultDate = calendar.getStartDateOfPeriod(
+            cc.calendarUnit,
+            cc.periodDuration,
+            cr.nextDueDate
+        );
+
+        //* todo call a new function of pool to distribute loss
+
+        _creditRecordMap[creditHash].state = CreditState.Defaulted;
+        emit DefaultTriggered(creditHash, losses, msg.sender);
     }
 
     function _unpauseCredit(bytes32 creditHash) internal virtual {
@@ -836,39 +811,11 @@ abstract contract BaseCredit is
         // return the most up-to-date due information.
         CreditConfig memory cc = _getCreditConfig(creditHash);
         uint256 periodsPassed = 0;
-        uint96 missedProfit = 0;
-        uint96 principalDiff = 0;
-        uint96 lossImpact = 0;
-        CreditRecord memory oldCR = cr;
+        bool alreadyLate;
 
-        (cr, periodsPassed, missedProfit, principalDiff, lossImpact) = _feeManager.getDueInfo(
-            cr,
-            cc
-        );
-        // console.log(
-        //     "cr.totalDue: %s, cr.yieldDue: %s, periodsPassed: %s",
-        //     cr.totalDue,
-        //     cr.yieldDue,
-        //     periodsPassed
-        // );
-        // console.log("missedProfit: %s, principalDiff: %s", missedProfit, principalDiff);
+        (cr, periodsPassed, alreadyLate) = _feeManager.getDueInfo(cr, cc);
 
         if (periodsPassed > 0) {
-            //* Reserved for Richard review, to be deleted
-            // Only calls processDueUpdate() when the account is already late.
-            // Otherwise, it is the first drawdown, no need to call processDueUpdate()
-            bool alreadyLate = lossImpact > 0;
-            if (alreadyLate) {
-                pnlManager.processDueUpdate(
-                    principalDiff,
-                    missedProfit,
-                    lossImpact,
-                    creditHash,
-                    cc,
-                    oldCR
-                );
-            }
-
             // Adjusts remainingPeriods, special handling when reached the maturity of the credit line
             if (cr.remainingPeriods > periodsPassed) {
                 cr.remainingPeriods = uint16(cr.remainingPeriods - periodsPassed);
@@ -884,19 +831,6 @@ abstract contract BaseCredit is
             if (cr.missedPeriods > 0) {
                 if (cr.state != CreditState.Defaulted) {
                     cr.state = CreditState.Delayed;
-                    PoolSettings memory poolSettings = poolConfig.getPoolSettings();
-
-                    //* Reserved for Richard review, to be deleted
-                    // Updates to Defaulted status when the account has been late for more than defaultGracePeriodInCalendarUnit
-                    if (
-                        (cr.missedPeriods - 1) * poolSettings.payPeriodInCalendarUnit >=
-                        poolSettings.defaultGracePeriodInCalendarUnit
-                    ) {
-                        cr.state = CreditState.Defaulted;
-                        pnlManager.processDefault(creditHash, cc, cr);
-
-                        // TODO how to recover defaulted state?
-                    }
                 }
             } else cr.state = CreditState.GoodStanding;
 
@@ -986,10 +920,6 @@ abstract contract BaseCredit is
         addr = _poolConfig.calendar();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         calendar = ICalendar(addr);
-
-        addr = _poolConfig.creditPnLManager();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
-        pnlManager = IPnLManager(addr);
 
         addr = _poolConfig.poolSafe();
         if (addr == address(0)) revert Errors.zeroAddressProvided();

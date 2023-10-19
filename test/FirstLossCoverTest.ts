@@ -7,7 +7,6 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { BigNumber as BN } from "ethers";
 import {
     BaseCreditFeeManager,
-    BasePnLManager,
     Calendar,
     EpochManager,
     EvaluationAgentNFT,
@@ -53,8 +52,7 @@ let poolConfigContract: PoolConfig,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: MockPoolCredit,
-    creditFeeManagerContract: BaseCreditFeeManager,
-    creditPnlManagerContract: BasePnLManager;
+    creditFeeManagerContract: BaseCreditFeeManager;
 
 describe("FirstLossCover Tests", function () {
     before(async function () {
@@ -96,7 +94,6 @@ describe("FirstLossCover Tests", function () {
             juniorTrancheVaultContract,
             creditContract as unknown,
             creditFeeManagerContract,
-            creditPnlManagerContract,
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
@@ -177,7 +174,6 @@ describe("FirstLossCover Tests", function () {
                 juniorTrancheVaultContract.address,
                 creditContract.address,
                 creditFeeManagerContract.address,
-                creditPnlManagerContract.address,
             ]);
             await newPoolConfigContract.setFirstLossCover(
                 CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
