@@ -6,7 +6,7 @@ import {PoolConfig, PoolSettings, LPConfig} from "./PoolConfig.sol";
 import {PoolConfigCache} from "./PoolConfigCache.sol";
 import {IEpoch, EpochInfo} from "./interfaces/IEpoch.sol";
 import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
-import "./SharedDefs.sol";
+import {DEFAULT_DECIMALS_FACTOR, JUNIOR_TRANCHE, SENIOR_TRANCHE} from "./SharedDefs.sol";
 import {IEpochManager} from "./interfaces/IEpochManager.sol";
 import {Errors} from "./Errors.sol";
 import {ICalendar} from "./credit/interfaces/ICalendar.sol";
