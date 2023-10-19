@@ -1,5 +1,6 @@
+/* eslint-disable no-undef */
 //@ts-nocheck
-import {Wallet, utils} from "ethers";
+import { Wallet, utils } from "ethers";
 
 const ACCOUNT_PRIVATE_KEY = process.env.DEPLOYER;
 const TO_ADDRESS = "0xA0CA5AB0634486948a2bd5191fF4B38F2ff8c2e8";

@@ -1,6 +1,11 @@
+/* eslint-disable no-undef */
 // @ts-nocheck
 const execSync = require("child_process").execSync;
-const {getDeployedContracts, getVerifiedContract, updateVerifiedContract} = require("../deployUtils");
+const {
+    getDeployedContracts,
+    getVerifiedContract,
+    updateVerifiedContract,
+} = require("../deployUtils");
 
 const fs = require("fs");
 
@@ -20,10 +25,10 @@ const writeVerifyArgs = async function (contractName, args) {
     let data = `module.exports = [
         ${args.toString()},
         ];`;
-    await fs.mkdir(`${VERIFY_ARGS_PATH}`, {recursive: true}, (err) => {
+    await fs.mkdir(`${VERIFY_ARGS_PATH}`, { recursive: true }, (err) => {
         if (err) throw err;
     });
-    fs.writeFileSync(argsFile, data, {flag: "w"});
+    fs.writeFileSync(argsFile, data, { flag: "w" });
     return argsFile;
 };
 
@@ -95,19 +100,26 @@ async function verifyContracts() {
     const verifyPoolConfig = await verifyContract("PoolConfig");
     console.log(`Verify PoolConfig result: ${verifyPoolConfig}`);
 
-    const verifyPlatformFeeManager = await verifyContract("PlatformFeeManager");
-    console.log(`Verify PlatformFeeManager result: ${verifyPlatformFeeManager}`);
+    const verifyPoolFeeManager = await verifyContract("PoolFeeManager");
+    console.log(`Verify PoolFeeManager result: ${verifyPoolFeeManager}`);
 
-    const verifyPoolVault = await verifyContract("PoolVault");
-    console.log(`Verify PoolVault result: ${verifyPoolVault}`);
+    const verifyPoolSafe = await verifyContract("PoolSafe");
+    console.log(`Verify PoolSafe result: ${verifyPoolSafe}`);
 
-    const verifyFirstLossCover = await verifyContract("FirstLossCover");
-    console.log(`Verify FirstLossCover result: ${verifyFirstLossCover}`);
+    const verifyBorrowerFirstLossCover = await verifyContract("BorrowerFirstLossCover");
+    console.log(`Verify BorrowerFirstLossCover result: ${verifyBorrowerFirstLossCover}`);
 
-    const verifyFixedAprTranchesPolicy = await verifyContract("FixedAprTranchesPolicy");
-    console.log(`Verify FixedAprTranchesPolicy result: ${verifyFixedAprTranchesPolicy}`);
+    const verifyAffiliateFirstLossCover = await verifyContract("AffiliateFirstLossCover");
+    console.log(`Verify AffiliateFirstLossCover result: ${verifyAffiliateFirstLossCover}`);
 
-    const verifyPool = await verifyContract("Pool",);
+    const verifyFixedSeniorYieldTranchePolicy = await verifyContract(
+        "FixedSeniorYieldTranchePolicy",
+    );
+    console.log(
+        `Verify FixedSeniorYieldTranchePolicy result: ${verifyFixedSeniorYieldTranchePolicy}`,
+    );
+
+    const verifyPool = await verifyContract("Pool");
     console.log(`Verify Pool result: ${verifyPool}`);
 
     const verifyEpochManager = await verifyContract("EpochManager");
@@ -125,11 +137,11 @@ async function verifyContracts() {
     const verifyMockPoolCredit = await verifyContract("MockPoolCredit");
     console.log(`Verify MockPoolCredit result: ${verifyMockPoolCredit}`);
 
-    const verifyBaseCreditFeeManager = await verifyContract("BaseCreditFeeManager");
-    console.log(`Verify BaseCreditFeeManager result: ${verifyBaseCreditFeeManager}`);
+    const verifyCreditDueManager = await verifyContract("CreditDueManager");
+    console.log(`Verify CreditDueManager result: ${verifyCreditDueManager}`);
 
-    const verifyLinearMarkdownPnLManager = await verifyContract("LinearMarkdownPnLManager");
-    console.log(`Verify LinearMarkdownPnLManager result: ${verifyLinearMarkdownPnLManager}`);
+    const verifyReceivable = await verifyContract("Receivable");
+    console.log(`Verify Receivable result: ${verifyReceivable}`);
 }
 
 verifyContracts()
