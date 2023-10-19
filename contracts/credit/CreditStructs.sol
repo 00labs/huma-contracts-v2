@@ -45,9 +45,6 @@ struct CreditLimit {
 struct CreditLoss {
     uint96 totalAccruedLoss;
     uint96 totalLossRecovery;
-    uint64 lastLossUpdateDate;
-    uint64 lossExpiringDate;
-    uint96 lossRate;
 }
 
 enum CreditState {
@@ -96,17 +93,6 @@ struct FacilityConfig {
     uint16 advanceRateInBps;
     uint96 committedCreditLine;
     bool autoApproval;
-}
-
-//* Reserved for Richard review, to be deleted
-// Update last 3 fileds name from totalXXX to accruedXXX because they are set to 0 when refreshPnL is called
-struct PnLTracker {
-    uint96 profitRate;
-    uint96 lossRate;
-    uint64 pnlLastUpdated;
-    uint96 accruedProfit;
-    uint96 accruedLoss;
-    uint96 accruedLossRecovery;
 }
 
 struct Payment {

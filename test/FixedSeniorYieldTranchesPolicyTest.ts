@@ -12,7 +12,6 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { BigNumber as BN } from "ethers";
 import {
     BaseCreditFeeManager,
-    BasePnLManager,
     Calendar,
     EpochManager,
     EvaluationAgentNFT,
@@ -56,8 +55,7 @@ let poolConfigContract: PoolConfig,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: MockPoolCredit,
-    creditFeeManagerContract: BaseCreditFeeManager,
-    creditPnlManagerContract: BasePnLManager;
+    creditFeeManagerContract: BaseCreditFeeManager;
 
 describe("FixedSeniorYieldTranchePolicy Test", function () {
     before(async function () {
@@ -99,7 +97,6 @@ describe("FixedSeniorYieldTranchePolicy Test", function () {
             juniorTrancheVaultContract,
             creditContract as unknown,
             creditFeeManagerContract,
-            creditPnlManagerContract,
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,

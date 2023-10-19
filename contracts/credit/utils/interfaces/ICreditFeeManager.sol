@@ -57,25 +57,13 @@ interface ICreditFeeManager {
      * @param _cc the credit config associated with with account
      * @return cr the updated credit record with the most up-to-date due information
      * @return periodsPassed the number of billing periods has passed since the last statement
-     * @return profitImpact the understated profit of the account since the last statement
-     * @return principalDifference the principal difference of the account since the last statement
-     * @return lossImpact the loss impact of the account since the last statement. If it is greater than 0,
-     * it means the credit is delayed, otherwise it means the credit is in good standing.
-     * If it is within the same period, it will be 0.
+     * @return isLate whether the credit is delayed, true means the credit is delayed,
+     * otherwise it means the credit is in good standing.
      */
     function getDueInfo(
         CreditRecord memory _cr,
         CreditConfig memory _cc
-    )
-        external
-        view
-        returns (
-            CreditRecord memory cr,
-            uint256 periodsPassed,
-            uint96 profitImpact,
-            uint96 principalDifference,
-            uint96 lossImpact
-        );
+    ) external view returns (CreditRecord memory cr, uint256 periodsPassed, bool isLate);
 
     /**
      * @notice Sets the standard front loading and late fee policy for the fee manager

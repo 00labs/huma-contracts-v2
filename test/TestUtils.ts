@@ -6,7 +6,8 @@ import {
     LPConfigStructOutput,
 } from "../typechain-types/contracts/PoolConfig.sol/PoolConfig";
 import { CONSTANTS, FirstLossCoverInfo } from "./BaseTest";
-import { FirstLossCover, Pool, PoolConfig } from "../typechain-types";
+import { FirstLossCover, Pool, PoolConfig, ProfitEscrow } from "../typechain-types";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 
 export function toBN(number: string | number, decimals: number): BN {
     return BN.from(number).mul(BN.from(10).pow(BN.from(decimals)));
@@ -180,6 +181,31 @@ export async function getFirstLossCoverInfo(
         config,
         asset: totalAssets,
     };
+}
+
+export async function overrideFirstLossCoverConfig(
+    firstLossCoverContract: FirstLossCover,
+    firstLossCoverProfitEscrowContract: ProfitEscrow,
+    firstLossCoverIndex: number,
+    poolConfigContract: PoolConfig,
+    poolOwner: SignerWithAddress,
+    overrides: Partial<FirstLossCoverConfigStruct>,
+) {
+    const config = await poolConfigContract.getFirstLossCoverConfig(
+        firstLossCoverContract.address,
+    );
+    const newConfig = {
+        ...config,
+        ...overrides,
+    };
+    await poolConfigContract
+        .connect(poolOwner)
+        .setFirstLossCover(
+            firstLossCoverIndex,
+            firstLossCoverContract.address,
+            newConfig,
+            firstLossCoverProfitEscrowContract.address,
+        );
 }
 
 export function maxBigNumber(...values: BN[]): BN {

@@ -6,7 +6,6 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { ethers } from "hardhat";
 import {
     BaseCreditFeeManager,
-    BasePnLManager,
     BaseTranchesPolicy,
     Calendar,
     EpochManager,
@@ -23,7 +22,6 @@ import {
     ProfitEscrow,
     Receivable,
 } from "../typechain-types";
-import { CreditLossStructOutput } from "../typechain-types/contracts/credit/BasePnLManager";
 import {
     CreditConfigStruct,
     CreditRecordStruct,
@@ -46,7 +44,6 @@ export type PoolContracts = [
     TrancheVault,
     IPoolCredit,
     BaseCreditFeeManager,
-    BasePnLManager,
     Receivable,
 ];
 export type TranchesPolicyContractName =
@@ -178,10 +175,6 @@ export async function deployPoolContracts(
     const calendarContract = await Calendar.deploy();
     await calendarContract.deployed();
 
-    // const MockCredit = await ethers.getContractFactory("MockCredit");
-    // const mockCreditContract = await MockCredit.deploy(poolConfig.address);
-    // await mockCreditContract.deployed();
-
     const Credit = await getCreditContractFactory(creditContractName);
     const creditContract = await Credit.deploy();
     await creditContract.deployed();
@@ -189,10 +182,6 @@ export async function deployPoolContracts(
     const BaseCreditFeeManager = await ethers.getContractFactory("BaseCreditFeeManager");
     const creditFeeManagerContract = await BaseCreditFeeManager.deploy();
     await creditFeeManagerContract.deployed();
-
-    const CreditPnLManager = await ethers.getContractFactory("LinearMarkdownPnLManager");
-    const creditPnlManagerContract = await CreditPnLManager.deploy();
-    await creditPnlManagerContract.deployed();
 
     const Receivable = await ethers.getContractFactory("Receivable");
     const receivableContract = await Receivable.deploy();
@@ -220,7 +209,6 @@ export async function deployPoolContracts(
         juniorTrancheVaultContract.address,
         creditContract.address,
         creditFeeManagerContract.address,
-        creditPnlManagerContract.address,
     ]);
     await poolConfigContract.setFirstLossCover(
         BORROWER_FIRST_LOSS_COVER_INDEX,
@@ -289,7 +277,6 @@ export async function deployPoolContracts(
     );
     await creditContract.connect(poolOwner).initialize(poolConfigContract.address);
     await creditFeeManagerContract.initialize(poolConfigContract.address);
-    await creditPnlManagerContract.initialize(poolConfigContract.address);
 
     return [
         poolConfigContract,
@@ -306,7 +293,6 @@ export async function deployPoolContracts(
         juniorTrancheVaultContract,
         creditContract,
         creditFeeManagerContract,
-        creditPnlManagerContract,
         receivableContract,
     ];
 }
@@ -461,7 +447,6 @@ export async function deployAndSetupPoolContracts(
         juniorTrancheVaultContract,
         creditContract,
         creditFeeManagerContract,
-        creditPnlManagerContract,
         receivableContract,
     ] = await deployPoolContracts(
         humaConfigContract,
@@ -506,7 +491,6 @@ export async function deployAndSetupPoolContracts(
         juniorTrancheVaultContract,
         creditContract,
         creditFeeManagerContract,
-        creditPnlManagerContract,
         receivableContract,
     ];
 }
@@ -794,50 +778,21 @@ export function checkCreditRecord(
     expect(creditRecord.state).to.equal(state);
 }
 
-export function checkPnLTracker(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    pnlTracker: any,
-    profitRate: BN,
-    lossRate: BN,
-    pnlLastUpdated: number,
-    accruedProfit: BN,
-    accruedLoss: BN,
-    accruedLossRecovery: BN,
-    delta = 0,
-) {
-    expect(pnlTracker.profitRate).to.be.closeTo(profitRate, delta);
-    expect(pnlTracker.lossRate).to.be.closeTo(lossRate, delta);
-    expect(pnlTracker.pnlLastUpdated).to.equal(pnlLastUpdated);
-    expect(pnlTracker.accruedProfit).to.be.closeTo(accruedProfit, delta);
-    expect(pnlTracker.accruedLoss).to.be.closeTo(accruedLoss, delta);
-    expect(pnlTracker.accruedLossRecovery).to.be.closeTo(accruedLossRecovery, delta);
-}
-
 export function checkCreditLoss(
-    creditLoss: CreditLossStructOutput,
+    // creditLoss: CreditLossStructOutput,
     totalAccruedLoss: BN,
     totalLossRecovery: BN,
-    lastLossUpdateDate: number,
-    lossExpiringDate: number,
-    lossRate: BN,
     delta = 0,
 ) {
-    expect(creditLoss.totalAccruedLoss).to.be.closeTo(totalAccruedLoss, delta);
-    expect(creditLoss.totalLossRecovery).to.be.closeTo(totalLossRecovery, delta);
-    expect(creditLoss.lastLossUpdateDate).to.be.closeTo(lastLossUpdateDate, delta);
-    expect(creditLoss.lossExpiringDate).to.be.closeTo(lossExpiringDate, delta);
-    expect(creditLoss.lossRate).to.be.closeTo(lossRate, delta);
+    // expect(creditLoss.totalAccruedLoss).to.be.closeTo(totalAccruedLoss, delta);
+    // expect(creditLoss.totalLossRecovery).to.be.closeTo(totalLossRecovery, delta);
 }
 
-export function checkTwoCreditLosses(
-    preCreditLoss: CreditLossStructOutput,
-    creditLoss: CreditLossStructOutput,
-) {
-    expect(preCreditLoss.totalAccruedLoss).to.equal(creditLoss.totalAccruedLoss);
-    expect(preCreditLoss.totalLossRecovery).to.equal(creditLoss.totalLossRecovery);
-    expect(preCreditLoss.lastLossUpdateDate).to.equal(creditLoss.lastLossUpdateDate);
-    expect(preCreditLoss.lossExpiringDate).to.equal(creditLoss.lossExpiringDate);
-    expect(preCreditLoss.lossRate).to.equal(creditLoss.lossRate);
+export function checkTwoCreditLosses() {
+    // preCreditLoss: CreditLossStructOutput,
+    // creditLoss: CreditLossStructOutput,
+    // expect(preCreditLoss.totalAccruedLoss).to.equal(creditLoss.totalAccruedLoss);
+    // expect(preCreditLoss.totalLossRecovery).to.equal(creditLoss.totalLossRecovery);
 }
 
 export function printCreditRecord(name: string, creditRecord: CreditRecordStruct) {

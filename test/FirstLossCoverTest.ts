@@ -7,7 +7,6 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { BigNumber as BN } from "ethers";
 import {
     BaseCreditFeeManager,
-    BasePnLManager,
     Calendar,
     EpochManager,
     EvaluationAgentNFT,
@@ -24,7 +23,12 @@ import {
     ProfitEscrow,
 } from "../typechain-types";
 import { FirstLossCoverStorage } from "../typechain-types/contracts/FirstLossCover";
-import { copyLPConfigWithOverrides, minBigNumber, toToken } from "./TestUtils";
+import {
+    copyLPConfigWithOverrides,
+    minBigNumber,
+    overrideFirstLossCoverConfig,
+    toToken,
+} from "./TestUtils";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
@@ -53,8 +57,7 @@ let poolConfigContract: PoolConfig,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: MockPoolCredit,
-    creditFeeManagerContract: BaseCreditFeeManager,
-    creditPnlManagerContract: BasePnLManager;
+    creditFeeManagerContract: BaseCreditFeeManager;
 
 describe("FirstLossCover Tests", function () {
     before(async function () {
@@ -96,7 +99,6 @@ describe("FirstLossCover Tests", function () {
             juniorTrancheVaultContract,
             creditContract as unknown,
             creditFeeManagerContract,
-            creditPnlManagerContract,
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
@@ -123,27 +125,20 @@ describe("FirstLossCover Tests", function () {
             const coverRateInBps = BN.from(9_000),
                 coverCap = coverTotalAssets.add(1_000),
                 loss = toToken(5_000);
-            const config = await poolConfigContract.getFirstLossCoverConfig(
-                affiliateFirstLossCoverContract.address,
-            );
-            const newConfig = {
-                ...config,
-                ...{
+            await overrideFirstLossCoverConfig(
+                affiliateFirstLossCoverContract,
+                affiliateFirstLossCoverProfitEscrowContract,
+                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                poolConfigContract,
+                poolOwner,
+                {
                     coverRateInBps: coverRateInBps,
                     coverCap: coverCap,
                 },
-            };
-            await poolConfigContract
-                .connect(poolOwner)
-                .setFirstLossCover(
-                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
-                    affiliateFirstLossCoverContract.address,
-                    newConfig,
-                    affiliateFirstLossCoverProfitEscrowContract.address,
-                );
+            );
             const amountLossCovered = minBigNumber(
-                loss.mul(config.coverRateInBps).div(CONSTANTS.BP_FACTOR),
-                config.coverCap,
+                loss.mul(coverRateInBps).div(CONSTANTS.BP_FACTOR),
+                coverCap,
                 coverTotalAssets,
             );
             await mockTokenContract.mint(
@@ -177,7 +172,6 @@ describe("FirstLossCover Tests", function () {
                 juniorTrancheVaultContract.address,
                 creditContract.address,
                 creditFeeManagerContract.address,
-                creditPnlManagerContract.address,
             ]);
             await newPoolConfigContract.setFirstLossCover(
                 CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
@@ -689,23 +683,17 @@ describe("FirstLossCover Tests", function () {
             it("Should disallow the cover provider to redeem assets if the cap hasn't been reached", async function () {
                 // Make the cap large enough so that the first loss cover total assets fall below the cover cap.
                 const coverAssets = await affiliateFirstLossCoverContract.totalAssets();
-                const config = await poolConfigContract.getFirstLossCoverConfig(
-                    affiliateFirstLossCoverContract.address,
-                );
-                const newConfig = {
-                    ...config,
-                    ...{
-                        liquidityCap: coverAssets.add(1),
+                const liquidityCap = coverAssets.add(1);
+                await overrideFirstLossCoverConfig(
+                    affiliateFirstLossCoverContract,
+                    affiliateFirstLossCoverProfitEscrowContract,
+                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                    poolConfigContract,
+                    poolOwner,
+                    {
+                        liquidityCap,
                     },
-                };
-                await poolConfigContract
-                    .connect(poolOwner)
-                    .setFirstLossCover(
-                        CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
-                        affiliateFirstLossCoverContract.address,
-                        newConfig,
-                        affiliateFirstLossCoverProfitEscrowContract.address,
-                    );
+                );
                 const assetsToRedeem = toToken(5_000);
 
                 const oldSupply = await affiliateFirstLossCoverContract.totalSupply();
@@ -748,33 +736,24 @@ describe("FirstLossCover Tests", function () {
 
             it("Should disallow the cover provider to redeem more assets than the excessive amount over cap", async function () {
                 // Make sure the cap is determined by tge liquidity cap for easier testing.
-                const config = await poolConfigContract.getFirstLossCoverConfig(
-                    affiliateFirstLossCoverContract.address,
-                );
-                const newConfig = {
-                    ...config,
-                    ...{
-                        liquidityCap: toToken(1_000_000_000),
+                const liquidityCap = toToken(1_000_000_000);
+                await overrideFirstLossCoverConfig(
+                    affiliateFirstLossCoverContract,
+                    affiliateFirstLossCoverProfitEscrowContract,
+                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                    poolConfigContract,
+                    poolOwner,
+                    {
+                        liquidityCap,
                         maxPercentOfPoolValueInBps: 0,
                     },
-                };
-                await poolConfigContract
-                    .connect(poolOwner)
-                    .setFirstLossCover(
-                        CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
-                        affiliateFirstLossCoverContract.address,
-                        newConfig,
-                        affiliateFirstLossCoverProfitEscrowContract.address,
-                    );
+                );
                 const coverTotalAssets = await affiliateFirstLossCoverContract.totalAssets();
                 // Make sure the total assets exceeds the cap by depositing the shortfall plus some buffer
                 // as the excessive amount.
                 const assetsToRedeem = toToken(1_000);
                 await depositCover(
-                    newConfig.liquidityCap
-                        .sub(coverTotalAssets)
-                        .add(assetsToRedeem)
-                        .sub(toToken(500)),
+                    liquidityCap.sub(coverTotalAssets).add(assetsToRedeem).sub(toToken(500)),
                 );
                 const sharesToRedeem =
                     await affiliateFirstLossCoverContract.convertToShares(assetsToRedeem);
@@ -823,30 +802,22 @@ describe("FirstLossCover Tests", function () {
                 await creditContract.setRefreshPnLReturns(profit, loss, lossRecovery);
 
                 // Make sure the cap is determined by tge liquidity cap for easier testing.
-                const config = await poolConfigContract.getFirstLossCoverConfig(
-                    affiliateFirstLossCoverContract.address,
-                );
-                const newConfig = {
-                    ...config,
-                    ...{
-                        liquidityCap: toToken(1_000_000_000),
+                const liquidityCap = toToken(1_000_000_000);
+                await overrideFirstLossCoverConfig(
+                    affiliateFirstLossCoverContract,
+                    affiliateFirstLossCoverProfitEscrowContract,
+                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                    poolConfigContract,
+                    poolOwner,
+                    {
+                        liquidityCap,
                         maxPercentOfPoolValueInBps: 0,
                     },
-                };
-                await poolConfigContract
-                    .connect(poolOwner)
-                    .setFirstLossCover(
-                        CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
-                        affiliateFirstLossCoverContract.address,
-                        newConfig,
-                        affiliateFirstLossCoverProfitEscrowContract.address,
-                    );
+                );
                 const coverTotalAssets = await affiliateFirstLossCoverContract.totalAssets();
                 // Make sure the total assets exceeds the cap by depositing the shortfall plus some buffer
                 // as the excessive amount.
-                await depositCover(
-                    newConfig.liquidityCap.sub(coverTotalAssets).add(assetsToRedeem.div(2)),
-                );
+                await depositCover(liquidityCap.sub(coverTotalAssets).add(assetsToRedeem.div(2)));
                 const sharesToRedeem =
                     await affiliateFirstLossCoverContract.convertToShares(assetsToRedeem);
 
@@ -974,24 +945,17 @@ describe("FirstLossCover Tests", function () {
 
     describe("Loss cover and recover", function () {
         async function setCoverConfig(coverRateInBps: BN, coverCap: BN) {
-            const config = await poolConfigContract.getFirstLossCoverConfig(
-                affiliateFirstLossCoverContract.address,
-            );
-            const newConfig = {
-                ...config,
-                ...{
-                    coverRateInBps: coverRateInBps,
-                    coverCap: coverCap,
+            await overrideFirstLossCoverConfig(
+                affiliateFirstLossCoverContract,
+                affiliateFirstLossCoverProfitEscrowContract,
+                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                poolConfigContract,
+                poolOwner,
+                {
+                    coverRateInBps,
+                    coverCap,
                 },
-            };
-            await poolConfigContract
-                .connect(poolOwner)
-                .setFirstLossCover(
-                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
-                    affiliateFirstLossCoverContract.address,
-                    newConfig,
-                    affiliateFirstLossCoverProfitEscrowContract.address,
-                );
+            );
         }
 
         describe("Cover loss", function () {
@@ -1265,56 +1229,48 @@ describe("FirstLossCover Tests", function () {
             const capFromPoolAssets = totalTrancheAssets
                 .mul(config.maxPercentOfPoolValueInBps)
                 .div(CONSTANTS.BP_FACTOR);
-            const newConfig = {
-                ...config,
-                ...{
-                    liquidityCap: capFromPoolAssets.add(1),
+            const liquidityCap = capFromPoolAssets.add(1);
+            await overrideFirstLossCoverConfig(
+                affiliateFirstLossCoverContract,
+                affiliateFirstLossCoverProfitEscrowContract,
+                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                poolConfigContract,
+                poolOwner,
+                {
+                    liquidityCap,
                 },
-            };
-            await poolConfigContract
-                .connect(poolOwner)
-                .setFirstLossCover(
-                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
-                    affiliateFirstLossCoverContract.address,
-                    newConfig,
-                    affiliateFirstLossCoverProfitEscrowContract.address,
-                );
+            );
             expect(await affiliateFirstLossCoverContract.getCapacity(totalTrancheAssets)).to.equal(
-                newConfig.liquidityCap,
+                liquidityCap,
             );
         });
 
         it("Should return the cap from pool assets if it's higher", async function () {
-            const config = await poolConfigContract.getFirstLossCoverConfig(
-                affiliateFirstLossCoverContract.address,
-            );
-            const newConfig = {
-                ...config,
-                ...{
-                    liquidityCap: toToken(1),
-                    maxPercentOfPoolValueInBps: CONSTANTS.BP_FACTOR,
+            const liquidityCap = toToken(1),
+                maxPercentOfPoolValueInBps = CONSTANTS.BP_FACTOR;
+            await overrideFirstLossCoverConfig(
+                affiliateFirstLossCoverContract,
+                affiliateFirstLossCoverProfitEscrowContract,
+                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                poolConfigContract,
+                poolOwner,
+                {
+                    liquidityCap,
+                    maxPercentOfPoolValueInBps,
                 },
-            };
-            await poolConfigContract
-                .connect(poolOwner)
-                .setFirstLossCover(
-                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
-                    affiliateFirstLossCoverContract.address,
-                    newConfig,
-                    affiliateFirstLossCoverProfitEscrowContract.address,
-                );
+            );
             // Deposit the amount of the liquidity cap into the pool to make sure the cap calculated from
             // pool assets is higher.
             await juniorTrancheVaultContract
                 .connect(lender)
-                .deposit(newConfig.liquidityCap, lender.getAddress());
+                .deposit(liquidityCap, lender.getAddress());
 
             const tranchesAssets = await poolContract.tranchesAssets();
             const totalTrancheAssets = tranchesAssets.seniorTotalAssets.add(
                 tranchesAssets.juniorTotalAssets,
             );
             const capFromPoolAssets = totalTrancheAssets
-                .mul(newConfig.maxPercentOfPoolValueInBps)
+                .mul(maxPercentOfPoolValueInBps)
                 .div(CONSTANTS.BP_FACTOR);
             expect(await affiliateFirstLossCoverContract.getCapacity(totalTrancheAssets)).to.equal(
                 capFromPoolAssets,
