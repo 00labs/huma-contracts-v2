@@ -3,11 +3,10 @@ pragma solidity ^0.8.0;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {HumaConfig} from "../HumaConfig.sol";
-import {CreditConfig, CreditRecord, CreditLimit, PnLTracker} from "./CreditStructs.sol";
+import {CreditConfig, CreditRecord, CreditLimit} from "./CreditStructs.sol";
 import {PoolConfig} from "../PoolConfig.sol";
 import {ICreditFeeManager} from "./utils/interfaces/ICreditFeeManager.sol";
 import {ICalendar} from "./interfaces/ICalendar.sol";
-import {IPnLManager} from "./interfaces/IPnLManager.sol";
 import {IPoolSafe} from "../interfaces/IPoolSafe.sol";
 import {IFirstLossCover} from "../interfaces/IFirstLossCover.sol";
 
@@ -18,11 +17,8 @@ contract BaseCreditStorage {
     ICreditFeeManager internal _feeManager;
 
     ICalendar public calendar;
-    IPnLManager public pnlManager;
     IPoolSafe public poolSafe;
     IFirstLossCover public firstLossCover;
-
-    PnLTracker public pnlTracker;
 
     mapping(address => CreditConfig) internal _borrowerConfigMap;
     /// mapping from credit id to the credit config

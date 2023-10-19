@@ -25,7 +25,6 @@ import {
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import {
     BaseCreditFeeManager,
-    BasePnLManager,
     Calendar,
     EpochManager,
     EvaluationAgentNFT,
@@ -69,8 +68,7 @@ let poolConfigContract: PoolConfig,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: MockPoolCredit,
-    creditFeeManagerContract: BaseCreditFeeManager,
-    creditPnlManagerContract: BasePnLManager;
+    creditFeeManagerContract: BaseCreditFeeManager;
 
 describe("Pool Test", function () {
     before(async function () {
@@ -116,7 +114,6 @@ describe("Pool Test", function () {
                 juniorTrancheVaultContract,
                 creditContract as unknown,
                 creditFeeManagerContract,
-                creditPnlManagerContract,
             ] = await deployPoolContracts(
                 humaConfigContract,
                 mockTokenContract,
@@ -300,7 +297,6 @@ describe("Pool Test", function () {
                 juniorTrancheVaultContract,
                 creditContract as unknown,
                 creditFeeManagerContract,
-                creditPnlManagerContract,
             ] = await deployAndSetupPoolContracts(
                 humaConfigContract,
                 mockTokenContract,

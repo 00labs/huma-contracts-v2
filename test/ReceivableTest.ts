@@ -92,7 +92,6 @@ describe("Receivable Test", function () {
             juniorTrancheVaultContract,
             creditContract as unknown,
             ,
-            ,
             receivableContract,
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
