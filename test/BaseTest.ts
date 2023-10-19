@@ -678,9 +678,9 @@ async function calcRiskAdjustedProfitAndLoss(
     assets: BN[],
     riskAdjustment: BN,
     firstLossCoverInfos: FirstLossCoverInfo[],
-): Promise<BN[][]> {
+): Promise<[BN[], BN[], BN[], BN[]]> {
     const assetsAfterProfit = calcProfitForRiskAdjustedPolicy(profit, assets, riskAdjustment);
-    const [juniorProfitAfterFirstLossCoverProfitDistribution] =
+    const [juniorProfitAfterFirstLossCoverProfitDistribution, profitsForFirstLossCovers] =
         await PnLCalculator.calcProfitForFirstLossCovers(
             assetsAfterProfit[CONSTANTS.JUNIOR_TRANCHE].sub(assets[CONSTANTS.JUNIOR_TRANCHE]),
             assets[CONSTANTS.JUNIOR_TRANCHE],
@@ -697,13 +697,19 @@ async function calcRiskAdjustedProfitAndLoss(
             ],
             firstLossCoverInfos,
         );
-    const [, assetsAfterRecovery, lossesAfterRecovery] = await PnLCalculator.calcLossRecovery(
-        lossRecovery,
-        assetsAfterLoss,
-        remainingLosses,
-        lossesCoveredByFirstLossCovers,
-    );
-    return [assetsAfterRecovery, lossesAfterRecovery];
+    const [, assetsAfterRecovery, lossesAfterRecovery, lossRecoveredInFirstLossCovers] =
+        await PnLCalculator.calcLossRecovery(
+            lossRecovery,
+            assetsAfterLoss,
+            remainingLosses,
+            lossesCoveredByFirstLossCovers,
+        );
+    return [
+        assetsAfterRecovery,
+        lossesAfterRecovery,
+        profitsForFirstLossCovers,
+        lossRecoveredInFirstLossCovers,
+    ];
 }
 
 export const PnLCalculator = {

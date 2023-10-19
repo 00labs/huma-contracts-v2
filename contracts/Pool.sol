@@ -307,7 +307,10 @@ contract Pool is PoolConfigCache, IPool {
             uint256[16] memory profitsForFirstLossCovers
         ) = _calcProfitForFirstLossCovers(profit, juniorTotalAssets);
         uint256 len = _firstLossCovers.length;
-        for (uint256 i = 0; i < len && profitsForFirstLossCovers[i] > 0; i++) {
+        for (uint256 i = 0; i < len; i++) {
+            if (profitsForFirstLossCovers[i] == 0) {
+                continue;
+            }
             IFirstLossCover cover = _firstLossCovers[i];
             ReservedAssetsForFirstLossCover
                 memory reservedAssets = _reservedAssetsForFirstLossCovers[cover];
