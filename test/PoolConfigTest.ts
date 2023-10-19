@@ -700,7 +700,7 @@ describe("PoolConfig Tests", function () {
                 ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
             });
 
-            it("Should fail if rewards rate exceeds 100%", async function () {
+            it("Should fail if reward rate exceeds 100%", async function () {
                 await expect(
                     poolConfigContract
                         .connect(poolOwner)
@@ -720,6 +720,18 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract,
                     "invalidBasisPointHigherThan10000",
                 );
+            });
+
+            it("Should fail if the combined reward rate of the pool owner and EA exceeds 100%", async function () {
+                const adminRnR = await poolConfigContract.getAdminRnR();
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setPoolOwnerRewardsAndLiquidity(
+                            CONSTANTS.BP_FACTOR.sub(adminRnR.rewardRateInBpsForEA).add(1),
+                            liquidityRate,
+                        ),
+                ).to.be.revertedWithCustomError(poolConfigContract, "adminRewardRateTooHigh");
             });
         });
 
@@ -759,7 +771,7 @@ describe("PoolConfig Tests", function () {
                 ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
             });
 
-            it("Should fail if rewards rate exceeds 100%", async function () {
+            it("Should fail if reward rate exceeds 100%", async function () {
                 await expect(
                     poolConfigContract
                         .connect(poolOwner)
@@ -779,6 +791,18 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract,
                     "invalidBasisPointHigherThan10000",
                 );
+            });
+
+            it("Should fail if the combined reward rate of the pool owner and EA exceeds 100%", async function () {
+                const adminRnR = await poolConfigContract.getAdminRnR();
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setPoolOwnerRewardsAndLiquidity(
+                            CONSTANTS.BP_FACTOR.sub(adminRnR.rewardRateInBpsForPoolOwner).add(1),
+                            liquidityRate,
+                        ),
+                ).to.be.revertedWithCustomError(poolConfigContract, "adminRewardRateTooHigh");
             });
         });
 
