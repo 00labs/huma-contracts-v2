@@ -320,10 +320,10 @@ describe("EpochManager Test", function () {
             .withArgs(lastEpoch.id.toNumber() + 1, endTime);
 
         // Ensure that the remaining assets and supply match the expected amount.
-        // expect(await seniorTrancheVaultContract.totalAssets()).to.be.closeTo(
-        //     expectedSeniorAssets,
-        //     delta,
-        // );
+        expect(await seniorTrancheVaultContract.totalAssets()).to.be.closeTo(
+            expectedSeniorAssets,
+            delta,
+        );
         expect(await seniorTrancheVaultContract.totalSupply()).to.be.closeTo(
             seniorTotalSupply.sub(seniorSharesRedeemable),
             delta,
