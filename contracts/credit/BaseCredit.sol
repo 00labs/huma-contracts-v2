@@ -10,7 +10,6 @@ import {BaseCreditStorage} from "./BaseCreditStorage.sol";
 import {CreditConfig, CreditRecord, CreditLimit, CreditLoss, CreditState, PaymentStatus, Payment} from "./CreditStructs.sol";
 import {ICalendar} from "./interfaces/ICalendar.sol";
 import {IFirstLossCover} from "../interfaces/IFirstLossCover.sol";
-import {IFlexCredit} from "./interfaces/IFlexCredit.sol";
 import {IPoolCredit} from "./interfaces/IPoolCredit.sol";
 import {IPoolSafe} from "../interfaces/IPoolSafe.sol";
 import {ICreditFeeManager} from "./utils/interfaces/ICreditFeeManager.sol";
@@ -23,13 +22,7 @@ import "hardhat/console.sol";
  * Credit represents a borrowing entry in Huma Protocol. BaseCredit is an abstract contract that
  * captures the basic functions of a Credit.
  */
-abstract contract BaseCredit is
-    Initializable,
-    PoolConfigCache,
-    BaseCreditStorage,
-    IPoolCredit,
-    IFlexCredit
-{
+abstract contract BaseCredit is Initializable, PoolConfigCache, BaseCreditStorage, IPoolCredit {
     enum CreditLineClosureReason {
         Paidoff,
         CreditLimitChangedToBeZero,
@@ -163,28 +156,6 @@ abstract contract BaseCredit is
     }
 
     function refreshPnL() external returns (uint256 profit, uint256 loss, uint256 lossRecovery) {}
-
-    /**
-     * @notice Request the borrower to make extra principal payment in the next bill
-     * @param amount the extra amount of principal to be paid
-     * @dev the BaseCredit contract increases the due immediately, it is the caller's job
-     * to call this function at the right time.
-     * todo Add a new storage to record the extra principal due. We include it when calculate
-     * the next bill so that the caller of this function does not have to time the request.
-     */
-    function requestEarlyPrincipalWithdrawal(
-        bytes32 creditHash,
-        uint96 amount
-    ) external virtual override {
-        // todo Only allows the Pool(?) contract to call
-        // todo Check against poolConfig to make sure FlexCredit is allowed by this pool
-        _onlyPDSServiceAccount();
-        CreditRecord memory cr = _getCreditRecord(creditHash);
-        if (amount > cr.unbilledPrincipal) revert Errors.todo();
-        cr.totalDue = uint96(cr.totalDue + amount);
-        cr.unbilledPrincipal = uint96(cr.unbilledPrincipal - amount);
-        _setCreditRecord(creditHash, cr);
-    }
 
     /**
      * @notice changes the available credit for a credit line. This is an administrative overwrite.
