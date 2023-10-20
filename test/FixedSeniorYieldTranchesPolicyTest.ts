@@ -2,14 +2,13 @@ import { ethers } from "hardhat";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { deployAndSetupPoolContracts, deployProtocolContracts, PnLCalculator } from "./BaseTest";
 import {
-    copyLPConfigWithOverrides,
     dateToTimestamp,
     getLatestBlock,
     mineNextBlockWithTimestamp,
+    overrideLPConfig,
     toToken,
 } from "./TestUtils";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { BigNumber as BN } from "ethers";
 import {
     BaseCreditFeeManager,
     Calendar,
@@ -127,18 +126,18 @@ describe("FixedSeniorYieldTranchePolicy Test", function () {
 
     it("Should call distProfitToTranches correctly", async function () {
         const apy = 1217;
-        const lpConfig = await poolConfigContract.getLPConfig();
-        const newLpConfig = copyLPConfigWithOverrides(lpConfig, { fixedSeniorYieldInBps: apy });
-        await poolConfigContract.connect(poolOwner).setLPConfig(newLpConfig);
-        let deployedAssets = toToken(300_000);
+        await overrideLPConfig(poolConfigContract, poolOwner, {
+            fixedSeniorYieldInBps: apy,
+        });
+        const deployedAssets = toToken(300_000);
         await creditContract.drawdown(ethers.constants.HashZero, deployedAssets);
-        let assets = await poolContract.currentTranchesAssets();
-        let profit = toToken(12463);
-        let lastDate = dateToTimestamp("2023-08-01");
-        let lastBlock = await getLatestBlock();
-        let nextDate = lastBlock.timestamp + 10;
+        const assets = await poolContract.currentTranchesAssets();
+        const profit = toToken(12463);
+        const lastDate = dateToTimestamp("2023-08-01");
+        const lastBlock = await getLatestBlock();
+        const nextDate = lastBlock.timestamp + 10;
         await mineNextBlockWithTimestamp(nextDate);
-        let newAssets = PnLCalculator.calcProfitForFixedSeniorYieldPolicy(
+        const newAssets = PnLCalculator.calcProfitForFixedSeniorYieldPolicy(
             profit,
             assets,
             lastDate,
@@ -146,7 +145,8 @@ describe("FixedSeniorYieldTranchePolicy Test", function () {
             deployedAssets,
             apy,
         );
-        let result = await tranchesPolicyContract.distProfitToTranches(profit, assets, lastDate);
+        const result = await tranchesPolicyContract.distProfitToTranches(profit, assets, lastDate);
+        // TODO(jiatu): re-enable this?
         // expect(result[CONSTANTS.SENIOR_TRANCHE]).to.equal(
         //     newAssets[CONSTANTS.SENIOR_TRANCHE]
         // );
