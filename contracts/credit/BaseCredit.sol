@@ -47,7 +47,6 @@ abstract contract BaseCredit is Initializable, PoolConfigCache, BaseCreditStorag
         bytes32 indexed creditHash,
         uint256 creditLimit,
         uint256 committedAmount,
-        CalendarUnit calendarUnit,
         uint256 periodDuration,
         uint256 numOfPeriods,
         uint256 yieldInBps,
@@ -253,8 +252,8 @@ abstract contract BaseCredit is Initializable, PoolConfigCache, BaseCreditStorag
         PoolSettings memory settings = poolConfig.getPoolSettings();
         isDefault =
             cr.missedPeriods > 1 &&
-            (cr.missedPeriods - 1) * settings.payPeriodInCalendarUnit >=
-            settings.defaultGracePeriodInCalendarUnit;
+            (cr.missedPeriods - 1) * settings.payPeriodInMonths >=
+            settings.defaultGracePeriodInMonths;
     }
 
     /** 
@@ -301,8 +300,7 @@ abstract contract BaseCredit is Initializable, PoolConfigCache, BaseCreditStorag
         CreditConfig memory cc = _getCreditConfig(creditHash);
         cc.creditLimit = uint96(creditLimit);
         cc.committedAmount = committedAmount;
-        cc.calendarUnit = ps.calendarUnit;
-        cc.periodDuration = ps.payPeriodInCalendarUnit;
+        cc.periodDuration = ps.payPeriodInMonths;
         cc.numOfPeriods = uint16(remainingPeriods);
         cc.yieldInBps = uint16(yieldInBps);
         cc.revolving = revolving;
@@ -311,7 +309,6 @@ abstract contract BaseCredit is Initializable, PoolConfigCache, BaseCreditStorag
             creditHash,
             cc.creditLimit,
             cc.committedAmount,
-            cc.calendarUnit,
             cc.periodDuration,
             cc.numOfPeriods,
             cc.yieldInBps,
@@ -380,6 +377,7 @@ abstract contract BaseCredit is Initializable, PoolConfigCache, BaseCreditStorag
     ) internal virtual {
         //* Reserved for Richard review, to be deleted, review this function
 
+        //* todo move this check into _checkDrawdownEligibility
         if (!firstLossCover.isSufficient(borrower)) revert Errors.todo();
 
         CreditRecord memory cr = _getCreditRecord(creditHash);
@@ -736,11 +734,7 @@ abstract contract BaseCredit is Initializable, PoolConfigCache, BaseCreditStorag
         losses = cr.unbilledPrincipal + cr.totalDue - cr.feesDue - cr.yieldDue;
 
         CreditConfig memory cc = _getCreditConfig(creditHash);
-        uint256 defaultDate = calendar.getStartDateOfPeriod(
-            cc.calendarUnit,
-            cc.periodDuration,
-            cr.nextDueDate
-        );
+        uint256 defaultDate = calendar.getStartDateOfPeriod(cc.periodDuration, cr.nextDueDate);
 
         //* todo call a new function of pool to distribute loss
 

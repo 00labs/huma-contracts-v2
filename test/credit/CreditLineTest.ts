@@ -475,8 +475,7 @@ describe("CreditLine Test", function () {
                     creditHash,
                     toToken(10_000),
                     toToken(10_000),
-                    poolSettings.calendarUnit,
-                    poolSettings.payPeriodInCalendarUnit,
+                    poolSettings.payPeriodInMonths,
                     1,
                     1217,
                     true,
@@ -500,8 +499,7 @@ describe("CreditLine Test", function () {
                 creditConfig,
                 toToken(10_000),
                 toToken(10_000),
-                poolSettings.calendarUnit,
-                poolSettings.payPeriodInCalendarUnit,
+                poolSettings.payPeriodInMonths,
                 1,
                 1217,
                 true,
@@ -557,9 +555,7 @@ describe("CreditLine Test", function () {
                 frontLoadingFeeBps: frontLoadingFeeBps,
             });
 
-            await poolConfigContract
-                .connect(poolOwner)
-                .setPoolPayPeriod(CONSTANTS.CALENDAR_UNIT_MONTH, 1);
+            await poolConfigContract.connect(poolOwner).setPoolPayPeriod(1);
 
             const juniorDepositAmount = toToken(300_000);
             await juniorTrancheVaultContract
@@ -642,9 +638,7 @@ describe("CreditLine Test", function () {
                 frontLoadingFeeBps: frontLoadingFeeBps,
             });
 
-            await poolConfigContract
-                .connect(poolOwner)
-                .setPoolPayPeriod(CONSTANTS.CALENDAR_UNIT_MONTH, 3);
+            await poolConfigContract.connect(poolOwner).setPoolPayPeriod(3);
 
             let juniorDepositAmount = toToken(300_000);
             await juniorTrancheVaultContract
@@ -778,9 +772,7 @@ describe("CreditLine Test", function () {
                 frontLoadingFeeBps: frontLoadingFeeBps,
             });
 
-            await poolConfigContract
-                .connect(poolOwner)
-                .setPoolPayPeriod(CONSTANTS.CALENDAR_UNIT_MONTH, periodDuration);
+            await poolConfigContract.connect(poolOwner).setPoolPayPeriod(periodDuration);
 
             let juniorDepositAmount = toToken(300_000);
             await juniorTrancheVaultContract
@@ -870,13 +862,11 @@ describe("CreditLine Test", function () {
                 frontLoadingFeeBps: frontLoadingFeeBps,
             });
 
-            await poolConfigContract
-                .connect(poolOwner)
-                .setPoolPayPeriod(CONSTANTS.CALENDAR_UNIT_MONTH, periodDuration);
+            await poolConfigContract.connect(poolOwner).setPoolPayPeriod(periodDuration);
 
             await poolConfigContract
                 .connect(poolOwner)
-                .setPoolDefaultGracePeriod(CONSTANTS.CALENDAR_UNIT_MONTH, periodDuration * 3);
+                .setPoolDefaultGracePeriod(periodDuration * 3);
 
             let juniorDepositAmount = toToken(300_000);
             await juniorTrancheVaultContract
@@ -1047,7 +1037,7 @@ describe("CreditLine Test", function () {
 
             let defaultDate = calcDefaultDate(
                 preCreditRecord,
-                poolSettings.defaultGracePeriodInCalendarUnit,
+                poolSettings.defaultGracePeriodInMonths,
             );
             let lossStartDate = preCreditRecord.nextDueDate.toNumber();
             let lossStartPrincipal = getPrincipal(preCreditRecord);
@@ -1110,7 +1100,7 @@ describe("CreditLine Test", function () {
 
             let defaultDate = calcDefaultDate(
                 preCreditRecord,
-                poolSettings.defaultGracePeriodInCalendarUnit,
+                poolSettings.defaultGracePeriodInMonths,
             );
             let lossStartDate = preCreditRecord.nextDueDate.toNumber();
             let lossStartPrincipal = getPrincipal(preCreditRecord);
@@ -1125,7 +1115,6 @@ describe("CreditLine Test", function () {
                         yieldInBps,
                         nextTime -
                             getStartDateOfPeriod(
-                                CONSTANTS.CALENDAR_UNIT_MONTH,
                                 periodDuration,
                                 creditRecord.nextDueDate.toNumber(),
                             ),
@@ -1280,7 +1269,7 @@ describe("CreditLine Test", function () {
             // profitRate = calcProfitRateWithCR(creditRecord, yieldInBps);
             // let defaultDate = calcDefaultDate(
             //     preCreditRecord,
-            //     poolSettings.defaultGracePeriodInCalendarUnit,
+            //     poolSettings.defaultGracePeriodInMonths,
             // );
             // accruedProfit = preCreditRecord.yieldDue
             //     .add(
@@ -1348,7 +1337,7 @@ describe("CreditLine Test", function () {
             // profitRate2 = calcProfitRateWithCR(creditRecord2, yieldInBps);
             // let defaultDate2 = calcDefaultDate(
             //     preCreditRecord2,
-            //     poolSettings.defaultGracePeriodInCalendarUnit,
+            //     poolSettings.defaultGracePeriodInMonths,
             // );
             // accruedProfit2 = BN.from(
             //     borrowAmount2.mul(frontLoadingFeeBps).div(CONSTANTS.BP_FACTOR),

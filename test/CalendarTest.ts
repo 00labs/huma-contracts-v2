@@ -24,17 +24,8 @@ describe("Calendar Test", function () {
             await mineNextBlockWithTimestamp(nextTime);
 
             let period = 2;
-            let result = await calendarContract.getNextDueDate(
-                CONSTANTS.CALENDAR_UNIT_DAY,
-                period,
-                0,
-            );
-            let [dueDate, numberOfPeriodsPassed] = getNextDueDate(
-                CONSTANTS.CALENDAR_UNIT_DAY,
-                0,
-                nextTime,
-                period,
-            );
+            let result = await calendarContract.getNextDueDate(period, 0);
+            let [dueDate, numberOfPeriodsPassed] = getNextDueDate(0, nextTime, period);
             expect(result.numberOfPeriodsPassed).to.equal(numberOfPeriodsPassed);
             expect(result.dueDate).to.equal(dueDate);
         });
@@ -46,17 +37,8 @@ describe("Calendar Test", function () {
             let lastDate = dateToTimestamp("2023-07-01");
 
             let period = 3;
-            let result = await calendarContract.getNextDueDate(
-                CONSTANTS.CALENDAR_UNIT_DAY,
-                period,
-                lastDate,
-            );
-            let [dueDate, numberOfPeriodsPassed] = getNextDueDate(
-                CONSTANTS.CALENDAR_UNIT_DAY,
-                lastDate,
-                nextTime,
-                period,
-            );
+            let result = await calendarContract.getNextDueDate(period, lastDate);
+            let [dueDate, numberOfPeriodsPassed] = getNextDueDate(lastDate, nextTime, period);
             // console.log(`dueDate: ${dueDate}, numberOfPeriodsPassed: ${numberOfPeriodsPassed}`);
             expect(result.numberOfPeriodsPassed).to.equal(numberOfPeriodsPassed);
             expect(result.dueDate).to.equal(dueDate);
@@ -67,17 +49,8 @@ describe("Calendar Test", function () {
             await mineNextBlockWithTimestamp(nextTime);
 
             let period = 1;
-            let result = await calendarContract.getNextDueDate(
-                CONSTANTS.CALENDAR_UNIT_MONTH,
-                period,
-                0,
-            );
-            let [dueDate, numberOfPeriodsPassed] = getNextDueDate(
-                CONSTANTS.CALENDAR_UNIT_MONTH,
-                0,
-                nextTime,
-                period,
-            );
+            let result = await calendarContract.getNextDueDate(period, 0);
+            let [dueDate, numberOfPeriodsPassed] = getNextDueDate(0, nextTime, period);
             // console.log(`dueDate: ${dueDate}, numberOfPeriodsPassed: ${numberOfPeriodsPassed}`);
             expect(result.numberOfPeriodsPassed).to.equal(numberOfPeriodsPassed);
             expect(result.dueDate).to.equal(dueDate);
@@ -90,17 +63,8 @@ describe("Calendar Test", function () {
             let lastDate = dateToTimestamp("2023-02-01");
 
             let period = 3;
-            let result = await calendarContract.getNextDueDate(
-                CONSTANTS.CALENDAR_UNIT_MONTH,
-                period,
-                lastDate,
-            );
-            let [dueDate, numberOfPeriodsPassed] = getNextDueDate(
-                CONSTANTS.CALENDAR_UNIT_MONTH,
-                lastDate,
-                nextTime,
-                period,
-            );
+            let result = await calendarContract.getNextDueDate(period, lastDate);
+            let [dueDate, numberOfPeriodsPassed] = getNextDueDate(lastDate, nextTime, period);
             // console.log(`dueDate: ${dueDate}, numberOfPeriodsPassed: ${numberOfPeriodsPassed}`);
             expect(result.numberOfPeriodsPassed).to.equal(numberOfPeriodsPassed);
             expect(result.dueDate).to.equal(dueDate);
@@ -113,12 +77,8 @@ describe("Calendar Test", function () {
             await mineNextBlockWithTimestamp(nextTime);
 
             let period = 2;
-            let dueDateInNextPeriod = await calendarContract.getNextPeriod(
-                CONSTANTS.CALENDAR_UNIT_DAY,
-                period,
-                0,
-            );
-            let [dueDate] = getNextDueDate(CONSTANTS.CALENDAR_UNIT_DAY, 0, nextTime, period);
+            let dueDateInNextPeriod = await calendarContract.getNextPeriod(period, 0);
+            let [dueDate] = getNextDueDate(0, nextTime, period);
             expect(dueDateInNextPeriod).to.equal(dueDate);
         });
 
@@ -129,17 +89,8 @@ describe("Calendar Test", function () {
             let lastDate = dateToTimestamp("2023-07-01");
 
             let period = 3;
-            let dueDateInNextPeriod = await calendarContract.getNextPeriod(
-                CONSTANTS.CALENDAR_UNIT_DAY,
-                period,
-                lastDate,
-            );
-            let [dueDate] = getNextDueDate(
-                CONSTANTS.CALENDAR_UNIT_DAY,
-                lastDate,
-                lastDate,
-                period,
-            );
+            let dueDateInNextPeriod = await calendarContract.getNextPeriod(period, lastDate);
+            let [dueDate] = getNextDueDate(lastDate, lastDate, period);
             // console.log(`dueDate: ${dueDate}, numberOfPeriodsPassed: ${numberOfPeriodsPassed}`);
             expect(dueDateInNextPeriod).to.equal(dueDate);
         });
@@ -149,12 +100,8 @@ describe("Calendar Test", function () {
             await mineNextBlockWithTimestamp(nextTime);
 
             let period = 1;
-            let dueDateInNextPeriod = await calendarContract.getNextPeriod(
-                CONSTANTS.CALENDAR_UNIT_MONTH,
-                period,
-                0,
-            );
-            let [dueDate] = getNextDueDate(CONSTANTS.CALENDAR_UNIT_MONTH, 0, nextTime, period);
+            let dueDateInNextPeriod = await calendarContract.getNextPeriod(period, 0);
+            let [dueDate] = getNextDueDate(0, nextTime, period);
             // console.log(`dueDate: ${dueDate}, numberOfPeriodsPassed: ${numberOfPeriodsPassed}`);
             expect(dueDateInNextPeriod).to.equal(dueDate);
         });
@@ -166,17 +113,8 @@ describe("Calendar Test", function () {
             let lastDate = dateToTimestamp("2023-02-01");
 
             let period = 3;
-            let dueDateInNextPeriod = await calendarContract.getNextPeriod(
-                CONSTANTS.CALENDAR_UNIT_MONTH,
-                period,
-                lastDate,
-            );
-            let [dueDate] = getNextDueDate(
-                CONSTANTS.CALENDAR_UNIT_MONTH,
-                lastDate,
-                lastDate,
-                period,
-            );
+            let dueDateInNextPeriod = await calendarContract.getNextPeriod(period, lastDate);
+            let [dueDate] = getNextDueDate(lastDate, lastDate, period);
             // console.log(`dueDate: ${dueDate}, numberOfPeriodsPassed: ${numberOfPeriodsPassed}`);
             expect(dueDateInNextPeriod).to.equal(dueDate);
         });

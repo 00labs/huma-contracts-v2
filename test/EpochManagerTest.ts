@@ -182,10 +182,9 @@ describe("EpochManager Test", function () {
         // Starts a new epoch
         let lastEpoch = await epochManagerContract.currentEpoch();
         let [endTime] = getNextDueDate(
-            settings.calendarUnit,
             0,
             Math.ceil(Date.now() / 1000),
-            settings.payPeriodInCalendarUnit,
+            settings.payPeriodInMonths,
         );
         await expect(poolContract.connect(poolOwner).enablePool())
             .to.emit(epochManagerContract, "NewEpochStarted")
@@ -195,7 +194,7 @@ describe("EpochManager Test", function () {
         let ts = endTime + 60 * 5;
         await mineNextBlockWithTimestamp(ts);
         lastEpoch = await epochManagerContract.currentEpoch();
-        [endTime] = getNextDueDate(settings.calendarUnit, 0, ts, settings.payPeriodInCalendarUnit);
+        [endTime] = getNextDueDate(0, ts, settings.payPeriodInMonths);
         await expect(poolContract.connect(poolOwner).enablePool())
             .to.emit(epochManagerContract, "NewEpochStarted")
             .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -267,10 +266,9 @@ describe("EpochManager Test", function () {
         const ts = lastEpoch.endTime.toNumber() + 60 * 5;
         await setNextBlockTimestamp(ts);
         const [endTime] = getNextDueDate(
-            settings.calendarUnit,
             lastEpoch.endTime.toNumber(),
             ts,
-            settings.payPeriodInCalendarUnit,
+            settings.payPeriodInMonths,
         );
 
         const [[seniorAssets, juniorAssets]] = await getAssetsAfterProfitAndLoss(

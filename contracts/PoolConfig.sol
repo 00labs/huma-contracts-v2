@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {CalendarUnit} from "./SharedDefs.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -16,18 +15,14 @@ import {Errors} from "./Errors.sol";
 struct PoolSettings {
     // The maximum credit line for a borrower in terms of the amount of poolTokens
     uint96 maxCreditLine;
-    // calendarType and numPerPeriod are used together to measure the duration
-    // of a pay period. For example, 14 days, 1 month.
-    CalendarUnit calendarUnit;
-    // This field is the pay period in terms of calendar units for borrowers
-    // and the duration of an epoch for lender redemptions.
-    uint8 payPeriodInCalendarUnit;
+    // The number of months in one pay period
+    uint8 payPeriodInMonths;
     // The duration of a credit line without an initial drawdown
     uint16 creditApprovalExpirationInDays;
     // The grace period before a late fee can be charged, in the unit of number of days
     uint8 latePaymentGracePeriodInDays;
-    // The grace period before a default can be triggered, in the unit of the pool's CalendarUnit
-    uint16 defaultGracePeriodInCalendarUnit;
+    // The grace period before a default can be triggered, in months. This can be 0.
+    uint16 defaultGracePeriodInMonths;
     // Percentage (in basis points) of the receivable amount applied towards available credit
     uint16 receivableRequiredInBps;
     // Specifies the max credit line as a percentage (in basis points) of the receivable amount.
@@ -61,7 +56,7 @@ struct LPConfig {
     // The max liquidity allowed for the pool.
     uint96 liquidityCap;
     // How long a lender has to wait after the last deposit before they can withdraw
-    uint8 withdrawalLockoutInCalendarUnit;
+    uint8 withdrawalLockoutInMonths;
     // The upper bound of senior-to-junior ratio allowed
     uint8 maxSeniorJuniorRatio;
     // The fixed yield for senior tranche. Either this or tranchesRiskAdjustmentInBps is non-zero
@@ -170,9 +165,9 @@ contract PoolConfig is AccessControl, Initializable {
 
     event MaxCreditLineChanged(uint256 maxCreditLine, address by);
     event PoolChanged(address pool, address by);
-    event PoolDefaultGracePeriodChanged(CalendarUnit unit, uint256 gracePeriodInDays, address by);
+    event PoolDefaultGracePeriodChanged(uint256 gracePeriodInDays, address by);
     event PoolLiquidityCapChanged(uint256 liquidityCap, address by);
-    event PoolPayPeriodChanged(CalendarUnit unit, uint256 number, address by);
+    event PoolPayPeriodChanged(uint256 number, address by);
     event PoolNameChanged(string name, address by);
     event PoolOwnerRewardsAndLiquidityChanged(
         uint256 rewardRate,
@@ -205,16 +200,12 @@ contract PoolConfig is AccessControl, Initializable {
     event ProtocolRewardsWithdrawn(address receiver, uint256 amount, address by);
     event ReceivableRequiredInBpsChanged(uint256 receivableRequiredInBps, address by);
     event AdvanceRateInBpsChanged(uint256 advanceRateInBps, address by);
-    event WithdrawalLockoutPeriodChanged(
-        CalendarUnit unit,
-        uint256 lockoutPeriodInDays,
-        address by
-    );
+    event WithdrawalLockoutPeriodChanged(uint256 lockoutPeriodInDays, address by);
 
     event LPConfigChanged(
         bool permissioned,
         uint96 liquidityCap,
-        uint8 withdrawalLockoutInCalendarUnit,
+        uint8 withdrawalLockoutInMonths,
         uint8 maxSeniorJuniorRatio,
         uint16 fixedSeniorYieldInBps,
         uint16 tranchesRiskAdjustmentInBps,
@@ -317,12 +308,11 @@ contract PoolConfig is AccessControl, Initializable {
         // these values when setting up the pools. Setting these default values to avoid
         // strange behaviors when the pool owner missed setting up these configurations.
         PoolSettings memory tempPoolSettings = _poolSettings;
-        tempPoolSettings.calendarUnit = CalendarUnit.Month;
-        tempPoolSettings.payPeriodInCalendarUnit = 1; // 1 month
+        tempPoolSettings.payPeriodInMonths = 1; // 1 month
         tempPoolSettings.receivableRequiredInBps = 10000; // 100%
         tempPoolSettings.advanceRateInBps = 8000; // 80%
         tempPoolSettings.latePaymentGracePeriodInDays = 5;
-        tempPoolSettings.defaultGracePeriodInCalendarUnit = 3; // 3 months
+        tempPoolSettings.defaultGracePeriodInMonths = 3; // 3 months
         _poolSettings = tempPoolSettings;
 
         AdminRnR memory adminRnRConfig = _adminRnR;
@@ -483,11 +473,10 @@ contract PoolConfig is AccessControl, Initializable {
      * Sets the default grace period for this pool.
      * @param gracePeriod the desired grace period in days.
      */
-    function setPoolDefaultGracePeriod(CalendarUnit unit, uint256 gracePeriod) external {
+    function setPoolDefaultGracePeriod(uint256 gracePeriod) external {
         _onlyOwnerOrHumaMasterAdmin();
-        if (unit != _poolSettings.calendarUnit) revert Errors.invalidCalendarUnit();
-        _poolSettings.defaultGracePeriodInCalendarUnit = uint16(gracePeriod);
-        emit PoolDefaultGracePeriodChanged(unit, gracePeriod, msg.sender);
+        _poolSettings.defaultGracePeriodInMonths = uint16(gracePeriod);
+        emit PoolDefaultGracePeriodChanged(gracePeriod, msg.sender);
     }
 
     /**
@@ -501,14 +490,13 @@ contract PoolConfig is AccessControl, Initializable {
         emit PoolLiquidityCapChanged(liquidityCap, msg.sender);
     }
 
-    function setPoolPayPeriod(CalendarUnit unit, uint256 number) external {
+    function setPoolPayPeriod(uint256 number) external {
         _onlyOwnerOrHumaMasterAdmin();
         if (number == 0) revert Errors.zeroAmountProvided();
         PoolSettings memory _settings = _poolSettings;
-        _settings.calendarUnit = unit;
-        _settings.payPeriodInCalendarUnit = uint8(number);
+        _settings.payPeriodInMonths = uint8(number);
         _poolSettings = _settings;
-        emit PoolPayPeriodChanged(unit, number, msg.sender);
+        emit PoolPayPeriodChanged(number, msg.sender);
     }
 
     /**
@@ -642,11 +630,10 @@ contract PoolConfig is AccessControl, Initializable {
      * Sets withdrawal lockout period after the lender makes the last deposit
      * @param lockoutPeriod the lockout period in terms of days
      */
-    function setWithdrawalLockoutPeriod(CalendarUnit unit, uint256 lockoutPeriod) external {
+    function setWithdrawalLockoutPeriod(uint256 lockoutPeriod) external {
         _onlyOwnerOrHumaMasterAdmin();
-        if (unit != _poolSettings.calendarUnit) revert Errors.invalidCalendarUnit();
-        _lpConfig.withdrawalLockoutInCalendarUnit = uint8(lockoutPeriod);
-        emit WithdrawalLockoutPeriodChanged(unit, lockoutPeriod, msg.sender);
+        _lpConfig.withdrawalLockoutInMonths = uint8(lockoutPeriod);
+        emit WithdrawalLockoutPeriodChanged(lockoutPeriod, msg.sender);
     }
 
     function setLPConfig(LPConfig calldata lpConfig) external {
@@ -655,7 +642,7 @@ contract PoolConfig is AccessControl, Initializable {
         emit LPConfigChanged(
             lpConfig.permissioned,
             lpConfig.liquidityCap,
-            lpConfig.withdrawalLockoutInCalendarUnit,
+            lpConfig.withdrawalLockoutInMonths,
             lpConfig.maxSeniorJuniorRatio,
             lpConfig.fixedSeniorYieldInBps,
             lpConfig.tranchesRiskAdjustmentInBps,
@@ -780,7 +767,7 @@ contract PoolConfig is AccessControl, Initializable {
         return (
             address(underlyingToken),
             _feeStructure.yieldInBps,
-            _poolSettings.payPeriodInCalendarUnit,
+            _poolSettings.payPeriodInMonths,
             _poolSettings.maxCreditLine,
             _lpConfig.liquidityCap,
             erc20Contract.name(),

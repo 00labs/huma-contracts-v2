@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
-import {CalendarUnit} from "../CreditStructs.sol";
 
 /**
  * @notice ICalendar defines functions for date calculation
@@ -28,7 +27,6 @@ interface ICalendar {
     function getStartOfNextQuarter() external view returns (uint256 nextDay);
 
     function getStartDateOfPeriod(
-        CalendarUnit unit,
         uint256 periodDuration,
         uint256 periodEndDate
     ) external view returns (uint256 startDate);
@@ -42,19 +40,16 @@ interface ICalendar {
      * @dev Timezone: always UTC
      */
     function getNextDueDate(
-        CalendarUnit unit,
         uint256 periodDuration,
         uint256 lastDueDate
     ) external view returns (uint256 dueDate, uint256 numberOfPeriodsPassed);
 
     function getBeginOfPeriod(
-        CalendarUnit unit,
         uint256 periodDuration,
         uint256 lastDueDate
     ) external view returns (uint256 dueDate, uint256 numberOfPeriodsPassed);
 
     function getNextPeriod(
-        CalendarUnit unit,
         uint256 periodDuration,
         uint256 lastDueDate
     ) external view returns (uint256 dueDateInNextPeriod);

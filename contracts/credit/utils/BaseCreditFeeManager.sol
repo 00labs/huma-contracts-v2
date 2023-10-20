@@ -167,7 +167,6 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
         uint256 totalMissedPeriods = _cr.missedPeriods;
         while (block.timestamp > newCreditRecord.nextDueDate) {
             uint256 newNextDueDate = calendar.getNextPeriod(
-                _cc.calendarUnit,
                 _cc.periodDuration,
                 newCreditRecord.nextDueDate
             );
@@ -210,8 +209,8 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
             newCreditRecord.nextDueDate = uint64(newNextDueDate);
 
             if (
-                (totalMissedPeriods - 1) * settings.payPeriodInCalendarUnit >
-                settings.defaultGracePeriodInCalendarUnit
+                (totalMissedPeriods - 1) * settings.payPeriodInMonths >
+                settings.defaultGracePeriodInMonths
             ) {
                 // If the borrower has missed more than default grace periods, the credit line is defaulted
                 // and stops to accrue interest.
