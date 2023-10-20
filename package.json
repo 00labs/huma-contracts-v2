@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "",
   "keywords": [],
-  "license": "LGPL-3.0-or-later",
+  "license": "AGPL-3.0-or-later",
   "author": "",
   "main": "index.js",
   "scripts": {
@@ -17,22 +17,21 @@
     "gitleaks": "bash scripts/gitleaks.sh",
     "lint": "eslint 'test/**/*.ts'",
     "lint:fix": "eslint 'test/**/*.ts' --fix",
-    "lint-solidity": "yarn solhint -f table 'contracts/**/*.sol'",
-    "lint-solidity:fix": "yarn solhint --fix -f table 'contracts/**/*.sol'",
+    "lint-solidity": "solhint -f table 'contracts/**/*.sol'",
+    "lint-solidity:fix": "solhint --fix -f table 'contracts/**/*.sol'",
     "prepare": "husky install",
     "test": "hardhat test --network hardhat --typecheck",
     "verify": "hardhat verify",
     "gen-error-ids": "hardhat run scripts/gen-error-function-ids.ts --network hardhat && prettier --write scripts/error-functions.json"
   },
-  "husky": {
-    "hooks": {
-      "pre-commit": "lint-staged"
-    }
-  },
   "lint-staged": {
     "*.ts": [
       "eslint --fix",
       "prettier --write"
+    ],
+    "*.sol": [
+      "solhint --fix -f table",
+      "prettier --write --plugin=prettier-plugin-solidity"
     ]
   },
   "devDependencies": {
