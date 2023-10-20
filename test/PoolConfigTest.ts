@@ -167,12 +167,11 @@ describe("PoolConfig Tests", function () {
                 ]);
 
             const poolSettings = await poolConfigContract.getPoolSettings();
-            expect(poolSettings.calendarUnit).to.equal(1);
-            expect(poolSettings.payPeriodInCalendarUnit).to.equal(1);
+            expect(poolSettings.payPeriodInMonths).to.equal(1);
             expect(poolSettings.receivableRequiredInBps).to.equal(10000);
             expect(poolSettings.advanceRateInBps).to.equal(8000);
             expect(poolSettings.latePaymentGracePeriodInDays).to.equal(5);
-            expect(poolSettings.defaultGracePeriodInCalendarUnit).to.equal(3);
+            expect(poolSettings.defaultGracePeriodInMonths).to.equal(3);
 
             const adminRnR = await poolConfigContract.getAdminRnR();
             expect(adminRnR.rewardRateInBpsForEA).to.equal(300);
@@ -640,7 +639,7 @@ describe("PoolConfig Tests", function () {
                     .to.emit(poolConfigContract, "LatePaymentGracePeriodChanged")
                     .withArgs(gracePeriodInDays, poolOwner.address);
                 const poolSettings = await poolConfigContract.getPoolSettings();
-                expect(poolSettings[4]).to.equal(gracePeriodInDays);
+                expect(poolSettings[3]).to.equal(gracePeriodInDays);
             });
 
             it("Should allow the Huma master admin set the late payment periodl", async function () {
@@ -652,7 +651,7 @@ describe("PoolConfig Tests", function () {
                     .to.emit(poolConfigContract, "LatePaymentGracePeriodChanged")
                     .withArgs(gracePeriodInDays, protocolOwner.address);
                 const poolSettings = await poolConfigContract.getPoolSettings();
-                expect(poolSettings[4]).to.equal(gracePeriodInDays);
+                expect(poolSettings[3]).to.equal(gracePeriodInDays);
             });
 
             it("Should reject non-owner or non-Huma master admin", async function () {
@@ -1103,56 +1102,40 @@ describe("PoolConfig Tests", function () {
         });
 
         describe("setPoolDefaultGracePeriod", function () {
-            let defaultGracePeriodDays: number, calendarUnit: number;
+            let defaultGracePeriodDays: number;
 
             before(function () {
                 defaultGracePeriodDays = 30;
-                calendarUnit = CONSTANTS.CALENDAR_UNIT_DAY;
             });
 
             it("Should allow the pool owner to set the default grace period", async function () {
                 await expect(
                     poolConfigContract
                         .connect(poolOwner)
-                        .setPoolDefaultGracePeriod(calendarUnit, defaultGracePeriodDays),
+                        .setPoolDefaultGracePeriod(defaultGracePeriodDays),
                 )
                     .to.emit(poolConfigContract, "PoolDefaultGracePeriodChanged")
-                    .withArgs(calendarUnit, defaultGracePeriodDays, poolOwner.address);
+                    .withArgs(defaultGracePeriodDays, poolOwner.address);
                 const poolSettings = await poolConfigContract.getPoolSettings();
-                expect(poolSettings.defaultGracePeriodInCalendarUnit).to.equal(
-                    defaultGracePeriodDays,
-                );
+                expect(poolSettings.defaultGracePeriodInMonths).to.equal(defaultGracePeriodDays);
             });
 
             it("Should allow the Huma master admin to set the default grace period", async function () {
                 await expect(
                     poolConfigContract
                         .connect(protocolOwner)
-                        .setPoolDefaultGracePeriod(calendarUnit, defaultGracePeriodDays),
+                        .setPoolDefaultGracePeriod(defaultGracePeriodDays),
                 )
                     .to.emit(poolConfigContract, "PoolDefaultGracePeriodChanged")
-                    .withArgs(calendarUnit, defaultGracePeriodDays, protocolOwner.address);
-                const poolSettings = await poolConfigContract.getPoolSettings();
-                expect(poolSettings.calendarUnit).to.equal(calendarUnit);
+                    .withArgs(defaultGracePeriodDays, protocolOwner.address);
             });
 
             it("Should reject non-owner or admin to set the default grace period", async function () {
                 await expect(
                     poolConfigContract
                         .connect(regularUser)
-                        .setPoolDefaultGracePeriod(calendarUnit, defaultGracePeriodDays),
+                        .setPoolDefaultGracePeriod(defaultGracePeriodDays),
                 ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
-            });
-
-            it("Should reject new default grace period with the wrong calendar unit", async function () {
-                await expect(
-                    poolConfigContract
-                        .connect(poolOwner)
-                        .setPoolDefaultGracePeriod(
-                            CONSTANTS.CALENDAR_UNIT_MONTH,
-                            defaultGracePeriodDays,
-                        ),
-                ).to.be.revertedWithCustomError(poolConfigContract, "invalidCalendarUnit");
             });
         });
 
@@ -1202,49 +1185,36 @@ describe("PoolConfig Tests", function () {
             let calendarUnit: number, numPayPeriods: number;
 
             before(function () {
-                calendarUnit = CONSTANTS.CALENDAR_UNIT_MONTH;
                 numPayPeriods = 1;
             });
 
             it("Should allow the pool owner to set the pay period", async function () {
-                await expect(
-                    poolConfigContract
-                        .connect(poolOwner)
-                        .setPoolPayPeriod(calendarUnit, numPayPeriods),
-                )
+                await expect(poolConfigContract.connect(poolOwner).setPoolPayPeriod(numPayPeriods))
                     .to.emit(poolConfigContract, "PoolPayPeriodChanged")
-                    .withArgs(calendarUnit, numPayPeriods, poolOwner.address);
+                    .withArgs(numPayPeriods, poolOwner.address);
                 const poolSettings = await poolConfigContract.getPoolSettings();
-                expect(poolSettings.calendarUnit).to.equal(calendarUnit);
-                expect(poolSettings.payPeriodInCalendarUnit).to.equal(numPayPeriods);
+                expect(poolSettings.payPeriodInMonths).to.equal(numPayPeriods);
             });
 
             it("Should allow the Huma master admin to set the pay period", async function () {
                 await expect(
-                    poolConfigContract
-                        .connect(protocolOwner)
-                        .setPoolPayPeriod(calendarUnit, numPayPeriods),
+                    poolConfigContract.connect(protocolOwner).setPoolPayPeriod(numPayPeriods),
                 )
                     .to.emit(poolConfigContract, "PoolPayPeriodChanged")
-                    .withArgs(calendarUnit, numPayPeriods, protocolOwner.address);
+                    .withArgs(numPayPeriods, protocolOwner.address);
                 const poolSettings = await poolConfigContract.getPoolSettings();
-                expect(poolSettings.calendarUnit).to.equal(calendarUnit);
-                expect(poolSettings.payPeriodInCalendarUnit).to.equal(numPayPeriods);
+                expect(poolSettings.payPeriodInMonths).to.equal(numPayPeriods);
             });
 
             it("Should reject non-owner or admin to set the pool", async function () {
                 await expect(
-                    poolConfigContract
-                        .connect(regularUser)
-                        .setPoolPayPeriod(calendarUnit, numPayPeriods),
+                    poolConfigContract.connect(regularUser).setPoolPayPeriod(numPayPeriods),
                 ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
             });
 
             it("Should reject zero pay periods", async function () {
                 await expect(
-                    poolConfigContract
-                        .connect(poolOwner)
-                        .setPoolPayPeriod(calendarUnit, ethers.constants.Zero),
+                    poolConfigContract.connect(poolOwner).setPoolPayPeriod(ethers.constants.Zero),
                 ).to.be.revertedWithCustomError(poolConfigContract, "zeroAmountProvided");
             });
         });
@@ -1750,7 +1720,6 @@ describe("PoolConfig Tests", function () {
             let calendarUnit: number, lockoutPeriod: number;
 
             before(function () {
-                calendarUnit = CONSTANTS.CALENDAR_UNIT_DAY;
                 lockoutPeriod = 30;
             });
 
@@ -1758,40 +1727,32 @@ describe("PoolConfig Tests", function () {
                 await expect(
                     poolConfigContract
                         .connect(poolOwner)
-                        .setWithdrawalLockoutPeriod(calendarUnit, lockoutPeriod),
+                        .setWithdrawalLockoutPeriod(lockoutPeriod),
                 )
                     .to.emit(poolConfigContract, "WithdrawalLockoutPeriodChanged")
-                    .withArgs(calendarUnit, lockoutPeriod, poolOwner.address);
+                    .withArgs(lockoutPeriod, poolOwner.address);
                 const lpConfig = await poolConfigContract.getLPConfig();
-                expect(lpConfig.withdrawalLockoutInCalendarUnit).to.equal(lockoutPeriod);
+                expect(lpConfig.withdrawalLockoutInMonths).to.equal(lockoutPeriod);
             });
 
             it("Should allow the Huma master admin to set the withdrawal lockout period", async function () {
                 await expect(
                     poolConfigContract
                         .connect(protocolOwner)
-                        .setWithdrawalLockoutPeriod(calendarUnit, lockoutPeriod),
+                        .setWithdrawalLockoutPeriod(lockoutPeriod),
                 )
                     .to.emit(poolConfigContract, "WithdrawalLockoutPeriodChanged")
-                    .withArgs(calendarUnit, lockoutPeriod, protocolOwner.address);
+                    .withArgs(lockoutPeriod, protocolOwner.address);
                 const lpConfig = await poolConfigContract.getLPConfig();
-                expect(lpConfig.withdrawalLockoutInCalendarUnit).to.equal(lockoutPeriod);
+                expect(lpConfig.withdrawalLockoutInMonths).to.equal(lockoutPeriod);
             });
 
             it("Should reject non-owner or admin to set the withdrawal lockout period", async function () {
                 await expect(
                     poolConfigContract
                         .connect(regularUser)
-                        .setWithdrawalLockoutPeriod(calendarUnit, lockoutPeriod),
+                        .setWithdrawalLockoutPeriod(lockoutPeriod),
                 ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
-            });
-
-            it("Should disallow incompatible calendar units", async function () {
-                await expect(
-                    poolConfigContract
-                        .connect(poolOwner)
-                        .setWithdrawalLockoutPeriod(CONSTANTS.CALENDAR_UNIT_MONTH, lockoutPeriod),
-                ).to.be.revertedWithCustomError(poolConfigContract, "invalidCalendarUnit");
             });
         });
 
@@ -1802,7 +1763,7 @@ describe("PoolConfig Tests", function () {
                 newLPConfig = {
                     permissioned: false,
                     liquidityCap: toToken(100_000_000),
-                    withdrawalLockoutInCalendarUnit: 30,
+                    withdrawalLockoutInMonths: 30,
                     maxSeniorJuniorRatio: 4,
                     fixedSeniorYieldInBps: 2000,
                     tranchesRiskAdjustmentInBps: 8000,
@@ -1815,7 +1776,7 @@ describe("PoolConfig Tests", function () {
                     .withArgs(
                         newLPConfig.permissioned,
                         newLPConfig.liquidityCap,
-                        newLPConfig.withdrawalLockoutInCalendarUnit,
+                        newLPConfig.withdrawalLockoutInMonths,
                         newLPConfig.maxSeniorJuniorRatio,
                         newLPConfig.fixedSeniorYieldInBps,
                         newLPConfig.tranchesRiskAdjustmentInBps,
@@ -1824,8 +1785,8 @@ describe("PoolConfig Tests", function () {
                 const lpConfig = await poolConfigContract.getLPConfig();
                 expect(lpConfig.permissioned).to.equal(newLPConfig.permissioned);
                 expect(lpConfig.liquidityCap).to.equal(newLPConfig.liquidityCap);
-                expect(lpConfig.withdrawalLockoutInCalendarUnit).to.equal(
-                    newLPConfig.withdrawalLockoutInCalendarUnit,
+                expect(lpConfig.withdrawalLockoutInMonths).to.equal(
+                    newLPConfig.withdrawalLockoutInMonths,
                 );
                 expect(lpConfig.maxSeniorJuniorRatio).to.equal(newLPConfig.maxSeniorJuniorRatio);
                 expect(lpConfig.fixedSeniorYieldInBps).to.equal(newLPConfig.fixedSeniorYieldInBps);
@@ -1840,7 +1801,7 @@ describe("PoolConfig Tests", function () {
                     .withArgs(
                         newLPConfig.permissioned,
                         newLPConfig.liquidityCap,
-                        newLPConfig.withdrawalLockoutInCalendarUnit,
+                        newLPConfig.withdrawalLockoutInMonths,
                         newLPConfig.maxSeniorJuniorRatio,
                         newLPConfig.fixedSeniorYieldInBps,
                         newLPConfig.tranchesRiskAdjustmentInBps,
@@ -1849,8 +1810,8 @@ describe("PoolConfig Tests", function () {
                 const lpConfig = await poolConfigContract.getLPConfig();
                 expect(lpConfig.permissioned).to.equal(newLPConfig.permissioned);
                 expect(lpConfig.liquidityCap).to.equal(newLPConfig.liquidityCap);
-                expect(lpConfig.withdrawalLockoutInCalendarUnit).to.equal(
-                    newLPConfig.withdrawalLockoutInCalendarUnit,
+                expect(lpConfig.withdrawalLockoutInMonths).to.equal(
+                    newLPConfig.withdrawalLockoutInMonths,
                 );
                 expect(lpConfig.maxSeniorJuniorRatio).to.equal(newLPConfig.maxSeniorJuniorRatio);
                 expect(lpConfig.fixedSeniorYieldInBps).to.equal(newLPConfig.fixedSeniorYieldInBps);

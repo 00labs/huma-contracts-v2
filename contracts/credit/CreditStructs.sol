@@ -1,15 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {CalendarUnit} from "../SharedDefs.sol";
-
 // CreditConfig keeps track of the static settings of a credit line,
 // i.e. settings that do not change between pay periods.
 // It is created after the credit approval.
 struct CreditConfig {
     uint96 creditLimit;
     uint96 committedAmount;
-    CalendarUnit calendarUnit; // day or month
     uint16 periodDuration;
     uint16 numOfPeriods; // number of periods
     // Yield in BPs, mean different things for different credit types.

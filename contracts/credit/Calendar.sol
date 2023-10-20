@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import "../SharedDefs.sol";
-import {ICalendar, CalendarUnit} from "./interfaces/ICalendar.sol";
+import {ICalendar} from "./interfaces/ICalendar.sol";
 
 import {BokkyPooBahsDateTimeLibrary as DTL} from "./utils/BokkyPooBahsDateTimeLibrary.sol";
 
@@ -18,15 +18,10 @@ contract Calendar is ICalendar {
     function getStartOfNextQuarter() external view returns (uint256 nextDay) {}
 
     function getStartDateOfPeriod(
-        CalendarUnit unit,
         uint256 periodDuration,
         uint256 periodEndDate
     ) external pure returns (uint256 startDate) {
-        if (unit == CalendarUnit.Day) {
-            return DTL.subDays(periodEndDate, periodDuration);
-        } else if (unit == CalendarUnit.Month) {
-            return DTL.subMonths(periodEndDate, periodDuration);
-        }
+        return DTL.subMonths(periodEndDate, periodDuration);
     }
 
     /**
@@ -35,39 +30,24 @@ contract Calendar is ICalendar {
      * lastDueDate. In contract, getNextDueDate() gets the next due date based on block.timestamp.
      */
     function getNextPeriod(
-        CalendarUnit unit,
         uint256 periodDuration,
         uint256 lastDueDate
     ) external view returns (uint256 dueDateInNextPeriod) {
-        if (unit == CalendarUnit.Day) {
-            return getNextPeriodInDays(periodDuration, lastDueDate);
-        } else if (unit == CalendarUnit.Month) {
             return getNextPeriodInMonths(periodDuration, lastDueDate);
-        }
     }
 
     function getBeginOfPeriod(
-        CalendarUnit unit,
         uint256 periodDuration,
         uint256 lastDueDate
     ) external view returns (uint256 dueDate, uint256 numberOfPeriodsPassed) {
-        if (unit == CalendarUnit.Day) {
-            return getDueDateInDays(periodDuration, lastDueDate, false);
-        } else if (unit == CalendarUnit.Month) {
             return getDueDateInMonths(periodDuration, lastDueDate, false);
-        }
     }
 
     function getNextDueDate(
-        CalendarUnit unit,
         uint256 periodDuration,
         uint256 lastDueDate
     ) external view returns (uint256 dueDate, uint256 numberOfPeriodsPassed) {
-        if (unit == CalendarUnit.Day) {
-            return getDueDateInDays(periodDuration, lastDueDate, true);
-        } else if (unit == CalendarUnit.Month) {
             return getDueDateInMonths(periodDuration, lastDueDate, true);
-        }
     }
 
     function getNextPeriodInDays(

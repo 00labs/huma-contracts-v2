@@ -62,8 +62,6 @@ export enum ReceivableState {
     Defaulted,
 }
 
-const CALENDAR_UNIT_DAY = 0;
-const CALENDAR_UNIT_MONTH = 1;
 const SENIOR_TRANCHE = 0;
 const JUNIOR_TRANCHE = 1;
 const DEFAULT_DECIMALS_FACTOR = BN.from(10).pow(18);
@@ -73,8 +71,6 @@ const BORROWER_FIRST_LOSS_COVER_INDEX = 0;
 const AFFILIATE_FIRST_LOSS_COVER_INDEX = 1;
 
 export const CONSTANTS = {
-    CALENDAR_UNIT_DAY,
-    CALENDAR_UNIT_MONTH,
     SENIOR_TRANCHE,
     JUNIOR_TRANCHE,
     DEFAULT_DECIMALS_FACTOR,
@@ -392,7 +388,7 @@ export async function setupPoolContracts(
     await poolContract.connect(poolOwner).setReadyForFirstLossCoverWithdrawal(true);
 
     // Set pool epoch window to 3 days for testing purposes
-    await poolConfigContract.connect(poolOwner).setPoolPayPeriod(CONSTANTS.CALENDAR_UNIT_DAY, 3);
+    await poolConfigContract.connect(poolOwner).setPoolPayPeriod(3);
 
     await poolContract.connect(poolOwner).enablePool();
     const expectedInitialLiquidity = poolOwnerLiquidity.add(evaluationAgentLiquidity);
@@ -496,19 +492,11 @@ export async function deployAndSetupPoolContracts(
 }
 
 export function getNextDueDate(
-    calendarUnit: number,
     lastDate: number | BN,
     currentDate: number | BN,
     periodDuration: number | BN,
 ): number[] {
-    switch (calendarUnit) {
-        case CONSTANTS.CALENDAR_UNIT_DAY:
-            return getNextDate(Number(lastDate), Number(currentDate), Number(periodDuration));
-        case CONSTANTS.CALENDAR_UNIT_MONTH:
-            return getNextMonth(Number(lastDate), Number(currentDate), Number(periodDuration));
-        default:
-            throw Error("Unrecognized calendar unit");
-    }
+    return getNextMonth(Number(lastDate), Number(currentDate), Number(periodDuration));
 }
 
 function calcProfitForFixedSeniorYieldPolicy(
@@ -722,7 +710,6 @@ export function checkCreditConfig(
     creditConfig: CreditConfigStruct,
     creditLimit: BN,
     committedAmount: BN,
-    calendarUnit: number,
     periodDuration: number,
     numOfPeriods: number,
     yieldInBps: number,
@@ -733,7 +720,6 @@ export function checkCreditConfig(
 ) {
     expect(creditConfig.creditLimit).to.equal(creditLimit);
     expect(creditConfig.committedAmount).to.equal(committedAmount);
-    expect(creditConfig.calendarUnit).to.equal(calendarUnit);
     expect(creditConfig.periodDuration).to.equal(periodDuration);
     expect(creditConfig.numOfPeriods).to.equal(numOfPeriods);
     expect(creditConfig.yieldInBps).to.equal(yieldInBps);

@@ -85,18 +85,8 @@ export async function getNextTime(afterSeconds: number) {
     return nextTime;
 }
 
-export function getStartDateOfPeriod(
-    calendarUnit: number,
-    periodDuration: number,
-    endDate: number,
-): number {
-    if (calendarUnit == CONSTANTS.CALENDAR_UNIT_DAY) {
-        return timestampToMoment(endDate).subtract(periodDuration, "days").unix();
-    } else if (calendarUnit == CONSTANTS.CALENDAR_UNIT_MONTH) {
-        return timestampToMoment(endDate).subtract(periodDuration, "months").unix();
-    } else {
-        return 0;
-    }
+export function getStartDateOfPeriod(periodDuration: number, endDate: number): number {
+    return timestampToMoment(endDate).subtract(periodDuration, "months").unix();
 }
 
 export async function getLatestBlock() {
@@ -123,7 +113,7 @@ export function copyLPConfigWithOverrides(
         ...{
             permissioned: lpConfig.permissioned,
             liquidityCap: lpConfig.liquidityCap,
-            withdrawalLockoutInCalendarUnit: lpConfig.withdrawalLockoutInCalendarUnit,
+            withdrawalLockoutInMonths: lpConfig.withdrawalLockoutInMonths,
             maxSeniorJuniorRatio: lpConfig.maxSeniorJuniorRatio,
             fixedSeniorYieldInBps: lpConfig.fixedSeniorYieldInBps,
             tranchesRiskAdjustmentInBps: lpConfig.tranchesRiskAdjustmentInBps,
