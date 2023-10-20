@@ -329,15 +329,43 @@ describe("Pool Test", function () {
         });
 
         describe("PnL tests", function () {
+            let coverTotalAssets: BN;
+
             async function prepareForPnL() {
-                let juniorDepositAmount = toToken(250_000);
+                const juniorDepositAmount = toToken(250_000);
                 await juniorTrancheVaultContract
                     .connect(lender)
                     .deposit(juniorDepositAmount, lender.address);
-                let seniorDepositAmount = toToken(800_000);
+                const seniorDepositAmount = toToken(800_000);
                 await seniorTrancheVaultContract
                     .connect(lender)
                     .deposit(seniorDepositAmount, lender.address);
+                // Override the config so that first loss covers cover
+                // all losses up to the amount of their total assets.
+                const profitEscrowAddresses = [
+                    ethers.constants.AddressZero,
+                    affiliateFirstLossCoverProfitEscrowContract.address,
+                ];
+                const firstLossCovers = [
+                    borrowerFirstLossCoverContract,
+                    affiliateFirstLossCoverContract,
+                ];
+                coverTotalAssets = sumBNArray(
+                    await Promise.all(firstLossCovers.map((cover) => cover.totalAssets())),
+                );
+                for (const [index, cover] of firstLossCovers.entries()) {
+                    await overrideFirstLossCoverConfig(
+                        cover,
+                        profitEscrowAddresses[index],
+                        index,
+                        poolConfigContract,
+                        poolOwner,
+                        {
+                            coverRateInBps: CONSTANTS.BP_FACTOR,
+                            coverCap: coverTotalAssets,
+                        },
+                    );
+                }
             }
 
             beforeEach(async function () {
@@ -373,8 +401,7 @@ describe("Pool Test", function () {
                     );
                     const firstLossCoverInfos = await Promise.all(
                         [borrowerFirstLossCoverContract, affiliateFirstLossCoverContract].map(
-                            async (contract) =>
-                                await getFirstLossCoverInfo(contract, poolConfigContract),
+                            (contract) => getFirstLossCoverInfo(contract, poolConfigContract),
                         ),
                     );
                     const [
@@ -439,11 +466,20 @@ describe("Pool Test", function () {
                     );
                     expect(juniorAssets).to.equal(assetsWithRecovery[CONSTANTS.JUNIOR_TRANCHE]);
 
+                    // Check first loss cover profit, loss and loss recovery.
                     const assetsReservedForFirstLossCovers =
                         await poolContract.getReservedAssetsForFirstLossCovers();
                     expect(assetsReservedForFirstLossCovers).to.equal(
                         sumBNArray([...firstLossCoverProfits, ...lossRecoveredInFirstLossCovers]),
                     );
+                    for (const [index, cover] of [
+                        borrowerFirstLossCoverContract,
+                        affiliateFirstLossCoverContract,
+                    ].entries()) {
+                        expect(await cover.coveredLoss()).to.equal(
+                            lossesCoveredByFirstLossCovers[index],
+                        );
+                    }
                 }
 
                 it("Should distribute profit correctly", async function () {
@@ -453,12 +489,17 @@ describe("Pool Test", function () {
                     await testDistribution(profit, loss, recovery);
                 });
 
-                it("Should distribute loss correctly when first loss covers can cover loss", async function () {});
+                it("Should distribute loss correctly when first loss covers can cover loss", async function () {
+                    const profit = toToken(0),
+                        loss = coverTotalAssets,
+                        recovery = toToken(0);
+                    await testDistribution(profit, loss, recovery);
+                });
 
                 it("Should distribute loss correctly when the junior tranche can cover loss", async function () {
                     const assets = await poolContract.currentTranchesAssets();
                     const profit = toToken(0);
-                    const loss = assets[CONSTANTS.JUNIOR_TRANCHE];
+                    const loss = coverTotalAssets.add(assets[CONSTANTS.JUNIOR_TRANCHE]);
                     const recovery = toToken(0);
 
                     await testDistribution(profit, loss, recovery);
@@ -467,8 +508,8 @@ describe("Pool Test", function () {
                 it("Should distribute loss correctly when the senior tranche needs to cover loss", async function () {
                     const assets = await poolContract.currentTranchesAssets();
                     const profit = toToken(0);
-                    const loss = assets[CONSTANTS.JUNIOR_TRANCHE].add(
-                        assets[CONSTANTS.SENIOR_TRANCHE],
+                    const loss = coverTotalAssets.add(
+                        assets[CONSTANTS.JUNIOR_TRANCHE].add(assets[CONSTANTS.SENIOR_TRANCHE]),
                     );
                     const recovery = toToken(0);
 
@@ -478,10 +519,10 @@ describe("Pool Test", function () {
                 it("Should distribute loss recovery correctly when senior loss can be recovered", async function () {
                     const assets = await poolContract.currentTranchesAssets();
                     const profit = toToken(0);
-                    const loss = assets[CONSTANTS.SENIOR_TRANCHE].add(
-                        assets[CONSTANTS.JUNIOR_TRANCHE],
+                    const loss = coverTotalAssets.add(
+                        assets[CONSTANTS.SENIOR_TRANCHE].add(assets[CONSTANTS.JUNIOR_TRANCHE]),
                     );
-                    const recovery = assets[CONSTANTS.JUNIOR_TRANCHE];
+                    const recovery = assets[CONSTANTS.SENIOR_TRANCHE];
 
                     await testDistribution(profit, loss, recovery);
                 });
@@ -489,8 +530,8 @@ describe("Pool Test", function () {
                 it("Should distribute loss recovery correctly when junior loss can be recovered", async function () {
                     const assets = await poolContract.currentTranchesAssets();
                     const profit = toToken(0);
-                    const loss = assets[CONSTANTS.JUNIOR_TRANCHE].add(
-                        assets[CONSTANTS.SENIOR_TRANCHE],
+                    const loss = coverTotalAssets.add(
+                        assets[CONSTANTS.JUNIOR_TRANCHE].add(assets[CONSTANTS.SENIOR_TRANCHE]),
                     );
                     const recovery = assets[CONSTANTS.JUNIOR_TRANCHE].add(
                         assets[CONSTANTS.SENIOR_TRANCHE],
@@ -499,7 +540,18 @@ describe("Pool Test", function () {
                     await testDistribution(profit, loss, recovery);
                 });
 
-                it("Should distribute loss recovery correctly when first loss can be recovered", async function () {});
+                it("Should distribute loss recovery correctly when first loss can be recovered", async function () {
+                    const assets = await poolContract.currentTranchesAssets();
+                    const profit = toToken(0);
+                    const loss = coverTotalAssets.add(
+                        assets[CONSTANTS.JUNIOR_TRANCHE].add(assets[CONSTANTS.SENIOR_TRANCHE]),
+                    );
+                    const recovery = coverTotalAssets.add(
+                        assets[CONSTANTS.JUNIOR_TRANCHE].add(assets[CONSTANTS.SENIOR_TRANCHE]),
+                    );
+
+                    await testDistribution(profit, loss, recovery);
+                });
 
                 it("Should distribute profit, loss and loss recovery correctly", async function () {
                     const profit = toToken(12387);
@@ -547,8 +599,7 @@ describe("Pool Test", function () {
                     );
                     const firstLossCoverInfos = await Promise.all(
                         [borrowerFirstLossCoverContract, affiliateFirstLossCoverContract].map(
-                            async (contract) =>
-                                await getFirstLossCoverInfo(contract, poolConfigContract),
+                            (contract) => getFirstLossCoverInfo(contract, poolConfigContract),
                         ),
                     );
                     const [juniorProfitAfterFirstLossCoverProfitDistribution] =
@@ -691,15 +742,12 @@ describe("Pool Test", function () {
                         );
                         // Deposit the amount of the cap into the first loss cover contract to make sure there
                         // is no availability.
-                        const config = await poolConfigContract.getFirstLossCoverConfig(
-                            affiliateFirstLossCoverContract.address,
-                        );
                         const coverTotalAssets =
                             await affiliateFirstLossCoverContract.totalAssets();
                         const coverCap = coverTotalAssets.add(1);
                         await overrideFirstLossCoverConfig(
                             affiliateFirstLossCoverContract,
-                            affiliateFirstLossCoverProfitEscrowContract,
+                            affiliateFirstLossCoverProfitEscrowContract.address,
                             CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
                             poolConfigContract,
                             poolOwner,
@@ -726,7 +774,7 @@ describe("Pool Test", function () {
                     // is no availability.
                     await overrideFirstLossCoverConfig(
                         affiliateFirstLossCoverContract,
-                        affiliateFirstLossCoverProfitEscrowContract,
+                        affiliateFirstLossCoverProfitEscrowContract.address,
                         CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
                         poolConfigContract,
                         poolOwner,

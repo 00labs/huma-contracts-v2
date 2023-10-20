@@ -611,6 +611,14 @@ async function calcLossRecovery(
     losses: BN[],
     lossesCoveredByFirstLossCovers: BN[],
 ): Promise<[BN, BN[], BN[], BN[]]> {
+    const seniorRecovery = lossRecovery.gt(losses[CONSTANTS.SENIOR_TRANCHE])
+        ? losses[CONSTANTS.SENIOR_TRANCHE]
+        : lossRecovery;
+    lossRecovery = lossRecovery.sub(seniorRecovery);
+    const juniorRecovery = lossRecovery.gt(losses[CONSTANTS.JUNIOR_TRANCHE])
+        ? losses[CONSTANTS.JUNIOR_TRANCHE]
+        : lossRecovery;
+    lossRecovery = lossRecovery.sub(juniorRecovery);
     const lossRecoveredInFirstLossCovers = [];
     let recoveredAmount;
     for (const coveredLoss of lossesCoveredByFirstLossCovers) {
@@ -620,14 +628,6 @@ async function calcLossRecovery(
         );
         lossRecoveredInFirstLossCovers.push(recoveredAmount);
     }
-    const seniorRecovery = lossRecovery.gt(losses[CONSTANTS.SENIOR_TRANCHE])
-        ? losses[CONSTANTS.SENIOR_TRANCHE]
-        : lossRecovery;
-    lossRecovery = lossRecovery.sub(seniorRecovery);
-    const juniorRecovery = lossRecovery.gt(losses[CONSTANTS.JUNIOR_TRANCHE])
-        ? losses[CONSTANTS.JUNIOR_TRANCHE]
-        : lossRecovery;
-    lossRecovery = lossRecovery.sub(juniorRecovery);
 
     return [
         lossRecovery,

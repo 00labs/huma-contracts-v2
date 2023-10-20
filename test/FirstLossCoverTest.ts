@@ -127,7 +127,7 @@ describe("FirstLossCover Tests", function () {
                 loss = toToken(5_000);
             await overrideFirstLossCoverConfig(
                 affiliateFirstLossCoverContract,
-                affiliateFirstLossCoverProfitEscrowContract,
+                affiliateFirstLossCoverProfitEscrowContract.address,
                 CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
                 poolConfigContract,
                 poolOwner,
@@ -686,7 +686,7 @@ describe("FirstLossCover Tests", function () {
                 const liquidityCap = coverAssets.add(1);
                 await overrideFirstLossCoverConfig(
                     affiliateFirstLossCoverContract,
-                    affiliateFirstLossCoverProfitEscrowContract,
+                    affiliateFirstLossCoverProfitEscrowContract.address,
                     CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
                     poolConfigContract,
                     poolOwner,
@@ -739,7 +739,7 @@ describe("FirstLossCover Tests", function () {
                 const liquidityCap = toToken(1_000_000_000);
                 await overrideFirstLossCoverConfig(
                     affiliateFirstLossCoverContract,
-                    affiliateFirstLossCoverProfitEscrowContract,
+                    affiliateFirstLossCoverProfitEscrowContract.address,
                     CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
                     poolConfigContract,
                     poolOwner,
@@ -805,7 +805,7 @@ describe("FirstLossCover Tests", function () {
                 const liquidityCap = toToken(1_000_000_000);
                 await overrideFirstLossCoverConfig(
                     affiliateFirstLossCoverContract,
-                    affiliateFirstLossCoverProfitEscrowContract,
+                    affiliateFirstLossCoverProfitEscrowContract.address,
                     CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
                     poolConfigContract,
                     poolOwner,
@@ -947,7 +947,7 @@ describe("FirstLossCover Tests", function () {
         async function setCoverConfig(coverRateInBps: BN, coverCap: BN) {
             await overrideFirstLossCoverConfig(
                 affiliateFirstLossCoverContract,
-                affiliateFirstLossCoverProfitEscrowContract,
+                affiliateFirstLossCoverProfitEscrowContract.address,
                 CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
                 poolConfigContract,
                 poolOwner,
@@ -1231,7 +1231,7 @@ describe("FirstLossCover Tests", function () {
             const liquidityCap = capFromPoolAssets.add(1);
             await overrideFirstLossCoverConfig(
                 affiliateFirstLossCoverContract,
-                affiliateFirstLossCoverProfitEscrowContract,
+                affiliateFirstLossCoverProfitEscrowContract.address,
                 CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
                 poolConfigContract,
                 poolOwner,
@@ -1249,7 +1249,7 @@ describe("FirstLossCover Tests", function () {
                 maxPercentOfPoolValueInBps = CONSTANTS.BP_FACTOR;
             await overrideFirstLossCoverConfig(
                 affiliateFirstLossCoverContract,
-                affiliateFirstLossCoverProfitEscrowContract,
+                affiliateFirstLossCoverProfitEscrowContract.address,
                 CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
                 poolConfigContract,
                 poolOwner,
