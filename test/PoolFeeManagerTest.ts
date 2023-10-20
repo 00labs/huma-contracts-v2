@@ -861,10 +861,10 @@ describe("PoolFeeManager Tests", function () {
             async function () {
                 // Make the fee % unrealistically large to ensure that the amount of pool fees
                 // exceed the total liquidity in the pool, which in turn makes testing easier.
+                await poolConfigContract.connect(poolOwner).setEARewardsAndLiquidity(0, 0);
                 await poolConfigContract
                     .connect(poolOwner)
                     .setPoolOwnerRewardsAndLiquidity(CONSTANTS.BP_FACTOR, 0);
-                await poolConfigContract.connect(poolOwner).setEARewardsAndLiquidity(0, 0);
 
                 await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.address);
                 const poolLiquidity = await poolSafeContract.getAvailableLiquidityForFees();
