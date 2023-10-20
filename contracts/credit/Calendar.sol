@@ -33,21 +33,21 @@ contract Calendar is ICalendar {
         uint256 periodDuration,
         uint256 lastDueDate
     ) external view returns (uint256 dueDateInNextPeriod) {
-            return getNextPeriodInMonths(periodDuration, lastDueDate);
+        return getNextPeriodInMonths(periodDuration, lastDueDate);
     }
 
     function getBeginOfPeriod(
         uint256 periodDuration,
         uint256 lastDueDate
     ) external view returns (uint256 dueDate, uint256 numberOfPeriodsPassed) {
-            return getDueDateInMonths(periodDuration, lastDueDate, false);
+        return getDueDateInMonths(periodDuration, lastDueDate, false);
     }
 
     function getNextDueDate(
         uint256 periodDuration,
         uint256 lastDueDate
     ) external view returns (uint256 dueDate, uint256 numberOfPeriodsPassed) {
-            return getDueDateInMonths(periodDuration, lastDueDate, true);
+        return getDueDateInMonths(periodDuration, lastDueDate, true);
     }
 
     function getNextPeriodInDays(
