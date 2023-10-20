@@ -9,11 +9,13 @@ import {ProfitEscrowStorage} from "./ProfitEscrowStorage.sol";
 import {Errors} from "./Errors.sol";
 import {DEFAULT_DECIMALS_FACTOR} from "./SharedDefs.sol";
 
-// TODO FirstLossCover LP token transfer
+// TODO We need to disable FirstLossCover token transfer since it'll interfere
+// with profit staking in this contract.
 
+/// @inheritdoc IProfitEscrow
 contract ProfitEscrow is PoolConfigCache, ProfitEscrowStorage, IProfitEscrow {
-    event CallerSet(address _caller);
-    event ProfitAdded(uint256 profit);
+    event ControllerSet(address _caller);
+    event ProfitAdded(uint256 profit, uint256 accProfitPerShare);
     event PrincipalDeposited(address indexed account, uint256 amount);
     event PrincipalWithdrawn(address indexed account, uint256 amount);
     event ProfitClaimed(address indexed account, uint256 amount);
@@ -28,16 +30,16 @@ contract ProfitEscrow is PoolConfigCache, ProfitEscrowStorage, IProfitEscrow {
         poolSafe = IPoolSafe(addr);
     }
 
-    function initialize(address _caller, PoolConfig _poolConfig) external initializer {
+    function initialize(address _controller, PoolConfig _poolConfig) external initializer {
         _initialize(_poolConfig);
-        caller = _caller;
+        controller = _controller;
     }
 
-    function setCaller(address _caller) external {
+    function setController(address _controller) external {
         poolConfig.onlyPoolOwner(msg.sender);
-        caller = _caller;
+        controller = _controller;
 
-        emit CallerSet(_caller);
+        emit ControllerSet(_controller);
     }
 
     function addProfit(uint256 profit) external {
@@ -45,13 +47,11 @@ contract ProfitEscrow is PoolConfigCache, ProfitEscrowStorage, IProfitEscrow {
         _onlyCaller();
 
         EscrowInfo memory escrowInfo = _escrowInfo;
-        assert(escrowInfo.totalShares != 0);
-        escrowInfo.accRewardPerShare += uint96(
-            (profit * DEFAULT_DECIMALS_FACTOR) / escrowInfo.totalShares
+        assert(escrowInfo.totalAmount != 0);
+        escrowInfo.accProfitPerShare += uint96(
+            (profit * DEFAULT_DECIMALS_FACTOR) / escrowInfo.totalAmount
         );
         _escrowInfo = escrowInfo;
-
-        totalRewards += profit;
 
         emit ProfitAdded(profit);
     }
@@ -69,12 +69,12 @@ contract ProfitEscrow is PoolConfigCache, ProfitEscrowStorage, IProfitEscrow {
         // are distributed, users can only claim profits generated while their principal was actively contributing
         // to the pool.
         tempUserInfo.rewardDebt += int96(
-            int256((amount * escrowInfo.accRewardPerShare) / DEFAULT_DECIMALS_FACTOR)
+            int256((amount * escrowInfo.accProfitPerShare) / DEFAULT_DECIMALS_FACTOR)
         );
         tempUserInfo.amount += uint96(amount);
         userInfo[account] = tempUserInfo;
 
-        escrowInfo.totalShares += uint96(amount);
+        escrowInfo.totalAmount += uint96(amount);
         _escrowInfo = escrowInfo;
 
         emit PrincipalDeposited(account, amount);
@@ -87,6 +87,7 @@ contract ProfitEscrow is PoolConfigCache, ProfitEscrowStorage, IProfitEscrow {
 
         EscrowInfo memory escrowInfo = _escrowInfo;
         UserInfo memory tempUserInfo = userInfo[account];
+        if (amount > tempUserInfo.amount) revert Errors.withdrawnAmountHigherThanBalance();
 
         // When the user withdraws principal, `rewardDebt` decreases to account for the profits generated while
         // the principal was in the pool but have not yet been claimed. This adjustment ensures that the user can
@@ -96,30 +97,26 @@ contract ProfitEscrow is PoolConfigCache, ProfitEscrowStorage, IProfitEscrow {
         // of some of the profits they are entitled to claim. This acts as a correction mechanism to ensure that the
         // user's claimable profits are adjusted accordingly.
         tempUserInfo.rewardDebt -= int96(
-            int256((amount * escrowInfo.accRewardPerShare) / DEFAULT_DECIMALS_FACTOR)
+            int256((amount * escrowInfo.accProfitPerShare) / DEFAULT_DECIMALS_FACTOR)
         );
-        // TODO: should we revert if the amount exceeds the user's amount?
         tempUserInfo.amount -= uint96(amount);
         userInfo[account] = tempUserInfo;
 
-        escrowInfo.totalShares -= uint96(amount);
+        escrowInfo.totalAmount -= uint96(amount);
         _escrowInfo = escrowInfo;
 
         emit PrincipalWithdrawn(account, amount);
     }
 
-    // TODO: should we rename this to `claimProfit` to be more explicit?
     function claim(uint256 amount) external {
         if (amount == 0) revert Errors.zeroAmountProvided();
 
         EscrowInfo memory escrowInfo = _escrowInfo;
         UserInfo memory tempUserInfo = userInfo[msg.sender];
 
-        // TODO: should we return early if the msg.sender does not exist in userInfo?
-
         uint256 tempClaimable = uint256(
             int256(
-                (tempUserInfo.amount * escrowInfo.accRewardPerShare) / DEFAULT_DECIMALS_FACTOR
+                (tempUserInfo.amount * escrowInfo.accProfitPerShare) / DEFAULT_DECIMALS_FACTOR
             ) - tempUserInfo.rewardDebt
         );
         if (amount > tempClaimable) revert Errors.todo();
@@ -141,12 +138,12 @@ contract ProfitEscrow is PoolConfigCache, ProfitEscrowStorage, IProfitEscrow {
         return
             uint256(
                 int256(
-                    (tempUserInfo.amount * escrowInfo.accRewardPerShare) / DEFAULT_DECIMALS_FACTOR
+                    (tempUserInfo.amount * escrowInfo.accProfitPerShare) / DEFAULT_DECIMALS_FACTOR
                 ) - tempUserInfo.rewardDebt
             );
     }
 
     function _onlyCaller() internal view {
-        if (msg.sender != caller) revert Errors.todo();
+        if (msg.sender != controller) revert Errors.todo();
     }
 }

@@ -5,8 +5,6 @@ import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 
 contract ProfitEscrowStorage {
     struct UserInfo {
-        // TODO: should we rename this to `shares`? Although shares = amount in this contract, using
-        // two different names makes it appear as though we are mixing two different concepts.
         uint96 amount;
         // `rewardDebt` acts as an accounting mechanism to adjust the claimable rewards for each user,
         // ensuring users can only claim profits generated while their principal was actively contributing to the pool.
@@ -15,17 +13,18 @@ contract ProfitEscrowStorage {
     }
 
     struct EscrowInfo {
-        uint96 totalShares;
-        // TODO: should we rename this to accProfitPerShare to be consistent with the contract name?
-        // `accRewardPerShare` keeps track of the accumulated rewards per share of the pool, where a share is
+        uint96 totalAmount;
+        // `accProfitPerShare` keeps track of the accumulated rewards per share of the pool, where a share is
         // a unit of principal contributed by a user. It's updated whenever profits are added to the pool
         // and is used to calculate the claimable rewards for each user.
-        uint96 accRewardPerShare;
+        uint96 accProfitPerShare;
     }
 
-    uint256 public totalRewards;
-    // TODO: should we call this `controller` instead?
-    address public caller;
+    // The naive implementation of `ProfitEscrow` would require us to iterate over all users and compute the
+    // amount of claimable profit for each user in a loop. The use of `rewardDebt` and `accProfitPerShare`
+    // results in significant reduction in gas cost, making the contract much more scalable.
+
+    address public controller;
 
     IPoolSafe public poolSafe;
     EscrowInfo internal _escrowInfo;
