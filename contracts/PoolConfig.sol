@@ -165,7 +165,7 @@ contract PoolConfig is AccessControl, Initializable {
 
     event MaxCreditLineChanged(uint256 maxCreditLine, address by);
     event PoolChanged(address pool, address by);
-    event PoolDefaultGracePeriodChanged(uint256 gracePeriodInDays, address by);
+    event PoolDefaultGracePeriodChanged(uint256 gracePeriodInMonths, address by);
     event PoolLiquidityCapChanged(uint256 liquidityCap, address by);
     event PoolPayPeriodChanged(uint256 number, address by);
     event PoolNameChanged(string name, address by);
@@ -200,7 +200,7 @@ contract PoolConfig is AccessControl, Initializable {
     event ProtocolRewardsWithdrawn(address receiver, uint256 amount, address by);
     event ReceivableRequiredInBpsChanged(uint256 receivableRequiredInBps, address by);
     event AdvanceRateInBpsChanged(uint256 advanceRateInBps, address by);
-    event WithdrawalLockoutPeriodChanged(uint256 lockoutPeriodInDays, address by);
+    event WithdrawalLockoutPeriodChanged(uint256 lockoutPeriodInMonths, address by);
 
     event LPConfigChanged(
         bool permissioned,
