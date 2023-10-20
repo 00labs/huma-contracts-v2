@@ -12,7 +12,6 @@ import {DEFAULT_DECIMALS_FACTOR} from "./SharedDefs.sol";
 // TODO We need to disable FirstLossCover token transfer since it'll interfere
 // with profit staking in this contract.
 
-/// @inheritdoc IProfitEscrow
 contract ProfitEscrow is PoolConfigCache, ProfitEscrowStorage, IProfitEscrow {
     event ControllerSet(address _caller);
     event ProfitAdded(uint256 profit, uint256 accProfitPerShare);
