@@ -10,9 +10,9 @@ import {
     PnLCalculator,
 } from "./BaseTest";
 import {
-    copyLPConfigWithOverrides,
     getFirstLossCoverInfo,
     mineNextBlockWithTimestamp,
+    overrideLPConfig,
     setNextBlockTimestamp,
     toToken,
 } from "./TestUtils";
@@ -389,11 +389,9 @@ describe("TrancheVault Test", function () {
                     .connect(poolOwner)
                     .setEpochManager(defaultDeployer.address);
                 const adjustment = 8000;
-                const lpConfig = await poolConfigContract.getLPConfig();
-                const newLpConfig = copyLPConfigWithOverrides(lpConfig, {
+                await overrideLPConfig(poolConfigContract, poolOwner, {
                     tranchesRiskAdjustmentInBps: adjustment,
                 });
-                await poolConfigContract.connect(poolOwner).setLPConfig(newLpConfig);
 
                 const assetInfo = await poolContract.tranchesAssets();
                 const assets = [
