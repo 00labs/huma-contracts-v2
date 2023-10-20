@@ -11,7 +11,6 @@ import {DEFAULT_DECIMALS_FACTOR} from "./SharedDefs.sol";
 
 // TODO FirstLossCover LP token transfer
 
-/// @inheritdoc IProfitEscrow
 contract ProfitEscrow is PoolConfigCache, ProfitEscrowStorage, IProfitEscrow {
     event CallerSet(address _caller);
     event ProfitAdded(uint256 profit);
