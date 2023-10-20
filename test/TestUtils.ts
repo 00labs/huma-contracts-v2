@@ -107,23 +107,6 @@ export function dateToTimestamp(date: string): number {
     return moment.utc(date).unix();
 }
 
-export function copyLPConfigWithOverrides(
-    lpConfig: LPConfigStructOutput,
-    overrides: Partial<LPConfigStructOutput>,
-) {
-    return {
-        ...{
-            permissioned: lpConfig.permissioned,
-            liquidityCap: lpConfig.liquidityCap,
-            withdrawalLockoutInMonths: lpConfig.withdrawalLockoutInMonths,
-            maxSeniorJuniorRatio: lpConfig.maxSeniorJuniorRatio,
-            fixedSeniorYieldInBps: lpConfig.fixedSeniorYieldInBps,
-            tranchesRiskAdjustmentInBps: lpConfig.tranchesRiskAdjustmentInBps,
-        },
-        ...overrides,
-    };
-}
-
 export async function overrideLPConfig(
     poolConfigContract: PoolConfig,
     poolOwner: SignerWithAddress,

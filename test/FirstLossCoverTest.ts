@@ -24,9 +24,9 @@ import {
 } from "../typechain-types";
 import { FirstLossCoverStorage } from "../typechain-types/contracts/FirstLossCover";
 import {
-    copyLPConfigWithOverrides,
     minBigNumber,
     overrideFirstLossCoverConfig,
+    overrideLPConfig,
     toToken,
 } from "./TestUtils";
 
@@ -1133,12 +1133,11 @@ describe("FirstLossCover Tests", function () {
                         .div(CONSTANTS.BP_FACTOR);
 
                     // Override the pool cap so that the min from pool cap is greater than the cover from pool value.
-                    const lpConfig = await poolConfigContract.getLPConfig();
-                    const newLPConfig = copyLPConfigWithOverrides(lpConfig, {
-                        liquidityCap: minFromPoolValue.add(1),
+                    const liquidityCap = minFromPoolValue.add(1);
+                    await overrideLPConfig(poolConfigContract, poolOwner, {
+                        liquidityCap: liquidityCap,
                     });
-                    await poolConfigContract.connect(poolOwner).setLPConfig(newLPConfig);
-                    await depositCover(newLPConfig.liquidityCap);
+                    await depositCover(liquidityCap);
 
                     expect(
                         await affiliateFirstLossCoverContract.isSufficient(

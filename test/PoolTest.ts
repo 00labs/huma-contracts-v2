@@ -7,17 +7,16 @@ import {
     deployAndSetupPoolContracts,
     deployPoolContracts,
     deployProtocolContracts,
-    FirstLossCoverInfo,
     PnLCalculator,
 } from "./BaseTest";
 import {
-    copyLPConfigWithOverrides,
     getFirstLossCoverInfo,
     getLatestBlock,
     getMinFirstLossCoverRequirement,
     getMinLiquidityRequirementForEA,
     getMinLiquidityRequirementForPoolOwner,
     overrideFirstLossCoverConfig,
+    overrideLPConfig,
     setNextBlockTimestamp,
     sumBNArray,
     toToken,
@@ -352,11 +351,9 @@ describe("Pool Test", function () {
                         .connect(poolOwner)
                         .setEpochManager(defaultDeployer.address);
                     const adjustment = 8000;
-                    const lpConfig = await poolConfigContract.getLPConfig();
-                    const newLpConfig = copyLPConfigWithOverrides(lpConfig, {
+                    await overrideLPConfig(poolConfigContract, poolOwner, {
                         tranchesRiskAdjustmentInBps: adjustment,
                     });
-                    await poolConfigContract.connect(poolOwner).setLPConfig(newLpConfig);
 
                     const block = await getLatestBlock();
                     const nextTS = block.timestamp + 5;
@@ -528,11 +525,9 @@ describe("Pool Test", function () {
                         .connect(poolOwner)
                         .setEpochManager(defaultDeployer.address);
                     const adjustment = 8000;
-                    const lpConfig = await poolConfigContract.getLPConfig();
-                    const newLpConfig = copyLPConfigWithOverrides(lpConfig, {
+                    await overrideLPConfig(poolConfigContract, poolOwner, {
                         tranchesRiskAdjustmentInBps: adjustment,
                     });
-                    await poolConfigContract.connect(poolOwner).setLPConfig(newLpConfig);
 
                     const block = await getLatestBlock();
                     const nextTS = block.timestamp + 5;

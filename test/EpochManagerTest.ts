@@ -11,9 +11,9 @@ import {
     PnLCalculator,
 } from "./BaseTest";
 import {
-    copyLPConfigWithOverrides,
     getFirstLossCoverInfo,
     mineNextBlockWithTimestamp,
+    overrideLPConfig,
     setNextBlockTimestamp,
     sumBNArray,
     toToken,
@@ -225,12 +225,9 @@ describe("EpochManager Test", function () {
 
     async function getAssetsAfterProfitAndLoss(profit: BN, loss: BN, lossRecovery: BN) {
         const adjustment = 8000;
-        const lpConfig = await poolConfigContract.getLPConfig();
-        const newLpConfig = copyLPConfigWithOverrides(lpConfig, {
+        await overrideLPConfig(poolConfigContract, poolOwner, {
             tranchesRiskAdjustmentInBps: adjustment,
         });
-        await poolConfigContract.connect(poolOwner).setLPConfig(newLpConfig);
-
         const assetInfo = await poolContract.tranchesAssets();
         const assets = [assetInfo[CONSTANTS.SENIOR_TRANCHE], assetInfo[CONSTANTS.JUNIOR_TRANCHE]];
         const profitAfterFees = await poolFeeManagerContract.calcPoolFeeDistribution(profit);
