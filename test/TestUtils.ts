@@ -189,7 +189,7 @@ export async function overrideLossCoverProviderConfig(
 
 export async function overrideFirstLossCoverConfig(
     firstLossCoverContract: FirstLossCover,
-    firstLossCoverProfitEscrowContract: ProfitEscrow,
+    firstLossCoverProfitEscrowAddress: string,
     firstLossCoverIndex: number,
     poolConfigContract: PoolConfig,
     poolOwner: SignerWithAddress,
@@ -208,7 +208,7 @@ export async function overrideFirstLossCoverConfig(
             firstLossCoverIndex,
             firstLossCoverContract.address,
             newConfig,
-            firstLossCoverProfitEscrowContract.address,
+            firstLossCoverProfitEscrowAddress,
         );
 }
 
