@@ -38,15 +38,18 @@ describe("Calendar Test", function () {
 
     describe("getStartOfNextQuarter", function () {
         it("Should return the timestamp of the beginning of next quarter", async function () {
-            // TODO(jiatu): this test in non-deterministic in that it may not always test all 4 quarters.
-            // Update the test.
-            let nextBlockTime;
-            const currentMoment = Date.now();
-            // Test all 4 quarters. Ths guarantees that we'll cover both cases where
+            const nextYear = moment.utc().year() + 1;
+            // Test all 4 quarters. Ths guarantees that we'll cover both scenarios below:
             // 1. This quarter and the next quarter are in the same year.
             // 2. This quarter and the next quarter are in different years.
             for (let i = 0; i < 4; ++i) {
-                nextBlockTime = currentMoment + i * CONSTANTS.MAX_SECONDS_IN_A_QUARTER;
+                const nextBlockTime = moment
+                    .utc({
+                        year: nextYear,
+                        month: i * 3,
+                        day: 1,
+                    })
+                    .unix();
                 await mineNextBlockWithTimestamp(nextBlockTime);
 
                 const startOfThisQuarter = timestampToMoment(nextBlockTime).startOf("quarter");
