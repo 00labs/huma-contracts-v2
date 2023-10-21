@@ -17,9 +17,19 @@ interface ICalendar {
     function getStartOfNextDay() external view returns (uint256 nextDay);
 
     /**
+     * @notice Get the beginning of this month
+     */
+    function getStartOfThisMonth() external view returns (uint256 nextDay);
+
+    /**
      * @notice Get the beginning of the next month
      */
     function getStartOfNextMonth() external view returns (uint256 nextDay);
+
+    /**
+     * @notice Get the beginning of this quarter
+     */
+    function getStartOfThisQuarter() external view returns (uint256 nextDay);
 
     /**
      * @notice Get the beginning of the next quarter
@@ -32,6 +42,16 @@ interface ICalendar {
     ) external view returns (uint256 startDate);
 
     /**
+     * @notice Gets the immediate next due date following lastDueDate. If multiple periods have
+     * passed since lastDueDate, this function returns the due date that is only one period after
+     * lastDueDate. In contract, getNextDueDate() gets the next due date based on block.timestamp.
+     */
+    function getNextPeriod(
+        uint256 periodDuration,
+        uint256 lastDueDate
+    ) external view returns (uint256 dueDateInNextPeriod);
+    
+    /**
      * @notice Get the next due date and the number of periods passed.
      * When lastDueDate is zero, always returns the due date after a full period from
      * the current time. For example, for a monthly period, if the first drawdown
@@ -43,14 +63,4 @@ interface ICalendar {
         uint256 periodDuration,
         uint256 lastDueDate
     ) external view returns (uint256 dueDate, uint256 numberOfPeriodsPassed);
-
-    function getBeginOfPeriod(
-        uint256 periodDuration,
-        uint256 lastDueDate
-    ) external view returns (uint256 dueDate, uint256 numberOfPeriodsPassed);
-
-    function getNextPeriod(
-        uint256 periodDuration,
-        uint256 lastDueDate
-    ) external view returns (uint256 dueDateInNextPeriod);
 }
