@@ -11,28 +11,54 @@ import "hardhat/console.sol";
 //* todo change periodDuration to an enum {Monthly, Quarterly, SemiAnnually}
 contract Calendar is ICalendar {
     ///@inheritdoc ICalendar
-    function getStartOfThisMonth() external view returns (uint256 nextDay) {}
+    function getStartOfNextMonth() external view returns (uint256 startOfNextMonth) {
+        uint256 startOfMonth = getStartOfThisMonth();
+        startOfNextMonth = DTL.addMonths(startOfMonth, 1);
+        return startOfNextMonth;
+    }
 
     ///@inheritdoc ICalendar
-    function getStartOfThisQuarter() external view returns (uint256 nextDay) {}
+    function getStartOfNextQuarter() external view returns (uint256 startOfNextQuarter) {
+        (uint256 year, uint256 month, ) = DTL.timestampToDate(block.timestamp);
+        uint256 quarter = (month - 1) / 3 + 1;
+        if (quarter == 4) {
+            year++;
+            quarter = 1;
+        } else quarter++;
+
+        startOfNextQuarter = DTL.timestampFromDate(year, quarter, 1);
+        return startOfNextQuarter;
+    }
 
     ///@inheritdoc ICalendar
-    function getStartOfToday() external view returns (uint256 today) {}
+    function getStartOfThisMonth() public view returns (uint256 startOfMonth) {
+        (uint256 year, uint256 month, ) = DTL.timestampToDate(block.timestamp);
+        startOfMonth = DTL.timestampFromDate(year, month, 1);
+        return startOfMonth;
+    }
 
     ///@inheritdoc ICalendar
-    function getStartOfNextDay() external view returns (uint256 nextDay) {}
+    function getStartOfThisQuarter() external view returns (uint256 startOfQuarter) {
+        (uint256 year, uint256 month, ) = DTL.timestampToDate(block.timestamp);
+        startOfQuarter = DTL.timestampFromDate(year, (month - 1) / 3 + 1, 1);
+        return startOfQuarter;
+    }
 
     ///@inheritdoc ICalendar
-    function getStartOfNextMonth() external view returns (uint256 nextDay) {}
-
-    ///@inheritdoc ICalendar
-    function getStartOfNextQuarter() external view returns (uint256 nextDay) {}
+    function getStartOfToday() external view returns (uint256 startOfToday) {
+        (uint256 year, uint256 month, uint256 day) = DTL.timestampToDate(block.timestamp);
+        startOfToday = DTL.timestampFromDate(year, month, day);
+        return startOfToday;
+    }
 
     ///@inheritdoc ICalendar
     function getStartDateOfPeriod(
         uint256 periodDuration,
         uint256 periodEndDate
     ) external pure returns (uint256 startDate) {
+        //* todo This implementation is not right. For quarterly, periodDuration=3,
+        // if it is 2/1/xxxx, startDateOfPeriod should be 1/1/xxxx, instead of
+        // going back 3 months. Need to check if we really this function and fix.
         return DTL.subMonths(periodEndDate, periodDuration);
     }
 

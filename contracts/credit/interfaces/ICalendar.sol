@@ -7,34 +7,29 @@ pragma solidity ^0.8.0;
 
 interface ICalendar {
     /**
-     * @notice Get the beginning of today
-     */
-    function getStartOfToday() external view returns (uint256 today);
-
-    /**
-     * @notice Get the beginning of the next day
-     */
-    function getStartOfNextDay() external view returns (uint256 nextDay);
-
-    /**
-     * @notice Get the beginning of this month
-     */
-    function getStartOfThisMonth() external view returns (uint256 nextDay);
-
-    /**
      * @notice Get the beginning of the next month
      */
-    function getStartOfNextMonth() external view returns (uint256 nextDay);
-
-    /**
-     * @notice Get the beginning of this quarter
-     */
-    function getStartOfThisQuarter() external view returns (uint256 nextDay);
+    function getStartOfNextMonth() external view returns (uint256 startOfNextMonth);
 
     /**
      * @notice Get the beginning of the next quarter
      */
-    function getStartOfNextQuarter() external view returns (uint256 nextDay);
+    function getStartOfNextQuarter() external view returns (uint256 nstartOfNextQuarterextDay);
+
+    /**
+     * @notice Get the beginning of this month
+     */
+    function getStartOfThisMonth() external view returns (uint256 startOfMonth);
+
+    /**
+     * @notice Get the beginning of this quarter
+     */
+    function getStartOfThisQuarter() external view returns (uint256 startOfQuarter);
+
+    /**
+     * @notice Get the beginning of today
+     */
+    function getStartOfToday() external view returns (uint256 startOfToday);
 
     function getStartDateOfPeriod(
         uint256 periodDuration,
@@ -50,7 +45,7 @@ interface ICalendar {
         uint256 periodDuration,
         uint256 lastDueDate
     ) external view returns (uint256 dueDateInNextPeriod);
-    
+
     /**
      * @notice Get the next due date and the number of periods passed.
      * When lastDueDate is zero, always returns the due date after a full period from
