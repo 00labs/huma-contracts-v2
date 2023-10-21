@@ -8,6 +8,8 @@ import {
 import { CONSTANTS, FirstLossCoverInfo } from "./BaseTest";
 import { FirstLossCover, Pool, PoolConfig, ProfitEscrow } from "../typechain-types";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { FirstLossCoverStorage } from "../typechain-types/contracts/FirstLossCover";
+import LossCoverProviderConfigStruct = FirstLossCoverStorage.LossCoverProviderConfigStruct;
 
 export function toBN(number: string | number, decimals: number): BN {
     return BN.from(number).mul(BN.from(10).pow(BN.from(decimals)));
@@ -105,21 +107,17 @@ export function dateToTimestamp(date: string): number {
     return moment.utc(date).unix();
 }
 
-export function copyLPConfigWithOverrides(
-    lpConfig: LPConfigStructOutput,
+export async function overrideLPConfig(
+    poolConfigContract: PoolConfig,
+    poolOwner: SignerWithAddress,
     overrides: Partial<LPConfigStructOutput>,
 ) {
-    return {
-        ...{
-            permissioned: lpConfig.permissioned,
-            liquidityCap: lpConfig.liquidityCap,
-            withdrawalLockoutInMonths: lpConfig.withdrawalLockoutInMonths,
-            maxSeniorJuniorRatio: lpConfig.maxSeniorJuniorRatio,
-            fixedSeniorYieldInBps: lpConfig.fixedSeniorYieldInBps,
-            tranchesRiskAdjustmentInBps: lpConfig.tranchesRiskAdjustmentInBps,
-        },
+    const lpConfig = await poolConfigContract.getLPConfig();
+    const newLPConfig = {
+        ...lpConfig,
         ...overrides,
     };
+    await poolConfigContract.connect(poolOwner).setLPConfig(newLPConfig);
 }
 
 export async function getMinFirstLossCoverRequirement(
@@ -173,9 +171,25 @@ export async function getFirstLossCoverInfo(
     };
 }
 
+export async function overrideLossCoverProviderConfig(
+    firstLossCoverContract: FirstLossCover,
+    provider: SignerWithAddress,
+    poolOwner: SignerWithAddress,
+    override: Partial<LossCoverProviderConfigStruct>,
+) {
+    const config = await firstLossCoverContract.getCoverProviderConfig(provider.getAddress());
+    const newConfig = {
+        ...config,
+        ...override,
+    };
+    await firstLossCoverContract
+        .connect(poolOwner)
+        .setCoverProvider(provider.getAddress(), newConfig);
+}
+
 export async function overrideFirstLossCoverConfig(
     firstLossCoverContract: FirstLossCover,
-    firstLossCoverProfitEscrowContract: ProfitEscrow,
+    firstLossCoverProfitEscrowAddress: string,
     firstLossCoverIndex: number,
     poolConfigContract: PoolConfig,
     poolOwner: SignerWithAddress,
@@ -194,7 +208,7 @@ export async function overrideFirstLossCoverConfig(
             firstLossCoverIndex,
             firstLossCoverContract.address,
             newConfig,
-            firstLossCoverProfitEscrowContract.address,
+            firstLossCoverProfitEscrowAddress,
         );
 }
 

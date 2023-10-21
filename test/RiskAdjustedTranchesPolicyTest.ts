@@ -8,7 +8,7 @@ import {
     deployProtocolContracts,
     PnLCalculator,
 } from "./BaseTest";
-import { copyLPConfigWithOverrides, toToken } from "./TestUtils";
+import { overrideLPConfig, toToken } from "./TestUtils";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import {
     BaseCreditFeeManager,
@@ -111,11 +111,11 @@ describe("RiskAdjustedTranchesPolicy Test", function () {
             [lender],
         );
 
-        let juniorDepositAmount = toToken(100_000);
+        const juniorDepositAmount = toToken(100_000);
         await juniorTrancheVaultContract
             .connect(lender)
             .deposit(juniorDepositAmount, lender.address);
-        let seniorDepositAmount = toToken(300_000);
+        const seniorDepositAmount = toToken(300_000);
         await seniorTrancheVaultContract
             .connect(lender)
             .deposit(seniorDepositAmount, lender.address);
@@ -127,12 +127,9 @@ describe("RiskAdjustedTranchesPolicy Test", function () {
 
     it("Should call distProfitToTranches correctly", async function () {
         const adjustment = 8000;
-
-        const lpConfig = await poolConfigContract.getLPConfig();
-        const newLpConfig = copyLPConfigWithOverrides(lpConfig, {
+        await overrideLPConfig(poolConfigContract, poolOwner, {
             tranchesRiskAdjustmentInBps: adjustment,
         });
-        await poolConfigContract.connect(poolOwner).setLPConfig(newLpConfig);
 
         const assets = await poolContract.currentTranchesAssets();
         const profit = toToken(14837);

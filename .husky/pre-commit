@@ -1,8 +1,5 @@
 #!/usr/bin/env sh
 . "$(dirname -- "$0")/_/husky.sh"
 
-yarn format
-yarn format-solidity
-yarn lint:fix
-yarn lint-solidity:fix
+yarn lint-staged
 yarn gitleaks
