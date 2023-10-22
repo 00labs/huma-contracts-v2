@@ -196,13 +196,10 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
             // When multiple periods P passed, the remaining principal rate is (1-R)^P.
             // The incremental principal due should be 1 - (1-R)^P.
             principalDue =
-                ((
-                    (HUNDRED_PERCENT_IN_BPS -
-                        ((HUNDRED_PERCENT_IN_BPS - poolConfig.getMinPrincipalRateInBps()) /
-                            HUNDRED_PERCENT_IN_BPS) **
-                            periodsPassed)
-                ) / HUNDRED_PERCENT_IN_BPS) *
-                principal;
+                ((HUNDRED_PERCENT_IN_BPS ** periodsPassed -
+                    (HUNDRED_PERCENT_IN_BPS - poolConfig.getMinPrincipalRateInBps()) **
+                        periodsPassed) * principal) /
+                (HUNDRED_PERCENT_IN_BPS ** periodsPassed);
         }
         newCR.yieldDue = uint96(newCR.yieldDue + yieldDue);
         newCR.totalDue = uint96(newCR.totalDue + yieldDue + principalDue);
