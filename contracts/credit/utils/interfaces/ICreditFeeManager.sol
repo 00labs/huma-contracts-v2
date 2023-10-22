@@ -36,12 +36,19 @@ interface ICreditFeeManager {
     function calcFrontLoadingFee(uint256 _amount) external view returns (uint256 fees);
 
     /**
-     * @notice Computes the late fee including both the flat fee and percentage fee
-     * @param balance the total balance including amount due and unbilled principal
-     * @return fees the amount of late fees to be charged
-     * @dev Charges only if 1) there is outstanding due, 2) the due date has passed
+     * @notice Computes the yield for a period, including regular yields and late
+     * charges if apply
+     * @param principal the outstanding principal
+     * @param baseYield the base yield rate
+     * @param periodDuration the number of months per period
+     * @return yieldDue the yield amount for a period
      */
-    function calcLateFee(uint256 balance) external view returns (uint256 fees);
+    function calcYieldDuePerPeriod(
+        uint256 principal,
+        uint256 baseYield,
+        uint256 periodDuration,
+        bool isLate
+    ) external view returns (uint256 yieldDue);
 
     /**
      * @notice Gets the current total due, fees and interest due, and payoff amount.
