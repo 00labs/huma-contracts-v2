@@ -114,12 +114,12 @@ contract ProfitEscrow is PoolConfigCache, ProfitEscrowStorage, IProfitEscrow {
         EscrowInfo memory escrowInfo = _escrowInfo;
         UserInfo memory tempUserInfo = userInfo[msg.sender];
 
-        uint256 tempClaimable = uint256(
+        uint256 amountClaimable = uint256(
             int256(
                 (tempUserInfo.amount * escrowInfo.accProfitPerShare) / DEFAULT_DECIMALS_FACTOR
             ) - tempUserInfo.rewardDebt
         );
-        if (amount > tempClaimable) revert Errors.todo();
+        if (amount > amountClaimable) revert Errors.todo();
 
         // `rewardDebt` decreases in value here when profits are claimed to prevent users from claiming the
         // same profits multiple times.
