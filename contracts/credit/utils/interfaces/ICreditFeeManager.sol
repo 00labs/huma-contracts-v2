@@ -24,6 +24,13 @@ interface ICreditFeeManager {
         CreditRecord memory creditRecord
     ) external view returns (uint256 accruedInterest, uint256 accruedPrincipal);
 
+    /**
+     * @notice Apply front loading fee, distribute the total amount to borrower, pool, & protocol
+     * @param borrowAmount the amount of the borrowing
+     * @return amtToBorrower the amount that the borrower can take
+     * @return platformFees the platform charges
+     * @dev the protocol always takes a percentage of the total fee generated
+     */
     function distBorrowingAmount(
         uint256 borrowAmount
     ) external view returns (uint256 amtToBorrower, uint256 platformFees);
@@ -39,13 +46,13 @@ interface ICreditFeeManager {
      * @notice Computes the yield for a period, including regular yields and late
      * charges if apply
      * @param principal the outstanding principal
-     * @param baseYield the base yield rate
+     * @param baseYieldInBps the base yield rate in bps
      * @param periodDuration the number of months per period
      * @return yieldDue the yield amount for a period
      */
     function calcYieldDuePerPeriod(
         uint256 principal,
-        uint256 baseYield,
+        uint256 baseYieldInBps,
         uint256 periodDuration,
         bool isLate
     ) external view returns (uint256 yieldDue);
