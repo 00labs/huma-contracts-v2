@@ -39,13 +39,13 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
         if (isLate) {
             yieldDue = lateFeeFlat + membershipFee;
             yieldDue +=
-                (principal * (baseYieldBps + lateFeeBps) * periodDuration) /
+                (principal * (baseYieldInBps + lateFeeBps) * periodDuration) /
                 HUNDRED_PERCENT_IN_BPS /
                 12;
         } else {
             yieldDue =
                 membershipFee +
-                (principal * baseYieldBps * periodDuration) /
+                (principal * baseYieldInBps * periodDuration) /
                 HUNDRED_PERCENT_IN_BPS /
                 12;
         }
@@ -152,7 +152,7 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
         uint256 principalRate = poolConfig.getMinPrincipalRateInBps();
         if (principalRate > 0) {
             // Note that if the principalRate is R, the remaining principal rate is (1 - R).
-            // When multiple periods P passed, the remaining principal is (1 - R)^P.
+            // When multiple periods P passed, the remaining principal rate is (1 - R)^P.
             // The incremental principal due should be 1 - (1 - R)^P.
             principalDue =
                 ((HUNDRED_PERCENT_IN_BPS ** periodsPassed -
