@@ -33,7 +33,7 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
     /// @inheritdoc ICreditFeeManager
     function calcYieldDuePerPeriod(
         uint256 principal,
-        uint256 baseYield,
+        uint256 baseYieldBps,
         uint256 periodDuration,
         bool isLate
     ) public view virtual override returns (uint256 yieldDue) {
@@ -41,13 +41,13 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
         if (isLate) {
             yieldDue = lateFeeFlat + membershipFee;
             yieldDue +=
-                (principal * (baseYield + lateFeeBps) * periodDuration) /
+                (principal * (baseYieldBps + lateFeeBps) * periodDuration) /
                 HUNDRED_PERCENT_IN_BPS /
                 12;
         } else {
             yieldDue =
                 membershipFee +
-                (principal * baseYield * periodDuration) /
+                (principal * baseYieldBps * periodDuration) /
                 HUNDRED_PERCENT_IN_BPS /
                 12;
         }
