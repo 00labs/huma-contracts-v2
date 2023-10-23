@@ -30,7 +30,7 @@
   "notBorrower()": "0xb18f4d11",
   "notEpochManager()": "0x34478df7",
   "notPoolFeeManager()": "0xe94f3252",
-  "notTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManager()": "0xdef0fded",
+  "notTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManagerOrProfitEscrow()": "0xf8902ea6",
   "notTrancheVaultOrEpochManager()": "0x31c76c83",
   "notTrancheVaultOrEpochManagerOrPoolFeeManagerOrFirstLossCover()": "0x9c8c659b",
   "notCurrentEpoch()": "0x50c5dd13",
