@@ -160,17 +160,13 @@ describe("PoolSafe Tests", function () {
                     .withArgs(await account.getAddress(), amount);
             }
 
-            async function addProfit(amount: BN) {
-                const oldTotalRewards = await profitEscrowContract.totalRewards();
+            async function addProfit(amount: BN, expectedAccProfitPerShare: BN) {
                 await expect(profitEscrowContract.addProfit(amount))
                     .to.emit(profitEscrowContract, "ProfitAdded")
-                    .withArgs(amount);
-                expect(await profitEscrowContract.totalRewards()).to.equal(
-                    oldTotalRewards.add(amount),
-                );
+                    .withArgs(amount, expectedAccProfitPerShare);
             }
 
-            async function claimProfit(account: SignerWithAddress, amount: BN) {
+            async function claim(account: SignerWithAddress, amount: BN) {
                 const oldAmountClaimable = await profitEscrowContract.claimable(
                     account.getAddress(),
                 );
@@ -204,7 +200,10 @@ describe("PoolSafe Tests", function () {
 
                     // Add profit.
                     const profit = toToken(1_000);
-                    await addProfit(profit);
+                    const expectedAccProfitPerShare = profit
+                        .mul(CONSTANTS.DEFAULT_DECIMALS_FACTOR)
+                        .div(principal);
+                    await addProfit(profit, expectedAccProfitPerShare);
                     expect(
                         await profitEscrowContract.claimable(evaluationAgent.getAddress()),
                     ).to.equal(
@@ -217,9 +216,9 @@ describe("PoolSafe Tests", function () {
 
                     // Claim.
                     const amountToClaim = toToken(300);
-                    await claimProfit(evaluationAgent, amountToClaim);
+                    await claim(evaluationAgent, amountToClaim);
                     const remainingAmountToClaim = profit.sub(amountToClaim);
-                    await claimProfit(evaluationAgent, remainingAmountToClaim);
+                    await claim(evaluationAgent, remainingAmountToClaim);
 
                     // Withdraw.
                     await withdraw(evaluationAgent, principal);
@@ -235,7 +234,10 @@ describe("PoolSafe Tests", function () {
 
                     // Add profit.
                     const profit = toToken(1_000);
-                    await addProfit(profit);
+                    const expectedAccProfitPerShare = profit
+                        .mul(CONSTANTS.DEFAULT_DECIMALS_FACTOR)
+                        .div(principal);
+                    await addProfit(profit, expectedAccProfitPerShare);
                     expect(
                         await profitEscrowContract.claimable(evaluationAgent.getAddress()),
                     ).to.equal(
@@ -251,9 +253,9 @@ describe("PoolSafe Tests", function () {
 
                     // Claim.
                     const amountToClaim = toToken(300);
-                    await claimProfit(evaluationAgent, amountToClaim);
+                    await claim(evaluationAgent, amountToClaim);
                     const remainingAmountToClaim = profit.sub(amountToClaim);
-                    await claimProfit(evaluationAgent, remainingAmountToClaim);
+                    await claim(evaluationAgent, remainingAmountToClaim);
                 });
 
                 it("Should allow the user to deposit, add profit, claim and withdraw multiple times", async function () {
@@ -266,7 +268,10 @@ describe("PoolSafe Tests", function () {
 
                     // Add profit.
                     const profit1 = toToken(1_000);
-                    await addProfit(profit1);
+                    let expectedAccProfitPerShare = profit1
+                        .mul(CONSTANTS.DEFAULT_DECIMALS_FACTOR)
+                        .div(principal1);
+                    await addProfit(profit1, expectedAccProfitPerShare);
                     expect(
                         await profitEscrowContract.claimable(evaluationAgent.getAddress()),
                     ).to.equal(profit1);
@@ -280,21 +285,31 @@ describe("PoolSafe Tests", function () {
 
                     // Add more profit.
                     const profit2 = toToken(2_987);
-                    await addProfit(profit2);
+                    expectedAccProfitPerShare = expectedAccProfitPerShare.add(
+                        profit2
+                            .mul(CONSTANTS.DEFAULT_DECIMALS_FACTOR)
+                            .div(principal1.add(principal2)),
+                    );
+                    await addProfit(profit2, expectedAccProfitPerShare);
                     expect(
                         await profitEscrowContract.claimable(evaluationAgent.getAddress()),
                     ).to.be.closeTo(profit1.add(profit2), 1);
 
                     // And even more profit.
                     const profit3 = toToken(3_999);
-                    await addProfit(profit3);
+                    expectedAccProfitPerShare = expectedAccProfitPerShare.add(
+                        profit3
+                            .mul(CONSTANTS.DEFAULT_DECIMALS_FACTOR)
+                            .div(principal1.add(principal2)),
+                    );
+                    await addProfit(profit3, expectedAccProfitPerShare);
                     expect(
                         await profitEscrowContract.claimable(evaluationAgent.getAddress()),
                     ).to.be.closeTo(profit1.add(profit2).add(profit3), 1);
 
                     // Claim.
                     const amountToClaim1 = toToken(1_492);
-                    await claimProfit(evaluationAgent, amountToClaim1);
+                    await claim(evaluationAgent, amountToClaim1);
 
                     // Withdraw.
                     const amountToWithdraw1 = toToken(9_319);
@@ -316,7 +331,7 @@ describe("PoolSafe Tests", function () {
                         .add(profit3)
                         .sub(amountToClaim1)
                         .sub(1); // sub(1) to account for the previous discrepancy in claimable amount caused by truncation.
-                    await claimProfit(evaluationAgent, amountToClaim2);
+                    await claim(evaluationAgent, amountToClaim2);
                 });
             });
 
@@ -337,7 +352,10 @@ describe("PoolSafe Tests", function () {
                     // Add profit.
                     const profit = toToken(1_000);
                     const totalPrincipal = principal.add(principal2);
-                    await addProfit(profit);
+                    const expectedAccProfitPerShare = profit
+                        .mul(CONSTANTS.DEFAULT_DECIMALS_FACTOR)
+                        .div(totalPrincipal);
+                    await addProfit(profit, expectedAccProfitPerShare);
                     const claimable = profit.mul(principal).div(totalPrincipal),
                         claimable2 = profit.mul(principal2).div(totalPrincipal);
                     expect(
@@ -348,8 +366,8 @@ describe("PoolSafe Tests", function () {
                     ).to.equal(claimable2);
 
                     // Claim.
-                    await claimProfit(evaluationAgent, claimable);
-                    await claimProfit(evaluationAgent2, claimable2);
+                    await claim(evaluationAgent, claimable);
+                    await claim(evaluationAgent2, claimable2);
 
                     // Withdraw.
                     await withdraw(evaluationAgent, principal);
@@ -366,7 +384,10 @@ describe("PoolSafe Tests", function () {
 
                     // Add profit.
                     const profit = toToken(1_000);
-                    await addProfit(profit);
+                    let expectedAccProfitPerShare = profit
+                        .mul(CONSTANTS.DEFAULT_DECIMALS_FACTOR)
+                        .div(principal);
+                    await addProfit(profit, expectedAccProfitPerShare);
                     expect(
                         await profitEscrowContract.claimable(evaluationAgent.getAddress()),
                     ).to.equal(profit);
@@ -381,7 +402,12 @@ describe("PoolSafe Tests", function () {
 
                     // Add more profit.
                     const profit2 = toToken(1_000);
-                    await addProfit(profit2);
+                    expectedAccProfitPerShare = expectedAccProfitPerShare.add(
+                        profit2
+                            .mul(CONSTANTS.DEFAULT_DECIMALS_FACTOR)
+                            .div(principal.add(principal2)),
+                    );
+                    await addProfit(profit2, expectedAccProfitPerShare);
                     const totalPrincipal = principal.add(principal2);
                     // evaluationAgent is eligible to claim all of `profit`, plus a proportion of `profit2`.
                     const claimable = profit.add(profit2.mul(principal).div(totalPrincipal));
@@ -395,8 +421,8 @@ describe("PoolSafe Tests", function () {
                     ).to.equal(claimable2);
 
                     // Claim.
-                    await claimProfit(evaluationAgent, claimable);
-                    await claimProfit(evaluationAgent2, claimable2);
+                    await claim(evaluationAgent, claimable);
+                    await claim(evaluationAgent2, claimable2);
 
                     // Withdraw.
                     await withdraw(evaluationAgent, principal);
@@ -413,7 +439,10 @@ describe("PoolSafe Tests", function () {
 
                     // Add profit.
                     const profit = toToken(1_000);
-                    await addProfit(profit);
+                    let expectedAccProfitPerShare = profit
+                        .mul(CONSTANTS.DEFAULT_DECIMALS_FACTOR)
+                        .div(principal);
+                    await addProfit(profit, expectedAccProfitPerShare);
                     expect(
                         await profitEscrowContract.claimable(evaluationAgent.getAddress()),
                     ).to.equal(profit);
@@ -431,7 +460,10 @@ describe("PoolSafe Tests", function () {
 
                     // Add more profit, which is entitled only to evaluationAgent2.
                     const profit2 = toToken(1_000);
-                    await addProfit(profit2);
+                    expectedAccProfitPerShare = expectedAccProfitPerShare.add(
+                        profit2.mul(CONSTANTS.DEFAULT_DECIMALS_FACTOR).div(principal2),
+                    );
+                    await addProfit(profit2, expectedAccProfitPerShare);
                     // evaluationAgent is eligible to claim all of `profit`.
                     expect(
                         await profitEscrowContract.claimable(evaluationAgent.getAddress()),
@@ -445,8 +477,8 @@ describe("PoolSafe Tests", function () {
                     await withdraw(evaluationAgent2, principal2);
 
                     // Claim.
-                    await claimProfit(evaluationAgent, profit);
-                    await claimProfit(evaluationAgent2, profit2);
+                    await claim(evaluationAgent, profit);
+                    await claim(evaluationAgent2, profit2);
                 });
             });
         });
@@ -466,7 +498,7 @@ describe("PoolSafe Tests", function () {
                     );
                 });
 
-                it("Should disallow non-callers to add profit", async function () {
+                it("Should disallow non-controllers to add profit", async function () {
                     await expect(
                         profitEscrowContract.connect(lender1).addProfit(amount),
                     ).to.be.revertedWithCustomError(profitEscrowContract, "todo");
@@ -486,7 +518,7 @@ describe("PoolSafe Tests", function () {
                     ).to.be.revertedWithCustomError(profitEscrowContract, "zeroAddressProvided");
                 });
 
-                it("Should disallow non-callers to deposit", async function () {
+                it("Should disallow non-controllers to deposit", async function () {
                     await expect(
                         profitEscrowContract
                             .connect(lender1)
@@ -508,7 +540,7 @@ describe("PoolSafe Tests", function () {
                     ).to.be.revertedWithCustomError(profitEscrowContract, "zeroAddressProvided");
                 });
 
-                it("Should disallow non-callers to withdraw", async function () {
+                it("Should disallow non-controllers to withdraw", async function () {
                     await expect(
                         profitEscrowContract
                             .connect(lender1)
