@@ -6,12 +6,10 @@ import {PoolConfig, PoolSettings, LPConfig} from "./PoolConfig.sol";
 import {PoolConfigCache} from "./PoolConfigCache.sol";
 import {IEpoch, EpochInfo} from "./interfaces/IEpoch.sol";
 import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
-import "./SharedDefs.sol";
+import {DEFAULT_DECIMALS_FACTOR, JUNIOR_TRANCHE, SENIOR_TRANCHE} from "./SharedDefs.sol";
 import {IEpochManager} from "./interfaces/IEpochManager.sol";
 import {Errors} from "./Errors.sol";
 import {ICalendar} from "./credit/interfaces/ICalendar.sol";
-
-import "hardhat/console.sol";
 
 interface ITrancheVaultLike is IEpoch {
     function totalSupply() external view returns (uint256);
@@ -162,8 +160,6 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         }
         unprocessedAmount += (unprocessedShares * juniorPrice) / DEFAULT_DECIMALS_FACTOR;
 
-        pool.submitRedemptionRequest(unprocessedAmount);
-
         // console.log(
         //     "id: %s, juniorTotalAssets: %s, seniorTotalAssets: %s",
         //     uint256(ce.id),
@@ -201,8 +197,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         epoch.id += 1;
         PoolSettings memory poolSettings = poolConfig.getPoolSettings();
         (uint256 nextEndTime, ) = calendar.getNextDueDate(
-            poolSettings.calendarUnit,
-            poolSettings.payPeriodInCalendarUnit,
+            poolSettings.payPeriodInMonths,
             epoch.endTime
         );
         epoch.endTime = uint64(nextEndTime);
@@ -246,16 +241,11 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         returns (RedemptionResult memory seniorResult, RedemptionResult memory juniorResult)
     {
         // get available underlying token amount
-        uint256 availableAmount = poolSafe.totalAssets();
-        // console.log("availableAmount: %s", availableAmount);
+        uint256 availableAmount = poolSafe.getPoolLiquidity();
         if (availableAmount <= 0) return (seniorResult, juniorResult);
 
-        PoolSettings memory settings = poolConfig.getPoolSettings();
-        LPConfig memory lpConfig = poolConfig.getLPConfig();
-        uint256 maxEpochId = _currentEpoch.id;
-
         // Process senior tranche redemption requests.
-        uint256 numEpochsToProcess = _getNumEpochsToProcess(settings, seniorEpochs, maxEpochId);
+        uint256 numEpochsToProcess = seniorEpochs.length;
         if (numEpochsToProcess > 0) {
             // console.log("processing mature senior withdrawal requests...");
             availableAmount = _processSeniorRedemptionRequests(
@@ -266,7 +256,6 @@ contract EpochManager is PoolConfigCache, IEpochManager {
                 availableAmount,
                 seniorResult
             );
-            // console.log("availableAmount: %s", availableAmount);
             // console.log(
             //     "seniorResult.count: %s, seniorResult.shares: %s, seniorResult.amounts: %s",
             //     seniorResult.count,
@@ -279,11 +268,10 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         }
 
         // Process junior tranche redemption requests.
-        numEpochsToProcess = _getNumEpochsToProcess(settings, juniorEpochs, maxEpochId);
-        // console.log("availableCount: %s", availableCount);
+        numEpochsToProcess = juniorEpochs.length;
+        LPConfig memory lpConfig = poolConfig.getLPConfig();
         uint256 maxSeniorJuniorRatio = lpConfig.maxSeniorJuniorRatio;
         if (numEpochsToProcess > 0) {
-            // console.log("processing mature junior withdrawal requests...");
             availableAmount = _processJuniorRedemptionRequests(
                 tranchesAssets,
                 juniorPrice,
@@ -305,112 +293,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
             }
         }
 
-        if (!settings.flexCreditEnabled) {
-            return (seniorResult, juniorResult);
-        }
-
-        // For pools with flex loan, keep processing redemption requests even if they are immature, as long
-        // as there are left over amount to be redeemed.
-        // Process senior redemption requests first.
-        numEpochsToProcess = seniorEpochs.length - seniorResult.numEpochsProcessed;
-        if (numEpochsToProcess > 0) {
-            // console.log("processing immature senior withdrawal requests...");
-            // console.log(
-            //     "seniorResult.count: %s, availableCount: %s",
-            //     seniorResult.count,
-            //     availableCount
-            // );
-            availableAmount = _processSeniorRedemptionRequests(
-                tranchesAssets,
-                seniorPrice,
-                seniorEpochs,
-                EpochsRange(seniorResult.numEpochsProcessed, numEpochsToProcess),
-                availableAmount,
-                seniorResult
-            );
-            // console.log("availableAmount: %s", availableAmount);
-            // console.log(
-            //     "seniorResult.count: %s, seniorResult.shares: %s, seniorResult.amounts: %s",
-            //     seniorResult.count,
-            //     seniorResult.shares,
-            //     seniorResult.amounts
-            // );
-            if (availableAmount == 0) {
-                return (seniorResult, juniorResult);
-            }
-        }
-
-        // Then process junior redemption requests. Note that some previously ineligible junior requests
-        // blocked by the max senior : junior ratio maybe eligible now due to the additional senior requests
-        // being fulfilled above.
-        numEpochsToProcess = juniorEpochs.length - juniorResult.numEpochsProcessed;
-        uint256 startIndex = juniorResult.numEpochsProcessed;
-        if (
-            juniorResult.numEpochsProcessed > 0 &&
-            juniorEpochs[juniorResult.numEpochsProcessed - 1].totalSharesRequested >
-            juniorEpochs[juniorResult.numEpochsProcessed - 1].totalSharesProcessed
-        ) {
-            // If the redemption requests in the last epoch processed were only partially processed, then try to
-            // process the epoch again.
-            startIndex -= 1;
-            numEpochsToProcess += 1;
-        }
-
-        if (numEpochsToProcess > 0) {
-            // console.log("processing left junior withdrawal requests...");
-            availableAmount = _processJuniorRedemptionRequests(
-                tranchesAssets,
-                juniorPrice,
-                maxSeniorJuniorRatio,
-                juniorEpochs,
-                EpochsRange(startIndex, numEpochsToProcess),
-                availableAmount,
-                juniorResult
-            );
-            // console.log("availableAmount: %s", availableAmount);
-            // console.log(
-            //     "juniorResult.count: %s, juniorResult.shares: %s, juniorResult.amounts: %s",
-            //     juniorResult.count,
-            //     juniorResult.shares,
-            //     juniorResult.amounts
-            // );
-        }
-
         return (seniorResult, juniorResult);
-    }
-
-    /**
-     * @notice Returns the number of epochs to process.
-     * @param settings pool settings
-     * @param epochInfos the list of epoch infos for each epoch
-     */
-    function _getNumEpochsToProcess(
-        PoolSettings memory settings,
-        EpochInfo[] memory epochInfos,
-        uint256 maxEpochId
-    ) private pure returns (uint256 numEpochsToProcess) {
-        if (settings.flexCreditEnabled) {
-            // If flex loan is enabled for a pool, then we can only process redemption requests after the
-            // call window has passed so that the borrower can have the capital ready for redemption
-            // E.g. if a redemption request is submitted in epoch 1, and the call window
-            // is 2, then the redemption requests can only be processed in or after epoch 3.
-            if (maxEpochId > settings.flexCallWindowInEpochs) {
-                uint256 maxEligibleEpochId = maxEpochId - settings.flexCallWindowInEpochs;
-                for (uint256 i = 0; i < epochInfos.length; i++) {
-                    if (epochInfos[i].epochId <= maxEligibleEpochId) {
-                        numEpochsToProcess += 1;
-                    } else {
-                        // The epoch IDs are guaranteed to increase monotonically in the list of epoch infos,
-                        // so we can bail out of the loop at the first non-eligible epoch ID.
-                        break;
-                    }
-                }
-            }
-        } else {
-            // If a pool doesn't have flex loan enabled, then unprocessed redemption requests in all epochs
-            // are eligible for processing.
-            numEpochsToProcess = epochInfos.length;
-        }
     }
 
     /**
@@ -514,11 +397,6 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         uint256 minJuniorAmount = tranchesAssets[SENIOR_TRANCHE] / maxSeniorJuniorRatio;
         if (minJuniorAmount * maxSeniorJuniorRatio < tranchesAssets[SENIOR_TRANCHE])
             minJuniorAmount += 1;
-        // console.log(
-        //     "minJuniorAmounts: %s, tranches[SENIOR_TRANCHE]: %s",
-        //     minJuniorAmounts,
-        //     tranches[SENIOR_TRANCHE]
-        // );
 
         uint256 maxRedeemableAmount = tranchesAssets[JUNIOR_TRANCHE] > minJuniorAmount
             ? tranchesAssets[JUNIOR_TRANCHE] - minJuniorAmount
@@ -533,12 +411,13 @@ contract EpochManager is PoolConfigCache, IEpochManager {
             uint256 redemptionAmount = (sharesToRedeem * lpTokenPrice) / DEFAULT_DECIMALS_FACTOR;
             if (availableAmount < redemptionAmount) {
                 redemptionAmount = availableAmount;
+                sharesToRedeem = (redemptionAmount * DEFAULT_DECIMALS_FACTOR) / lpTokenPrice;
             }
             if (maxRedeemableAmount < redemptionAmount) {
                 redemptionAmount = maxRedeemableAmount;
+                sharesToRedeem = (redemptionAmount * DEFAULT_DECIMALS_FACTOR) / lpTokenPrice;
             }
 
-            sharesToRedeem = (redemptionAmount * DEFAULT_DECIMALS_FACTOR) / lpTokenPrice;
             epochInfo.totalSharesProcessed += uint96(sharesToRedeem);
             epochInfo.totalAmountProcessed += uint96(redemptionAmount);
             availableAmount -= redemptionAmount;

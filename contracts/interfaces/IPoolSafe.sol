@@ -21,24 +21,20 @@ interface IPoolSafe {
     function withdraw(address to, uint256 amount) external;
 
     /**
-     * @notice Reserves underlying tokens for redemption
-     * @param assets the incremental number of underlying tokens to be reserved for redemption
+     * @notice Gets the total available underlying tokens in the pool
+     * @return liquidity the quantity of underlying tokens in the pool
      */
-    function setRedemptionReserve(uint256 assets) external;
+    function getPoolLiquidity() external view returns (uint256 liquidity);
 
     /**
-     * @notice Gets the available liquidity from this vault
-     * @return liquidity the quantity of available liquidity of the underlying token
+     * @notice Gets total available balance of pool safe. Pool calls this function for profit and loss recoevery cases.
      */
-    function getAvailableLiquidity() external view returns (uint256 liquidity);
+    function totalLiquidity() external view returns (uint256 liquidity);
 
     /**
-     * @notice Gets the total assets in the pool
-     * @return assets the quantity of underlying tokens in the pool
+     * @notice Gets total available balance of admin fees. PoolFeeManager calls this function to
+     * 1. invest in FirstLossCover if there is still room.
+     * 2. withdraw by admins
      */
-    function getPoolAssets() external view returns (uint256 assets);
-
-    // todo confirm the difference between totalAssets and getPoolAssets. We probably
-    // only need one.
-    function totalAssets() external view returns (uint256 assets);
+    function getAvailableLiquidityForFees() external view returns (uint256 liquidity);
 }

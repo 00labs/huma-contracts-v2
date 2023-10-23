@@ -36,10 +36,12 @@ contract Errors {
     error notBorrower(); // 0xb18f4d11
     error notEpochManager(); // 0x34478df7
     error notPoolFeeManager(); // 0xe94f3252 // 0xd4017ec2
-    error notTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManager(); // 0xdef0fded
+    error notTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManagerOrProfitEscrow(); // 0xf8902ea6 // 0xdef0fded
     error notTrancheVaultOrEpochManager(); // 0x31c76c83
+    error notTrancheVaultOrEpochManagerOrPoolFeeManagerOrFirstLossCover(); // 0x9c8c659b
     error notCurrentEpoch(); // 0x50c5dd13
     error notTrancheVault(); // 0x3d7640fb
+    error notCoverProvider(); // 0xed74bd11
 
     // system config
     error defaultGracePeriodLessThanMinAllowed(); // 0xa733ff9c
@@ -54,6 +56,7 @@ contract Errors {
     // pool config
     error proposedEADoesNotOwnProvidedEANFT(); // 0x75b0da3b
     error underlyingTokenNotApprovedForHumaProtocol(); // 0xce179d6d
+    error adminRewardRateTooHigh(); // 0x2d664ed8
     error poolOwnerNotEnoughLiquidity(); // 0xe95282e2
     error evaluationAgentNotEnoughLiquidity(); // 0x67e26217
 
@@ -92,7 +95,7 @@ contract Errors {
     error settlementTooSoon(); // 0x0453e75e
     error defaultTriggeredTooEarly(); // 0x7872424e
     error defaultHasAlreadyBeenTriggered(); // 0xeb8d2ccc
-    error committedAmountGreatThanCreditLimit(); // 0x663ce1a8
+    error committedAmountGreaterThanCreditLimit(); // 0x4ff6cc6f
 
     // receivable operation
     error receivableAssetMismatch(); // 0x41dbeec1
@@ -110,13 +113,13 @@ contract Errors {
     error flowIsNotTerminated(); // 0xe9c5922f
     error invalidSuperfluidCallback(); // 0xd2747f83
     error invalidSuperfluidAction(); // 0x2f2cd9e9
-    error notTradableStreamOwner();
-    error tradableStreamNotExisting();
-    error tradableStreamNotMatured();
-    error notEnoughAvailableFlowrate();
-    error AuthorizationExpired();
-    error InvalidAuthorization();
-    error newReceiverSameToOrigin();
+    error notTradableStreamOwner(); // 0x5709a724
+    error tradableStreamNotExisting(); // 0xb78e2a5b
+    error tradableStreamNotMatured(); // 0xa42ebb88
+    error notEnoughAvailableFlowrate(); // 0x9c808ab8
+    error AuthorizationExpired(); // 0x0f05f5bf
+    error InvalidAuthorization(); // 0x2ce87eeb
+    error newReceiverSameToOrigin(); // 0x6d79ce50
 
     error invalidCalendarUnit(); // 0x353226f1
     error zeroPayPeriods(); // 0xd991f55d

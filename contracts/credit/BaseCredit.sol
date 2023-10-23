@@ -7,13 +7,11 @@ import {PoolConfig, PoolSettings} from "../PoolConfig.sol";
 import {PoolConfigCache} from "../PoolConfigCache.sol";
 import "../SharedDefs.sol";
 import {BaseCreditStorage} from "./BaseCreditStorage.sol";
-import {CreditConfig, CreditRecord, CreditLimit, CreditLoss, CreditState, PaymentStatus, PnLTracker, Payment} from "./CreditStructs.sol";
+import {CreditConfig, CreditRecord, CreditLimit, CreditLoss, CreditState, PaymentStatus, Payment} from "./CreditStructs.sol";
 import {ICalendar} from "./interfaces/ICalendar.sol";
 import {IFirstLossCover} from "../interfaces/IFirstLossCover.sol";
-import {IFlexCredit} from "./interfaces/IFlexCredit.sol";
 import {IPoolCredit} from "./interfaces/IPoolCredit.sol";
 import {IPoolSafe} from "../interfaces/IPoolSafe.sol";
-import {IPnLManager} from "./interfaces/IPnLManager.sol";
 import {ICreditFeeManager} from "./utils/interfaces/ICreditFeeManager.sol";
 import {IERC20, IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -22,15 +20,9 @@ import "hardhat/console.sol";
 
 /**
  * Credit represents a borrowing entry in Huma Protocol. BaseCredit is an abstract contract that
- * captures the basic functions of of a Credit.
+ * captures the basic functions of a Credit.
  */
-abstract contract BaseCredit is
-    Initializable,
-    PoolConfigCache,
-    BaseCreditStorage,
-    IPoolCredit,
-    IFlexCredit
-{
+abstract contract BaseCredit is Initializable, PoolConfigCache, BaseCreditStorage, IPoolCredit {
     enum CreditLineClosureReason {
         Paidoff,
         CreditLimitChangedToBeZero,
@@ -55,7 +47,6 @@ abstract contract BaseCredit is
         bytes32 indexed creditHash,
         uint256 creditLimit,
         uint256 committedAmount,
-        CalendarUnit calendarUnit,
         uint256 periodDuration,
         uint256 numOfPeriods,
         uint256 yieldInBps,
@@ -112,11 +103,11 @@ abstract contract BaseCredit is
     );
     /**
      * @notice The credit line has been marked as Defaulted.
-     * @param borrower the address of the borrower
+     * @param creditHash the credit hash
      * @param losses the total losses to be written off because of the default.
      * @param by the address who has triggered the default
      */
-    event DefaultTriggered(address indexed borrower, uint256 losses, address by);
+    event DefaultTriggered(bytes32 indexed creditHash, uint256 losses, address by);
     /**
      * @notice A borrowing event has happened to the credit line
      * @param borrower the address of the borrower
@@ -163,31 +154,7 @@ abstract contract BaseCredit is
         );
     }
 
-    function refreshPnL() external returns (uint256 profit, uint256 loss, uint256 lossRecovery) {
-        return pnlManager.refreshPnL();
-    }
-
-    /**
-     * @notice Request the borrower to make extra principal payment in the next bill
-     * @param amount the extra amount of principal to be paid
-     * @dev the BaseCredit contract increases the due immediately, it is the caller's job
-     * to call this function at the right time.
-     * todo Add a new storage to record the extra principal due. We include it when calculate
-     * the next bill so that the caller of this function does not have to time the request.
-     */
-    function requestEarlyPrincipalWithdrawal(
-        bytes32 creditHash,
-        uint96 amount
-    ) external virtual override {
-        // todo Only allows the Pool(?) contract to call
-        // todo Check against poolConfig to make sure FlexCredit is allowed by this pool
-        _onlyPDSServiceAccount();
-        CreditRecord memory cr = _getCreditRecord(creditHash);
-        if (amount > cr.unbilledPrincipal) revert Errors.todo();
-        cr.totalDue = uint96(cr.totalDue + amount);
-        cr.unbilledPrincipal = uint96(cr.unbilledPrincipal - amount);
-        _setCreditRecord(creditHash, cr);
-    }
+    function refreshPnL() external returns (uint256 profit, uint256 loss, uint256 lossRecovery) {}
 
     /**
      * @notice changes the available credit for a credit line. This is an administrative overwrite.
@@ -267,9 +234,7 @@ abstract contract BaseCredit is
         external
         view
         returns (uint256 accruedProfit, uint256 accruedLoss, uint256 accruedLossRecovery)
-    {
-        return pnlManager.getPnLSum();
-    }
+    {}
 
     function isApproved(bytes32 creditHash) public view virtual returns (bool) {
         if ((_creditRecordMap[creditHash].state >= CreditState.Approved)) return true;
@@ -280,28 +245,28 @@ abstract contract BaseCredit is
      * @notice checks if the credit line is ready to be triggered as defaulted
      */
     function isDefaultReady(bytes32 creditHash) public view virtual returns (bool isDefault) {
-        // uint16 intervalInDays = _creditRecordStaticMap[creditHash].intervalInDays;
-        // return
-        //     _creditRecordMap[creditHash].missedPeriods * intervalInDays * SECONDS_IN_A_DAY >
-        //         _poolConfig.poolDefaultGracePeriodInSeconds()
-        //         ? true
-        //         : false;
+        isDefault = _isDefaultReady(_getCreditRecord(creditHash));
+    }
+
+    function _isDefaultReady(CreditRecord memory cr) internal view returns (bool isDefault) {
+        PoolSettings memory settings = poolConfig.getPoolSettings();
+        isDefault =
+            cr.missedPeriods > 1 &&
+            (cr.missedPeriods - 1) * settings.payPeriodInMonths >=
+            settings.defaultGracePeriodInMonths;
     }
 
     /** 
      * @notice checks if the credit line is behind in payments
      * @dev When the account is in Approved state, there is no borrowing yet, thus being late
      * does not apply. Thus the check on account state. 
-     * @dev after the bill is refreshed, the due date is updated, it is possible that the new due 
+     * @dev After the bill is refreshed, the due date is updated, it is possible that the new due
      // date is in the future, but if the bill refresh has set missedPeriods, the account is late.
      */
     function isLate(bytes32 creditHash) public view virtual returns (bool lateFlag) {
-        return
-            (_creditRecordMap[creditHash].state > CreditState.Approved &&
-                (_creditRecordMap[creditHash].missedPeriods > 0 ||
-                    block.timestamp > _creditRecordMap[creditHash].nextDueDate))
-                ? true
-                : false;
+        return (_creditRecordMap[creditHash].state > CreditState.Approved &&
+            (_creditRecordMap[creditHash].missedPeriods > 0 ||
+                block.timestamp > _creditRecordMap[creditHash].nextDueDate));
     }
 
     function _approveCredit(
@@ -319,14 +284,14 @@ abstract contract BaseCredit is
         if (remainingPeriods == 0) revert Errors.zeroPayPeriods();
         // if (yieldInBps == 0) revert Errors.zeroAmountProvided(); ？
         // if (committedAmount == 0) revert Errors.zeroAmountProvided(); ？
-        if (committedAmount > creditLimit) revert Errors.committedAmountGreatThanCreditLimit();
+        if (committedAmount > creditLimit) revert Errors.committedAmountGreaterThanCreditLimit();
 
         PoolSettings memory ps = poolConfig.getPoolSettings();
         if (creditLimit > ps.maxCreditLine) {
             revert Errors.greaterThanMaxCreditLine();
         }
 
-        // Before a drawdown happens, it is allowed to re-approve a credit to change ther terms.
+        // Before a drawdown happens, it is allowed to re-approve a credit to change the terms.
         // Once a drawdown has happened, it is disallowed to re-approve a credit. One has call
         // other functions to change the terms of the credit.
         CreditRecord memory cr = _getCreditRecord(creditHash);
@@ -335,8 +300,7 @@ abstract contract BaseCredit is
         CreditConfig memory cc = _getCreditConfig(creditHash);
         cc.creditLimit = uint96(creditLimit);
         cc.committedAmount = committedAmount;
-        cc.calendarUnit = ps.calendarUnit;
-        cc.periodDuration = ps.payPeriodInCalendarUnit;
+        cc.periodDuration = ps.payPeriodInMonths;
         cc.numOfPeriods = uint16(remainingPeriods);
         cc.yieldInBps = uint16(yieldInBps);
         cc.revolving = revolving;
@@ -345,7 +309,6 @@ abstract contract BaseCredit is
             creditHash,
             cc.creditLimit,
             cc.committedAmount,
-            cc.calendarUnit,
             cc.periodDuration,
             cc.numOfPeriods,
             cc.yieldInBps,
@@ -358,9 +321,10 @@ abstract contract BaseCredit is
         // Note: Special logic. dueDate is normally used to track the next bill due.
         // Before the first drawdown, it is also used to set the deadline for the first
         // drawdown to happen, otherwise, the credit line expires.
+        // TODO: is the compromise described below still applicable?
         // Decided to use this field in this way to save one field for the struct.
         // Although we have room in the struct after split struct creditRecord and
-        // struct creditRecordStatic, we keep it unchanged to leave room for the struct
+        // struct CreditConfig, we keep it unchanged to leave room for the struct
         // to expand in the future (note Solidity has limit on 13 fields in a struct)
         if (ps.creditApprovalExpirationInDays > 0)
             cr.nextDueDate = uint64(
@@ -413,6 +377,7 @@ abstract contract BaseCredit is
     ) internal virtual {
         //* Reserved for Richard review, to be deleted, review this function
 
+        //* todo move this check into _checkDrawdownEligibility
         if (!firstLossCover.isSufficient(borrower)) revert Errors.todo();
 
         CreditRecord memory cr = _getCreditRecord(creditHash);
@@ -437,9 +402,9 @@ abstract contract BaseCredit is
                     revert Errors.creditLineNotInGoodStandingState();
             }
 
-            // note Drawdown is not allowed in the final pay period since the payment due for
+            // Note: drawdown is not allowed in the final pay period since the payment due for
             // such drawdown will fall outside of the window of the credit line.
-            // note since we bill at the beginning of a period, cr.remainingPeriods is zero
+            // Note that since we bill at the beginning of a period, cr.remainingPeriods is zero
             // in the final period.
             if (cr.remainingPeriods == 0) revert Errors.creditExpiredDueToMaturity();
 
@@ -463,15 +428,9 @@ abstract contract BaseCredit is
             borrowAmount
         );
 
-        pnlManager.processDrawdown(
-            uint96(platformProfit),
-            uint96(
-                (borrowAmount * cc.yieldInBps * DEFAULT_DECIMALS_FACTOR) /
-                    (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
-            )
-        );
+        //* todo call a new function of pool to distribute profit
 
-        // Transfer funds to the _borrower
+        // Transfer funds to the borrower
         poolSafe.withdraw(borrower, netAmountToBorrower);
         emit DrawdownMade(borrower, borrowAmount, netAmountToBorrower);
     }
@@ -531,35 +490,35 @@ abstract contract BaseCredit is
 
         uint256 payoffAmount = _feeManager.getPayoffAmount(cr, cc.yieldInBps);
 
-        // Doesn't deduct additional interest of days from due date to now currently while makes payment after due date
-
-        // The amount to collect from the payer's wallet.
+        // The amount to collect from the payer.
         Payment memory p = Payment(0, 0, 0, 0, cr.state == CreditState.GoodStanding, false);
 
         if (amount < payoffAmount) {
             p.amountToCollect = uint96(amount);
             if (amount < cr.totalDue) {
-                // Update due info based on new principal if part principal is paid
+                // Update due info based on new principal if principal is partially paid
 
-                // process order - 1. fees, 2. yieldTillNow, 3. principal
+                // process order - 1. fees, 2. yield, 3. principal
 
-                uint256 printcipal = cr.totalDue - cr.feesDue - cr.yieldDue;
+                uint256 principalDue = cr.totalDue - cr.feesDue - cr.yieldDue;
 
                 // Handle fee payment.
                 p.feesPaid = amount < cr.feesDue ? uint96(amount) : cr.feesDue;
                 cr.feesDue -= p.feesPaid;
                 amount -= p.feesPaid;
 
-                // Handle interest payment.
+                // Handle yield payment.
                 if (amount > 0) {
                     p.yieldPaid = amount < cr.yieldDue ? uint96(amount) : cr.yieldDue;
                     cr.yieldDue -= p.yieldPaid;
                     amount -= p.yieldPaid;
                 }
 
-                // Handle principal payment
+                // Handle principal payment.
                 if (amount > 0) {
-                    p.principalPaid = (amount < printcipal) ? uint96(amount) : uint96(printcipal);
+                    p.principalPaid = (amount < principalDue)
+                        ? uint96(amount)
+                        : uint96(principalDue);
                     amount -= p.principalPaid;
                 }
 
@@ -568,8 +527,9 @@ abstract contract BaseCredit is
                 _setCreditRecord(creditHash, cr);
 
                 //* Reserved for Richard review, to be deleted
-                // Handle profit difference because the yield of the whole due period is charged, no matter before or after due date
-                // e.g. 10.1 is the due date, 10.5 is the grace late date.
+                // Handle profit difference because the yield of the whole due period is charged,
+                // no matter before or after due date.
+                // e.g. 10/1 is the due date, 10/5 is the last day of the late payment grace period.
                 if (p.principalPaid > 0) {
                     int96 profitDiff;
                     if (block.timestamp < cr.nextDueDate) {
@@ -604,19 +564,7 @@ abstract contract BaseCredit is
                             );
                     }
 
-                    //* Reserved for Richard review, to be deleted
-                    // The parameters of calling processPayback() are different in the 3 cases,
-                    // 1) pay part total due, 2) pay full total due, 3) payoff
-                    // The simple way is to call processPayback() in each case, see if it can be moved to a common place later.
-                    pnlManager.processPayback(
-                        creditHash,
-                        p.principalPaid,
-                        p.yieldPaid,
-                        profitDiff,
-                        uint16(cc.yieldInBps),
-                        p.oldLateFlag,
-                        false
-                    );
+                    //* todo call a new function of pool to distribute profit or loss recovery
                 }
             } else {
                 // Apply extra payments towards principal, reduce unbilledPrincipal amount
@@ -659,15 +607,7 @@ abstract contract BaseCredit is
                     );
                 }
 
-                pnlManager.processPayback(
-                    creditHash,
-                    p.principalPaid,
-                    p.yieldPaid,
-                    profitDiff,
-                    uint16(cc.yieldInBps),
-                    p.oldLateFlag,
-                    true
-                );
+                //* todo call a new function of pool to distribute profit or loss recovery
 
                 //* Reserved for Richard review, to be deleted
                 // Generate next due info immediately, no need to wait for next refreshCredit
@@ -709,15 +649,8 @@ abstract contract BaseCredit is
                     )
                 );
             }
-            pnlManager.processPayback(
-                creditHash,
-                p.principalPaid,
-                p.yieldPaid,
-                profitDiff,
-                uint16(cc.yieldInBps),
-                p.oldLateFlag,
-                true
-            );
+
+            //* todo call a new function of pool to distribute profit or loss recovery
         }
 
         if (p.amountToCollect > 0) {
@@ -748,12 +681,12 @@ abstract contract BaseCredit is
      * @notice Updates the account and brings its billing status current
      * @dev If the account is defaulted, no need to update the account anymore.
      * @dev If the account is ready to be defaulted but not yet, update the account without
-     * distributing the income for the upcoming period. Otherwise, update and distribute income
-     * note the reason that we do not distribute income for the final cycle anymore since
+     * distributing the income for the upcoming period. Otherwise, update and distribute income.
+     * Note the reason that we do not distribute income in the final cycle anymore since
      * it does not make sense to distribute income that we know cannot be collected to the
      * administrators (e.g. protocol, pool owner and EA) since it will only add more losses
      * to the LPs. Unfortunately, this special business consideration added more complexity
-     * and cognitive load to _updateDueInfo(...).
+     * and cognitive load to `_updateDueInfo`.
      */
     function _refreshCredit(bytes32 creditHash) internal returns (CreditRecord memory cr) {
         if (_creditRecordMap[creditHash].state != CreditState.Defaulted) {
@@ -782,25 +715,31 @@ abstract contract BaseCredit is
         // TODO Its current logic is same as refreshCredit.
         // I remember Richard said it should be used to set the credit to default state manually at sometime, correct?
 
-        losses;
-        // poolConfig.onlyProtocolAndPoolOn();
-        // // check to make sure the default grace period has passed.
-        // CreditRecord memory cr = _getCreditRecord(creditHash);
-        // if (cr.state == CreditState.Defaulted) revert Errors.defaultHasAlreadyBeenTriggered();
-        // if (block.timestamp > cr.nextDueDate) {
-        //     cr = _updateDueInfo(creditHash);
-        // }
+        poolConfig.onlyProtocolAndPoolOn();
+
+        // check to make sure the default grace period has passed.
+        CreditRecord memory cr = _getCreditRecord(creditHash);
+        if (cr.state == CreditState.Defaulted) revert Errors.defaultHasAlreadyBeenTriggered();
+
+        if (block.timestamp > cr.nextDueDate) {
+            cr = _updateDueInfo(creditHash);
+        }
+
         // Check if grace period has exceeded. Please note it takes a full pay period
         // before the account is considered to be late. The time passed should be one pay period
         // plus the grace period.
-        // if (!isDefaultReady(borrower)) revert Errors.defaultTriggeredTooEarly();
-        // // default amount includes all outstanding principals
-        // losses = cr.unbilledPrincipal + cr.totalDue - cr.feesAndInterestDue;
-        // _creditRecordMap[borrower].state = BS.CreditState.Defaulted;
-        // _creditRecordStaticMap[borrower].defaultAmount = uint96(losses);
-        // distributeLosses(losses);
-        // emit DefaultTriggered(borrower, losses, msg.sender);
-        // return losses;
+        if (!_isDefaultReady(cr)) revert Errors.defaultTriggeredTooEarly();
+
+        // default amount includes all outstanding principal
+        losses = cr.unbilledPrincipal + cr.totalDue - cr.feesDue - cr.yieldDue;
+
+        CreditConfig memory cc = _getCreditConfig(creditHash);
+        uint256 defaultDate = calendar.getStartDateOfPeriod(cc.periodDuration, cr.nextDueDate);
+
+        //* todo call a new function of pool to distribute loss
+
+        _creditRecordMap[creditHash].state = CreditState.Defaulted;
+        emit DefaultTriggered(creditHash, losses, msg.sender);
     }
 
     function _unpauseCredit(bytes32 creditHash) internal virtual {
@@ -813,7 +752,7 @@ abstract contract BaseCredit is
     }
 
     /**
-     * @notice updates CreditRecord for `creditHash` using the most up to date information.
+     * @notice Updates CreditRecord for `creditHash` using the most up-to-date information.
      * @dev this is used in both makePayment() and drawdown() to bring the account current
      * @dev getDueInfo() is a view function to get the due information of the most current cycle.
      * This function reflects the due info in creditRecordMap
@@ -832,44 +771,16 @@ abstract contract BaseCredit is
         // to reset cr.nextDueDate to 0 to remove special handling in getDueInfo().
         if (cr.state == CreditState.Approved) cr.nextDueDate = 0;
 
-        // Gets the up-to-date due information for the borrower. If the account has been
+        // Get the up-to-date due information for the borrower. If the account has been
         // late or dormant for multiple cycles, getDueInfo() will bring it current and
         // return the most up-to-date due information.
         CreditConfig memory cc = _getCreditConfig(creditHash);
         uint256 periodsPassed = 0;
-        uint96 missedProfit = 0;
-        uint96 principalDiff = 0;
-        uint96 lossImpact = 0;
-        CreditRecord memory oldCR = cr;
+        bool alreadyLate;
 
-        (cr, periodsPassed, missedProfit, principalDiff, lossImpact) = _feeManager.getDueInfo(
-            cr,
-            cc
-        );
-        // console.log(
-        //     "cr.totalDue: %s, cr.yieldDue: %s, periodsPassed: %s",
-        //     cr.totalDue,
-        //     cr.yieldDue,
-        //     periodsPassed
-        // );
-        // console.log("missedProfit: %s, principalDiff: %s", missedProfit, principalDiff);
+        (cr, periodsPassed, alreadyLate) = _feeManager.getDueInfo(cr, cc);
 
         if (periodsPassed > 0) {
-            //* Reserved for Richard review, to be deleted
-            // Only calls processDueUpdate() when the account is already late.
-            // Otherwise, it is the first drawdown, no need to call processDueUpdate()
-            bool alreadyLate = lossImpact > 0;
-            if (alreadyLate) {
-                pnlManager.processDueUpdate(
-                    principalDiff,
-                    missedProfit,
-                    lossImpact,
-                    creditHash,
-                    cc,
-                    oldCR
-                );
-            }
-
             // Adjusts remainingPeriods, special handling when reached the maturity of the credit line
             if (cr.remainingPeriods > periodsPassed) {
                 cr.remainingPeriods = uint16(cr.remainingPeriods - periodsPassed);
@@ -877,27 +788,14 @@ abstract contract BaseCredit is
                 cr.remainingPeriods = 0;
             }
 
-            // Sets the correct missedPeriods. If totalDue is non zero, the totalDue must be
-            // nonZero for each of the passed period, thus add periodsPassed to cr.missedPeriods
+            // Sets the correct missedPeriods. If totalDue is non-zero, the totalDue must be
+            // non-zero for each of the passed period, thus add periodsPassed to cr.missedPeriods
             if (alreadyLate) cr.missedPeriods = uint16(cr.missedPeriods + periodsPassed);
             else cr.missedPeriods = 0;
 
             if (cr.missedPeriods > 0) {
                 if (cr.state != CreditState.Defaulted) {
                     cr.state = CreditState.Delayed;
-                    PoolSettings memory ps = poolConfig.getPoolSettings();
-
-                    //* Reserved for Richard review, to be deleted
-                    // Updates to Defaulted status when the account has been late for more than defaultGracePeriodInCalendarUnit
-                    if (
-                        (cr.missedPeriods - 1) * ps.payPeriodInCalendarUnit >=
-                        ps.defaultGracePeriodInCalendarUnit
-                    ) {
-                        cr.state = CreditState.Defaulted;
-                        pnlManager.processDefault(creditHash, cc, cr);
-
-                        // TODO how to recover defaulted state?
-                    }
                 }
             } else cr.state = CreditState.GoodStanding;
 
@@ -931,7 +829,7 @@ abstract contract BaseCredit is
             // After the credit approval, if the pool has credit expiration for the 1st drawdown,
             // the borrower must complete the first drawdown before the expiration date, which
             // is set in cr.nextDueDate in approveCredit().
-            // note For pools without credit expiration for first drawdown, cr.nextDueDate is 0
+            // Note: for pools without credit expiration for first drawdown, cr.nextDueDate is 0
             // before the first drawdown, thus the cr.nextDueDate > 0 condition in the check
             if (cr.nextDueDate > 0 && block.timestamp > cr.nextDueDate)
                 revert Errors.creditExpiredDueToFirstDrawdownTooLate();
@@ -987,10 +885,6 @@ abstract contract BaseCredit is
         addr = _poolConfig.calendar();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         calendar = ICalendar(addr);
-
-        addr = _poolConfig.creditPnLManager();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
-        pnlManager = IPnLManager(addr);
 
         addr = _poolConfig.poolSafe();
         if (addr == address(0)) revert Errors.zeroAddressProvided();

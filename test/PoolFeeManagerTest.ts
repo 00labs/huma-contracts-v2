@@ -6,7 +6,6 @@ import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import {
     BaseCreditFeeManager,
-    BasePnLManager,
     Calendar,
     EpochManager,
     EvaluationAgentNFT,
@@ -22,7 +21,12 @@ import {
     TrancheVault,
     ProfitEscrow,
 } from "../typechain-types";
-import { toToken } from "./TestUtils";
+import {
+    overrideFirstLossCoverConfig,
+    overrideLossCoverProviderConfig,
+    overrideLPConfig,
+    toToken,
+} from "./TestUtils";
 import { BigNumber as BN } from "ethers";
 
 let defaultDeployer: SignerWithAddress,
@@ -52,8 +56,7 @@ let poolConfigContract: PoolConfig,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: MockPoolCredit,
-    creditFeeManagerContract: BaseCreditFeeManager,
-    creditPnlManagerContract: BasePnLManager;
+    creditFeeManagerContract: BaseCreditFeeManager;
 
 let profit: BN;
 let expectedProtocolIncome: BN, expectedPoolOwnerIncome: BN, expectedEAIncome: BN, totalFees: BN;
@@ -98,7 +101,6 @@ describe("PoolFeeManager Tests", function () {
             juniorTrancheVaultContract,
             creditContract as unknown,
             creditFeeManagerContract,
-            creditPnlManagerContract,
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
@@ -130,24 +132,245 @@ describe("PoolFeeManager Tests", function () {
         await loadFixture(prepare);
     });
 
+    describe("updatePoolConfigData", function () {
+        async function spendAllowance() {
+            // Spend some of the allowance by investing fees into the first loss cover contract.
+            const profit = toToken(500_000);
+            await creditContract.setRefreshPnLReturns(profit, toToken(0), toToken(0));
+
+            // Make sure the first loss cover has room for investment.
+            await overrideFirstLossCoverConfig(
+                affiliateFirstLossCoverContract,
+                affiliateFirstLossCoverProfitEscrowContract.address,
+                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                poolConfigContract,
+                poolOwner,
+                {
+                    liquidityCap: toToken(1_000_000_000),
+                },
+            );
+
+            // Make sure the pool safe has liquidity for fee investment.
+            await mockTokenContract.mint(poolSafeContract.address, toToken(1_000_000));
+
+            // Refresh pool proactively so that we can get the amount of investable fees, and make sure
+            // it's non-zero for the test to be meaningful.
+            await poolConfigContract
+                .connect(poolOwner)
+                .setEpochManager(defaultDeployer.getAddress());
+            await poolContract.refreshPool();
+            const feesInvestable =
+                await poolFeeManagerContract.getAvailableFeesToInvestInFirstLossCover();
+            expect(feesInvestable).to.not.equal(ethers.constants.Zero);
+            await poolFeeManagerContract.connect(poolOwner).investFeesInFirstLossCover();
+        }
+
+        async function performUpdate(
+            newFirstLossCoverContract: FirstLossCover,
+            newMockTokenContract: MockToken,
+        ) {
+            await spendAllowance();
+            const PoolConfig = await ethers.getContractFactory("PoolConfig");
+            const newPoolConfigContract = await PoolConfig.deploy();
+            await newPoolConfigContract.deployed();
+
+            // Update the contract addresses.
+            await newPoolConfigContract.initialize("Test Pool", [
+                humaConfigContract.address,
+                newMockTokenContract.address,
+                calendarContract.address,
+                poolContract.address,
+                newFirstLossCoverContract.address,
+                poolFeeManagerContract.address,
+                tranchesPolicyContract.address,
+                epochManagerContract.address,
+                seniorTrancheVaultContract.address,
+                juniorTrancheVaultContract.address,
+                creditContract.address,
+                creditFeeManagerContract.address,
+            ]);
+            await newPoolConfigContract.setFirstLossCover(
+                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                newFirstLossCoverContract.address,
+                {
+                    coverRateInBps: 0,
+                    coverCap: 0,
+                    liquidityCap: 0,
+                    maxPercentOfPoolValueInBps: 0,
+                    riskYieldMultiplier: 20000,
+                },
+                affiliateFirstLossCoverProfitEscrowContract.address,
+            );
+            await poolFeeManagerContract
+                .connect(poolOwner)
+                .setPoolConfig(newPoolConfigContract.address);
+        }
+
+        describe("When both the first loss cover and the underlying token contracts are updated", function () {
+            it("Should reset the allowance of the first loss cover contract", async function () {
+                const FirstLossCover = await ethers.getContractFactory("FirstLossCover");
+                const newFirstLossCoverContract = await FirstLossCover.deploy();
+                await newFirstLossCoverContract.deployed();
+                const MockToken = await ethers.getContractFactory("MockToken");
+                const newMockTokenContract = await MockToken.deploy();
+                await newMockTokenContract.deployed();
+                await humaConfigContract
+                    .connect(protocolOwner)
+                    .setLiquidityAsset(newMockTokenContract.address, true);
+                await performUpdate(newFirstLossCoverContract, newMockTokenContract);
+
+                // Make sure the old allowance has been reduced to 0, and the new allowance has been increase to uint256.max.
+                expect(
+                    await mockTokenContract.allowance(
+                        poolFeeManagerContract.address,
+                        affiliateFirstLossCoverContract.address,
+                    ),
+                ).to.equal(0);
+                expect(
+                    await newMockTokenContract.allowance(
+                        poolFeeManagerContract.address,
+                        newFirstLossCoverContract.address,
+                    ),
+                ).to.equal(ethers.constants.MaxUint256);
+                // Make sure there is no allowance for the new pool in the old token contract, or the old pool in the
+                // new token contract.
+                expect(
+                    await mockTokenContract.allowance(
+                        poolFeeManagerContract.address,
+                        newFirstLossCoverContract.address,
+                    ),
+                ).to.equal(0);
+                expect(
+                    await newMockTokenContract.allowance(
+                        poolFeeManagerContract.address,
+                        affiliateFirstLossCoverContract.address,
+                    ),
+                ).to.equal(0);
+            });
+        });
+
+        describe("When only the first loss cover contract is updated", function () {
+            it("Should reset the allowance of the first loss cover contract", async function () {
+                const FirstLossCover = await ethers.getContractFactory("FirstLossCover");
+                const newFirstLossCoverContract = await FirstLossCover.deploy();
+                await newFirstLossCoverContract.deployed();
+                await performUpdate(newFirstLossCoverContract, mockTokenContract);
+
+                // Make sure the old allowance has been reduced to 0, and the new allowance has been increase to uint256.max.
+                expect(
+                    await mockTokenContract.allowance(
+                        poolFeeManagerContract.address,
+                        affiliateFirstLossCoverContract.address,
+                    ),
+                ).to.equal(0);
+                expect(
+                    await mockTokenContract.allowance(
+                        poolFeeManagerContract.address,
+                        newFirstLossCoverContract.address,
+                    ),
+                ).to.equal(ethers.constants.MaxUint256);
+            });
+        });
+
+        describe("When only the underlying token contract is updated", function () {
+            it("Should reset the allowance of the first loss cover contract", async function () {
+                const MockToken = await ethers.getContractFactory("MockToken");
+                const newMockTokenContract = await MockToken.deploy();
+                await newMockTokenContract.deployed();
+                await humaConfigContract
+                    .connect(protocolOwner)
+                    .setLiquidityAsset(newMockTokenContract.address, true);
+                await performUpdate(affiliateFirstLossCoverContract, newMockTokenContract);
+
+                // Make sure the old allowance has been reduced to 0, and the new allowance has been increase to uint256.max.
+                expect(
+                    await mockTokenContract.allowance(
+                        poolFeeManagerContract.address,
+                        affiliateFirstLossCoverContract.address,
+                    ),
+                ).to.equal(0);
+                expect(
+                    await newMockTokenContract.allowance(
+                        poolFeeManagerContract.address,
+                        affiliateFirstLossCoverContract.address,
+                    ),
+                ).to.equal(ethers.constants.MaxUint256);
+            });
+        });
+
+        describe("When neither the first loss cover nor the underlying token contract is updated", function () {
+            it("Should not change the allowance", async function () {
+                const existingAllowance = await mockTokenContract.allowance(
+                    poolFeeManagerContract.address,
+                    affiliateFirstLossCoverContract.address,
+                );
+                await performUpdate(affiliateFirstLossCoverContract, mockTokenContract);
+
+                expect(
+                    await mockTokenContract.allowance(
+                        poolFeeManagerContract.address,
+                        affiliateFirstLossCoverContract.address,
+                    ),
+                ).to.equal(existingAllowance);
+            });
+        });
+    });
+
     describe("distributePoolFees", function () {
-        it("Should distribute platform fees to all parties and allow them to withdraw", async function () {
+        it("Should distribute pool fees to all parties", async function () {
             await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.address);
 
             // Make sure all the fees are distributed correctly.
-            const oldReserve = await poolSafeContract.reservedForRedemption();
             await poolFeeManagerContract.distributePoolFees(profit);
             const newAccruedIncomes = await poolFeeManagerContract.getAccruedIncomes();
-            const newReserve = await poolSafeContract.reservedForRedemption();
             expect(newAccruedIncomes.protocolIncome).to.equal(expectedProtocolIncome);
             expect(newAccruedIncomes.poolOwnerIncome).to.equal(expectedPoolOwnerIncome);
             expect(newAccruedIncomes.eaIncome).to.equal(expectedEAIncome);
-            expect(newReserve).to.equal(oldReserve);
+        });
 
-            // Make sure all parties can withdraw their fees. First, mint enough tokens for distribution.
-            await mockTokenContract.mint(poolSafeContract.address, totalFees);
+        it("Should disallow non-pool to distribute pool fees", async function () {
+            await expect(
+                poolFeeManagerContract.connect(lender).distributePoolFees(profit),
+            ).to.be.revertedWithCustomError(poolConfigContract, "notPool");
+        });
+    });
 
-            // Protocol owner fees.
+    describe("calcPoolFeeDistribution", function () {
+        it("Should return the remaining profit after taking out fees", async function () {
+            await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.address);
+
+            const remainingProfit = await poolFeeManagerContract.calcPoolFeeDistribution(profit);
+            expect(remainingProfit).to.equal(profit.sub(totalFees));
+        });
+    });
+
+    describe("withdrawProtocolFee", function () {
+        let amount: BN;
+
+        before(function () {
+            amount = toToken(1_000);
+        });
+
+        it("Should allow the protocol owner to withdraw the fees", async function () {
+            // Make the cap 0 so that there is no room to invest to make the testing of
+            // this function easier.
+            await overrideFirstLossCoverConfig(
+                affiliateFirstLossCoverContract,
+                affiliateFirstLossCoverProfitEscrowContract.address,
+                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                poolConfigContract,
+                poolOwner,
+                {
+                    liquidityCap: 0,
+                    maxPercentOfPoolValueInBps: 0,
+                },
+            );
+            // Make sure the pool safe has enough liquidity for withdrawal.
+            await mockTokenContract.mint(poolSafeContract.address, expectedProtocolIncome);
+            // Distribute pool fees so that they can be withdrawn.
+            await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.address);
+            await poolFeeManagerContract.distributePoolFees(profit);
+
             const oldProtocolIncomeWithdrawn =
                 await poolFeeManagerContract.protocolIncomeWithdrawn();
             const oldProtocolTreasuryBalance = await mockTokenContract.balanceOf(
@@ -172,7 +395,52 @@ describe("PoolFeeManager Tests", function () {
                 oldProtocolTreasuryBalance.add(expectedProtocolIncome),
             );
 
-            // Pool owner fees.
+            // Make sure the protocol owner has withdrawn all the fees.
+            const totalAvailableFees = await poolFeeManagerContract.getTotalAvailableFees();
+            expect(totalAvailableFees).to.equal(expectedPoolOwnerIncome.add(expectedEAIncome));
+        });
+
+        it("Should disallow non-protocol owner owner to withdraw protocol fees", async function () {
+            await expect(
+                poolFeeManagerContract.connect(lender).withdrawProtocolFee(amount),
+            ).to.be.revertedWithCustomError(poolFeeManagerContract, "notProtocolOwner");
+        });
+
+        it("Should disallow withdrawal attempts with amounts higher than the balance", async function () {
+            await expect(
+                poolFeeManagerContract.connect(protocolOwner).withdrawProtocolFee(amount),
+            ).to.be.revertedWithCustomError(
+                poolFeeManagerContract,
+                "withdrawnAmountHigherThanBalance",
+            );
+        });
+    });
+
+    describe("withdrawPoolOwnerFee", function () {
+        let amount: BN;
+
+        before(function () {
+            amount = toToken(1_000);
+        });
+
+        it("Should allow the pool owner to withdraw the fees", async function () {
+            await overrideFirstLossCoverConfig(
+                affiliateFirstLossCoverContract,
+                affiliateFirstLossCoverProfitEscrowContract.address,
+                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                poolConfigContract,
+                poolOwner,
+                {
+                    liquidityCap: 0,
+                    maxPercentOfPoolValueInBps: 0,
+                },
+            );
+            // Make sure the pool safe has enough liquidity for withdrawal.
+            await mockTokenContract.mint(poolSafeContract.address, expectedPoolOwnerIncome);
+            // Distribute pool fees so that they can be withdrawn.
+            await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.address);
+            await poolFeeManagerContract.distributePoolFees(profit);
+
             const oldPoolOwnerIncomeWithdrawn =
                 await poolFeeManagerContract.poolOwnerIncomeWithdrawn();
             const oldPoolOwnerTreasuryBalance = await mockTokenContract.balanceOf(
@@ -201,68 +469,34 @@ describe("PoolFeeManager Tests", function () {
                 oldPoolOwnerTreasuryBalance.add(expectedPoolOwnerIncome),
             );
 
-            // EA fees.
-            const oldEAIncomeWithdrawn = await poolFeeManagerContract.eaIncomeWithdrawn();
-            const oldEABalance = await mockTokenContract.balanceOf(evaluationAgent.address);
-            await expect(
-                poolFeeManagerContract.connect(evaluationAgent).withdrawEAFee(expectedEAIncome),
-            )
-                .to.emit(poolFeeManagerContract, "EvaluationAgentRewardsWithdrawn")
-                .withArgs(evaluationAgent.address, expectedEAIncome, evaluationAgent.address);
-            const newEAIncomeWithdrawn = await poolFeeManagerContract.eaIncomeWithdrawn();
-            const newEABalance = await mockTokenContract.balanceOf(evaluationAgent.address);
-            expect(newEAIncomeWithdrawn).to.equal(oldEAIncomeWithdrawn.add(expectedEAIncome));
-            expect(newEABalance).to.equal(oldEABalance.add(expectedEAIncome));
+            // Make sure the pool owner has withdrawn all the fees.
+            const totalAvailableFees = await poolFeeManagerContract.getTotalAvailableFees();
+            expect(totalAvailableFees).to.equal(expectedProtocolIncome.add(expectedEAIncome));
         });
 
-        it("Should disallow non-pool to distribute platform fees", async function () {
-            await expect(
-                poolFeeManagerContract.connect(lender).distributePoolFees(profit),
-            ).to.be.revertedWithCustomError(poolConfigContract, "notPool");
-        });
-    });
+        it(
+            "Should disallow the pool owner treasury to withdraw pool owner fees" +
+                " if the first loss cover is insufficient",
+            async function () {
+                // Set the min cover amount to be large enough so that the cover can't be possibly enough.
+                await overrideLPConfig(poolConfigContract, poolOwner, {
+                    liquidityCap: toToken(1_000_000_000),
+                });
+                await overrideLossCoverProviderConfig(
+                    affiliateFirstLossCoverContract,
+                    poolOwnerTreasury,
+                    poolOwner,
+                    {
+                        poolCapCoverageInBps: CONSTANTS.BP_FACTOR,
+                    },
+                );
+                await expect(
+                    poolFeeManagerContract.connect(poolOwnerTreasury).withdrawPoolOwnerFee(amount),
+                ).to.be.revertedWithCustomError(poolConfigContract, "lessThanRequiredCover");
+            },
+        );
 
-    describe("calcPlatformFeeDistribution", function () {
-        it("Should return the remaining profit after taking out fees", async function () {
-            await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.address);
-
-            const remainingProfit =
-                await poolFeeManagerContract.calcPlatformFeeDistribution(profit);
-            expect(remainingProfit).to.equal(profit.sub(totalFees));
-        });
-    });
-
-    describe("withdrawProtocolFee", function () {
-        let amount: BN;
-
-        before(function () {
-            amount = toToken(1_000);
-        });
-
-        it("Should disallow non-protocol owner owner to withdraw protocol fees", async function () {
-            await expect(
-                poolFeeManagerContract.connect(lender).withdrawProtocolFee(amount),
-            ).to.be.revertedWithCustomError(poolFeeManagerContract, "notProtocolOwner");
-        });
-
-        it("Should disallow withdrawal attempts with amounts higher than the balance", async function () {
-            await expect(
-                poolFeeManagerContract.connect(protocolOwner).withdrawProtocolFee(amount),
-            ).to.be.revertedWithCustomError(
-                poolFeeManagerContract,
-                "withdrawnAmountHigherThanBalance",
-            );
-        });
-    });
-
-    describe("withdrawPoolOwnerFee", function () {
-        let amount: BN;
-
-        before(function () {
-            amount = toToken(1_000);
-        });
-
-        it("Should disallow non-pool owner treasury to withdraw protocol fees", async function () {
+        it("Should disallow non-pool owner treasury to withdraw pool owner fees", async function () {
             await expect(
                 poolFeeManagerContract.connect(lender).withdrawPoolOwnerFee(amount),
             ).to.be.revertedWithCustomError(poolConfigContract, "notPoolOwnerTreasury");
@@ -285,7 +519,62 @@ describe("PoolFeeManager Tests", function () {
             amount = toToken(1_000);
         });
 
-        it("Should disallow non-pool owner or EA to withdraw protocol fees", async function () {
+        it("Should allow the EA to withdraw the fees", async function () {
+            await overrideFirstLossCoverConfig(
+                affiliateFirstLossCoverContract,
+                affiliateFirstLossCoverProfitEscrowContract.address,
+                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                poolConfigContract,
+                poolOwner,
+                {
+                    liquidityCap: 0,
+                    maxPercentOfPoolValueInBps: 0,
+                },
+            );
+            // Make sure the pool safe has enough liquidity for withdrawal.
+            await mockTokenContract.mint(poolSafeContract.address, expectedEAIncome);
+            // Distribute pool fees so that they can be withdrawn.
+            await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.address);
+            await poolFeeManagerContract.distributePoolFees(profit);
+
+            const oldEAIncomeWithdrawn = await poolFeeManagerContract.eaIncomeWithdrawn();
+            const oldEABalance = await mockTokenContract.balanceOf(evaluationAgent.address);
+            await expect(
+                poolFeeManagerContract.connect(evaluationAgent).withdrawEAFee(expectedEAIncome),
+            )
+                .to.emit(poolFeeManagerContract, "EvaluationAgentRewardsWithdrawn")
+                .withArgs(evaluationAgent.address, expectedEAIncome, evaluationAgent.address);
+            const newEAIncomeWithdrawn = await poolFeeManagerContract.eaIncomeWithdrawn();
+            const newEABalance = await mockTokenContract.balanceOf(evaluationAgent.address);
+            expect(newEAIncomeWithdrawn).to.equal(oldEAIncomeWithdrawn.add(expectedEAIncome));
+            expect(newEABalance).to.equal(oldEABalance.add(expectedEAIncome));
+
+            // Make sure the EA has withdrawn all the fees.
+            const totalAvailableFees = await poolFeeManagerContract.getTotalAvailableFees();
+            expect(totalAvailableFees).to.equal(
+                expectedProtocolIncome.add(expectedPoolOwnerIncome),
+            );
+        });
+
+        it("Should disallow the EA to withdraw EA fees if the first loss cover is insufficient", async function () {
+            // Set the min cover amount to be large enough so that the cover can't be possibly enough.
+            await overrideLPConfig(poolConfigContract, poolOwner, {
+                liquidityCap: toToken(1_000_000_000),
+            });
+            await overrideLossCoverProviderConfig(
+                affiliateFirstLossCoverContract,
+                evaluationAgent,
+                poolOwner,
+                {
+                    poolCapCoverageInBps: CONSTANTS.BP_FACTOR,
+                },
+            );
+            await expect(
+                poolFeeManagerContract.connect(evaluationAgent).withdrawEAFee(amount),
+            ).to.be.revertedWithCustomError(poolConfigContract, "lessThanRequiredCover");
+        });
+
+        it("Should disallow non-pool owner or EA to withdraw EA fees", async function () {
             await expect(
                 poolFeeManagerContract.connect(lender).withdrawEAFee(amount),
             ).to.be.revertedWithCustomError(poolConfigContract, "notPoolOwnerOrEA");
@@ -299,6 +588,168 @@ describe("PoolFeeManager Tests", function () {
                 "withdrawnAmountHigherThanBalance",
             );
         });
+    });
+
+    describe("investFeesInFirstLossCover", function () {
+        async function setPool() {
+            await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.getAddress());
+        }
+
+        beforeEach(async function () {
+            await loadFixture(setPool);
+        });
+
+        it("Should allow the pool owner to not invest anything if there is no available fees to invest", async function () {
+            // Zero-out the first loss cover capacity so that the fees cannot be invested.
+            await overrideFirstLossCoverConfig(
+                affiliateFirstLossCoverContract,
+                affiliateFirstLossCoverProfitEscrowContract.address,
+                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                poolConfigContract,
+                poolOwner,
+                {
+                    liquidityCap: 0,
+                    maxPercentOfPoolValueInBps: 0,
+                },
+            );
+            await poolFeeManagerContract.distributePoolFees(profit);
+            const oldAccruedIncomes = await poolFeeManagerContract.getAccruedIncomes();
+            const oldFirstLossCoverAssets = await affiliateFirstLossCoverContract.totalAssets();
+            const olsPoolSafeAssets = await poolSafeContract.totalLiquidity();
+
+            await poolFeeManagerContract.connect(poolOwner).investFeesInFirstLossCover();
+            const newAccruedIncomes = await poolFeeManagerContract.getAccruedIncomes();
+            expect(newAccruedIncomes.protocolIncome).to.equal(oldAccruedIncomes.protocolIncome);
+            expect(newAccruedIncomes.poolOwnerIncome).to.equal(oldAccruedIncomes.poolOwnerIncome);
+            expect(newAccruedIncomes.eaIncome).to.equal(oldAccruedIncomes.eaIncome);
+
+            // Make sure that:
+            // (1) the first loss cover contract doesn't get any money
+            // (2) the pool fee manager contract doesn't get any money
+            // (3) the pool safe contract keeps all its funds
+            expect(await affiliateFirstLossCoverContract.totalAssets()).to.equal(
+                oldFirstLossCoverAssets,
+            );
+            expect(await mockTokenContract.balanceOf(poolFeeManagerContract.address)).to.equal(0);
+            expect(await poolSafeContract.totalLiquidity()).to.equal(olsPoolSafeAssets);
+        });
+
+        it(
+            "Should allow the pool owner to invest all fees if there are fees to invest" +
+                " and enough pool liquidity and first loss cover capacity",
+            async function () {
+                await overrideFirstLossCoverConfig(
+                    affiliateFirstLossCoverContract,
+                    affiliateFirstLossCoverProfitEscrowContract.address,
+                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                    poolConfigContract,
+                    poolOwner,
+                    {
+                        liquidityCap: toToken(1_000_000_000),
+                        maxPercentOfPoolValueInBps: 0,
+                    },
+                );
+                await poolFeeManagerContract.distributePoolFees(profit);
+                const totalAvailableFees = await poolFeeManagerContract.getTotalAvailableFees();
+                mockTokenContract.mint(poolSafeContract.address, totalAvailableFees);
+                const oldFirstLossCoverAssets =
+                    await affiliateFirstLossCoverContract.totalAssets();
+                const olsPoolSafeAssets = await poolSafeContract.totalLiquidity();
+
+                await poolFeeManagerContract.connect(poolOwner).investFeesInFirstLossCover();
+                const newAccruedIncomes = await poolFeeManagerContract.getAccruedIncomes();
+                expect(newAccruedIncomes.protocolIncome).to.equal(0);
+                expect(newAccruedIncomes.poolOwnerIncome).to.equal(0);
+                expect(newAccruedIncomes.eaIncome).to.equal(0);
+                // Make sure that:
+                // (1) the first loss cover contract gets all the fees
+                // (2) the pool fee manager contract doesn't have any money
+                // (3) the pool safe contract has the amount of fees transferred out
+                expect(await affiliateFirstLossCoverContract.totalAssets()).to.equal(
+                    oldFirstLossCoverAssets.add(totalAvailableFees),
+                );
+                expect(await mockTokenContract.balanceOf(poolFeeManagerContract.address)).to.equal(
+                    0,
+                );
+                expect(await poolSafeContract.totalLiquidity()).to.equal(
+                    olsPoolSafeAssets.sub(totalAvailableFees),
+                );
+            },
+        );
+
+        it(
+            "Should allow the pool owner to partially invest the fees if there are fees to invest" +
+                " and some pool liquidity and first loss cover capacity",
+            async function () {
+                const coverTotalAssets = await affiliateFirstLossCoverContract.totalAssets();
+                await poolFeeManagerContract.distributePoolFees(profit);
+                const totalAvailableFees = await poolFeeManagerContract.getTotalAvailableFees();
+                const feesLiquidity = totalAvailableFees.sub(1_000);
+                // Make the first loss cover available capacity less than the total available fees.
+                await overrideFirstLossCoverConfig(
+                    affiliateFirstLossCoverContract,
+                    affiliateFirstLossCoverProfitEscrowContract.address,
+                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                    poolConfigContract,
+                    poolOwner,
+                    {
+                        liquidityCap: coverTotalAssets.add(feesLiquidity),
+                        maxPercentOfPoolValueInBps: 0,
+                    },
+                );
+                mockTokenContract.mint(poolSafeContract.address, totalAvailableFees);
+                const oldAccruedIncomes = await poolFeeManagerContract.getAccruedIncomes();
+                const oldFirstLossCoverAssets =
+                    await affiliateFirstLossCoverContract.totalAssets();
+                const olsPoolSafeAssets = await poolSafeContract.totalLiquidity();
+
+                // Make sure we are indeed testing the partial investment scenario.
+                const expectedPoolOwnerFeesInvested = oldAccruedIncomes.poolOwnerIncome
+                    .mul(feesLiquidity)
+                    .div(totalAvailableFees);
+                expect(expectedPoolOwnerFeesInvested).to.be.lessThan(
+                    oldAccruedIncomes.poolOwnerIncome,
+                );
+                const expectedEAFeesInvested = oldAccruedIncomes.eaIncome
+                    .mul(feesLiquidity)
+                    .div(totalAvailableFees);
+                expect(expectedEAFeesInvested).to.be.lessThan(oldAccruedIncomes.eaIncome);
+                const expectedProtocolFeesInvested = feesLiquidity
+                    .sub(expectedPoolOwnerFeesInvested)
+                    .sub(expectedEAFeesInvested);
+                expect(expectedProtocolFeesInvested).to.be.lessThan(
+                    oldAccruedIncomes.protocolIncome,
+                );
+
+                await poolFeeManagerContract.connect(poolOwner).investFeesInFirstLossCover();
+                const newAccruedIncomes = await poolFeeManagerContract.getAccruedIncomes();
+                expect(newAccruedIncomes.protocolIncome).to.equal(
+                    oldAccruedIncomes.protocolIncome.sub(expectedProtocolFeesInvested),
+                );
+                expect(newAccruedIncomes.poolOwnerIncome).to.equal(
+                    oldAccruedIncomes.poolOwnerIncome.sub(expectedPoolOwnerFeesInvested),
+                );
+                expect(newAccruedIncomes.eaIncome).to.equal(
+                    oldAccruedIncomes.eaIncome.sub(expectedEAFeesInvested),
+                );
+                // Make sure that:
+                // (1) the first loss cover contract gets all the fees invested
+                // (2) the pool fee manager contract doesn't have any money
+                // (3) the pool safe contract has the amount of fees invested transferred out
+                const totalFeesInvested = expectedProtocolFeesInvested
+                    .add(expectedPoolOwnerFeesInvested)
+                    .add(expectedEAFeesInvested);
+                expect(await affiliateFirstLossCoverContract.totalAssets()).to.equal(
+                    oldFirstLossCoverAssets.add(totalFeesInvested),
+                );
+                expect(await mockTokenContract.balanceOf(poolFeeManagerContract.address)).to.equal(
+                    0,
+                );
+                expect(await poolSafeContract.totalLiquidity()).to.equal(
+                    olsPoolSafeAssets.sub(totalFeesInvested),
+                );
+            },
+        );
     });
 
     describe("getWithdrawables", function () {
@@ -322,8 +773,8 @@ describe("PoolFeeManager Tests", function () {
 
             await mockTokenContract.mint(poolSafeContract.address, totalFees);
             await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.address);
-
             await poolFeeManagerContract.distributePoolFees(profit);
+
             await poolFeeManagerContract
                 .connect(protocolOwner)
                 .withdrawProtocolFee(withdrawalAmount);
@@ -336,5 +787,106 @@ describe("PoolFeeManager Tests", function () {
             expect(withdrawables[1]).to.equal(expectedPoolOwnerIncome.sub(withdrawalAmount));
             expect(withdrawables[2]).to.equal(expectedEAIncome.sub(withdrawalAmount));
         });
+    });
+
+    describe("getAvailableFeesToInvestInFirstLossCover", function () {
+        async function setPool() {
+            await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.address);
+        }
+
+        beforeEach(async function () {
+            await loadFixture(setPool);
+        });
+
+        it(
+            "Should return the available fees as-is if there is enough capacity in the first loss cover" +
+                " and liquidity in the pool",
+            async function () {
+                // Make sure there are incomes available.
+                await poolFeeManagerContract.distributePoolFees(profit);
+                const availableIncomes = await poolFeeManagerContract.getTotalAvailableFees();
+                // Make sure the first loss cover cap is large enough.
+                await overrideFirstLossCoverConfig(
+                    affiliateFirstLossCoverContract,
+                    affiliateFirstLossCoverProfitEscrowContract.address,
+                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                    poolConfigContract,
+                    poolOwner,
+                    {
+                        liquidityCap: toToken(1_000_000_000),
+                        maxPercentOfPoolValueInBps: 0,
+                    },
+                );
+                // Make sure the pool has more than enough liquidity.
+                mockTokenContract.mint(poolSafeContract.address, availableIncomes);
+
+                expect(
+                    await poolFeeManagerContract.getAvailableFeesToInvestInFirstLossCover(),
+                ).to.equal(availableIncomes);
+            },
+        );
+
+        it(
+            "Should return the available cap if there is not enough capacity in the first loss cover" +
+                " to invest all of the available fees",
+            async function () {
+                // Make sure there are incomes available.
+                await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.address);
+                await poolFeeManagerContract.distributePoolFees(profit);
+                const availableIncomes = await poolFeeManagerContract.getTotalAvailableFees();
+                // Make sure the first loss cover cap is large enough.
+                await overrideFirstLossCoverConfig(
+                    affiliateFirstLossCoverContract,
+                    affiliateFirstLossCoverProfitEscrowContract.address,
+                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                    poolConfigContract,
+                    poolOwner,
+                    {
+                        liquidityCap: 0,
+                        maxPercentOfPoolValueInBps: 0,
+                    },
+                );
+                // Make sure the pool has more than enough liquidity.
+                mockTokenContract.mint(poolSafeContract.address, availableIncomes);
+
+                expect(
+                    await poolFeeManagerContract.getAvailableFeesToInvestInFirstLossCover(),
+                ).to.equal(0);
+            },
+        );
+
+        it(
+            "Should return the available liquidity in the pool" +
+                " if it's less than the available fees",
+            async function () {
+                // Make the fee % unrealistically large to ensure that the amount of pool fees
+                // exceed the total liquidity in the pool, which in turn makes testing easier.
+                await poolConfigContract.connect(poolOwner).setEARewardsAndLiquidity(0, 0);
+                await poolConfigContract
+                    .connect(poolOwner)
+                    .setPoolOwnerRewardsAndLiquidity(CONSTANTS.BP_FACTOR, 0);
+
+                await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.address);
+                const poolLiquidity = await poolSafeContract.getAvailableLiquidityForFees();
+                await poolFeeManagerContract.distributePoolFees(poolLiquidity.add(1));
+                const availableIncomes = await poolFeeManagerContract.getTotalAvailableFees();
+                // Make sure the first loss cover cap is large enough.
+                await overrideFirstLossCoverConfig(
+                    affiliateFirstLossCoverContract,
+                    affiliateFirstLossCoverProfitEscrowContract.address,
+                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                    poolConfigContract,
+                    poolOwner,
+                    {
+                        liquidityCap: toToken(1_000_000_000),
+                        maxPercentOfPoolValueInBps: 0,
+                    },
+                );
+
+                expect(
+                    await poolFeeManagerContract.getAvailableFeesToInvestInFirstLossCover(),
+                ).to.equal(poolLiquidity);
+            },
+        );
     });
 });

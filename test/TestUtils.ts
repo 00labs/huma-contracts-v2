@@ -1,9 +1,15 @@
 import { ethers, network } from "hardhat";
 import { BigNumber as BN } from "ethers";
 import moment from "moment";
-import { LPConfigStructOutput } from "../typechain-types/contracts/PoolConfig.sol/PoolConfig";
-import { CONSTANTS } from "./BaseTest";
-import { FirstLossCover, Pool, PoolConfig } from "../typechain-types";
+import {
+    FirstLossCoverConfigStruct,
+    LPConfigStructOutput,
+} from "../typechain-types/contracts/PoolConfig.sol/PoolConfig";
+import { CONSTANTS, FirstLossCoverInfo } from "./BaseTest";
+import { FirstLossCover, Pool, PoolConfig, ProfitEscrow } from "../typechain-types";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { FirstLossCoverStorage } from "../typechain-types/contracts/FirstLossCover";
+import LossCoverProviderConfigStruct = FirstLossCoverStorage.LossCoverProviderConfigStruct;
 
 export function toBN(number: string | number, decimals: number): BN {
     return BN.from(number).mul(BN.from(10).pow(BN.from(decimals)));
@@ -81,18 +87,8 @@ export async function getNextTime(afterSeconds: number) {
     return nextTime;
 }
 
-export function getStartDateOfPeriod(
-    calendarUnit: number,
-    periodDuration: number,
-    endDate: number,
-): number {
-    if (calendarUnit == CONSTANTS.CALENDAR_UNIT_DAY) {
-        return timestampToMoment(endDate).subtract(periodDuration, "days").unix();
-    } else if (calendarUnit == CONSTANTS.CALENDAR_UNIT_MONTH) {
-        return timestampToMoment(endDate).subtract(periodDuration, "months").unix();
-    } else {
-        return 0;
-    }
+export function getStartDateOfPeriod(periodDuration: number, endDate: number): number {
+    return timestampToMoment(endDate).subtract(periodDuration, "months").unix();
 }
 
 export async function getLatestBlock() {
@@ -111,21 +107,17 @@ export function dateToTimestamp(date: string): number {
     return moment.utc(date).unix();
 }
 
-export function copyLPConfigWithOverrides(
-    lpConfig: LPConfigStructOutput,
+export async function overrideLPConfig(
+    poolConfigContract: PoolConfig,
+    poolOwner: SignerWithAddress,
     overrides: Partial<LPConfigStructOutput>,
 ) {
-    return {
-        ...{
-            permissioned: lpConfig.permissioned,
-            liquidityCap: lpConfig.liquidityCap,
-            withdrawalLockoutInCalendarUnit: lpConfig.withdrawalLockoutInCalendarUnit,
-            maxSeniorJuniorRatio: lpConfig.maxSeniorJuniorRatio,
-            fixedSeniorYieldInBps: lpConfig.fixedSeniorYieldInBps,
-            tranchesRiskAdjustmentInBps: lpConfig.tranchesRiskAdjustmentInBps,
-        },
+    const lpConfig = await poolConfigContract.getLPConfig();
+    const newLPConfig = {
+        ...lpConfig,
         ...overrides,
     };
+    await poolConfigContract.connect(poolOwner).setLPConfig(newLPConfig);
 }
 
 export async function getMinFirstLossCoverRequirement(
@@ -134,19 +126,16 @@ export async function getMinFirstLossCoverRequirement(
     poolContract: Pool,
     account: string,
 ): Promise<BN> {
-    const lossCoverConfig = await firstLossCoverContract.getOperatorConfig(account);
+    const lossCoverProviderConfig = await firstLossCoverContract.getCoverProviderConfig(account);
     const lpConfig = await poolConfigContract.getLPConfig();
     const poolCap = lpConfig.liquidityCap;
     const minFromPoolCap = poolCap
-        .mul(lossCoverConfig.poolCapCoverageInBps)
+        .mul(lossCoverProviderConfig.poolCapCoverageInBps)
         .div(CONSTANTS.BP_FACTOR);
     const poolValue = await poolContract.totalAssets();
     const minFromPoolValue = poolValue
-        .mul(lossCoverConfig.poolValueCoverageInBps)
+        .mul(lossCoverProviderConfig.poolValueCoverageInBps)
         .div(CONSTANTS.BP_FACTOR);
-    console.log(
-        `Pool cap: ${poolCap}. Pool value: ${poolValue}. minFromPoolCap: ${minFromPoolCap}. minFromPoolValue: ${minFromPoolValue}`,
-    );
     return minFromPoolCap.gt(minFromPoolValue) ? minFromPoolCap : minFromPoolValue;
 }
 
@@ -166,4 +155,71 @@ export async function getMinLiquidityRequirementForEA(
     const poolCap = lpConfig.liquidityCap;
     const adminRnR = await poolConfigContract.getAdminRnR();
     return poolCap.mul(adminRnR.liquidityRateInBpsByEA).div(CONSTANTS.BP_FACTOR);
+}
+
+export async function getFirstLossCoverInfo(
+    firstLossCoverContract: FirstLossCover,
+    poolConfigContract: PoolConfig,
+): Promise<FirstLossCoverInfo> {
+    const totalAssets = await firstLossCoverContract.totalAssets();
+    const config = await poolConfigContract.getFirstLossCoverConfig(
+        firstLossCoverContract.address,
+    );
+    return {
+        config,
+        asset: totalAssets,
+    };
+}
+
+export async function overrideLossCoverProviderConfig(
+    firstLossCoverContract: FirstLossCover,
+    provider: SignerWithAddress,
+    poolOwner: SignerWithAddress,
+    override: Partial<LossCoverProviderConfigStruct>,
+) {
+    const config = await firstLossCoverContract.getCoverProviderConfig(provider.getAddress());
+    const newConfig = {
+        ...config,
+        ...override,
+    };
+    await firstLossCoverContract
+        .connect(poolOwner)
+        .setCoverProvider(provider.getAddress(), newConfig);
+}
+
+export async function overrideFirstLossCoverConfig(
+    firstLossCoverContract: FirstLossCover,
+    firstLossCoverProfitEscrowAddress: string,
+    firstLossCoverIndex: number,
+    poolConfigContract: PoolConfig,
+    poolOwner: SignerWithAddress,
+    overrides: Partial<FirstLossCoverConfigStruct>,
+) {
+    const config = await poolConfigContract.getFirstLossCoverConfig(
+        firstLossCoverContract.address,
+    );
+    const newConfig = {
+        ...config,
+        ...overrides,
+    };
+    await poolConfigContract
+        .connect(poolOwner)
+        .setFirstLossCover(
+            firstLossCoverIndex,
+            firstLossCoverContract.address,
+            newConfig,
+            firstLossCoverProfitEscrowAddress,
+        );
+}
+
+export function maxBigNumber(...values: BN[]): BN {
+    return values.reduce((acc, currentValue) => {
+        return acc.gt(currentValue) ? acc : currentValue;
+    }, BN.from(0));
+}
+
+export function minBigNumber(...values: BN[]): BN {
+    return values.reduce((acc, currentValue) => {
+        return acc.lt(currentValue) ? acc : currentValue;
+    }, BN.from(ethers.constants.MaxUint256));
 }

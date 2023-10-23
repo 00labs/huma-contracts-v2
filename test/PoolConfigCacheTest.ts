@@ -5,7 +5,6 @@ import { deployPoolContracts, deployProtocolContracts } from "./BaseTest";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import {
     BaseCreditFeeManager,
-    BasePnLManager,
     Calendar,
     EpochManager,
     EvaluationAgentNFT,
@@ -49,8 +48,7 @@ let poolConfigContract: PoolConfig,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: MockPoolCredit,
-    creditFeeManagerContract: BaseCreditFeeManager,
-    creditPnlManagerContract: BasePnLManager;
+    creditFeeManagerContract: BaseCreditFeeManager;
 
 describe("PoolConfigCache Test", function () {
     before(async function () {
@@ -92,7 +90,6 @@ describe("PoolConfigCache Test", function () {
             juniorTrancheVaultContract,
             creditContract as unknown,
             creditFeeManagerContract,
-            creditPnlManagerContract,
         ] = await deployPoolContracts(
             humaConfigContract,
             mockTokenContract,
@@ -153,7 +150,6 @@ describe("PoolConfigCache Test", function () {
             juniorTrancheVaultContract.address,
             creditContract.address,
             creditFeeManagerContract.address,
-            creditPnlManagerContract.address,
         ]);
 
         await expect(

@@ -24,6 +24,13 @@ interface ICreditFeeManager {
         CreditRecord memory creditRecord
     ) external view returns (uint256 accruedInterest, uint256 accruedPrincipal);
 
+    /**
+     * @notice Apply front loading fee, distribute the total amount to borrower, pool, & protocol
+     * @param borrowAmount the amount of the borrowing
+     * @return amtToBorrower the amount that the borrower can take
+     * @return platformFees the platform charges
+     * @dev the protocol always takes a percentage of the total fee generated
+     */
     function distBorrowingAmount(
         uint256 borrowAmount
     ) external view returns (uint256 amtToBorrower, uint256 platformFees);
@@ -36,40 +43,41 @@ interface ICreditFeeManager {
     function calcFrontLoadingFee(uint256 _amount) external view returns (uint256 fees);
 
     /**
-     * @notice Computes the late fee including both the flat fee and percentage fee
-     * @param balance the total balance including amount due and unbilled principal
-     * @return fees the amount of late fees to be charged
-     * @dev Charges only if 1) there is outstanding due, 2) the due date has passed
+     * @notice Computes the yield for a period, including regular yields and late
+     * charges if apply
+     * @param principal the outstanding principal
+     * @param baseYieldInBps the base yield rate in bps
+     * @param periodDuration the number of months per period
+     * @return yieldDue the yield amount for a period
      */
-    function calcLateFee(uint256 balance) external view returns (uint256 fees);
+    function calcYieldDuePerPeriod(
+        uint256 principal,
+        uint256 baseYieldInBps,
+        uint256 periodDuration,
+        bool isLate
+    ) external view returns (uint256 yieldDue);
 
     /**
      * @notice Gets the current total due, fees and interest due, and payoff amount.
      * Because there is no "cron" kind of mechanism, it is possible that the account is behind
-     * for multiple cycles due to a lack of activities. This function will traverse through
+     * for multiple cycles due to lack of activities. This function will traverse through
      * these cycles to get the most up-to-date due information.
-     * @param _cr the credit record associated the account
-     * @return cr
-     * @return periodsPassed the number of billing periods has passed since the last statement.
-     * @return pnlImpact the pnl impact of the account since the last statement
-     * @return principalDifference the principal difference of the account since the last statement
-     * @return lossImpact the loss impact of the account since the last statement. If it is great than 0,
-     * it means the credit is delayed, otherwise it means the credit is good standing.
-     * If it is within the same period, it will be 0.
+     * @dev This is a view only function, it does not update the account status. It is used to
+     * help the borrowers to get their balances without paying gases.
+     * @dev the difference between totalDue and the sum of yieldDue and feesDue is the required principal payment
+     * @dev please note the first due date is set after the initial drawdown. All the future due
+     * dates are computed by adding multiples of the payment interval to the first due date.
+     * @param _cr the credit record associated with the account
+     * @param _cc the credit config associated with with account
+     * @return cr the updated credit record with the most up-to-date due information
+     * @return periodsPassed the number of billing periods has passed since the last statement
+     * @return isLate whether the credit is delayed, true means the credit is delayed,
+     * otherwise it means the credit is in good standing.
      */
     function getDueInfo(
         CreditRecord memory _cr,
         CreditConfig memory _cc
-    )
-        external
-        view
-        returns (
-            CreditRecord memory cr,
-            uint256 periodsPassed,
-            uint96 pnlImpact,
-            uint96 principalDifference,
-            uint96 lossImpact
-        );
+    ) external view returns (CreditRecord memory cr, uint256 periodsPassed, bool isLate);
 
     /**
      * @notice Sets the standard front loading and late fee policy for the fee manager

@@ -6,7 +6,6 @@ import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import {
     BaseCreditFeeManager,
-    BasePnLManager,
     Calendar,
     EpochManager,
     EvaluationAgentNFT,
@@ -31,6 +30,7 @@ import {
 import { BigNumber as BN } from "ethers";
 import {
     FeeStructureStruct,
+    FirstLossCoverConfigStruct,
     FrontLoadingFeesStructureStruct,
     LPConfigStruct,
 } from "../typechain-types/contracts/PoolConfig.sol/PoolConfig";
@@ -63,8 +63,7 @@ let poolConfigContract: PoolConfig,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: MockPoolCredit,
-    creditFeeManagerContract: BaseCreditFeeManager,
-    creditPnlManagerContract: BasePnLManager;
+    creditFeeManagerContract: BaseCreditFeeManager;
 
 describe("PoolConfig Tests", function () {
     before(async function () {
@@ -143,10 +142,6 @@ describe("PoolConfig Tests", function () {
             const BaseCreditFeeManager = await ethers.getContractFactory("BaseCreditFeeManager");
             creditFeeManagerContract = await BaseCreditFeeManager.deploy();
             await creditFeeManagerContract.deployed();
-
-            const CreditPnLManager = await ethers.getContractFactory("LinearMarkdownPnLManager");
-            creditPnlManagerContract = await CreditPnLManager.deploy();
-            await creditPnlManagerContract.deployed();
         }
 
         beforeEach(async function () {
@@ -169,16 +164,14 @@ describe("PoolConfig Tests", function () {
                     juniorTrancheVaultContract.address,
                     creditContract.address,
                     creditFeeManagerContract.address,
-                    creditPnlManagerContract.address,
                 ]);
 
             const poolSettings = await poolConfigContract.getPoolSettings();
-            expect(poolSettings.calendarUnit).to.equal(1);
-            expect(poolSettings.payPeriodInCalendarUnit).to.equal(1);
+            expect(poolSettings.payPeriodInMonths).to.equal(1);
             expect(poolSettings.receivableRequiredInBps).to.equal(10000);
             expect(poolSettings.advanceRateInBps).to.equal(8000);
             expect(poolSettings.latePaymentGracePeriodInDays).to.equal(5);
-            expect(poolSettings.defaultGracePeriodInCalendarUnit).to.equal(3);
+            expect(poolSettings.defaultGracePeriodInMonths).to.equal(3);
 
             const adminRnR = await poolConfigContract.getAdminRnR();
             expect(adminRnR.rewardRateInBpsForEA).to.equal(300);
@@ -207,7 +200,6 @@ describe("PoolConfig Tests", function () {
                         juniorTrancheVaultContract.address,
                         creditContract.address,
                         creditFeeManagerContract.address,
-                        creditPnlManagerContract.address,
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "notPoolOwner");
         });
@@ -229,7 +221,6 @@ describe("PoolConfig Tests", function () {
                         juniorTrancheVaultContract.address,
                         creditContract.address,
                         creditFeeManagerContract.address,
-                        creditPnlManagerContract.address,
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
@@ -254,7 +245,6 @@ describe("PoolConfig Tests", function () {
                         juniorTrancheVaultContract.address,
                         creditContract.address,
                         creditFeeManagerContract.address,
-                        creditPnlManagerContract.address,
                     ]),
             ).to.be.revertedWithCustomError(
                 poolConfigContract,
@@ -279,7 +269,6 @@ describe("PoolConfig Tests", function () {
                         juniorTrancheVaultContract.address,
                         creditContract.address,
                         creditFeeManagerContract.address,
-                        creditPnlManagerContract.address,
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
@@ -301,7 +290,6 @@ describe("PoolConfig Tests", function () {
                         juniorTrancheVaultContract.address,
                         creditContract.address,
                         creditFeeManagerContract.address,
-                        creditPnlManagerContract.address,
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
@@ -323,7 +311,6 @@ describe("PoolConfig Tests", function () {
                         juniorTrancheVaultContract.address,
                         creditContract.address,
                         creditFeeManagerContract.address,
-                        creditPnlManagerContract.address,
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
@@ -346,7 +333,6 @@ describe("PoolConfig Tests", function () {
                         juniorTrancheVaultContract.address,
                         creditContract.address,
                         creditFeeManagerContract.address,
-                        creditPnlManagerContract.address,
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
@@ -368,7 +354,6 @@ describe("PoolConfig Tests", function () {
                         juniorTrancheVaultContract.address,
                         creditContract.address,
                         creditFeeManagerContract.address,
-                        creditPnlManagerContract.address,
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
@@ -390,7 +375,6 @@ describe("PoolConfig Tests", function () {
                         juniorTrancheVaultContract.address,
                         creditContract.address,
                         creditFeeManagerContract.address,
-                        creditPnlManagerContract.address,
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
@@ -412,7 +396,6 @@ describe("PoolConfig Tests", function () {
                         juniorTrancheVaultContract.address,
                         creditContract.address,
                         creditFeeManagerContract.address,
-                        creditPnlManagerContract.address,
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
@@ -434,7 +417,6 @@ describe("PoolConfig Tests", function () {
                         juniorTrancheVaultContract.address,
                         creditContract.address,
                         creditFeeManagerContract.address,
-                        creditPnlManagerContract.address,
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
@@ -456,7 +438,6 @@ describe("PoolConfig Tests", function () {
                         ethers.constants.AddressZero,
                         creditContract.address,
                         creditFeeManagerContract.address,
-                        creditPnlManagerContract.address,
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
@@ -478,7 +459,6 @@ describe("PoolConfig Tests", function () {
                         juniorTrancheVaultContract.address,
                         ethers.constants.AddressZero,
                         creditFeeManagerContract.address,
-                        creditPnlManagerContract.address,
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
@@ -500,29 +480,6 @@ describe("PoolConfig Tests", function () {
                         juniorTrancheVaultContract.address,
                         creditContract.address,
                         ethers.constants.AddressZero,
-                        creditPnlManagerContract.address,
-                    ]),
-            ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
-        });
-
-        it("Should reject zero address for creditPnLManager", async function () {
-            await expect(
-                poolConfigContract
-                    .connect(poolOwner)
-                    .initialize("Base Credit Pool", [
-                        humaConfigContract.address,
-                        mockTokenContract.address,
-                        poolFeeManagerContract.address,
-                        poolSafeContract.address,
-                        calendarContract.address,
-                        tranchesPolicyContract.address,
-                        poolContract.address,
-                        epochManagerContract.address,
-                        seniorTrancheVaultContract.address,
-                        juniorTrancheVaultContract.address,
-                        creditContract.address,
-                        creditFeeManagerContract.address,
-                        ethers.constants.AddressZero,
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
@@ -543,7 +500,6 @@ describe("PoolConfig Tests", function () {
                     juniorTrancheVaultContract.address,
                     creditContract.address,
                     creditFeeManagerContract.address,
-                    creditPnlManagerContract.address,
                 ]);
             await expect(
                 poolConfigContract
@@ -561,7 +517,6 @@ describe("PoolConfig Tests", function () {
                         juniorTrancheVaultContract.address,
                         creditContract.address,
                         creditFeeManagerContract.address,
-                        creditPnlManagerContract.address,
                     ]),
             ).to.be.revertedWith("Initializable: contract is already initialized");
         });
@@ -591,7 +546,6 @@ describe("PoolConfig Tests", function () {
                 juniorTrancheVaultContract,
                 creditContract as unknown,
                 creditFeeManagerContract,
-                creditPnlManagerContract,
             ] = await deployAndSetupPoolContracts(
                 humaConfigContract,
                 mockTokenContract,
@@ -685,7 +639,7 @@ describe("PoolConfig Tests", function () {
                     .to.emit(poolConfigContract, "LatePaymentGracePeriodChanged")
                     .withArgs(gracePeriodInDays, poolOwner.address);
                 const poolSettings = await poolConfigContract.getPoolSettings();
-                expect(poolSettings[4]).to.equal(gracePeriodInDays);
+                expect(poolSettings[3]).to.equal(gracePeriodInDays);
             });
 
             it("Should allow the Huma master admin set the late payment periodl", async function () {
@@ -697,7 +651,7 @@ describe("PoolConfig Tests", function () {
                     .to.emit(poolConfigContract, "LatePaymentGracePeriodChanged")
                     .withArgs(gracePeriodInDays, protocolOwner.address);
                 const poolSettings = await poolConfigContract.getPoolSettings();
-                expect(poolSettings[4]).to.equal(gracePeriodInDays);
+                expect(poolSettings[3]).to.equal(gracePeriodInDays);
             });
 
             it("Should reject non-owner or non-Huma master admin", async function () {
@@ -745,7 +699,7 @@ describe("PoolConfig Tests", function () {
                 ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
             });
 
-            it("Should fail if rewards rate exceeds 100%", async function () {
+            it("Should fail if reward rate exceeds 100%", async function () {
                 await expect(
                     poolConfigContract
                         .connect(poolOwner)
@@ -765,6 +719,18 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract,
                     "invalidBasisPointHigherThan10000",
                 );
+            });
+
+            it("Should fail if the combined reward rate of the pool owner and EA exceeds 100%", async function () {
+                const adminRnR = await poolConfigContract.getAdminRnR();
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setPoolOwnerRewardsAndLiquidity(
+                            CONSTANTS.BP_FACTOR.sub(adminRnR.rewardRateInBpsForEA).add(1),
+                            liquidityRate,
+                        ),
+                ).to.be.revertedWithCustomError(poolConfigContract, "adminRewardRateTooHigh");
             });
         });
 
@@ -804,7 +770,7 @@ describe("PoolConfig Tests", function () {
                 ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
             });
 
-            it("Should fail if rewards rate exceeds 100%", async function () {
+            it("Should fail if reward rate exceeds 100%", async function () {
                 await expect(
                     poolConfigContract
                         .connect(poolOwner)
@@ -825,6 +791,18 @@ describe("PoolConfig Tests", function () {
                     "invalidBasisPointHigherThan10000",
                 );
             });
+
+            it("Should fail if the combined reward rate of the pool owner and EA exceeds 100%", async function () {
+                const adminRnR = await poolConfigContract.getAdminRnR();
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setPoolOwnerRewardsAndLiquidity(
+                            CONSTANTS.BP_FACTOR.sub(adminRnR.rewardRateInBpsForPoolOwner).add(1),
+                            liquidityRate,
+                        ),
+                ).to.be.revertedWithCustomError(poolConfigContract, "adminRewardRateTooHigh");
+            });
         });
 
         describe("setEvaluationAgent", function () {
@@ -843,7 +821,7 @@ describe("PoolConfig Tests", function () {
                 // Set the EA to be an operator.
                 await affiliateFirstLossCoverContract
                     .connect(poolOwner)
-                    .setOperator(evaluationAgent2.getAddress(), {
+                    .setCoverProvider(evaluationAgent2.getAddress(), {
                         poolCapCoverageInBps: 100,
                         poolValueCoverageInBps: 100,
                     });
@@ -865,7 +843,10 @@ describe("PoolConfig Tests", function () {
                 );
                 await mockTokenContract
                     .connect(evaluationAgent2)
-                    .approve(poolSafeContract.address, firstLossCoverAmount.add(minLiquidity));
+                    .approve(
+                        affiliateFirstLossCoverContract.address,
+                        firstLossCoverAmount.add(minLiquidity),
+                    );
                 await affiliateFirstLossCoverContract
                     .connect(evaluationAgent2)
                     .depositCover(firstLossCoverAmount);
@@ -920,7 +901,7 @@ describe("PoolConfig Tests", function () {
                 await mockTokenContract.mint(evaluationAgent2.address, firstLossCoverAmount);
                 await mockTokenContract
                     .connect(evaluationAgent2)
-                    .approve(poolSafeContract.address, firstLossCoverAmount);
+                    .approve(affiliateFirstLossCoverContract.address, firstLossCoverAmount);
                 await affiliateFirstLossCoverContract
                     .connect(evaluationAgent2)
                     .depositCover(firstLossCoverAmount);
@@ -946,7 +927,7 @@ describe("PoolConfig Tests", function () {
                 await mockTokenContract.mint(evaluationAgent2.address, firstLossCoverAmount);
                 await mockTokenContract
                     .connect(evaluationAgent2)
-                    .approve(poolSafeContract.address, firstLossCoverAmount);
+                    .approve(affiliateFirstLossCoverContract.address, firstLossCoverAmount);
                 await affiliateFirstLossCoverContract
                     .connect(evaluationAgent2)
                     .depositCover(firstLossCoverAmount);
@@ -1121,56 +1102,40 @@ describe("PoolConfig Tests", function () {
         });
 
         describe("setPoolDefaultGracePeriod", function () {
-            let defaultGracePeriodDays: number, calendarUnit: number;
+            let defaultGracePeriodDays: number;
 
             before(function () {
                 defaultGracePeriodDays = 30;
-                calendarUnit = CONSTANTS.CALENDAR_UNIT_DAY;
             });
 
             it("Should allow the pool owner to set the default grace period", async function () {
                 await expect(
                     poolConfigContract
                         .connect(poolOwner)
-                        .setPoolDefaultGracePeriod(calendarUnit, defaultGracePeriodDays),
+                        .setPoolDefaultGracePeriod(defaultGracePeriodDays),
                 )
                     .to.emit(poolConfigContract, "PoolDefaultGracePeriodChanged")
-                    .withArgs(calendarUnit, defaultGracePeriodDays, poolOwner.address);
+                    .withArgs(defaultGracePeriodDays, poolOwner.address);
                 const poolSettings = await poolConfigContract.getPoolSettings();
-                expect(poolSettings.defaultGracePeriodInCalendarUnit).to.equal(
-                    defaultGracePeriodDays,
-                );
+                expect(poolSettings.defaultGracePeriodInMonths).to.equal(defaultGracePeriodDays);
             });
 
             it("Should allow the Huma master admin to set the default grace period", async function () {
                 await expect(
                     poolConfigContract
                         .connect(protocolOwner)
-                        .setPoolDefaultGracePeriod(calendarUnit, defaultGracePeriodDays),
+                        .setPoolDefaultGracePeriod(defaultGracePeriodDays),
                 )
                     .to.emit(poolConfigContract, "PoolDefaultGracePeriodChanged")
-                    .withArgs(calendarUnit, defaultGracePeriodDays, protocolOwner.address);
-                const poolSettings = await poolConfigContract.getPoolSettings();
-                expect(poolSettings.calendarUnit).to.equal(calendarUnit);
+                    .withArgs(defaultGracePeriodDays, protocolOwner.address);
             });
 
             it("Should reject non-owner or admin to set the default grace period", async function () {
                 await expect(
                     poolConfigContract
                         .connect(regularUser)
-                        .setPoolDefaultGracePeriod(calendarUnit, defaultGracePeriodDays),
+                        .setPoolDefaultGracePeriod(defaultGracePeriodDays),
                 ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
-            });
-
-            it("Should reject new default grace period with the wrong calendar unit", async function () {
-                await expect(
-                    poolConfigContract
-                        .connect(poolOwner)
-                        .setPoolDefaultGracePeriod(
-                            CONSTANTS.CALENDAR_UNIT_MONTH,
-                            defaultGracePeriodDays,
-                        ),
-                ).to.be.revertedWithCustomError(poolConfigContract, "invalidCalendarUnit");
             });
         });
 
@@ -1220,89 +1185,36 @@ describe("PoolConfig Tests", function () {
             let calendarUnit: number, numPayPeriods: number;
 
             before(function () {
-                calendarUnit = CONSTANTS.CALENDAR_UNIT_MONTH;
                 numPayPeriods = 1;
             });
 
             it("Should allow the pool owner to set the pay period", async function () {
-                await expect(
-                    poolConfigContract
-                        .connect(poolOwner)
-                        .setPoolPayPeriod(calendarUnit, numPayPeriods),
-                )
+                await expect(poolConfigContract.connect(poolOwner).setPoolPayPeriod(numPayPeriods))
                     .to.emit(poolConfigContract, "PoolPayPeriodChanged")
-                    .withArgs(calendarUnit, numPayPeriods, poolOwner.address);
+                    .withArgs(numPayPeriods, poolOwner.address);
                 const poolSettings = await poolConfigContract.getPoolSettings();
-                expect(poolSettings.calendarUnit).to.equal(calendarUnit);
-                expect(poolSettings.payPeriodInCalendarUnit).to.equal(numPayPeriods);
+                expect(poolSettings.payPeriodInMonths).to.equal(numPayPeriods);
             });
 
             it("Should allow the Huma master admin to set the pay period", async function () {
                 await expect(
-                    poolConfigContract
-                        .connect(protocolOwner)
-                        .setPoolPayPeriod(calendarUnit, numPayPeriods),
+                    poolConfigContract.connect(protocolOwner).setPoolPayPeriod(numPayPeriods),
                 )
                     .to.emit(poolConfigContract, "PoolPayPeriodChanged")
-                    .withArgs(calendarUnit, numPayPeriods, protocolOwner.address);
+                    .withArgs(numPayPeriods, protocolOwner.address);
                 const poolSettings = await poolConfigContract.getPoolSettings();
-                expect(poolSettings.calendarUnit).to.equal(calendarUnit);
-                expect(poolSettings.payPeriodInCalendarUnit).to.equal(numPayPeriods);
+                expect(poolSettings.payPeriodInMonths).to.equal(numPayPeriods);
             });
 
             it("Should reject non-owner or admin to set the pool", async function () {
                 await expect(
-                    poolConfigContract
-                        .connect(regularUser)
-                        .setPoolPayPeriod(calendarUnit, numPayPeriods),
+                    poolConfigContract.connect(regularUser).setPoolPayPeriod(numPayPeriods),
                 ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
             });
 
             it("Should reject zero pay periods", async function () {
                 await expect(
-                    poolConfigContract
-                        .connect(poolOwner)
-                        .setPoolPayPeriod(calendarUnit, ethers.constants.Zero),
-                ).to.be.revertedWithCustomError(poolConfigContract, "zeroAmountProvided");
-            });
-        });
-
-        describe("setPoolFlexCall", function () {
-            let enabled = true,
-                flexCallWindowInEpoch = 3;
-            it("Should allow the pool owner to set the flex call config", async function () {
-                await expect(
-                    poolConfigContract
-                        .connect(poolOwner)
-                        .setPoolFlexCall(enabled, flexCallWindowInEpoch),
-                )
-                    .to.emit(poolConfigContract, "PoolFlexCallChanged")
-                    .withArgs(enabled, flexCallWindowInEpoch, poolOwner.address);
-                expect(await poolConfigContract.pool()).to.equal(poolContract.address);
-            });
-
-            it("Should allow the Huma master admin to set the flex call config", async function () {
-                await expect(
-                    poolConfigContract
-                        .connect(protocolOwner)
-                        .setPoolFlexCall(enabled, flexCallWindowInEpoch),
-                )
-                    .to.emit(poolConfigContract, "PoolFlexCallChanged")
-                    .withArgs(enabled, flexCallWindowInEpoch, protocolOwner.address);
-                expect(await poolConfigContract.pool()).to.equal(poolContract.address);
-            });
-
-            it("Should reject non-owner or admin to set the flex call config", async function () {
-                await expect(
-                    poolConfigContract
-                        .connect(regularUser)
-                        .setPoolFlexCall(enabled, flexCallWindowInEpoch),
-                ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
-            });
-
-            it("Should reject zero-valued windows", async function () {
-                await expect(
-                    poolConfigContract.connect(poolOwner).setPoolFlexCall(enabled, 0),
+                    poolConfigContract.connect(poolOwner).setPoolPayPeriod(ethers.constants.Zero),
                 ).to.be.revertedWithCustomError(poolConfigContract, "zeroAmountProvided");
             });
         });
@@ -1612,7 +1524,85 @@ describe("PoolConfig Tests", function () {
             });
         });
 
-        // TODO(jiatu): add first loss cover setter tests after it's updated.
+        describe("setFirstLossCover", function () {
+            let config: FirstLossCoverConfigStruct;
+
+            before(function () {
+                config = {
+                    coverRateInBps: 1_000,
+                    coverCap: toToken(1_000_000),
+                    liquidityCap: toToken(2_000_000),
+                    maxPercentOfPoolValueInBps: CONSTANTS.BP_FACTOR,
+                    riskYieldMultiplier: 10,
+                };
+            });
+
+            async function testSetterAndGetter(actor: SignerWithAddress) {
+                await expect(
+                    poolConfigContract
+                        .connect(actor)
+                        .setFirstLossCover(
+                            CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                            affiliateFirstLossCoverContract.address,
+                            config,
+                            affiliateFirstLossCoverProfitEscrowContract.address,
+                        ),
+                )
+                    .to.emit(poolConfigContract, "FirstLossCoverChanged")
+                    .withArgs(
+                        CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                        affiliateFirstLossCoverContract.address,
+                        config.coverRateInBps,
+                        config.coverCap,
+                        config.liquidityCap,
+                        config.maxPercentOfPoolValueInBps,
+                        config.riskYieldMultiplier,
+                        affiliateFirstLossCoverProfitEscrowContract.address,
+                        await actor.getAddress(),
+                    );
+
+                const coverConfig = await poolConfigContract.getFirstLossCoverConfig(
+                    affiliateFirstLossCoverContract.address,
+                );
+                expect(coverConfig.coverRateInBps).to.equal(config.coverRateInBps);
+                expect(coverConfig.coverCap).to.equal(config.coverCap);
+                expect(coverConfig.liquidityCap).to.equal(config.liquidityCap);
+                expect(coverConfig.maxPercentOfPoolValueInBps).to.equal(
+                    config.maxPercentOfPoolValueInBps,
+                );
+                expect(coverConfig.riskYieldMultiplier).to.equal(config.riskYieldMultiplier);
+
+                const profitEscrowContractAddress =
+                    await poolConfigContract.getFirstLossCoverProfitEscrow(
+                        affiliateFirstLossCoverContract.address,
+                    );
+                expect(profitEscrowContractAddress).to.equal(
+                    affiliateFirstLossCoverProfitEscrowContract.address,
+                );
+            }
+
+            it("Should allow the pool owner to set the first loss cover", async function () {
+                await testSetterAndGetter(poolOwner);
+            });
+
+            it("Should allow the Huma master admin to set the first loss cover", async function () {
+                await testSetterAndGetter(protocolOwner);
+            });
+
+            it("Should not allow others to set the first loss cover", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(regularUser)
+                        .setFirstLossCover(
+                            CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                            affiliateFirstLossCoverContract.address,
+                            config,
+                            affiliateFirstLossCoverProfitEscrowContract.address,
+                        ),
+                ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+            });
+        });
+
         describe("setCalendar", function () {
             it("Should allow the pool owner to set the calendar contract", async function () {
                 await expect(
@@ -1730,7 +1720,6 @@ describe("PoolConfig Tests", function () {
             let calendarUnit: number, lockoutPeriod: number;
 
             before(function () {
-                calendarUnit = CONSTANTS.CALENDAR_UNIT_DAY;
                 lockoutPeriod = 30;
             });
 
@@ -1738,40 +1727,32 @@ describe("PoolConfig Tests", function () {
                 await expect(
                     poolConfigContract
                         .connect(poolOwner)
-                        .setWithdrawalLockoutPeriod(calendarUnit, lockoutPeriod),
+                        .setWithdrawalLockoutPeriod(lockoutPeriod),
                 )
                     .to.emit(poolConfigContract, "WithdrawalLockoutPeriodChanged")
-                    .withArgs(calendarUnit, lockoutPeriod, poolOwner.address);
+                    .withArgs(lockoutPeriod, poolOwner.address);
                 const lpConfig = await poolConfigContract.getLPConfig();
-                expect(lpConfig.withdrawalLockoutInCalendarUnit).to.equal(lockoutPeriod);
+                expect(lpConfig.withdrawalLockoutInMonths).to.equal(lockoutPeriod);
             });
 
             it("Should allow the Huma master admin to set the withdrawal lockout period", async function () {
                 await expect(
                     poolConfigContract
                         .connect(protocolOwner)
-                        .setWithdrawalLockoutPeriod(calendarUnit, lockoutPeriod),
+                        .setWithdrawalLockoutPeriod(lockoutPeriod),
                 )
                     .to.emit(poolConfigContract, "WithdrawalLockoutPeriodChanged")
-                    .withArgs(calendarUnit, lockoutPeriod, protocolOwner.address);
+                    .withArgs(lockoutPeriod, protocolOwner.address);
                 const lpConfig = await poolConfigContract.getLPConfig();
-                expect(lpConfig.withdrawalLockoutInCalendarUnit).to.equal(lockoutPeriod);
+                expect(lpConfig.withdrawalLockoutInMonths).to.equal(lockoutPeriod);
             });
 
             it("Should reject non-owner or admin to set the withdrawal lockout period", async function () {
                 await expect(
                     poolConfigContract
                         .connect(regularUser)
-                        .setWithdrawalLockoutPeriod(calendarUnit, lockoutPeriod),
+                        .setWithdrawalLockoutPeriod(lockoutPeriod),
                 ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
-            });
-
-            it("Should disallow incompatible calendar units", async function () {
-                await expect(
-                    poolConfigContract
-                        .connect(poolOwner)
-                        .setWithdrawalLockoutPeriod(CONSTANTS.CALENDAR_UNIT_MONTH, lockoutPeriod),
-                ).to.be.revertedWithCustomError(poolConfigContract, "invalidCalendarUnit");
             });
         });
 
@@ -1782,7 +1763,7 @@ describe("PoolConfig Tests", function () {
                 newLPConfig = {
                     permissioned: false,
                     liquidityCap: toToken(100_000_000),
-                    withdrawalLockoutInCalendarUnit: 30,
+                    withdrawalLockoutInMonths: 30,
                     maxSeniorJuniorRatio: 4,
                     fixedSeniorYieldInBps: 2000,
                     tranchesRiskAdjustmentInBps: 8000,
@@ -1795,7 +1776,7 @@ describe("PoolConfig Tests", function () {
                     .withArgs(
                         newLPConfig.permissioned,
                         newLPConfig.liquidityCap,
-                        newLPConfig.withdrawalLockoutInCalendarUnit,
+                        newLPConfig.withdrawalLockoutInMonths,
                         newLPConfig.maxSeniorJuniorRatio,
                         newLPConfig.fixedSeniorYieldInBps,
                         newLPConfig.tranchesRiskAdjustmentInBps,
@@ -1804,8 +1785,8 @@ describe("PoolConfig Tests", function () {
                 const lpConfig = await poolConfigContract.getLPConfig();
                 expect(lpConfig.permissioned).to.equal(newLPConfig.permissioned);
                 expect(lpConfig.liquidityCap).to.equal(newLPConfig.liquidityCap);
-                expect(lpConfig.withdrawalLockoutInCalendarUnit).to.equal(
-                    newLPConfig.withdrawalLockoutInCalendarUnit,
+                expect(lpConfig.withdrawalLockoutInMonths).to.equal(
+                    newLPConfig.withdrawalLockoutInMonths,
                 );
                 expect(lpConfig.maxSeniorJuniorRatio).to.equal(newLPConfig.maxSeniorJuniorRatio);
                 expect(lpConfig.fixedSeniorYieldInBps).to.equal(newLPConfig.fixedSeniorYieldInBps);
@@ -1820,7 +1801,7 @@ describe("PoolConfig Tests", function () {
                     .withArgs(
                         newLPConfig.permissioned,
                         newLPConfig.liquidityCap,
-                        newLPConfig.withdrawalLockoutInCalendarUnit,
+                        newLPConfig.withdrawalLockoutInMonths,
                         newLPConfig.maxSeniorJuniorRatio,
                         newLPConfig.fixedSeniorYieldInBps,
                         newLPConfig.tranchesRiskAdjustmentInBps,
@@ -1829,8 +1810,8 @@ describe("PoolConfig Tests", function () {
                 const lpConfig = await poolConfigContract.getLPConfig();
                 expect(lpConfig.permissioned).to.equal(newLPConfig.permissioned);
                 expect(lpConfig.liquidityCap).to.equal(newLPConfig.liquidityCap);
-                expect(lpConfig.withdrawalLockoutInCalendarUnit).to.equal(
-                    newLPConfig.withdrawalLockoutInCalendarUnit,
+                expect(lpConfig.withdrawalLockoutInMonths).to.equal(
+                    newLPConfig.withdrawalLockoutInMonths,
                 );
                 expect(lpConfig.maxSeniorJuniorRatio).to.equal(newLPConfig.maxSeniorJuniorRatio);
                 expect(lpConfig.fixedSeniorYieldInBps).to.equal(newLPConfig.fixedSeniorYieldInBps);
@@ -2086,6 +2067,19 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract,
                     "evaluationAgentNotEnoughLiquidity",
                 );
+            });
+        });
+
+        describe("First loss cover getters", function () {
+            it("Should return the correct first loss cover(s)", async function () {
+                const firstLossCovers = await poolConfigContract.getFirstLossCovers();
+                for (const index of [
+                    CONSTANTS.BORROWER_FIRST_LOSS_COVER_INDEX,
+                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                ]) {
+                    const firstLossCover = await poolConfigContract.getFirstLossCover(index);
+                    expect(firstLossCover).to.equal(firstLossCovers[index]);
+                }
             });
         });
     });

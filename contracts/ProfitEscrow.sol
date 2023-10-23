@@ -7,11 +7,18 @@ import {PoolConfigCache} from "./PoolConfigCache.sol";
 import {PoolConfig} from "./PoolConfig.sol";
 import {ProfitEscrowStorage} from "./ProfitEscrowStorage.sol";
 import {Errors} from "./Errors.sol";
-import "./SharedDefs.sol";
+import {DEFAULT_DECIMALS_FACTOR} from "./SharedDefs.sol";
 
-// TODO FirstLossCover LP token transfer
+// TODO We need to disable FirstLossCover token transfer since it'll interfere
+// with profit staking in this contract.
 
 contract ProfitEscrow is PoolConfigCache, ProfitEscrowStorage, IProfitEscrow {
+    event ControllerSet(address _caller);
+    event ProfitAdded(uint256 profit, uint256 accProfitPerShare);
+    event PrincipalDeposited(address indexed account, uint256 amount);
+    event PrincipalWithdrawn(address indexed account, uint256 amount);
+    event ProfitClaimed(address indexed account, uint256 amount);
+
     constructor() {
         // _disableInitializers();
     }
@@ -22,73 +29,82 @@ contract ProfitEscrow is PoolConfigCache, ProfitEscrowStorage, IProfitEscrow {
         poolSafe = IPoolSafe(addr);
     }
 
-    function initialize(address _caller, PoolConfig _poolConfig) external initializer {
+    function initialize(address _controller, PoolConfig _poolConfig) external initializer {
         _initialize(_poolConfig);
-        caller = _caller;
+        controller = _controller;
     }
 
-    function setCaller(address _caller) external {
+    function setController(address _controller) external {
         poolConfig.onlyPoolOwner(msg.sender);
-        caller = _caller;
+        controller = _controller;
 
-        // TODO emit event
+        emit ControllerSet(_controller);
     }
 
     function addProfit(uint256 profit) external {
         if (profit == 0) revert Errors.zeroAmountProvided();
-        _onlyCaller();
+        _onlyController();
 
         EscrowInfo memory escrowInfo = _escrowInfo;
-        assert(escrowInfo.totalShares != 0);
-        escrowInfo.accRewardPerShare += uint96(
-            (profit * DEFAULT_DECIMALS_FACTOR) / escrowInfo.totalShares
+        assert(escrowInfo.totalAmount != 0);
+        escrowInfo.accProfitPerShare += uint96(
+            (profit * DEFAULT_DECIMALS_FACTOR) / escrowInfo.totalAmount
         );
         _escrowInfo = escrowInfo;
 
-        totalRewards += profit;
-
-        // TODO emit event
+        emit ProfitAdded(profit, escrowInfo.accProfitPerShare);
     }
 
     function deposit(address account, uint256 amount) external {
         if (amount == 0) revert Errors.zeroAmountProvided();
         if (account == address(0)) revert Errors.zeroAddressProvided();
-        _onlyCaller();
+        _onlyController();
 
         EscrowInfo memory escrowInfo = _escrowInfo;
         UserInfo memory tempUserInfo = userInfo[account];
 
+        // When the user deposits principal, `rewardDebt` increases to account for the profits that have already been
+        // accrued per share but were not contributed by the newly deposited amount. This ensures that when profits
+        // are distributed, users can only claim profits generated while their principal was actively contributing
+        // to the pool.
         tempUserInfo.rewardDebt += int96(
-            int256((amount * escrowInfo.accRewardPerShare) / DEFAULT_DECIMALS_FACTOR)
+            int256((amount * escrowInfo.accProfitPerShare) / DEFAULT_DECIMALS_FACTOR)
         );
         tempUserInfo.amount += uint96(amount);
         userInfo[account] = tempUserInfo;
 
-        escrowInfo.totalShares += uint96(amount);
+        escrowInfo.totalAmount += uint96(amount);
         _escrowInfo = escrowInfo;
 
-        // TODO emit event
+        emit PrincipalDeposited(account, amount);
     }
 
     function withdraw(address account, uint256 amount) external {
         if (amount == 0) revert Errors.zeroAmountProvided();
         if (account == address(0)) revert Errors.zeroAddressProvided();
-        _onlyCaller();
+        _onlyController();
 
         EscrowInfo memory escrowInfo = _escrowInfo;
         UserInfo memory tempUserInfo = userInfo[account];
+        if (amount > tempUserInfo.amount) revert Errors.withdrawnAmountHigherThanBalance();
 
-        // Effects
+        // When the user withdraws principal, `rewardDebt` decreases to account for the profits generated while
+        // the principal was in the pool but have not yet been claimed. This adjustment ensures that the user can
+        // claim the correct amount of profits when they call the claim function.
+        // Note that `rewardDebt` can become negative here if the user withdraws principal before claiming
+        // their profits. The negative value indicates that the user's principal had not contributed to the generation
+        // of some of the profits they are entitled to claim. This acts as a correction mechanism to ensure that the
+        // user's claimable profits are adjusted accordingly.
         tempUserInfo.rewardDebt -= int96(
-            int256((amount * escrowInfo.accRewardPerShare) / DEFAULT_DECIMALS_FACTOR)
+            int256((amount * escrowInfo.accProfitPerShare) / DEFAULT_DECIMALS_FACTOR)
         );
         tempUserInfo.amount -= uint96(amount);
         userInfo[account] = tempUserInfo;
 
-        escrowInfo.totalShares -= uint96(amount);
+        escrowInfo.totalAmount -= uint96(amount);
         _escrowInfo = escrowInfo;
 
-        // TODO emit event
+        emit PrincipalWithdrawn(account, amount);
     }
 
     function claim(uint256 amount) external {
@@ -97,19 +113,21 @@ contract ProfitEscrow is PoolConfigCache, ProfitEscrowStorage, IProfitEscrow {
         EscrowInfo memory escrowInfo = _escrowInfo;
         UserInfo memory tempUserInfo = userInfo[msg.sender];
 
-        uint256 tempClaimable = uint256(
+        uint256 amountClaimable = uint256(
             int256(
-                (tempUserInfo.amount * escrowInfo.accRewardPerShare) / DEFAULT_DECIMALS_FACTOR
+                (tempUserInfo.amount * escrowInfo.accProfitPerShare) / DEFAULT_DECIMALS_FACTOR
             ) - tempUserInfo.rewardDebt
         );
-        if (amount > tempClaimable) revert Errors.todo();
+        if (amount > amountClaimable) revert Errors.todo();
 
+        // `rewardDebt` decreases in value here when profits are claimed to prevent users from claiming the
+        // same profits multiple times.
         tempUserInfo.rewardDebt += int96(int256(amount));
         userInfo[msg.sender] = tempUserInfo;
 
         poolSafe.withdraw(msg.sender, amount);
 
-        // TODO emit event
+        emit ProfitClaimed(msg.sender, amount);
     }
 
     function claimable(address account) external view returns (uint256) {
@@ -119,12 +137,12 @@ contract ProfitEscrow is PoolConfigCache, ProfitEscrowStorage, IProfitEscrow {
         return
             uint256(
                 int256(
-                    (tempUserInfo.amount * escrowInfo.accRewardPerShare) / DEFAULT_DECIMALS_FACTOR
+                    (tempUserInfo.amount * escrowInfo.accProfitPerShare) / DEFAULT_DECIMALS_FACTOR
                 ) - tempUserInfo.rewardDebt
             );
     }
 
-    function _onlyCaller() internal view {
-        if (msg.sender != caller) revert Errors.todo();
+    function _onlyController() internal view {
+        if (msg.sender != controller) revert Errors.todo();
     }
 }

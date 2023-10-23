@@ -10,15 +10,15 @@ import {
     PnLCalculator,
 } from "./BaseTest";
 import {
-    copyLPConfigWithOverrides,
+    getFirstLossCoverInfo,
     mineNextBlockWithTimestamp,
+    overrideLPConfig,
     setNextBlockTimestamp,
     toToken,
 } from "./TestUtils";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import {
     BaseCreditFeeManager,
-    BasePnLManager,
     Calendar,
     EpochManager,
     EvaluationAgentNFT,
@@ -65,8 +65,7 @@ let poolConfigContract: PoolConfig,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: MockPoolCredit,
-    creditFeeManagerContract: BaseCreditFeeManager,
-    creditPnlManagerContract: BasePnLManager;
+    creditFeeManagerContract: BaseCreditFeeManager;
 
 function checkRedemptionDisbursementInfo(
     // TODO(jiatu): find a way to get rid of the `any`
@@ -124,7 +123,6 @@ describe("TrancheVault Test", function () {
             juniorTrancheVaultContract,
             creditContract as unknown,
             creditFeeManagerContract,
-            creditPnlManagerContract,
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
@@ -385,17 +383,15 @@ describe("TrancheVault Test", function () {
                 const initialJuniorShares = await juniorTrancheVaultContract.totalSupply();
                 const initialSeniorShares = await seniorTrancheVaultContract.totalSupply();
 
-                // Distribute profit in the pool so that LP tokens increase in value.
+                // Distribute profit, loss and loss recovery in the pool so that LP tokens changes in value.
                 await creditContract.setRefreshPnLReturns(profit, loss, lossRecovery);
                 await poolConfigContract
                     .connect(poolOwner)
                     .setEpochManager(defaultDeployer.address);
                 const adjustment = 8000;
-                const lpConfig = await poolConfigContract.getLPConfig();
-                const newLpConfig = copyLPConfigWithOverrides(lpConfig, {
+                await overrideLPConfig(poolConfigContract, poolOwner, {
                     tranchesRiskAdjustmentInBps: adjustment,
                 });
-                await poolConfigContract.connect(poolOwner).setLPConfig(newLpConfig);
 
                 const assetInfo = await poolContract.tranchesAssets();
                 const assets = [
@@ -403,40 +399,22 @@ describe("TrancheVault Test", function () {
                     assetInfo[CONSTANTS.JUNIOR_TRANCHE],
                 ];
                 const profitAfterFees =
-                    await poolFeeManagerContract.calcPlatformFeeDistribution(profit);
-                const assetsWithProfits = PnLCalculator.calcProfitForRiskAdjustedPolicy(
-                    profitAfterFees,
-                    assets,
-                    BN.from(adjustment),
-                );
-                const firstLossCoverTotalAssets = await Promise.all(
+                    await poolFeeManagerContract.calcPoolFeeDistribution(profit);
+                const firstLossCoverInfos = await Promise.all(
                     [borrowerFirstLossCoverContract, affiliateFirstLossCoverContract].map(
-                        async (contract) => await contract.totalAssets(),
+                        async (contract) =>
+                            await getFirstLossCoverInfo(contract, poolConfigContract),
                     ),
                 );
-                const riskYieldMultipliers = await poolConfigContract.getRiskYieldMultipliers();
-                const [juniorProfitAfterFirstLossCoverProfitDistribution] =
-                    PnLCalculator.calcProfitForFirstLossCovers(
-                        assetsWithProfits[CONSTANTS.JUNIOR_TRANCHE].sub(
-                            assets[CONSTANTS.JUNIOR_TRANCHE],
-                        ),
-                        assets[CONSTANTS.JUNIOR_TRANCHE],
-                        firstLossCoverTotalAssets,
-                        riskYieldMultipliers,
+                const [[seniorAssets, juniorAssets]] =
+                    await PnLCalculator.calcRiskAdjustedProfitAndLoss(
+                        profitAfterFees,
+                        loss,
+                        lossRecovery,
+                        assets,
+                        BN.from(adjustment),
+                        firstLossCoverInfos,
                     );
-                const [assetsWithLosses, losses] = PnLCalculator.calcLoss(loss, [
-                    assetsWithProfits[CONSTANTS.SENIOR_TRANCHE],
-                    assets[CONSTANTS.JUNIOR_TRANCHE].add(
-                        juniorProfitAfterFirstLossCoverProfitDistribution,
-                    ),
-                ]);
-                const [, assetsWithRecovery] = PnLCalculator.calcLossRecovery(
-                    lossRecovery,
-                    assetsWithLosses,
-                    losses,
-                );
-                const seniorAssets = assetsWithRecovery[CONSTANTS.SENIOR_TRANCHE],
-                    juniorAssets = assetsWithRecovery[CONSTANTS.JUNIOR_TRANCHE];
 
                 // Make a second round of deposits to make sure the LP token price has increased
                 // and the correct number of tokens are minted.
@@ -1192,7 +1170,7 @@ describe("TrancheVault Test", function () {
 
                 // Move all assets out of pool safe
 
-                let availableAssets = await poolSafeContract.totalAssets();
+                let availableAssets = await poolSafeContract.getPoolLiquidity();
                 await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
 
                 // Finish 1st epoch
@@ -1268,7 +1246,7 @@ describe("TrancheVault Test", function () {
                 // Move assets out of pool safe for partial processing
 
                 let availableAmount = toToken(1000);
-                let availableAssets = await poolSafeContract.totalAssets();
+                let availableAssets = await poolSafeContract.getPoolLiquidity();
                 await creditContract.drawdown(
                     ethers.constants.HashZero,
                     availableAssets.sub(availableAmount),
@@ -1572,7 +1550,7 @@ describe("TrancheVault Test", function () {
                 // Move all assets out of pool safe
 
                 let availableAmount = toToken(0);
-                let availableAssets = await poolSafeContract.totalAssets();
+                let availableAssets = await poolSafeContract.getPoolLiquidity();
                 await creditContract.drawdown(
                     ethers.constants.HashZero,
                     availableAssets.sub(availableAmount),
@@ -1675,7 +1653,7 @@ describe("TrancheVault Test", function () {
                 // Move assets out of pool safe for partial processing
 
                 let availableAmount = toToken(1000);
-                let availableAssets = await poolSafeContract.totalAssets();
+                let availableAssets = await poolSafeContract.getPoolLiquidity();
                 await creditContract.drawdown(
                     ethers.constants.HashZero,
                     availableAssets.sub(availableAmount),
@@ -1715,7 +1693,7 @@ describe("TrancheVault Test", function () {
                 // Move assets out of pool safe for partial processing
 
                 let availableAmount = toToken(1000);
-                let availableAssets = await poolSafeContract.totalAssets();
+                let availableAssets = await poolSafeContract.getPoolLiquidity();
                 await creditContract.drawdown(
                     ethers.constants.HashZero,
                     availableAssets.sub(availableAmount),

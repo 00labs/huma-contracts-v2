@@ -1,51 +1,37 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {CalendarUnit} from "./SharedDefs.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IPoolFeeManager} from "./interfaces/IPoolFeeManager.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IFirstLossCover} from "./interfaces/IFirstLossCover.sol";
-
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "./SharedDefs.sol";
-
+import {AFFILIATE_FIRST_LOSS_COVER_INDEX, HUNDRED_PERCENT_IN_BPS, JUNIOR_TRANCHE, SENIOR_TRANCHE} from "./SharedDefs.sol";
 import {HumaConfig} from "./HumaConfig.sol";
 import {Errors} from "./Errors.sol";
-
-//import "hardhat/console.sol";
 
 struct PoolSettings {
     // The maximum credit line for a borrower in terms of the amount of poolTokens
     uint96 maxCreditLine;
-    // calendarType and numPerPeriod are used together to measure the duration
-    // of a pay period. For example, 14 days, 1 month.
-    CalendarUnit calendarUnit;
-    // This field is the pay period in terms of calendar units for borrowers
-    // and the duration of an epoch for lender redemptions.
-    uint8 payPeriodInCalendarUnit;
+    // The number of months in one pay period
+    uint8 payPeriodInMonths;
     // The duration of a credit line without an initial drawdown
     uint16 creditApprovalExpirationInDays;
     // The grace period before a late fee can be charged, in the unit of number of days
     uint8 latePaymentGracePeriodInDays;
-    // The grace period before a default can be triggered, in the unit of the pool's CalendarUnit
-    uint16 defaultGracePeriodInCalendarUnit;
+    // The grace period before a default can be triggered, in months. This can be 0.
+    uint16 defaultGracePeriodInMonths;
     // Percentage (in basis points) of the receivable amount applied towards available credit
     uint16 receivableRequiredInBps;
     // Specifies the max credit line as a percentage (in basis points) of the receivable amount.
     // E.g., for a receivable of $100 with an advance rate of 9000 bps, the credit line can be up to $90.
     uint16 advanceRateInBps;
-    // The duration between a capital withdrawal request and capital availability, in the unit of epochs.
-    // For example, if flexCallWindowInEpoch = 2, then a withdrawal request will be processed 2 epochs from now.
-    uint8 flexCallWindowInEpochs;
     // Whether the pool is exclusive to one borrower
     bool singleBorrower;
     // Whether the dues are combined into one credit if the borrower has multiple receivables
     bool singleCreditPerBorrower;
-    // Whether flexCredit is enabled
-    bool flexCreditEnabled;
 }
 
 /**
@@ -70,7 +56,7 @@ struct LPConfig {
     // The max liquidity allowed for the pool.
     uint96 liquidityCap;
     // How long a lender has to wait after the last deposit before they can withdraw
-    uint8 withdrawalLockoutInCalendarUnit;
+    uint8 withdrawalLockoutInMonths;
     // The upper bound of senior-to-junior ratio allowed
     uint8 maxSeniorJuniorRatio;
     // The fixed yield for senior tranche. Either this or tranchesRiskAdjustmentInBps is non-zero
@@ -99,6 +85,21 @@ struct FeeStructure {
     uint96 membershipFee;
 }
 
+struct FirstLossCoverConfig {
+    // The percentage of a default to be paid by the first loss cover
+    uint16 coverRateInBps;
+    // The max amount that first loss cover can spend on one default
+    uint96 coverCap;
+    // The max liquidity allowed for the first loss cover
+    uint96 liquidityCap;
+    // The max percent of pool assets that first loss cover can reach
+    uint16 maxPercentOfPoolValueInBps;
+    // riskYieldMultiplier is used to adjust the yield of the first loss covers relative to each other.
+    // The higher the multiplier, the higher the yield the first loss cover will get during profit distribution
+    // compared to other first loss covers.
+    uint16 riskYieldMultiplier;
+}
+
 interface ITrancheVaultLike {
     function totalAssetsOf(address account) external view returns (uint256 assets);
 }
@@ -121,7 +122,6 @@ contract PoolConfig is AccessControl, Initializable {
     address public calendar;
 
     address public creditFeeManager;
-    address public creditPnLManager;
 
     HumaConfig public humaConfig;
 
@@ -134,13 +134,9 @@ contract PoolConfig is AccessControl, Initializable {
 
     // The maximum number of first loss covers we allow is 16, which should be sufficient for now.
     address[16] internal _firstLossCovers;
-    // _riskYieldMultipliers is used to adjust the yield of the first loss covers relative to each other.
-    // The higher the multiplier, the higher the yield the first loss cover will get during profit distribution
-    // compared to other first loss covers. Each element in this array is the multiplier of the first loss cover
-    // at the corresponding index in _firstLossCovers. Note that The entire array occupies just one slot.
-    uint16[16] internal _riskYieldMultipliers;
     // first loss cover address => profit escrow address
     mapping(address => address) internal _profitEscrowByFirstLossCover;
+    mapping(address => FirstLossCoverConfig) internal _firstLossCoverConfigs;
 
     PoolSettings internal _poolSettings;
     LPConfig internal _lpConfig;
@@ -158,7 +154,7 @@ contract PoolConfig is AccessControl, Initializable {
     event CreditApprovalExpirationChanged(uint256 durationInDays, address by);
     event LatePaymentGracePeriodChanged(uint256 gracePeriodInDays, address by);
     event EARewardsAndLiquidityChanged(
-        uint256 rewardsRate,
+        uint256 rewardRate,
         uint256 liquidityRate,
         address indexed by
     );
@@ -169,12 +165,12 @@ contract PoolConfig is AccessControl, Initializable {
 
     event MaxCreditLineChanged(uint256 maxCreditLine, address by);
     event PoolChanged(address pool, address by);
-    event PoolDefaultGracePeriodChanged(CalendarUnit unit, uint256 gracePeriodInDays, address by);
+    event PoolDefaultGracePeriodChanged(uint256 gracePeriodInMonths, address by);
     event PoolLiquidityCapChanged(uint256 liquidityCap, address by);
-    event PoolPayPeriodChanged(CalendarUnit unit, uint256 number, address by);
+    event PoolPayPeriodChanged(uint256 number, address by);
     event PoolNameChanged(string name, address by);
     event PoolOwnerRewardsAndLiquidityChanged(
-        uint256 rewardsRate,
+        uint256 rewardRate,
         uint256 liquidityRate,
         address indexed by
     );
@@ -186,7 +182,17 @@ contract PoolConfig is AccessControl, Initializable {
     event TranchesPolicyChanged(address tranchesPolicy, address by);
     event EpochManagerChanged(address epochManager, address by);
     event CreditChanged(address credit, address by);
-    event FirstLossCoversChanged(address[] firstLossCovers, address by);
+    event FirstLossCoverChanged(
+        uint8 index,
+        address firstLossCover,
+        uint16 coverRateInBps,
+        uint96 coverCap,
+        uint96 liquidityCap,
+        uint16 maxPercentOfPoolValueInBps,
+        uint16 riskYieldMultiplier,
+        address profitEscrow,
+        address by
+    );
     event CalendarChanged(address calendar, address by);
     event ReceivableAssetChanged(address receivableAsset, address by);
 
@@ -194,16 +200,12 @@ contract PoolConfig is AccessControl, Initializable {
     event ProtocolRewardsWithdrawn(address receiver, uint256 amount, address by);
     event ReceivableRequiredInBpsChanged(uint256 receivableRequiredInBps, address by);
     event AdvanceRateInBpsChanged(uint256 advanceRateInBps, address by);
-    event WithdrawalLockoutPeriodChanged(
-        CalendarUnit unit,
-        uint256 lockoutPeriodInDays,
-        address by
-    );
+    event WithdrawalLockoutPeriodChanged(uint256 lockoutPeriodInMonths, address by);
 
     event LPConfigChanged(
         bool permissioned,
         uint96 liquidityCap,
-        uint8 withdrawalLockoutInCalendarUnit,
+        uint8 withdrawalLockoutInMonths,
         uint8 maxSeniorJuniorRatio,
         uint16 fixedSeniorYieldInBps,
         uint16 tranchesRiskAdjustmentInBps,
@@ -243,7 +245,6 @@ contract PoolConfig is AccessControl, Initializable {
      *   _contracts[9]: address of juniorTranche
      *   _contracts[10]: address of credit
      *   _contracts[11]: address of creditFeeManager
-     *   _contracts[12]: address of creditPnLManager
      */
 
     function initialize(
@@ -303,20 +304,15 @@ contract PoolConfig is AccessControl, Initializable {
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         creditFeeManager = addr;
 
-        addr = _contracts[12];
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
-        creditPnLManager = addr;
-
         // Default values for the pool configurations. The pool owners are expected to reset
         // these values when setting up the pools. Setting these default values to avoid
         // strange behaviors when the pool owner missed setting up these configurations.
         PoolSettings memory tempPoolSettings = _poolSettings;
-        tempPoolSettings.calendarUnit = CalendarUnit.Month;
-        tempPoolSettings.payPeriodInCalendarUnit = 1; // 1 month
+        tempPoolSettings.payPeriodInMonths = 1; // 1 month
         tempPoolSettings.receivableRequiredInBps = 10000; // 100%
         tempPoolSettings.advanceRateInBps = 8000; // 80%
         tempPoolSettings.latePaymentGracePeriodInDays = 5;
-        tempPoolSettings.defaultGracePeriodInCalendarUnit = 3; // 3 months
+        tempPoolSettings.defaultGracePeriodInMonths = 3; // 3 months
         _poolSettings = tempPoolSettings;
 
         AdminRnR memory adminRnRConfig = _adminRnR;
@@ -367,24 +363,36 @@ contract PoolConfig is AccessControl, Initializable {
         emit LatePaymentGracePeriodChanged(gracePeriodInDays, msg.sender);
     }
 
-    function setPoolOwnerRewardsAndLiquidity(uint256 rewardsRate, uint256 liquidityRate) external {
+    function setPoolOwnerRewardsAndLiquidity(uint256 rewardRate, uint256 liquidityRate) external {
         _onlyOwnerOrHumaMasterAdmin();
-        if (rewardsRate > HUNDRED_PERCENT_IN_BPS || liquidityRate > HUNDRED_PERCENT_IN_BPS)
+        if (rewardRate > HUNDRED_PERCENT_IN_BPS || liquidityRate > HUNDRED_PERCENT_IN_BPS)
             revert Errors.invalidBasisPointHigherThan10000();
+        AdminRnR memory tempAdminRnR = _adminRnR;
+        if (rewardRate + tempAdminRnR.rewardRateInBpsForEA > HUNDRED_PERCENT_IN_BPS) {
+            // Since we split the profit between the pool owner and EA, their combined reward rate cannot exceed 100%.
+            revert Errors.adminRewardRateTooHigh();
+        }
 
-        _adminRnR.rewardRateInBpsForPoolOwner = uint16(rewardsRate);
-        _adminRnR.liquidityRateInBpsByPoolOwner = uint16(liquidityRate);
-        emit PoolOwnerRewardsAndLiquidityChanged(rewardsRate, liquidityRate, msg.sender);
+        tempAdminRnR.rewardRateInBpsForPoolOwner = uint16(rewardRate);
+        tempAdminRnR.liquidityRateInBpsByPoolOwner = uint16(liquidityRate);
+        _adminRnR = tempAdminRnR;
+        emit PoolOwnerRewardsAndLiquidityChanged(rewardRate, liquidityRate, msg.sender);
     }
 
-    function setEARewardsAndLiquidity(uint256 rewardsRate, uint256 liquidityRate) external {
+    function setEARewardsAndLiquidity(uint256 rewardRate, uint256 liquidityRate) external {
         _onlyOwnerOrHumaMasterAdmin();
-
-        if (rewardsRate > HUNDRED_PERCENT_IN_BPS || liquidityRate > HUNDRED_PERCENT_IN_BPS)
+        if (rewardRate > HUNDRED_PERCENT_IN_BPS || liquidityRate > HUNDRED_PERCENT_IN_BPS)
             revert Errors.invalidBasisPointHigherThan10000();
-        _adminRnR.rewardRateInBpsForEA = uint16(rewardsRate);
-        _adminRnR.liquidityRateInBpsByEA = uint16(liquidityRate);
-        emit EARewardsAndLiquidityChanged(rewardsRate, liquidityRate, msg.sender);
+        AdminRnR memory tempAdminRnR = _adminRnR;
+        if (rewardRate + tempAdminRnR.rewardRateInBpsForPoolOwner > HUNDRED_PERCENT_IN_BPS) {
+            // Since we split the profit between the pool owner and EA, their combined reward rate cannot exceed 100%.
+            revert Errors.adminRewardRateTooHigh();
+        }
+
+        tempAdminRnR.rewardRateInBpsForEA = uint16(rewardRate);
+        tempAdminRnR.liquidityRateInBpsByEA = uint16(liquidityRate);
+        _adminRnR = tempAdminRnR;
+        emit EARewardsAndLiquidityChanged(rewardRate, liquidityRate, msg.sender);
     }
 
     /**
@@ -465,11 +473,10 @@ contract PoolConfig is AccessControl, Initializable {
      * Sets the default grace period for this pool.
      * @param gracePeriod the desired grace period in days.
      */
-    function setPoolDefaultGracePeriod(CalendarUnit unit, uint256 gracePeriod) external {
+    function setPoolDefaultGracePeriod(uint256 gracePeriod) external {
         _onlyOwnerOrHumaMasterAdmin();
-        if (unit != _poolSettings.calendarUnit) revert Errors.invalidCalendarUnit();
-        _poolSettings.defaultGracePeriodInCalendarUnit = uint16(gracePeriod);
-        emit PoolDefaultGracePeriodChanged(unit, gracePeriod, msg.sender);
+        _poolSettings.defaultGracePeriodInMonths = uint16(gracePeriod);
+        emit PoolDefaultGracePeriodChanged(gracePeriod, msg.sender);
     }
 
     /**
@@ -483,24 +490,13 @@ contract PoolConfig is AccessControl, Initializable {
         emit PoolLiquidityCapChanged(liquidityCap, msg.sender);
     }
 
-    function setPoolPayPeriod(CalendarUnit unit, uint256 number) external {
+    function setPoolPayPeriod(uint256 number) external {
         _onlyOwnerOrHumaMasterAdmin();
         if (number == 0) revert Errors.zeroAmountProvided();
         PoolSettings memory _settings = _poolSettings;
-        _settings.calendarUnit = unit;
-        _settings.payPeriodInCalendarUnit = uint8(number);
+        _settings.payPeriodInMonths = uint8(number);
         _poolSettings = _settings;
-        emit PoolPayPeriodChanged(unit, number, msg.sender);
-    }
-
-    function setPoolFlexCall(bool enabled, uint256 windowInEpoch) external {
-        _onlyOwnerOrHumaMasterAdmin();
-        if (windowInEpoch == 0) revert Errors.zeroAmountProvided();
-        PoolSettings memory _settings = _poolSettings;
-        _settings.flexCreditEnabled = enabled;
-        _settings.flexCallWindowInEpochs = uint8(windowInEpoch);
-        _poolSettings = _settings;
-        emit PoolFlexCallChanged(enabled, windowInEpoch, msg.sender);
+        emit PoolPayPeriodChanged(number, msg.sender);
     }
 
     /**
@@ -563,17 +559,29 @@ contract PoolConfig is AccessControl, Initializable {
         emit CreditChanged(_credit, msg.sender);
     }
 
+    //* todo passing the parameter inside the struct instead of the struct itself.
     function setFirstLossCover(
         uint8 index,
         address firstLossCover,
-        uint16 riskYieldMultiplier,
+        FirstLossCoverConfig memory config,
         address profitEscrow
     ) external {
         _onlyOwnerOrHumaMasterAdmin();
         _firstLossCovers[index] = firstLossCover;
-        _riskYieldMultipliers[index] = riskYieldMultiplier;
         _profitEscrowByFirstLossCover[firstLossCover] = profitEscrow;
-        // todo emit event
+        _firstLossCoverConfigs[firstLossCover] = config;
+
+        emit FirstLossCoverChanged(
+            index,
+            firstLossCover,
+            config.coverRateInBps,
+            config.coverCap,
+            config.liquidityCap,
+            config.maxPercentOfPoolValueInBps,
+            config.riskYieldMultiplier,
+            profitEscrow,
+            msg.sender
+        );
     }
 
     function setCalendar(address _calendar) external {
@@ -622,11 +630,10 @@ contract PoolConfig is AccessControl, Initializable {
      * Sets withdrawal lockout period after the lender makes the last deposit
      * @param lockoutPeriod the lockout period in terms of days
      */
-    function setWithdrawalLockoutPeriod(CalendarUnit unit, uint256 lockoutPeriod) external {
+    function setWithdrawalLockoutPeriod(uint256 lockoutPeriod) external {
         _onlyOwnerOrHumaMasterAdmin();
-        if (unit != _poolSettings.calendarUnit) revert Errors.invalidCalendarUnit();
-        _lpConfig.withdrawalLockoutInCalendarUnit = uint8(lockoutPeriod);
-        emit WithdrawalLockoutPeriodChanged(unit, lockoutPeriod, msg.sender);
+        _lpConfig.withdrawalLockoutInMonths = uint8(lockoutPeriod);
+        emit WithdrawalLockoutPeriodChanged(lockoutPeriod, msg.sender);
     }
 
     function setLPConfig(LPConfig calldata lpConfig) external {
@@ -635,7 +642,7 @@ contract PoolConfig is AccessControl, Initializable {
         emit LPConfigChanged(
             lpConfig.permissioned,
             lpConfig.liquidityCap,
-            lpConfig.withdrawalLockoutInCalendarUnit,
+            lpConfig.withdrawalLockoutInMonths,
             lpConfig.maxSeniorJuniorRatio,
             lpConfig.fixedSeniorYieldInBps,
             lpConfig.tranchesRiskAdjustmentInBps,
@@ -760,7 +767,7 @@ contract PoolConfig is AccessControl, Initializable {
         return (
             address(underlyingToken),
             _feeStructure.yieldInBps,
-            _poolSettings.payPeriodInCalendarUnit,
+            _poolSettings.payPeriodInMonths,
             _poolSettings.maxCreditLine,
             _lpConfig.liquidityCap,
             erc20Contract.name(),
@@ -787,8 +794,10 @@ contract PoolConfig is AccessControl, Initializable {
         return _firstLossCovers[index];
     }
 
-    function getRiskYieldMultipliers() external view returns (uint16[16] memory) {
-        return _riskYieldMultipliers;
+    function getFirstLossCoverConfig(
+        address firstLossCover
+    ) external view returns (FirstLossCoverConfig memory) {
+        return _firstLossCoverConfigs[firstLossCover];
     }
 
     function getFirstLossCoverProfitEscrow(
@@ -887,7 +896,7 @@ contract PoolConfig is AccessControl, Initializable {
         if (account != pool) revert Errors.notPool();
     }
 
-    function onlyTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManager(
+    function onlyTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManagerOrProfitEscrow(
         address account
     ) external view {
         bool valid;
@@ -899,17 +908,38 @@ contract PoolConfig is AccessControl, Initializable {
         ) return;
         uint256 len = _firstLossCovers.length;
         // console.log("account: %s, len: %s", account, len);
-        for (uint256 i; i < len; i++) {
+        for (uint256 i = 0; i < len; i++) {
             // console.log("i: %s, _firstLossCovers[i]: %s", i, address(_firstLossCovers[i]));
-            if (account == address(_firstLossCovers[i])) return;
+            address firstLossCoverAddr = address(_firstLossCovers[i]);
+            if (account == firstLossCoverAddr) return;
+            if (account == _profitEscrowByFirstLossCover[firstLossCoverAddr]) return;
         }
 
-        if (!valid) revert Errors.notTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManager();
+        if (!valid)
+            revert Errors.notTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManagerOrProfitEscrow();
     }
 
     function onlyTrancheVaultOrEpochManager(address account) external view {
         if (account != juniorTranche && account != seniorTranche && account != epochManager)
             revert Errors.notTrancheVaultOrEpochManager();
+    }
+
+    function onlyTrancheVaultOrEpochManagerOrPoolFeeManagerOrFirstLossCover(
+        address account
+    ) external view {
+        bool valid;
+        if (
+            account == seniorTranche ||
+            account == juniorTranche ||
+            account == epochManager ||
+            account == poolFeeManager
+        ) return;
+        uint256 numCovers = _firstLossCovers.length;
+        for (uint256 i; i < numCovers; i++) {
+            if (account == address(_firstLossCovers[i])) return;
+        }
+
+        if (!valid) revert Errors.notTrancheVaultOrEpochManagerOrPoolFeeManagerOrFirstLossCover();
     }
 
     function onlyProtocolAndPoolOn() external view {

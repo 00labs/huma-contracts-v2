@@ -2,92 +2,71 @@
 pragma solidity ^0.8.0;
 
 import "../SharedDefs.sol";
-import {ICalendar, CalendarUnit} from "./interfaces/ICalendar.sol";
+import {ICalendar} from "./interfaces/ICalendar.sol";
 
 import {BokkyPooBahsDateTimeLibrary as DTL} from "./utils/BokkyPooBahsDateTimeLibrary.sol";
 
 import "hardhat/console.sol";
 
+//* todo change periodDuration to an enum {Monthly, Quarterly, SemiAnnually}
 contract Calendar is ICalendar {
-    function getStartOfToday() external view returns (uint256 today) {}
+    /// @inheritdoc ICalendar
+    function getStartOfNextMonth() external view returns (uint256 startOfNextMonth) {
+        uint256 startOfMonth = getStartOfThisMonth();
+        startOfNextMonth = DTL.addMonths(startOfMonth, 1);
+        return startOfNextMonth;
+    }
 
-    function getStartOfNextDay() external view returns (uint256 nextDay) {}
+    /// @inheritdoc ICalendar
+    function getStartOfNextQuarter() external view returns (uint256 startOfNextQuarter) {
+        (uint256 year, uint256 month, ) = DTL.timestampToDate(block.timestamp);
+        uint256 quarter = (month - 1) / 3 + 1;
+        if (quarter == 4) {
+            year++;
+            quarter = 1;
+        } else quarter++;
 
-    function getStartOfNextMonth() external view returns (uint256 nextDay) {}
+        startOfNextQuarter = DTL.timestampFromDate(year, quarter, 1);
+        return startOfNextQuarter;
+    }
 
-    function getStartOfNextQuarter() external view returns (uint256 nextDay) {}
+    /// @inheritdoc ICalendar
+    function getStartOfThisMonth() public view returns (uint256 startOfMonth) {
+        (uint256 year, uint256 month, ) = DTL.timestampToDate(block.timestamp);
+        startOfMonth = DTL.timestampFromDate(year, month, 1);
+        return startOfMonth;
+    }
 
+    /// @inheritdoc ICalendar
+    function getStartOfThisQuarter() external view returns (uint256 startOfQuarter) {
+        (uint256 year, uint256 month, ) = DTL.timestampToDate(block.timestamp);
+        startOfQuarter = DTL.timestampFromDate(year, (month - 1) / 3 + 1, 1);
+        return startOfQuarter;
+    }
+
+    /// @inheritdoc ICalendar
+    function getStartOfToday() external view returns (uint256 startOfToday) {
+        (uint256 year, uint256 month, uint256 day) = DTL.timestampToDate(block.timestamp);
+        startOfToday = DTL.timestampFromDate(year, month, day);
+        return startOfToday;
+    }
+
+    /// @inheritdoc ICalendar
     function getStartDateOfPeriod(
-        CalendarUnit unit,
         uint256 periodDuration,
         uint256 periodEndDate
     ) external pure returns (uint256 startDate) {
-        if (unit == CalendarUnit.Day) {
-            return DTL.subDays(periodEndDate, periodDuration);
-        } else if (unit == CalendarUnit.Month) {
-            return DTL.subMonths(periodEndDate, periodDuration);
-        }
+        //* todo This implementation is not right. For quarterly, periodDuration=3,
+        // if it is 2/1/xxxx, startDateOfPeriod should be 1/1/xxxx, instead of
+        // going back 3 months. Need to check if we really this function and fix.
+        return DTL.subMonths(periodEndDate, periodDuration);
     }
 
-    /**
-     * @notice Gets the immediate next due date following lastDueDate. If multiple periods have
-     * passed since lastDueDate, this function returns the due date that is only one period after
-     * lastDueDate. In contract, getNextDueDate() gets the next due date based on block.timestamp.
-     */
+    /// @inheritdoc ICalendar
     function getNextPeriod(
-        CalendarUnit unit,
         uint256 periodDuration,
         uint256 lastDueDate
-    ) external view returns (uint256 dueDateInNextPeriod) {
-        if (unit == CalendarUnit.Day) {
-            return getNextPeriodInDays(periodDuration, lastDueDate);
-        } else if (unit == CalendarUnit.Month) {
-            return getNextPeriodInMonths(periodDuration, lastDueDate);
-        }
-    }
-
-    function getBeginOfPeriod(
-        CalendarUnit unit,
-        uint256 periodDuration,
-        uint256 lastDueDate
-    ) external view returns (uint256 dueDate, uint256 numberOfPeriodsPassed) {
-        if (unit == CalendarUnit.Day) {
-            return getDueDateInDays(periodDuration, lastDueDate, false);
-        } else if (unit == CalendarUnit.Month) {
-            return getDueDateInMonths(periodDuration, lastDueDate, false);
-        }
-    }
-
-    function getNextDueDate(
-        CalendarUnit unit,
-        uint256 periodDuration,
-        uint256 lastDueDate
-    ) external view returns (uint256 dueDate, uint256 numberOfPeriodsPassed) {
-        if (unit == CalendarUnit.Day) {
-            return getDueDateInDays(periodDuration, lastDueDate, true);
-        } else if (unit == CalendarUnit.Month) {
-            return getDueDateInMonths(periodDuration, lastDueDate, true);
-        }
-    }
-
-    function getNextPeriodInDays(
-        uint256 periodDuration,
-        uint256 lastDueDate
-    ) internal view returns (uint256 nextDueDate) {
-        uint256 dayCount;
-        if (lastDueDate == 0) {
-            (uint256 year, uint256 month, uint256 day) = DTL.timestampToDate(block.timestamp);
-            lastDueDate = DTL.timestampFromDate(year, month, day);
-            dayCount = 1;
-        }
-        dayCount += periodDuration;
-        nextDueDate = DTL.addDays(lastDueDate, dayCount);
-    }
-
-    function getNextPeriodInMonths(
-        uint256 periodDuration,
-        uint256 lastDueDate
-    ) internal view returns (uint256 nextDueDate) {
+    ) external view returns (uint256 nextDueDate) {
         uint256 monthCount;
         if (lastDueDate == 0) {
             (uint256 year, uint256 month, ) = DTL.timestampToDate(block.timestamp);
@@ -98,32 +77,16 @@ contract Calendar is ICalendar {
         nextDueDate = DTL.addMonths(lastDueDate, monthCount);
     }
 
-    function getDueDateInDays(
+    /// @inheritdoc ICalendar
+    function getNextDueDate(
         uint256 periodDuration,
-        uint256 lastDueDate,
-        bool isNext
-    ) internal view returns (uint256 dueDate, uint256 numberOfPeriodsPassed) {
-        uint256 dayCount;
-        if (lastDueDate == 0) {
-            (uint256 year, uint256 month, uint256 day) = DTL.timestampToDate(block.timestamp);
-            lastDueDate = DTL.timestampFromDate(year, month, day);
-            dayCount = 1;
-        } else {
-            numberOfPeriodsPassed = DTL.diffDays(lastDueDate, block.timestamp) / periodDuration;
-        }
-        if (isNext) dayCount += (numberOfPeriodsPassed + 1) * periodDuration;
-        else dayCount += numberOfPeriodsPassed * periodDuration;
-        dueDate = DTL.addDays(lastDueDate, dayCount);
-    }
+        uint256 lastDueDate
+    ) external view returns (uint256 dueDate, uint256 numberOfPeriodsPassed) {
+        //* todo only need to support monthly, quarterly, and semi-annually. If the loan starts
+        // in the middle of a quarter, its next due is the beginning of the next quarter (Jan, Apr, Jul, or Oct)
+        // The final period will not be a full quarter. The due date will be the maturity date.
+        // Because of this logic, the API to get the next due date should be refined.
 
-    /**
-     * @param isNext whether to get the next due date. When it is false, returns the beginning of the current period.
-     */
-    function getDueDateInMonths(
-        uint256 periodDuration,
-        uint256 lastDueDate,
-        bool isNext
-    ) internal view returns (uint256 dueDate, uint256 numberOfPeriodsPassed) {
         uint256 monthCount;
         if (lastDueDate == 0) {
             (uint256 year, uint256 month, ) = DTL.timestampToDate(block.timestamp);
@@ -132,8 +95,7 @@ contract Calendar is ICalendar {
         } else {
             numberOfPeriodsPassed = DTL.diffMonths(lastDueDate, block.timestamp) / periodDuration;
         }
-        if (isNext) monthCount += (numberOfPeriodsPassed + 1) * periodDuration;
-        else monthCount += numberOfPeriodsPassed * periodDuration;
+        monthCount += (numberOfPeriodsPassed + 1) * periodDuration;
         dueDate = DTL.addMonths(lastDueDate, monthCount);
     }
 }

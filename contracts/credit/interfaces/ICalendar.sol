@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
-import {CalendarUnit} from "../CreditStructs.sol";
 
 /**
  * @notice ICalendar defines functions for date calculation
@@ -8,30 +7,44 @@ import {CalendarUnit} from "../CreditStructs.sol";
 
 interface ICalendar {
     /**
-     * @notice Get the beginning of today
-     */
-    function getStartOfToday() external view returns (uint256 today);
-
-    /**
-     * @notice Get the beginning of the next day
-     */
-    function getStartOfNextDay() external view returns (uint256 nextDay);
-
-    /**
      * @notice Get the beginning of the next month
      */
-    function getStartOfNextMonth() external view returns (uint256 nextDay);
+    function getStartOfNextMonth() external view returns (uint256 startOfNextMonth);
 
     /**
      * @notice Get the beginning of the next quarter
      */
-    function getStartOfNextQuarter() external view returns (uint256 nextDay);
+    function getStartOfNextQuarter() external view returns (uint256 nstartOfNextQuarterextDay);
+
+    /**
+     * @notice Get the beginning of this month
+     */
+    function getStartOfThisMonth() external view returns (uint256 startOfMonth);
+
+    /**
+     * @notice Get the beginning of this quarter
+     */
+    function getStartOfThisQuarter() external view returns (uint256 startOfQuarter);
+
+    /**
+     * @notice Get the beginning of today
+     */
+    function getStartOfToday() external view returns (uint256 startOfToday);
 
     function getStartDateOfPeriod(
-        CalendarUnit unit,
         uint256 periodDuration,
         uint256 periodEndDate
     ) external view returns (uint256 startDate);
+
+    /**
+     * @notice Gets the immediate next due date following lastDueDate. If multiple periods have
+     * passed since lastDueDate, this function returns the due date that is only one period after
+     * lastDueDate. In contract, getNextDueDate() gets the next due date based on block.timestamp.
+     */
+    function getNextPeriod(
+        uint256 periodDuration,
+        uint256 lastDueDate
+    ) external view returns (uint256 dueDateInNextPeriod);
 
     /**
      * @notice Get the next due date and the number of periods passed.
@@ -42,20 +55,7 @@ interface ICalendar {
      * @dev Timezone: always UTC
      */
     function getNextDueDate(
-        CalendarUnit unit,
         uint256 periodDuration,
         uint256 lastDueDate
     ) external view returns (uint256 dueDate, uint256 numberOfPeriodsPassed);
-
-    function getBeginOfPeriod(
-        CalendarUnit unit,
-        uint256 periodDuration,
-        uint256 lastDueDate
-    ) external view returns (uint256 dueDate, uint256 numberOfPeriodsPassed);
-
-    function getNextPeriod(
-        CalendarUnit unit,
-        uint256 periodDuration,
-        uint256 lastDueDate
-    ) external view returns (uint256 dueDateInNextPeriod);
 }

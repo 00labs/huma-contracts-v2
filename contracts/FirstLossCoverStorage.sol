@@ -7,21 +7,11 @@ import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import {IProfitEscrow} from "./interfaces/IProfitEscrow.sol";
 
 contract FirstLossCoverStorage {
-    //* todo should we combine these two structs?
-    struct LossCoverConfig {
+    struct LossCoverProviderConfig {
         // Percentage of the pool cap required to be covered by first loss cover
         uint16 poolCapCoverageInBps;
         // Percentage of the pool value required to be covered by first loss cover
         uint16 poolValueCoverageInBps;
-    }
-
-    struct LossCoverPayoutConfig {
-        // The percentage of a default to be paid by the first loss cover
-        uint16 coverRateInBps;
-        // The max amount that first loss cover can spend on one default
-        uint96 coverCap;
-        // The max liquidity allowed for the first loss cover
-        uint96 liquidityCap;
     }
 
     IPool public pool;
@@ -30,13 +20,10 @@ contract FirstLossCoverStorage {
     IProfitEscrow public profitEscrow;
 
     uint8 internal _decimals;
-    uint256 internal _coverAssets;
     // The cumulative amount of loss covered.
     uint256 public coveredLoss;
 
-    mapping(address => LossCoverConfig) internal operatorConfigs;
-    LossCoverConfig internal maxCoverConfig;
-    LossCoverPayoutConfig internal lossCoverPayoutConfig;
+    mapping(address => LossCoverProviderConfig) internal providerConfigs;
 
     uint256[100] private __gap;
 }

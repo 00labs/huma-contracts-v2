@@ -11,7 +11,7 @@ interface IPoolFeeManager {
     /**
      * @notice Returns the remaining profit after deducting various fees
      */
-    function calcPlatformFeeDistribution(uint256 profit) external view returns (uint256 remaining);
+    function calcPoolFeeDistribution(uint256 profit) external view returns (uint256 remaining);
 
     function withdrawProtocolFee(uint256 amount) external;
 
@@ -28,5 +28,8 @@ interface IPoolFeeManager {
             uint256 eaWithdrawable
         );
 
+    /**
+     * @notice Gets total available incomes, PoolSafe uses this function to reserve the balance of fees
+     */
     function getTotalAvailableFees() external view returns (uint256);
 }
