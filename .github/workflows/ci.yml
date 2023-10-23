@@ -16,6 +16,8 @@ jobs:
         with:
           node-version: "18"
       - uses: actions/checkout@v3
+      - name: Install dependencies
+        run: yarn install
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
@@ -25,8 +27,6 @@ jobs:
           forge --version
           forge build --sizes
         id: build
-      - name: Install dependencies
-        run: yarn install
       - name: Lint contracts
         run: yarn lint-solidity
       - name: Lint tests
