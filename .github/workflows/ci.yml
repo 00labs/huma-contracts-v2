@@ -25,7 +25,7 @@ jobs:
       - name: Run Forge build
         run: |
           forge --version
-          forge build
+          forge build --sizes
         id: build
       - name: Lint contracts
         run: yarn lint-solidity
@@ -44,7 +44,7 @@ jobs:
       - name: Run Forge build
         run: |
           forge --version
-          forge build
+          forge build --sizes
         id: build
       - name: Compile contracts
         run: yarn compile
