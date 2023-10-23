@@ -169,7 +169,7 @@ describe("PoolSafe Tests", function () {
                 poolSafeContract.connect(lender).deposit(lender.address, amount),
             ).to.be.revertedWithCustomError(
                 poolConfigContract,
-                "notTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManager",
+                "notTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManagerOrProfitEscrow",
             );
         });
     });
@@ -228,7 +228,7 @@ describe("PoolSafe Tests", function () {
                 poolSafeContract.connect(lender).withdraw(lender.address, amount),
             ).to.be.revertedWithCustomError(
                 poolConfigContract,
-                "notTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManager",
+                "notTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManagerOrProfitEscrow",
             );
         });
     });

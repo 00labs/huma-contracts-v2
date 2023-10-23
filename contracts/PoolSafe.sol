@@ -34,7 +34,9 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
 
     /// @inheritdoc IPoolSafe
     function deposit(address from, uint256 amount) external virtual {
-        poolConfig.onlyTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManager(msg.sender);
+        poolConfig.onlyTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManagerOrProfitEscrow(
+            msg.sender
+        );
 
         underlyingToken.transferFrom(from, address(this), amount);
     }
@@ -42,7 +44,9 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
     /// @inheritdoc IPoolSafe
     function withdraw(address to, uint256 amount) external virtual {
         if (to == address(0)) revert Errors.zeroAddressProvided();
-        poolConfig.onlyTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManager(msg.sender);
+        poolConfig.onlyTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManagerOrProfitEscrow(
+            msg.sender
+        );
 
         underlyingToken.transfer(to, amount);
     }
