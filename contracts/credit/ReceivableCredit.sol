@@ -64,7 +64,7 @@ contract ReceivableCredit is BaseCredit, IReceivableCredit {
         if (msg.sender != borrower) _onlyPDSServiceAccount();
         bytes32 creditHash = getCreditHash(receivableId);
         if (borrower != _creditBorrowerMap[creditHash]) revert Errors.notBorrower();
-        (amountPaid, paidoff, ) = _makePayment(borrower, creditHash, amount, false);
+        (amountPaid, paidoff, ) = _makePayment(borrower, creditHash, amount);
     }
 
     function refreshCredit(uint256 receivableId) external {

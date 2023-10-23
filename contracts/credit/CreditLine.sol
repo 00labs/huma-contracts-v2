@@ -111,7 +111,7 @@ contract CreditLine is BaseCredit, ICreditLine {
         if (msg.sender != borrower) _onlyPDSServiceAccount();
         bytes32 creditHash = getCreditHash(borrower);
         if (borrower != _creditBorrowerMap[creditHash]) revert Errors.notBorrower();
-        (amountPaid, paidoff, ) = _makePayment(borrower, creditHash, amount, false);
+        (amountPaid, paidoff, ) = _makePayment(borrower, creditHash, amount);
     }
 
     function makePrincipalPayment(
@@ -122,7 +122,7 @@ contract CreditLine is BaseCredit, ICreditLine {
         if (msg.sender != borrower) _onlyPDSServiceAccount();
         bytes32 creditHash = getCreditHash(borrower);
         if (borrower != _creditBorrowerMap[creditHash]) revert Errors.notBorrower();
-        (amountPaid, paidoff, ) = _makePayment(borrower, creditHash, amount, true);
+        (amountPaid, paidoff) = _makePrincipalPayment(borrower, creditHash, amount);
     }
 
     /**

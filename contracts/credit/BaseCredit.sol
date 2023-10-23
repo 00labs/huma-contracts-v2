@@ -450,8 +450,7 @@ abstract contract BaseCredit is Initializable, PoolConfigCache, BaseCreditStorag
     function _makePayment(
         address borrower,
         bytes32 creditHash,
-        uint256 amount,
-        bool principalOnly
+        uint256 amount
     ) internal returns (uint256 amountPaid, bool paidoff, bool isReviewRequired) {
         // TODO Borrowers cannot make payment for defaulted credits
         if (amount == 0) revert Errors.zeroAmountProvided();
@@ -468,85 +467,70 @@ abstract contract BaseCredit is Initializable, PoolConfigCache, BaseCreditStorag
         // The amount to collect from the payer.
         Payment memory p = Payment(0, 0, 0, 0, cr.state == CreditState.GoodStanding, false);
 
-        if (principalOnly) {
-            uint256 principalDue = cr.totalDue - cr.feesDue - cr.yieldDue;
-            uint256 totalPrincipal = principalDue + cr.unbilledPrincipal;
+        if (amount < payoffAmount) {
+            p.amountToCollect = uint96(amount);
+            if (amount < cr.totalDue) {
+                // process order - 1. fees, 2. yield, 3. principal
 
-            p.amountToCollect = amount < totalPrincipal ? uint96(amount) : uint96(totalPrincipal);
-            if (amount < principalDue) {
-                cr.totalDue = uint96(cr.totalDue - amount);
-            } else {
-                cr.totalDue = uint96(cr.totalDue - principalDue);
-                cr.unbilledPrincipal = uint96(
-                    cr.unbilledPrincipal - (p.amountToCollect - principalDue)
-                );
-            }
-        } else {
-            if (amount < payoffAmount) {
-                p.amountToCollect = uint96(amount);
-                if (amount < cr.totalDue) {
-                    // process order - 1. fees, 2. yield, 3. principal
+                uint256 principalDue = cr.totalDue - cr.feesDue - cr.yieldDue;
 
-                    uint256 principalDue = cr.totalDue - cr.feesDue - cr.yieldDue;
+                // Handle fee payment.
+                p.feesPaid = amount < cr.feesDue ? uint96(amount) : cr.feesDue;
+                cr.feesDue -= p.feesPaid;
+                amount -= p.feesPaid;
 
-                    // Handle fee payment.
-                    p.feesPaid = amount < cr.feesDue ? uint96(amount) : cr.feesDue;
-                    cr.feesDue -= p.feesPaid;
-                    amount -= p.feesPaid;
-
-                    // Handle yield payment.
-                    if (amount > 0) {
-                        p.yieldPaid = amount < cr.yieldDue ? uint96(amount) : cr.yieldDue;
-                        cr.yieldDue -= p.yieldPaid;
-                        amount -= p.yieldPaid;
-                    }
-
-                    // Handle principal payment.
-                    if (amount > 0) {
-                        p.principalPaid = (amount < principalDue)
-                            ? uint96(amount)
-                            : uint96(principalDue);
-                        amount -= p.principalPaid;
-                    }
-
-                    cr.totalDue = uint96(cr.totalDue - amount);
-
-                    _setCreditRecord(creditHash, cr);
-                } else {
-                    // Apply extra payments towards principal, reduce unbilledPrincipal amount
-                    p.principalPaid = uint96(amount - cr.feesDue - cr.yieldDue);
-                    p.feesPaid = cr.feesDue;
-                    p.yieldPaid = cr.yieldDue;
-                    cr.unbilledPrincipal -= uint96(amount - cr.totalDue);
-                    cr.totalDue = 0;
-                    cr.feesDue = 0;
-                    cr.yieldDue = 0;
-                    cr.missedPeriods = 0;
-                    // Moves account to GoodStanding if it was delayed.
-                    if (cr.state == CreditState.Delayed) cr.state = CreditState.GoodStanding;
-
-                    _setCreditRecord(creditHash, cr);
+                // Handle yield payment.
+                if (amount > 0) {
+                    p.yieldPaid = amount < cr.yieldDue ? uint96(amount) : cr.yieldDue;
+                    cr.yieldDue -= p.yieldPaid;
+                    amount -= p.yieldPaid;
                 }
-            } else {
-                // Payoff
-                p.principalPaid = cr.unbilledPrincipal + cr.totalDue - cr.feesDue - cr.yieldDue;
-                p.feesPaid = cr.feesDue;
-                p.yieldPaid = uint96(payoffAmount - p.principalPaid);
-                p.amountToCollect = uint96(payoffAmount);
 
-                cr.unbilledPrincipal = 0;
+                // Handle principal payment.
+                if (amount > 0) {
+                    p.principalPaid = (amount < principalDue)
+                        ? uint96(amount)
+                        : uint96(principalDue);
+                    amount -= p.principalPaid;
+                }
+
+                cr.totalDue = uint96(cr.totalDue - amount);
+
+                _setCreditRecord(creditHash, cr);
+            } else {
+                // Apply extra payments towards principal, reduce unbilledPrincipal amount
+                p.principalPaid = uint96(amount - cr.feesDue - cr.yieldDue);
+                p.feesPaid = cr.feesDue;
+                p.yieldPaid = cr.yieldDue;
+                cr.unbilledPrincipal -= uint96(amount - cr.totalDue);
+                cr.totalDue = 0;
                 cr.feesDue = 0;
                 cr.yieldDue = 0;
-                cr.totalDue = 0;
                 cr.missedPeriods = 0;
-                // Closes the credit line if it is in the final period
-                if (cr.remainingPeriods == 0) {
-                    cr.state = CreditState.Deleted;
-                    emit CreditLineClosed(borrower, msg.sender, CreditLineClosureReason.Paidoff);
-                } else cr.state = CreditState.GoodStanding;
+                // Moves account to GoodStanding if it was delayed.
+                if (cr.state == CreditState.Delayed) cr.state = CreditState.GoodStanding;
 
                 _setCreditRecord(creditHash, cr);
             }
+        } else {
+            // Payoff
+            p.principalPaid = cr.unbilledPrincipal + cr.totalDue - cr.feesDue - cr.yieldDue;
+            p.feesPaid = cr.feesDue;
+            p.yieldPaid = uint96(payoffAmount - p.principalPaid);
+            p.amountToCollect = uint96(payoffAmount);
+
+            cr.unbilledPrincipal = 0;
+            cr.feesDue = 0;
+            cr.yieldDue = 0;
+            cr.totalDue = 0;
+            cr.missedPeriods = 0;
+            // Closes the credit line if it is in the final period
+            if (cr.remainingPeriods == 0) {
+                cr.state = CreditState.Deleted;
+                emit CreditLineClosed(borrower, msg.sender, CreditLineClosureReason.Paidoff);
+            } else cr.state = CreditState.GoodStanding;
+
+            _setCreditRecord(creditHash, cr);
         }
 
         if (p.amountToCollect > 0) {
@@ -562,6 +546,62 @@ abstract contract BaseCredit is Initializable, PoolConfigCache, BaseCreditStorag
 
         // p.amountToCollect == payoffAmount indicates payoff or not. >= is a safe practice
         return (p.amountToCollect, p.amountToCollect >= payoffAmount, false);
+    }
+
+    /**
+     * @notice Borrower makes principal payment. The payment is applied towards principal only.
+     * @param creditHash the hashcode of the credit
+     * @param amount the payment amount
+     * @return amountPaid the actual amount paid to the contract. When the tendered
+     * amount is larger than the payoff amount, the contract only accepts the payoff amount.
+     * @return paidoff a flag indicating whether the account has been paid off.
+     */
+    function _makePrincipalPayment(
+        address borrower,
+        bytes32 creditHash,
+        uint256 amount
+    ) internal returns (uint256 amountPaid, bool paidoff) {
+        if (amount == 0) revert Errors.zeroAmountProvided();
+
+        CreditRecord memory cr = _getCreditRecord(creditHash);
+
+        if (block.timestamp > cr.nextDueDate) {
+            cr = _updateDueInfo(creditHash);
+        }
+
+        uint256 principalDue = cr.totalDue - cr.feesDue - cr.yieldDue;
+        uint256 totalPrincipal = principalDue + cr.unbilledPrincipal;
+
+        uint256 amountToCollect = amount < totalPrincipal ? amount : totalPrincipal;
+
+        if (amount < principalDue) {
+            cr.totalDue = uint96(cr.totalDue - amount);
+        } else {
+            cr.totalDue = uint96(cr.totalDue - principalDue);
+            cr.unbilledPrincipal = uint96(cr.unbilledPrincipal - (amountToCollect - principalDue));
+        }
+
+        // Adjust credit record status if needed. This happens when the yieldDue and feesDue happen to be 0.
+        if (cr.totalDue == 0) {
+            if (cr.unbilledPrincipal == 0 && cr.remainingPeriods == 0) {
+                cr.state = CreditState.Deleted;
+                emit CreditLineClosed(borrower, msg.sender, CreditLineClosureReason.Paidoff);
+            } else cr.state = CreditState.GoodStanding;
+        }
+
+        if (amountToCollect > 0) {
+            poolSafe.deposit(msg.sender, amountToCollect);
+            emit PaymentMade(
+                borrower,
+                amountToCollect,
+                cr.totalDue,
+                cr.unbilledPrincipal,
+                msg.sender
+            );
+        }
+
+        // if there happens to be no
+        return (amountToCollect, cr.totalDue == 0);
     }
 
     function _pauseCredit(bytes32 creditHash) internal {
