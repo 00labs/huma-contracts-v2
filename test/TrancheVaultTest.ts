@@ -237,7 +237,7 @@ describe("TrancheVault Test", function () {
         it("Should now allow anyone else to make the initial deposit", async function () {
             await expect(
                 juniorTrancheVaultContract.connect(lender).makeInitialDeposit(toToken(1)),
-            ).to.be.revertedWithCustomError(poolConfigContract, "notPoolOwnerTreasuryOrEA");
+            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "notAuthorizedCaller");
         });
     });
 
@@ -1509,7 +1509,7 @@ describe("TrancheVault Test", function () {
             it("Should not allow non-EpochManager to process epochs", async function () {
                 await expect(
                     juniorTrancheVaultContract.executeEpochs([], 0, 0),
-                ).to.be.revertedWithCustomError(poolConfigContract, "notEpochManager");
+                ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "notAuthorizedCaller");
             });
 
             it("Should process one epochs fully", async function () {
