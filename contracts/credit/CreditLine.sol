@@ -114,6 +114,17 @@ contract CreditLine is BaseCredit, ICreditLine {
         (amountPaid, paidoff, ) = _makePayment(borrower, creditHash, amount);
     }
 
+    function makePrincipalPayment(
+        address borrower,
+        uint256 amount
+    ) external returns (uint256 amountPaid, bool paidoff) {
+        poolConfig.onlyProtocolAndPoolOn();
+        if (msg.sender != borrower) _onlyPDSServiceAccount();
+        bytes32 creditHash = getCreditHash(borrower);
+        if (borrower != _creditBorrowerMap[creditHash]) revert Errors.notBorrower();
+        (amountPaid, paidoff) = _makePrincipalPayment(borrower, creditHash, amount);
+    }
+
     /**
      * @notice Updates the account and brings its billing status current
      * @dev If the account is defaulted, no need to update the account anymore.
