@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {ICreditLine} from "./interfaces/ICreditLine.sol";
 import {Credit} from "./Credit.sol";
-import {CreditRecord} from "./CreditStructs.sol";
+import {CreditConfig, CreditRecord} from "./CreditStructs.sol";
 import {Errors} from "../Errors.sol";
 
 import "hardhat/console.sol";
@@ -169,5 +169,26 @@ contract CreditLine is Credit, ICreditLine {
 
     function getCreditHash(address borrower) internal view virtual returns (bytes32 creditHash) {
         return keccak256(abi.encode(address(this), borrower));
+    }
+
+    /// @inheritdoc ICreditLine
+    function updateRemainingPeriods(address borrower, uint256 numOfPeriods) external override {
+        _onlyEAServiceAccount();
+        bytes32 creditHash = getCreditHash(borrower);
+        _updateRemainingPeriods(creditHash, numOfPeriods);
+    }
+
+    /// @inheritdoc ICreditLine
+    function updateLimitAndCommitment(
+        address borrower,
+        uint256 creditLimit,
+        uint256 committedAmount
+    ) external override {
+        _onlyEAServiceAccount();
+        bytes32 creditHash = getCreditHash(borrower);
+        CreditConfig memory cc = _getCreditConfig(creditHash);
+        cc.creditLimit = uint96(creditLimit);
+        cc.committedAmount = uint96(committedAmount);
+        _setCreditConfig(creditHash, cc);
     }
 }

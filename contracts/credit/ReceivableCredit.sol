@@ -7,9 +7,6 @@ import {ReceivableInput} from "./CreditStructs.sol";
 import {CreditConfig, CreditRecord} from "./CreditStructs.sol";
 import {Errors} from "../Errors.sol";
 
-//* Reserved for Richard review, to be deleted
-// This contract is for Arf case.
-
 contract ReceivableCredit is Credit, IReceivableCredit {
     function approveReceivable(
         address borrower,

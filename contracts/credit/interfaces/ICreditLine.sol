@@ -75,9 +75,43 @@ interface ICreditLine {
      */
     function closeCredit(address borrower) external;
 
+    /**
+     * @notice Pauses the credit. No drawdown is allowed for paused credit.
+     * @param borrower the address of the borrower
+     * @dev Only EA can call this function
+     */
     function pauseCredit(address borrower) external;
 
+    /**
+     * @notice Unpause the credit to return the credit to normal
+     * @param borrower the address of the borrower
+     * @dev Only EA can call this function
+     */
     function unpauseCredit(address borrower) external;
 
+    /**
+     * @notice Unpause the credit to return the credit to normal
+     * @param borrower the address of the borrower
+     * @dev Only EA can call this function
+     */
     function updateYield(address borrower, uint256 yieldInBps) external;
+
+    /**
+     * @notice Unpauses the credit to return the credit to normal
+     * @param borrower the borrower address of the credit line
+     * @dev Only EA can call this function
+     */
+    function updateLimitAndCommitment(
+        address borrower,
+        uint256 creditLimit,
+        uint256 committedAmount
+    ) external;
+
+    /**
+     * @notice Extends the remaining periods of the credit line
+     * @param borrower the borrower address of the credit line
+     * @param numOfPeriods the new remaining periods
+     * @dev Only EA can call this function
+     */
+    function updateRemainingPeriods(address borrower, uint256 numOfPeriods) external;
 }
