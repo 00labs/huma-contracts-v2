@@ -896,7 +896,7 @@ contract PoolConfig is AccessControl, Initializable {
         if (account != pool) revert Errors.notPool();
     }
 
-    function onlyTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManager(
+    function onlyTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManagerOrProfitEscrow(
         address account
     ) external view {
         bool valid;
@@ -908,12 +908,15 @@ contract PoolConfig is AccessControl, Initializable {
         ) return;
         uint256 len = _firstLossCovers.length;
         // console.log("account: %s, len: %s", account, len);
-        for (uint256 i; i < len; i++) {
+        for (uint256 i = 0; i < len; i++) {
             // console.log("i: %s, _firstLossCovers[i]: %s", i, address(_firstLossCovers[i]));
-            if (account == address(_firstLossCovers[i])) return;
+            address firstLossCoverAddr = address(_firstLossCovers[i]);
+            if (account == firstLossCoverAddr) return;
+            if (account == _profitEscrowByFirstLossCover[firstLossCoverAddr]) return;
         }
 
-        if (!valid) revert Errors.notTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManager();
+        if (!valid)
+            revert Errors.notTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManagerOrProfitEscrow();
     }
 
     function onlyTrancheVaultOrEpochManager(address account) external view {

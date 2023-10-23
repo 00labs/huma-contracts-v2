@@ -43,7 +43,7 @@ contract ProfitEscrow is PoolConfigCache, ProfitEscrowStorage, IProfitEscrow {
 
     function addProfit(uint256 profit) external {
         if (profit == 0) revert Errors.zeroAmountProvided();
-        _onlyCaller();
+        _onlyController();
 
         EscrowInfo memory escrowInfo = _escrowInfo;
         assert(escrowInfo.totalAmount != 0);
@@ -58,7 +58,7 @@ contract ProfitEscrow is PoolConfigCache, ProfitEscrowStorage, IProfitEscrow {
     function deposit(address account, uint256 amount) external {
         if (amount == 0) revert Errors.zeroAmountProvided();
         if (account == address(0)) revert Errors.zeroAddressProvided();
-        _onlyCaller();
+        _onlyController();
 
         EscrowInfo memory escrowInfo = _escrowInfo;
         UserInfo memory tempUserInfo = userInfo[account];
@@ -82,7 +82,7 @@ contract ProfitEscrow is PoolConfigCache, ProfitEscrowStorage, IProfitEscrow {
     function withdraw(address account, uint256 amount) external {
         if (amount == 0) revert Errors.zeroAmountProvided();
         if (account == address(0)) revert Errors.zeroAddressProvided();
-        _onlyCaller();
+        _onlyController();
 
         EscrowInfo memory escrowInfo = _escrowInfo;
         UserInfo memory tempUserInfo = userInfo[account];
@@ -113,12 +113,12 @@ contract ProfitEscrow is PoolConfigCache, ProfitEscrowStorage, IProfitEscrow {
         EscrowInfo memory escrowInfo = _escrowInfo;
         UserInfo memory tempUserInfo = userInfo[msg.sender];
 
-        uint256 tempClaimable = uint256(
+        uint256 amountClaimable = uint256(
             int256(
                 (tempUserInfo.amount * escrowInfo.accProfitPerShare) / DEFAULT_DECIMALS_FACTOR
             ) - tempUserInfo.rewardDebt
         );
-        if (amount > tempClaimable) revert Errors.todo();
+        if (amount > amountClaimable) revert Errors.todo();
 
         // `rewardDebt` decreases in value here when profits are claimed to prevent users from claiming the
         // same profits multiple times.
@@ -142,7 +142,7 @@ contract ProfitEscrow is PoolConfigCache, ProfitEscrowStorage, IProfitEscrow {
             );
     }
 
-    function _onlyCaller() internal view {
+    function _onlyController() internal view {
         if (msg.sender != controller) revert Errors.todo();
     }
 }
