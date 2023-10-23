@@ -20,9 +20,7 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
         calendar = ICalendar(addr);
     }
 
-    /**
-     * @notice Compute interest and principal
-     */
+    /// @inheritdoc ICreditFeeManager
     function accruedDebt(
         uint256 principal,
         uint256 startTime,
@@ -33,7 +31,7 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
     /// @inheritdoc ICreditFeeManager
     function calcYieldDuePerPeriod(
         uint256 principal,
-        uint256 baseYieldBps,
+        uint256 baseYieldInBps,
         uint256 periodDuration,
         bool isLate
     ) public view virtual override returns (uint256 yieldDue) {
@@ -41,24 +39,20 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
         if (isLate) {
             yieldDue = lateFeeFlat + membershipFee;
             yieldDue +=
-                (principal * (baseYieldBps + lateFeeBps) * periodDuration) /
+                (principal * (baseYieldInBps + lateFeeBps) * periodDuration) /
                 HUNDRED_PERCENT_IN_BPS /
                 12;
         } else {
             yieldDue =
                 membershipFee +
-                (principal * baseYieldBps * periodDuration) /
+                (principal * baseYieldInBps * periodDuration) /
                 HUNDRED_PERCENT_IN_BPS /
                 12;
         }
         return yieldDue;
     }
 
-    /**
-     * @notice Computes the front loading fee including both the flat fee and percentage fee
-     * @param _amount the borrowing amount
-     * @return fees the amount of fees to be charged for this borrowing
-     */
+    /// @inheritdoc ICreditFeeManager
     function calcFrontLoadingFee(
         uint256 _amount
     ) public view virtual override returns (uint256 fees) {
@@ -68,30 +62,7 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
             fees += (_amount * frontLoadingFeeBps) / HUNDRED_PERCENT_IN_BPS;
     }
 
-    function getPayoffAmount(
-        CreditRecord memory cr,
-        uint256 yieldInBps
-    ) external view virtual override returns (uint256 payoffAmount) {
-        uint256 principal = cr.unbilledPrincipal + cr.totalDue - cr.yieldDue - cr.feesDue;
-        payoffAmount = uint256(cr.totalDue + cr.unbilledPrincipal);
-        if (block.timestamp < cr.nextDueDate) {
-            // Subtract the yield for the days between the current date and the due date when payment is made
-            // in advance of the due date.
-            uint256 remainingYield = (yieldInBps *
-                principal *
-                (cr.nextDueDate - block.timestamp)) / (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS);
-            assert(payoffAmount >= remainingYield);
-            payoffAmount -= remainingYield;
-        }
-    }
-
-    /**
-     * @notice Apply front loading fee, distribute the total amount to borrower, pool, & protocol
-     * @param borrowAmount the amount of the borrowing
-     * @return amtToBorrower the amount that the borrower can take
-     * @return platformFees the platform charges
-     * @dev the protocol always takes a percentage of the total fee generated
-     */
+    /// @inheritdoc ICreditFeeManager
     function distBorrowingAmount(
         uint256 borrowAmount
     ) external view virtual returns (uint256 amtToBorrower, uint256 platformFees) {
@@ -105,14 +76,7 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
         return (amtToBorrower, platformFees);
     }
 
-    /**
-     * @notice Sets the standard front loading and late fee policy for the fee manager
-     * @param _frontLoadingFeeFlat flat fee portion of the front loading fee
-     * @param _frontLoadingFeeBps a fee in the percentage of a new borrowing
-     * @param _lateFeeFlat flat fee portion of the late
-     * @param _lateFeeBps a fee in the percentage of the outstanding balance
-     * @dev Only owner can make this setting
-     */
+    /// @inheritdoc ICreditFeeManager
     function setFees(
         uint256 _frontLoadingFeeFlat,
         uint256 _frontLoadingFeeBps,
@@ -121,12 +85,7 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
         uint256 _membershipFee
     ) external {}
 
-    /**
-     * @notice Sets the min percentage of principal to be paid in each billing period
-     * @param _minPrincipalRateInBps the min % in unit of bps. For example, 5% will be 500
-     * @dev Only owner can make this setting
-     * @dev This is a global limit of 5000 bps (50%).
-     */
+    /// @inheritdoc ICreditFeeManager
     function setMinPrincipalRateInBps(uint256 _minPrincipalRateInBps) external {}
 
     /// @inheritdoc ICreditFeeManager
@@ -180,7 +139,7 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
             newCR.yieldDue -
             newCR.feesDue;
 
-        // note if multiple periods have passed, the yield for every period is still based on the
+        // Note that if multiple periods have passed, the yield for every period is still based on the
         // outstanding principal since there was no change to the principal
         uint256 yieldDue = calcYieldDuePerPeriod(
             principal,
@@ -192,9 +151,9 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
         uint256 principalDue = 0;
         uint256 principalRate = poolConfig.getMinPrincipalRateInBps();
         if (principalRate > 0) {
-            // note If the principalRate is R, the remaining principal rate is (1-R).
-            // When multiple periods P passed, the remaining principal rate is (1-R)^P.
-            // The incremental principal due should be 1 - (1-R)^P.
+            // Note that if the principalRate is R, the remaining principal rate is (1 - R).
+            // When multiple periods P passed, the remaining principal rate is (1 - R)^P.
+            // The incremental principal due should be 1 - (1 - R)^P.
             principalDue =
                 ((HUNDRED_PERCENT_IN_BPS ** periodsPassed -
                     (HUNDRED_PERCENT_IN_BPS - poolConfig.getMinPrincipalRateInBps()) **
@@ -212,5 +171,22 @@ contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
         }
 
         return (newCR, periodsPassed, isLate);
+    }
+
+    function getPayoffAmount(
+        CreditRecord memory cr,
+        uint256 yieldInBps
+    ) external view virtual override returns (uint256 payoffAmount) {
+        uint256 principal = cr.unbilledPrincipal + cr.totalDue - cr.yieldDue - cr.feesDue;
+        payoffAmount = uint256(cr.totalDue + cr.unbilledPrincipal);
+        if (block.timestamp < cr.nextDueDate) {
+            // Subtract the yield for the days between the current date and the due date when payment is made
+            // in advance of the due date.
+            uint256 remainingYield = (yieldInBps *
+                principal *
+                (cr.nextDueDate - block.timestamp)) / (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS);
+            assert(payoffAmount >= remainingYield);
+            payoffAmount -= remainingYield;
+        }
     }
 }
