@@ -52,7 +52,7 @@ contract ProfitEscrow is PoolConfigCache, ProfitEscrowStorage, IProfitEscrow {
         );
         _escrowInfo = escrowInfo;
 
-        emit ProfitAdded(profit);
+        emit ProfitAdded(profit, escrowInfo.accProfitPerShare);
     }
 
     function deposit(address account, uint256 amount) external {
