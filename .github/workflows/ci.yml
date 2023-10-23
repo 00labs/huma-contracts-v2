@@ -23,6 +23,7 @@ jobs:
       - name: Run Forge build
         run: |
           forge --version
+          forge install foundry-rs/forge-std
           forge build --sizes
         id: build
       - name: Install dependencies
