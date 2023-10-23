@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {ICreditLine} from "./interfaces/ICreditLine.sol";
-import {BaseCredit} from "./BaseCredit.sol";
+import {Credit} from "./Credit.sol";
 import {CreditRecord} from "./CreditStructs.sol";
 import {Errors} from "../Errors.sol";
 
@@ -21,7 +21,7 @@ import "hardhat/console.sol";
  * 2) separate lastUpdateDate for profit and loss
  * 3) Mostly Credit-level limit, also supports borrower-level limit
  */
-contract CreditLine is BaseCredit, ICreditLine {
+contract CreditLine is Credit, ICreditLine {
     event CreditLineApproved(
         address indexed borrower,
         bytes32 indexed creditHash,
@@ -114,17 +114,6 @@ contract CreditLine is BaseCredit, ICreditLine {
         (amountPaid, paidoff, ) = _makePayment(borrower, creditHash, amount);
     }
 
-    function makePrincipalPayment(
-        address borrower,
-        uint256 amount
-    ) external returns (uint256 amountPaid, bool paidoff) {
-        poolConfig.onlyProtocolAndPoolOn();
-        if (msg.sender != borrower) _onlyPDSServiceAccount();
-        bytes32 creditHash = getCreditHash(borrower);
-        if (borrower != _creditBorrowerMap[creditHash]) revert Errors.notBorrower();
-        (amountPaid, paidoff) = _makePrincipalPayment(borrower, creditHash, amount);
-    }
-
     /**
      * @notice Updates the account and brings its billing status current
      * @dev If the account is defaulted, no need to update the account anymore.
@@ -136,7 +125,7 @@ contract CreditLine is BaseCredit, ICreditLine {
      * to the LPs. Unfortunately, this special business consideration added more complexity
      * and cognitive load to _updateDueInfo(...).
      */
-    function refreshCredit(address borrower) external {
+    function refreshCredit(address borrower) external override {
         bytes32 creditHash = getCreditHash(borrower);
         _refreshCredit(creditHash);
     }
@@ -147,7 +136,7 @@ contract CreditLine is BaseCredit, ICreditLine {
      * @dev It is possible for the borrower to payback even after default, especially in
      * receivable factoring cases.
      */
-    function triggerDefault(address borrower) external returns (uint256 losses) {
+    function triggerDefault(address borrower) external override returns (uint256 losses) {
         bytes32 creditHash = getCreditHash(borrower);
         _triggerDefault(creditHash);
     }
@@ -158,17 +147,17 @@ contract CreditLine is BaseCredit, ICreditLine {
      * @dev Revert if there is still balance due
      * @dev Revert if the committed amount is non-zero and there are periods remaining
      */
-    function closeCredit(address borrower) external {
+    function closeCredit(address borrower) external override {
         bytes32 creditHash = getCreditHash(borrower);
         _closeCredit(creditHash);
     }
 
-    function pauseCredit(address borrower) external {
+    function pauseCredit(address borrower) external override {
         bytes32 creditHash = getCreditHash(borrower);
         _pauseCredit(creditHash);
     }
 
-    function unpauseCredit(address borrower) external {
+    function unpauseCredit(address borrower) external override {
         bytes32 creditHash = getCreditHash(borrower);
         _unpauseCredit(creditHash);
     }

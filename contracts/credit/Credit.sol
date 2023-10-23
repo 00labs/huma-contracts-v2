@@ -6,9 +6,10 @@ import {HumaConfig} from "../HumaConfig.sol";
 import {PoolConfig, PoolSettings} from "../PoolConfig.sol";
 import {PoolConfigCache} from "../PoolConfigCache.sol";
 import "../SharedDefs.sol";
-import {BaseCreditStorage} from "./BaseCreditStorage.sol";
+import {CreditStorage} from "./CreditStorage.sol";
 import {CreditConfig, CreditRecord, CreditLimit, CreditLoss, CreditState, PaymentStatus, Payment} from "./CreditStructs.sol";
 import {ICalendar} from "./interfaces/ICalendar.sol";
+import {ICredit} from "./interfaces/ICredit.sol";
 import {IFirstLossCover} from "../interfaces/IFirstLossCover.sol";
 import {IPoolCredit} from "./interfaces/IPoolCredit.sol";
 import {IPoolSafe} from "../interfaces/IPoolSafe.sol";
@@ -19,10 +20,10 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import "hardhat/console.sol";
 
 /**
- * Credit represents a borrowing entry in Huma Protocol. BaseCredit is an abstract contract that
+ * Credit represents a borrowing entry in Huma Protocol. Credit is an abstract contract that
  * captures the basic functions of a Credit.
  */
-abstract contract BaseCredit is Initializable, PoolConfigCache, BaseCreditStorage, IPoolCredit {
+abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPoolCredit, ICredit {
     enum CreditLineClosureReason {
         Paidoff,
         CreditLimitChangedToBeZero,
@@ -139,7 +140,10 @@ abstract contract BaseCredit is Initializable, PoolConfigCache, BaseCreditStorag
      * @param creditHash the hashcode of the credit
      * @param numOfPeriods the number of pay periods to be extended
      */
-    function extendCreditLineDuration(bytes32 creditHash, uint256 numOfPeriods) public virtual {
+    function extendCreditLineDuration(
+        bytes32 creditHash,
+        uint256 numOfPeriods
+    ) public virtual override {
         _onlyEAServiceAccount();
         // Although it is not essential to call _updateDueInfo() to extend the credit line duration
         // it is good practice to bring the account current while we update one of the fields.
@@ -220,13 +224,13 @@ abstract contract BaseCredit is Initializable, PoolConfigCache, BaseCreditStorag
 
     function creditRecordMap(
         bytes32 creditHash
-    ) public view virtual returns (CreditRecord memory) {
+    ) public view virtual override returns (CreditRecord memory) {
         return _creditRecordMap[creditHash];
     }
 
     function creditConfigMap(
         bytes32 creditHash
-    ) public view virtual returns (CreditConfig memory) {
+    ) public view virtual override returns (CreditConfig memory) {
         return _creditConfigMap[creditHash];
     }
 
@@ -236,7 +240,7 @@ abstract contract BaseCredit is Initializable, PoolConfigCache, BaseCreditStorag
         returns (uint256 accruedProfit, uint256 accruedLoss, uint256 accruedLossRecovery)
     {}
 
-    function isApproved(bytes32 creditHash) public view virtual returns (bool) {
+    function isApproved(bytes32 creditHash) public view virtual override returns (bool) {
         if ((_creditRecordMap[creditHash].state >= CreditState.Approved)) return true;
         else return false;
     }
@@ -244,7 +248,9 @@ abstract contract BaseCredit is Initializable, PoolConfigCache, BaseCreditStorag
     /**
      * @notice checks if the credit line is ready to be triggered as defaulted
      */
-    function isDefaultReady(bytes32 creditHash) public view virtual returns (bool isDefault) {
+    function isDefaultReady(
+        bytes32 creditHash
+    ) public view virtual override returns (bool isDefault) {
         isDefault = _isDefaultReady(_getCreditRecord(creditHash));
     }
 
@@ -263,7 +269,7 @@ abstract contract BaseCredit is Initializable, PoolConfigCache, BaseCreditStorag
      * @dev After the bill is refreshed, the due date is updated, it is possible that the new due
      // date is in the future, but if the bill refresh has set missedPeriods, the account is late.
      */
-    function isLate(bytes32 creditHash) public view virtual returns (bool lateFlag) {
+    function isLate(bytes32 creditHash) public view virtual override returns (bool lateFlag) {
         return (_creditRecordMap[creditHash].state > CreditState.Approved &&
             (_creditRecordMap[creditHash].missedPeriods > 0 ||
                 block.timestamp > _creditRecordMap[creditHash].nextDueDate));

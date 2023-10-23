@@ -25,7 +25,7 @@ import {
 } from "../TestUtils";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import {
-    BaseCreditFeeManager,
+    CreditFeeManager,
     Calendar,
     CreditLine,
     EpochManager,
@@ -42,7 +42,7 @@ import {
     TrancheVault,
 } from "../../typechain-types";
 import { CreditRecordStructOutput } from "../../typechain-types/contracts/credit/utils/interfaces/ICreditFeeManager";
-import { CreditConfigStructOutput } from "../../typechain-types/contracts/credit/BaseCredit";
+import { CreditConfigStructOutput } from "../../typechain-types/contracts/credit/Credit";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
@@ -71,7 +71,7 @@ let poolConfigContract: PoolConfig,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: CreditLine,
-    creditFeeManagerContract: BaseCreditFeeManager;
+    creditFeeManagerContract: CreditFeeManager;
 
 function calcDefaultDate(cr: CreditRecordStructOutput, defaultPeriod: number): number {
     let [defaultDate] = getNextMonth(

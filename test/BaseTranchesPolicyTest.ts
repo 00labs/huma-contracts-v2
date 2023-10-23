@@ -10,7 +10,7 @@ import {
 import { getFirstLossCoverInfo, toToken } from "./TestUtils";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import {
-    BaseCreditFeeManager,
+    CreditFeeManager,
     Calendar,
     EpochManager,
     EvaluationAgentNFT,
@@ -55,7 +55,7 @@ let poolConfigContract: PoolConfig,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: IPoolCredit,
-    creditFeeManagerContract: BaseCreditFeeManager;
+    creditFeeManagerContract: CreditFeeManager;
 
 describe("BaseTranchesPolicy Tests", function () {
     before(async function () {
