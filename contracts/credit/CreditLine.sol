@@ -111,7 +111,18 @@ contract CreditLine is BaseCredit, ICreditLine {
         if (msg.sender != borrower) _onlyPDSServiceAccount();
         bytes32 creditHash = getCreditHash(borrower);
         if (borrower != _creditBorrowerMap[creditHash]) revert Errors.notBorrower();
-        (amountPaid, paidoff, ) = _makePayment(borrower, creditHash, amount);
+        (amountPaid, paidoff, ) = _makePayment(borrower, creditHash, amount, false);
+    }
+
+    function makePrincipalPayment(
+        address borrower,
+        uint256 amount
+    ) external returns (uint256 amountPaid, bool paidoff) {
+        poolConfig.onlyProtocolAndPoolOn();
+        if (msg.sender != borrower) _onlyPDSServiceAccount();
+        bytes32 creditHash = getCreditHash(borrower);
+        if (borrower != _creditBorrowerMap[creditHash]) revert Errors.notBorrower();
+        (amountPaid, paidoff, ) = _makePayment(borrower, creditHash, amount, true);
     }
 
     /**
