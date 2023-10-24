@@ -1,48 +1,44 @@
-import { ethers } from "hardhat";
+import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { BigNumber as BN } from "ethers";
-import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { ethers } from "hardhat";
 import {
-    checkCreditConfig,
-    checkCreditRecord,
-    CONSTANTS,
-    deployAndSetupPoolContracts,
-    deployProtocolContracts,
-    checkTwoCreditRecords,
-    printCreditRecord,
-    checkCreditLoss,
-    checkTwoCreditLosses,
-} from "../BaseTest";
-import {
-    getNextTime,
-    getNextMonth,
-    getStartDateOfPeriod,
-    mineNextBlockWithTimestamp,
-    toToken,
-    getLatestBlock,
-    timestampToMoment,
-    getMinFirstLossCoverRequirement,
-} from "../TestUtils";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import {
-    CreditFeeManager,
     Calendar,
+    CreditFeeManager,
     CreditLine,
     EpochManager,
     EvaluationAgentNFT,
     FirstLossCover,
     HumaConfig,
     MockToken,
-    PoolFeeManager,
     Pool,
     PoolConfig,
+    PoolFeeManager,
     PoolSafe,
     ProfitEscrow,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
 } from "../../typechain-types";
-import { CreditRecordStructOutput } from "../../typechain-types/contracts/credit/utils/interfaces/ICreditFeeManager";
 import { CreditConfigStructOutput } from "../../typechain-types/contracts/credit/Credit";
+import { CreditRecordStructOutput } from "../../typechain-types/contracts/credit/utils/interfaces/ICreditFeeManager";
+import {
+    CONSTANTS,
+    checkCreditConfig,
+    checkCreditRecord,
+    checkTwoCreditRecords,
+    deployAndSetupPoolContracts,
+    deployProtocolContracts,
+    printCreditRecord,
+} from "../BaseTest";
+import {
+    getMinFirstLossCoverRequirement,
+    getNextMonth,
+    getNextTime,
+    getStartDateOfPeriod,
+    mineNextBlockWithTimestamp,
+    toToken,
+} from "../TestUtils";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,

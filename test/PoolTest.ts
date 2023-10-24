@@ -1,13 +1,31 @@
-import { ethers } from "hardhat";
+import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { BigNumber as BN } from "ethers";
-import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { ethers } from "hardhat";
+import {
+    Calendar,
+    CreditFeeManager,
+    EpochManager,
+    EvaluationAgentNFT,
+    FirstLossCover,
+    HumaConfig,
+    MockPoolCredit,
+    MockToken,
+    Pool,
+    PoolConfig,
+    PoolFeeManager,
+    PoolSafe,
+    ProfitEscrow,
+    RiskAdjustedTranchesPolicy,
+    TrancheVault,
+} from "../typechain-types";
 import {
     CONSTANTS,
+    PnLCalculator,
     deployAndSetupPoolContracts,
     deployPoolContracts,
     deployProtocolContracts,
-    PnLCalculator,
 } from "./BaseTest";
 import {
     getFirstLossCoverInfo,
@@ -21,24 +39,6 @@ import {
     sumBNArray,
     toToken,
 } from "./TestUtils";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import {
-    CreditFeeManager,
-    Calendar,
-    EpochManager,
-    EvaluationAgentNFT,
-    FirstLossCover,
-    ProfitEscrow,
-    HumaConfig,
-    MockPoolCredit,
-    MockToken,
-    PoolFeeManager,
-    Pool,
-    PoolConfig,
-    PoolSafe,
-    RiskAdjustedTranchesPolicy,
-    TrancheVault,
-} from "../typechain-types";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
