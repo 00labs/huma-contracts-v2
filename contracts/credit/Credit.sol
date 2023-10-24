@@ -6,7 +6,7 @@ import {HumaConfig} from "../HumaConfig.sol";
 import {PoolConfig, PoolSettings} from "../PoolConfig.sol";
 import {PoolConfigCache} from "../PoolConfigCache.sol";
 import "../SharedDefs.sol";
-import {BaseCreditStorage} from "./BaseCreditStorage.sol";
+import {CreditStorage} from "./CreditStorage.sol";
 import {CreditConfig, CreditRecord, CreditLimit, CreditLoss, CreditState, PaymentStatus, Payment} from "./CreditStructs.sol";
 import {ICalendar} from "./interfaces/ICalendar.sol";
 import {IFirstLossCover} from "../interfaces/IFirstLossCover.sol";
@@ -19,10 +19,10 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import "hardhat/console.sol";
 
 /**
- * Credit represents a borrowing entry in Huma Protocol. BaseCredit is an abstract contract that
+ * Credit represents a borrowing entry in Huma Protocol. Credit is an abstract contract that
  * captures the basic functions of a Credit.
  */
-abstract contract BaseCredit is Initializable, PoolConfigCache, BaseCreditStorage, IPoolCredit {
+abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPoolCredit {
     enum CreditLineClosureReason {
         Paidoff,
         CreditLimitChangedToBeZero,
@@ -139,8 +139,7 @@ abstract contract BaseCredit is Initializable, PoolConfigCache, BaseCreditStorag
      * @param creditHash the hashcode of the credit
      * @param numOfPeriods the number of pay periods to be extended
      */
-    function extendCreditLineDuration(bytes32 creditHash, uint256 numOfPeriods) public virtual {
-        _onlyEAServiceAccount();
+    function _updateRemainingPeriods(bytes32 creditHash, uint256 numOfPeriods) internal virtual {
         // Although it is not essential to call _updateDueInfo() to extend the credit line duration
         // it is good practice to bring the account current while we update one of the fields.
         // Also, only if we call _updateDueInfo(), we can write proper tests.
@@ -452,8 +451,6 @@ abstract contract BaseCredit is Initializable, PoolConfigCache, BaseCreditStorag
         bytes32 creditHash,
         uint256 amount
     ) internal returns (uint256 amountPaid, bool paidoff, bool isReviewRequired) {
-        //* Reserved for Richard review, to be deleted, please review this function
-
         // TODO Borrowers cannot make payment for defaulted credits
         if (amount == 0) revert Errors.zeroAmountProvided();
 
@@ -464,30 +461,6 @@ abstract contract BaseCredit is Initializable, PoolConfigCache, BaseCreditStorag
             cr = _updateDueInfo(creditHash);
         }
 
-        //* Reserved for Richard review, to be deleted, the following is the old code for reference
-        // It is already implemented in updateDueInfo()
-        // // todo this is not the ideal place for this logic. Ideally, updateDueInfo() should handle this
-        // // Reverse late charge if it is paid before the late fee grace period
-        // {
-        //     if (cr.state == CreditState.Delayed) {
-        //         (uint256 beginOfPeriod, ) = calendar.getBeginOfPeriod(
-        //             cc.calendarUnit,
-        //             cc.periodDuration,
-        //             cr.nextDueDate
-        //         );
-        //         if (
-        //             block.timestamp <
-        //             (beginOfPeriod +
-        //                 poolConfig.getPoolSettings().latePaymentGracePeriodInDays *
-        //                 SECONDS_IN_A_DAY)
-        //         ) {
-        //             // todo cr.totalDue should be updated as well, cr.state might need to be updated too.
-        //             // Safe to set feesDue to zero since the fees for the previous cycles should have been rolled into principals.
-        //             cr.feesDue = 0;
-        //         }
-        //     }
-        // }
-
         uint256 payoffAmount = _feeManager.getPayoffAmount(cr, cc.yieldInBps);
 
         // The amount to collect from the payer.
@@ -496,8 +469,6 @@ abstract contract BaseCredit is Initializable, PoolConfigCache, BaseCreditStorag
         if (amount < payoffAmount) {
             p.amountToCollect = uint96(amount);
             if (amount < cr.totalDue) {
-                // Update due info based on new principal if principal is partially paid
-
                 // process order - 1. fees, 2. yield, 3. principal
 
                 uint256 principalDue = cr.totalDue - cr.feesDue - cr.yieldDue;
@@ -525,47 +496,6 @@ abstract contract BaseCredit is Initializable, PoolConfigCache, BaseCreditStorag
                 cr.totalDue = uint96(cr.totalDue - amount);
 
                 _setCreditRecord(creditHash, cr);
-
-                //* Reserved for Richard review, to be deleted
-                // Handle profit difference because the yield of the whole due period is charged,
-                // no matter before or after due date.
-                // e.g. 10/1 is the due date, 10/5 is the last day of the late payment grace period.
-                if (p.principalPaid > 0) {
-                    int96 profitDiff;
-                    if (block.timestamp < cr.nextDueDate) {
-                        //* Reserved for Richard review, to be deleted
-                        // This case is making payment before due date, e.g. 9.27
-
-                        // Paid principal will be deducted from profitRate, but interest of the original principal is charged,
-                        // needs to add this extra interest
-                        profitDiff = int96(
-                            uint96(
-                                (p.principalPaid *
-                                    (cr.nextDueDate - block.timestamp) *
-                                    cc.yieldInBps) / (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
-                            )
-                        );
-                    } else {
-                        //* Reserved for Richard review, to be deleted
-                        // This case is making payment between due date and grace late date, e.g. 10.3
-
-                        // Next due info hasn't been generated now, next due info should deduct paid principal,
-                        // but interest of the original principal is accumulated in PnLManager,
-                        // needs to deduct this extra interest
-                        profitDiff =
-                            int96(p.feesPaid) -
-                            int96(
-                                uint96(
-                                    (p.principalPaid *
-                                        (block.timestamp - cr.nextDueDate) *
-                                        cc.yieldInBps) /
-                                        (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
-                                )
-                            );
-                    }
-
-                    //* todo call a new function of pool to distribute profit or loss recovery
-                }
             } else {
                 // Apply extra payments towards principal, reduce unbilledPrincipal amount
                 p.principalPaid = uint96(amount - cr.feesDue - cr.yieldDue);
@@ -580,41 +510,6 @@ abstract contract BaseCredit is Initializable, PoolConfigCache, BaseCreditStorag
                 if (cr.state == CreditState.Delayed) cr.state = CreditState.GoodStanding;
 
                 _setCreditRecord(creditHash, cr);
-
-                //* Reserved for Richard review, to be deleted
-                // Same logic as above case
-                int96 profitDiff;
-                if (block.timestamp < cr.nextDueDate) {
-                    // Paid principal will be deducted from profitRate, but interest of the original principal is charged,
-                    // needs to add this extra interest
-                    profitDiff = int96(
-                        uint96(
-                            (p.principalPaid *
-                                (cr.nextDueDate - block.timestamp) *
-                                cc.yieldInBps) / (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
-                        )
-                    );
-                } else {
-                    // Next due info hasn't been generated now, next due info should deduct paid principal,
-                    // but interest of the original principal is accumulated in PnLManager,
-                    // needs to deduct this extra interest
-                    profitDiff = -int96(
-                        uint96(
-                            (p.principalPaid *
-                                (block.timestamp - cr.nextDueDate) *
-                                cc.yieldInBps) / (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
-                        )
-                    );
-                }
-
-                //* todo call a new function of pool to distribute profit or loss recovery
-
-                //* Reserved for Richard review, to be deleted
-                // Generate next due info immediately, no need to wait for next refreshCredit
-                if (block.timestamp > cr.nextDueDate) {
-                    // Generate next due info
-                    cr = _updateDueInfo(creditHash);
-                }
             }
         } else {
             // Payoff
@@ -635,22 +530,6 @@ abstract contract BaseCredit is Initializable, PoolConfigCache, BaseCreditStorag
             } else cr.state = CreditState.GoodStanding;
 
             _setCreditRecord(creditHash, cr);
-
-            int96 profitDiff;
-            //* Reserved for Richard review, to be deleted
-            // Only need to handle the case when payoff is made between due date and grace late date
-            // No need to handle the case when payoff is made before due date because payoff amount has already deducted extra interest
-            if (block.timestamp > cr.nextDueDate) {
-                // Interest of days from next due date(past time) to now isn't charged, need to deduct this extra interest
-                profitDiff = -int96(
-                    uint96(
-                        (p.principalPaid * (block.timestamp - cr.nextDueDate) * cc.yieldInBps) /
-                            (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
-                    )
-                );
-            }
-
-            //* todo call a new function of pool to distribute profit or loss recovery
         }
 
         if (p.amountToCollect > 0) {
@@ -666,6 +545,62 @@ abstract contract BaseCredit is Initializable, PoolConfigCache, BaseCreditStorag
 
         // p.amountToCollect == payoffAmount indicates payoff or not. >= is a safe practice
         return (p.amountToCollect, p.amountToCollect >= payoffAmount, false);
+    }
+
+    /**
+     * @notice Borrower makes principal payment. The payment is applied towards principal only.
+     * @param creditHash the hashcode of the credit
+     * @param amount the payment amount
+     * @return amountPaid the actual amount paid to the contract. When the tendered
+     * amount is larger than the payoff amount, the contract only accepts the payoff amount.
+     * @return paidoff a flag indicating whether the account has been paid off.
+     */
+    function _makePrincipalPayment(
+        address borrower,
+        bytes32 creditHash,
+        uint256 amount
+    ) internal returns (uint256 amountPaid, bool paidoff) {
+        if (amount == 0) revert Errors.zeroAmountProvided();
+
+        CreditRecord memory cr = _getCreditRecord(creditHash);
+
+        if (block.timestamp > cr.nextDueDate) {
+            cr = _updateDueInfo(creditHash);
+        }
+
+        uint256 principalDue = cr.totalDue - cr.feesDue - cr.yieldDue;
+        uint256 totalPrincipal = principalDue + cr.unbilledPrincipal;
+
+        uint256 amountToCollect = amount < totalPrincipal ? amount : totalPrincipal;
+
+        if (amount < principalDue) {
+            cr.totalDue = uint96(cr.totalDue - amount);
+        } else {
+            cr.totalDue = uint96(cr.totalDue - principalDue);
+            cr.unbilledPrincipal = uint96(cr.unbilledPrincipal - (amountToCollect - principalDue));
+        }
+
+        // Adjust credit record status if needed. This happens when the yieldDue and feesDue happen to be 0.
+        if (cr.totalDue == 0) {
+            if (cr.unbilledPrincipal == 0 && cr.remainingPeriods == 0) {
+                cr.state = CreditState.Deleted;
+                emit CreditLineClosed(borrower, msg.sender, CreditLineClosureReason.Paidoff);
+            } else cr.state = CreditState.GoodStanding;
+        }
+
+        if (amountToCollect > 0) {
+            poolSafe.deposit(msg.sender, amountToCollect);
+            emit PaymentMade(
+                borrower,
+                amountToCollect,
+                cr.totalDue,
+                cr.unbilledPrincipal,
+                msg.sender
+            );
+        }
+
+        // if there happens to be no
+        return (amountToCollect, cr.totalDue == 0);
     }
 
     function _pauseCredit(bytes32 creditHash) internal {
@@ -759,8 +694,6 @@ abstract contract BaseCredit is Initializable, PoolConfigCache, BaseCreditStorag
      * @param creditHash the hash of the credit
      */
     function _updateDueInfo(bytes32 creditHash) internal virtual returns (CreditRecord memory cr) {
-        //* Reserved for Richard review, to be deleted, please review this function
-
         cr = _getCreditRecord(creditHash);
 
         // Do not update dueInfo for accounts already in default state

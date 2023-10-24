@@ -4,7 +4,7 @@ import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { deployPoolContracts, deployProtocolContracts } from "./BaseTest";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import {
-    BaseCreditFeeManager,
+    CreditFeeManager,
     Calendar,
     EpochManager,
     EvaluationAgentNFT,
@@ -48,7 +48,7 @@ let poolConfigContract: PoolConfig,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: MockPoolCredit,
-    creditFeeManagerContract: BaseCreditFeeManager;
+    creditFeeManagerContract: CreditFeeManager;
 
 describe("PoolConfigCache Test", function () {
     before(async function () {

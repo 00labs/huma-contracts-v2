@@ -5,7 +5,7 @@ import { EpochInfoStruct } from "../typechain-types/contracts/interfaces/IEpoch"
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { ethers } from "hardhat";
 import {
-    BaseCreditFeeManager,
+    CreditFeeManager,
     BaseTranchesPolicy,
     Calendar,
     EpochManager,
@@ -25,7 +25,7 @@ import {
 import {
     CreditConfigStruct,
     CreditRecordStruct,
-} from "../typechain-types/contracts/credit/BaseCredit";
+} from "../typechain-types/contracts/credit/Credit";
 import { FirstLossCoverConfigStruct } from "../typechain-types/contracts/PoolConfig.sol/PoolConfig";
 
 export type ProtocolContracts = [EvaluationAgentNFT, HumaConfig, MockToken];
@@ -43,7 +43,7 @@ export type PoolContracts = [
     TrancheVault,
     TrancheVault,
     IPoolCredit,
-    BaseCreditFeeManager,
+    CreditFeeManager,
     Receivable,
 ];
 export type TranchesPolicyContractName =
@@ -175,8 +175,8 @@ export async function deployPoolContracts(
     const creditContract = await Credit.deploy();
     await creditContract.deployed();
 
-    const BaseCreditFeeManager = await ethers.getContractFactory("BaseCreditFeeManager");
-    const creditFeeManagerContract = await BaseCreditFeeManager.deploy();
+    const CreditFeeManager = await ethers.getContractFactory("CreditFeeManager");
+    const creditFeeManagerContract = await CreditFeeManager.deploy();
     await creditFeeManagerContract.deployed();
 
     const Receivable = await ethers.getContractFactory("Receivable");
