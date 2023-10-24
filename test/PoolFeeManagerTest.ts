@@ -410,7 +410,7 @@ describe("PoolFeeManager Tests", function () {
                 poolFeeManagerContract.connect(protocolOwner).withdrawProtocolFee(amount),
             ).to.be.revertedWithCustomError(
                 poolFeeManagerContract,
-                "withdrawnAmountHigherThanBalance",
+                "insufficientAmountForRequest",
             );
         });
     });
@@ -506,7 +506,7 @@ describe("PoolFeeManager Tests", function () {
                 poolFeeManagerContract.connect(poolOwnerTreasury).withdrawPoolOwnerFee(amount),
             ).to.be.revertedWithCustomError(
                 poolFeeManagerContract,
-                "withdrawnAmountHigherThanBalance",
+                "insufficientAmountForRequest",
             );
         });
     });
@@ -584,7 +584,7 @@ describe("PoolFeeManager Tests", function () {
                 poolFeeManagerContract.connect(evaluationAgent).withdrawEAFee(amount),
             ).to.be.revertedWithCustomError(
                 poolFeeManagerContract,
-                "withdrawnAmountHigherThanBalance",
+                "insufficientAmountForRequest",
             );
         });
     });

@@ -234,7 +234,7 @@ contract TrancheVault is
         poolConfig.checkFirstLossCoverRequirementsForRedemption(msg.sender);
         uint256 sharesBalance = ERC20Upgradeable.balanceOf(msg.sender);
         if (shares > sharesBalance) {
-            revert Errors.withdrawnAmountHigherThanBalance();
+            revert Errors.insufficientSharesForRequest();
         }
         uint256 assetsAfterRedemption = convertToAssets(sharesBalance - shares);
         poolConfig.checkLiquidityRequirementForRedemption(
