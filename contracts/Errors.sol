@@ -6,8 +6,8 @@ contract Errors {
     error zeroAddressProvided(); // 0x5ff75ab0
     error zeroAmountProvided(); // 0x71799f2a
     error invalidBasisPointHigherThan10000(); // 0x07982d85
-    error withdrawnAmountHigherThanBalance(); // 0x477c0ab2
     error allowanceTooLow(); // 0xcd8ef369
+    error insufficientAmountForRequest(); // 0x80615fdf
     error insufficientSharesForRequest(); // 0x439f3ef3
     error lessThanRequiredCover(); // 0xd0f0d90e
     error emptyArray(); // 0x81a5a837

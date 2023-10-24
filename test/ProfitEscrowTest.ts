@@ -558,7 +558,10 @@ describe("PoolSafe Tests", function () {
                 it("Should disallow the user to claim more than they own", async function () {
                     await expect(
                         profitEscrowContract.connect(evaluationAgent).claim(amount),
-                    ).to.be.revertedWithCustomError(profitEscrowContract, "todo");
+                    ).to.be.revertedWithCustomError(
+                        profitEscrowContract,
+                        "insufficientAmountForRequest",
+                    );
                 });
             });
         });

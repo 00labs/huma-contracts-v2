@@ -105,7 +105,7 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         AccruedIncomes memory incomes = _investFeesInFirstLossCover();
         uint256 incomeWithdrawn = protocolIncomeWithdrawn;
         if (incomeWithdrawn + amount > incomes.protocolIncome)
-            revert Errors.withdrawnAmountHigherThanBalance();
+            revert Errors.insufficientAmountForRequest();
 
         protocolIncomeWithdrawn = incomeWithdrawn + amount;
 
@@ -128,7 +128,7 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
 
         uint256 incomeWithdrawn = poolOwnerIncomeWithdrawn;
         if (incomeWithdrawn + amount > incomes.poolOwnerIncome)
-            revert Errors.withdrawnAmountHigherThanBalance();
+            revert Errors.insufficientAmountForRequest();
 
         poolOwnerIncomeWithdrawn = incomeWithdrawn + amount;
         poolSafe.withdraw(poolOwnerTreasury, amount);
@@ -146,7 +146,7 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
 
         uint256 incomeWithdrawn = eaIncomeWithdrawn;
         if (incomeWithdrawn + amount > incomes.eaIncome)
-            revert Errors.withdrawnAmountHigherThanBalance();
+            revert Errors.insufficientAmountForRequest();
 
         eaIncomeWithdrawn = incomeWithdrawn + amount;
         poolSafe.withdraw(ea, amount);
