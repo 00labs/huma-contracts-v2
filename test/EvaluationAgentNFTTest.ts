@@ -1,8 +1,8 @@
-import { ethers } from "hardhat";
-import { expect } from "chai";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { EvaluationAgentNFT } from "../typechain-types";
+import { expect } from "chai";
 import { BigNumber } from "ethers";
+import { ethers } from "hardhat";
+import { EvaluationAgentNFT } from "../typechain-types";
 
 describe("EvaluationAgentNFT Test", function () {
     let deployer: SignerWithAddress;

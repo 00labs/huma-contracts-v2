@@ -1,15 +1,14 @@
-import { ethers, network } from "hardhat";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { BigNumber as BN } from "ethers";
+import { ethers, network } from "hardhat";
 import moment from "moment";
+import { FirstLossCover, Pool, PoolConfig } from "../typechain-types";
+import { FirstLossCoverStorage } from "../typechain-types/contracts/FirstLossCover";
 import {
     FirstLossCoverConfigStruct,
     LPConfigStructOutput,
 } from "../typechain-types/contracts/PoolConfig.sol/PoolConfig";
 import { CONSTANTS, FirstLossCoverInfo } from "./BaseTest";
-import { FirstLossCover, Pool, PoolConfig, ProfitEscrow } from "../typechain-types";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { FirstLossCoverStorage } from "../typechain-types/contracts/FirstLossCover";
-import LossCoverProviderConfigStruct = FirstLossCoverStorage.LossCoverProviderConfigStruct;
 
 export function toBN(number: string | number, decimals: number): BN {
     return BN.from(number).mul(BN.from(10).pow(BN.from(decimals)));
@@ -175,7 +174,7 @@ export async function overrideLossCoverProviderConfig(
     firstLossCoverContract: FirstLossCover,
     provider: SignerWithAddress,
     poolOwner: SignerWithAddress,
-    override: Partial<LossCoverProviderConfigStruct>,
+    override: Partial<FirstLossCoverStorage.LossCoverProviderConfigStruct>,
 ) {
     const config = await firstLossCoverContract.getCoverProviderConfig(provider.getAddress());
     const newConfig = {
