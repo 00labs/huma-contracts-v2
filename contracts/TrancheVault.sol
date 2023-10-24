@@ -98,9 +98,7 @@ contract TrancheVault is
         _revokeRole(LENDER_ROLE, lender);
     }
 
-    /**
-     * @notice Returns the list of all unprocessed/partially processed epochs infos.
-     */
+    /// @inheritdoc IEpoch
     function unprocessedEpochInfos()
         external
         view
@@ -123,15 +121,13 @@ contract TrancheVault is
         return ERC20Upgradeable.totalSupply();
     }
 
-    /**
-     * @notice Executes processed epochs
-     */
+    /// @inheritdoc IEpoch
     function executeEpochs(
         EpochInfo[] memory epochsProcessed,
         uint256 sharesProcessed,
         uint256 amountProcessed
     ) external {
-        poolConfig.onlyEpochManager(msg.sender);
+        _onlyEpochManager(msg.sender);
 
         uint256 numEpochsProcessed = epochsProcessed.length;
         EpochInfo memory epochInfo;
@@ -171,7 +167,7 @@ contract TrancheVault is
      * @param assets The amount of underlyingTokens to be deposited
      */
     function makeInitialDeposit(uint256 assets) external returns (uint256 shares) {
-        poolConfig.onlyPoolOwnerTreasuryOrEA(msg.sender);
+        _onlyAuthorizedInitialDepositor(msg.sender);
         return _deposit(assets, msg.sender);
     }
 
@@ -355,8 +351,10 @@ contract TrancheVault is
         (assets, ) = _getWithdrawableAmountForLender(account);
     }
 
-    /// @notice Returns the number of shares previously requested for redemption that can be cancelled.
-    /// @param account The lender's account
+    /**
+     * @notice Returns the number of shares previously requested for redemption that can be cancelled.
+     * @param account The lender's account
+     */
     function cancellableRedemptionShares(address account) external view returns (uint256 shares) {
         RedemptionRequest[] storage requests = redemptionRequestsByLender[account];
         uint256 numRequests = requests.length;
@@ -371,6 +369,7 @@ contract TrancheVault is
                     disbursementInfo.requestsIndex == lastIndex &&
                     disbursementInfo.actualSharesProcessed > 0
                 ) {
+                    // TODO: negate the if condition?
                     // shares = 0;
                 } else {
                     shares = request.numSharesRequested;
@@ -476,6 +475,15 @@ contract TrancheVault is
                 break;
             }
         }
+    }
+
+    function _onlyEpochManager(address account) internal view {
+        if (account != address(epochManager)) revert Errors.notAuthorizedCaller();
+    }
+
+    function _onlyAuthorizedInitialDepositor(address account) internal view {
+        if (account != poolConfig.poolOwnerTreasury() && account != poolConfig.evaluationAgent())
+            revert Errors.notAuthorizedCaller();
     }
 
     function _onlyLender(address account) internal view {

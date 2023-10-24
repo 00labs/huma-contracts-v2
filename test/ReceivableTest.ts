@@ -1,5 +1,7 @@
-import { ethers } from "hardhat";
+import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { expect } from "chai";
+import { ethers } from "hardhat";
 import {
     Calendar,
     EpochManager,
@@ -17,9 +19,7 @@ import {
     RiskAdjustedTranchesPolicy,
     TrancheVault,
 } from "../typechain-types";
-import { expect } from "chai";
-import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { deployProtocolContracts, deployAndSetupPoolContracts, ReceivableState } from "./BaseTest";
+import { ReceivableState, deployAndSetupPoolContracts, deployProtocolContracts } from "./BaseTest";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,

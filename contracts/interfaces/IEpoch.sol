@@ -9,8 +9,14 @@ struct EpochInfo {
 }
 
 interface IEpoch {
+    /**
+     * @notice Returns the list of all unprocessed/partially processed epochs infos.
+     */
     function unprocessedEpochInfos() external view returns (EpochInfo[] memory);
 
+    /**
+     * @notice Executes processed epochs
+     */
     function executeEpochs(
         EpochInfo[] memory epochsProcessed,
         uint256 sharesProcessed,

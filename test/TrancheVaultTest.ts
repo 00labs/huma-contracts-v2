@@ -1,13 +1,31 @@
-import { ethers } from "hardhat";
+import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { BigNumber as BN } from "ethers";
-import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { ethers } from "hardhat";
 import {
-    checkEpochInfo,
+    Calendar,
+    CreditFeeManager,
+    EpochManager,
+    EvaluationAgentNFT,
+    FirstLossCover,
+    HumaConfig,
+    MockPoolCredit,
+    MockToken,
+    Pool,
+    PoolConfig,
+    PoolFeeManager,
+    PoolSafe,
+    ProfitEscrow,
+    RiskAdjustedTranchesPolicy,
+    TrancheVault,
+} from "../typechain-types";
+import {
     CONSTANTS,
+    PnLCalculator,
+    checkEpochInfo,
     deployAndSetupPoolContracts,
     deployProtocolContracts,
-    PnLCalculator,
 } from "./BaseTest";
 import {
     getFirstLossCoverInfo,
@@ -16,24 +34,6 @@ import {
     setNextBlockTimestamp,
     toToken,
 } from "./TestUtils";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import {
-    CreditFeeManager,
-    Calendar,
-    EpochManager,
-    EvaluationAgentNFT,
-    HumaConfig,
-    FirstLossCover,
-    MockPoolCredit,
-    MockToken,
-    PoolFeeManager,
-    Pool,
-    PoolConfig,
-    PoolSafe,
-    RiskAdjustedTranchesPolicy,
-    TrancheVault,
-    ProfitEscrow,
-} from "../typechain-types";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
@@ -237,7 +237,7 @@ describe("TrancheVault Test", function () {
         it("Should now allow anyone else to make the initial deposit", async function () {
             await expect(
                 juniorTrancheVaultContract.connect(lender).makeInitialDeposit(toToken(1)),
-            ).to.be.revertedWithCustomError(poolConfigContract, "notPoolOwnerTreasuryOrEA");
+            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "notAuthorizedCaller");
         });
     });
 
@@ -1509,7 +1509,7 @@ describe("TrancheVault Test", function () {
             it("Should not allow non-EpochManager to process epochs", async function () {
                 await expect(
                     juniorTrancheVaultContract.executeEpochs([], 0, 0),
-                ).to.be.revertedWithCustomError(poolConfigContract, "notEpochManager");
+                ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "notAuthorizedCaller");
             });
 
             it("Should process one epochs fully", async function () {

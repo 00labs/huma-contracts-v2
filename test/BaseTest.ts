@@ -1,32 +1,32 @@
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { BigNumber as BN } from "ethers";
-import { getNextDate, getNextMonth, minBigNumber, sumBNArray, toToken } from "./TestUtils";
-import { EpochInfoStruct } from "../typechain-types/contracts/interfaces/IEpoch";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { ethers } from "hardhat";
 import {
-    CreditFeeManager,
     BaseTranchesPolicy,
     Calendar,
+    CreditFeeManager,
     EpochManager,
     EvaluationAgentNFT,
+    FirstLossCover,
     HumaConfig,
     IPoolCredit,
-    FirstLossCover,
     MockToken,
-    PoolFeeManager,
     Pool,
     PoolConfig,
+    PoolFeeManager,
     PoolSafe,
-    TrancheVault,
     ProfitEscrow,
     Receivable,
+    TrancheVault,
 } from "../typechain-types";
+import { FirstLossCoverConfigStruct } from "../typechain-types/contracts/PoolConfig.sol/PoolConfig";
 import {
     CreditConfigStruct,
     CreditRecordStruct,
 } from "../typechain-types/contracts/credit/Credit";
-import { FirstLossCoverConfigStruct } from "../typechain-types/contracts/PoolConfig.sol/PoolConfig";
+import { EpochInfoStruct } from "../typechain-types/contracts/interfaces/IEpoch";
+import { getNextMonth, minBigNumber, sumBNArray, toToken } from "./TestUtils";
 
 export type ProtocolContracts = [EvaluationAgentNFT, HumaConfig, MockToken];
 export type PoolContracts = [

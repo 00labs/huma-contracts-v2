@@ -1,33 +1,32 @@
-import { ethers } from "hardhat";
-
-import { expect } from "chai";
-import { CONSTANTS, deployAndSetupPoolContracts, deployProtocolContracts } from "./BaseTest";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { expect } from "chai";
+import { BigNumber as BN } from "ethers";
+import { ethers } from "hardhat";
 import {
-    CreditFeeManager,
     Calendar,
+    CreditFeeManager,
     EpochManager,
     EvaluationAgentNFT,
-    HumaConfig,
     FirstLossCover,
+    HumaConfig,
     MockPoolCredit,
     MockToken,
-    PoolFeeManager,
     Pool,
     PoolConfig,
+    PoolFeeManager,
     PoolSafe,
+    ProfitEscrow,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
-    ProfitEscrow,
 } from "../typechain-types";
+import { CONSTANTS, deployAndSetupPoolContracts, deployProtocolContracts } from "./BaseTest";
 import {
     overrideFirstLossCoverConfig,
-    overrideLossCoverProviderConfig,
     overrideLPConfig,
+    overrideLossCoverProviderConfig,
     toToken,
 } from "./TestUtils";
-import { BigNumber as BN } from "ethers";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
@@ -499,7 +498,7 @@ describe("PoolFeeManager Tests", function () {
         it("Should disallow non-pool owner treasury to withdraw pool owner fees", async function () {
             await expect(
                 poolFeeManagerContract.connect(lender).withdrawPoolOwnerFee(amount),
-            ).to.be.revertedWithCustomError(poolConfigContract, "notPoolOwnerTreasury");
+            ).to.be.revertedWithCustomError(poolFeeManagerContract, "notAuthorizedCaller");
         });
 
         it("Should disallow withdrawal attempts with amounts higher than the balance", async function () {

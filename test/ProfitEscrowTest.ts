@@ -1,28 +1,27 @@
-import { ethers } from "hardhat";
-
-import { CONSTANTS, deployAndSetupPoolContracts, deployProtocolContracts } from "./BaseTest";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { expect } from "chai";
+import { BigNumber as BN } from "ethers";
+import { ethers } from "hardhat";
 import {
-    CreditFeeManager,
     Calendar,
+    CreditFeeManager,
     EpochManager,
     EvaluationAgentNFT,
-    HumaConfig,
     FirstLossCover,
+    HumaConfig,
     MockPoolCredit,
     MockToken,
-    PoolFeeManager,
     Pool,
     PoolConfig,
+    PoolFeeManager,
     PoolSafe,
+    ProfitEscrow,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
-    ProfitEscrow,
 } from "../typechain-types";
+import { CONSTANTS, deployAndSetupPoolContracts, deployProtocolContracts } from "./BaseTest";
 import { toToken } from "./TestUtils";
-import { BigNumber as BN } from "ethers";
-import { expect } from "chai";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
@@ -501,7 +500,7 @@ describe("PoolSafe Tests", function () {
                 it("Should disallow non-controllers to add profit", async function () {
                     await expect(
                         profitEscrowContract.connect(lender1).addProfit(amount),
-                    ).to.be.revertedWithCustomError(profitEscrowContract, "todo");
+                    ).to.be.revertedWithCustomError(profitEscrowContract, "notAuthorizedCaller");
                 });
             });
 
@@ -523,7 +522,7 @@ describe("PoolSafe Tests", function () {
                         profitEscrowContract
                             .connect(lender1)
                             .deposit(evaluationAgent.getAddress(), amount),
-                    ).to.be.revertedWithCustomError(profitEscrowContract, "todo");
+                    ).to.be.revertedWithCustomError(profitEscrowContract, "notAuthorizedCaller");
                 });
             });
 
@@ -545,7 +544,7 @@ describe("PoolSafe Tests", function () {
                         profitEscrowContract
                             .connect(lender1)
                             .withdraw(evaluationAgent.getAddress(), amount),
-                    ).to.be.revertedWithCustomError(profitEscrowContract, "todo");
+                    ).to.be.revertedWithCustomError(profitEscrowContract, "notAuthorizedCaller");
                 });
             });
 

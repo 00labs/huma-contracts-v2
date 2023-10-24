@@ -1,28 +1,27 @@
-import { ethers } from "hardhat";
-
-import { expect } from "chai";
-import { CONSTANTS, deployAndSetupPoolContracts, deployProtocolContracts } from "./BaseTest";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { expect } from "chai";
 import { BigNumber as BN } from "ethers";
+import { ethers } from "hardhat";
 import {
-    CreditFeeManager,
     Calendar,
+    CreditFeeManager,
     EpochManager,
     EvaluationAgentNFT,
-    HumaConfig,
     FirstLossCover,
+    HumaConfig,
     MockPoolCredit,
     MockToken,
-    PoolFeeManager,
     Pool,
     PoolConfig,
+    PoolFeeManager,
     PoolSafe,
+    ProfitEscrow,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
-    ProfitEscrow,
 } from "../typechain-types";
 import { FirstLossCoverStorage } from "../typechain-types/contracts/FirstLossCover";
+import { CONSTANTS, deployAndSetupPoolContracts, deployProtocolContracts } from "./BaseTest";
 import {
     minBigNumber,
     overrideFirstLossCoverConfig,
@@ -521,7 +520,10 @@ describe("FirstLossCover Tests", function () {
                 affiliateFirstLossCoverContract
                     .connect(lender)
                     .depositCoverFor(assets, evaluationAgent.getAddress()),
-            ).to.be.revertedWithCustomError(poolConfigContract, "notPoolFeeManager");
+            ).to.be.revertedWithCustomError(
+                affiliateFirstLossCoverContract,
+                "notAuthorizedCaller",
+            );
         });
     });
 

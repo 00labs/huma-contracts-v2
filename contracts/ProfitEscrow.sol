@@ -143,6 +143,6 @@ contract ProfitEscrow is PoolConfigCache, ProfitEscrowStorage, IProfitEscrow {
     }
 
     function _onlyController() internal view {
-        if (msg.sender != controller) revert Errors.todo();
+        if (msg.sender != controller) revert Errors.notAuthorizedCaller();
     }
 }

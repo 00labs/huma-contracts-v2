@@ -1,27 +1,11 @@
-import { ethers } from "hardhat";
+import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { BigNumber as BN } from "ethers";
-import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { ethers } from "hardhat";
 import {
-    checkEpochInfo,
-    CONSTANTS,
-    deployAndSetupPoolContracts,
-    deployProtocolContracts,
-    getNextDueDate,
-    PnLCalculator,
-} from "./BaseTest";
-import {
-    getFirstLossCoverInfo,
-    mineNextBlockWithTimestamp,
-    overrideLPConfig,
-    setNextBlockTimestamp,
-    sumBNArray,
-    toToken,
-} from "./TestUtils";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import {
-    CreditFeeManager,
     Calendar,
+    CreditFeeManager,
     EpochManager,
     EvaluationAgentNFT,
     FirstLossCover,
@@ -36,6 +20,22 @@ import {
     RiskAdjustedTranchesPolicy,
     TrancheVault,
 } from "../typechain-types";
+import {
+    CONSTANTS,
+    PnLCalculator,
+    checkEpochInfo,
+    deployAndSetupPoolContracts,
+    deployProtocolContracts,
+    getNextDueDate,
+} from "./BaseTest";
+import {
+    getFirstLossCoverInfo,
+    mineNextBlockWithTimestamp,
+    overrideLPConfig,
+    setNextBlockTimestamp,
+    sumBNArray,
+    toToken,
+} from "./TestUtils";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
@@ -284,7 +284,6 @@ describe("EpochManager Test", function () {
             .sub(seniorSharesRedeemable)
             .mul(seniorTokenPrice)
             .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR);
-        console.log(`Unprocessed senior amount: ${unprocessedSeniorAmount}`);
         const expectedSeniorAssets = seniorAssets.sub(seniorAmountRedeemable);
         const seniorTokenBalance = await mockTokenContract.balanceOf(
             seniorTrancheVaultContract.address,
