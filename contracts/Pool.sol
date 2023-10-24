@@ -136,7 +136,7 @@ contract Pool is PoolConfigCache, IPool {
 
     /// @inheritdoc IPool
     function refreshPool() external returns (uint96[2] memory assets) {
-        poolConfig.onlyTrancheVaultOrEpochManagerOrPoolFeeManagerOrFirstLossCover(msg.sender);
+        _onlyPoolRefresher(msg.sender);
         assets = _refreshPool();
     }
 
@@ -553,6 +553,16 @@ contract Pool is PoolConfigCache, IPool {
             account != poolConfig.juniorTranche() &&
             account != poolConfig.seniorTranche() &&
             account != poolConfig.epochManager()
+        ) revert Errors.notAuthorizedCaller();
+    }
+
+    function _onlyPoolRefresher(address account) internal view {
+        if (
+            account != poolConfig.seniorTranche() &&
+            account != poolConfig.juniorTranche() &&
+            account != poolConfig.epochManager() &&
+            account != poolConfig.poolFeeManager() &&
+            !poolConfig.isFirstLossCover(account)
         ) revert Errors.notAuthorizedCaller();
     }
 }

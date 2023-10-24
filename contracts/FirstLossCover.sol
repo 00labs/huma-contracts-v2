@@ -142,7 +142,7 @@ contract FirstLossCover is
         if (shares > balanceOf(msg.sender)) revert Errors.insufficientSharesForRequest();
         assets = convertToAssets(shares);
         // Revert if the pool is not ready and the assets to be withdrawn is more than the available value.
-        if (!ready && assets > currTotalAssets - cap) revert Errors.todo();
+        if (!ready && assets > currTotalAssets - cap) revert Errors.insufficientAmountForRequest();
 
         ERC20Upgradeable._burn(msg.sender, shares);
         if (address(profitEscrow) != address(0)) profitEscrow.withdraw(msg.sender, shares);

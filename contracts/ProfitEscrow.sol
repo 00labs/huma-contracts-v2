@@ -86,7 +86,7 @@ contract ProfitEscrow is PoolConfigCache, ProfitEscrowStorage, IProfitEscrow {
 
         EscrowInfo memory escrowInfo = _escrowInfo;
         UserInfo memory tempUserInfo = userInfo[account];
-        if (amount > tempUserInfo.amount) revert Errors.withdrawnAmountHigherThanBalance();
+        if (amount > tempUserInfo.amount) revert Errors.insufficientAmountForRequest();
 
         // When the user withdraws principal, `rewardDebt` decreases to account for the profits generated while
         // the principal was in the pool but have not yet been claimed. This adjustment ensures that the user can
@@ -118,7 +118,7 @@ contract ProfitEscrow is PoolConfigCache, ProfitEscrowStorage, IProfitEscrow {
                 (tempUserInfo.amount * escrowInfo.accProfitPerShare) / DEFAULT_DECIMALS_FACTOR
             ) - tempUserInfo.rewardDebt
         );
-        if (amount > amountClaimable) revert Errors.todo();
+        if (amount > amountClaimable) revert Errors.insufficientAmountForRequest();
 
         // `rewardDebt` decreases in value here when profits are claimed to prevent users from claiming the
         // same profits multiple times.

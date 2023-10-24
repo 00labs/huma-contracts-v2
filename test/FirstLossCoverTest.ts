@@ -764,7 +764,10 @@ describe("FirstLossCover Tests", function () {
                     affiliateFirstLossCoverContract
                         .connect(evaluationAgent)
                         .redeemCover(sharesToRedeem, evaluationAgent.getAddress()),
-                ).to.be.revertedWithCustomError(affiliateFirstLossCoverContract, "todo");
+                ).to.be.revertedWithCustomError(
+                    affiliateFirstLossCoverContract,
+                    "insufficientAmountForRequest",
+                );
             });
 
             it("Should disallow 0 as the number of shares", async function () {
