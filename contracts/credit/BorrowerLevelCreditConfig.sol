@@ -8,68 +8,44 @@ import {Errors} from "../Errors.sol";
 
 import "hardhat/console.sol";
 
-//* Reserved for Richard review, to be deleted, please review this contract
-
 /**
- * Credit is the basic borrowing entry in Huma Protocol.
- * BaseCredit is the base form of a Credit.
- * The key functions include: approve, drawdown, makePayment, refreshProfitAndLoss
- * Supporting functions include: updateCreditLine, closeCreditLine,
- *
- * Key design considerations:
- * 1) Refresh profit and loss by using an IProfitLossRefersher
- * 2) separate lastUpdateDate for profit and loss
- * 3) Mostly Credit-level limit, also supports borrower-level limit
+ * BorrowerLevelCreditConfig has a set of administrative functions to manage the settings
+ * for a borrower-level credit. A borrower-level credit can have many drawdowns and paybacks
+ * with or without backing of a collateral or receivable, but the balance is all aggregated
+ * at the borrower-level. A classic example of borrower-level credit is credit line.
  */
 contract BorrowerLevelCreditConfig is Credit, IBorrowerLevelCreditConfig {
-    /**
-     * @notice Updates the account and brings its billing status current
-     * @dev If the account is defaulted, no need to update the account anymore.
-     * @dev If the account is ready to be defaulted but not yet, update the account without
-     * distributing the income for the upcoming period. Otherwise, update and distribute income
-     * note the reason that we do not distribute income for the final cycle anymore since
-     * it does not make sense to distribute income that we know cannot be collected to the
-     * administrators (e.g. protocol, pool owner and EA) since it will only add more losses
-     * to the LPs. Unfortunately, this special business consideration added more complexity
-     * and cognitive load to _updateDueInfo(...).
-     */
+    /// @inheritdoc IBorrowerLevelCreditConfig
     function refreshCredit(address borrower) external virtual override {
         bytes32 creditHash = getCreditHash(borrower);
         _refreshCredit(creditHash);
     }
 
-    /**
-     * @notice Triggers the default process
-     * @return losses the amount of remaining losses to the pool
-     * @dev It is possible for the borrower to payback even after default, especially in
-     * receivable factoring cases.
-     */
+    /// @inheritdoc IBorrowerLevelCreditConfig
     function triggerDefault(address borrower) external virtual override returns (uint256 losses) {
         bytes32 creditHash = getCreditHash(borrower);
         _triggerDefault(creditHash);
     }
 
-    /**
-     * @notice Closes a credit record.
-     * @dev Only borrower or EA Service account can call this function
-     * @dev Revert if there is still balance due
-     * @dev Revert if the committed amount is non-zero and there are periods remaining
-     */
+    /// @inheritdoc IBorrowerLevelCreditConfig
     function closeCredit(address borrower) external virtual override {
         bytes32 creditHash = getCreditHash(borrower);
         _closeCredit(creditHash);
     }
 
+    /// @inheritdoc IBorrowerLevelCreditConfig
     function pauseCredit(address borrower) external virtual override {
         bytes32 creditHash = getCreditHash(borrower);
         _pauseCredit(creditHash);
     }
 
+    /// @inheritdoc IBorrowerLevelCreditConfig
     function unpauseCredit(address borrower) external virtual override {
         bytes32 creditHash = getCreditHash(borrower);
         _unpauseCredit(creditHash);
     }
 
+    /// @inheritdoc IBorrowerLevelCreditConfig
     function updateYield(address borrower, uint256 yieldInBps) external virtual override {
         bytes32 creditHash = getCreditHash(borrower);
         _updateYield(creditHash, yieldInBps);

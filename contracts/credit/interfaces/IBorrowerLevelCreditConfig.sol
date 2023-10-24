@@ -6,13 +6,6 @@ interface IBorrowerLevelCreditConfig {
     /**
      * @notice Updates the account and brings its billing status current
      * @dev If the account is defaulted, no need to update the account anymore.
-     * @dev If the account is ready to be defaulted but not yet, update the account without
-     * distributing the income for the upcoming period. Otherwise, update and distribute income
-     * note the reason that we do not distribute income for the final cycle anymore since
-     * it does not make sense to distribute income that we know cannot be collected to the
-     * administrators (e.g. protocol, pool owner and EA) since it will only add more losses
-     * to the LPs. Unfortunately, this special business consideration added more complexity
-     * and cognitive load to _updateDueInfo(...).
      */
     function refreshCredit(address borrower) external;
 
@@ -40,22 +33,26 @@ interface IBorrowerLevelCreditConfig {
     function pauseCredit(address borrower) external;
 
     /**
-     * @notice Unpause the credit to return the credit to normal
+     * @notice Unpauses the credit to return the credit to normal
      * @param borrower the address of the borrower
      * @dev Only EA can call this function
      */
     function unpauseCredit(address borrower) external;
 
     /**
-     * @notice Unpause the credit to return the credit to normal
+     * @notice Updates the yield for the credit.
      * @param borrower the address of the borrower
+     * @param yieldInBps the new yield
      * @dev Only EA can call this function
      */
     function updateYield(address borrower, uint256 yieldInBps) external;
 
     /**
-     * @notice Unpauses the credit to return the credit to normal
+     * @notice Updates the limit and commitment amount for this credit
      * @param borrower the borrower address of the credit line
+     * @param creditLimit the credit limit
+     * @param committedAmount the committed amount. The borrower will be charged interest for
+     * this amount even if the daily average borrowing amount in a month is less than this amount.
      * @dev Only EA can call this function
      */
     function updateLimitAndCommitment(
@@ -65,7 +62,7 @@ interface IBorrowerLevelCreditConfig {
     ) external;
 
     /**
-     * @notice Extends the remaining periods of the credit line
+     * @notice Updates the remaining periods of the credit line
      * @param borrower the borrower address of the credit line
      * @param numOfPeriods the new remaining periods
      * @dev Only EA can call this function
