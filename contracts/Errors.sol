@@ -6,8 +6,8 @@ contract Errors {
     error zeroAddressProvided(); // 0x5ff75ab0
     error zeroAmountProvided(); // 0x71799f2a
     error invalidBasisPointHigherThan10000(); // 0x07982d85
-    error withdrawnAmountHigherThanBalance(); // 0x477c0ab2
     error allowanceTooLow(); // 0xcd8ef369
+    error insufficientAmountForRequest(); // 0x80615fdf
     error insufficientSharesForRequest(); // 0x439f3ef3
     error lessThanRequiredCover(); // 0xd0f0d90e
     error emptyArray(); // 0x81a5a837
@@ -27,8 +27,6 @@ contract Errors {
     error notNFTOwner(); // 0x091a5762
     error notProcessor(); // 0x90409ca1
     error notBorrower(); // 0xb18f4d11
-    error notTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManagerOrProfitEscrow(); // 0xf8902ea6 // 0xdef0fded
-    error notTrancheVaultOrEpochManagerOrPoolFeeManagerOrFirstLossCover(); // 0x9c8c659b
     error notCurrentEpoch(); // 0x50c5dd13
     error notCoverProvider(); // 0xed74bd11
     error notAuthorizedCaller(); // 0x06bc68f5

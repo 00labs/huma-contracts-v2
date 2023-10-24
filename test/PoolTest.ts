@@ -563,10 +563,7 @@ describe("Pool Test", function () {
                 it("Should not allow unqualified accounts to distribute PnL", async function () {
                     await expect(
                         poolContract.connect(lender).refreshPool(),
-                    ).to.be.revertedWithCustomError(
-                        poolConfigContract,
-                        "notTrancheVaultOrEpochManagerOrPoolFeeManagerOrFirstLossCover",
-                    );
+                    ).to.be.revertedWithCustomError(poolContract, "notAuthorizedCaller");
                 });
             });
 
