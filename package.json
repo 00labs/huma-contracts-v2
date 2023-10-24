@@ -14,6 +14,7 @@
     "coverage": "hardhat coverage --network hardhat",
     "format": "prettier 'test/**/*.ts' --write --plugin=prettier-plugin-organize-imports",
     "format-solidity": "prettier 'contracts/**/*.sol' --write --plugin=prettier-plugin-solidity",
+    "foundry": "bash scripts/install-foundry.sh",
     "gitleaks": "bash scripts/gitleaks.sh",
     "lint": "eslint 'test/**/*.ts'",
     "lint:fix": "eslint 'test/**/*.ts' --fix",
