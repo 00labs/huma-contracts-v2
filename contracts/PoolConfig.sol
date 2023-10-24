@@ -794,6 +794,26 @@ contract PoolConfig is AccessControl, Initializable {
         return _firstLossCovers[index];
     }
 
+    function isFirstLossCover(address account) external view returns (bool isCover) {
+        uint256 numCovers = _firstLossCovers.length;
+        for (uint256 i = 0; i < numCovers; i++) {
+            if (account == address(_firstLossCovers[i])) return true;
+        }
+        return false;
+    }
+
+    function isFirstLossCoverOrProfitEscrow(
+        address account
+    ) external view returns (bool isCoverOrProfitEscrow) {
+        uint256 numCovers = _firstLossCovers.length;
+        for (uint256 i = 0; i < numCovers; i++) {
+            address firstLossCoverAddr = address(_firstLossCovers[i]);
+            if (account == firstLossCoverAddr) return true;
+            if (account == _profitEscrowByFirstLossCover[firstLossCoverAddr]) return true;
+        }
+        return false;
+    }
+
     function getFirstLossCoverConfig(
         address firstLossCover
     ) external view returns (FirstLossCoverConfig memory) {
@@ -830,17 +850,6 @@ contract PoolConfig is AccessControl, Initializable {
         return _feeStructure.minPrincipalRateInBps;
     }
 
-    function _getRequiredLiquidityForPoolOwner() internal view returns (uint256 amount) {
-        return
-            (_lpConfig.liquidityCap * _adminRnR.liquidityRateInBpsByPoolOwner) /
-            HUNDRED_PERCENT_IN_BPS;
-    }
-
-    function _getRequiredLiquidityForEA() internal view returns (uint256 amount) {
-        return
-            (_lpConfig.liquidityCap * _adminRnR.liquidityRateInBpsByEA) / HUNDRED_PERCENT_IN_BPS;
-    }
-
     function onlyPoolOwner(address account) public view {
         // Treat DEFAULT_ADMIN_ROLE role as owner role
         if (!hasRole(DEFAULT_ADMIN_ROLE, account)) revert Errors.notPoolOwner();
@@ -872,47 +881,6 @@ contract PoolConfig is AccessControl, Initializable {
         if (account != pool) revert Errors.notPool();
     }
 
-    function onlyTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManagerOrProfitEscrow(
-        address account
-    ) external view {
-        bool valid;
-        if (
-            account == seniorTranche ||
-            account == juniorTranche ||
-            account == credit ||
-            account == poolFeeManager
-        ) return;
-        uint256 len = _firstLossCovers.length;
-        // console.log("account: %s, len: %s", account, len);
-        for (uint256 i = 0; i < len; i++) {
-            // console.log("i: %s, _firstLossCovers[i]: %s", i, address(_firstLossCovers[i]));
-            address firstLossCoverAddr = address(_firstLossCovers[i]);
-            if (account == firstLossCoverAddr) return;
-            if (account == _profitEscrowByFirstLossCover[firstLossCoverAddr]) return;
-        }
-
-        if (!valid)
-            revert Errors.notTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManagerOrProfitEscrow();
-    }
-
-    function onlyTrancheVaultOrEpochManagerOrPoolFeeManagerOrFirstLossCover(
-        address account
-    ) external view {
-        bool valid;
-        if (
-            account == seniorTranche ||
-            account == juniorTranche ||
-            account == epochManager ||
-            account == poolFeeManager
-        ) return;
-        uint256 numCovers = _firstLossCovers.length;
-        for (uint256 i; i < numCovers; i++) {
-            if (account == address(_firstLossCovers[i])) return;
-        }
-
-        if (!valid) revert Errors.notTrancheVaultOrEpochManagerOrPoolFeeManagerOrFirstLossCover();
-    }
-
     function onlyProtocolAndPoolOn() external view {
         if (humaConfig.paused()) revert Errors.protocolIsPaused();
         if (!IPool(pool).isPoolOn()) revert Errors.poolIsNotOn();
@@ -927,5 +895,16 @@ contract PoolConfig is AccessControl, Initializable {
      */
     function _onlyOwnerOrHumaMasterAdmin() internal view {
         onlyOwnerOrHumaMasterAdmin(msg.sender);
+    }
+
+    function _getRequiredLiquidityForPoolOwner() internal view returns (uint256 amount) {
+        return
+            (_lpConfig.liquidityCap * _adminRnR.liquidityRateInBpsByPoolOwner) /
+            HUNDRED_PERCENT_IN_BPS;
+    }
+
+    function _getRequiredLiquidityForEA() internal view returns (uint256 amount) {
+        return
+            (_lpConfig.liquidityCap * _adminRnR.liquidityRateInBpsByEA) / HUNDRED_PERCENT_IN_BPS;
     }
 }

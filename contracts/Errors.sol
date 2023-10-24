@@ -27,8 +27,6 @@ contract Errors {
     error notNFTOwner(); // 0x091a5762
     error notProcessor(); // 0x90409ca1
     error notBorrower(); // 0xb18f4d11
-    error notTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManagerOrProfitEscrow(); // 0xf8902ea6 // 0xdef0fded
-    error notTrancheVaultOrEpochManagerOrPoolFeeManagerOrFirstLossCover(); // 0x9c8c659b
     error notCurrentEpoch(); // 0x50c5dd13
     error notCoverProvider(); // 0xed74bd11
     error notAuthorizedCaller(); // 0x06bc68f5

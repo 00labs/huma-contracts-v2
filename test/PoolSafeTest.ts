@@ -166,10 +166,7 @@ describe("PoolSafe Tests", function () {
         it("Should disallow non-qualified addresses to make deposits", async function () {
             await expect(
                 poolSafeContract.connect(lender).deposit(lender.address, amount),
-            ).to.be.revertedWithCustomError(
-                poolConfigContract,
-                "notTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManagerOrProfitEscrow",
-            );
+            ).to.be.revertedWithCustomError(poolSafeContract, "notAuthorizedCaller");
         });
     });
 
@@ -225,10 +222,7 @@ describe("PoolSafe Tests", function () {
         it("Should disallow non-qualified addresses to withdraw", async function () {
             await expect(
                 poolSafeContract.connect(lender).withdraw(lender.address, amount),
-            ).to.be.revertedWithCustomError(
-                poolConfigContract,
-                "notTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManagerOrProfitEscrow",
-            );
+            ).to.be.revertedWithCustomError(poolSafeContract, "notAuthorizedCaller");
         });
     });
 
