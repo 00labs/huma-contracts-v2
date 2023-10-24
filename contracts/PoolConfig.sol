@@ -810,10 +810,6 @@ contract PoolConfig is AccessControl, Initializable {
         return _poolSettings;
     }
 
-    function isPoolOwnerTreasuryOrEA(address account) public view returns (bool) {
-        return (account == poolOwnerTreasury || account == evaluationAgent);
-    }
-
     function getFrontLoadingFees() external view returns (uint256, uint256) {
         return (_frontFees.frontLoadingFeeFlat, _frontFees.frontLoadingFeeBps);
     }
@@ -868,13 +864,6 @@ contract PoolConfig is AccessControl, Initializable {
     }
 
     /**
-     * @notice "Modifier" function that limits access to pool owner treasury or EA.
-     */
-    function onlyPoolOwnerTreasuryOrEA(address account) public view {
-        if (!isPoolOwnerTreasuryOrEA(account)) revert Errors.notPoolOwnerTreasuryOrEA();
-    }
-
-    /**
      * @notice Allow for sensitive pool functions only to be called by
      * the pool owner and the huma master admin
      */
@@ -882,10 +871,6 @@ contract PoolConfig is AccessControl, Initializable {
         if (!hasRole(DEFAULT_ADMIN_ROLE, account) && account != humaConfig.owner()) {
             revert Errors.permissionDeniedNotAdmin();
         }
-    }
-
-    function onlyEpochManager(address account) external view {
-        if (account != epochManager) revert Errors.notEpochManager();
     }
 
     function onlyPoolFeeManager(address account) external view {

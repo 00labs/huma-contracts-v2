@@ -27,14 +27,12 @@ contract Errors {
     error notOperator(); // 0xf67113fe
     error notPoolOwnerTreasury(); // 0x325bf3c2
     error notPoolOwnerOrEA(); // 0xd6ed9384
-    error notPoolOwnerTreasuryOrEA(); // 0xc74cb44c
     error notPauser(); // 0xdcdea7c8
     error notPool(); // 0x26d29bbf
     error drawdownFunctionUsedInsteadOfDrawdownWithReceivable(); // 0xf7a16c77
     error notNFTOwner(); // 0x091a5762
     error notProcessor(); // 0x90409ca1
     error notBorrower(); // 0xb18f4d11
-    error notEpochManager(); // 0x34478df7
     error notPoolFeeManager(); // 0xe94f3252 // 0xd4017ec2
     error notTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManagerOrProfitEscrow(); // 0xf8902ea6 // 0xdef0fded
     error notTrancheVaultOrEpochManager(); // 0x31c76c83
@@ -42,6 +40,7 @@ contract Errors {
     error notCurrentEpoch(); // 0x50c5dd13
     error notTrancheVault(); // 0x3d7640fb
     error notCoverProvider(); // 0xed74bd11
+    error notAuthorizedCaller(); // 0x06bc68f5
 
     // system config
     error defaultGracePeriodLessThanMinAllowed(); // 0xa733ff9c
