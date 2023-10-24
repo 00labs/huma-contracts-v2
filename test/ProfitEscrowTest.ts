@@ -1,28 +1,27 @@
-import { ethers } from "hardhat";
-
-import { CONSTANTS, deployAndSetupPoolContracts, deployProtocolContracts } from "./BaseTest";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { expect } from "chai";
+import { BigNumber as BN } from "ethers";
+import { ethers } from "hardhat";
 import {
-    CreditFeeManager,
     Calendar,
+    CreditFeeManager,
     EpochManager,
     EvaluationAgentNFT,
-    HumaConfig,
     FirstLossCover,
+    HumaConfig,
     MockPoolCredit,
     MockToken,
-    PoolFeeManager,
     Pool,
     PoolConfig,
+    PoolFeeManager,
     PoolSafe,
+    ProfitEscrow,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
-    ProfitEscrow,
 } from "../typechain-types";
+import { CONSTANTS, deployAndSetupPoolContracts, deployProtocolContracts } from "./BaseTest";
 import { toToken } from "./TestUtils";
-import { BigNumber as BN } from "ethers";
-import { expect } from "chai";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,

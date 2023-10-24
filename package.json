@@ -12,7 +12,7 @@
     "clean": "hardhat clean",
     "compile": "hardhat compile",
     "coverage": "hardhat coverage --network hardhat",
-    "format": "prettier 'test/**/*.ts' --write",
+    "format": "prettier 'test/**/*.ts' --write --plugin=prettier-plugin-organize-imports",
     "format-solidity": "prettier 'contracts/**/*.sol' --write --plugin=prettier-plugin-solidity",
     "gitleaks": "bash scripts/gitleaks.sh",
     "lint": "eslint 'test/**/*.ts'",
@@ -27,7 +27,7 @@
   "lint-staged": {
     "*.ts": [
       "eslint --fix",
-      "prettier --write"
+      "prettier --write --plugin=prettier-plugin-organize-imports"
     ],
     "*.sol": [
       "solhint --fix -f table",
@@ -65,6 +65,7 @@
     "lint-staged": "^14.0.1",
     "moment": "2.29.4",
     "prettier": "^3.0.3",
+    "prettier-plugin-organize-imports": "^3.2.3",
     "prettier-plugin-solidity": "^1.0.0-beta.24",
     "solhint": "^3.6.2",
     "solidity-coverage": "^0.8.1",
