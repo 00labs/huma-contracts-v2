@@ -5,9 +5,6 @@ import {IERC721, IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/ERC
 import {ReceivableCredit} from "./ReceivableCredit.sol";
 import {Errors} from "../Errors.sol";
 
-//* Reserved for Richard review, to be deleted
-// This contract is for Superfluid case.
-
 contract ReceivableFactoringCredit is ReceivableCredit, IERC721Receiver {
     function drawdownWithReceivable(
         address borrower,

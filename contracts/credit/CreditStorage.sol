@@ -10,7 +10,7 @@ import {ICalendar} from "./interfaces/ICalendar.sol";
 import {IPoolSafe} from "../interfaces/IPoolSafe.sol";
 import {IFirstLossCover} from "../interfaces/IFirstLossCover.sol";
 
-contract BaseCreditStorage {
+contract CreditStorage {
     HumaConfig internal _humaConfig;
 
     // Reference to the fee manager contract

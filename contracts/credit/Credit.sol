@@ -6,7 +6,7 @@ import {HumaConfig} from "../HumaConfig.sol";
 import {PoolConfig, PoolSettings} from "../PoolConfig.sol";
 import {PoolConfigCache} from "../PoolConfigCache.sol";
 import "../SharedDefs.sol";
-import {BaseCreditStorage} from "./BaseCreditStorage.sol";
+import {CreditStorage} from "./CreditStorage.sol";
 import {CreditConfig, CreditRecord, CreditLimit, CreditLoss, CreditState, PaymentStatus, Payment} from "./CreditStructs.sol";
 import {ICalendar} from "./interfaces/ICalendar.sol";
 import {IFirstLossCover} from "../interfaces/IFirstLossCover.sol";
@@ -19,10 +19,10 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import "hardhat/console.sol";
 
 /**
- * Credit represents a borrowing entry in Huma Protocol. BaseCredit is an abstract contract that
+ * Credit represents a borrowing entry in Huma Protocol. Credit is an abstract contract that
  * captures the basic functions of a Credit.
  */
-abstract contract BaseCredit is Initializable, PoolConfigCache, BaseCreditStorage, IPoolCredit {
+abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPoolCredit {
     enum CreditLineClosureReason {
         Paidoff,
         CreditLimitChangedToBeZero,
@@ -139,8 +139,7 @@ abstract contract BaseCredit is Initializable, PoolConfigCache, BaseCreditStorag
      * @param creditHash the hashcode of the credit
      * @param numOfPeriods the number of pay periods to be extended
      */
-    function extendCreditLineDuration(bytes32 creditHash, uint256 numOfPeriods) public virtual {
-        _onlyEAServiceAccount();
+    function _updateRemainingPeriods(bytes32 creditHash, uint256 numOfPeriods) internal virtual {
         // Although it is not essential to call _updateDueInfo() to extend the credit line duration
         // it is good practice to bring the account current while we update one of the fields.
         // Also, only if we call _updateDueInfo(), we can write proper tests.

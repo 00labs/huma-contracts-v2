@@ -2,8 +2,8 @@
 pragma solidity ^0.8.0;
 
 import {ICreditLine} from "./interfaces/ICreditLine.sol";
-import {BaseCredit} from "./BaseCredit.sol";
-import {CreditRecord} from "./CreditStructs.sol";
+import {Credit} from "./Credit.sol";
+import {CreditConfig, CreditRecord} from "./CreditStructs.sol";
 import {Errors} from "../Errors.sol";
 
 import "hardhat/console.sol";
@@ -21,7 +21,7 @@ import "hardhat/console.sol";
  * 2) separate lastUpdateDate for profit and loss
  * 3) Mostly Credit-level limit, also supports borrower-level limit
  */
-contract CreditLine is BaseCredit, ICreditLine {
+contract CreditLine is Credit, ICreditLine {
     event CreditLineApproved(
         address indexed borrower,
         bytes32 indexed creditHash,
@@ -136,7 +136,7 @@ contract CreditLine is BaseCredit, ICreditLine {
      * to the LPs. Unfortunately, this special business consideration added more complexity
      * and cognitive load to _updateDueInfo(...).
      */
-    function refreshCredit(address borrower) external {
+    function refreshCredit(address borrower) external override {
         bytes32 creditHash = getCreditHash(borrower);
         _refreshCredit(creditHash);
     }
@@ -147,7 +147,7 @@ contract CreditLine is BaseCredit, ICreditLine {
      * @dev It is possible for the borrower to payback even after default, especially in
      * receivable factoring cases.
      */
-    function triggerDefault(address borrower) external returns (uint256 losses) {
+    function triggerDefault(address borrower) external override returns (uint256 losses) {
         bytes32 creditHash = getCreditHash(borrower);
         _triggerDefault(creditHash);
     }
@@ -158,17 +158,17 @@ contract CreditLine is BaseCredit, ICreditLine {
      * @dev Revert if there is still balance due
      * @dev Revert if the committed amount is non-zero and there are periods remaining
      */
-    function closeCredit(address borrower) external {
+    function closeCredit(address borrower) external override {
         bytes32 creditHash = getCreditHash(borrower);
         _closeCredit(creditHash);
     }
 
-    function pauseCredit(address borrower) external {
+    function pauseCredit(address borrower) external override {
         bytes32 creditHash = getCreditHash(borrower);
         _pauseCredit(creditHash);
     }
 
-    function unpauseCredit(address borrower) external {
+    function unpauseCredit(address borrower) external override {
         bytes32 creditHash = getCreditHash(borrower);
         _unpauseCredit(creditHash);
     }
@@ -180,5 +180,26 @@ contract CreditLine is BaseCredit, ICreditLine {
 
     function getCreditHash(address borrower) internal view virtual returns (bytes32 creditHash) {
         return keccak256(abi.encode(address(this), borrower));
+    }
+
+    /// @inheritdoc ICreditLine
+    function updateRemainingPeriods(address borrower, uint256 numOfPeriods) external override {
+        _onlyEAServiceAccount();
+        bytes32 creditHash = getCreditHash(borrower);
+        _updateRemainingPeriods(creditHash, numOfPeriods);
+    }
+
+    /// @inheritdoc ICreditLine
+    function updateLimitAndCommitment(
+        address borrower,
+        uint256 creditLimit,
+        uint256 committedAmount
+    ) external override {
+        _onlyEAServiceAccount();
+        bytes32 creditHash = getCreditHash(borrower);
+        CreditConfig memory cc = _getCreditConfig(creditHash);
+        cc.creditLimit = uint96(creditLimit);
+        cc.committedAmount = uint96(committedAmount);
+        _setCreditConfig(creditHash, cc);
     }
 }

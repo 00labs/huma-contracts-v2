@@ -11,7 +11,7 @@ import {PoolConfigCache} from "../../PoolConfigCache.sol";
 
 import "hardhat/console.sol";
 
-contract BaseCreditFeeManager is PoolConfigCache, ICreditFeeManager {
+contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
     ICalendar public calendar;
 
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {

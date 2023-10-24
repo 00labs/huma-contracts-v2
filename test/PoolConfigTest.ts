@@ -5,7 +5,7 @@ import { CONSTANTS, deployAndSetupPoolContracts, deployProtocolContracts } from 
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import {
-    BaseCreditFeeManager,
+    CreditFeeManager,
     Calendar,
     EpochManager,
     EvaluationAgentNFT,
@@ -63,7 +63,7 @@ let poolConfigContract: PoolConfig,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: MockPoolCredit,
-    creditFeeManagerContract: BaseCreditFeeManager;
+    creditFeeManagerContract: CreditFeeManager;
 
 describe("PoolConfig Tests", function () {
     before(async function () {
@@ -139,8 +139,8 @@ describe("PoolConfig Tests", function () {
             creditContract = await Credit.deploy();
             await creditContract.deployed();
 
-            const BaseCreditFeeManager = await ethers.getContractFactory("BaseCreditFeeManager");
-            creditFeeManagerContract = await BaseCreditFeeManager.deploy();
+            const CreditFeeManager = await ethers.getContractFactory("CreditFeeManager");
+            creditFeeManagerContract = await CreditFeeManager.deploy();
             await creditFeeManagerContract.deployed();
         }
 

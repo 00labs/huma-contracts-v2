@@ -2,15 +2,12 @@
 pragma solidity ^0.8.0;
 
 import {IReceivableCredit} from "./interfaces/IReceivableCredit.sol";
-import {BaseCredit} from "./BaseCredit.sol";
+import {Credit} from "./Credit.sol";
 import {ReceivableInput} from "./CreditStructs.sol";
 import {CreditConfig, CreditRecord} from "./CreditStructs.sol";
 import {Errors} from "../Errors.sol";
 
-//* Reserved for Richard review, to be deleted
-// This contract is for Arf case.
-
-contract ReceivableCredit is BaseCredit, IReceivableCredit {
+contract ReceivableCredit is Credit, IReceivableCredit {
     function approveReceivable(
         address borrower,
         ReceivableInput memory receivableInput,
