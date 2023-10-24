@@ -520,7 +520,10 @@ describe("FirstLossCover Tests", function () {
                 affiliateFirstLossCoverContract
                     .connect(lender)
                     .depositCoverFor(assets, evaluationAgent.getAddress()),
-            ).to.be.revertedWithCustomError(poolConfigContract, "notPoolFeeManager");
+            ).to.be.revertedWithCustomError(
+                affiliateFirstLossCoverContract,
+                "notAuthorizedCaller",
+            );
         });
     });
 

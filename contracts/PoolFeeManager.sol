@@ -120,7 +120,7 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
     }
 
     function withdrawPoolOwnerFee(uint256 amount) external {
-        address poolOwnerTreasury = poolConfig.onlyPoolOwnerTreasury(msg.sender);
+        address poolOwnerTreasury = _onlyPoolOwnerTreasury(msg.sender);
         // Invests available fees in FirstLossCover first
         AccruedIncomes memory incomes = _investFeesInFirstLossCover();
         // Checks if the required cover is sufficient
@@ -322,5 +322,11 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
 
         remaining -= incomes.poolOwnerIncome + incomes.eaIncome;
         return (incomes, remaining);
+    }
+
+    function _onlyPoolOwnerTreasury(address account) internal view returns (address) {
+        address tempPoolOwnerTreasury = poolConfig.poolOwnerTreasury();
+        if (account != tempPoolOwnerTreasury) revert Errors.notAuthorizedCaller();
+        return tempPoolOwnerTreasury;
     }
 }

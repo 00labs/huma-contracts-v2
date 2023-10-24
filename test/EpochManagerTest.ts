@@ -284,7 +284,6 @@ describe("EpochManager Test", function () {
             .sub(seniorSharesRedeemable)
             .mul(seniorTokenPrice)
             .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR);
-        console.log(`Unprocessed senior amount: ${unprocessedSeniorAmount}`);
         const expectedSeniorAssets = seniorAssets.sub(seniorAmountRedeemable);
         const seniorTokenBalance = await mockTokenContract.balanceOf(
             seniorTrancheVaultContract.address,
