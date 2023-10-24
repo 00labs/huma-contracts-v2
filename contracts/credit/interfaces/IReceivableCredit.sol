@@ -25,18 +25,6 @@ interface IReceivableCredit {
         uint256 amount
     ) external returns (uint256 amountPaid, bool paidoff);
 
-    function refreshCredit(uint256 receivableId) external;
-
-    function triggerDefault(uint256 receivableId) external returns (uint256 losses);
-
-    function closeCredit(uint256 receivableId) external;
-
-    function pauseCredit(uint256 receivableId) external;
-
-    function unpauseCredit(uint256 receivableId) external;
-
-    function updateYield(uint256 receivableId, uint256 yieldInBps) external;
-
     function getCreditConfig(uint256 receivableId) external view returns (CreditConfig memory);
 
     function getCreditRecord(uint256 receivableId) external view returns (CreditRecord memory);
