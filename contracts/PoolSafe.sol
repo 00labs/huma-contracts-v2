@@ -34,9 +34,7 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
 
     /// @inheritdoc IPoolSafe
     function deposit(address from, uint256 amount) external virtual {
-        poolConfig.onlyTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManagerOrProfitEscrow(
-            msg.sender
-        );
+        _onlyCustodian(msg.sender);
 
         underlyingToken.transferFrom(from, address(this), amount);
     }
@@ -44,9 +42,7 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
     /// @inheritdoc IPoolSafe
     function withdraw(address to, uint256 amount) external virtual {
         if (to == address(0)) revert Errors.zeroAddressProvided();
-        poolConfig.onlyTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManagerOrProfitEscrow(
-            msg.sender
-        );
+        _onlyCustodian(msg.sender);
 
         underlyingToken.transfer(to, amount);
     }
@@ -69,5 +65,15 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
         uint256 balance = underlyingToken.balanceOf(address(this));
         uint256 reserved = pool.getReservedAssetsForFirstLossCovers();
         liquidity = balance > reserved ? balance - reserved : 0;
+    }
+
+    function _onlyCustodian(address account) internal view {
+        if (
+            account != poolConfig.seniorTranche() &&
+            account != poolConfig.juniorTranche() &&
+            account != poolConfig.credit() &&
+            account != poolConfig.poolFeeManager() &&
+            !poolConfig.isFirstLossCoverOrProfitEscrow(account)
+        ) revert Errors.notAuthorizedCaller();
     }
 }
