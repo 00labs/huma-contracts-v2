@@ -64,36 +64,6 @@ contract ReceivableCredit is Credit, IReceivableCredit {
         (amountPaid, paidoff, ) = _makePayment(borrower, creditHash, amount);
     }
 
-    function refreshCredit(uint256 receivableId) external {
-        bytes32 creditHash = getCreditHash(receivableId);
-        _refreshCredit(creditHash);
-    }
-
-    function triggerDefault(uint256 receivableId) external returns (uint256 losses) {
-        bytes32 creditHash = getCreditHash(receivableId);
-        _triggerDefault(creditHash);
-    }
-
-    function closeCredit(uint256 receivableId) external {
-        bytes32 creditHash = getCreditHash(receivableId);
-        _closeCredit(creditHash);
-    }
-
-    function pauseCredit(uint256 receivableId) external {
-        bytes32 creditHash = getCreditHash(receivableId);
-        _pauseCredit(creditHash);
-    }
-
-    function unpauseCredit(uint256 receivableId) external {
-        bytes32 creditHash = getCreditHash(receivableId);
-        _unpauseCredit(creditHash);
-    }
-
-    function updateYield(uint256 receivableId, uint256 yieldInBps) external {
-        bytes32 creditHash = getCreditHash(receivableId);
-        _updateYield(creditHash, yieldInBps);
-    }
-
     function getCreditConfig(uint256 receivableId) external view returns (CreditConfig memory) {
         bytes32 creditHash = getCreditHash(receivableId);
         return _getCreditConfig(creditHash);
