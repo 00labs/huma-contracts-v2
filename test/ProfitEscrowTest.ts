@@ -501,7 +501,7 @@ describe("PoolSafe Tests", function () {
                 it("Should disallow non-controllers to add profit", async function () {
                     await expect(
                         profitEscrowContract.connect(lender1).addProfit(amount),
-                    ).to.be.revertedWithCustomError(profitEscrowContract, "todo");
+                    ).to.be.revertedWithCustomError(profitEscrowContract, "notAuthorizedCaller");
                 });
             });
 
@@ -523,7 +523,7 @@ describe("PoolSafe Tests", function () {
                         profitEscrowContract
                             .connect(lender1)
                             .deposit(evaluationAgent.getAddress(), amount),
-                    ).to.be.revertedWithCustomError(profitEscrowContract, "todo");
+                    ).to.be.revertedWithCustomError(profitEscrowContract, "notAuthorizedCaller");
                 });
             });
 
@@ -545,7 +545,7 @@ describe("PoolSafe Tests", function () {
                         profitEscrowContract
                             .connect(lender1)
                             .withdraw(evaluationAgent.getAddress(), amount),
-                    ).to.be.revertedWithCustomError(profitEscrowContract, "todo");
+                    ).to.be.revertedWithCustomError(profitEscrowContract, "notAuthorizedCaller");
                 });
             });
 

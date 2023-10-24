@@ -3,15 +3,12 @@ pragma solidity ^0.8.0;
 
 contract Errors {
     // common
-    error sameValue(); // 0x0811ff09
     error zeroAddressProvided(); // 0x5ff75ab0
     error zeroAmountProvided(); // 0x71799f2a
-    error amountTooLow(); // 0x5b05bfbf
     error invalidBasisPointHigherThan10000(); // 0x07982d85
     error withdrawnAmountHigherThanBalance(); // 0x477c0ab2
     error allowanceTooLow(); // 0xcd8ef369
     error insufficientSharesForRequest(); // 0x439f3ef3
-    error insufficientTotalBalance(); // 0x300e0111
     error lessThanRequiredCover(); // 0xd0f0d90e
     error emptyArray(); // 0x81a5a837
 
@@ -23,9 +20,6 @@ contract Errors {
     error poolOperatorRequired(); // 0xdc2dc6d0
     error notPoolOwner(); // 0xd39208c9
     error notProtocolOwner(); // 0x97924c20
-    error notEvaluationAgent(); // 0x66f7b8b7
-    error notOperator(); // 0xf67113fe
-    error notPoolOwnerTreasury(); // 0x325bf3c2
     error notPoolOwnerOrEA(); // 0xd6ed9384
     error notPauser(); // 0xdcdea7c8
     error notPool(); // 0x26d29bbf
@@ -33,19 +27,15 @@ contract Errors {
     error notNFTOwner(); // 0x091a5762
     error notProcessor(); // 0x90409ca1
     error notBorrower(); // 0xb18f4d11
-    error notPoolFeeManager(); // 0xe94f3252 // 0xd4017ec2
     error notTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManagerOrProfitEscrow(); // 0xf8902ea6 // 0xdef0fded
-    error notTrancheVaultOrEpochManager(); // 0x31c76c83
     error notTrancheVaultOrEpochManagerOrPoolFeeManagerOrFirstLossCover(); // 0x9c8c659b
     error notCurrentEpoch(); // 0x50c5dd13
-    error notTrancheVault(); // 0x3d7640fb
     error notCoverProvider(); // 0xed74bd11
     error notAuthorizedCaller(); // 0x06bc68f5
 
     // system config
     error defaultGracePeriodLessThanMinAllowed(); // 0xa733ff9c
     error treasuryFeeHighThanUpperLimit(); // 0x39cda0d1
-    error alreadyAnOperator(); // 0x75cea0fc
     error alreadyAPauser(); // 0x9f694c22
     error alreadyPoolAdmin(); // 0x7bb356e2
 

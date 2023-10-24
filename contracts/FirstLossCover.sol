@@ -107,7 +107,7 @@ contract FirstLossCover is
     function depositCoverFor(uint256 assets, address receiver) external returns (uint256 shares) {
         if (assets == 0) revert Errors.zeroAmountProvided();
         if (receiver == address(0)) revert Errors.zeroAddressProvided();
-        poolConfig.onlyPoolFeeManager(msg.sender);
+        _onlyPoolFeeManager(msg.sender);
 
         // Note: we have to mint the shares first by calling _deposit() before transferring the assets.
         // Transferring assets first would increase the total cover assets without increasing the supply, resulting in
@@ -318,5 +318,9 @@ contract FirstLossCover is
         LossCoverProviderConfig memory config = providerConfigs[account];
         if (config.poolCapCoverageInBps == 0 && config.poolValueCoverageInBps == 0)
             revert Errors.notCoverProvider();
+    }
+
+    function _onlyPoolFeeManager(address account) internal view {
+        if (account != poolConfig.poolFeeManager()) revert Errors.notAuthorizedCaller();
     }
 }

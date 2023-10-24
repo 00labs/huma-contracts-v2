@@ -499,7 +499,7 @@ describe("PoolFeeManager Tests", function () {
         it("Should disallow non-pool owner treasury to withdraw pool owner fees", async function () {
             await expect(
                 poolFeeManagerContract.connect(lender).withdrawPoolOwnerFee(amount),
-            ).to.be.revertedWithCustomError(poolConfigContract, "notPoolOwnerTreasury");
+            ).to.be.revertedWithCustomError(poolFeeManagerContract, "notAuthorizedCaller");
         });
 
         it("Should disallow withdrawal attempts with amounts higher than the balance", async function () {

@@ -506,7 +506,7 @@ contract Pool is PoolConfigCache, IPool {
     }
 
     function updateTranchesAssets(uint96[2] memory assets) external {
-        poolConfig.onlyTrancheVaultOrEpochManager(msg.sender);
+        _onlyTrancheVaultOrEpochManager(msg.sender);
 
         TranchesAssets memory tempTranchesAssets = tranchesAssets;
         // This assertion is to ensure that the asset data is up-to-date before any further
@@ -546,5 +546,13 @@ contract Pool is PoolConfigCache, IPool {
         uint256 coverTotalAssets = cover.totalAssets() + reservedForCover;
         uint256 totalCap = cover.getCapacity(poolAssets);
         return totalCap > coverTotalAssets ? totalCap - coverTotalAssets : 0;
+    }
+
+    function _onlyTrancheVaultOrEpochManager(address account) internal view {
+        if (
+            account != poolConfig.juniorTranche() &&
+            account != poolConfig.seniorTranche() &&
+            account != poolConfig.epochManager()
+        ) revert Errors.notAuthorizedCaller();
     }
 }

@@ -846,11 +846,6 @@ contract PoolConfig is AccessControl, Initializable {
         if (!hasRole(DEFAULT_ADMIN_ROLE, account)) revert Errors.notPoolOwner();
     }
 
-    function onlyPoolOwnerTreasury(address account) public view returns (address) {
-        if (account != poolOwnerTreasury) revert Errors.notPoolOwnerTreasury();
-        return poolOwnerTreasury;
-    }
-
     /**
      * @notice "Modifier" function that limits access to pool owner or EA.
      */
@@ -871,10 +866,6 @@ contract PoolConfig is AccessControl, Initializable {
         if (!hasRole(DEFAULT_ADMIN_ROLE, account) && account != humaConfig.owner()) {
             revert Errors.permissionDeniedNotAdmin();
         }
-    }
-
-    function onlyPoolFeeManager(address account) external view {
-        if (account != poolFeeManager) revert Errors.notPoolFeeManager();
     }
 
     function onlyPool(address account) external view {
@@ -904,11 +895,6 @@ contract PoolConfig is AccessControl, Initializable {
             revert Errors.notTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManagerOrProfitEscrow();
     }
 
-    function onlyTrancheVaultOrEpochManager(address account) external view {
-        if (account != juniorTranche && account != seniorTranche && account != epochManager)
-            revert Errors.notTrancheVaultOrEpochManager();
-    }
-
     function onlyTrancheVaultOrEpochManagerOrPoolFeeManagerOrFirstLossCover(
         address account
     ) external view {
@@ -934,11 +920,6 @@ contract PoolConfig is AccessControl, Initializable {
 
     function onlyPoolOperator(address account) external view {
         if (!hasRole(POOL_OPERATOR_ROLE, account)) revert Errors.poolOperatorRequired();
-    }
-
-    function onlyTrancheVault(address trancheVault) external view {
-        if (trancheVault != seniorTranche && trancheVault != juniorTranche)
-            revert Errors.notTrancheVault();
     }
 
     /**
