@@ -586,7 +586,7 @@ describe("TrancheVault Test", function () {
                             .addRedemptionRequest(shares.add(BN.from(1))),
                     ).to.be.revertedWithCustomError(
                         juniorTrancheVaultContract,
-                        "insufficientAmountForRequest",
+                        "insufficientSharesForRequest",
                     );
                 });
 
