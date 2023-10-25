@@ -14,7 +14,7 @@ import "hardhat/console.sol";
  * with or without backing of a collateral or receivable, but the balance is all aggregated
  * at the borrower-level. A classic example of borrower-level credit is credit line.
  */
-contract BorrowerLevelCreditConfig is Credit, IBorrowerLevelCreditConfig {
+abstract contract BorrowerLevelCreditConfig is Credit, IBorrowerLevelCreditConfig {
     /// @inheritdoc IBorrowerLevelCreditConfig
     function refreshCredit(address borrower) external virtual override {
         bytes32 creditHash = getCreditHash(borrower);
@@ -56,13 +56,13 @@ contract BorrowerLevelCreditConfig is Credit, IBorrowerLevelCreditConfig {
     }
 
     /// @inheritdoc IBorrowerLevelCreditConfig
-    function updateRemainingPeriods(
+    function extendRemainingPeriod(
         address borrower,
         uint256 numOfPeriods
     ) external virtual override {
         _onlyEAServiceAccount();
         bytes32 creditHash = getCreditHash(borrower);
-        _updateRemainingPeriods(creditHash, numOfPeriods);
+        _extendRemainingPeriod(creditHash, numOfPeriods);
     }
 
     /// @inheritdoc IBorrowerLevelCreditConfig

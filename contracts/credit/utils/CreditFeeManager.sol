@@ -121,7 +121,6 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
             _cr.nextDueDate,
             _cr.totalDue,
             _cr.yieldDue,
-            _cr.feesDue,
             _cr.missedPeriods,
             _cr.remainingPeriods,
             _cr.state
@@ -134,10 +133,7 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
         );
         newCR.nextDueDate = uint64(newDueDate);
 
-        uint256 principal = newCR.unbilledPrincipal +
-            newCR.totalDue -
-            newCR.yieldDue -
-            newCR.feesDue;
+        uint256 principal = newCR.unbilledPrincipal + newCR.totalDue - newCR.yieldDue;
 
         // Note that if multiple periods have passed, the yield for every period is still based on the
         // outstanding principal since there was no change to the principal
@@ -177,7 +173,7 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
         CreditRecord memory cr,
         uint256 yieldInBps
     ) external view virtual override returns (uint256 payoffAmount) {
-        uint256 principal = cr.unbilledPrincipal + cr.totalDue - cr.yieldDue - cr.feesDue;
+        uint256 principal = cr.unbilledPrincipal + cr.totalDue - cr.yieldDue;
         payoffAmount = uint256(cr.totalDue + cr.unbilledPrincipal);
         if (block.timestamp < cr.nextDueDate) {
             // Subtract the yield for the days between the current date and the due date when payment is made

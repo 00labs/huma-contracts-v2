@@ -19,8 +19,8 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import "hardhat/console.sol";
 
 /**
- * Credit represents a borrowing entry in Huma Protocol. Credit is an abstract contract that
- * captures the basic functions of a Credit.
+ * Credit is the core borrowing concept in Huma Protocol. This abstract contract provides
+ * basic operations that applies to all credits in Huma Protocol.
  */
 abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPoolCredit {
     enum CreditLineClosureReason {
@@ -95,7 +95,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
      * @param numOfPeriods the number of pay periods to be extended
      * @param remainingPeriods the remaining number of pay periods after the extension
      */
-    event CreditLineExtended(
+    event RemainingPeriodsExtended(
         bytes32 indexed creditHash,
         uint256 numOfPeriods,
         uint256 remainingPeriods,
@@ -135,19 +135,19 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
     );
 
     /**
-     * @notice Extend the expiration (maturity) date of a credit line
+     * @notice Extend the expiration (maturity) date of a credit
      * @param creditHash the hashcode of the credit
-     * @param numOfPeriods the number of pay periods to be extended
+     * @param newNumOfPeriods the number of pay periods to be extended
      */
-    function _updateRemainingPeriods(bytes32 creditHash, uint256 numOfPeriods) internal virtual {
-        // Although it is not essential to call _updateDueInfo() to extend the credit line duration
+    function _extendRemainingPeriod(bytes32 creditHash, uint256 newNumOfPeriods) internal virtual {
+        // Although not essential to call _updateDueInfo() to extend the credit line duration
         // it is good practice to bring the account current while we update one of the fields.
-        // Also, only if we call _updateDueInfo(), we can write proper tests.
         _updateDueInfo(creditHash);
-        _creditRecordMap[creditHash].remainingPeriods += uint16(numOfPeriods);
-        emit CreditLineExtended(
+        uint256 oldNumOfPeriods = _creditRecordMap[creditHash].remainingPeriods;
+        _creditRecordMap[creditHash].remainingPeriods += uint16(newNumOfPeriods);
+        emit RemainingPeriodsExtended(
             creditHash,
-            numOfPeriods,
+            oldNumOfPeriods,
             _creditRecordMap[creditHash].remainingPeriods,
             msg.sender
         );
@@ -164,9 +164,6 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
      * @dev only Evaluation Agent can call
      */
     function updateAvailableCredit(bytes32 creditHash, uint96 newAvailableCredit) public virtual {
-        //* Reserved for Richard review, to be deleted
-        // Is it still used?
-
         poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
 
@@ -409,7 +406,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
 
             if (
                 borrowAmount >
-                (cc.creditLimit - cr.unbilledPrincipal - (cr.totalDue - cr.feesDue - cr.yieldDue))
+                (cc.creditLimit - cr.unbilledPrincipal - (cr.totalDue - cr.yieldDue))
             ) revert Errors.creditLineExceeded();
 
             //* Reserved for Richard review, to be deleted
@@ -471,19 +468,12 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
             if (amount < cr.totalDue) {
                 // process order - 1. fees, 2. yield, 3. principal
 
-                uint256 principalDue = cr.totalDue - cr.feesDue - cr.yieldDue;
-
-                // Handle fee payment.
-                p.feesPaid = amount < cr.feesDue ? uint96(amount) : cr.feesDue;
-                cr.feesDue -= p.feesPaid;
-                amount -= p.feesPaid;
+                uint256 principalDue = cr.totalDue - cr.yieldDue;
 
                 // Handle yield payment.
-                if (amount > 0) {
-                    p.yieldPaid = amount < cr.yieldDue ? uint96(amount) : cr.yieldDue;
-                    cr.yieldDue -= p.yieldPaid;
-                    amount -= p.yieldPaid;
-                }
+                p.yieldPaid = amount < cr.yieldDue ? uint96(amount) : cr.yieldDue;
+                cr.yieldDue -= p.yieldPaid;
+                amount -= p.yieldPaid;
 
                 // Handle principal payment.
                 if (amount > 0) {
@@ -498,12 +488,10 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
                 _setCreditRecord(creditHash, cr);
             } else {
                 // Apply extra payments towards principal, reduce unbilledPrincipal amount
-                p.principalPaid = uint96(amount - cr.feesDue - cr.yieldDue);
-                p.feesPaid = cr.feesDue;
+                p.principalPaid = uint96(amount - cr.yieldDue);
                 p.yieldPaid = cr.yieldDue;
                 cr.unbilledPrincipal -= uint96(amount - cr.totalDue);
                 cr.totalDue = 0;
-                cr.feesDue = 0;
                 cr.yieldDue = 0;
                 cr.missedPeriods = 0;
                 // Moves account to GoodStanding if it was delayed.
@@ -513,13 +501,11 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
             }
         } else {
             // Payoff
-            p.principalPaid = cr.unbilledPrincipal + cr.totalDue - cr.feesDue - cr.yieldDue;
-            p.feesPaid = cr.feesDue;
+            p.principalPaid = cr.unbilledPrincipal + cr.totalDue - cr.yieldDue;
             p.yieldPaid = uint96(payoffAmount - p.principalPaid);
             p.amountToCollect = uint96(payoffAmount);
 
             cr.unbilledPrincipal = 0;
-            cr.feesDue = 0;
             cr.yieldDue = 0;
             cr.totalDue = 0;
             cr.missedPeriods = 0;
@@ -568,7 +554,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
             cr = _updateDueInfo(creditHash);
         }
 
-        uint256 principalDue = cr.totalDue - cr.feesDue - cr.yieldDue;
+        uint256 principalDue = cr.totalDue - cr.yieldDue;
         uint256 totalPrincipal = principalDue + cr.unbilledPrincipal;
 
         uint256 amountToCollect = amount < totalPrincipal ? amount : totalPrincipal;
@@ -580,7 +566,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
             cr.unbilledPrincipal = uint96(cr.unbilledPrincipal - (amountToCollect - principalDue));
         }
 
-        // Adjust credit record status if needed. This happens when the yieldDue and feesDue happen to be 0.
+        // Adjust credit record status if needed. This happens when the yieldDue happen to be 0.
         if (cr.totalDue == 0) {
             if (cr.unbilledPrincipal == 0 && cr.remainingPeriods == 0) {
                 cr.state = CreditState.Deleted;
@@ -666,7 +652,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
         if (!_isDefaultReady(cr)) revert Errors.defaultTriggeredTooEarly();
 
         // default amount includes all outstanding principal
-        losses = cr.unbilledPrincipal + cr.totalDue - cr.feesDue - cr.yieldDue;
+        losses = cr.unbilledPrincipal + cr.totalDue - cr.yieldDue;
 
         CreditConfig memory cc = _getCreditConfig(creditHash);
         uint256 defaultDate = calendar.getStartDateOfPeriod(cc.periodDuration, cr.nextDueDate);
