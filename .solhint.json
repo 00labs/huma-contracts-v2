@@ -6,12 +6,9 @@
       "error",
       "^0.8.0"
     ],
-    "avoid-throw": "off",
-    "avoid-suicide": "error",
-    "avoid-sha3": "warn",
     "not-rely-on-time": "off",
     "no-empty-blocks": "off",
-    "func-visibility": "off",
+    "func-visibility": ["error", { "ignoreConstructors": true }],
     "no-console": "warn"
   }
 }

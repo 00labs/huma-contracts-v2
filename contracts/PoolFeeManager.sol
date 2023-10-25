@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import "./SharedDefs.sol";
-import {PoolConfig, PoolSettings, AdminRnR} from "./PoolConfig.sol";
+import {JUNIOR_TRANCHE, SENIOR_TRANCHE} from "./SharedDefs.sol";
+import {PoolConfig, AdminRnR} from "./PoolConfig.sol";
 import {PoolConfigCache} from "./PoolConfigCache.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
