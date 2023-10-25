@@ -5,7 +5,6 @@
   "keywords": [],
   "license": "AGPL-3.0-or-later",
   "author": "",
-  "main": "index.js",
   "scripts": {
     "build": "hardhat compile",
     "chain": "hardhat node",
