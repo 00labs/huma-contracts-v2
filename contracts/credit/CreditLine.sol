@@ -124,10 +124,4 @@ contract CreditLine is BorrowerLevelCreditConfig, ICreditLine {
         if (borrower != _creditBorrowerMap[creditHash]) revert Errors.notBorrower();
         (amountPaid, paidoff) = _makePrincipalPayment(borrower, creditHash, amount);
     }
-
-    function getCreditHash(
-        address borrower
-    ) internal view virtual override returns (bytes32 creditHash) {
-        return keccak256(abi.encode(address(this), borrower));
-    }
 }
