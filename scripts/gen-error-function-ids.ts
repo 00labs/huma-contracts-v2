@@ -1,6 +1,6 @@
 import fs from "fs";
-import readline from "readline";
 import { ethers } from "hardhat";
+import readline from "readline";
 
 async function genFunctionKeys(sourceFile: string, destFile: string) {
     const fileStream = fs.createReadStream(sourceFile);
@@ -40,8 +40,8 @@ async function addContractComments(sourceFile: string, contractFile: string) {
     let content = data.toString();
     const errorFunctions = require(sourceFile);
     for (const errFunc of Object.keys(errorFunctions)) {
-        let oldStr = `error ${errFunc};`;
-        let newStr = `error ${errFunc}; // ${errorFunctions[errFunc]}`;
+        const oldStr = `error ${errFunc};`;
+        const newStr = `error ${errFunc}; // ${errorFunctions[errFunc]}`;
         if (!content.includes(newStr)) {
             content = content.replace(oldStr, newStr);
         }
