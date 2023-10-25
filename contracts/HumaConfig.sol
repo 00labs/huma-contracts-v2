@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/security/Pausable.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
 
-import "./Errors.sol";
-
-import "hardhat/console.sol";
+import {Errors} from "./Errors.sol";
 
 /** @notice HumaConfig maintains all the global configurations supported by Huma protocol.
  */
