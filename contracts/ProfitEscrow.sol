@@ -63,11 +63,11 @@ contract ProfitEscrow is PoolConfigCache, ProfitEscrowStorage, IProfitEscrow {
         EscrowInfo memory escrowInfo = _escrowInfo;
         UserInfo memory tempUserInfo = userInfo[account];
 
-        // When the user deposits principal, `rewardDebt` increases to account for the profits that have already been
+        // When the user deposits principal, `profitDebt` increases to account for the profits that have already been
         // accrued per share but were not contributed by the newly deposited amount. This ensures that when profits
         // are distributed, users can only claim profits generated while their principal was actively contributing
         // to the pool.
-        tempUserInfo.rewardDebt += int96(
+        tempUserInfo.profitDebt += int96(
             int256((amount * escrowInfo.accProfitPerShare) / DEFAULT_DECIMALS_FACTOR)
         );
         tempUserInfo.amount += uint96(amount);
@@ -88,14 +88,14 @@ contract ProfitEscrow is PoolConfigCache, ProfitEscrowStorage, IProfitEscrow {
         UserInfo memory tempUserInfo = userInfo[account];
         if (amount > tempUserInfo.amount) revert Errors.insufficientAmountForRequest();
 
-        // When the user withdraws principal, `rewardDebt` decreases to account for the profits generated while
+        // When the user withdraws principal, `profitDebt` decreases to account for the profits generated while
         // the principal was in the pool but have not yet been claimed. This adjustment ensures that the user can
         // claim the correct amount of profits when they call the claim function.
-        // Note that `rewardDebt` can become negative here if the user withdraws principal before claiming
+        // Note that `profitDebt` can become negative here if the user withdraws principal before claiming
         // their profits. The negative value indicates that the user's principal had not contributed to the generation
         // of some of the profits they are entitled to claim. This acts as a correction mechanism to ensure that the
         // user's claimable profits are adjusted accordingly.
-        tempUserInfo.rewardDebt -= int96(
+        tempUserInfo.profitDebt -= int96(
             int256((amount * escrowInfo.accProfitPerShare) / DEFAULT_DECIMALS_FACTOR)
         );
         tempUserInfo.amount -= uint96(amount);
@@ -116,13 +116,13 @@ contract ProfitEscrow is PoolConfigCache, ProfitEscrowStorage, IProfitEscrow {
         uint256 amountClaimable = uint256(
             int256(
                 (tempUserInfo.amount * escrowInfo.accProfitPerShare) / DEFAULT_DECIMALS_FACTOR
-            ) - tempUserInfo.rewardDebt
+            ) - tempUserInfo.profitDebt
         );
         if (amount > amountClaimable) revert Errors.insufficientAmountForRequest();
 
-        // `rewardDebt` decreases in value here when profits are claimed to prevent users from claiming the
+        // `profitDebt` decreases in value here when profits are claimed to prevent users from claiming the
         // same profits multiple times.
-        tempUserInfo.rewardDebt += int96(int256(amount));
+        tempUserInfo.profitDebt += int96(int256(amount));
         userInfo[msg.sender] = tempUserInfo;
 
         poolSafe.withdraw(msg.sender, amount);
@@ -138,7 +138,7 @@ contract ProfitEscrow is PoolConfigCache, ProfitEscrowStorage, IProfitEscrow {
             uint256(
                 int256(
                     (tempUserInfo.amount * escrowInfo.accProfitPerShare) / DEFAULT_DECIMALS_FACTOR
-                ) - tempUserInfo.rewardDebt
+                ) - tempUserInfo.profitDebt
             );
     }
 
