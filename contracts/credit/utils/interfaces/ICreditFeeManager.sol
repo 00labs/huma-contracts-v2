@@ -64,7 +64,7 @@ interface ICreditFeeManager {
      * these cycles to get the most up-to-date due information.
      * @dev This is a view only function, it does not update the account status. It is used to
      * help the borrowers to get their balances without paying gases.
-     * @dev the difference between totalDue and the sum of yieldDue and feesDue is the required principal payment
+     * @dev the difference between totalDue and yieldDue is the required principal payment
      * @dev please note the first due date is set after the initial drawdown. All the future due
      * dates are computed by adding multiples of the payment interval to the first due date.
      * @param _cr the credit record associated with the account

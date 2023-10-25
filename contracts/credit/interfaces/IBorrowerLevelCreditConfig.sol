@@ -67,5 +67,5 @@ interface IBorrowerLevelCreditConfig {
      * @param numOfPeriods the new remaining periods
      * @dev Only EA can call this function
      */
-    function updateRemainingPeriods(address borrower, uint256 numOfPeriods) external;
+    function extendRemainingPeriod(address borrower, uint256 numOfPeriods) external;
 }

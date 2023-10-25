@@ -737,7 +737,6 @@ export function checkTwoCreditRecords(
     expect(creditRecord.nextDueDate).to.equal(preCreditRecord.nextDueDate);
     expect(creditRecord.totalDue).to.equal(preCreditRecord.totalDue);
     expect(creditRecord.yieldDue).to.equal(preCreditRecord.yieldDue);
-    expect(creditRecord.feesDue).to.equal(preCreditRecord.feesDue);
     expect(creditRecord.missedPeriods).to.equal(preCreditRecord.missedPeriods);
     expect(creditRecord.remainingPeriods).to.equal(preCreditRecord.remainingPeriods);
     expect(creditRecord.state).to.equal(preCreditRecord.state);
@@ -749,7 +748,6 @@ export function checkCreditRecord(
     nextDueDate: number,
     totalDue: BN,
     yieldDue: BN,
-    feesDue: BN,
     missedPeriods: number,
     remainingPeriods: number,
     state: number,
@@ -758,7 +756,6 @@ export function checkCreditRecord(
     expect(creditRecord.nextDueDate).to.equal(nextDueDate);
     expect(creditRecord.totalDue).to.equal(totalDue);
     expect(creditRecord.yieldDue).to.equal(yieldDue);
-    expect(creditRecord.feesDue).to.equal(feesDue);
     expect(creditRecord.missedPeriods).to.equal(missedPeriods);
     expect(creditRecord.remainingPeriods).to.equal(remainingPeriods);
     expect(creditRecord.state).to.equal(state);
@@ -788,7 +785,6 @@ export function printCreditRecord(name: string, creditRecord: CreditRecordStruct
             nextDueDate: ${creditRecord.nextDueDate},
             totalDue: ${creditRecord.totalDue},
             yieldDue: ${creditRecord.yieldDue},
-            feesDue: ${creditRecord.feesDue},
             missedPeriods: ${creditRecord.missedPeriods},
             remainingPeriods: ${creditRecord.remainingPeriods},
             state: ${creditRecord.state}]`,

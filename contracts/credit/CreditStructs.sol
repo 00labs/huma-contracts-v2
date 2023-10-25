@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-// CreditConfig keeps track of the static settings of a credit line,
-// i.e. settings that do not change between pay periods.
-// It is created after the credit approval.
+// CreditConfig keeps track of the static settings of a credit.
+// A CreditConfig is created after the approval of each credit.
 struct CreditConfig {
     uint96 creditLimit;
     uint96 committedAmount;
@@ -20,18 +19,16 @@ struct CreditConfig {
     bool exclusive; // if the credit pool is exclusive to a borrower
 }
 
-// CreditRecord keep track of the dynamic stats of a credit line that change
+// CreditRecord keep track of the dynamic stats of a credit that change
 // from pay period to pay period, e.g. due info for each bill.
 struct CreditRecord {
     uint96 unbilledPrincipal; // the amount of principal not included in the bill
     uint64 nextDueDate; // the due date of the next payment
     uint96 totalDue; // the due amount of the next payment
     uint96 yieldDue; // yield due for the next payment
-    uint96 feesDue; // fees due for the next payment
     uint16 missedPeriods; // the number of consecutive missed payments, for default processing
     uint16 remainingPeriods; // the number of payment periods until the maturity of the credit line
     CreditState state;
-    // bool revolving; // whether repeated borrowing is allowed
 }
 
 struct CreditLimit {

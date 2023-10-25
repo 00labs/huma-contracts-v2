@@ -107,7 +107,7 @@ function calcLateFee(configs: BN[], principal: BN): BN {
 }
 
 function getPrincipal(cr: CreditRecordStructOutput): BN {
-    return cr.unbilledPrincipal.add(cr.totalDue.sub(cr.yieldDue).sub(cr.feesDue));
+    return cr.unbilledPrincipal.add(cr.totalDue.sub(cr.yieldDue));
 }
 
 function calcLateCreditRecord(
@@ -141,24 +141,14 @@ function calcLateCreditRecord(
         if (ncr.totalDue.gt(BN.from(0))) {
             ncr.unbilledPrincipal = ncr.unbilledPrincipal.add(ncr.totalDue);
             principalDiff = principalDiff.add(ncr.totalDue);
-            missProfit = missProfit.add(ncr.feesDue);
-            ncr.feesDue = calcLateFee(configs, ncr.unbilledPrincipal);
-
-            // console.log(
-            //     `ncr.feesDue: ${ncr.feesDue}, ncr.unbilledPrincipal: ${ncr.unbilledPrincipal}, principalDiff: ${principalDiff}`,
-            // );
         }
 
         ncr.yieldDue = calcYield(ncr.unbilledPrincipal, cc.yieldInBps, seconds);
 
         // console.log(`ncr.yieldDue: ${ncr.yieldDue}`);
 
-        ncr.feesDue = ncr.feesDue.add(configs[2]);
-
-        // console.log(`ncr.feesDue: ${ncr.feesDue}`);
-
         let principalToBill = ncr.unbilledPrincipal.mul(configs[3]).div(CONSTANTS.BP_FACTOR);
-        ncr.totalDue = ncr.yieldDue.add(ncr.feesDue).add(principalToBill);
+        ncr.totalDue = ncr.yieldDue.add(principalToBill);
         ncr.unbilledPrincipal = ncr.unbilledPrincipal.sub(principalToBill);
 
         // console.log(
@@ -506,17 +496,7 @@ describe("CreditLine Test", function () {
             );
 
             let creditRecord = await creditContract.creditRecordMap(creditHash);
-            checkCreditRecord(
-                creditRecord,
-                BN.from(0),
-                0,
-                BN.from(0),
-                BN.from(0),
-                BN.from(0),
-                0,
-                1,
-                3,
-            );
+            checkCreditRecord(creditRecord, BN.from(0), 0, BN.from(0), BN.from(0), 0, 1, 3);
         });
     });
 
@@ -621,7 +601,6 @@ describe("CreditLine Test", function () {
                 nextDueDate,
                 yieldDue,
                 yieldDue,
-                BN.from(0),
                 0,
                 2,
                 4,
@@ -709,7 +688,6 @@ describe("CreditLine Test", function () {
                 nextDueDate,
                 yieldDue,
                 yieldDue,
-                BN.from(0),
                 0,
                 2,
                 4,
@@ -746,7 +724,6 @@ describe("CreditLine Test", function () {
                 nextDueDate,
                 yieldDue,
                 yieldDue,
-                BN.from(0),
                 0,
                 2,
                 4,
