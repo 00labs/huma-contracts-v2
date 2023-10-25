@@ -5,14 +5,13 @@
   "keywords": [],
   "license": "AGPL-3.0-or-later",
   "author": "",
-  "main": "index.js",
   "scripts": {
     "build": "hardhat compile",
     "chain": "hardhat node",
     "clean": "hardhat clean",
     "compile": "hardhat compile",
     "coverage": "hardhat coverage --network hardhat",
-    "format": "prettier 'test/**/*.ts' --write --plugin=prettier-plugin-organize-imports",
+    "format": "prettier '**/*.{js,json,ts,yml,yaml}' --write --plugin=prettier-plugin-organize-imports",
     "format-solidity": "prettier 'contracts/**/*.sol' --write --plugin=prettier-plugin-solidity",
     "foundry": "bash scripts/install-foundry.sh",
     "gitleaks": "bash scripts/gitleaks.sh",
@@ -26,7 +25,7 @@
     "gen-error-ids": "hardhat run scripts/gen-error-function-ids.ts --network hardhat && prettier --write scripts/error-functions.json"
   },
   "lint-staged": {
-    "*.ts": [
+    "*.{js,json,ts,yaml,yml}": [
       "eslint --fix",
       "prettier --write --plugin=prettier-plugin-organize-imports"
     ],

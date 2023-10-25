@@ -1,5 +1,5 @@
-import "@nomicfoundation/hardhat-toolbox";
 import "@nomicfoundation/hardhat-foundry";
+import "@nomicfoundation/hardhat-toolbox";
 import "hardhat-contract-sizer";
 
 const config = {

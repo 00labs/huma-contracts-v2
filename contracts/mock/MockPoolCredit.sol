@@ -1,4 +1,4 @@
-//SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -6,7 +6,6 @@ import {IPoolCredit} from "../credit/interfaces/IPoolCredit.sol";
 import {IPoolSafe} from "../interfaces/IPoolSafe.sol";
 import {PoolConfig, PoolConfigCache} from "../PoolConfigCache.sol";
 import {Errors} from "../Errors.sol";
-import {CreditRecord, CreditConfig} from "../credit/CreditStructs.sol";
 
 contract MockPoolCredit is PoolConfigCache, IPoolCredit {
     IPoolSafe public poolSafe;

@@ -23,5 +23,6 @@ module.exports = {
         ],
         "mocha/no-skipped-tests": "off",
         "mocha/no-exclusive-tests": "off",
+        "eol-last": ["error", "always"],
     },
 };
