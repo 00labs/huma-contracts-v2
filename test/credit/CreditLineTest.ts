@@ -107,7 +107,7 @@ function calcLateFee(configs: BN[], principal: BN): BN {
 }
 
 function getPrincipal(cr: CreditRecordStructOutput): BN {
-    return cr.unbilledPrincipal.add(cr.totalDue.sub(cr.yieldDue));
+    return cr.unbilledPrincipal.add(cr.nextDue.sub(cr.yieldDue));
 }
 
 function calcLateCreditRecord(
@@ -135,12 +135,12 @@ function calcLateCreditRecord(
         // console.log(`nextDueDate: ${nextDueDate}, seconds: ${seconds}`);
 
         // console.log(
-        //     `ncr.totalDue: ${ncr.totalDue}, ncr.unbilledPrincipal: ${ncr.unbilledPrincipal}`,
+        //     `ncr.nextDue: ${ncr.nextDue}, ncr.unbilledPrincipal: ${ncr.unbilledPrincipal}`,
         // );
 
-        if (ncr.totalDue.gt(BN.from(0))) {
-            ncr.unbilledPrincipal = ncr.unbilledPrincipal.add(ncr.totalDue);
-            principalDiff = principalDiff.add(ncr.totalDue);
+        if (ncr.nextDue.gt(BN.from(0))) {
+            ncr.unbilledPrincipal = ncr.unbilledPrincipal.add(ncr.nextDue);
+            principalDiff = principalDiff.add(ncr.nextDue);
         }
 
         ncr.yieldDue = calcYield(ncr.unbilledPrincipal, cc.yieldInBps, seconds);
@@ -148,11 +148,11 @@ function calcLateCreditRecord(
         // console.log(`ncr.yieldDue: ${ncr.yieldDue}`);
 
         let principalToBill = ncr.unbilledPrincipal.mul(configs[3]).div(CONSTANTS.BP_FACTOR);
-        ncr.totalDue = ncr.yieldDue.add(principalToBill);
+        ncr.nextDue = ncr.yieldDue.add(principalToBill);
         ncr.unbilledPrincipal = ncr.unbilledPrincipal.sub(principalToBill);
 
         // console.log(
-        //     `ncr.totalDue: ${ncr.totalDue}, ncr.unbilledPrincipal: ${ncr.unbilledPrincipal}, principalDiff: ${principalDiff}`,
+        //     `ncr.nextDue: ${ncr.nextDue}, ncr.unbilledPrincipal: ${ncr.unbilledPrincipal}, principalDiff: ${principalDiff}`,
         // );
 
         if (principalDiff.gt(BN.from(0)) && currentTime > nextDueDate) {
@@ -174,7 +174,7 @@ function calcLateCreditRecord(
     ncr.missedPeriods = ncr.missedPeriods + periodCount;
 
     if (ncr.remainingPeriods === 0) {
-        ncr.totalDue = ncr.totalDue.add(ncr.unbilledPrincipal);
+        ncr.nextDue = ncr.nextDue.add(ncr.unbilledPrincipal);
         ncr.unbilledPrincipal = BN.from(0);
     }
 

@@ -8,21 +8,21 @@ import {CreditConfig, CreditRecord} from "../../CreditStructs.sol";
  */
 
 interface ICreditFeeManager {
-    /**
-     * @notice Calculates accrued interest and accrued principal from last updated timestamp to current timestamp.
-     * @param principal the principal amount
-     * @param startTime the loan start timestamp
-     * @param lastUpdatedTime the last updated timestamp
-     * @param creditRecord the schedule and payment parameters for this loan
-     * @return accruedInterest the accrued interest from last updated timestamp to current timestamp,
-     * accruedPrincipal the accrued principal from last updated timestamp to current timestamp,
-     */
-    function accruedDebt(
-        uint256 principal,
-        uint256 startTime,
-        uint256 lastUpdatedTime,
-        CreditRecord memory creditRecord
-    ) external view returns (uint256 accruedInterest, uint256 accruedPrincipal);
+    // /**
+    //  * @notice Calculates accrued interest and accrued principal from last updated timestamp to current timestamp.
+    //  * @param principal the principal amount
+    //  * @param startTime the loan start timestamp
+    //  * @param lastUpdatedTime the last updated timestamp
+    //  * @param creditRecord the schedule and payment parameters for this loan
+    //  * @return accruedInterest the accrued interest from last updated timestamp to current timestamp,
+    //  * accruedPrincipal the accrued principal from last updated timestamp to current timestamp,
+    //  */
+    // function accruedDebt(
+    //     uint256 principal,
+    //     uint256 startTime,
+    //     uint256 lastUpdatedTime,
+    //     CreditRecord memory creditRecord
+    // ) external view returns (uint256 accruedInterest, uint256 accruedPrincipal);
 
     /**
      * @notice Apply front loading fee, distribute the total amount to borrower, pool, & protocol
@@ -64,7 +64,7 @@ interface ICreditFeeManager {
      * these cycles to get the most up-to-date due information.
      * @dev This is a view only function, it does not update the account status. It is used to
      * help the borrowers to get their balances without paying gases.
-     * @dev the difference between totalDue and yieldDue is the required principal payment
+     * @dev the difference between nextDue and yieldDue is the required principal payment
      * @dev please note the first due date is set after the initial drawdown. All the future due
      * dates are computed by adding multiples of the payment interval to the first due date.
      * @param _cr the credit record associated with the account

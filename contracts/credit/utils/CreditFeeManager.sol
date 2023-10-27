@@ -20,13 +20,13 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
         calendar = ICalendar(addr);
     }
 
-    /// @inheritdoc ICreditFeeManager
-    function accruedDebt(
-        uint256 principal,
-        uint256 startTime,
-        uint256 lastUpdatedTime,
-        CreditRecord memory dealRecord
-    ) external view virtual returns (uint256 accruedInterest, uint256 accruedPrincipal) {}
+    // /// @inheritdoc ICreditFeeManager
+    // function accruedDebt(
+    //     uint256 principal,
+    //     uint256 startTime,
+    //     uint256 lastUpdatedTime,
+    //     CreditRecord memory dealRecord
+    // ) external view virtual returns (uint256 accruedInterest, uint256 accruedPrincipal) {}
 
     /// @inheritdoc ICreditFeeManager
     function calcYieldDuePerPeriod(
@@ -99,6 +99,7 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
         override
         returns (CreditRecord memory newCR, uint256 periodsPassed, bool isLate)
     {
+        //* todo need to switch to day-boundary yield calculation
         //* todo Right now, need to handle middle month, middle quarter cases
 
         // No need to update if it is still within a period from the last processing
@@ -107,20 +108,23 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
         PoolSettings memory settings = poolConfig.getPoolSettings();
 
         // If the due is nonzero and has passed late payment grace period, the account is late
-        isLate = (_cr.totalDue != 0 &&
-            block.timestamp >
-            _cr.nextDueDate + settings.latePaymentGracePeriodInDays * SECONDS_IN_A_DAY);
+        isLate =
+            _cr.missedPeriods > 0 ||
+            (_cr.nextDue != 0 &&
+                block.timestamp >
+                _cr.nextDueDate + settings.latePaymentGracePeriodInDays * SECONDS_IN_A_DAY);
 
         // No need to update if it is still within grace period
-        if ((_cr.totalDue != 0 && !isLate)) {
+        if ((_cr.nextDue != 0 && !isLate)) {
             return (_cr, 0, false);
         }
 
         newCR = CreditRecord(
             _cr.unbilledPrincipal,
             _cr.nextDueDate,
-            _cr.totalDue,
+            _cr.nextDue,
             _cr.yieldDue,
+            _cr.totalPastDue,
             _cr.missedPeriods,
             _cr.remainingPeriods,
             _cr.state
@@ -133,7 +137,7 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
         );
         newCR.nextDueDate = uint64(newDueDate);
 
-        uint256 principal = newCR.unbilledPrincipal + newCR.totalDue - newCR.yieldDue;
+        uint256 principal = newCR.unbilledPrincipal + newCR.nextDue - newCR.yieldDue;
 
         // Note that if multiple periods have passed, the yield for every period is still based on the
         // outstanding principal since there was no change to the principal
@@ -157,13 +161,20 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
                 (HUNDRED_PERCENT_IN_BPS ** periodsPassed);
         }
         newCR.yieldDue = uint96(newCR.yieldDue + yieldDue);
-        newCR.totalDue = uint96(newCR.totalDue + yieldDue + principalDue);
+        newCR.nextDue = uint96(newCR.nextDue + yieldDue + principalDue);
         newCR.unbilledPrincipal = uint96(newCR.unbilledPrincipal - principalDue);
 
         // If passed final period, all principal is due
         if (periodsPassed >= newCR.remainingPeriods) {
-            newCR.totalDue += newCR.unbilledPrincipal;
+            newCR.nextDue += newCR.unbilledPrincipal;
             newCR.unbilledPrincipal = 0;
+        }
+
+        // Calculates the late fee
+        if (isLate) {
+            // gets the late rate,
+            // calcuate days passed
+            // calculate the new late fee
         }
 
         return (newCR, periodsPassed, isLate);
@@ -173,8 +184,8 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
         CreditRecord memory cr,
         uint256 yieldInBps
     ) external view virtual override returns (uint256 payoffAmount) {
-        uint256 principal = cr.unbilledPrincipal + cr.totalDue - cr.yieldDue;
-        payoffAmount = uint256(cr.totalDue + cr.unbilledPrincipal);
+        uint256 principal = cr.unbilledPrincipal + cr.nextDue - cr.yieldDue;
+        payoffAmount = uint256(cr.nextDue + cr.unbilledPrincipal);
         if (block.timestamp < cr.nextDueDate) {
             // Subtract the yield for the days between the current date and the due date when payment is made
             // in advance of the due date.

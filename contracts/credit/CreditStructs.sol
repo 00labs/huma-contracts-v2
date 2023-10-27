@@ -24,21 +24,44 @@ struct CreditConfig {
 struct CreditRecord {
     uint96 unbilledPrincipal; // the amount of principal not included in the bill
     uint64 nextDueDate; // the due date of the next payment
-    uint96 totalDue; // the due amount of the next payment
+    uint96 nextDue; // the due amount of the next payment. This does not include totalPastDue
     uint96 yieldDue; // yield due for the next payment
+    uint96 totalPastDue; // all the pastDue
     uint16 missedPeriods; // the number of consecutive missed payments, for default processing
     uint16 remainingPeriods; // the number of payment periods until the maturity of the credit line
     CreditState state;
 }
 
-struct CreditLimit {
-    uint96 creditLimit;
-    uint96 availableCredit;
+/// YieldDueTracker tracks the amount of yield for the next due.
+/// yieldDue = max(committed, accrued) - paid
+struct YieldDueTracker {
+    uint96 committed; // the amount of yield computed from commitment set in CreditConfig
+    uint96 accrued; // the amount of yield based on actual usage
+    uint96 paid; // the amount of yield paid for the current period
+}
+
+/**
+ * @notice PastDueTracker tracks the late fee. A struct is created when a credit is late.
+ * it is reset after a credit is moved back to good standing.
+ * @notice lateFee tracks late charges only. It is always updated together with lastLateFeeDate.
+ * @notice pastYieldDue tracks unpaid yield only.
+ * @notice when there is partial payment to past due, it is applied towards pastYieldDue first,
+ * then lateFee.
+ */
+struct PastDueTracker {
+    uint64 lastLateFeeDate; // the last date when lateFeeAmount is updated
+    uint96 lateFee; // the net unpaid late fee
+    uint96 pastYieldDue; // the net unpaid yield
 }
 
 struct CreditLoss {
     uint96 totalAccruedLoss;
     uint96 totalLossRecovery;
+}
+
+struct CreditLimit {
+    uint96 creditLimit;
+    uint96 availableCredit;
 }
 
 enum CreditState {
