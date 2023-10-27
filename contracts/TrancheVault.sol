@@ -370,7 +370,7 @@ contract TrancheVault is
         if (lenderRedemptionInfo.indexOfEpochIds < epochIds.length) {
             uint256 epochId = epochIds[lenderRedemptionInfo.indexOfEpochIds];
             if (epochId < currentEpochId) {
-                lenderRedemptionInfo = _calcLatestDRedemptionInfo(lenderRedemptionInfo);
+                lenderRedemptionInfo = _calcLatestRedemptionInfo(lenderRedemptionInfo);
             }
         }
     }
@@ -380,7 +380,7 @@ contract TrancheVault is
      * @param redemptionInfo Information about the lender's last partially processed redemption request
      * @return newRedemptionInfo New information about the lender's last partially processed redemption request,
      */
-    function _calcLatestDRedemptionInfo(
+    function _calcLatestRedemptionInfo(
         RedemptionInfo memory redemptionInfo
     ) internal view returns (RedemptionInfo memory newRedemptionInfo) {
         newRedemptionInfo = redemptionInfo;
