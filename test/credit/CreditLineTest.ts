@@ -475,6 +475,7 @@ describe("CreditLine Test", function () {
                     borrower.address,
                     creditHash,
                     toToken(10_000),
+                    poolSettings.payPeriodInMonths,
                     1,
                     1217,
                     toToken(10_000),
@@ -822,6 +823,8 @@ describe("CreditLine Test", function () {
         it("Should pay off successfully in GoodStanding state and before due date", async function () {});
 
         it("Should pay off successfully in GoodStanding state and between due date and grace late period", async function () {});
+
+        it("Should emit a MakePayment event with the correct parameters", async function () {});
     });
 
     describe("RefreshCredit Tests", function () {

@@ -123,6 +123,10 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
      * @notice A payment has been made against the credit line
      * @param borrower the address of the borrower
      * @param amount the payback amount
+     * @param totalDue the total amount due on the credit line after processing the payment
+     * @param unbilledPrincipal the unbilled principal on the credit line after processing the payment
+     * @param principalPaid the amount of this payment applied to principal
+     * @param yieldPaid the amount of this payment applied to yield
      * @param by the address that has triggered the process of marking the payment made.
      * In most cases, it is the borrower. In receivable factoring, it is PDSServiceAccount.
      */
@@ -131,6 +135,8 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
         uint256 amount,
         uint256 totalDue,
         uint256 unbilledPrincipal,
+        uint256 principalPaid,
+        uint256 yieldPaid,
         address by
     );
 
@@ -525,6 +531,8 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
                 p.amountToCollect,
                 cr.totalDue,
                 cr.unbilledPrincipal,
+                p.principalPaid,
+                p.yieldPaid,
                 msg.sender
             );
         }
@@ -581,6 +589,8 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
                 amountToCollect,
                 cr.totalDue,
                 cr.unbilledPrincipal,
+                amountToCollect,
+                0,
                 msg.sender
             );
         }
