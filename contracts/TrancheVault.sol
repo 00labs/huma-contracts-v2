@@ -276,9 +276,9 @@ contract TrancheVault is
         lenderRedemptionInfo.numSharesRequested -= uint96(shares);
         redemptionInfoByLender[msg.sender] = lenderRedemptionInfo;
 
-        EpochInfo memory curEpochInfo = epochInfoByEpochId[currentEpochId];
-        curEpochInfo.totalSharesRequested -= uint96(shares);
-        epochInfoByEpochId[currentEpochId] = curEpochInfo;
+        EpochInfo memory currEpochInfo = epochInfoByEpochId[currentEpochId];
+        currEpochInfo.totalSharesRequested -= uint96(shares);
+        epochInfoByEpochId[currentEpochId] = currEpochInfo;
 
         ERC20Upgradeable._transfer(address(this), msg.sender, shares);
 

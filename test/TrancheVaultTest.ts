@@ -78,11 +78,9 @@ async function checkRedemptionDisbursementInfoByLender(
     totalAmountWithdrawn: BN = BN.from(0),
     delta: number = 0,
 ) {
-    const disburseInfo = await trancheVaultContract.redemptionDisbursementInfoByLender(
-        lender.address,
-    );
-    checkRedemptionDisbursementInfo(
-        disburseInfo,
+    const redemptionInfo = await trancheVaultContract.redemptionInfoByLender(lender.address);
+    checkRedemptionInfo(
+        redemptionInfo,
         indexOfEpochIds,
         numSharesRequested,
         totalAmountProcessed,
@@ -91,20 +89,20 @@ async function checkRedemptionDisbursementInfoByLender(
     );
 }
 
-function checkRedemptionDisbursementInfo(
+function checkRedemptionInfo(
     // TODO(jiatu): find a way to get rid of the `any`
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    disburseInfo: any,
+    redemptionInfo: any,
     indexOfEpochIds: BN | number,
     numSharesRequested: BN = BN.from(0),
     totalAmountProcessed: BN = BN.from(0),
     totalAmountWithdrawn: BN = BN.from(0),
     delta: number = 0,
 ) {
-    expect(disburseInfo.indexOfEpochIds).to.be.closeTo(indexOfEpochIds, delta);
-    expect(disburseInfo.numSharesRequested).to.be.closeTo(numSharesRequested, delta);
-    expect(disburseInfo.totalAmountProcessed).to.be.closeTo(totalAmountProcessed, delta);
-    expect(disburseInfo.totalAmountWithdrawn).to.be.closeTo(totalAmountWithdrawn, delta);
+    expect(redemptionInfo.indexOfEpochIds).to.be.closeTo(indexOfEpochIds, delta);
+    expect(redemptionInfo.numSharesRequested).to.be.closeTo(numSharesRequested, delta);
+    expect(redemptionInfo.totalAmountProcessed).to.be.closeTo(totalAmountProcessed, delta);
+    expect(redemptionInfo.totalAmountWithdrawn).to.be.closeTo(totalAmountWithdrawn, delta);
 }
 
 describe("TrancheVault Test", function () {
@@ -1096,11 +1094,6 @@ describe("TrancheVault Test", function () {
                     expect(
                         cancellableRedemptionSharesBefore.sub(cancellableRedemptionSharesAfter),
                     ).to.equal(allShares);
-                    console.log(
-                        `epoch: ${await juniorTrancheVaultContract.epochInfoByEpochId(
-                            currentEpochId,
-                        )}`,
-                    );
                     await epochChecker.checkJuniorEpochInfoById(currentEpochId);
                 });
             });
@@ -1263,8 +1256,6 @@ describe("TrancheVault Test", function () {
                 let allShares2 = shares2.sub(withdrawable2);
                 let allAvailableAmount = shares.add(shares2).sub(availableAmount);
 
-                // console.log(`allShares: ${allShares}, allShares2: ${allShares2}`);
-
                 shares = toToken(4000);
                 shares2 = toToken(3000);
                 availableAmount = toToken(2000);
@@ -1273,25 +1264,8 @@ describe("TrancheVault Test", function () {
                 allShares2 = allShares2.add(shares2);
                 allAvailableAmount = allAvailableAmount.add(availableAmount);
 
-                // lastEpoch = await epochManagerContract.currentEpoch();
-                // console.log(
-                //     `epochInfo: ${await seniorTrancheVaultContract.epochInfoByEpochId(
-                //         lastEpoch.id,
-                //     )}`,
-                // );
-
                 await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
                 await seniorTrancheVaultContract.connect(lender2).addRedemptionRequest(shares2);
-                // console.log(
-                //     `lender disburseInfo: ${await seniorTrancheVaultContract.redemptionDisbursementInfoByLender(
-                //         lender.address,
-                //     )}, allShares: ${allShares}`,
-                // );
-                // console.log(
-                //     `lender2 disburseInfo: ${await seniorTrancheVaultContract.redemptionDisbursementInfoByLender(
-                //         lender2.address,
-                //     )}, allShares2: ${allShares2}`,
-                // );
 
                 // Move assets into pool safe for partial processing
 
@@ -1303,11 +1277,6 @@ describe("TrancheVault Test", function () {
                 let totalSharesRequested = (
                     await seniorTrancheVaultContract.epochInfoByEpochId(lastEpoch.id)
                 ).totalSharesRequested;
-                // console.log(
-                //     `epochInfo: ${await seniorTrancheVaultContract.epochInfoByEpochId(
-                //         lastEpoch.id,
-                //     )}`,
-                // );
                 ts = lastEpoch.endTime.toNumber() + 60 * 5;
                 await setNextBlockTimestamp(ts);
                 await epochManagerContract.closeEpoch();
