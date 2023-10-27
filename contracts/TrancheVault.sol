@@ -294,9 +294,9 @@ contract TrancheVault is
         RedemptionDisbursementInfo memory info = _getLastestDisbursementInfo(msg.sender);
         uint256 withdrawable = info.totalAmountProcessed - info.totalAmountWithdrawn;
         if (withdrawable > 0) {
-            underlyingToken.transfer(receiver, withdrawable);
             info.totalAmountWithdrawn += uint96(withdrawable);
             redemptionDisbursementInfoByLender[msg.sender] = info;
+            underlyingToken.transfer(receiver, withdrawable);
             emit LenderFundDisbursed(msg.sender, receiver, withdrawable);
         }
     }
