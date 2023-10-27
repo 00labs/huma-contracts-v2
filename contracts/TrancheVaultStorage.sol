@@ -8,21 +8,15 @@ import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract TrancheVaultStorage {
-    struct RedemptionRequest {
-        // The ID of the epoch where this redemption request was submitted
-        uint64 epochId;
-        // The number of shares requested for redemption
-        uint96 numSharesRequested;
-    }
-
     struct RedemptionDisbursementInfo {
-        // The index of the first redemption request whose funds haven't been fully disbursed yet.
-        uint64 requestsIndex;
-        // Since redemption requests may be only partially fulfilled, and we only keep track of the total number
-        // of shares requested, we need another mechanism to keep track of the actual
-        // number of shares and amount redeemed, hence the fields below.
-        uint96 actualSharesProcessed;
-        uint96 actualAmountProcessed;
+        // The index of epochIds array
+        uint64 indexOfEpochIds;
+        // The number of shares requested for redemption in this epoch
+        uint96 numSharesRequested;
+        // The total amount processed for redemption in all epochs
+        uint96 totalAmountProcessed;
+        // The total amount withdrawn by the lender, the withrawable amout = totalAmountProcessed - totalAmountWithdrawn
+        uint96 totalAmountWithdrawn;
     }
 
     IERC20 public underlyingToken;
@@ -40,12 +34,6 @@ contract TrancheVaultStorage {
     uint256[] public epochIds;
     mapping(uint256 => EpochInfo) public epochInfoByEpochId;
 
-    // The index of the epoch ID whose corresponding epoch is unprocessed/partially processed.
-    // We store the index so that we don't have to traverse through all epoch IDs to figure out
-    // which ones haven't been fully processed yet.
-    uint256 public firstUnprocessedEpochIndex;
-
-    mapping(address => RedemptionRequest[]) public redemptionRequestsByLender;
     mapping(address => RedemptionDisbursementInfo) public redemptionDisbursementInfoByLender;
 
     /**

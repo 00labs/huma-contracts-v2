@@ -699,11 +699,130 @@ export function checkEpochInfo(
     totalSharesRequested: BN,
     totalSharesProcessed: BN = BN.from(0),
     totalAmountProcessed: BN = BN.from(0),
+    delta: number = 0,
 ): void {
     expect(epochInfo.epochId).to.equal(epochId);
-    expect(epochInfo.totalSharesRequested).to.equal(totalSharesRequested);
-    expect(epochInfo.totalSharesProcessed).to.equal(totalSharesProcessed);
-    expect(epochInfo.totalAmountProcessed).to.equal(totalAmountProcessed);
+    expect(epochInfo.totalSharesRequested).to.be.closeTo(totalSharesRequested, delta);
+    expect(epochInfo.totalSharesProcessed).to.be.closeTo(totalSharesProcessed, delta);
+    expect(epochInfo.totalAmountProcessed).to.be.closeTo(totalAmountProcessed, delta);
+}
+export class EpochChecker {
+    epochManagerContract: EpochManager;
+    seniorTrancheVaultContract: TrancheVault;
+    juniorTrancheVaultContract: TrancheVault;
+    constructor(
+        epochManagerContract: EpochManager,
+        seniorTrancheVaultContract: TrancheVault,
+        juniorTrancheVaultContract: TrancheVault,
+    ) {
+        this.epochManagerContract = epochManagerContract;
+        this.seniorTrancheVaultContract = seniorTrancheVaultContract;
+        this.juniorTrancheVaultContract = juniorTrancheVaultContract;
+    }
+
+    async checkSeniorCurrentEpochEmpty() {
+        return await this.checkCurrentEpochEmpty(this.seniorTrancheVaultContract);
+    }
+
+    async checkJuniorCurrentEpochEmpty() {
+        return await this.checkCurrentEpochEmpty(this.juniorTrancheVaultContract);
+    }
+
+    async checkSeniorCurrentEpochInfo(
+        sharesRequested: BN = BN.from(0),
+        sharesProcessed: BN = BN.from(0),
+        amountProcessed: BN = BN.from(0),
+        delta: number = 0,
+    ) {
+        return await this.checkCurrentEpochInfo(
+            this.seniorTrancheVaultContract,
+            sharesRequested,
+            sharesProcessed,
+            amountProcessed,
+            delta,
+        );
+    }
+
+    async checkJuniorCurrentEpochInfo(
+        sharesRequested: BN = BN.from(0),
+        sharesProcessed: BN = BN.from(0),
+        amountProcessed: BN = BN.from(0),
+        delta: number = 0,
+    ) {
+        return await this.checkCurrentEpochInfo(
+            this.juniorTrancheVaultContract,
+            sharesRequested,
+            sharesProcessed,
+            amountProcessed,
+            delta,
+        );
+    }
+
+    async checkSeniorEpochInfoById(
+        epochId: BN,
+        sharesRequested: BN = BN.from(0),
+        sharesProcessed: BN = BN.from(0),
+        amountProcessed: BN = BN.from(0),
+        delta: number = 0,
+    ) {
+        await this.checkEpochInfoById(
+            this.seniorTrancheVaultContract,
+            epochId,
+            sharesRequested,
+            sharesProcessed,
+            amountProcessed,
+            delta,
+        );
+    }
+
+    async checkJuniorEpochInfoById(
+        epochId: BN,
+        sharesRequested: BN = BN.from(0),
+        sharesProcessed: BN = BN.from(0),
+        amountProcessed: BN = BN.from(0),
+        delta: number = 0,
+    ) {
+        await this.checkEpochInfoById(
+            this.juniorTrancheVaultContract,
+            epochId,
+            sharesRequested,
+            sharesProcessed,
+            amountProcessed,
+            delta,
+        );
+    }
+
+    private async checkCurrentEpochEmpty(trancheContract: TrancheVault) {
+        const epochId = await this.epochManagerContract.currentEpochId();
+        const epoch = await trancheContract.epochInfoByEpochId(epochId);
+        checkEpochInfo(epoch, BN.from(0), BN.from(0), BN.from(0), BN.from(0));
+        return epochId;
+    }
+
+    private async checkCurrentEpochInfo(
+        trancheContract: TrancheVault,
+        sharesRequested: BN = BN.from(0),
+        sharesProcessed: BN = BN.from(0),
+        amountProcessed: BN = BN.from(0),
+        delta: number = 0,
+    ) {
+        const epochId = await this.epochManagerContract.currentEpochId();
+        const epoch = await trancheContract.epochInfoByEpochId(epochId);
+        checkEpochInfo(epoch, epochId, sharesRequested, sharesProcessed, amountProcessed, delta);
+        return epochId;
+    }
+
+    private async checkEpochInfoById(
+        trancheContract: TrancheVault,
+        epochId: BN,
+        sharesRequested: BN = BN.from(0),
+        sharesProcessed: BN = BN.from(0),
+        amountProcessed: BN = BN.from(0),
+        delta: number = 0,
+    ) {
+        const epoch = await trancheContract.epochInfoByEpochId(epochId);
+        checkEpochInfo(epoch, epochId, sharesRequested, sharesProcessed, amountProcessed, delta);
+    }
 }
 
 export function checkCreditConfig(
