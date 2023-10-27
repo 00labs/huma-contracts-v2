@@ -243,7 +243,7 @@ contract TrancheVault is
         }
         epochInfoByEpochId[currentEpochId] = curEpochInfo;
 
-        RedemptionDisbursementInfo memory lenderRedemptionInfo = _getLasteDisbursementInfo(
+        RedemptionDisbursementInfo memory lenderRedemptionInfo = _getLastestDisbursementInfo(
             msg.sender,
             currentEpochId
         );
@@ -264,7 +264,7 @@ contract TrancheVault is
         poolConfig.onlyProtocolAndPoolOn();
 
         uint256 currentEpochId = epochManager.currentEpochId();
-        RedemptionDisbursementInfo memory lenderRedemptionInfo = _getLasteDisbursementInfo(
+        RedemptionDisbursementInfo memory lenderRedemptionInfo = _getLastestDisbursementInfo(
             msg.sender,
             currentEpochId
         );
@@ -291,13 +291,12 @@ contract TrancheVault is
     function disburse(address receiver) external {
         poolConfig.onlyProtocolAndPoolOn();
 
-        RedemptionDisbursementInfo memory disbursement = _getLasteDisbursementInfo(msg.sender);
-        uint256 withdrawable = disbursement.totalAmountProcessed -
-            disbursement.totalAmountWithdrawn;
+        RedemptionDisbursementInfo memory info = _getLastestDisbursementInfo(msg.sender);
+        uint256 withdrawable = info.totalAmountProcessed - info.totalAmountWithdrawn;
         if (withdrawable > 0) {
             underlyingToken.transfer(receiver, withdrawable);
-            disbursement.totalAmountWithdrawn += uint96(withdrawable);
-            redemptionDisbursementInfoByLender[msg.sender] = disbursement;
+            info.totalAmountWithdrawn += uint96(withdrawable);
+            redemptionDisbursementInfoByLender[msg.sender] = info;
             emit LenderFundDisbursed(msg.sender, receiver, withdrawable);
         }
     }
@@ -306,7 +305,7 @@ contract TrancheVault is
      * @notice Returns the withdrawable assets value of the given account
      */
     function withdrawableAssets(address account) external view returns (uint256 assets) {
-        RedemptionDisbursementInfo memory lenderRedemptionInfo = _getLasteDisbursementInfo(
+        RedemptionDisbursementInfo memory lenderRedemptionInfo = _getLastestDisbursementInfo(
             account
         );
         assets =
@@ -319,7 +318,7 @@ contract TrancheVault is
      * @param account The lender's account
      */
     function cancellableRedemptionShares(address account) external view returns (uint256 shares) {
-        RedemptionDisbursementInfo memory lenderRedemptionInfo = _getLasteDisbursementInfo(
+        RedemptionDisbursementInfo memory lenderRedemptionInfo = _getLastestDisbursementInfo(
             account
         );
         shares = lenderRedemptionInfo.numSharesRequested;
@@ -360,14 +359,14 @@ contract TrancheVault is
 
     function _updateUserWithdrawable(address user) internal returns (uint256 withdrawableAmount) {}
 
-    function _getLasteDisbursementInfo(
+    function _getLastestDisbursementInfo(
         address account
     ) internal view returns (RedemptionDisbursementInfo memory lenderRedemptionInfo) {
         uint256 currentEpochId = epochManager.currentEpochId();
-        lenderRedemptionInfo = _getLasteDisbursementInfo(account, currentEpochId);
+        lenderRedemptionInfo = _getLastestDisbursementInfo(account, currentEpochId);
     }
 
-    function _getLasteDisbursementInfo(
+    function _getLastestDisbursementInfo(
         address account,
         uint256 currentEpochId
     ) internal view returns (RedemptionDisbursementInfo memory lenderRedemptionInfo) {

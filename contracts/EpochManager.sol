@@ -34,7 +34,9 @@ contract EpochManager is PoolConfigCache, IEpochManager {
 
     CurrentEpoch internal _currentEpoch;
 
-    uint256 public minAmountToProcessEpoch;
+    // It is used to avoid tiny amount
+    // (e.g. 1 amount = 0.0000001 usdc remaining in the pool caused by rounding down in the last epoch) be processed
+    uint256 public minAmountToProcessPerEpoch;
 
     event EpochClosed(
         uint256 epochId,
@@ -74,9 +76,9 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         addr = _poolConfig.underlyingToken();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         uint256 decimals = IERC20Metadata(addr).decimals();
-        // set minAmountToProcessEpoch to 1 token now
+        // set minAmountToProcessPerEpoch to 1 token now
         // TODO change this to a configuration parameter?
-        minAmountToProcessEpoch = 10 ** decimals;
+        minAmountToProcessPerEpoch = 10 ** decimals;
     }
 
     /**
@@ -111,11 +113,10 @@ contract EpochManager is PoolConfigCache, IEpochManager {
             juniorTranche.executeEpoch(juniorEpoch);
 
             unprocessedAmount =
-                ((seniorEpoch.totalSharesRequested - seniorEpoch.totalSharesProcessed) *
-                    seniorPrice) /
-                DEFAULT_DECIMALS_FACTOR +
-                ((juniorEpoch.totalSharesRequested - juniorEpoch.totalSharesProcessed) *
-                    juniorPrice) /
+                (((seniorEpoch.totalSharesRequested - seniorEpoch.totalSharesProcessed) *
+                    seniorPrice) +
+                    ((juniorEpoch.totalSharesRequested - juniorEpoch.totalSharesProcessed) *
+                        juniorPrice)) /
                 DEFAULT_DECIMALS_FACTOR;
         }
 
@@ -184,7 +185,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
     ) internal view {
         // get available underlying token amount
         uint256 availableAmount = poolSafe.getPoolLiquidity();
-        if (availableAmount <= minAmountToProcessEpoch) return;
+        if (availableAmount <= minAmountToProcessPerEpoch) return;
 
         // Process senior tranche redemption requests.
         if (seniorEpoch.totalSharesRequested > 0) {
@@ -234,6 +235,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         uint256 redemptionAmount = (sharesToRedeem * lpTokenPrice) / DEFAULT_DECIMALS_FACTOR;
         if (availableAmount < redemptionAmount) {
             redemptionAmount = availableAmount;
+            // TODO rounding error?
             sharesToRedeem = (redemptionAmount * DEFAULT_DECIMALS_FACTOR) / lpTokenPrice;
         }
         epochInfo.totalSharesProcessed = uint96(sharesToRedeem);
@@ -279,6 +281,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         uint256 redemptionAmount = (sharesToRedeem * lpTokenPrice) / DEFAULT_DECIMALS_FACTOR;
         if (availableAmount < redemptionAmount) {
             redemptionAmount = availableAmount;
+            // TODO rounding error?
             sharesToRedeem = (redemptionAmount * DEFAULT_DECIMALS_FACTOR) / lpTokenPrice;
         }
         if (maxRedeemableAmount < redemptionAmount) {
