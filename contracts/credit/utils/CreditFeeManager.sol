@@ -60,6 +60,7 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
         (fees, frontLoadingFeeBps) = poolConfig.getFrontLoadingFees();
         if (frontLoadingFeeBps > 0)
             fees += (_amount * frontLoadingFeeBps) / HUNDRED_PERCENT_IN_BPS;
+        return fees;
     }
 
     /// @inheritdoc ICreditFeeManager
@@ -68,11 +69,8 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
     ) external view virtual returns (uint256 amtToBorrower, uint256 platformFees) {
         // Calculate platform fee, which includes protocol fee and pool fee
         platformFees = calcFrontLoadingFee(borrowAmount);
-
         if (borrowAmount < platformFees) revert Errors.borrowingAmountLessThanPlatformFees();
-
         amtToBorrower = borrowAmount - platformFees;
-
         return (amtToBorrower, platformFees);
     }
 
