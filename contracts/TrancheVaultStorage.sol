@@ -8,14 +8,14 @@ import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract TrancheVaultStorage {
-    struct RedemptionDisbursementInfo {
+    struct RedemptionInfo {
         // The index of epochIds array
         uint64 indexOfEpochIds;
         // The number of shares requested for redemption in this epoch
         uint96 numSharesRequested;
         // The total amount processed for redemption in all epochs
         uint96 totalAmountProcessed;
-        // The total amount withdrawn by the lender, the withrawable amout = totalAmountProcessed - totalAmountWithdrawn
+        // The total amount withdrawn by the lender, the withdrawable amount = totalAmountProcessed - totalAmountWithdrawn
         uint96 totalAmountWithdrawn;
     }
 
@@ -34,7 +34,7 @@ contract TrancheVaultStorage {
     uint256[] public epochIds;
     mapping(uint256 => EpochInfo) public epochInfoByEpochId;
 
-    mapping(address => RedemptionDisbursementInfo) public redemptionDisbursementInfoByLender;
+    mapping(address => RedemptionInfo) public redemptionInfoByLender;
 
     /**
      * @dev This empty reserved space is put in place to allow future versions to add new

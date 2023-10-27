@@ -34,8 +34,8 @@ contract EpochManager is PoolConfigCache, IEpochManager {
 
     CurrentEpoch internal _currentEpoch;
 
-    // It is used to avoid tiny amount
-    // (e.g. 1 amount = 0.0000001 usdc remaining in the pool caused by rounding down in the last epoch) be processed
+    // It is used to avoid tiny amount to be processed, e.g. 1 amount = 0.0000001 USDC remaining in the pool caused
+    // by rounding down in the last epoch
     uint256 public minAmountToProcessPerEpoch;
 
     event EpochClosed(
@@ -49,8 +49,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
     event NewEpochStarted(uint256 epochId, uint256 endTime);
 
     /**
-     * @notice Syndicates the address of dependent contracts from pool config:
-     * PoolSafe, Pool, Senior TrancheVault, Junior TrancheValut, and Calendar.
+     * @notice Syndicates the address of dependent contracts from pool config.
      */
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = _poolConfig.poolSafe();
@@ -173,8 +172,8 @@ contract EpochManager is PoolConfigCache, IEpochManager {
      * @dev this function is side-effectual and mutates the following incoming params:
      * tranchesAssets: will be updated to reflect the remaining amount of assets in the tranches after fulfilling
      * redemption requests
-     * seniorEpochs: will be updated to reflect the latest redemption request states for the senior tranche
-     * juniorEpochs: will be updated to reflect the latest redemption request states for the junior tranche
+     * seniorEpoch: will be updated to reflect the latest redemption request state for the senior tranche
+     * juniorEpoch: will be updated to reflect the latest redemption request state for the junior tranche
      */
     function _processEpoch(
         uint96[2] memory tranchesAssets,
