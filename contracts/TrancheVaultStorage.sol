@@ -9,8 +9,8 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract TrancheVaultStorage {
     struct RedemptionInfo {
-        // The index of epochIds array
-        uint64 indexOfEpochIds;
+        // The index of the epoch ID in the epochIds array when the redemption info was last updated.
+        uint64 lastUpdatedEpochIndex;
         // The number of shares requested for redemption in this epoch
         uint96 numSharesRequested;
         // The total amount processed for redemption in all epochs

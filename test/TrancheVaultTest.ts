@@ -69,7 +69,7 @@ let poolConfigContract: PoolConfig,
 
 let epochChecker: EpochChecker;
 
-async function checkRedemptionDisbursementInfoByLender(
+async function checkRedemptionInfoByLender(
     trancheVaultContract: TrancheVault,
     lender: SignerWithAddress,
     indexOfEpochIds: BN | number,
@@ -650,7 +650,7 @@ describe("TrancheVault Test", function () {
                         balance.sub(shares),
                     );
 
-                    await checkRedemptionDisbursementInfoByLender(
+                    await checkRedemptionInfoByLender(
                         juniorTrancheVaultContract,
                         lender,
                         0,
@@ -678,7 +678,7 @@ describe("TrancheVault Test", function () {
                         balance.sub(shares),
                     );
 
-                    await checkRedemptionDisbursementInfoByLender(
+                    await checkRedemptionInfoByLender(
                         juniorTrancheVaultContract,
                         lender,
                         0,
@@ -704,13 +704,13 @@ describe("TrancheVault Test", function () {
                         balance.sub(shares),
                     );
 
-                    await checkRedemptionDisbursementInfoByLender(
+                    await checkRedemptionInfoByLender(
                         juniorTrancheVaultContract,
                         lender2,
                         0,
                         shares,
                     );
-                    await checkRedemptionDisbursementInfoByLender(
+                    await checkRedemptionInfoByLender(
                         juniorTrancheVaultContract,
                         lender,
                         0,
@@ -739,7 +739,7 @@ describe("TrancheVault Test", function () {
                         balance.sub(shares),
                     );
 
-                    await checkRedemptionDisbursementInfoByLender(
+                    await checkRedemptionInfoByLender(
                         juniorTrancheVaultContract,
                         lender,
                         0,
@@ -775,7 +775,7 @@ describe("TrancheVault Test", function () {
                         balance.sub(shares),
                     );
 
-                    await checkRedemptionDisbursementInfoByLender(
+                    await checkRedemptionInfoByLender(
                         juniorTrancheVaultContract,
                         lender,
                         1,
@@ -804,7 +804,7 @@ describe("TrancheVault Test", function () {
                         balance.sub(shares),
                     );
 
-                    await checkRedemptionDisbursementInfoByLender(
+                    await checkRedemptionInfoByLender(
                         juniorTrancheVaultContract,
                         lender2,
                         1,
@@ -840,7 +840,7 @@ describe("TrancheVault Test", function () {
                         balance.sub(shares),
                     );
 
-                    await checkRedemptionDisbursementInfoByLender(
+                    await checkRedemptionInfoByLender(
                         juniorTrancheVaultContract,
                         lender2,
                         2,
@@ -879,7 +879,7 @@ describe("TrancheVault Test", function () {
                         await seniorTrancheVaultContract.balanceOf(poolOwnerTreasury.address),
                     ).to.equal(balance.sub(sharesRequested));
 
-                    await checkRedemptionDisbursementInfoByLender(
+                    await checkRedemptionInfoByLender(
                         seniorTrancheVaultContract,
                         poolOwnerTreasury,
                         0,
@@ -909,7 +909,7 @@ describe("TrancheVault Test", function () {
                         await seniorTrancheVaultContract.balanceOf(evaluationAgent.address),
                     ).to.equal(balance.sub(sharesRequested));
 
-                    await checkRedemptionDisbursementInfoByLender(
+                    await checkRedemptionInfoByLender(
                         seniorTrancheVaultContract,
                         evaluationAgent,
                         0,
@@ -1139,7 +1139,7 @@ describe("TrancheVault Test", function () {
                 expect(await mockTokenContract.balanceOf(lender.address)).to.equal(
                     balanceBefore.add(shares),
                 );
-                await checkRedemptionDisbursementInfoByLender(
+                await checkRedemptionInfoByLender(
                     seniorTrancheVaultContract,
                     lender,
                     0,
@@ -1157,7 +1157,7 @@ describe("TrancheVault Test", function () {
                 expect(await mockTokenContract.balanceOf(defaultDeployer.address)).to.equal(
                     balanceBefore.add(shares),
                 );
-                await checkRedemptionDisbursementInfoByLender(
+                await checkRedemptionInfoByLender(
                     seniorTrancheVaultContract,
                     lender2,
                     0,
@@ -1226,7 +1226,7 @@ describe("TrancheVault Test", function () {
                     balanceBefore.add(withdrawable),
                 );
                 let allWithdrawable = withdrawable;
-                await checkRedemptionDisbursementInfoByLender(
+                await checkRedemptionInfoByLender(
                     seniorTrancheVaultContract,
                     lender,
                     1,
@@ -1243,7 +1243,7 @@ describe("TrancheVault Test", function () {
                     balanceBefore.add(withdrawable2),
                 );
                 let allWithdrawable2 = withdrawable2;
-                await checkRedemptionDisbursementInfoByLender(
+                await checkRedemptionInfoByLender(
                     seniorTrancheVaultContract,
                     lender2,
                     1,
@@ -1300,7 +1300,7 @@ describe("TrancheVault Test", function () {
                     balanceBefore.add(withdrawable),
                 );
                 allWithdrawable = allWithdrawable.add(withdrawable);
-                await checkRedemptionDisbursementInfoByLender(
+                await checkRedemptionInfoByLender(
                     seniorTrancheVaultContract,
                     lender,
                     2,
@@ -1317,7 +1317,7 @@ describe("TrancheVault Test", function () {
                     balanceBefore.add(withdrawable2),
                 );
                 allWithdrawable2 = allWithdrawable2.add(withdrawable2);
-                await checkRedemptionDisbursementInfoByLender(
+                await checkRedemptionInfoByLender(
                     seniorTrancheVaultContract,
                     lender2,
                     2,
@@ -1358,7 +1358,7 @@ describe("TrancheVault Test", function () {
                     balanceBefore.add(allShares),
                 );
                 allWithdrawable = allWithdrawable.add(allShares);
-                await checkRedemptionDisbursementInfoByLender(
+                await checkRedemptionInfoByLender(
                     seniorTrancheVaultContract,
                     lender,
                     2,
@@ -1377,7 +1377,7 @@ describe("TrancheVault Test", function () {
                     balanceBefore.add(allShares2),
                 );
                 allWithdrawable2 = allWithdrawable2.add(allShares2);
-                await checkRedemptionDisbursementInfoByLender(
+                await checkRedemptionInfoByLender(
                     seniorTrancheVaultContract,
                     lender2,
                     2,

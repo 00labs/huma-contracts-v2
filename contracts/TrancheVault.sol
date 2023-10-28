@@ -367,29 +367,34 @@ contract TrancheVault is
         uint256 currentEpochId
     ) internal view returns (RedemptionInfo memory lenderRedemptionInfo) {
         lenderRedemptionInfo = redemptionInfoByLender[account];
-        if (lenderRedemptionInfo.indexOfEpochIds < epochIds.length) {
-            uint256 epochId = epochIds[lenderRedemptionInfo.indexOfEpochIds];
+        if (lenderRedemptionInfo.lastUpdatedEpochIndex < epochIds.length) {
+            uint256 epochId = epochIds[lenderRedemptionInfo.lastUpdatedEpochIndex];
             if (epochId < currentEpochId) {
-                lenderRedemptionInfo = _calcLatestRedemptionInfo(lenderRedemptionInfo);
+                lenderRedemptionInfo = _updateRedemptionInfo(lenderRedemptionInfo);
             }
         }
     }
 
     /**
-     * @notice Calculates the amount of asset that the lender can withdraw.
-     * @param redemptionInfo Information about the lender's last partially processed redemption request
-     * @return newRedemptionInfo New information about the lender's last partially processed redemption request,
+     * @notice Brings the redemption information for a lender up-to-date.
+     * @dev Prior to invoking this function, the lender's redemption info may be outdated, not accurately reflecting
+     * the amount of withdrawable funds. This is due to the potential passage of additional epochs and the
+     * processing of further redemption requests since the lender's last update. This function addresses this
+     * by iterating through all epochs executed since the last update, ensuring the redemption info is current
+     * and accurate.
+     * @param redemptionInfo The lender's current processed redemption request information.
+     * @return newRedemptionInfo The lender's updated processed redemption request information.
      */
-    function _calcLatestRedemptionInfo(
+    function _updateRedemptionInfo(
         RedemptionInfo memory redemptionInfo
     ) internal view returns (RedemptionInfo memory newRedemptionInfo) {
         newRedemptionInfo = redemptionInfo;
-        uint256 length = epochIds.length;
+        uint256 numEpochIds = epochIds.length;
         uint256 remainingShares = newRedemptionInfo.numSharesRequested;
         if (remainingShares > 0) {
             for (
-                uint256 i = newRedemptionInfo.indexOfEpochIds;
-                i < length && remainingShares > 0;
+                uint256 i = newRedemptionInfo.lastUpdatedEpochIndex;
+                i < numEpochIds && remainingShares > 0;
                 i++
             ) {
                 uint256 epochId = epochIds[i];
@@ -407,7 +412,7 @@ contract TrancheVault is
             }
             newRedemptionInfo.numSharesRequested = uint96(remainingShares);
         }
-        newRedemptionInfo.indexOfEpochIds = uint64(length - 1);
+        newRedemptionInfo.lastUpdatedEpochIndex = uint64(numEpochIds - 1);
     }
 
     function _onlyEpochManager(address account) internal view {
