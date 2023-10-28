@@ -735,7 +735,7 @@ export function checkTwoCreditRecords(
 ) {
     expect(creditRecord.unbilledPrincipal).to.equal(preCreditRecord.unbilledPrincipal);
     expect(creditRecord.nextDueDate).to.equal(preCreditRecord.nextDueDate);
-    expect(creditRecord.totalDue).to.equal(preCreditRecord.totalDue);
+    expect(creditRecord.nextDue).to.equal(preCreditRecord.nextDue);
     expect(creditRecord.yieldDue).to.equal(preCreditRecord.yieldDue);
     expect(creditRecord.missedPeriods).to.equal(preCreditRecord.missedPeriods);
     expect(creditRecord.remainingPeriods).to.equal(preCreditRecord.remainingPeriods);
@@ -746,7 +746,7 @@ export function checkCreditRecord(
     creditRecord: CreditRecordStruct,
     unbilledPrincipal: BN,
     nextDueDate: number,
-    totalDue: BN,
+    nextDue: BN,
     yieldDue: BN,
     missedPeriods: number,
     remainingPeriods: number,
@@ -754,7 +754,7 @@ export function checkCreditRecord(
 ) {
     expect(creditRecord.unbilledPrincipal).to.equal(unbilledPrincipal);
     expect(creditRecord.nextDueDate).to.equal(nextDueDate);
-    expect(creditRecord.totalDue).to.equal(totalDue);
+    expect(creditRecord.nextDue).to.equal(nextDue);
     expect(creditRecord.yieldDue).to.equal(yieldDue);
     expect(creditRecord.missedPeriods).to.equal(missedPeriods);
     expect(creditRecord.remainingPeriods).to.equal(remainingPeriods);
@@ -783,7 +783,7 @@ export function printCreditRecord(name: string, creditRecord: CreditRecordStruct
         `${name}[
             unbilledPrincipal: ${creditRecord.unbilledPrincipal},
             nextDueDate: ${creditRecord.nextDueDate},
-            totalDue: ${creditRecord.totalDue},
+            nextDue: ${creditRecord.nextDue},
             yieldDue: ${creditRecord.yieldDue},
             missedPeriods: ${creditRecord.missedPeriods},
             remainingPeriods: ${creditRecord.remainingPeriods},
