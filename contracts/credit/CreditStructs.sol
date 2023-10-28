@@ -32,26 +32,26 @@ struct CreditRecord {
     CreditState state;
 }
 
-/// YieldDueTracker tracks the amount of yield for the next due.
-/// yieldDue = max(committed, accrued) - paid
-struct YieldDueTracker {
-    uint96 committed; // the amount of yield computed from commitment set in CreditConfig
-    uint96 accrued; // the amount of yield based on actual usage
-    uint96 paid; // the amount of yield paid for the current period
-}
-
 /**
- * @notice PastDueTracker tracks the late fee. A struct is created when a credit is late.
- * it is reset after a credit is moved back to good standing.
+ * @notice DueDetail records the detail information about nextDue and pastDue
+ * @notice committed is the amount of yield computed from commitment set in CreditConfig
+ * @notice accrued is the amount of yield based on actual usage
+ * @notice paid is the amount of yield paid for the current period
+ * @notice CreditRecord.nextDue = max(committed, accrued) - paid
  * @notice lateFee tracks late charges only. It is always updated together with lastLateFeeDate.
- * @notice pastYieldDue tracks unpaid yield only.
- * @notice when there is partial payment to past due, it is applied towards pastYieldDue first,
+ * @notice pastDue tracks unpaid yield only.
+ * @notice when there is partial payment to past due, it is applied towards pastDue first,
  * then lateFee.
+ * @notice CreditRecord.totalPastDue = lateFee + pastDue
+ * @note This struct is necessary since commitment requirement might change within a period
  */
-struct PastDueTracker {
-    uint64 lastLateFeeDate; // the last date when lateFeeAmount is updated
-    uint96 lateFee; // the net unpaid late fee
-    uint96 pastYieldDue; // the net unpaid yield
+struct DueDetail {
+    uint64 lastLateFeeDate;
+    uint96 lateFee;
+    uint96 pastDue;
+    uint96 committed;
+    uint96 accrued;
+    uint96 paid;
 }
 
 struct CreditLoss {

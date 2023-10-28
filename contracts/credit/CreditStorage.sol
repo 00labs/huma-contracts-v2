@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {HumaConfig} from "../HumaConfig.sol";
-import {CreditConfig, CreditRecord, CreditLimit} from "./CreditStructs.sol";
+import {CreditConfig, CreditRecord, CreditLimit, DueDetail} from "./CreditStructs.sol";
 import {PoolConfig} from "../PoolConfig.sol";
 import {ICreditFeeManager} from "./utils/interfaces/ICreditFeeManager.sol";
 import {ICalendar} from "./interfaces/ICalendar.sol";
@@ -25,6 +25,8 @@ contract CreditStorage {
     mapping(bytes32 => CreditConfig) internal _creditConfigMap;
     /// mapping from credit id to the credit record
     mapping(bytes32 => CreditRecord) internal _creditRecordMap;
+    /// mapping from credit id to the credit record
+    mapping(bytes32 => DueDetail) internal _dueDetailMap;
     mapping(bytes32 => CreditLimit) internal _creditLimitMap;
     /// mapping from borrower to the credit limit at borrower-level
     mapping(address => CreditLimit) internal _borrowerLimitMap;

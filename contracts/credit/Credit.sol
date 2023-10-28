@@ -7,7 +7,7 @@ import {PoolConfig, PoolSettings} from "../PoolConfig.sol";
 import {PoolConfigCache} from "../PoolConfigCache.sol";
 import "../SharedDefs.sol";
 import {CreditStorage} from "./CreditStorage.sol";
-import {CreditConfig, CreditRecord, CreditLimit, CreditLoss, CreditState, PaymentStatus, Payment} from "./CreditStructs.sol";
+import {CreditConfig, CreditRecord, CreditLimit, CreditLoss, CreditState, PaymentStatus, Payment, DueDetail} from "./CreditStructs.sol";
 import {ICalendar} from "./interfaces/ICalendar.sol";
 import {IFirstLossCover} from "../interfaces/IFirstLossCover.sol";
 import {IPoolCredit} from "./interfaces/IPoolCredit.sol";
@@ -693,10 +693,12 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
         // late or dormant for multiple cycles, getDueInfo() will bring it current and
         // return the most up-to-date due information.
         CreditConfig memory cc = _getCreditConfig(creditHash);
+        DueDetail memory dd = _getDueDetail(creditHash);
+
         uint256 periodsPassed = 0;
         bool alreadyLate;
 
-        (cr, periodsPassed, alreadyLate) = _feeManager.getDueInfo(cr, cc);
+        (cr, dd, periodsPassed, alreadyLate) = _feeManager.getDueInfo(cr, cc, dd);
 
         if (periodsPassed > 0) {
             // Adjusts remainingPeriods, special handling when reached the maturity of the credit line
@@ -769,6 +771,11 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
     /// Shared accessor to the credit record mapping for contract size consideration
     function _getCreditRecord(bytes32 creditHash) internal view returns (CreditRecord memory) {
         return _creditRecordMap[creditHash];
+    }
+
+    /// Shared accessor to DueDetail for contract size consideration
+    function _getDueDetail(bytes32 creditHash) internal view returns (DueDetail memory) {
+        return _dueDetailMap[creditHash];
     }
 
     function _isOverdue(uint256 dueDate) internal view returns (bool) {}
