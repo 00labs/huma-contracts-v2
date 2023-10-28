@@ -72,7 +72,7 @@ let epochChecker: EpochChecker;
 async function checkRedemptionInfoByLender(
     trancheVaultContract: TrancheVault,
     lender: SignerWithAddress,
-    indexOfEpochIds: BN | number,
+    lastUpdatedEpochIndex: BN | number,
     numSharesRequested: BN = BN.from(0),
     totalAmountProcessed: BN = BN.from(0),
     totalAmountWithdrawn: BN = BN.from(0),
@@ -81,7 +81,7 @@ async function checkRedemptionInfoByLender(
     const redemptionInfo = await trancheVaultContract.redemptionInfoByLender(lender.address);
     checkRedemptionInfo(
         redemptionInfo,
-        indexOfEpochIds,
+        lastUpdatedEpochIndex,
         numSharesRequested,
         totalAmountProcessed,
         totalAmountWithdrawn,
@@ -93,13 +93,13 @@ function checkRedemptionInfo(
     // TODO(jiatu): find a way to get rid of the `any`
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     redemptionInfo: any,
-    indexOfEpochIds: BN | number,
+    lastUpdatedEpochIndex: BN | number,
     numSharesRequested: BN = BN.from(0),
     totalAmountProcessed: BN = BN.from(0),
     totalAmountWithdrawn: BN = BN.from(0),
     delta: number = 0,
 ) {
-    expect(redemptionInfo.indexOfEpochIds).to.be.closeTo(indexOfEpochIds, delta);
+    expect(redemptionInfo.lastUpdatedEpochIndex).to.be.closeTo(lastUpdatedEpochIndex, delta);
     expect(redemptionInfo.numSharesRequested).to.be.closeTo(numSharesRequested, delta);
     expect(redemptionInfo.totalAmountProcessed).to.be.closeTo(totalAmountProcessed, delta);
     expect(redemptionInfo.totalAmountWithdrawn).to.be.closeTo(totalAmountWithdrawn, delta);
