@@ -15,6 +15,8 @@ import "hardhat/console.sol";
  * at the borrower-level. A classic example of borrower-level credit is credit line.
  */
 abstract contract BorrowerLevelCreditConfig is Credit, IBorrowerLevelCreditConfig {
+    event LateFeeWaived(address borrower, uint256 amountWaived);
+
     /// @inheritdoc IBorrowerLevelCreditConfig
     function refreshCredit(address borrower) external virtual override {
         bytes32 creditHash = getCreditHash(borrower);
@@ -88,6 +90,7 @@ abstract contract BorrowerLevelCreditConfig is Credit, IBorrowerLevelCreditConfi
         uint256 yieldInBps,
         uint256 committedAmount
     ) external {
+        _onlyEAServiceAccount();
         _restructure(
             getCreditHash(borrower),
             principal,
@@ -101,7 +104,9 @@ abstract contract BorrowerLevelCreditConfig is Credit, IBorrowerLevelCreditConfi
     }
 
     /// @inheritdoc IBorrowerLevelCreditConfig
-    function waiveLateFee(address borrower, uint256 waivedAmount) external {
-        _waiveLateFee(getCreditHash(borrower), waivedAmount);
+    function waiveLateFee(address borrower, uint256 amount) external {
+        _onlyEAServiceAccount();
+        uint256 amountWaived = _waiveLateFee(getCreditHash(borrower), amount);
+        emit LateFeeWaived(borrower, amountWaived);
     }
 }

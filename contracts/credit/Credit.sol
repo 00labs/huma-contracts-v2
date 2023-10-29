@@ -859,7 +859,19 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
         uint256 committedAmount
     ) internal {}
 
-    function _waiveLateFee(bytes32 creditHash, uint256 waivedAmount) internal {}
+    function _waiveLateFee(
+        bytes32 creditHash,
+        uint256 amount
+    ) internal returns (uint256 amountWaived) {
+        CreditRecord memory cr = _getCreditRecord(creditHash);
+        DueDetail memory dd = _getDueDetail(creditHash);
+        amountWaived = amount > dd.lateFee ? amount : dd.lateFee;
+        dd.lateFee -= uint96(amountWaived);
+        cr.totalPastDue -= uint96(amountWaived);
+        _setDueDetail(creditHash, dd);
+        _setCreditRecord(creditHash, cr);
+        return amountWaived;
+    }
 
     /**
      * @notice Update credit limit and committed amount for the credit.
@@ -892,5 +904,6 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
         cr.yieldDue = uint96(updatedYieldDue);
         _setCreditRecord(creditHash, cr);
         _setDueDetail(creditHash, dd);
+        // emit event
     }
 }
