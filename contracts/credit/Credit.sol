@@ -860,4 +860,37 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
     ) internal {}
 
     function _waiveLateFee(bytes32 creditHash, uint256 waivedAmount) internal {}
+
+    /**
+     * @notice Update credit limit and committed amount for the credit.
+     * @dev It is possible that the credit limit is lower below what has been borrowed, no further
+     * drawdown is allowed until the principal balance is below the limit again after payments.
+     * @dev when committedAmount is changed, the yieldDue needs to re-computed.
+     */
+    function _updateLimitAndCommitment(
+        bytes32 creditHash,
+        uint256 creditLimit,
+        uint256 committedAmount
+    ) internal {
+        CreditConfig memory cc = _getCreditConfig(creditHash);
+        CreditRecord memory cr = _getCreditRecord(creditHash);
+        DueDetail memory dd = _getDueDetail(creditHash);
+
+        cc.creditLimit = uint96(creditLimit);
+        cc.committedAmount = uint96(committedAmount);
+        _setCreditConfig(creditHash, cc);
+
+        (uint256 daysPassed, uint256 totalDays) = calendar.getDaysPassedInPeriod(
+            cc.periodDuration
+        );
+        dd.committed = uint96(
+            (daysPassed * cc.committedAmount + (totalDays - daysPassed) * committedAmount) *
+                cc.yieldInBps
+        );
+        uint256 updatedYieldDue = dd.committed > dd.accrued ? dd.committed : dd.accrued;
+        cr.nextDue = uint96(cr.nextDue - cr.yieldDue + updatedYieldDue);
+        cr.yieldDue = uint96(updatedYieldDue);
+        _setCreditRecord(creditHash, cr);
+        _setDueDetail(creditHash, dd);
+    }
 }

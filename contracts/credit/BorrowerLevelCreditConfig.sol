@@ -72,11 +72,9 @@ abstract contract BorrowerLevelCreditConfig is Credit, IBorrowerLevelCreditConfi
         uint256 committedAmount
     ) external virtual override {
         _onlyEAServiceAccount();
-        bytes32 creditHash = getCreditHash(borrower);
-        CreditConfig memory cc = _getCreditConfig(creditHash);
-        cc.creditLimit = uint96(creditLimit);
-        cc.committedAmount = uint96(committedAmount);
-        _setCreditConfig(creditHash, cc);
+        if (committedAmount > creditLimit) revert Errors.todo();
+
+        _updateLimitAndCommitment(getCreditHash(borrower), creditLimit, committedAmount);
     }
 
     /// @inheritdoc IBorrowerLevelCreditConfig
