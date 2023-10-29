@@ -846,19 +846,6 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
         firstLossCover = IFirstLossCover(addr);
     }
 
-    // todo provide an external view function for credit payment due list ?
-
-    function _restructure(
-        bytes32 creditHash,
-        uint256 principal,
-        uint256 nextDue,
-        uint256 yieldDue,
-        uint256 lateFee,
-        uint256 pastDue,
-        uint256 yieldInBps,
-        uint256 committedAmount
-    ) internal {}
-
     function _waiveLateFee(
         bytes32 creditHash,
         uint256 amount

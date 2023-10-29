@@ -80,30 +80,6 @@ abstract contract BorrowerLevelCreditConfig is Credit, IBorrowerLevelCreditConfi
     }
 
     /// @inheritdoc IBorrowerLevelCreditConfig
-    function restructure(
-        address borrower,
-        uint256 principal,
-        uint256 nextDue,
-        uint256 yieldDue,
-        uint256 lateFee,
-        uint256 pastDue,
-        uint256 yieldInBps,
-        uint256 committedAmount
-    ) external {
-        _onlyEAServiceAccount();
-        _restructure(
-            getCreditHash(borrower),
-            principal,
-            nextDue,
-            yieldDue,
-            lateFee,
-            pastDue,
-            yieldInBps,
-            committedAmount
-        );
-    }
-
-    /// @inheritdoc IBorrowerLevelCreditConfig
     function waiveLateFee(address borrower, uint256 amount) external {
         _onlyEAServiceAccount();
         uint256 amountWaived = _waiveLateFee(getCreditHash(borrower), amount);

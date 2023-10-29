@@ -70,20 +70,6 @@ interface IBorrowerLevelCreditConfig {
     function extendRemainingPeriod(address borrower, uint256 numOfPeriods) external;
 
     /**
-     * @notice Restructure key terms of the credit
-     */
-    function restructure(
-        address borrower,
-        uint256 principal,
-        uint256 nextDue,
-        uint256 yieldDue,
-        uint256 lateFee,
-        uint256 pastDue,
-        uint256 yieldInBps,
-        uint256 committedAmount
-    ) external;
-
-    /**
      * @notice Waive late fee
      */
     function waiveLateFee(address borrower, uint256 waivedAmount) external;
