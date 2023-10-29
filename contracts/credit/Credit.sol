@@ -7,7 +7,7 @@ import {PoolConfig, PoolSettings} from "../PoolConfig.sol";
 import {PoolConfigCache} from "../PoolConfigCache.sol";
 import "../SharedDefs.sol";
 import {CreditStorage} from "./CreditStorage.sol";
-import {CreditConfig, CreditRecord, CreditLimit, CreditLoss, CreditState, PaymentStatus, Payment, DueDetail} from "./CreditStructs.sol";
+import {CreditConfig, CreditRecord, CreditLimit, CreditLoss, CreditState, PaymentStatus, Payment, DueDetail, CreditLoss} from "./CreditStructs.sol";
 import {ICalendar} from "./interfaces/ICalendar.sol";
 import {IFirstLossCover} from "../interfaces/IFirstLossCover.sol";
 import {IPoolCredit} from "./interfaces/IPoolCredit.sol";
@@ -651,6 +651,11 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
         _dueDetailMap[creditHash] = dd;
     }
 
+    /// Shared setter to the CreditLoss mapping for contract size consideration
+    function _setCreditLoss(bytes32 creditHash, CreditLoss memory cl) internal {
+        _creditLossMap[creditHash] = cl;
+    }
+
     /**
      * @notice Triggers the default process
      * @return principalLoss the amount of principal loss
@@ -681,7 +686,11 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
         yieldLoss = cr.yieldDue + dd.pastDue;
         feesLoss = dd.lateFee;
 
-        CreditConfig memory cc = _getCreditConfig(creditHash);
+        CreditLoss memory cl = _getCreditLoss(creditHash);
+        cl.principalLoss += uint96(principalLoss);
+        cl.yieldLoss += uint96(yieldLoss);
+        cl.feesLoss += uint96(feesLoss);
+        _setCreditLoss(creditHash, cl);
 
         //* todo call a new function of pool to distribute loss
 
@@ -823,6 +832,11 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
     /// Shared accessor to DueDetail for contract size consideration
     function _getDueDetail(bytes32 creditHash) internal view returns (DueDetail memory) {
         return _dueDetailMap[creditHash];
+    }
+
+    /// Shared accessor to CreditLoss for contract size consideration
+    function _getCreditLoss(bytes32 creditHash) internal view returns (CreditLoss memory) {
+        return _creditLossMap[creditHash];
     }
 
     function _isOverdue(uint256 dueDate) internal view returns (bool) {}
