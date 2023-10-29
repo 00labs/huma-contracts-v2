@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {IBorrowerLevelCreditConfig} from "./interfaces/IBorrowerLevelCreditConfig.sol";
 import {Credit} from "./Credit.sol";
-import {CreditConfig, CreditRecord} from "./CreditStructs.sol";
+import {CreditConfig, CreditRecord, DueDetail} from "./CreditStructs.sol";
 import {Errors} from "../Errors.sol";
 
 import "hardhat/console.sol";
@@ -77,5 +77,33 @@ abstract contract BorrowerLevelCreditConfig is Credit, IBorrowerLevelCreditConfi
         cc.creditLimit = uint96(creditLimit);
         cc.committedAmount = uint96(committedAmount);
         _setCreditConfig(creditHash, cc);
+    }
+
+    /// @inheritdoc IBorrowerLevelCreditConfig
+    function restructure(
+        address borrower,
+        uint256 principal,
+        uint256 nextDue,
+        uint256 yieldDue,
+        uint256 lateFee,
+        uint256 pastDue,
+        uint256 yieldInBps,
+        uint256 committedAmount
+    ) external {
+        _restructure(
+            getCreditHash(borrower),
+            principal,
+            nextDue,
+            yieldDue,
+            lateFee,
+            pastDue,
+            yieldInBps,
+            committedAmount
+        );
+    }
+
+    /// @inheritdoc IBorrowerLevelCreditConfig
+    function waiveLateFee(address borrower, uint256 waivedAmount) external {
+        _waiveLateFee(getCreditHash(borrower), waivedAmount);
     }
 }

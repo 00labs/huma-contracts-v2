@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
+uint256 constant DAYS_IN_A_YEAR = 360;
 uint256 constant SENIOR_TRANCHE = 0;
 uint256 constant JUNIOR_TRANCHE = 1;
 uint256 constant HUNDRED_PERCENT_IN_BPS = 10000;
