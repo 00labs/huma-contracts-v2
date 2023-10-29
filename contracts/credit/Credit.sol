@@ -105,10 +105,16 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
     /**
      * @notice The credit line has been marked as Defaulted.
      * @param creditHash the credit hash
-     * @param losses the total losses to be written off because of the default.
+     * @param principalLoss the principal losses to be written off because of the default.
      * @param by the address who has triggered the default
      */
-    event DefaultTriggered(bytes32 indexed creditHash, uint256 losses, address by);
+    event DefaultTriggered(
+        bytes32 indexed creditHash,
+        uint256 principalLoss,
+        uint256 yieldLoss,
+        uint256 feesLoss,
+        address by
+    );
     /**
      * @notice A borrowing event has happened to the credit line
      * @param borrower the address of the borrower
@@ -647,19 +653,18 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
 
     /**
      * @notice Triggers the default process
-     * @return losses the amount of remaining losses to the pool
+     * @return principalLoss the amount of principal loss
      * @dev It is possible for the borrower to payback even after default, especially in
      * receivable factoring cases.
      */
-    function _triggerDefault(bytes32 creditHash) internal virtual returns (uint256 losses) {
-        //* Reserved for Richard review, to be deleted
-        // TODO Its current logic is same as refreshCredit.
-        // I remember Richard said it should be used to set the credit to default state manually at sometime, correct?
-
+    function _triggerDefault(
+        bytes32 creditHash
+    ) internal virtual returns (uint256 principalLoss, uint256 yieldLoss, uint256 feesLoss) {
         poolConfig.onlyProtocolAndPoolOn();
 
         // check to make sure the default grace period has passed.
         CreditRecord memory cr = _getCreditRecord(creditHash);
+        DueDetail memory dd = _getDueDetail(creditHash);
         if (cr.state == CreditState.Defaulted) revert Errors.defaultHasAlreadyBeenTriggered();
 
         if (block.timestamp > cr.nextDueDate) {
@@ -671,16 +676,17 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
         // plus the grace period.
         if (!_isDefaultReady(cr)) revert Errors.defaultTriggeredTooEarly();
 
-        // default amount includes all outstanding principal
-        losses = cr.unbilledPrincipal + cr.nextDue - cr.yieldDue;
+        // todo dd.pastDue could have principal in it, to get an accurate number, need to add a field to track it separately
+        principalLoss = cr.unbilledPrincipal + cr.nextDue - cr.yieldDue;
+        yieldLoss = cr.yieldDue + dd.pastDue;
+        feesLoss = dd.lateFee;
 
         CreditConfig memory cc = _getCreditConfig(creditHash);
-        uint256 defaultDate = calendar.getStartDateOfPeriod(cc.periodDuration, cr.nextDueDate);
 
         //* todo call a new function of pool to distribute loss
 
         _creditRecordMap[creditHash].state = CreditState.Defaulted;
-        emit DefaultTriggered(creditHash, losses, msg.sender);
+        emit DefaultTriggered(creditHash, principalLoss, yieldLoss, feesLoss, msg.sender);
     }
 
     function _unpauseCredit(bytes32 creditHash) internal virtual {
