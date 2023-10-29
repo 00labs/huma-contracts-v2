@@ -288,10 +288,6 @@ describe("EpochManager Test", function () {
         const seniorAmountRedeemable = seniorSharesRedeemable
             .mul(seniorTokenPrice)
             .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR);
-        const unprocessedSeniorAmount = totalSeniorSharesRequested
-            .sub(seniorSharesRedeemable)
-            .mul(seniorTokenPrice)
-            .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR);
         const expectedSeniorAssets = seniorAssets.sub(seniorAmountRedeemable);
         const seniorTokenBalance = await mockTokenContract.balanceOf(
             seniorTrancheVaultContract.address,
@@ -302,10 +298,6 @@ describe("EpochManager Test", function () {
             .mul(CONSTANTS.DEFAULT_DECIMALS_FACTOR)
             .div(juniorTotalSupply);
         const juniorAmountRedeemable = juniorSharesRedeemable
-            .mul(juniorTokenPrice)
-            .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR);
-        const unprocessedJuniorAmount = totalJuniorSharesRequested
-            .sub(juniorSharesRedeemable)
             .mul(juniorTokenPrice)
             .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR);
         const expectedJuniorAssets = juniorAssets.sub(juniorAmountRedeemable);

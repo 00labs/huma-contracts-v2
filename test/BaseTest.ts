@@ -706,10 +706,12 @@ export function checkEpochInfo(
     expect(epochInfo.totalSharesProcessed).to.be.closeTo(totalSharesProcessed, delta);
     expect(epochInfo.totalAmountProcessed).to.be.closeTo(totalAmountProcessed, delta);
 }
+
 export class EpochChecker {
     epochManagerContract: EpochManager;
     seniorTrancheVaultContract: TrancheVault;
     juniorTrancheVaultContract: TrancheVault;
+
     constructor(
         epochManagerContract: EpochManager,
         seniorTrancheVaultContract: TrancheVault,
