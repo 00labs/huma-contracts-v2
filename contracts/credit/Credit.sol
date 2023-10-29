@@ -7,7 +7,7 @@ import {PoolConfig, PoolSettings} from "../PoolConfig.sol";
 import {PoolConfigCache} from "../PoolConfigCache.sol";
 import "../SharedDefs.sol";
 import {CreditStorage} from "./CreditStorage.sol";
-import {CreditConfig, CreditRecord, CreditLimit, CreditLoss, CreditState, PaymentStatus, Payment} from "./CreditStructs.sol";
+import {CreditConfig, CreditRecord, CreditLimit, CreditLoss, CreditState, PaymentStatus, Payment, DueDetail} from "./CreditStructs.sol";
 import {ICalendar} from "./interfaces/ICalendar.sol";
 import {IFirstLossCover} from "../interfaces/IFirstLossCover.sol";
 import {IPoolCredit} from "./interfaces/IPoolCredit.sol";
@@ -129,7 +129,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
     event PaymentMade(
         address indexed borrower,
         uint256 amount,
-        uint256 totalDue,
+        uint256 nextDue,
         uint256 unbilledPrincipal,
         address by
     );
@@ -180,7 +180,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
         // Delete the credit record if the new limit is 0 and no outstanding balance
         if (newAvailableCredit == 0) {
             CreditRecord memory cr = _getCreditRecord(creditHash);
-            if (cr.unbilledPrincipal == 0 && cr.totalDue == 0) {
+            if (cr.unbilledPrincipal == 0 && cr.nextDue == 0) {
                 cr.state == CreditState.Deleted;
             }
             _setCreditRecord(creditHash, cr);
@@ -343,7 +343,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
         _onlyBorrowerOrEAServiceAccount(_creditBorrowerMap[creditHash]);
 
         CreditRecord memory cr = _getCreditRecord(creditHash);
-        if (cr.totalDue != 0 || cr.unbilledPrincipal != 0) {
+        if (cr.nextDue != 0 || cr.unbilledPrincipal != 0) {
             revert Errors.creditLineHasOutstandingBalance();
         } else {
             CreditConfig memory cc = _getCreditConfig(creditHash);
@@ -405,8 +405,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
             if (cr.remainingPeriods == 0) revert Errors.creditExpiredDueToMaturity();
 
             if (
-                borrowAmount >
-                (cc.creditLimit - cr.unbilledPrincipal - (cr.totalDue - cr.yieldDue))
+                borrowAmount > (cc.creditLimit - cr.unbilledPrincipal - (cr.nextDue - cr.yieldDue))
             ) revert Errors.creditLineExceeded();
 
             //* Reserved for Richard review, to be deleted
@@ -415,7 +414,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
                 cc.yieldInBps *
                 (cr.nextDueDate - block.timestamp)) / (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS);
             cr.yieldDue += uint96(correctionYield);
-            cr.totalDue += uint96(correctionYield);
+            cr.nextDue += uint96(correctionYield);
             cr.unbilledPrincipal = uint96(cr.unbilledPrincipal + borrowAmount);
         }
         _setCreditRecord(creditHash, cr);
@@ -465,10 +464,10 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
 
         if (amount < payoffAmount) {
             p.amountToCollect = uint96(amount);
-            if (amount < cr.totalDue) {
+            if (amount < cr.nextDue) {
                 // process order - 1. fees, 2. yield, 3. principal
 
-                uint256 principalDue = cr.totalDue - cr.yieldDue;
+                uint256 principalDue = cr.nextDue - cr.yieldDue;
 
                 // Handle yield payment.
                 p.yieldPaid = amount < cr.yieldDue ? uint96(amount) : cr.yieldDue;
@@ -483,15 +482,15 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
                     amount -= p.principalPaid;
                 }
 
-                cr.totalDue = uint96(cr.totalDue - amount);
+                cr.nextDue = uint96(cr.nextDue - amount);
 
                 _setCreditRecord(creditHash, cr);
             } else {
                 // Apply extra payments towards principal, reduce unbilledPrincipal amount
                 p.principalPaid = uint96(amount - cr.yieldDue);
                 p.yieldPaid = cr.yieldDue;
-                cr.unbilledPrincipal -= uint96(amount - cr.totalDue);
-                cr.totalDue = 0;
+                cr.unbilledPrincipal -= uint96(amount - cr.nextDue);
+                cr.nextDue = 0;
                 cr.yieldDue = 0;
                 cr.missedPeriods = 0;
                 // Moves account to GoodStanding if it was delayed.
@@ -501,13 +500,13 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
             }
         } else {
             // Payoff
-            p.principalPaid = cr.unbilledPrincipal + cr.totalDue - cr.yieldDue;
+            p.principalPaid = cr.unbilledPrincipal + cr.nextDue - cr.yieldDue;
             p.yieldPaid = uint96(payoffAmount - p.principalPaid);
             p.amountToCollect = uint96(payoffAmount);
 
             cr.unbilledPrincipal = 0;
             cr.yieldDue = 0;
-            cr.totalDue = 0;
+            cr.nextDue = 0;
             cr.missedPeriods = 0;
             // Closes the credit line if it is in the final period
             if (cr.remainingPeriods == 0) {
@@ -523,7 +522,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
             emit PaymentMade(
                 borrower,
                 p.amountToCollect,
-                cr.totalDue,
+                cr.nextDue,
                 cr.unbilledPrincipal,
                 msg.sender
             );
@@ -554,20 +553,20 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
             cr = _updateDueInfo(creditHash);
         }
 
-        uint256 principalDue = cr.totalDue - cr.yieldDue;
+        uint256 principalDue = cr.nextDue - cr.yieldDue;
         uint256 totalPrincipal = principalDue + cr.unbilledPrincipal;
 
         uint256 amountToCollect = amount < totalPrincipal ? amount : totalPrincipal;
 
         if (amount < principalDue) {
-            cr.totalDue = uint96(cr.totalDue - amount);
+            cr.nextDue = uint96(cr.nextDue - amount);
         } else {
-            cr.totalDue = uint96(cr.totalDue - principalDue);
+            cr.nextDue = uint96(cr.nextDue - principalDue);
             cr.unbilledPrincipal = uint96(cr.unbilledPrincipal - (amountToCollect - principalDue));
         }
 
         // Adjust credit record status if needed. This happens when the yieldDue happen to be 0.
-        if (cr.totalDue == 0) {
+        if (cr.nextDue == 0) {
             if (cr.unbilledPrincipal == 0 && cr.remainingPeriods == 0) {
                 cr.state = CreditState.Deleted;
                 emit CreditLineClosed(borrower, msg.sender, CreditLineClosureReason.Paidoff);
@@ -579,14 +578,14 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
             emit PaymentMade(
                 borrower,
                 amountToCollect,
-                cr.totalDue,
+                cr.nextDue,
                 cr.unbilledPrincipal,
                 msg.sender
             );
         }
 
         // if there happens to be no
-        return (amountToCollect, cr.totalDue == 0);
+        return (amountToCollect, cr.nextDue == 0);
     }
 
     function _pauseCredit(bytes32 creditHash) internal {
@@ -652,7 +651,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
         if (!_isDefaultReady(cr)) revert Errors.defaultTriggeredTooEarly();
 
         // default amount includes all outstanding principal
-        losses = cr.unbilledPrincipal + cr.totalDue - cr.yieldDue;
+        losses = cr.unbilledPrincipal + cr.nextDue - cr.yieldDue;
 
         CreditConfig memory cc = _getCreditConfig(creditHash);
         uint256 defaultDate = calendar.getStartDateOfPeriod(cc.periodDuration, cr.nextDueDate);
@@ -694,10 +693,12 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
         // late or dormant for multiple cycles, getDueInfo() will bring it current and
         // return the most up-to-date due information.
         CreditConfig memory cc = _getCreditConfig(creditHash);
+        DueDetail memory dd = _getDueDetail(creditHash);
+
         uint256 periodsPassed = 0;
         bool alreadyLate;
 
-        (cr, periodsPassed, alreadyLate) = _feeManager.getDueInfo(cr, cc);
+        (cr, dd, periodsPassed, alreadyLate) = _feeManager.getDueInfo(cr, cc, dd);
 
         if (periodsPassed > 0) {
             // Adjusts remainingPeriods, special handling when reached the maturity of the credit line
@@ -707,7 +708,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
                 cr.remainingPeriods = 0;
             }
 
-            // Sets the correct missedPeriods. If totalDue is non-zero, the totalDue must be
+            // Sets the correct missedPeriods. If nextDue is non-zero, the nextDue must be
             // non-zero for each of the passed period, thus add periodsPassed to cr.missedPeriods
             if (alreadyLate) cr.missedPeriods = uint16(cr.missedPeriods + periodsPassed);
             else cr.missedPeriods = 0;
@@ -720,7 +721,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
 
             _setCreditRecord(creditHash, cr);
 
-            emit BillRefreshed(creditHash, cr.nextDueDate, cr.totalDue);
+            emit BillRefreshed(creditHash, cr.nextDueDate, cr.nextDue);
         }
     }
 
@@ -770,6 +771,11 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
     /// Shared accessor to the credit record mapping for contract size consideration
     function _getCreditRecord(bytes32 creditHash) internal view returns (CreditRecord memory) {
         return _creditRecordMap[creditHash];
+    }
+
+    /// Shared accessor to DueDetail for contract size consideration
+    function _getDueDetail(bytes32 creditHash) internal view returns (DueDetail memory) {
+        return _dueDetailMap[creditHash];
     }
 
     function _isOverdue(uint256 dueDate) internal view returns (bool) {}
