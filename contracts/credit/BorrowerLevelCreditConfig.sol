@@ -17,6 +17,9 @@ import "hardhat/console.sol";
 abstract contract BorrowerLevelCreditConfig is Credit, IBorrowerLevelCreditConfig {
     event LateFeeWaived(address borrower, uint256 amountWaived);
 
+    //* todo standardie whether to emit events at Credit contract or this contract.
+    //* todo standardie where to place access control, at Credit contract or this contract
+
     /// @inheritdoc IBorrowerLevelCreditConfig
     function refreshCredit(address borrower) external virtual override {
         bytes32 creditHash = getCreditHash(borrower);

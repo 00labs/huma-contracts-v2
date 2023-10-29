@@ -748,8 +748,23 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
     }
 
     function _updateYield(bytes32 creditHash, uint256 yieldInBps) internal virtual {
-        //* Reserved for Richard review, to be deleted
-        //TODO implement this function
+        CreditConfig memory cc = _getCreditConfig(creditHash);
+        CreditRecord memory cr = _getCreditRecord(creditHash);
+        DueDetail memory dd = _getDueDetail(creditHash);
+        (uint256 daysPassed, uint256 totalDays) = calendar.getDaysPassedInPeriod(
+            cc.periodDuration
+        );
+        uint256 principal = cr.unbilledPrincipal + cr.nextDue - cr.yieldDue;
+        dd.accrued = uint96(
+            ((daysPassed * cc.yieldInBps + (totalDays - daysPassed) * yieldInBps) * principal) /
+                DAYS_IN_A_YEAR
+        );
+        uint256 updatedYieldDue = dd.committed > dd.accrued ? dd.committed : dd.accrued;
+        cr.nextDue = uint96(cr.nextDue - cr.yieldDue + updatedYieldDue);
+        cr.yieldDue = uint96(updatedYieldDue);
+        _setCreditRecord(creditHash, cr);
+        _setDueDetail(creditHash, dd);
+        // emit event. Need to report old bps, new bps, old yieldDue, new yieldDue
     }
 
     /**
