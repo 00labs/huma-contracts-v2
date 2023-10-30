@@ -58,7 +58,6 @@ interface ICalendar {
      * When lastDueDate is zero, always returns the due date after a full period from
      * the current time. For example, for a monthly period, if the first drawdown
      * happens on 7/27, the due date is 9/1 00:00:00.
-     * @dev For bimonthly, the beginning is always 1st & 15th
      * @dev Timezone: always UTC
      */
     function getNextDueDate(

@@ -43,7 +43,7 @@ interface ICreditFeeManager {
     function calcFrontLoadingFee(uint256 _amount) external view returns (uint256 fees);
 
     /**
-     * @notice Gets the current total due, fees and interest due, and payoff amount.
+     * @notice Gets the current total due, fees and yield due, and payoff amount.
      * Because there is no "cron" kind of mechanism, it is possible that the account is behind
      * for multiple cycles due to lack of activities. This function will traverse through
      * these cycles to get the most up-to-date due information.
@@ -54,6 +54,7 @@ interface ICreditFeeManager {
      * dates are computed by adding multiples of the payment interval to the first due date.
      * @param _cr the credit record associated with the account
      * @param _cc the credit config associated with with account
+     * @param _dd the due details associated with the account
      */
     // function getDueInfo(
     //     CreditRecord memory _cr,
