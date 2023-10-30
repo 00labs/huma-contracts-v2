@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {IBorrowerLevelCreditConfig} from "./interfaces/IBorrowerLevelCreditConfig.sol";
 import {Credit} from "./Credit.sol";
-import {CreditConfig, CreditRecord} from "./CreditStructs.sol";
+import {CreditConfig, CreditRecord, DueDetail} from "./CreditStructs.sol";
 import {Errors} from "../Errors.sol";
 
 import "hardhat/console.sol";
@@ -15,6 +15,11 @@ import "hardhat/console.sol";
  * at the borrower-level. A classic example of borrower-level credit is credit line.
  */
 abstract contract BorrowerLevelCreditConfig is Credit, IBorrowerLevelCreditConfig {
+    event LateFeeWaived(address borrower, uint256 amountWaived);
+
+    //* todo standardie whether to emit events at Credit contract or this contract.
+    //* todo standardie where to place access control, at Credit contract or this contract
+
     /// @inheritdoc IBorrowerLevelCreditConfig
     function refreshCredit(address borrower) external virtual override {
         bytes32 creditHash = getCreditHash(borrower);
@@ -72,10 +77,15 @@ abstract contract BorrowerLevelCreditConfig is Credit, IBorrowerLevelCreditConfi
         uint256 committedAmount
     ) external virtual override {
         _onlyEAServiceAccount();
-        bytes32 creditHash = getCreditHash(borrower);
-        CreditConfig memory cc = _getCreditConfig(creditHash);
-        cc.creditLimit = uint96(creditLimit);
-        cc.committedAmount = uint96(committedAmount);
-        _setCreditConfig(creditHash, cc);
+        if (committedAmount > creditLimit) revert Errors.todo();
+
+        _updateLimitAndCommitment(getCreditHash(borrower), creditLimit, committedAmount);
+    }
+
+    /// @inheritdoc IBorrowerLevelCreditConfig
+    function waiveLateFee(address borrower, uint256 amount) external {
+        _onlyEAServiceAccount();
+        uint256 amountWaived = _waiveLateFee(getCreditHash(borrower), amount);
+        emit LateFeeWaived(borrower, amountWaived);
     }
 }

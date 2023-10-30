@@ -7,6 +7,13 @@ pragma solidity ^0.8.0;
 
 interface ICalendar {
     /**
+     * @notice Get the number of days passed and the total numbers of days of the period
+     */
+    function getDaysPassedInPeriod(
+        uint256 periodDuration
+    ) external view returns (uint256 daysPassed, uint256 totalDaysInPeriod);
+
+    /**
      * @notice Get the beginning of the next month
      */
     function getStartOfNextMonth() external view returns (uint256 startOfNextMonth);

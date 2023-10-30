@@ -55,8 +55,12 @@ struct DueDetail {
 }
 
 struct CreditLoss {
-    uint96 totalAccruedLoss;
-    uint96 totalLossRecovery;
+    uint96 principalLoss;
+    uint96 yieldLoss;
+    uint96 feesLoss;
+    uint96 principalRecovered;
+    uint96 yieldRecovered;
+    uint96 feesRecovered;
 }
 
 struct CreditLimit {
