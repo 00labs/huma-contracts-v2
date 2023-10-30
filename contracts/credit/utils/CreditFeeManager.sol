@@ -5,11 +5,9 @@ import {ICreditFeeManager} from "./interfaces/ICreditFeeManager.sol";
 import {CreditConfig, CreditRecord, CreditState, DueDetail} from "../CreditStructs.sol";
 import {PoolConfig, PoolSettings} from "../../PoolConfig.sol";
 import {ICalendar} from "../interfaces/ICalendar.sol";
-import {HUNDRED_PERCENT_IN_BPS, SECONDS_IN_A_DAY, SECONDS_IN_A_YEAR} from "../../SharedDefs.sol";
+import {DAYS_IN_A_MONTH, DAYS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS, MONTHS_IN_A_YEAR, SECONDS_IN_A_DAY, SECONDS_IN_A_YEAR} from "../../SharedDefs.sol";
 import {Errors} from "../../Errors.sol";
 import {PoolConfigCache} from "../../PoolConfigCache.sol";
-
-import "hardhat/console.sol";
 
 contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
     ICalendar public calendar;
@@ -49,11 +47,9 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
 
         (, , , uint8 lateGracePeriodInDays, , , , , ) = poolConfig._poolSettings();
 
-        if (
+        return
             _cr.nextDue != 0 &&
-            block.timestamp > _cr.nextDueDate + lateGracePeriodInDays * SECONDS_IN_A_DAY
-        ) return true;
-        else return false;
+            block.timestamp > _cr.nextDueDate + lateGracePeriodInDays * SECONDS_IN_A_DAY;
     }
 
     function getNextBillRefreshDate(
@@ -78,8 +74,8 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
                 (lateFeeRate *
                     (_cr.unbilledPrincipal + _cr.nextDue - _cr.yieldDue) *
                     (lastLateFeeDate - _dd.lastLateFeeDate)) /
-                (24 * 3600) /
-                360
+                SECONDS_IN_A_DAY /
+                DAYS_IN_A_YEAR
         );
         return (lastLateFeeDate, lateFee);
     }
@@ -108,8 +104,6 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
         newCR = _cr;
         newDD = _dd;
 
-        isLate = checkLate(_cr);
-
         // If still within one period, only need to refresh lateFee if it is already late.
         if (block.timestamp <= _cr.nextDueDate) {
             if (_cr.missedPeriods == 0) return (_cr, _dd, 0, false);
@@ -119,18 +113,14 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
             }
         }
 
-        isLate = checkLate(_cr);
-
         uint256 newDueDate;
-        (newDueDate, periodsPassed) = calendar.getNextDueDate(
-            _cc.periodDuration,
-            newCR.nextDueDate
-        );
+        (newDueDate, periodsPassed) = calendar.getNextDueDate(_cc.periodDuration, _cr.nextDueDate);
         newCR.nextDueDate = uint64(newDueDate);
 
         // Calculates past due and late fee
+        isLate = checkLate(_cr);
         if (isLate) {
-            newDD.pastDue += newCR.nextDue;
+            newDD.pastDue += _cr.nextDue;
             (newDD.lastLateFeeDate, newDD.lateFee) = refreshLateFee(_cr, _dd);
         }
 
@@ -141,14 +131,12 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
         (, , uint256 membershipFee) = poolConfig.getFees();
         newDD.accrued = uint96(
             (principal * _cc.yieldInBps * _cc.periodDuration) /
-                HUNDRED_PERCENT_IN_BPS /
-                12 +
+                (HUNDRED_PERCENT_IN_BPS * MONTHS_IN_A_YEAR) +
                 membershipFee
         );
         newDD.committed = uint96(
             (_cc.committedAmount * _cc.yieldInBps * _cc.periodDuration) /
-                HUNDRED_PERCENT_IN_BPS /
-                12 +
+                (HUNDRED_PERCENT_IN_BPS * MONTHS_IN_A_YEAR) +
                 membershipFee
         );
         uint256 yieldDue = newDD.committed > newDD.accrued ? newDD.committed : newDD.accrued;
@@ -166,8 +154,8 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
                 (HUNDRED_PERCENT_IN_BPS ** periodsPassed);
         }
 
-        // note any nonzero existing nextDue should have been moved to pastDue already.
-        // Only the newly generated nextDue needs to be recorded
+        // Note any non-zero existing nextDue should have been moved to pastDue already.
+        // Only the newly generated nextDue needs to be recorded.
         newCR.yieldDue = uint96(yieldDue);
         newCR.nextDue = uint96(yieldDue + principalDue);
         newCR.unbilledPrincipal = uint96(newCR.unbilledPrincipal - principalDue);
@@ -191,6 +179,7 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
         if (block.timestamp < cr.nextDueDate) {
             // Subtract the yield for the days between the current date and the due date when payment is made
             // in advance of the due date.
+            // TODO: should this be updated to use day-boundaries as well?
             uint256 remainingYield = (yieldInBps *
                 principal *
                 (cr.nextDueDate - block.timestamp)) / (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS);

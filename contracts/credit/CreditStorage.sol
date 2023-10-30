@@ -27,7 +27,7 @@ contract CreditStorage {
     mapping(bytes32 => CreditRecord) internal _creditRecordMap;
     /// mapping from credit id to the credit record
     mapping(bytes32 => DueDetail) internal _dueDetailMap;
-    /// mapping from credit id to the  to the CreditLoss struct
+    /// mapping from credit id to the to the CreditLoss struct
     mapping(bytes32 => CreditLoss) internal _creditLossMap;
     mapping(bytes32 => CreditLimit) internal _creditLimitMap;
     /// mapping from borrower to the credit limit at borrower-level
