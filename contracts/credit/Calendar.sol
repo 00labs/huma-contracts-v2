@@ -1,12 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import "../SharedDefs.sol";
 import {ICalendar} from "./interfaces/ICalendar.sol";
 
 import {BokkyPooBahsDateTimeLibrary as DTL} from "./utils/BokkyPooBahsDateTimeLibrary.sol";
-
-import "hardhat/console.sol";
 
 //* todo change periodDuration to an enum {Monthly, Quarterly, SemiAnnually}
 contract Calendar is ICalendar {
@@ -31,6 +28,11 @@ contract Calendar is ICalendar {
     }
 
     /// @inheritdoc ICalendar
+    function getStartOfTomorrow() external view returns (uint256 startOfTomorrow) {
+        return DTL.addDays(getStartOfToday(), 1);
+    }
+
+    /// @inheritdoc ICalendar
     function getStartOfThisMonth() public view returns (uint256 startOfMonth) {
         (uint256 year, uint256 month, ) = DTL.timestampToDate(block.timestamp);
         startOfMonth = DTL.timestampFromDate(year, month, 1);
@@ -40,12 +42,12 @@ contract Calendar is ICalendar {
     /// @inheritdoc ICalendar
     function getStartOfThisQuarter() external view returns (uint256 startOfQuarter) {
         (uint256 year, uint256 month, ) = DTL.timestampToDate(block.timestamp);
-        startOfQuarter = DTL.timestampFromDate(year, (month - 1) / 3 + 1, 1);
+        startOfQuarter = DTL.timestampFromDate(year, ((month - 1) / 3) * 3 + 1, 1);
         return startOfQuarter;
     }
 
     /// @inheritdoc ICalendar
-    function getStartOfToday() external view returns (uint256 startOfToday) {
+    function getStartOfToday() public view returns (uint256 startOfToday) {
         (uint256 year, uint256 month, uint256 day) = DTL.timestampToDate(block.timestamp);
         startOfToday = DTL.timestampFromDate(year, month, day);
         return startOfToday;
