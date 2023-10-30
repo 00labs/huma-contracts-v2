@@ -58,7 +58,7 @@ export function getNextDate(
     return [date.unix(), numberOfPeriodsPassed];
 }
 
-export function getNextMonth(lastDate: number, currentDate: number, periodDuration: number) {
+export function getNextDueDate(lastDate: number, currentDate: number, periodDuration: number) {
     let date: moment.Moment;
     let numberOfPeriodsPassed = 0;
     let monthCount = 0;

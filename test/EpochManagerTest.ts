@@ -26,10 +26,10 @@ import {
     PnLCalculator,
     deployAndSetupPoolContracts,
     deployProtocolContracts,
-    getNextDueDate,
 } from "./BaseTest";
 import {
     getFirstLossCoverInfo,
+    getNextDueDate,
     mineNextBlockWithTimestamp,
     overrideLPConfig,
     setNextBlockTimestamp,
