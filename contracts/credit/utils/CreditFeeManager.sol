@@ -63,8 +63,7 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
         CreditRecord memory _cr,
         DueDetail memory _dd
     ) internal view returns (uint64 lastLateFeeDate, uint96 lateFee) {
-        // todo this needs to be startOfTomorrow
-        lastLateFeeDate = uint64(calendar.getStartOfToday());
+        lastLateFeeDate = uint64(calendar.getStartOfTomorrow());
         (, , , uint256 lateFeeRate, ) = poolConfig._feeStructure();
 
         // todo the computation below has slight inaccuracy. It only uses number of days, it did not
