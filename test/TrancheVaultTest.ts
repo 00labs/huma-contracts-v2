@@ -22,8 +22,8 @@ import {
 } from "../typechain-types";
 import {
     CONSTANTS,
+    EpochChecker,
     PnLCalculator,
-    checkEpochInfo,
     deployAndSetupPoolContracts,
     deployProtocolContracts,
 } from "./BaseTest";
@@ -67,17 +67,42 @@ let poolConfigContract: PoolConfig,
     creditContract: MockPoolCredit,
     creditFeeManagerContract: CreditFeeManager;
 
-function checkRedemptionDisbursementInfo(
+let epochChecker: EpochChecker;
+
+async function checkRedemptionInfoByLender(
+    trancheVaultContract: TrancheVault,
+    lender: SignerWithAddress,
+    lastUpdatedEpochIndex: BN | number,
+    numSharesRequested: BN = BN.from(0),
+    totalAmountProcessed: BN = BN.from(0),
+    totalAmountWithdrawn: BN = BN.from(0),
+    delta: number = 0,
+) {
+    const redemptionInfo = await trancheVaultContract.redemptionInfoByLender(lender.address);
+    checkRedemptionInfo(
+        redemptionInfo,
+        lastUpdatedEpochIndex,
+        numSharesRequested,
+        totalAmountProcessed,
+        totalAmountWithdrawn,
+        delta,
+    );
+}
+
+function checkRedemptionInfo(
     // TODO(jiatu): find a way to get rid of the `any`
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    disburseInfo: any,
-    requestsIndex: BN | number,
-    actualSharesProcessed: BN = BN.from(0),
-    actualAmountProcessed: BN = BN.from(0),
+    redemptionInfo: any,
+    lastUpdatedEpochIndex: BN | number,
+    numSharesRequested: BN = BN.from(0),
+    totalAmountProcessed: BN = BN.from(0),
+    totalAmountWithdrawn: BN = BN.from(0),
+    delta: number = 0,
 ) {
-    expect(disburseInfo.requestsIndex).to.equal(requestsIndex);
-    expect(disburseInfo.actualSharesProcessed).to.equal(actualSharesProcessed);
-    expect(disburseInfo.actualAmountProcessed).to.equal(actualAmountProcessed);
+    expect(redemptionInfo.lastUpdatedEpochIndex).to.be.closeTo(lastUpdatedEpochIndex, delta);
+    expect(redemptionInfo.numSharesRequested).to.be.closeTo(numSharesRequested, delta);
+    expect(redemptionInfo.totalAmountProcessed).to.be.closeTo(totalAmountProcessed, delta);
+    expect(redemptionInfo.totalAmountWithdrawn).to.be.closeTo(totalAmountWithdrawn, delta);
 }
 
 describe("TrancheVault Test", function () {
@@ -135,6 +160,12 @@ describe("TrancheVault Test", function () {
             poolOwnerTreasury,
             poolOperator,
             [lender, lender2, lender3, lender4, poolOwnerTreasury, evaluationAgent],
+        );
+
+        epochChecker = new EpochChecker(
+            epochManagerContract,
+            seniorTrancheVaultContract,
+            juniorTrancheVaultContract,
         );
     }
 
@@ -546,12 +577,6 @@ describe("TrancheVault Test", function () {
                         0,
                     );
                 });
-
-                it("getNumRedemptionRequests should return 0", async function () {
-                    expect(
-                        await juniorTrancheVaultContract.getNumRedemptionRequests(lender.address),
-                    ).to.equal(0);
-                });
             });
 
             describe("addRedemptionRequest", function () {
@@ -625,13 +650,12 @@ describe("TrancheVault Test", function () {
                         balance.sub(shares),
                     );
 
-                    let userRedemptionRequest =
-                        await juniorTrancheVaultContract.redemptionRequestsByLender(
-                            lender.address,
-                            0,
-                        );
-                    expect(userRedemptionRequest.epochId).to.equal(currentEpochId);
-                    expect(userRedemptionRequest.numSharesRequested).to.equal(shares);
+                    await checkRedemptionInfoByLender(
+                        juniorTrancheVaultContract,
+                        lender,
+                        0,
+                        shares,
+                    );
 
                     expect(
                         await juniorTrancheVaultContract.cancellableRedemptionShares(
@@ -641,8 +665,7 @@ describe("TrancheVault Test", function () {
 
                     let epochId = await juniorTrancheVaultContract.epochIds(0);
                     expect(epochId).to.equal(currentEpochId);
-                    let epoch = await juniorTrancheVaultContract.epochInfoByEpochId(epochId);
-                    checkEpochInfo(epoch, currentEpochId, shares);
+                    await epochChecker.checkJuniorEpochInfoById(epochId, shares);
 
                     // Lender requests redemption again
                     balance = await juniorTrancheVaultContract.balanceOf(lender.address);
@@ -655,13 +678,10 @@ describe("TrancheVault Test", function () {
                         balance.sub(shares),
                     );
 
-                    userRedemptionRequest =
-                        await juniorTrancheVaultContract.redemptionRequestsByLender(
-                            lender.address,
-                            0,
-                        );
-                    expect(userRedemptionRequest.epochId).to.equal(currentEpochId);
-                    expect(userRedemptionRequest.numSharesRequested).to.equal(
+                    await checkRedemptionInfoByLender(
+                        juniorTrancheVaultContract,
+                        lender,
+                        0,
                         shares.mul(BN.from(2)),
                     );
 
@@ -671,8 +691,7 @@ describe("TrancheVault Test", function () {
                         ),
                     ).to.equal(shares.mul(BN.from(2)));
 
-                    epoch = await juniorTrancheVaultContract.epochInfoByEpochId(epochId);
-                    checkEpochInfo(epoch, currentEpochId, shares.mul(BN.from(2)));
+                    await epochChecker.checkJuniorEpochInfoById(epochId, shares.mul(BN.from(2)));
 
                     // Lender2 requests redemption
                     balance = await juniorTrancheVaultContract.balanceOf(lender2.address);
@@ -685,20 +704,16 @@ describe("TrancheVault Test", function () {
                         balance.sub(shares),
                     );
 
-                    userRedemptionRequest =
-                        await juniorTrancheVaultContract.redemptionRequestsByLender(
-                            lender2.address,
-                            0,
-                        );
-                    expect(userRedemptionRequest.epochId).to.equal(currentEpochId);
-                    expect(userRedemptionRequest.numSharesRequested).to.equal(shares);
-                    userRedemptionRequest =
-                        await juniorTrancheVaultContract.redemptionRequestsByLender(
-                            lender.address,
-                            0,
-                        );
-                    expect(userRedemptionRequest.epochId).to.equal(currentEpochId);
-                    expect(userRedemptionRequest.numSharesRequested).to.equal(
+                    await checkRedemptionInfoByLender(
+                        juniorTrancheVaultContract,
+                        lender2,
+                        0,
+                        shares,
+                    );
+                    await checkRedemptionInfoByLender(
+                        juniorTrancheVaultContract,
+                        lender,
+                        0,
                         shares.mul(BN.from(2)),
                     );
 
@@ -708,8 +723,7 @@ describe("TrancheVault Test", function () {
                         ),
                     ).to.equal(shares);
 
-                    epoch = await juniorTrancheVaultContract.epochInfoByEpochId(epochId);
-                    checkEpochInfo(epoch, currentEpochId, shares.mul(BN.from(3)));
+                    await epochChecker.checkJuniorEpochInfoById(epochId, shares.mul(BN.from(3)));
                 });
 
                 it("Should allow lenders to request redemption in the next epoch", async function () {
@@ -725,18 +739,16 @@ describe("TrancheVault Test", function () {
                         balance.sub(shares),
                     );
 
-                    let userRedemptionRequest =
-                        await juniorTrancheVaultContract.redemptionRequestsByLender(
-                            lender.address,
-                            0,
-                        );
-                    expect(userRedemptionRequest.epochId).to.equal(currentEpochId);
-                    expect(userRedemptionRequest.numSharesRequested).to.equal(shares);
+                    await checkRedemptionInfoByLender(
+                        juniorTrancheVaultContract,
+                        lender,
+                        0,
+                        shares,
+                    );
 
                     let epochId = await juniorTrancheVaultContract.epochIds(0);
                     expect(epochId).to.equal(currentEpochId);
-                    let epoch = await juniorTrancheVaultContract.epochInfoByEpochId(epochId);
-                    checkEpochInfo(epoch, currentEpochId, shares);
+                    await epochChecker.checkJuniorEpochInfoById(epochId, shares);
 
                     expect(
                         await juniorTrancheVaultContract.cancellableRedemptionShares(
@@ -763,17 +775,16 @@ describe("TrancheVault Test", function () {
                         balance.sub(shares),
                     );
 
-                    userRedemptionRequest =
-                        await juniorTrancheVaultContract.redemptionRequestsByLender(
-                            lender.address,
-                            1,
-                        );
-                    expect(userRedemptionRequest.epochId).to.equal(currentEpochId);
-                    expect(userRedemptionRequest.numSharesRequested).to.equal(shares);
+                    await checkRedemptionInfoByLender(
+                        juniorTrancheVaultContract,
+                        lender,
+                        1,
+                        shares,
+                        shares,
+                    );
 
                     epochId = await juniorTrancheVaultContract.epochIds(1);
-                    epoch = await juniorTrancheVaultContract.epochInfoByEpochId(epochId);
-                    checkEpochInfo(epoch, currentEpochId, shares);
+                    await epochChecker.checkJuniorEpochInfoById(epochId, shares);
 
                     expect(
                         await juniorTrancheVaultContract.cancellableRedemptionShares(
@@ -793,20 +804,12 @@ describe("TrancheVault Test", function () {
                         balance.sub(shares),
                     );
 
-                    userRedemptionRequest =
-                        await juniorTrancheVaultContract.redemptionRequestsByLender(
-                            lender2.address,
-                            0,
-                        );
-                    expect(userRedemptionRequest.epochId).to.equal(currentEpochId);
-                    expect(userRedemptionRequest.numSharesRequested).to.equal(shares);
-                    userRedemptionRequest =
-                        await juniorTrancheVaultContract.redemptionRequestsByLender(
-                            lender.address,
-                            1,
-                        );
-                    expect(userRedemptionRequest.epochId).to.equal(currentEpochId);
-                    expect(userRedemptionRequest.numSharesRequested).to.equal(shares);
+                    await checkRedemptionInfoByLender(
+                        juniorTrancheVaultContract,
+                        lender2,
+                        1,
+                        shares,
+                    );
 
                     expect(
                         await juniorTrancheVaultContract.cancellableRedemptionShares(
@@ -814,8 +817,44 @@ describe("TrancheVault Test", function () {
                         ),
                     ).to.equal(shares);
 
-                    epoch = await juniorTrancheVaultContract.epochInfoByEpochId(epochId);
-                    checkEpochInfo(epoch, currentEpochId, shares.mul(BN.from(2)));
+                    await epochChecker.checkJuniorEpochInfoById(epochId, shares.mul(BN.from(2)));
+
+                    // Close current epoch while processing nothing
+                    currentEpoch = await epochManagerContract.currentEpoch();
+                    await mineNextBlockWithTimestamp(
+                        currentEpoch.endTime.add(BN.from(60 * 5)).toNumber(),
+                    );
+                    const availableAssets = await poolSafeContract.getPoolLiquidity();
+                    await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
+                    await epochManagerContract.closeEpoch();
+                    currentEpochId = await epochManagerContract.currentEpochId();
+
+                    // Lender2 requests redemption in next epoch
+                    balance = await juniorTrancheVaultContract.balanceOf(lender2.address);
+                    await expect(
+                        juniorTrancheVaultContract.connect(lender2).addRedemptionRequest(shares),
+                    )
+                        .to.emit(juniorTrancheVaultContract, "RedemptionRequestAdded")
+                        .withArgs(lender2.address, shares, currentEpochId);
+                    expect(await juniorTrancheVaultContract.balanceOf(lender2.address)).to.equal(
+                        balance.sub(shares),
+                    );
+
+                    await checkRedemptionInfoByLender(
+                        juniorTrancheVaultContract,
+                        lender2,
+                        2,
+                        shares.mul(BN.from(2)),
+                    );
+
+                    expect(
+                        await juniorTrancheVaultContract.cancellableRedemptionShares(
+                            lender2.address,
+                        ),
+                    ).to.equal(shares.mul(BN.from(2)));
+
+                    epochId = await juniorTrancheVaultContract.epochIds(2);
+                    await epochChecker.checkJuniorEpochInfoById(epochId, shares.mul(BN.from(3)));
                 });
 
                 it("Should allow redemption requests from the pool owner treasury in the senior tranche w/o considering liquidity requirements", async function () {
@@ -840,13 +879,12 @@ describe("TrancheVault Test", function () {
                         await seniorTrancheVaultContract.balanceOf(poolOwnerTreasury.address),
                     ).to.equal(balance.sub(sharesRequested));
 
-                    const userRedemptionRequest =
-                        await seniorTrancheVaultContract.redemptionRequestsByLender(
-                            poolOwnerTreasury.address,
-                            0,
-                        );
-                    expect(userRedemptionRequest.epochId).to.equal(currentEpochId);
-                    expect(userRedemptionRequest.numSharesRequested).to.equal(sharesRequested);
+                    await checkRedemptionInfoByLender(
+                        seniorTrancheVaultContract,
+                        poolOwnerTreasury,
+                        0,
+                        sharesRequested,
+                    );
                 });
 
                 it("Should allow redemption requests from the EA in the senior tranche w/o considering liquidity requirements", async function () {
@@ -871,13 +909,12 @@ describe("TrancheVault Test", function () {
                         await seniorTrancheVaultContract.balanceOf(evaluationAgent.address),
                     ).to.equal(balance.sub(sharesRequested));
 
-                    const userRedemptionRequest =
-                        await seniorTrancheVaultContract.redemptionRequestsByLender(
-                            evaluationAgent.address,
-                            0,
-                        );
-                    expect(userRedemptionRequest.epochId).to.equal(currentEpochId);
-                    expect(userRedemptionRequest.numSharesRequested).to.equal(sharesRequested);
+                    await checkRedemptionInfoByLender(
+                        seniorTrancheVaultContract,
+                        evaluationAgent,
+                        0,
+                        sharesRequested,
+                    );
                 });
             });
 
@@ -922,28 +959,6 @@ describe("TrancheVault Test", function () {
                     await poolContract.connect(poolOwner).enablePool();
                 });
 
-                it("Should not allow redemption request cancellation when no redemption was requested", async function () {
-                    await expect(
-                        juniorTrancheVaultContract.connect(lender).cancelRedemptionRequest(1),
-                    ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "emptyArray");
-                });
-
-                it("Should not allow redemption request cancellation after requested epochs", async function () {
-                    let shares = toToken(10_000);
-                    await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
-
-                    // Close current epoch
-                    let currentEpoch = await epochManagerContract.currentEpoch();
-                    await mineNextBlockWithTimestamp(
-                        currentEpoch.endTime.add(BN.from(60 * 5)).toNumber(),
-                    );
-                    await epochManagerContract.closeEpoch();
-
-                    await expect(
-                        juniorTrancheVaultContract.connect(lender).cancelRedemptionRequest(1),
-                    ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "notCurrentEpoch");
-                });
-
                 it("Should not allow redemption request cancellation with shares greater than requested shares", async function () {
                     let shares = toToken(10_000);
                     await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
@@ -965,11 +980,6 @@ describe("TrancheVault Test", function () {
                     shares = toToken(1000);
                     let currentEpochId = await epochManagerContract.currentEpochId();
                     let balance = await juniorTrancheVaultContract.balanceOf(lender.address);
-                    let userRedemptionRequestBefore =
-                        await juniorTrancheVaultContract.redemptionRequestsByLender(
-                            lender.address,
-                            0,
-                        );
                     let epochBefore =
                         await juniorTrancheVaultContract.epochInfoByEpochId(currentEpochId);
                     let cancellableRedemptionSharesBefore =
@@ -981,11 +991,6 @@ describe("TrancheVault Test", function () {
                     )
                         .to.emit(juniorTrancheVaultContract, "RedemptionRequestRemoved")
                         .withArgs(lender.address, shares, currentEpochId);
-                    let userRedemptionRequestAfter =
-                        await juniorTrancheVaultContract.redemptionRequestsByLender(
-                            lender.address,
-                            0,
-                        );
                     let epochAfter =
                         await juniorTrancheVaultContract.epochInfoByEpochId(currentEpochId);
                     let cancellableRedemptionSharesAfter =
@@ -996,12 +1001,6 @@ describe("TrancheVault Test", function () {
                     expect(await juniorTrancheVaultContract.balanceOf(lender.address)).to.equal(
                         balance.add(shares),
                     );
-                    expect(userRedemptionRequestAfter.epochId).to.equal(currentEpochId);
-                    expect(
-                        userRedemptionRequestBefore.numSharesRequested.sub(
-                            userRedemptionRequestAfter.numSharesRequested,
-                        ),
-                    ).to.equal(shares);
                     expect(
                         epochBefore.totalSharesRequested.sub(epochAfter.totalSharesRequested),
                     ).to.equal(shares);
@@ -1041,11 +1040,6 @@ describe("TrancheVault Test", function () {
                         await juniorTrancheVaultContract.cancellableRedemptionShares(
                             lender.address,
                         );
-                    userRedemptionRequestAfter =
-                        await juniorTrancheVaultContract.redemptionRequestsByLender(
-                            lender.address,
-                            1,
-                        );
 
                     expect(await juniorTrancheVaultContract.balanceOf(lender.address)).to.equal(
                         balance.add(shares),
@@ -1056,10 +1050,27 @@ describe("TrancheVault Test", function () {
                     expect(
                         cancellableRedemptionSharesBefore.sub(cancellableRedemptionSharesAfter),
                     ).to.equal(shares);
-                    expect(userRedemptionRequestAfter.epochId).to.equal(0);
-                    expect(userRedemptionRequestAfter.numSharesRequested).to.equal(0);
+
+                    // Close current epoch while processing nothing
+                    currentEpoch = await epochManagerContract.currentEpoch();
+                    await mineNextBlockWithTimestamp(
+                        currentEpoch.endTime.add(BN.from(60 * 5)).toNumber(),
+                    );
+                    const availableAssets = await poolSafeContract.getPoolLiquidity();
+                    await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
+                    await epochManagerContract.closeEpoch();
+                    currentEpochId = await epochManagerContract.currentEpochId();
+
+                    // Lender2 requests redemption in next epoch
+                    balance = await juniorTrancheVaultContract.balanceOf(lender2.address);
+                    await expect(
+                        juniorTrancheVaultContract.connect(lender2).addRedemptionRequest(shares),
+                    )
+                        .to.emit(juniorTrancheVaultContract, "RedemptionRequestAdded")
+                        .withArgs(lender2.address, shares, currentEpochId);
 
                     // Lender2 removes redemption request
+                    const allShares = shares.mul(BN.from(2));
                     balance = await juniorTrancheVaultContract.balanceOf(lender2.address);
                     cancellableRedemptionSharesBefore =
                         await juniorTrancheVaultContract.cancellableRedemptionShares(
@@ -1068,31 +1079,22 @@ describe("TrancheVault Test", function () {
                     await expect(
                         juniorTrancheVaultContract
                             .connect(lender2)
-                            .cancelRedemptionRequest(shares),
+                            .cancelRedemptionRequest(allShares),
                     )
                         .to.emit(juniorTrancheVaultContract, "RedemptionRequestRemoved")
-                        .withArgs(lender2.address, shares, currentEpochId);
+                        .withArgs(lender2.address, allShares, currentEpochId);
                     cancellableRedemptionSharesAfter =
                         await juniorTrancheVaultContract.cancellableRedemptionShares(
                             lender2.address,
                         );
-                    userRedemptionRequestAfter =
-                        await juniorTrancheVaultContract.redemptionRequestsByLender(
-                            lender2.address,
-                            0,
-                        );
-                    epochAfter =
-                        await juniorTrancheVaultContract.epochInfoByEpochId(currentEpochId);
 
                     expect(await juniorTrancheVaultContract.balanceOf(lender2.address)).to.equal(
-                        balance.add(shares),
+                        balance.add(allShares),
                     );
                     expect(
                         cancellableRedemptionSharesBefore.sub(cancellableRedemptionSharesAfter),
-                    ).to.equal(shares);
-                    expect(userRedemptionRequestAfter.epochId).to.equal(0);
-                    expect(userRedemptionRequestAfter.numSharesRequested).to.equal(0);
-                    checkEpochInfo(epochAfter, BN.from(0), BN.from(0));
+                    ).to.equal(allShares);
+                    await epochChecker.checkJuniorEpochInfoById(currentEpochId);
                 });
             });
         });
@@ -1137,11 +1139,14 @@ describe("TrancheVault Test", function () {
                 expect(await mockTokenContract.balanceOf(lender.address)).to.equal(
                     balanceBefore.add(shares),
                 );
-                let disburseInfo =
-                    await seniorTrancheVaultContract.redemptionDisbursementInfoByLender(
-                        lender.address,
-                    );
-                checkRedemptionDisbursementInfo(disburseInfo, 1);
+                await checkRedemptionInfoByLender(
+                    seniorTrancheVaultContract,
+                    lender,
+                    0,
+                    BN.from(0),
+                    shares,
+                    shares,
+                );
 
                 balanceBefore = await mockTokenContract.balanceOf(defaultDeployer.address);
                 await expect(
@@ -1152,88 +1157,31 @@ describe("TrancheVault Test", function () {
                 expect(await mockTokenContract.balanceOf(defaultDeployer.address)).to.equal(
                     balanceBefore.add(shares),
                 );
-                disburseInfo = await seniorTrancheVaultContract.redemptionDisbursementInfoByLender(
-                    lender2.address,
+                await checkRedemptionInfoByLender(
+                    seniorTrancheVaultContract,
+                    lender2,
+                    0,
+                    BN.from(0),
+                    shares,
+                    shares,
                 );
-                checkRedemptionDisbursementInfo(disburseInfo, 1);
-            });
-
-            it("Should disbuse when two epochs was fully processed", async function () {
-                let shares = toToken(1000);
-                let shares2 = toToken(2000);
-
-                await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
-                await seniorTrancheVaultContract.connect(lender2).addRedemptionRequest(shares2);
-
-                let allShares = shares;
-                let allShares2 = shares2;
-
-                // Move all assets out of pool safe
-
-                let availableAssets = await poolSafeContract.getPoolLiquidity();
-                await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
-
-                // Finish 1st epoch
-
-                let lastEpoch = await epochManagerContract.currentEpoch();
-                let ts = lastEpoch.endTime.toNumber() + 60 * 5;
-                await setNextBlockTimestamp(ts);
-                await epochManagerContract.closeEpoch();
-
-                shares = toToken(3000);
-                shares2 = toToken(1500);
-                await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
-                await seniorTrancheVaultContract.connect(lender2).addRedemptionRequest(shares2);
-                allShares = allShares.add(shares);
-                allShares2 = allShares2.add(shares2);
-
-                // Move assets into pool safe for full processing
-
-                await creditContract.makePayment(
-                    ethers.constants.HashZero,
-                    allShares.add(allShares2),
-                );
-
-                // Finish 2nd epoch
-
-                lastEpoch = await epochManagerContract.currentEpoch();
-                ts = lastEpoch.endTime.toNumber() + 60 * 5;
-                await setNextBlockTimestamp(ts);
-                await epochManagerContract.closeEpoch();
 
                 expect(
                     await seniorTrancheVaultContract.withdrawableAssets(lender.address),
-                ).to.equal(allShares);
+                ).to.equal(BN.from(0));
                 expect(
                     await seniorTrancheVaultContract.withdrawableAssets(lender2.address),
-                ).to.equal(allShares2);
+                ).to.equal(BN.from(0));
 
-                let balanceBefore = await mockTokenContract.balanceOf(defaultDeployer.address);
-                await expect(
-                    seniorTrancheVaultContract.connect(lender).disburse(defaultDeployer.address),
-                )
-                    .to.emit(seniorTrancheVaultContract, "LenderFundDisbursed")
-                    .withArgs(lender.address, defaultDeployer.address, allShares);
+                balanceBefore = await mockTokenContract.balanceOf(defaultDeployer.address);
+                await seniorTrancheVaultContract.connect(lender).disburse(defaultDeployer.address);
                 expect(await mockTokenContract.balanceOf(defaultDeployer.address)).to.equal(
-                    balanceBefore.add(allShares),
+                    balanceBefore,
                 );
-                let disburseInfo =
-                    await seniorTrancheVaultContract.redemptionDisbursementInfoByLender(
-                        lender.address,
-                    );
-                checkRedemptionDisbursementInfo(disburseInfo, 2);
 
                 balanceBefore = await mockTokenContract.balanceOf(lender2.address);
-                await expect(seniorTrancheVaultContract.connect(lender2).disburse(lender2.address))
-                    .to.emit(seniorTrancheVaultContract, "LenderFundDisbursed")
-                    .withArgs(lender2.address, lender2.address, allShares2);
-                expect(await mockTokenContract.balanceOf(lender2.address)).to.equal(
-                    balanceBefore.add(allShares2),
-                );
-                disburseInfo = await seniorTrancheVaultContract.redemptionDisbursementInfoByLender(
-                    lender2.address,
-                );
-                checkRedemptionDisbursementInfo(disburseInfo, 2);
+                await seniorTrancheVaultContract.connect(lender2).disburse(lender2.address);
+                expect(await mockTokenContract.balanceOf(lender2.address)).to.equal(balanceBefore);
             });
 
             it("Should disbuse when epochs was partially processed", async function () {
@@ -1277,11 +1225,15 @@ describe("TrancheVault Test", function () {
                 expect(await mockTokenContract.balanceOf(defaultDeployer.address)).to.equal(
                     balanceBefore.add(withdrawable),
                 );
-                let disburseInfo =
-                    await seniorTrancheVaultContract.redemptionDisbursementInfoByLender(
-                        lender.address,
-                    );
-                checkRedemptionDisbursementInfo(disburseInfo, 0, withdrawable, withdrawable);
+                let allWithdrawable = withdrawable;
+                await checkRedemptionInfoByLender(
+                    seniorTrancheVaultContract,
+                    lender,
+                    1,
+                    shares.sub(withdrawable),
+                    allWithdrawable,
+                    allWithdrawable,
+                );
 
                 balanceBefore = await mockTokenContract.balanceOf(lender2.address);
                 await expect(seniorTrancheVaultContract.connect(lender2).disburse(lender2.address))
@@ -1290,109 +1242,50 @@ describe("TrancheVault Test", function () {
                 expect(await mockTokenContract.balanceOf(lender2.address)).to.equal(
                     balanceBefore.add(withdrawable2),
                 );
-                disburseInfo = await seniorTrancheVaultContract.redemptionDisbursementInfoByLender(
-                    lender2.address,
+                let allWithdrawable2 = withdrawable2;
+                await checkRedemptionInfoByLender(
+                    seniorTrancheVaultContract,
+                    lender2,
+                    1,
+                    shares2.sub(withdrawable2),
+                    allWithdrawable2,
+                    allWithdrawable2,
                 );
-                checkRedemptionDisbursementInfo(disburseInfo, 0, withdrawable2, withdrawable2);
 
-                let withdrawableBefore = shares.sub(withdrawable);
-                let withdrawableBefore2 = shares2.sub(withdrawable2);
-                let gapAmount = shares.add(shares2).sub(availableAmount);
+                let allShares = shares.sub(withdrawable);
+                let allShares2 = shares2.sub(withdrawable2);
+                let allAvailableAmount = shares.add(shares2).sub(availableAmount);
 
                 shares = toToken(4000);
                 shares2 = toToken(3000);
                 availableAmount = toToken(2000);
+
+                allShares = allShares.add(shares);
+                allShares2 = allShares2.add(shares2);
+                allAvailableAmount = allAvailableAmount.add(availableAmount);
 
                 await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
                 await seniorTrancheVaultContract.connect(lender2).addRedemptionRequest(shares2);
 
                 // Move assets into pool safe for partial processing
 
-                await creditContract.makePayment(
-                    ethers.constants.HashZero,
-                    gapAmount.add(availableAmount),
-                );
+                await creditContract.makePayment(ethers.constants.HashZero, allAvailableAmount);
 
-                // Finish 2nd epoch and process epoch1 fully and epoch2 partially
+                // Finish 2nd epoch and process epoch partially
 
                 lastEpoch = await epochManagerContract.currentEpoch();
+                let totalSharesRequested = (
+                    await seniorTrancheVaultContract.epochInfoByEpochId(lastEpoch.id)
+                ).totalSharesRequested;
                 ts = lastEpoch.endTime.toNumber() + 60 * 5;
                 await setNextBlockTimestamp(ts);
                 await epochManagerContract.closeEpoch();
 
-                withdrawable = shares.mul(availableAmount).div(shares.add(shares2));
-                expect(
-                    await seniorTrancheVaultContract.withdrawableAssets(lender.address),
-                ).to.equal(withdrawable.add(withdrawableBefore));
-                withdrawable2 = shares2.mul(availableAmount).div(shares.add(shares2));
-                expect(
-                    await seniorTrancheVaultContract.withdrawableAssets(lender2.address),
-                ).to.equal(withdrawable2.add(withdrawableBefore2));
-
-                balanceBefore = await mockTokenContract.balanceOf(defaultDeployer.address);
-                await expect(
-                    seniorTrancheVaultContract.connect(lender).disburse(defaultDeployer.address),
-                )
-                    .to.emit(seniorTrancheVaultContract, "LenderFundDisbursed")
-                    .withArgs(
-                        lender.address,
-                        defaultDeployer.address,
-                        withdrawable.add(withdrawableBefore),
-                    );
-                expect(await mockTokenContract.balanceOf(defaultDeployer.address)).to.equal(
-                    balanceBefore.add(withdrawable.add(withdrawableBefore)),
-                );
-                disburseInfo = await seniorTrancheVaultContract.redemptionDisbursementInfoByLender(
-                    lender.address,
-                );
-                checkRedemptionDisbursementInfo(disburseInfo, 1, withdrawable, withdrawable);
-
-                balanceBefore = await mockTokenContract.balanceOf(lender2.address);
-                await expect(seniorTrancheVaultContract.connect(lender2).disburse(lender2.address))
-                    .to.emit(seniorTrancheVaultContract, "LenderFundDisbursed")
-                    .withArgs(
-                        lender2.address,
-                        lender2.address,
-                        withdrawable2.add(withdrawableBefore2),
-                    );
-                expect(await mockTokenContract.balanceOf(lender2.address)).to.equal(
-                    balanceBefore.add(withdrawable2.add(withdrawableBefore2)),
-                );
-                disburseInfo = await seniorTrancheVaultContract.redemptionDisbursementInfoByLender(
-                    lender2.address,
-                );
-                checkRedemptionDisbursementInfo(disburseInfo, 1, withdrawable2, withdrawable2);
-
-                withdrawableBefore = withdrawable;
-                withdrawableBefore2 = withdrawable2;
-                let availableAmountBefore = availableAmount;
-                availableAmount = toToken(3000).add(availableAmountBefore);
-
-                // Move assets into pool safe for partial processing
-
-                await creditContract.makePayment(
-                    ethers.constants.HashZero,
-                    availableAmount.sub(availableAmountBefore),
-                );
-
-                // Finish 3rd epoch and process epoch2 partially
-
-                lastEpoch = await epochManagerContract.currentEpoch();
-                ts = lastEpoch.endTime.toNumber() + 60 * 5;
-                await setNextBlockTimestamp(ts);
-                await epochManagerContract.closeEpoch();
-
-                withdrawable = shares
-                    .mul(availableAmount)
-                    .div(shares.add(shares2))
-                    .sub(withdrawableBefore);
+                withdrawable = allShares.mul(allAvailableAmount).div(totalSharesRequested);
                 expect(
                     await seniorTrancheVaultContract.withdrawableAssets(lender.address),
                 ).to.equal(withdrawable);
-                withdrawable2 = shares2
-                    .mul(availableAmount)
-                    .div(shares.add(shares2))
-                    .sub(withdrawableBefore2);
+                withdrawable2 = allShares2.mul(allAvailableAmount).div(totalSharesRequested);
                 expect(
                     await seniorTrancheVaultContract.withdrawableAssets(lender2.address),
                 ).to.equal(withdrawable2);
@@ -1406,16 +1299,14 @@ describe("TrancheVault Test", function () {
                 expect(await mockTokenContract.balanceOf(defaultDeployer.address)).to.equal(
                     balanceBefore.add(withdrawable),
                 );
-                disburseInfo = await seniorTrancheVaultContract.redemptionDisbursementInfoByLender(
-                    lender.address,
-                );
-                checkRedemptionDisbursementInfo(
-                    disburseInfo,
-                    (
-                        await seniorTrancheVaultContract.getNumRedemptionRequests(lender.address)
-                    ).sub(BN.from(1)),
-                    withdrawable.add(withdrawableBefore),
-                    withdrawable.add(withdrawableBefore),
+                allWithdrawable = allWithdrawable.add(withdrawable);
+                await checkRedemptionInfoByLender(
+                    seniorTrancheVaultContract,
+                    lender,
+                    2,
+                    allShares.sub(withdrawable),
+                    allWithdrawable,
+                    allWithdrawable,
                 );
 
                 balanceBefore = await mockTokenContract.balanceOf(lender2.address);
@@ -1425,65 +1316,55 @@ describe("TrancheVault Test", function () {
                 expect(await mockTokenContract.balanceOf(lender2.address)).to.equal(
                     balanceBefore.add(withdrawable2),
                 );
-                disburseInfo = await seniorTrancheVaultContract.redemptionDisbursementInfoByLender(
-                    lender2.address,
-                );
-                checkRedemptionDisbursementInfo(
-                    disburseInfo,
-                    (
-                        await seniorTrancheVaultContract.getNumRedemptionRequests(lender2.address)
-                    ).sub(BN.from(1)),
-                    withdrawable2.add(withdrawableBefore2),
-                    withdrawable2.add(withdrawableBefore2),
+                allWithdrawable2 = allWithdrawable2.add(withdrawable2);
+                await checkRedemptionInfoByLender(
+                    seniorTrancheVaultContract,
+                    lender2,
+                    2,
+                    allShares2.sub(withdrawable2),
+                    allWithdrawable2,
+                    allWithdrawable2,
                 );
 
-                withdrawableBefore = shares.sub(withdrawable.add(withdrawableBefore));
-                withdrawableBefore2 = shares2.sub(withdrawable2.add(withdrawableBefore2));
-                gapAmount = shares.add(shares2).sub(availableAmount);
+                allShares = allShares.sub(withdrawable);
+                allShares2 = allShares2.sub(withdrawable2);
 
-                shares = toToken(500);
-                shares2 = toToken(800);
-                availableAmount = shares.add(shares2);
-
-                await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
-                await seniorTrancheVaultContract.connect(lender2).addRedemptionRequest(shares2);
-
-                // Move assets into pool safe for full processing
+                // Move assets into pool safe for partial processing
 
                 await creditContract.makePayment(
                     ethers.constants.HashZero,
-                    gapAmount.add(availableAmount),
+                    allShares.add(allShares2),
                 );
 
-                // Finish 4th epoch and process epoch2 fully and epoch4 fully
+                // Finish 3rd epoch and process epoch fully
 
                 lastEpoch = await epochManagerContract.currentEpoch();
                 ts = lastEpoch.endTime.toNumber() + 60 * 5;
                 await setNextBlockTimestamp(ts);
                 await epochManagerContract.closeEpoch();
 
-                withdrawable = shares.add(withdrawableBefore);
                 expect(
                     await seniorTrancheVaultContract.withdrawableAssets(lender.address),
-                ).to.equal(withdrawable);
-                withdrawable2 = shares2.add(withdrawableBefore2);
+                ).to.equal(allShares);
                 expect(
                     await seniorTrancheVaultContract.withdrawableAssets(lender2.address),
-                ).to.equal(withdrawable2);
+                ).to.equal(allShares2);
 
                 balanceBefore = await mockTokenContract.balanceOf(lender.address);
                 await expect(seniorTrancheVaultContract.connect(lender).disburse(lender.address))
                     .to.emit(seniorTrancheVaultContract, "LenderFundDisbursed")
-                    .withArgs(lender.address, lender.address, withdrawable);
+                    .withArgs(lender.address, lender.address, allShares);
                 expect(await mockTokenContract.balanceOf(lender.address)).to.equal(
-                    balanceBefore.add(withdrawable),
+                    balanceBefore.add(allShares),
                 );
-                disburseInfo = await seniorTrancheVaultContract.redemptionDisbursementInfoByLender(
-                    lender.address,
-                );
-                checkRedemptionDisbursementInfo(
-                    disburseInfo,
-                    await seniorTrancheVaultContract.getNumRedemptionRequests(lender.address),
+                allWithdrawable = allWithdrawable.add(allShares);
+                await checkRedemptionInfoByLender(
+                    seniorTrancheVaultContract,
+                    lender,
+                    2,
+                    BN.from(0),
+                    allWithdrawable,
+                    allWithdrawable,
                 );
 
                 balanceBefore = await mockTokenContract.balanceOf(defaultDeployer.address);
@@ -1491,16 +1372,18 @@ describe("TrancheVault Test", function () {
                     seniorTrancheVaultContract.connect(lender2).disburse(defaultDeployer.address),
                 )
                     .to.emit(seniorTrancheVaultContract, "LenderFundDisbursed")
-                    .withArgs(lender2.address, defaultDeployer.address, withdrawable2);
+                    .withArgs(lender2.address, defaultDeployer.address, allShares2);
                 expect(await mockTokenContract.balanceOf(defaultDeployer.address)).to.equal(
-                    balanceBefore.add(withdrawable2),
+                    balanceBefore.add(allShares2),
                 );
-                disburseInfo = await seniorTrancheVaultContract.redemptionDisbursementInfoByLender(
-                    lender2.address,
-                );
-                checkRedemptionDisbursementInfo(
-                    disburseInfo,
-                    await seniorTrancheVaultContract.getNumRedemptionRequests(lender2.address),
+                allWithdrawable2 = allWithdrawable2.add(allShares2);
+                await checkRedemptionInfoByLender(
+                    seniorTrancheVaultContract,
+                    lender2,
+                    2,
+                    BN.from(0),
+                    allWithdrawable2,
+                    allWithdrawable2,
                 );
             });
         });
@@ -1508,11 +1391,16 @@ describe("TrancheVault Test", function () {
         describe("Process Epochs Tests", function () {
             it("Should not allow non-EpochManager to process epochs", async function () {
                 await expect(
-                    juniorTrancheVaultContract.executeEpochs([], 0, 0),
+                    juniorTrancheVaultContract.executeEpoch({
+                        epochId: 0,
+                        totalSharesRequested: 0,
+                        totalSharesProcessed: 0,
+                        totalAmountProcessed: 0,
+                    }),
                 ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "notAuthorizedCaller");
             });
 
-            it("Should process one epochs fully", async function () {
+            it("Should process one epoch fully", async function () {
                 let shares = toToken(3000);
                 await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
 
@@ -1524,10 +1412,9 @@ describe("TrancheVault Test", function () {
                 let balance = await mockTokenContract.balanceOf(
                     seniorTrancheVaultContract.address,
                 );
-                let index = await seniorTrancheVaultContract.getNumEpochsWithRedemption();
                 await expect(epochManagerContract.closeEpoch())
-                    .to.emit(seniorTrancheVaultContract, "EpochsProcessed")
-                    .withArgs(1, shares, shares, index);
+                    .to.emit(seniorTrancheVaultContract, "EpochProcessed")
+                    .withArgs(1, shares, shares, shares);
 
                 expect(await seniorTrancheVaultContract.totalSupply()).to.equal(
                     totalSupply.sub(shares),
@@ -1535,118 +1422,12 @@ describe("TrancheVault Test", function () {
                 expect(
                     await mockTokenContract.balanceOf(seniorTrancheVaultContract.address),
                 ).to.equal(balance.add(shares));
-                expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(
-                    0,
-                );
-                let epoch = await seniorTrancheVaultContract.epochInfoByEpochId(lastEpoch.id);
-                checkEpochInfo(epoch, lastEpoch.id, shares, shares, shares);
+
+                await epochChecker.checkSeniorEpochInfoById(lastEpoch.id, shares, shares, shares);
+                await epochChecker.checkSeniorCurrentEpochEmpty();
             });
 
-            it("Should process multiple epochs fully", async function () {
-                let shares = toToken(3000);
-                let allShares = shares;
-                await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
-
-                // Move all assets out of pool safe
-
-                let availableAmount = toToken(0);
-                let availableAssets = await poolSafeContract.getPoolLiquidity();
-                await creditContract.drawdown(
-                    ethers.constants.HashZero,
-                    availableAssets.sub(availableAmount),
-                );
-
-                // Close epoch1
-
-                let lastEpoch = await epochManagerContract.currentEpoch();
-                let ts = lastEpoch.endTime.toNumber() + 60 * 5;
-                await setNextBlockTimestamp(ts);
-
-                let totalSupply = await seniorTrancheVaultContract.totalSupply();
-                let balance = await mockTokenContract.balanceOf(
-                    seniorTrancheVaultContract.address,
-                );
-                await epochManagerContract.closeEpoch();
-                expect(await seniorTrancheVaultContract.totalSupply()).to.equal(totalSupply);
-                expect(
-                    await mockTokenContract.balanceOf(seniorTrancheVaultContract.address),
-                ).to.equal(balance);
-                expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(
-                    1,
-                );
-                let epoch = await seniorTrancheVaultContract.epochInfoByEpochId(lastEpoch.id);
-                checkEpochInfo(epoch, lastEpoch.id, shares);
-                let epochs = [];
-                epochs.push(epoch);
-
-                shares = toToken(756);
-                allShares = allShares.add(shares);
-                await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
-
-                // Close epoch2
-
-                lastEpoch = await epochManagerContract.currentEpoch();
-                ts = lastEpoch.endTime.toNumber() + 60 * 5;
-                await setNextBlockTimestamp(ts);
-
-                totalSupply = await seniorTrancheVaultContract.totalSupply();
-                balance = await mockTokenContract.balanceOf(seniorTrancheVaultContract.address);
-                await epochManagerContract.closeEpoch();
-                expect(await seniorTrancheVaultContract.totalSupply()).to.equal(totalSupply);
-                expect(
-                    await mockTokenContract.balanceOf(seniorTrancheVaultContract.address),
-                ).to.equal(balance);
-                expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(
-                    2,
-                );
-                epoch = await seniorTrancheVaultContract.epochInfoByEpochId(lastEpoch.id);
-                checkEpochInfo(epoch, lastEpoch.id, shares);
-                epochs.push(epoch);
-
-                shares = toToken(139);
-                allShares = allShares.add(shares);
-                await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
-
-                await creditContract.makePayment(ethers.constants.HashZero, allShares);
-
-                // Close epoch3
-
-                lastEpoch = await epochManagerContract.currentEpoch();
-                ts = lastEpoch.endTime.toNumber() + 60 * 5;
-                await setNextBlockTimestamp(ts);
-
-                totalSupply = await seniorTrancheVaultContract.totalSupply();
-                balance = await mockTokenContract.balanceOf(seniorTrancheVaultContract.address);
-                let index = await seniorTrancheVaultContract.getNumEpochsWithRedemption();
-                await expect(epochManagerContract.closeEpoch())
-                    .to.emit(seniorTrancheVaultContract, "EpochsProcessed")
-                    .withArgs(3, allShares, allShares, index);
-                expect(await seniorTrancheVaultContract.totalSupply()).to.equal(
-                    totalSupply.sub(allShares),
-                );
-                expect(
-                    await mockTokenContract.balanceOf(seniorTrancheVaultContract.address),
-                ).to.equal(balance.add(allShares));
-                expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(
-                    0,
-                );
-                epoch = await seniorTrancheVaultContract.epochInfoByEpochId(lastEpoch.id);
-                epochs.push(epoch);
-
-                // check epochs fully processed
-                for (let e of epochs) {
-                    let en = await seniorTrancheVaultContract.epochInfoByEpochId(e.epochId);
-                    checkEpochInfo(
-                        en,
-                        e.epochId,
-                        e.totalSharesRequested,
-                        e.totalSharesRequested,
-                        e.totalSharesRequested,
-                    );
-                }
-            });
-
-            it("Should process one epochs partially", async function () {
+            it("Should process one epoch partially", async function () {
                 let shares = toToken(3000);
                 await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
 
@@ -1667,10 +1448,9 @@ describe("TrancheVault Test", function () {
                 let balance = await mockTokenContract.balanceOf(
                     seniorTrancheVaultContract.address,
                 );
-                let index = (await seniorTrancheVaultContract.getNumEpochsWithRedemption()).sub(1);
                 await expect(epochManagerContract.closeEpoch())
-                    .to.emit(seniorTrancheVaultContract, "EpochsProcessed")
-                    .withArgs(1, availableAmount, availableAmount, index);
+                    .to.emit(seniorTrancheVaultContract, "EpochProcessed")
+                    .withArgs(1, shares, availableAmount, availableAmount);
 
                 expect(await seniorTrancheVaultContract.totalSupply()).to.equal(
                     totalSupply.sub(availableAmount),
@@ -1678,204 +1458,14 @@ describe("TrancheVault Test", function () {
                 expect(
                     await mockTokenContract.balanceOf(seniorTrancheVaultContract.address),
                 ).to.equal(balance.add(availableAmount));
-                expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(
-                    1,
+
+                await epochChecker.checkSeniorEpochInfoById(
+                    lastEpoch.id,
+                    shares,
+                    availableAmount,
+                    availableAmount,
                 );
-                let epochId = await seniorTrancheVaultContract.epochIds(index);
-                let epoch = await seniorTrancheVaultContract.epochInfoByEpochId(epochId);
-                checkEpochInfo(epoch, epochId, shares, availableAmount, availableAmount);
-            });
-
-            it("Should process multiple epochs partially", async function () {
-                let shares = toToken(3000);
-                await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
-
-                // Move assets out of pool safe for partial processing
-
-                let availableAmount = toToken(1000);
-                let availableAssets = await poolSafeContract.getPoolLiquidity();
-                await creditContract.drawdown(
-                    ethers.constants.HashZero,
-                    availableAssets.sub(availableAmount),
-                );
-
-                // Close epoch1 and process epoch1 partially
-
-                let lastEpoch = await epochManagerContract.currentEpoch();
-                let ts = lastEpoch.endTime.toNumber() + 60 * 5;
-                await setNextBlockTimestamp(ts);
-
-                let totalSupply = await seniorTrancheVaultContract.totalSupply();
-                let balance = await mockTokenContract.balanceOf(
-                    seniorTrancheVaultContract.address,
-                );
-                let index = (await seniorTrancheVaultContract.getNumEpochsWithRedemption()).sub(1);
-                await expect(epochManagerContract.closeEpoch())
-                    .to.emit(seniorTrancheVaultContract, "EpochsProcessed")
-                    .withArgs(1, availableAmount, availableAmount, index);
-
-                expect(await seniorTrancheVaultContract.totalSupply()).to.equal(
-                    totalSupply.sub(availableAmount),
-                );
-                expect(
-                    await mockTokenContract.balanceOf(seniorTrancheVaultContract.address),
-                ).to.equal(balance.add(availableAmount));
-                expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(
-                    1,
-                );
-                let epoch = await seniorTrancheVaultContract.epochInfoByEpochId(lastEpoch.id);
-                checkEpochInfo(epoch, lastEpoch.id, shares, availableAmount, availableAmount);
-                let epochs = [];
-                epochs.push(epoch);
-
-                shares = toToken(2000);
-                await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
-
-                availableAmount = toToken(1000);
-                await creditContract.makePayment(ethers.constants.HashZero, availableAmount);
-
-                // Close epoch2 and process epoch1 partially
-
-                lastEpoch = await epochManagerContract.currentEpoch();
-                ts = lastEpoch.endTime.toNumber() + 60 * 5;
-                await setNextBlockTimestamp(ts);
-
-                totalSupply = await seniorTrancheVaultContract.totalSupply();
-                balance = await mockTokenContract.balanceOf(seniorTrancheVaultContract.address);
-                await expect(epochManagerContract.closeEpoch())
-                    .to.emit(seniorTrancheVaultContract, "EpochsProcessed")
-                    .withArgs(1, availableAmount, availableAmount, index);
-                expect(await seniorTrancheVaultContract.totalSupply()).to.equal(
-                    totalSupply.sub(availableAmount),
-                );
-                expect(
-                    await mockTokenContract.balanceOf(seniorTrancheVaultContract.address),
-                ).to.equal(balance.add(availableAmount));
-                expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(
-                    2,
-                );
-
-                // epoch1
-                let epochOld = epochs[0];
-                epoch = await seniorTrancheVaultContract.epochInfoByEpochId(epochOld.epochId);
-                checkEpochInfo(
-                    epoch,
-                    epochOld.epochId,
-                    epochOld.totalSharesRequested,
-                    availableAmount.add(epochOld.totalSharesProcessed),
-                    availableAmount.add(epochOld.totalAmountProcessed),
-                );
-                epochs[0] = epoch;
-
-                // epoch2
-                epoch = await seniorTrancheVaultContract.epochInfoByEpochId(lastEpoch.id);
-                checkEpochInfo(epoch, lastEpoch.id, shares);
-                epochs.push(epoch);
-
-                shares = toToken(846);
-                await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
-
-                availableAmount = toToken(1000);
-                let availableAmountAll = epochs[0].totalSharesRequested
-                    .sub(epochs[0].totalSharesProcessed)
-                    .add(availableAmount);
-                await creditContract.makePayment(ethers.constants.HashZero, availableAmountAll);
-
-                // Close epoch3 and process epoch1 fully and epoch2 partially
-
-                lastEpoch = await epochManagerContract.currentEpoch();
-                ts = lastEpoch.endTime.toNumber() + 60 * 5;
-                await setNextBlockTimestamp(ts);
-
-                totalSupply = await seniorTrancheVaultContract.totalSupply();
-                balance = await mockTokenContract.balanceOf(seniorTrancheVaultContract.address);
-                index = index.add(1);
-                await expect(epochManagerContract.closeEpoch())
-                    .to.emit(seniorTrancheVaultContract, "EpochsProcessed")
-                    .withArgs(2, availableAmountAll, availableAmountAll, index);
-                expect(await seniorTrancheVaultContract.totalSupply()).to.equal(
-                    totalSupply.sub(availableAmountAll),
-                );
-                expect(
-                    await mockTokenContract.balanceOf(seniorTrancheVaultContract.address),
-                ).to.equal(balance.add(availableAmountAll));
-                expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(
-                    2,
-                );
-
-                // epoch1
-                epochOld = epochs[0];
-                epoch = await seniorTrancheVaultContract.epochInfoByEpochId(epochOld.epochId);
-                checkEpochInfo(
-                    epoch,
-                    epochOld.epochId,
-                    epochOld.totalSharesRequested,
-                    epochOld.totalSharesRequested,
-                    epochOld.totalSharesRequested,
-                );
-                epochs.shift();
-
-                // epoch2
-                epochOld = epochs[0];
-                epoch = await seniorTrancheVaultContract.epochInfoByEpochId(epochOld.epochId);
-                checkEpochInfo(
-                    epoch,
-                    epochOld.epochId,
-                    epochOld.totalSharesRequested,
-                    availableAmount.add(epochOld.totalSharesProcessed),
-                    availableAmount.add(epochOld.totalAmountProcessed),
-                );
-                epochs[0] = epoch;
-
-                // epoch3
-                epoch = await seniorTrancheVaultContract.epochInfoByEpochId(lastEpoch.id);
-                checkEpochInfo(epoch, lastEpoch.id, shares);
-                epochs.push(epoch);
-
-                shares = toToken(2763);
-                await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares);
-
-                availableAmountAll = shares;
-                for (let e of epochs) {
-                    availableAmountAll = availableAmountAll.add(
-                        e.totalSharesRequested.sub(e.totalSharesProcessed),
-                    );
-                }
-                await creditContract.makePayment(ethers.constants.HashZero, availableAmountAll);
-
-                // Close epoch4 and process epoch2, epoch3, epoch4 fully
-
-                lastEpoch = await epochManagerContract.currentEpoch();
-                ts = lastEpoch.endTime.toNumber() + 60 * 5;
-                await setNextBlockTimestamp(ts);
-
-                totalSupply = await seniorTrancheVaultContract.totalSupply();
-                balance = await mockTokenContract.balanceOf(seniorTrancheVaultContract.address);
-                index = await seniorTrancheVaultContract.getNumEpochsWithRedemption();
-                await expect(epochManagerContract.closeEpoch())
-                    .to.emit(seniorTrancheVaultContract, "EpochsProcessed")
-                    .withArgs(3, availableAmountAll, availableAmountAll, index);
-                expect(await seniorTrancheVaultContract.totalSupply()).to.equal(
-                    totalSupply.sub(availableAmountAll),
-                );
-                expect(
-                    await mockTokenContract.balanceOf(seniorTrancheVaultContract.address),
-                ).to.equal(balance.add(availableAmountAll));
-                expect((await seniorTrancheVaultContract.unprocessedEpochInfos()).length).to.equal(
-                    0,
-                );
-
-                // check epochs fully processed
-                for (let e of epochs) {
-                    let en = await seniorTrancheVaultContract.epochInfoByEpochId(e.epochId);
-                    checkEpochInfo(
-                        en,
-                        e.epochId,
-                        e.totalSharesRequested,
-                        e.totalSharesRequested,
-                        e.totalSharesRequested,
-                    );
-                }
+                await epochChecker.checkSeniorCurrentEpochInfo(shares.sub(availableAmount));
             });
         });
     });
