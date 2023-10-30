@@ -2,8 +2,12 @@ import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { Calendar } from "../typechain-types";
-import { getNextDueDate } from "./BaseTest";
-import { dateToTimestamp, getNextTime, mineNextBlockWithTimestamp } from "./TestUtils";
+import {
+    dateToTimestamp,
+    getNextDueDate,
+    getNextTime,
+    mineNextBlockWithTimestamp,
+} from "./TestUtils";
 
 let calendarContract: Calendar;
 

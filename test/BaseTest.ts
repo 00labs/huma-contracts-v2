@@ -26,7 +26,7 @@ import {
     CreditRecordStruct,
 } from "../typechain-types/contracts/credit/Credit";
 import { EpochInfoStruct } from "../typechain-types/contracts/interfaces/IEpoch";
-import { getNextMonth, minBigNumber, sumBNArray, toToken } from "./TestUtils";
+import { minBigNumber, sumBNArray, toToken } from "./TestUtils";
 
 export type ProtocolContracts = [EvaluationAgentNFT, HumaConfig, MockToken];
 export type PoolContracts = [
@@ -489,14 +489,6 @@ export async function deployAndSetupPoolContracts(
         creditFeeManagerContract,
         receivableContract,
     ];
-}
-
-export function getNextDueDate(
-    lastDate: number | BN,
-    currentDate: number | BN,
-    periodDuration: number | BN,
-): number[] {
-    return getNextMonth(Number(lastDate), Number(currentDate), Number(periodDuration));
 }
 
 function calcProfitForFixedSeniorYieldPolicy(

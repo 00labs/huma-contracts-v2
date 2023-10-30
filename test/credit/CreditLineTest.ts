@@ -33,7 +33,7 @@ import {
 } from "../BaseTest";
 import {
     getMinFirstLossCoverRequirement,
-    getNextMonth,
+    getNextDueDate,
     getNextTime,
     getStartDateOfPeriod,
     mineNextBlockWithTimestamp,
@@ -70,7 +70,7 @@ let poolConfigContract: PoolConfig,
     creditFeeManagerContract: CreditFeeManager;
 
 function calcDefaultDate(cr: CreditRecordStructOutput, defaultPeriod: number): number {
-    let [defaultDate] = getNextMonth(
+    let [defaultDate] = getNextDueDate(
         cr.nextDueDate.toNumber(),
         cr.nextDueDate.toNumber(),
         defaultPeriod,
@@ -125,7 +125,7 @@ function calcLateCreditRecord(
     // console.log(`currentTime: ${currentTime}`);
 
     for (let i = 0; i < periodCount; i++) {
-        let [nextDueDate] = getNextMonth(
+        let [nextDueDate] = getNextDueDate(
             ncr.nextDueDate.toNumber(),
             ncr.nextDueDate.toNumber(),
             cc.periodDuration,
@@ -582,7 +582,7 @@ describe("CreditLine Test", function () {
             const nextTime = await getNextTime(3);
             await mineNextBlockWithTimestamp(nextTime);
 
-            const [nextDueDate] = getNextMonth(0, nextTime, 1);
+            const [nextDueDate] = getNextDueDate(0, nextTime, 1);
             const yieldDue = calcYield(borrowAmount, yieldInBps, nextDueDate - nextTime);
 
             const beforeBalance = await mockTokenContract.balanceOf(borrower.address);
@@ -665,7 +665,7 @@ describe("CreditLine Test", function () {
             let nextTime = await getNextTime(3);
             await mineNextBlockWithTimestamp(nextTime);
 
-            let [nextDueDate] = getNextMonth(0, nextTime, 3);
+            let [nextDueDate] = getNextDueDate(0, nextTime, 3);
             let yieldDue = calcYield(borrowAmount, yieldInBps, nextDueDate - nextTime);
 
             let userBeforeBalance = await mockTokenContract.balanceOf(borrower.address);
@@ -954,7 +954,7 @@ describe("CreditLine Test", function () {
             // move forward after grace late date
             let poolSettings = await poolConfigContract.getPoolSettings();
             let nextTime =
-                getNextMonth(
+                getNextDueDate(
                     creditRecord.nextDueDate.toNumber(),
                     creditRecord.nextDueDate.toNumber(),
                     periodDuration,
@@ -1017,7 +1017,7 @@ describe("CreditLine Test", function () {
             let lossStartPrincipal = getPrincipal(preCreditRecord);
 
             nextTime =
-                getNextMonth(
+                getNextDueDate(
                     preCreditRecord.nextDueDate.toNumber(),
                     preCreditRecord.nextDueDate.toNumber(),
                     2 * periodDuration,
@@ -1097,7 +1097,7 @@ describe("CreditLine Test", function () {
             // console.log(`accruedLoss: ${accruedLoss}, lossRate: ${lossRate}`);
 
             nextTime =
-                getNextMonth(
+                getNextDueDate(
                     preCreditRecord.nextDueDate.toNumber(),
                     preCreditRecord.nextDueDate.toNumber(),
                     3 * periodDuration,
