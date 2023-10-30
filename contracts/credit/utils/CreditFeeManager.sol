@@ -74,8 +74,7 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
                 (lateFeeRate *
                     (_cr.unbilledPrincipal + _cr.nextDue - _cr.yieldDue) *
                     (lastLateFeeDate - _dd.lastLateFeeDate)) /
-                SECONDS_IN_A_DAY /
-                DAYS_IN_A_YEAR
+                (SECONDS_IN_A_DAY * DAYS_IN_A_YEAR)
         );
         return (lastLateFeeDate, lateFee);
     }
