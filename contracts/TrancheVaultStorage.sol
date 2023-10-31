@@ -13,10 +13,19 @@ contract TrancheVaultStorage {
         uint64 lastUpdatedEpochIndex;
         // The number of shares requested for redemption in this epoch
         uint96 numSharesRequested;
+        // The principal amount inclueded in the redemption request
+        uint96 principalRequested;
         // The total amount processed for redemption in all epochs
         uint96 totalAmountProcessed;
         // The total amount withdrawn by the lender, the withdrawable amount = totalAmountProcessed - totalAmountWithdrawn
         uint96 totalAmountWithdrawn;
+    }
+
+    struct UserInfo {
+        // The total amount of underlying tokens deposited by the lender
+        uint96 principal;
+        // Whether the lender reinvests the interests
+        bool reinvestInterest;
     }
 
     IERC20 public underlyingToken;
@@ -35,6 +44,9 @@ contract TrancheVaultStorage {
     mapping(uint256 => EpochInfo) public epochInfoByEpochId;
 
     mapping(address => RedemptionInfo) public redemptionInfoByLender;
+
+    // This mapping contrains the amount of underlying tokens deposited by lenders
+    mapping(address => UserInfo) public userInfos;
 
     /**
      * @dev This empty reserved space is put in place to allow future versions to add new

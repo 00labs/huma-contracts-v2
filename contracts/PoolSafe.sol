@@ -8,6 +8,7 @@ import {IPoolFeeManager} from "./interfaces/IPoolFeeManager.sol";
 import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {JUNIOR_TRANCHE, SENIOR_TRANCHE} from "./SharedDefs.sol";
 
 /**
  * @title PoolSafe
@@ -17,6 +18,8 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
     IERC20 public underlyingToken;
     IPool public pool;
     IPoolFeeManager public poolFeeManager;
+
+    mapping(address => uint256) public accumulatedInterests;
 
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = _poolConfig.underlyingToken();
@@ -47,10 +50,26 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
         underlyingToken.transfer(to, amount);
     }
 
+    function accumulateInterest(address tranche, uint256 interest) external {
+        if (msg.sender != address(pool)) revert Errors.notAuthorizedCaller();
+        if (tranche != poolConfig.seniorTranche() && tranche != poolConfig.juniorTranche())
+            revert Errors.todo();
+        accumulatedInterests[tranche] += interest;
+    }
+
+    function resetAccumulatedInterest(address tranche) external {
+        if (msg.sender != poolConfig.seniorTranche() && msg.sender != poolConfig.juniorTranche())
+            revert Errors.notAuthorizedCaller();
+        accumulatedInterests[tranche] = 0;
+    }
+
     /// @inheritdoc IPoolSafe
     function getPoolLiquidity() external view virtual returns (uint256 liquidity) {
         uint256 reserved = pool.getReservedAssetsForFirstLossCovers();
         reserved += poolFeeManager.getTotalAvailableFees();
+        reserved +=
+            accumulatedInterests[poolConfig.seniorTranche()] +
+            accumulatedInterests[poolConfig.juniorTranche()];
         uint256 balance = underlyingToken.balanceOf(address(this));
         liquidity = balance > reserved ? balance - reserved : 0;
     }

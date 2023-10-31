@@ -130,6 +130,34 @@ contract ProfitEscrow is PoolConfigCache, ProfitEscrowStorage, IProfitEscrow {
         emit ProfitClaimed(msg.sender, amount);
     }
 
+    function withdrawAndClaim(address account, uint256 amount) public {
+        if (amount == 0) revert Errors.zeroAmountProvided();
+        if (account == address(0)) revert Errors.zeroAddressProvided();
+        _onlyController();
+
+        EscrowInfo memory escrowInfo = _escrowInfo;
+        UserInfo memory tempUserInfo = userInfo[account];
+
+        int256 accumulated = int256(
+            (tempUserInfo.amount * escrowInfo.accProfitPerShare) / DEFAULT_DECIMALS_FACTOR
+        );
+        uint256 curClaimable = uint256(accumulated - tempUserInfo.profitDebt);
+
+        // Effects
+        tempUserInfo.profitDebt =
+            int96(accumulated) -
+            int96(int256((amount * escrowInfo.accProfitPerShare) / DEFAULT_DECIMALS_FACTOR));
+        tempUserInfo.amount -= uint96(amount);
+        userInfo[account] = tempUserInfo;
+
+        escrowInfo.totalAmount -= uint96(amount);
+        _escrowInfo = escrowInfo;
+
+        poolSafe.withdraw(msg.sender, curClaimable);
+
+        // TODO emit event
+    }
+
     function claimable(address account) external view returns (uint256) {
         EscrowInfo memory escrowInfo = _escrowInfo;
         UserInfo memory tempUserInfo = userInfo[account];
