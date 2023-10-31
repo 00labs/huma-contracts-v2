@@ -75,8 +75,5 @@ interface ICreditFeeManager {
             bool isLate
         );
 
-    function getPayoffAmount(
-        CreditRecord memory cr,
-        uint256 yieldInBps
-    ) external view returns (uint256 payoffAmount);
+    function getPayoffAmount(CreditRecord memory cr) external view returns (uint256 payoffAmount);
 }

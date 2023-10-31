@@ -457,7 +457,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
         CreditRecord memory cr = _updateDueInfo(creditHash);
         CreditConfig memory cc = _getCreditConfig(creditHash);
 
-        uint256 payoffAmount = _feeManager.getPayoffAmount(cr, cc.yieldInBps);
+        uint256 payoffAmount = _feeManager.getPayoffAmount(cr);
 
         // The amount to collect from the payer.
         Payment memory p = Payment(0, 0, 0, 0, cr.state == CreditState.GoodStanding, false);
