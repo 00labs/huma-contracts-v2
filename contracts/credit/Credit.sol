@@ -350,7 +350,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
         _onlyBorrowerOrEAServiceAccount(_creditBorrowerMap[creditHash]);
 
         CreditRecord memory cr = _getCreditRecord(creditHash);
-        if (cr.nextDue != 0 || cr.unbilledPrincipal != 0) {
+        if (cr.nextDue != 0 || cr.totalPastDue != 0 || cr.unbilledPrincipal != 0) {
             revert Errors.creditLineHasOutstandingBalance();
         } else {
             CreditConfig memory cc = _getCreditConfig(creditHash);
@@ -455,6 +455,15 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
         if (amount == 0) revert Errors.zeroAmountProvided();
 
         CreditRecord memory cr = _updateDueInfo(creditHash);
+        if (
+            // TODO: do we still need the requested state?
+            cr.state == BS.CreditState.Requested ||
+            cr.state == BS.CreditState.Approved ||
+            cr.state == BS.CreditState.Deleted
+        ) {
+            revert Errors.creditLineNotInStateForMakingPayment();
+        }
+
         CreditConfig memory cc = _getCreditConfig(creditHash);
 
         uint256 payoffAmount = _feeManager.getPayoffAmount(cr, cc.yieldInBps);
@@ -539,16 +548,15 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
             _setCreditRecord(creditHash, cr);
         }
 
-        if (p.amountToCollect > 0) {
-            poolSafe.deposit(msg.sender, p.amountToCollect);
-            emit PaymentMade(
-                borrower,
-                p.amountToCollect,
-                cr.nextDue,
-                cr.unbilledPrincipal,
-                msg.sender
-            );
-        }
+        assert(p.amountToCollect > 0);
+        poolSafe.deposit(msg.sender, p.amountToCollect);
+        emit PaymentMade(
+            borrower,
+            p.amountToCollect,
+            cr.nextDue,
+            cr.unbilledPrincipal,
+            msg.sender
+        );
 
         // p.amountToCollect == payoffAmount indicates payoff or not. >= is a safe practice
         return (p.amountToCollect, p.amountToCollect >= payoffAmount, false);
@@ -570,6 +578,14 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
         if (amount == 0) revert Errors.zeroAmountProvided();
 
         CreditRecord memory cr = _getCreditRecord(creditHash);
+        if (
+            // TODO: do we need the requested state?
+            cr.state == BS.CreditState.Requested ||
+            cr.state == BS.CreditState.Approved ||
+            cr.state == BS.CreditState.Deleted
+        ) {
+            revert Errors.creditLineNotInStateForMakingPayment();
+        }
 
         if (block.timestamp > cr.nextDueDate) {
             cr = _updateDueInfo(creditHash);
@@ -595,16 +611,9 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
             } else cr.state = CreditState.GoodStanding;
         }
 
-        if (amountToCollect > 0) {
-            poolSafe.deposit(msg.sender, amountToCollect);
-            emit PaymentMade(
-                borrower,
-                amountToCollect,
-                cr.nextDue,
-                cr.unbilledPrincipal,
-                msg.sender
-            );
-        }
+        assert(amountToCollect > 0);
+        poolSafe.deposit(msg.sender, amountToCollect);
+        emit PaymentMade(borrower, amountToCollect, cr.nextDue, cr.unbilledPrincipal, msg.sender);
 
         // if there happens to be no
         return (amountToCollect, cr.nextDue == 0);
@@ -887,7 +896,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
     ) internal returns (uint256 amountWaived) {
         CreditRecord memory cr = _getCreditRecord(creditHash);
         DueDetail memory dd = _getDueDetail(creditHash);
-        amountWaived = amount > dd.lateFee ? amount : dd.lateFee;
+        amountWaived = amount > dd.lateFee ? dd.lateFee : amount;
         dd.lateFee -= uint96(amountWaived);
         cr.totalPastDue -= uint96(amountWaived);
         _setDueDetail(creditHash, dd);
