@@ -33,7 +33,7 @@ struct CreditRecord {
 }
 
 /**
- * @notice DueDetail records the detail information about nextDue and pastDue
+ * @notice DueDetail records the detailed information about nextDue and pastDue
  * @notice committed is the amount of yield computed from commitment set in CreditConfig
  * @notice accrued is the amount of yield based on actual usage
  * @notice paid is the amount of yield paid for the current period
@@ -87,6 +87,12 @@ enum ReceivableState {
     Rejected,
     Delayed,
     Defaulted
+}
+
+enum PaymentStatus {
+    NotReceived,
+    ReceivedNotVerified,
+    ReceivedAndVerified
 }
 
 struct ReceivableInfo {
