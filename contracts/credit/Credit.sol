@@ -457,9 +457,9 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
         CreditRecord memory cr = _updateDueInfo(creditHash);
         if (
             // TODO: do we still need the requested state?
-            cr.state == BS.CreditState.Requested ||
-            cr.state == BS.CreditState.Approved ||
-            cr.state == BS.CreditState.Deleted
+            cr.state == CreditState.Requested ||
+            cr.state == CreditState.Approved ||
+            cr.state == CreditState.Deleted
         ) {
             revert Errors.creditLineNotInStateForMakingPayment();
         }
@@ -580,9 +580,9 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
         CreditRecord memory cr = _getCreditRecord(creditHash);
         if (
             // TODO: do we need the requested state?
-            cr.state == BS.CreditState.Requested ||
-            cr.state == BS.CreditState.Approved ||
-            cr.state == BS.CreditState.Deleted
+            cr.state == CreditState.Requested ||
+            cr.state == CreditState.Approved ||
+            cr.state == CreditState.Deleted
         ) {
             revert Errors.creditLineNotInStateForMakingPayment();
         }
