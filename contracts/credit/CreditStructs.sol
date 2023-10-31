@@ -89,12 +89,6 @@ enum ReceivableState {
     Defaulted
 }
 
-enum PaymentStatus {
-    NotReceived,
-    ReceivedNotVerified,
-    ReceivedAndVerified
-}
-
 struct ReceivableInfo {
     // The total expected payment amount of the receivable
     uint96 receivableAmount;
@@ -114,15 +108,6 @@ struct FacilityConfig {
     uint16 advanceRateInBps;
     uint96 committedCreditLine;
     bool autoApproval;
-}
-
-struct Payment {
-    uint96 principalPaid;
-    uint96 yieldPaid;
-    uint96 feesPaid;
-    uint96 amountToCollect;
-    bool oldLateFlag;
-    bool newLateFlag;
 }
 
 struct ReceivableInput {
