@@ -52,6 +52,17 @@ contract Calendar is ICalendar {
     }
 
     /// @inheritdoc ICalendar
+    function getDaysPassedInPeriod(
+        uint256 periodDuration
+    ) external view returns (uint256 daysPassed, uint256 totalDaysInPeriod) {
+        (, uint256 month, uint256 day) = DTL.timestampToDate(block.timestamp);
+        month = (month - 1) % periodDuration;
+        daysPassed = month * 30 + day;
+        totalDaysInPeriod = periodDuration * 30;
+        return (daysPassed, totalDaysInPeriod);
+    }
+
+    /// @inheritdoc ICalendar
     function getStartDateOfPeriod(
         uint256 periodDuration,
         uint256 periodEndDate

@@ -33,7 +33,7 @@ import {
 } from "../BaseTest";
 import {
     getMinFirstLossCoverRequirement,
-    getNextMonth,
+    getNextDueDate,
     getNextTime,
     getStartDateOfPeriod,
     mineNextBlockWithTimestamp,
@@ -70,7 +70,7 @@ let poolConfigContract: PoolConfig,
     creditFeeManagerContract: CreditFeeManager;
 
 function calcDefaultDate(cr: CreditRecordStructOutput, defaultPeriod: number): number {
-    let [defaultDate] = getNextMonth(
+    let [defaultDate] = getNextDueDate(
         cr.nextDueDate.toNumber(),
         cr.nextDueDate.toNumber(),
         defaultPeriod,
@@ -107,7 +107,7 @@ function calcLateFee(configs: BN[], principal: BN): BN {
 }
 
 function getPrincipal(cr: CreditRecordStructOutput): BN {
-    return cr.unbilledPrincipal.add(cr.totalDue.sub(cr.yieldDue));
+    return cr.unbilledPrincipal.add(cr.nextDue.sub(cr.yieldDue));
 }
 
 function calcLateCreditRecord(
@@ -125,7 +125,7 @@ function calcLateCreditRecord(
     // console.log(`currentTime: ${currentTime}`);
 
     for (let i = 0; i < periodCount; i++) {
-        let [nextDueDate] = getNextMonth(
+        let [nextDueDate] = getNextDueDate(
             ncr.nextDueDate.toNumber(),
             ncr.nextDueDate.toNumber(),
             cc.periodDuration,
@@ -135,12 +135,12 @@ function calcLateCreditRecord(
         // console.log(`nextDueDate: ${nextDueDate}, seconds: ${seconds}`);
 
         // console.log(
-        //     `ncr.totalDue: ${ncr.totalDue}, ncr.unbilledPrincipal: ${ncr.unbilledPrincipal}`,
+        //     `ncr.nextDue: ${ncr.nextDue}, ncr.unbilledPrincipal: ${ncr.unbilledPrincipal}`,
         // );
 
-        if (ncr.totalDue.gt(BN.from(0))) {
-            ncr.unbilledPrincipal = ncr.unbilledPrincipal.add(ncr.totalDue);
-            principalDiff = principalDiff.add(ncr.totalDue);
+        if (ncr.nextDue.gt(BN.from(0))) {
+            ncr.unbilledPrincipal = ncr.unbilledPrincipal.add(ncr.nextDue);
+            principalDiff = principalDiff.add(ncr.nextDue);
         }
 
         ncr.yieldDue = calcYield(ncr.unbilledPrincipal, cc.yieldInBps, seconds);
@@ -148,11 +148,11 @@ function calcLateCreditRecord(
         // console.log(`ncr.yieldDue: ${ncr.yieldDue}`);
 
         let principalToBill = ncr.unbilledPrincipal.mul(configs[3]).div(CONSTANTS.BP_FACTOR);
-        ncr.totalDue = ncr.yieldDue.add(principalToBill);
+        ncr.nextDue = ncr.yieldDue.add(principalToBill);
         ncr.unbilledPrincipal = ncr.unbilledPrincipal.sub(principalToBill);
 
         // console.log(
-        //     `ncr.totalDue: ${ncr.totalDue}, ncr.unbilledPrincipal: ${ncr.unbilledPrincipal}, principalDiff: ${principalDiff}`,
+        //     `ncr.nextDue: ${ncr.nextDue}, ncr.unbilledPrincipal: ${ncr.unbilledPrincipal}, principalDiff: ${principalDiff}`,
         // );
 
         if (principalDiff.gt(BN.from(0)) && currentTime > nextDueDate) {
@@ -174,7 +174,7 @@ function calcLateCreditRecord(
     ncr.missedPeriods = ncr.missedPeriods + periodCount;
 
     if (ncr.remainingPeriods === 0) {
-        ncr.totalDue = ncr.totalDue.add(ncr.unbilledPrincipal);
+        ncr.nextDue = ncr.nextDue.add(ncr.unbilledPrincipal);
         ncr.unbilledPrincipal = BN.from(0);
     }
 
@@ -583,7 +583,7 @@ describe("CreditLine Test", function () {
             const nextTime = await getNextTime(3);
             await mineNextBlockWithTimestamp(nextTime);
 
-            const [nextDueDate] = getNextMonth(0, nextTime, 1);
+            const [nextDueDate] = getNextDueDate(0, nextTime, 1);
             const yieldDue = calcYield(borrowAmount, yieldInBps, nextDueDate - nextTime);
 
             const beforeBalance = await mockTokenContract.balanceOf(borrower.address);
@@ -666,7 +666,7 @@ describe("CreditLine Test", function () {
             let nextTime = await getNextTime(3);
             await mineNextBlockWithTimestamp(nextTime);
 
-            let [nextDueDate] = getNextMonth(0, nextTime, 3);
+            let [nextDueDate] = getNextDueDate(0, nextTime, 3);
             let yieldDue = calcYield(borrowAmount, yieldInBps, nextDueDate - nextTime);
 
             let userBeforeBalance = await mockTokenContract.balanceOf(borrower.address);
@@ -957,7 +957,7 @@ describe("CreditLine Test", function () {
             // move forward after grace late date
             let poolSettings = await poolConfigContract.getPoolSettings();
             let nextTime =
-                getNextMonth(
+                getNextDueDate(
                     creditRecord.nextDueDate.toNumber(),
                     creditRecord.nextDueDate.toNumber(),
                     periodDuration,
@@ -1020,7 +1020,7 @@ describe("CreditLine Test", function () {
             let lossStartPrincipal = getPrincipal(preCreditRecord);
 
             nextTime =
-                getNextMonth(
+                getNextDueDate(
                     preCreditRecord.nextDueDate.toNumber(),
                     preCreditRecord.nextDueDate.toNumber(),
                     2 * periodDuration,
@@ -1100,7 +1100,7 @@ describe("CreditLine Test", function () {
             // console.log(`accruedLoss: ${accruedLoss}, lossRate: ${lossRate}`);
 
             nextTime =
-                getNextMonth(
+                getNextDueDate(
                     preCreditRecord.nextDueDate.toNumber(),
                     preCreditRecord.nextDueDate.toNumber(),
                     3 * periodDuration,

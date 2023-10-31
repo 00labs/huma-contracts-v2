@@ -24,21 +24,48 @@ struct CreditConfig {
 struct CreditRecord {
     uint96 unbilledPrincipal; // the amount of principal not included in the bill
     uint64 nextDueDate; // the due date of the next payment
-    uint96 totalDue; // the due amount of the next payment
+    uint96 nextDue; // the due amount of the next payment. This does not include totalPastDue
     uint96 yieldDue; // yield due for the next payment
+    uint96 totalPastDue; // all the pastDue
     uint16 missedPeriods; // the number of consecutive missed payments, for default processing
     uint16 remainingPeriods; // the number of payment periods until the maturity of the credit line
     CreditState state;
 }
 
-struct CreditLimit {
-    uint96 creditLimit;
-    uint96 availableCredit;
+/**
+ * @notice DueDetail records the detail information about nextDue and pastDue
+ * @notice committed is the amount of yield computed from commitment set in CreditConfig
+ * @notice accrued is the amount of yield based on actual usage
+ * @notice paid is the amount of yield paid for the current period
+ * @notice CreditRecord.nextDue = max(committed, accrued) - paid
+ * @notice lateFee tracks late charges only. It is always updated together with lastLateFeeDate.
+ * @notice pastDue tracks unpaid yield only.
+ * @notice when there is partial payment to past due, it is applied towards pastDue first,
+ * then lateFee.
+ * @notice CreditRecord.totalPastDue = lateFee + pastDue
+ * @note This struct is necessary since commitment requirement might change within a period
+ */
+struct DueDetail {
+    uint64 lastLateFeeDate;
+    uint96 lateFee;
+    uint96 pastDue;
+    uint96 committed;
+    uint96 accrued;
+    uint96 paid;
 }
 
 struct CreditLoss {
-    uint96 totalAccruedLoss;
-    uint96 totalLossRecovery;
+    uint96 principalLoss;
+    uint96 yieldLoss;
+    uint96 feesLoss;
+    uint96 principalRecovered;
+    uint96 yieldRecovered;
+    uint96 feesRecovered;
+}
+
+struct CreditLimit {
+    uint96 creditLimit;
+    uint96 availableCredit;
 }
 
 enum CreditState {

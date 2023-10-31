@@ -171,8 +171,8 @@ contract SuperfluidProcessor is PoolConfigCache, SuperAppBase, SuperfluidProcess
         uint256 internalTokenId = _sfReceivableIdInternalReceivableIdMapping[receivableId];
         CreditRecord memory creditRecord = receivableCredit.getCreditRecord(internalTokenId);
 
-        if (amountReceived < creditRecord.totalDue) {
-            uint256 difference = creditRecord.totalDue - amountReceived;
+        if (amountReceived < creditRecord.nextDue) {
+            uint256 difference = creditRecord.nextDue - amountReceived;
             uint256 received = _transferFromAccount(
                 underlyingToken,
                 si.borrower,
@@ -191,7 +191,7 @@ contract SuperfluidProcessor is PoolConfigCache, SuperAppBase, SuperfluidProcess
             );
         }
 
-        if (creditRecord.totalDue == 0) {
+        if (creditRecord.nextDue == 0) {
             // This branch is only for the case when user paid off by pool.makePayment function manually
             // after the loan is delayed
             paidoff = true;
@@ -237,8 +237,8 @@ contract SuperfluidProcessor is PoolConfigCache, SuperAppBase, SuperfluidProcess
 
         uint256 amount = si.receivedFlowAmount;
         IERC20 underlyingToken = IERC20(poolConfig.underlyingToken());
-        if (amount < creditRecord.totalDue) {
-            uint256 diff = creditRecord.totalDue - amount;
+        if (amount < creditRecord.nextDue) {
+            uint256 diff = creditRecord.nextDue - amount;
             uint256 received = _transferFromAccount(
                 underlyingToken,
                 si.borrower,

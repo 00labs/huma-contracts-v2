@@ -26,7 +26,7 @@ import {
     CreditRecordStruct,
 } from "../typechain-types/contracts/credit/Credit";
 import { EpochInfoStruct } from "../typechain-types/contracts/interfaces/IEpoch";
-import { getNextMonth, minBigNumber, sumBNArray, toToken } from "./TestUtils";
+import { minBigNumber, sumBNArray, toToken } from "./TestUtils";
 
 export type ProtocolContracts = [EvaluationAgentNFT, HumaConfig, MockToken];
 export type PoolContracts = [
@@ -491,14 +491,6 @@ export async function deployAndSetupPoolContracts(
     ];
 }
 
-export function getNextDueDate(
-    lastDate: number | BN,
-    currentDate: number | BN,
-    periodDuration: number | BN,
-): number[] {
-    return getNextMonth(Number(lastDate), Number(currentDate), Number(periodDuration));
-}
-
 function calcProfitForFixedSeniorYieldPolicy(
     profit: BN,
     assets: BN[],
@@ -699,11 +691,132 @@ export function checkEpochInfo(
     totalSharesRequested: BN,
     totalSharesProcessed: BN = BN.from(0),
     totalAmountProcessed: BN = BN.from(0),
+    delta: number = 0,
 ): void {
     expect(epochInfo.epochId).to.equal(epochId);
-    expect(epochInfo.totalSharesRequested).to.equal(totalSharesRequested);
-    expect(epochInfo.totalSharesProcessed).to.equal(totalSharesProcessed);
-    expect(epochInfo.totalAmountProcessed).to.equal(totalAmountProcessed);
+    expect(epochInfo.totalSharesRequested).to.be.closeTo(totalSharesRequested, delta);
+    expect(epochInfo.totalSharesProcessed).to.be.closeTo(totalSharesProcessed, delta);
+    expect(epochInfo.totalAmountProcessed).to.be.closeTo(totalAmountProcessed, delta);
+}
+
+export class EpochChecker {
+    epochManagerContract: EpochManager;
+    seniorTrancheVaultContract: TrancheVault;
+    juniorTrancheVaultContract: TrancheVault;
+
+    constructor(
+        epochManagerContract: EpochManager,
+        seniorTrancheVaultContract: TrancheVault,
+        juniorTrancheVaultContract: TrancheVault,
+    ) {
+        this.epochManagerContract = epochManagerContract;
+        this.seniorTrancheVaultContract = seniorTrancheVaultContract;
+        this.juniorTrancheVaultContract = juniorTrancheVaultContract;
+    }
+
+    async checkSeniorCurrentEpochEmpty() {
+        return await this.checkCurrentEpochEmpty(this.seniorTrancheVaultContract);
+    }
+
+    async checkJuniorCurrentEpochEmpty() {
+        return await this.checkCurrentEpochEmpty(this.juniorTrancheVaultContract);
+    }
+
+    async checkSeniorCurrentEpochInfo(
+        sharesRequested: BN = BN.from(0),
+        sharesProcessed: BN = BN.from(0),
+        amountProcessed: BN = BN.from(0),
+        delta: number = 0,
+    ) {
+        return await this.checkCurrentEpochInfo(
+            this.seniorTrancheVaultContract,
+            sharesRequested,
+            sharesProcessed,
+            amountProcessed,
+            delta,
+        );
+    }
+
+    async checkJuniorCurrentEpochInfo(
+        sharesRequested: BN = BN.from(0),
+        sharesProcessed: BN = BN.from(0),
+        amountProcessed: BN = BN.from(0),
+        delta: number = 0,
+    ) {
+        return await this.checkCurrentEpochInfo(
+            this.juniorTrancheVaultContract,
+            sharesRequested,
+            sharesProcessed,
+            amountProcessed,
+            delta,
+        );
+    }
+
+    async checkSeniorEpochInfoById(
+        epochId: BN,
+        sharesRequested: BN = BN.from(0),
+        sharesProcessed: BN = BN.from(0),
+        amountProcessed: BN = BN.from(0),
+        delta: number = 0,
+    ) {
+        await this.checkEpochInfoById(
+            this.seniorTrancheVaultContract,
+            epochId,
+            sharesRequested,
+            sharesProcessed,
+            amountProcessed,
+            delta,
+        );
+    }
+
+    async checkJuniorEpochInfoById(
+        epochId: BN,
+        sharesRequested: BN = BN.from(0),
+        sharesProcessed: BN = BN.from(0),
+        amountProcessed: BN = BN.from(0),
+        delta: number = 0,
+    ) {
+        await this.checkEpochInfoById(
+            this.juniorTrancheVaultContract,
+            epochId,
+            sharesRequested,
+            sharesProcessed,
+            amountProcessed,
+            delta,
+        );
+    }
+
+    private async checkCurrentEpochEmpty(trancheContract: TrancheVault) {
+        const epochId = await this.epochManagerContract.currentEpochId();
+        const epoch = await trancheContract.epochInfoByEpochId(epochId);
+        checkEpochInfo(epoch, BN.from(0), BN.from(0), BN.from(0), BN.from(0));
+        return epochId;
+    }
+
+    private async checkCurrentEpochInfo(
+        trancheContract: TrancheVault,
+        sharesRequested: BN = BN.from(0),
+        sharesProcessed: BN = BN.from(0),
+        amountProcessed: BN = BN.from(0),
+        delta: number = 0,
+    ) {
+        const epochId = await this.epochManagerContract.currentEpochId();
+        const epoch = await trancheContract.epochInfoByEpochId(epochId);
+        checkEpochInfo(epoch, epochId, sharesRequested, sharesProcessed, amountProcessed, delta);
+        return epochId;
+    }
+
+    private async checkEpochInfoById(
+        trancheContract: TrancheVault,
+        epochId: BN,
+        sharesRequested: BN = BN.from(0),
+        sharesProcessed: BN = BN.from(0),
+        amountProcessed: BN = BN.from(0),
+        delta: number = 0,
+    ) {
+        const epoch = await trancheContract.epochInfoByEpochId(epochId);
+        checkEpochInfo(epoch, epochId, sharesRequested, sharesProcessed, amountProcessed, delta);
+    }
 }
 
 export function checkCreditConfig(
@@ -735,7 +848,7 @@ export function checkTwoCreditRecords(
 ) {
     expect(creditRecord.unbilledPrincipal).to.equal(preCreditRecord.unbilledPrincipal);
     expect(creditRecord.nextDueDate).to.equal(preCreditRecord.nextDueDate);
-    expect(creditRecord.totalDue).to.equal(preCreditRecord.totalDue);
+    expect(creditRecord.nextDue).to.equal(preCreditRecord.nextDue);
     expect(creditRecord.yieldDue).to.equal(preCreditRecord.yieldDue);
     expect(creditRecord.missedPeriods).to.equal(preCreditRecord.missedPeriods);
     expect(creditRecord.remainingPeriods).to.equal(preCreditRecord.remainingPeriods);
@@ -746,7 +859,7 @@ export function checkCreditRecord(
     creditRecord: CreditRecordStruct,
     unbilledPrincipal: BN,
     nextDueDate: number,
-    totalDue: BN,
+    nextDue: BN,
     yieldDue: BN,
     missedPeriods: number,
     remainingPeriods: number,
@@ -754,7 +867,7 @@ export function checkCreditRecord(
 ) {
     expect(creditRecord.unbilledPrincipal).to.equal(unbilledPrincipal);
     expect(creditRecord.nextDueDate).to.equal(nextDueDate);
-    expect(creditRecord.totalDue).to.equal(totalDue);
+    expect(creditRecord.nextDue).to.equal(nextDue);
     expect(creditRecord.yieldDue).to.equal(yieldDue);
     expect(creditRecord.missedPeriods).to.equal(missedPeriods);
     expect(creditRecord.remainingPeriods).to.equal(remainingPeriods);
@@ -783,7 +896,7 @@ export function printCreditRecord(name: string, creditRecord: CreditRecordStruct
         `${name}[
             unbilledPrincipal: ${creditRecord.unbilledPrincipal},
             nextDueDate: ${creditRecord.nextDueDate},
-            totalDue: ${creditRecord.totalDue},
+            nextDue: ${creditRecord.nextDue},
             yieldDue: ${creditRecord.yieldDue},
             missedPeriods: ${creditRecord.missedPeriods},
             remainingPeriods: ${creditRecord.remainingPeriods},

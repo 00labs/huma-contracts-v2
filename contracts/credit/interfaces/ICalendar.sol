@@ -7,6 +7,13 @@ pragma solidity ^0.8.0;
 
 interface ICalendar {
     /**
+     * @notice Get the number of days passed and the total numbers of days of the period
+     */
+    function getDaysPassedInPeriod(
+        uint256 periodDuration
+    ) external view returns (uint256 daysPassed, uint256 totalDaysInPeriod);
+
+    /**
      * @notice Get the beginning of the next month
      */
     function getStartOfNextMonth() external view returns (uint256 startOfNextMonth);
@@ -51,7 +58,6 @@ interface ICalendar {
      * When lastDueDate is zero, always returns the due date after a full period from
      * the current time. For example, for a monthly period, if the first drawdown
      * happens on 7/27, the due date is 9/1 00:00:00.
-     * @dev For bimonthly, the beginning is always 1st & 15th
      * @dev Timezone: always UTC
      */
     function getNextDueDate(
