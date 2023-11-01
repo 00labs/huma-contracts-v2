@@ -130,12 +130,42 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
      * @notice A payment has been made against the credit line
      * @param borrower the address of the borrower
      * @param amount the payback amount
+     * @param nextDueDate the due date of the next payment
+     * @param nextDue the amount due on the next payment of the credit line
+     * @param totalPastDue the sum of lateFee + pastDue. See CreditStructs.DueDetail for more info
+     * @param totalPastDuePaid the payment amount applied to past due
+     * @param unbilledPrincipal the unbilled principal on the credit line after processing the payment
+     * @param principalPaid the amount of this payment applied to principal
+     * @param yieldPaid the amount of this payment applied to yield
      * @param by the address that has triggered the process of marking the payment made.
      * In most cases, it is the borrower. In receivable factoring, it is PDSServiceAccount.
      */
     event PaymentMade(
         address indexed borrower,
         uint256 amount,
+        uint256 nextDueDate,
+        uint256 nextDue,
+        uint256 totalPastDue,
+        uint256 totalPastDuePaid,
+        uint256 unbilledPrincipal,
+        uint256 principalPaid,
+        uint256 yieldPaid,
+        address by
+    );
+    /**
+     * @notice A payment has been made against the credit line
+     * @param borrower the address of the borrower
+     * @param amount the payback amount
+     * @param nextDueDate the due date of the next payment
+     * @param nextDue the amount due on the next payment of the credit line
+     * @param unbilledPrincipal the unbilled principal on the credit line after processing the payment
+     * @param by the address that has triggered the process of marking the payment made.
+     * In most cases, it is the borrower. In receivable factoring, it is PDSServiceAccount.
+     */
+    event PrincipalPaymentMade(
+        address indexed borrower,
+        uint256 amount,
+        uint256 nextDueDate,
         uint256 nextDue,
         uint256 unbilledPrincipal,
         address by
@@ -462,6 +492,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
         // The amount to collect from the payer.
         Payment memory p = Payment(0, 0, 0, 0, cr.state == CreditState.GoodStanding, false);
 
+        uint256 totalPastDuePaid = 0;
         if (amount < payoffAmount) {
             p.amountToCollect = uint96(amount);
             if (cr.totalPastDue > 0) {
@@ -470,6 +501,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
                     amount -= cr.totalPastDue;
                     dd.lateFee = 0;
                     dd.pastDue = 0;
+                    totalPastDuePaid = cr.totalPastDue;
                     cr.totalPastDue = 0;
                 } else {
                     if (amount > dd.pastDue) {
@@ -479,6 +511,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
                         dd.pastDue -= uint96(amount);
                     }
                     cr.totalPastDue -= uint96(amount);
+                    totalPastDuePaid = amount;
                     amount = 0;
                 }
                 dd.lastLateFeeDate = uint64(calendar.getStartOfToday());
@@ -544,8 +577,13 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
             emit PaymentMade(
                 borrower,
                 p.amountToCollect,
+                cr.nextDueDate,
                 cr.nextDue,
+                cr.totalPastDue,
+                totalPastDuePaid,
                 cr.unbilledPrincipal,
+                p.principalPaid,
+                p.yieldPaid,
                 msg.sender
             );
         }
@@ -597,9 +635,10 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
 
         if (amountToCollect > 0) {
             poolSafe.deposit(msg.sender, amountToCollect);
-            emit PaymentMade(
+            emit PrincipalPaymentMade(
                 borrower,
                 amountToCollect,
+                cr.nextDueDate,
                 cr.nextDue,
                 cr.unbilledPrincipal,
                 msg.sender
