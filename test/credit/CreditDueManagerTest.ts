@@ -6,7 +6,7 @@ import { ethers } from "hardhat";
 import moment from "moment";
 import {
     Calendar,
-    CreditFeeManager,
+    CreditDueManager,
     EpochManager,
     EvaluationAgentNFT,
     FirstLossCover,
@@ -61,9 +61,9 @@ let poolConfigContract: PoolConfig,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: MockPoolCredit,
-    creditFeeManagerContract: CreditFeeManager;
+    creditDueManagerContract: CreditDueManager;
 
-describe("CreditFeeManager Tests", function () {
+describe("CreditDueManager.sol Tests", function () {
     before(async function () {
         [
             defaultDeployer,
@@ -102,7 +102,7 @@ describe("CreditFeeManager Tests", function () {
             seniorTrancheVaultContract,
             juniorTrancheVaultContract,
             creditContract as unknown,
-            creditFeeManagerContract,
+            creditDueManagerContract,
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
@@ -139,7 +139,7 @@ describe("CreditFeeManager Tests", function () {
             const expectedFrontLoadingFees = frontLoadingFeeFlat.add(
                 amount.mul(frontLoadingFeeBps).div(CONSTANTS.BP_FACTOR),
             );
-            expect(await creditFeeManagerContract.calcFrontLoadingFee(amount)).to.equal(
+            expect(await creditDueManagerContract.calcFrontLoadingFee(amount)).to.equal(
                 expectedFrontLoadingFees,
             );
         });
@@ -151,7 +151,7 @@ describe("CreditFeeManager Tests", function () {
                 frontLoadingFeeFlat,
                 frontLoadingFeeBps,
             });
-            expect(await creditFeeManagerContract.calcFrontLoadingFee(amount)).to.equal(
+            expect(await creditDueManagerContract.calcFrontLoadingFee(amount)).to.equal(
                 frontLoadingFeeFlat,
             );
         });
@@ -173,7 +173,7 @@ describe("CreditFeeManager Tests", function () {
 
             it("Should return the correct amount to the borrower and the platform fees", async function () {
                 const borrowAmount = toToken(100);
-                const amounts = await creditFeeManagerContract.distBorrowingAmount(borrowAmount);
+                const amounts = await creditDueManagerContract.distBorrowingAmount(borrowAmount);
                 expect(amounts[0]).to.equal(borrowAmount.sub(frontLoadingFeeFlat));
                 expect(amounts[1]).to.equal(frontLoadingFeeFlat);
             });
@@ -181,9 +181,9 @@ describe("CreditFeeManager Tests", function () {
             it("Should revert if the borrow amount is less than the platform fees", async function () {
                 const borrowAmount = toToken(9);
                 await expect(
-                    creditFeeManagerContract.distBorrowingAmount(borrowAmount),
+                    creditDueManagerContract.distBorrowingAmount(borrowAmount),
                 ).to.be.revertedWithCustomError(
-                    creditFeeManagerContract,
+                    creditDueManagerContract,
                     "borrowingAmountLessThanPlatformFees",
                 );
             });
@@ -201,7 +201,7 @@ describe("CreditFeeManager Tests", function () {
                     remainingPeriods: 0,
                     state: CreditState.Delayed,
                 };
-                expect(await creditFeeManagerContract.checkLate(creditRecord)).to.be.true;
+                expect(await creditDueManagerContract.checkLate(creditRecord)).to.be.true;
             });
 
             it("Should return true if there is payment due and we've already passed the payment grace period", async function () {
@@ -221,7 +221,7 @@ describe("CreditFeeManager Tests", function () {
                     remainingPeriods: 0,
                     state: CreditState.GoodStanding,
                 };
-                expect(await creditFeeManagerContract.checkLate(creditRecord)).to.be.true;
+                expect(await creditDueManagerContract.checkLate(creditRecord)).to.be.true;
             });
 
             it("Should return false if there is no missed periods and no next due", async function () {
@@ -235,7 +235,7 @@ describe("CreditFeeManager Tests", function () {
                     remainingPeriods: 0,
                     state: CreditState.Approved,
                 };
-                expect(await creditFeeManagerContract.checkLate(creditRecord)).to.be.false;
+                expect(await creditDueManagerContract.checkLate(creditRecord)).to.be.false;
             });
 
             it("Should return false if there is next due but we are not at the due date yet", async function () {
@@ -250,7 +250,7 @@ describe("CreditFeeManager Tests", function () {
                     remainingPeriods: 0,
                     state: CreditState.Approved,
                 };
-                expect(await creditFeeManagerContract.checkLate(creditRecord)).to.be.false;
+                expect(await creditDueManagerContract.checkLate(creditRecord)).to.be.false;
             });
         });
 
@@ -278,7 +278,7 @@ describe("CreditFeeManager Tests", function () {
                     remainingPeriods: 0,
                     state: CreditState.Delayed,
                 };
-                expect(await creditFeeManagerContract.getPayoffAmount(creditRecord)).to.equal(
+                expect(await creditDueManagerContract.getPayoffAmount(creditRecord)).to.equal(
                     creditRecord.unbilledPrincipal
                         .add(creditRecord.nextDue)
                         .add(creditRecord.totalPastDue),

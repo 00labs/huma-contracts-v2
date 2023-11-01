@@ -5,7 +5,7 @@ import { BigNumber as BN } from "ethers";
 import { ethers } from "hardhat";
 import {
     Calendar,
-    CreditFeeManager,
+    CreditDueManager,
     EpochManager,
     EvaluationAgentNFT,
     FirstLossCover,
@@ -55,7 +55,7 @@ let poolConfigContract: PoolConfig,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: MockPoolCredit,
-    creditFeeManagerContract: CreditFeeManager;
+    creditDueManagerContract: CreditDueManager;
 
 let profit: BN;
 let expectedProtocolIncome: BN, expectedPoolOwnerIncome: BN, expectedEAIncome: BN, totalFees: BN;
@@ -99,7 +99,7 @@ describe("PoolFeeManager Tests", function () {
             seniorTrancheVaultContract,
             juniorTrancheVaultContract,
             creditContract as unknown,
-            creditFeeManagerContract,
+            creditDueManagerContract,
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
@@ -185,7 +185,7 @@ describe("PoolFeeManager Tests", function () {
                 seniorTrancheVaultContract.address,
                 juniorTrancheVaultContract.address,
                 creditContract.address,
-                creditFeeManagerContract.address,
+                creditDueManagerContract.address,
             ]);
             await newPoolConfigContract.setFirstLossCover(
                 CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,

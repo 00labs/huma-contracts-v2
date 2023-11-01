@@ -5,7 +5,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {HumaConfig} from "../HumaConfig.sol";
 import {CreditConfig, CreditRecord, CreditLimit, DueDetail, CreditLoss} from "./CreditStructs.sol";
 import {PoolConfig} from "../PoolConfig.sol";
-import {ICreditFeeManager} from "./utils/interfaces/ICreditFeeManager.sol";
+import {ICreditDueManager} from "./utils/interfaces/ICreditDueManager.sol";
 import {ICalendar} from "./interfaces/ICalendar.sol";
 import {IPoolSafe} from "../interfaces/IPoolSafe.sol";
 import {IFirstLossCover} from "../interfaces/IFirstLossCover.sol";
@@ -14,7 +14,7 @@ contract CreditStorage {
     HumaConfig internal _humaConfig;
 
     // Reference to the fee manager contract
-    ICreditFeeManager internal _feeManager;
+    ICreditDueManager internal _feeManager;
 
     ICalendar public calendar;
     IPoolSafe public poolSafe;

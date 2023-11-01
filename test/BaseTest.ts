@@ -5,7 +5,7 @@ import { ethers } from "hardhat";
 import {
     BaseTranchesPolicy,
     Calendar,
-    CreditFeeManager,
+    CreditDueManager,
     CreditLine,
     EpochManager,
     EvaluationAgentNFT,
@@ -25,7 +25,7 @@ import { FirstLossCoverConfigStruct } from "../typechain-types/contracts/PoolCon
 import {
     CreditConfigStruct,
     CreditRecordStruct,
-} from "../typechain-types/contracts/credit/utils/CreditFeeManager";
+} from "../typechain-types/contracts/credit/utils/CreditDueManager";
 import { EpochInfoStruct } from "../typechain-types/contracts/interfaces/IEpoch";
 import { minBigNumber, sumBNArray, toToken } from "./TestUtils";
 
@@ -45,7 +45,7 @@ export type PoolContracts = [
     TrancheVault,
     TrancheVault,
     CreditContractType,
-    CreditFeeManager,
+    CreditDueManager,
     Receivable,
 ];
 export type TranchesPolicyContractName =
@@ -189,9 +189,9 @@ export async function deployPoolContracts(
     const creditContract = await Credit.deploy();
     await creditContract.deployed();
 
-    const CreditFeeManager = await ethers.getContractFactory("CreditFeeManager");
-    const creditFeeManagerContract = await CreditFeeManager.deploy();
-    await creditFeeManagerContract.deployed();
+    const CreditDueManager = await ethers.getContractFactory("CreditDueManager");
+    const creditDueManagerContract = await CreditDueManager.deploy();
+    await creditDueManagerContract.deployed();
 
     const Receivable = await ethers.getContractFactory("Receivable");
     const receivableContract = await Receivable.deploy();
@@ -218,7 +218,7 @@ export async function deployPoolContracts(
         seniorTrancheVaultContract.address,
         juniorTrancheVaultContract.address,
         creditContract.address,
-        creditFeeManagerContract.address,
+        creditDueManagerContract.address,
     ]);
     await poolConfigContract.setFirstLossCover(
         BORROWER_FIRST_LOSS_COVER_INDEX,
@@ -286,7 +286,7 @@ export async function deployPoolContracts(
         JUNIOR_TRANCHE,
     );
     await creditContract.connect(poolOwner).initialize(poolConfigContract.address);
-    await creditFeeManagerContract.initialize(poolConfigContract.address);
+    await creditDueManagerContract.initialize(poolConfigContract.address);
 
     return [
         poolConfigContract,
@@ -302,7 +302,7 @@ export async function deployPoolContracts(
         seniorTrancheVaultContract,
         juniorTrancheVaultContract,
         creditContract,
-        creditFeeManagerContract,
+        creditDueManagerContract,
         receivableContract,
     ];
 }
@@ -456,7 +456,7 @@ export async function deployAndSetupPoolContracts(
         seniorTrancheVaultContract,
         juniorTrancheVaultContract,
         creditContract,
-        creditFeeManagerContract,
+        creditDueManagerContract,
         receivableContract,
     ] = await deployPoolContracts(
         humaConfigContract,
@@ -500,7 +500,7 @@ export async function deployAndSetupPoolContracts(
         seniorTrancheVaultContract,
         juniorTrancheVaultContract,
         creditContract,
-        creditFeeManagerContract,
+        creditDueManagerContract,
         receivableContract,
     ];
 }
