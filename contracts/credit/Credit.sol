@@ -459,7 +459,6 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         bytes32 creditHash,
         uint256 amount
     ) internal returns (uint256 amountPaid, bool paidoff, bool isReviewRequired) {
-        // TODO: doesn't seem like we check whether the credit line is accepting payments?
         if (amount == 0) revert Errors.zeroAmountProvided();
 
         CreditRecord memory cr = _updateDueInfo(creditHash);
