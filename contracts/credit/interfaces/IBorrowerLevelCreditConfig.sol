@@ -68,4 +68,9 @@ interface IBorrowerLevelCreditConfig {
      * @dev Only EA can call this function
      */
     function extendRemainingPeriod(address borrower, uint256 numOfPeriods) external;
+
+    /**
+     * @notice Waive late fee
+     */
+    function waiveLateFee(address borrower, uint256 waivedAmount) external;
 }
