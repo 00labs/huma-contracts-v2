@@ -4,8 +4,6 @@ pragma solidity ^0.8.0;
 import {ICalendar} from "./interfaces/ICalendar.sol";
 import {BokkyPooBahsDateTimeLibrary as DTL} from "./utils/BokkyPooBahsDateTimeLibrary.sol";
 
-import "hardhat/console.sol";
-
 //* todo change periodDuration to an enum {Monthly, Quarterly, SemiAnnually}
 contract Calendar is ICalendar {
     /// @inheritdoc ICalendar
