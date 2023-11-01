@@ -35,7 +35,7 @@ struct CreditRecord {
 /**
  * @notice DueDetail records the detailed information about nextDue and pastDue
  * @notice CreditRecord.nextDue = max(committed, accrued) - paid
- * @notice lateFee tracks late charges only. It is always updated together with lastLateFeeDate.
+ * @notice lateFee tracks late charges only. It is always updated together with lateFeeUpdatedDate.
  * @notice pastDue tracks unpaid yield only.
  * @notice committed is the amount of yield computed from commitment set in CreditConfig
  * @notice accrued is the amount of yield based on actual usage
@@ -46,8 +46,7 @@ struct CreditRecord {
  * @note This struct is necessary since commitment requirement might change within a period
  */
 struct DueDetail {
-    // TODO: rename this to lateFeeUpdatedDate?
-    uint64 lastLateFeeDate;
+    uint64 lateFeeUpdatedDate;
     uint96 lateFee;
     uint96 pastDue;
     uint96 committed;

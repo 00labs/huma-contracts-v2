@@ -170,25 +170,6 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
     );
 
     /**
-     * @notice Extend the expiration (maturity) date of a credit
-     * @param creditHash the hashcode of the credit
-     * @param newNumOfPeriods the number of pay periods to be extended
-     */
-    function _extendRemainingPeriod(bytes32 creditHash, uint256 newNumOfPeriods) internal virtual {
-        // Although not essential to call _updateDueInfo() to extend the credit line duration
-        // it is good practice to bring the account current while we update one of the fields.
-        _updateDueInfo(creditHash);
-        uint256 oldNumOfPeriods = _creditRecordMap[creditHash].remainingPeriods;
-        _creditRecordMap[creditHash].remainingPeriods += uint16(newNumOfPeriods);
-        emit RemainingPeriodsExtended(
-            creditHash,
-            oldNumOfPeriods,
-            _creditRecordMap[creditHash].remainingPeriods,
-            msg.sender
-        );
-    }
-
-    /**
      * @notice changes the available credit for a credit line. This is an administrative overwrite.
      * @param creditHash the owner of the credit line
      * @param newAvailableCredit the new available credit
@@ -240,7 +221,6 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         if (newCreditLimit > poolConfig.getPoolSettings().maxCreditLine) {
             revert Errors.greaterThanMaxCreditLine();
         }
-        // TODO: doesn't this cost more gas than simply writing to the storage directly?
         CreditLimit memory limit = _borrowerLimitMap[borrower];
         limit.creditLimit = newCreditLimit;
         _borrowerLimitMap[borrower] = limit;
@@ -373,7 +353,6 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         cc.creditLimit = 0;
         _setCreditConfig(creditHash, cc);
 
-        // TODO: what about due detail update?
         //todo emit event
     }
 
@@ -512,7 +491,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
                     cr.totalPastDue -= uint96(amount);
                     amount = 0;
                 }
-                dd.lastLateFeeDate = uint64(calendar.getStartOfToday());
+                dd.lateFeeUpdatedDate = uint64(calendar.getStartOfToday());
                 _setDueDetail(creditHash, dd);
             }
             // Apply the remaining payment amount (if any) to next due.
@@ -536,7 +515,6 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
                     cr.yieldDue = 0;
                     cr.missedPeriods = 0;
                     // Moves account to GoodStanding if it was delayed.
-                    // TODO: what about defaulted?
                     if (cr.state == CreditState.Delayed) cr.state = CreditState.GoodStanding;
 
                     _setCreditRecord(creditHash, cr);
@@ -558,6 +536,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
 
             _setCreditRecord(creditHash, cr);
         }
+
         assert(amountToCollect > 0);
         poolSafe.deposit(msg.sender, amountToCollect);
         emit PaymentMade(
