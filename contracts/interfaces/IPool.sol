@@ -15,12 +15,22 @@ interface IPool {
 
     function totalAssets() external view returns (uint256);
 
+    function currentTranchesAssets() external view returns (uint96[2] memory assets);
+
     /**
-     * @notice Refreshes the pool data, including all active loans data,
-     * profit for the pool and the asset value for different tranches.
-     * @return assets the updates assets for each tranche.
+     * @notice Distributes profit to admins, tranches and first loss covers
      */
-    function refreshPool() external returns (uint96[2] memory assets);
+    function distributeProfit(uint256 profit) external;
+
+    /**
+     * @notice Distributes loss to first loss covers, junior tranche and senior tranche
+     */
+    function distributeLoss(uint256 loss) external;
+
+    /**
+     * @notice Distributes loss recovery to senior tranche, junior tranche and first loss covers
+     */
+    function distributeLossRecovery(uint256 lossRecovery) external;
 
     /**
      * @notice Updates the assets for the two tranches with the specified values.

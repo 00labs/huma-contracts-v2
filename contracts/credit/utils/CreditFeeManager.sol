@@ -45,18 +45,18 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
     function checkLate(CreditRecord memory _cr) public view returns (bool) {
         if (_cr.missedPeriods > 0) return true;
 
-        (, , , uint8 lateGracePeriodInDays, , , , , ) = poolConfig._poolSettings();
-
+        PoolSettings memory poolSettings = poolConfig.getPoolSettings();
         return
             _cr.nextDue != 0 &&
-            block.timestamp > _cr.nextDueDate + lateGracePeriodInDays * SECONDS_IN_A_DAY;
+            block.timestamp >
+            _cr.nextDueDate + poolSettings.latePaymentGracePeriodInDays * SECONDS_IN_A_DAY;
     }
 
     function getNextBillRefreshDate(
         CreditRecord memory _cr
     ) public view returns (uint256 refreshDate) {
-        (, , , uint8 lateGracePeriodInDays, , , , , ) = poolConfig._poolSettings();
-        return _cr.nextDueDate + lateGracePeriodInDays * SECONDS_IN_A_DAY;
+        PoolSettings memory poolSettings = poolConfig.getPoolSettings();
+        return _cr.nextDueDate + poolSettings.latePaymentGracePeriodInDays * SECONDS_IN_A_DAY;
     }
 
     function refreshLateFee(
@@ -65,13 +65,13 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
     ) internal view returns (uint64 lastLateFeeDate, uint96 lateFee) {
         // todo this needs to be startOfTomorrow
         lastLateFeeDate = uint64(calendar.getStartOfToday());
-        (, , , uint256 lateFeeRate, ) = poolConfig._feeStructure();
+        (, uint256 lateFeeInBps, ) = poolConfig.getFees();
 
         // todo the computation below has slight inaccuracy. It only uses number of days, it did not
         // consider month boundary. This is a very minor issue.
         lateFee = uint96(
             _dd.lateFee +
-                (lateFeeRate *
+                (lateFeeInBps *
                     (_cr.unbilledPrincipal + _cr.nextDue - _cr.yieldDue) *
                     (lastLateFeeDate - _dd.lastLateFeeDate)) /
                 (SECONDS_IN_A_DAY * DAYS_IN_A_YEAR)
@@ -128,6 +128,8 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
         // Note that if multiple periods have passed, the yield for every period is still based on the
         // outstanding principal since there was no change to the principal
         (, , uint256 membershipFee) = poolConfig.getFees();
+        // TODO(Richard): when multiple periods have passed, we need to account for all the yield
+        // due in those periods. Currently we are only accounting for one period.
         newDD.accrued = uint96(
             (principal * _cc.yieldInBps * _cc.periodDuration) /
                 (HUNDRED_PERCENT_IN_BPS * MONTHS_IN_A_YEAR) +
@@ -148,8 +150,7 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
             // The incremental principal due should be 1 - (1 - R)^P.
             principalDue =
                 ((HUNDRED_PERCENT_IN_BPS ** periodsPassed -
-                    (HUNDRED_PERCENT_IN_BPS - poolConfig.getMinPrincipalRateInBps()) **
-                        periodsPassed) * principal) /
+                    (HUNDRED_PERCENT_IN_BPS - principalRate) ** periodsPassed) * principal) /
                 (HUNDRED_PERCENT_IN_BPS ** periodsPassed);
         }
 
