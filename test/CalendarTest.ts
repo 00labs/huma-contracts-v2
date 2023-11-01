@@ -2,6 +2,7 @@ import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { Calendar } from "../typechain-types";
+import { CONSTANTS } from "./BaseTest";
 import {
     dateToTimestamp,
     getFutureBlockTime,
@@ -35,15 +36,22 @@ describe("Calendar Test", function () {
     });
 
     describe("getStartOfNextQuarter", function () {
-        it("Should return the timestamp of the beginning of next quarter if the next quarter falls within the same year", async function () {
-            const nextBlockTime = await getFutureBlockTime(2);
-            await mineNextBlockWithTimestamp(nextBlockTime);
+        it("Should return the timestamp of the beginning of next quarter", async function () {
+            let nextBlockTime;
+            const currentMoment = Date.now();
+            // Test all 4 quarters. Ths guarantees that we'll cover both cases where
+            // 1. This quarter and the next quarter are in the same year.
+            // 2. This quarter and the next quarter are in different years.
+            for (let i = 0; i < 4; ++i) {
+                nextBlockTime = currentMoment + i * CONSTANTS.MAX_SECONDS_IN_A_QUARTER;
+                await mineNextBlockWithTimestamp(nextBlockTime);
 
-            const startOfThisQuarter = timestampToMoment(nextBlockTime).startOf("quarter");
-            const startOfNextQuarter = startOfThisQuarter.add(1, "quarter");
-            expect(await calendarContract.getStartOfNextQuarter()).to.equal(
-                startOfNextQuarter.unix(),
-            );
+                const startOfThisQuarter = timestampToMoment(nextBlockTime).startOf("quarter");
+                const startOfNextQuarter = startOfThisQuarter.add(1, "quarter");
+                expect(await calendarContract.getStartOfNextQuarter()).to.equal(
+                    startOfNextQuarter.unix(),
+                );
+            }
         });
     });
 

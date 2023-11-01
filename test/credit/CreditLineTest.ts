@@ -475,6 +475,7 @@ describe("CreditLine Test", function () {
                     borrower.address,
                     creditHash,
                     toToken(10_000),
+                    poolSettings.payPeriodInMonths,
                     1,
                     1217,
                     toToken(10_000),

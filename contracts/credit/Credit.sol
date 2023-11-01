@@ -6,10 +6,9 @@ import {HumaConfig} from "../HumaConfig.sol";
 import {PoolConfig, PoolSettings} from "../PoolConfig.sol";
 import {PoolConfigCache} from "../PoolConfigCache.sol";
 import {CreditStorage} from "./CreditStorage.sol";
-import {CreditConfig, CreditRecord, CreditLimit, CreditLoss, CreditState, PaymentStatus, Payment, DueDetail, CreditLoss} from "./CreditStructs.sol";
+import {CreditConfig, CreditRecord, CreditLimit, CreditLoss, CreditState, DueDetail, CreditLoss} from "./CreditStructs.sol";
 import {ICalendar} from "./interfaces/ICalendar.sol";
 import {IFirstLossCover} from "../interfaces/IFirstLossCover.sol";
-import {IPoolCredit} from "./interfaces/IPoolCredit.sol";
 import {IPoolSafe} from "../interfaces/IPoolSafe.sol";
 import {ICreditFeeManager} from "./utils/interfaces/ICreditFeeManager.sol";
 import {IERC20, IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -20,7 +19,7 @@ import {DAYS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS, SECONDS_IN_A_DAY} from "../Share
  * Credit is the core borrowing concept in Huma Protocol. This abstract contract provides
  * basic operations that applies to all credits in Huma Protocol.
  */
-abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPoolCredit {
+abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
     enum CreditLineClosureReason {
         Paidoff,
         CreditLimitChangedToBeZero,
@@ -127,18 +126,67 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
      * @notice A payment has been made against the credit line
      * @param borrower the address of the borrower
      * @param amount the payback amount
+     * @param nextDueDate the due date of the next payment
+     * @param nextDue the amount due on the next payment of the credit line
+     * @param totalPastDue the sum of lateFee + pastDue. See CreditStructs.DueDetail for more info
+     * @param totalPastDuePaid the payment amount applied to past due
+     * @param unbilledPrincipal the unbilled principal on the credit line after processing the payment
+     * @param principalPaid the amount of this payment applied to principal
+     * @param yieldPaid the amount of this payment applied to yield
      * @param by the address that has triggered the process of marking the payment made.
      * In most cases, it is the borrower. In receivable factoring, it is PDSServiceAccount.
      */
     event PaymentMade(
         address indexed borrower,
         uint256 amount,
+        uint256 nextDueDate,
+        uint256 nextDue,
+        uint256 totalPastDue,
+        uint256 unbilledPrincipal,
+        uint256 principalPaid,
+        uint256 yieldPaid,
+        uint256 totalPastDuePaid,
+        address by
+    );
+    /**
+     * @notice A payment has been made against the credit line
+     * @param borrower the address of the borrower
+     * @param amount the payback amount
+     * @param nextDueDate the due date of the next payment
+     * @param nextDue the amount due on the next payment of the credit line
+     * @param unbilledPrincipal the unbilled principal on the credit line after processing the payment
+     * @param principalPaid the amount of this payment applied to principal
+     * @param by the address that has triggered the process of marking the payment made.
+     * In most cases, it is the borrower. In receivable factoring, it is PDSServiceAccount.
+     */
+    event PrincipalPaymentMade(
+        address indexed borrower,
+        uint256 amount,
+        uint256 nextDueDate,
         uint256 nextDue,
         uint256 unbilledPrincipal,
+        uint256 principalPaid,
         address by
     );
 
-    function refreshPnL() external returns (uint256 profit, uint256 loss, uint256 lossRecovery) {}
+    /**
+     * @notice Extend the expiration (maturity) date of a credit
+     * @param creditHash the hashcode of the credit
+     * @param newNumOfPeriods the number of pay periods to be extended
+     */
+    function _extendRemainingPeriod(bytes32 creditHash, uint256 newNumOfPeriods) internal virtual {
+        // Although not essential to call _updateDueInfo() to extend the credit line duration
+        // it is good practice to bring the account current while we update one of the fields.
+        _updateDueInfo(creditHash);
+        uint256 oldNumOfPeriods = _creditRecordMap[creditHash].remainingPeriods;
+        _creditRecordMap[creditHash].remainingPeriods += uint16(newNumOfPeriods);
+        emit RemainingPeriodsExtended(
+            creditHash,
+            oldNumOfPeriods,
+            _creditRecordMap[creditHash].remainingPeriods,
+            msg.sender
+        );
+    }
 
     /**
      * @notice changes the available credit for a credit line. This is an administrative overwrite.
@@ -199,12 +247,6 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
 
         // emit CreditLineChanged(borrower, oldCreditLimit, newCreditLimit);
     }
-
-    function getAccruedPnL()
-        external
-        view
-        returns (uint256 accruedProfit, uint256 accruedLoss, uint256 accruedLossRecovery)
-    {}
 
     function isApproved(bytes32 creditHash) public view virtual returns (bool) {
         return ((_creditRecordMap[creditHash].state >= CreditState.Approved));
@@ -316,8 +358,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
         _onlyBorrowerOrEAServiceAccount(_creditBorrowerMap[creditHash]);
 
         CreditRecord memory cr = _getCreditRecord(creditHash);
-        // TODO: we allow a credit line to be closed even if there is past due?
-        if (cr.nextDue != 0 || cr.unbilledPrincipal != 0) {
+        if (cr.nextDue != 0 || cr.totalPastDue != 0 || cr.unbilledPrincipal != 0) {
             revert Errors.creditLineHasOutstandingBalance();
         }
 
@@ -431,19 +472,29 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
         if (amount == 0) revert Errors.zeroAmountProvided();
 
         CreditRecord memory cr = _updateDueInfo(creditHash);
+        if (
+            // TODO: do we still need the requested state?
+            cr.state == CreditState.Requested ||
+            cr.state == CreditState.Approved ||
+            cr.state == CreditState.Deleted
+        ) {
+            revert Errors.creditLineNotInStateForMakingPayment();
+        }
+
         CreditConfig memory cc = _getCreditConfig(creditHash);
 
-        uint256 payoffAmount = _feeManager.getPayoffAmount(cr, cc.yieldInBps);
-
-        // The amount to collect from the payer.
-        Payment memory p = Payment(0, 0, 0, 0, cr.state == CreditState.GoodStanding, false);
+        uint256 payoffAmount = _feeManager.getPayoffAmount(cr);
+        uint256 amountToCollect = amount < payoffAmount ? amount : payoffAmount;
+        uint256 principalPaid = 0;
+        uint256 yieldPaid = 0;
+        uint256 pastDuePaid = 0;
 
         if (amount < payoffAmount) {
-            p.amountToCollect = uint96(amount);
             // Apply the payment to past due first.
             if (cr.totalPastDue > 0) {
                 DueDetail memory dd = _getDueDetail(creditHash);
                 if (amount > cr.totalPastDue) {
+                    pastDuePaid = cr.totalPastDue;
                     amount -= cr.totalPastDue;
                     dd.lateFee = 0;
                     dd.pastDue = 0;
@@ -451,6 +502,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
                 } else {
                     // If the payment is not enough to cover the total amount past due, then
                     // apply the payment to the yield past due first, then late fees.
+                    pastDuePaid = amount;
                     if (amount > dd.pastDue) {
                         dd.lateFee -= uint96(amount - dd.pastDue);
                         dd.pastDue = 0;
@@ -465,28 +517,20 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
             }
             // Apply the remaining payment amount (if any) to next due.
             if (amount > 0) {
+                // Apply the remaining payment amount (if any) to next due.
                 if (amount < cr.nextDue) {
                     uint256 principalDue = cr.nextDue - cr.yieldDue;
-
-                    // Apply the payment to yield due first.
-                    p.yieldPaid = amount < cr.yieldDue ? uint96(amount) : cr.yieldDue;
-                    cr.yieldDue -= p.yieldPaid;
-                    amount -= p.yieldPaid;
-
-                    // Then apply the remainder of the payment principal due.
-                    if (amount > 0) {
-                        p.principalPaid = (amount < principalDue)
-                            ? uint96(amount)
-                            : uint96(principalDue);
-                        amount -= p.principalPaid;
-                    }
+                    // Apply the payment to yield due first, then principal due.
+                    yieldPaid = amount < cr.yieldDue ? amount : cr.yieldDue;
+                    cr.yieldDue -= uint96(yieldPaid);
+                    principalPaid = amount - yieldPaid;
                     cr.nextDue = uint96(cr.nextDue - amount);
 
                     _setCreditRecord(creditHash, cr);
                 } else {
                     // Apply extra payments towards principal, reduce unbilledPrincipal amount
-                    p.principalPaid = uint96(amount - cr.yieldDue);
-                    p.yieldPaid = cr.yieldDue;
+                    principalPaid = amount - cr.yieldDue;
+                    yieldPaid = cr.yieldDue;
                     cr.unbilledPrincipal -= uint96(amount - cr.nextDue);
                     cr.nextDue = 0;
                     cr.yieldDue = 0;
@@ -500,11 +544,8 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
             }
         } else {
             // Payoff
-            // TODO: is this correct? what about past due?
-            p.principalPaid = cr.unbilledPrincipal + cr.nextDue - cr.yieldDue;
-            p.yieldPaid = uint96(payoffAmount - p.principalPaid);
-            p.amountToCollect = uint96(payoffAmount);
-
+            principalPaid = cr.unbilledPrincipal + cr.nextDue - cr.yieldDue;
+            yieldPaid = payoffAmount - principalPaid;
             cr.unbilledPrincipal = 0;
             cr.yieldDue = 0;
             cr.nextDue = 0;
@@ -517,21 +558,23 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
 
             _setCreditRecord(creditHash, cr);
         }
+        assert(amountToCollect > 0);
+        poolSafe.deposit(msg.sender, amountToCollect);
+        emit PaymentMade(
+            borrower,
+            amountToCollect,
+            cr.nextDueDate,
+            cr.nextDue,
+            cr.totalPastDue,
+            cr.unbilledPrincipal,
+            principalPaid,
+            yieldPaid,
+            pastDuePaid,
+            msg.sender
+        );
 
-        // TODO: if we add the credit line state check, is this condition ever going to be false?
-        if (p.amountToCollect > 0) {
-            poolSafe.deposit(msg.sender, p.amountToCollect);
-            emit PaymentMade(
-                borrower,
-                p.amountToCollect,
-                cr.nextDue,
-                cr.unbilledPrincipal,
-                msg.sender
-            );
-        }
-
-        // p.amountToCollect == payoffAmount indicates payoff or not. >= is a safe practice
-        return (p.amountToCollect, p.amountToCollect >= payoffAmount, false);
+        // amountToCollect == payoffAmount indicates payoff or not. >= is a safe practice
+        return (amountToCollect, amountToCollect >= payoffAmount, false);
     }
 
     /**
@@ -550,6 +593,14 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
         if (amount == 0) revert Errors.zeroAmountProvided();
 
         CreditRecord memory cr = _getCreditRecord(creditHash);
+        if (
+            // TODO: do we need the requested state?
+            cr.state == CreditState.Requested ||
+            cr.state == CreditState.Approved ||
+            cr.state == CreditState.Deleted
+        ) {
+            revert Errors.creditLineNotInStateForMakingPayment();
+        }
 
         if (block.timestamp > cr.nextDueDate) {
             cr = _updateDueInfo(creditHash);
@@ -563,6 +614,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
         if (amount < principalDue) {
             cr.nextDue = uint96(cr.nextDue - amount);
         } else {
+            // Payoff the principal due, then apply the remainder of the payment to reduce unbilled principal.
             cr.nextDue = uint96(cr.nextDue - principalDue);
             cr.unbilledPrincipal = uint96(cr.unbilledPrincipal - (amountToCollect - principalDue));
         }
@@ -575,20 +627,20 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
             } else cr.state = CreditState.GoodStanding;
         }
 
-        if (amountToCollect > 0) {
-            poolSafe.deposit(msg.sender, amountToCollect);
-            emit PaymentMade(
-                borrower,
-                amountToCollect,
-                cr.nextDue,
-                cr.unbilledPrincipal,
-                msg.sender
-            );
-        }
+        assert(amountToCollect > 0);
+        poolSafe.deposit(msg.sender, amountToCollect);
+        emit PrincipalPaymentMade(
+            borrower,
+            amountToCollect,
+            cr.nextDueDate,
+            cr.nextDue,
+            cr.unbilledPrincipal,
+            amountToCollect,
+            msg.sender
+        );
 
-        // TODO: what is this comment supposed to say?
-        // if there happens to be no
-        return (amountToCollect, cr.nextDue == 0);
+        // The credit is paid off if there no next due or past due.
+        return (amountToCollect, cr.nextDue == 0 && cr.totalPastDue == 0);
     }
 
     function _pauseCredit(bytes32 creditHash) internal {

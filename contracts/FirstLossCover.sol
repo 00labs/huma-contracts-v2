@@ -129,8 +129,7 @@ contract FirstLossCover is
         if (shares == 0) revert Errors.zeroAmountProvided();
         if (receiver == address(0)) revert Errors.zeroAddressProvided();
 
-        uint96[2] memory tranchesAssets = pool.refreshPool();
-        uint256 cap = getCapacity(tranchesAssets[SENIOR_TRANCHE] + tranchesAssets[JUNIOR_TRANCHE]);
+        uint256 cap = getCapacity(pool.totalAssets());
         uint256 currTotalAssets = totalAssets();
 
         //: todo pool.readyForFirstLossCoverWithdrawal() is a tricky design.
@@ -201,10 +200,6 @@ contract FirstLossCover is
         uint256 currTotalAssets = totalAssets();
 
         return currTotalSupply == 0 ? shares : (shares * currTotalAssets) / currTotalSupply;
-    }
-
-    function calcLossCover(uint256 loss) public view returns (uint256 remainingLoss) {
-        (remainingLoss, ) = _calcLossCover(loss);
     }
 
     function calcLossRecover(

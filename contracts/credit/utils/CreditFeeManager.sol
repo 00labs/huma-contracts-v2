@@ -45,18 +45,18 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
     function checkLate(CreditRecord memory _cr) public view returns (bool) {
         if (_cr.missedPeriods > 0) return true;
 
-        (, , , uint8 lateGracePeriodInDays, , , , , ) = poolConfig._poolSettings();
-
+        PoolSettings memory poolSettings = poolConfig.getPoolSettings();
         return
             _cr.nextDue != 0 &&
-            block.timestamp > _cr.nextDueDate + lateGracePeriodInDays * SECONDS_IN_A_DAY;
+            block.timestamp >
+            _cr.nextDueDate + poolSettings.latePaymentGracePeriodInDays * SECONDS_IN_A_DAY;
     }
 
     function getNextBillRefreshDate(
         CreditRecord memory _cr
     ) public view returns (uint256 refreshDate) {
-        (, , , uint8 lateGracePeriodInDays, , , , , ) = poolConfig._poolSettings();
-        return _cr.nextDueDate + lateGracePeriodInDays * SECONDS_IN_A_DAY;
+        PoolSettings memory poolSettings = poolConfig.getPoolSettings();
+        return _cr.nextDueDate + poolSettings.latePaymentGracePeriodInDays * SECONDS_IN_A_DAY;
     }
 
     function refreshLateFee(
@@ -64,13 +64,13 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
         DueDetail memory _dd
     ) internal view returns (uint64 lastLateFeeDate, uint96 lateFee) {
         lastLateFeeDate = uint64(calendar.getStartOfTomorrow());
-        (, , , uint256 lateFeeRate, ) = poolConfig._feeStructure();
+        (, uint256 lateFeeInBps, ) = poolConfig.getFees();
 
         // todo the computation below has slight inaccuracy. It only uses number of days, it did not
         // consider month boundary. This is a very minor issue.
         lateFee = uint96(
             _dd.lateFee +
-                (lateFeeRate *
+                (lateFeeInBps *
                     (_cr.unbilledPrincipal + _cr.nextDue - _cr.yieldDue) *
                     (lastLateFeeDate - _dd.lastLateFeeDate)) /
                 (SECONDS_IN_A_DAY * DAYS_IN_A_YEAR)
@@ -129,6 +129,9 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
         // outstanding principal since there was no change to the principal
         (, , uint256 membershipFee) = poolConfig.getFees();
         uint256 principal = _cr.unbilledPrincipal + _cr.nextDue - _cr.yieldDue;
+
+        // TODO(Richard): when multiple periods have passed, we need to account for all the yield
+        // due in those periods. Currently we are only accounting for one period.
         newDD.accrued = uint96(
             (principal * _cc.yieldInBps * _cc.periodDuration) /
                 (HUNDRED_PERCENT_IN_BPS * MONTHS_IN_A_YEAR) +
@@ -149,8 +152,7 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
             // The incremental principal due should be 1 - (1 - R)^P.
             principalDue =
                 ((HUNDRED_PERCENT_IN_BPS ** periodsPassed -
-                    (HUNDRED_PERCENT_IN_BPS - poolConfig.getMinPrincipalRateInBps()) **
-                        periodsPassed) * principal) /
+                    (HUNDRED_PERCENT_IN_BPS - principalRate) ** periodsPassed) * principal) /
                 (HUNDRED_PERCENT_IN_BPS ** periodsPassed);
         }
 
@@ -171,20 +173,8 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
     }
 
     function getPayoffAmount(
-        CreditRecord memory cr,
-        uint256 yieldInBps
+        CreditRecord memory cr
     ) external view virtual override returns (uint256 payoffAmount) {
-        uint256 principal = cr.unbilledPrincipal + cr.nextDue - cr.yieldDue;
-        payoffAmount = uint256(cr.nextDue + cr.unbilledPrincipal);
-        if (block.timestamp < cr.nextDueDate) {
-            // Subtract the yield for the days between the current date and the due date when payment is made
-            // in advance of the due date.
-            // TODO: should this be updated to use day-boundaries as well?
-            uint256 remainingYield = (yieldInBps *
-                principal *
-                (cr.nextDueDate - block.timestamp)) / (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS);
-            assert(payoffAmount >= remainingYield);
-            payoffAmount -= remainingYield;
-        }
+        return cr.unbilledPrincipal + cr.nextDue + cr.totalPastDue;
     }
 }
