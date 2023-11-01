@@ -103,7 +103,8 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
         newCR = _cr;
         newDD = _dd;
 
-        // If still within one period, only need to refresh lateFee if it is already late.
+        // If the current timestamp still falls within the billing cycle, then all the amount due is up-to-date
+        // except possibly the late fee. So we only need to update the late fee if it is already late.
         if (block.timestamp <= _cr.nextDueDate) {
             if (_cr.missedPeriods == 0) return (_cr, _dd, 0, false);
             else {
@@ -112,6 +113,7 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
             }
         }
 
+        // Update the due date.
         uint256 newDueDate;
         (newDueDate, periodsPassed) = calendar.getNextDueDate(_cc.periodDuration, _cr.nextDueDate);
         newCR.nextDueDate = uint64(newDueDate);
@@ -123,11 +125,12 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
             (newDD.lastLateFeeDate, newDD.lateFee) = refreshLateFee(_cr, _dd);
         }
 
-        uint256 principal = _cr.unbilledPrincipal + _cr.nextDue - _cr.yieldDue;
-
+        // Calculate the yield and principal due.
         // Note that if multiple periods have passed, the yield for every period is still based on the
         // outstanding principal since there was no change to the principal
         (, , uint256 membershipFee) = poolConfig.getFees();
+        uint256 principal = _cr.unbilledPrincipal + _cr.nextDue - _cr.yieldDue;
+
         // TODO(Richard): when multiple periods have passed, we need to account for all the yield
         // due in those periods. Currently we are only accounting for one period.
         newDD.accrued = uint96(

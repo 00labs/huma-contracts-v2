@@ -64,6 +64,8 @@ contract ReceivableCredit is Credit, IReceivableCredit {
         (amountPaid, paidoff, ) = _makePayment(borrower, creditHash, amount);
     }
 
+    // TODO: add makePrincipalPaymentWithReceivable?
+
     function getCreditConfig(uint256 receivableId) external view returns (CreditConfig memory) {
         bytes32 creditHash = getCreditHash(receivableId);
         return _getCreditConfig(creditHash);

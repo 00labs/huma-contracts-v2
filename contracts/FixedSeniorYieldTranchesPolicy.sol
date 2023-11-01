@@ -35,6 +35,8 @@ contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
         uint256 seniorProfit;
         if (block.timestamp > lastUpdatedTime) {
             LPConfig memory lpConfig = poolConfig.getLPConfig();
+            // TODO: update the calculation using day0boundaries instead. We need to decide
+            // when the day boundary starts and ends.
             seniorProfit =
                 (deployedSeniorAssets *
                     lpConfig.fixedSeniorYieldInBps *
