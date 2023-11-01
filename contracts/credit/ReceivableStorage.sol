@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {ReceivableInfo} from "./CreditStructs.sol";
-import "@openzeppelin/contracts-upgradeable/utils/CountersUpgradeable.sol";
+import {CountersUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/CountersUpgradeable.sol";
 
 contract ReceivableStorage {
     using CountersUpgradeable for CountersUpgradeable.Counter;

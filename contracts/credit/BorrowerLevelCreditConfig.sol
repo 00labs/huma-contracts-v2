@@ -29,6 +29,7 @@ abstract contract BorrowerLevelCreditConfig is Credit, IBorrowerLevelCreditConfi
     /// @inheritdoc IBorrowerLevelCreditConfig
     function triggerDefault(address borrower) external virtual override returns (uint256 losses) {
         bytes32 creditHash = getCreditHash(borrower);
+        // TODO: we need to return the total losses.
         _triggerDefault(creditHash);
     }
 
