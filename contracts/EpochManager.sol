@@ -92,7 +92,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         if (block.timestamp <= ce.endTime) revert Errors.closeTooSoon();
 
         // update tranche assets to the current timestamp
-        uint96[2] memory tranchesAssets = pool.refreshPool();
+        uint96[2] memory tranchesAssets = pool.currentTranchesAssets();
 
         // calculate senior/junior LP token prices
         uint256 seniorPrice = (tranchesAssets[SENIOR_TRANCHE] * DEFAULT_DECIMALS_FACTOR) /

@@ -26,7 +26,7 @@ struct CreditRecord {
     uint64 nextDueDate; // the due date of the next payment
     uint96 nextDue; // the due amount of the next payment. This does not include totalPastDue
     uint96 yieldDue; // yield due for the next payment
-    uint96 totalPastDue; // all the pastDue
+    uint96 totalPastDue; // the sum of lateFee + pastDue. See DueDetail for more info
     uint16 missedPeriods; // the number of consecutive missed payments, for default processing
     uint16 remainingPeriods; // the number of payment periods until the maturity of the credit line
     CreditState state;
@@ -114,15 +114,6 @@ struct FacilityConfig {
     uint16 advanceRateInBps;
     uint96 committedCreditLine;
     bool autoApproval;
-}
-
-struct Payment {
-    uint96 principalPaid;
-    uint96 yieldPaid;
-    uint96 feesPaid;
-    uint96 amountToCollect;
-    bool oldLateFlag;
-    bool newLateFlag;
 }
 
 struct ReceivableInput {
