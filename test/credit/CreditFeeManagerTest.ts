@@ -261,5 +261,25 @@ describe("CreditFeeManager Tests", function () {
         describe("getDueInfo", function () {
             // TODO(jiatu): fill this in
         });
+
+        describe("getPayoffAmount", function () {
+            it("Should return the payoff amount", async function () {
+                const creditRecord = {
+                    unbilledPrincipal: toToken(12_345),
+                    nextDueDate: Date.now(),
+                    nextDue: toToken(54_321),
+                    yieldDue: 0,
+                    totalPastDue: toToken(7_890),
+                    missedPeriods: 1,
+                    remainingPeriods: 0,
+                    state: CreditState.Delayed,
+                };
+                expect(await creditFeeManagerContract.getPayoffAmount(creditRecord)).to.equal(
+                    creditRecord.unbilledPrincipal
+                        .add(creditRecord.nextDue)
+                        .add(creditRecord.totalPastDue),
+                );
+            });
+        });
     });
 });
