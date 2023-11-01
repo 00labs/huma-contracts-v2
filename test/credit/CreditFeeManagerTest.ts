@@ -27,7 +27,12 @@ import {
     deployAndSetupPoolContracts,
     deployProtocolContracts,
 } from "../BaseTest";
-import { mineNextBlockWithTimestamp, timestampToMoment, toToken } from "../TestUtils";
+import {
+    getFutureBlockTime,
+    mineNextBlockWithTimestamp,
+    timestampToMoment,
+    toToken,
+} from "../TestUtils";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
@@ -200,16 +205,15 @@ describe("CreditFeeManager Tests", function () {
             });
 
             it("Should return true if there is payment due and we've already passed the payment grace period", async function () {
-                const nextDueDate = moment();
                 const poolSettings = await poolConfigContract.getPoolSettings();
                 // Advance next block time to be a second after the end of the late payment grace period.
-                const nextBlockTime = moment()
+                const nextBlockTime = timestampToMoment(await getFutureBlockTime(0))
                     .add(poolSettings.latePaymentGracePeriodInDays, "days")
                     .add(1, "second");
                 await mineNextBlockWithTimestamp(nextBlockTime.unix());
                 const creditRecord = {
                     unbilledPrincipal: 0,
-                    nextDueDate: nextDueDate.unix(),
+                    nextDueDate: moment().unix(),
                     nextDue: toToken(1_000),
                     yieldDue: 0,
                     totalPastDue: 0,
