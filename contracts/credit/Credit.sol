@@ -130,17 +130,46 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
      * @notice A payment has been made against the credit line
      * @param borrower the address of the borrower
      * @param amount the payback amount
+     * @param nextDueDate the due date of the next payment
+     * @param nextDue the amount due on the next payment of the credit line
+     * @param totalPastDue the sum of lateFee + pastDue. See CreditStructs.DueDetail for more info
+     * @param totalPastDuePaid the payment amount applied to past due
+     * @param unbilledPrincipal the unbilled principal on the credit line after processing the payment
+     * @param principalPaid the amount of this payment applied to principal
+     * @param yieldPaid the amount of this payment applied to yield
      * @param by the address that has triggered the process of marking the payment made.
      * In most cases, it is the borrower. In receivable factoring, it is PDSServiceAccount.
      */
     event PaymentMade(
         address indexed borrower,
         uint256 amount,
+        uint256 nextDueDate,
         uint256 nextDue,
+        uint256 totalPastDue,
         uint256 unbilledPrincipal,
         uint256 principalPaid,
         uint256 yieldPaid,
-        uint256 pastDuePaid,
+        uint256 totalPastDuePaid,
+        address by
+    );
+    /**
+     * @notice A payment has been made against the credit line
+     * @param borrower the address of the borrower
+     * @param amount the payback amount
+     * @param nextDueDate the due date of the next payment
+     * @param nextDue the amount due on the next payment of the credit line
+     * @param unbilledPrincipal the unbilled principal on the credit line after processing the payment
+     * @param principalPaid the amount of this payment applied to principal
+     * @param by the address that has triggered the process of marking the payment made.
+     * In most cases, it is the borrower. In receivable factoring, it is PDSServiceAccount.
+     */
+    event PrincipalPaymentMade(
+        address indexed borrower,
+        uint256 amount,
+        uint256 nextDueDate,
+        uint256 nextDue,
+        uint256 unbilledPrincipal,
+        uint256 principalPaid,
         address by
     );
 
@@ -539,7 +568,9 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
             emit PaymentMade(
                 borrower,
                 amountToCollect,
+                cr.nextDueDate,
                 cr.nextDue,
+                cr.totalPastDue,
                 cr.unbilledPrincipal,
                 principalPaid,
                 yieldPaid,
@@ -596,14 +627,13 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
 
         if (amountToCollect > 0) {
             poolSafe.deposit(msg.sender, amountToCollect);
-            emit PaymentMade(
+            emit PrincipalPaymentMade(
                 borrower,
                 amountToCollect,
+                cr.nextDueDate,
                 cr.nextDue,
                 cr.unbilledPrincipal,
                 amountToCollect,
-                0,
-                0,
                 msg.sender
             );
         }
