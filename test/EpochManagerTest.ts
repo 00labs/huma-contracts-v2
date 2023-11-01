@@ -23,6 +23,7 @@ import {
 import {
     CONSTANTS,
     EpochChecker,
+    FeeCalculator,
     PnLCalculator,
     deployAndSetupPoolContracts,
     deployProtocolContracts,
@@ -66,7 +67,7 @@ let poolConfigContract: PoolConfig,
     creditContract: MockPoolCredit,
     creditFeeManagerContract: CreditFeeManager;
 
-let epochChecker: EpochChecker;
+let epochChecker: EpochChecker, feeCalculator: FeeCalculator;
 
 async function getMinJuniorAssets(
     seniorMatureRedemptionInThisEpoch: number | BN,
@@ -171,6 +172,7 @@ describe("EpochManager Test", function () {
             seniorTrancheVaultContract,
             juniorTrancheVaultContract,
         );
+        feeCalculator = new FeeCalculator(humaConfigContract, poolConfigContract);
     }
 
     beforeEach(async function () {
@@ -238,7 +240,7 @@ describe("EpochManager Test", function () {
         });
         const assetInfo = await poolContract.tranchesAssets();
         const assets = [assetInfo[CONSTANTS.SENIOR_TRANCHE], assetInfo[CONSTANTS.JUNIOR_TRANCHE]];
-        const profitAfterFees = await poolFeeManagerContract.calcPoolFeeDistribution(profit);
+        const profitAfterFees = await feeCalculator.calcPoolFeeDistribution(profit);
         const firstLossCoverInfos = await Promise.all(
             [borrowerFirstLossCoverContract, affiliateFirstLossCoverContract].map(
                 async (contract) => await getFirstLossCoverInfo(contract, poolConfigContract),
@@ -305,6 +307,7 @@ describe("EpochManager Test", function () {
             juniorTrancheVaultContract.address,
         );
 
+        await creditContract.mockDistributePnL(profit, loss, lossRecovery);
         await expect(epochManagerContract.closeEpoch())
             .to.emit(epochManagerContract, "EpochClosed")
             .to.emit(epochManagerContract, "NewEpochStarted")
@@ -335,7 +338,7 @@ describe("EpochManager Test", function () {
         ).to.be.closeTo(juniorTokenBalance.add(juniorAmountRedeemable), delta);
     }
 
-    describe("Non-flex call tests", function () {
+    describe("Without PnL", function () {
         it("Should close an epoch successfully after processing one senior redemption request fully", async function () {
             const sharesToRedeem = toToken(2539);
             await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(sharesToRedeem);
@@ -815,686 +818,657 @@ describe("EpochManager Test", function () {
                 );
             },
         );
+    });
 
-        describe("With PnL", function () {
-            async function calcAmountsToRedeem(
-                profit: BN,
-                loss: BN,
-                lossRecovery: BN,
-                seniorSharesToRedeem: BN,
-                juniorSharesToRedeem: BN,
-            ) {
-                const [[seniorAssets, juniorAssets]] = await getAssetsAfterProfitAndLoss(
-                    profit,
-                    loss,
-                    lossRecovery,
-                );
-                const seniorSupply = await seniorTrancheVaultContract.totalSupply();
-                const seniorPrice = seniorAssets
-                    .mul(CONSTANTS.DEFAULT_DECIMALS_FACTOR)
-                    .div(seniorSupply);
-                const seniorAmountProcessable = seniorSharesToRedeem
-                    .mul(seniorPrice)
-                    .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR);
-                const juniorSupply = await juniorTrancheVaultContract.totalSupply();
-                const juniorPrice = juniorAssets
-                    .mul(CONSTANTS.DEFAULT_DECIMALS_FACTOR)
-                    .div(juniorSupply);
-                const juniorAmountProcessable = juniorSharesToRedeem
-                    .mul(juniorPrice)
-                    .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR);
+    describe("With PnL", function () {
+        async function calcAmountsToRedeem(
+            profit: BN,
+            loss: BN,
+            lossRecovery: BN,
+            seniorSharesToRedeem: BN,
+            juniorSharesToRedeem: BN,
+        ) {
+            const [[seniorAssets, juniorAssets]] = await getAssetsAfterProfitAndLoss(
+                profit,
+                loss,
+                lossRecovery,
+            );
+            const seniorSupply = await seniorTrancheVaultContract.totalSupply();
+            const seniorPrice = seniorAssets
+                .mul(CONSTANTS.DEFAULT_DECIMALS_FACTOR)
+                .div(seniorSupply);
+            const seniorAmountProcessable = seniorSharesToRedeem
+                .mul(seniorPrice)
+                .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR);
+            const juniorSupply = await juniorTrancheVaultContract.totalSupply();
+            const juniorPrice = juniorAssets
+                .mul(CONSTANTS.DEFAULT_DECIMALS_FACTOR)
+                .div(juniorSupply);
+            const juniorAmountProcessable = juniorSharesToRedeem
+                .mul(juniorPrice)
+                .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR);
 
-                return [seniorAmountProcessable, juniorAmountProcessable];
-            }
+            return [seniorAmountProcessable, juniorAmountProcessable];
+        }
 
-            async function makePaymentForRedeemableShares(
-                profit: BN,
-                loss: BN,
-                lossRecovery: BN,
-                seniorSharesToRedeem: BN = BN.from(0),
-                juniorSharesToRedeem: BN = BN.from(0),
-            ) {
-                // Based on the given PnL, make just enough payment to allow the desired number of shares
-                // to be redeemed.
-                await creditContract.setRefreshPnLReturns(profit, loss, lossRecovery);
-                // Calculate how much payment we need to make into the pool.
-                const [
-                    [seniorAssets, juniorAssets],
-                    ,
-                    profitsForFirstLossCovers,
-                    lossRecoveredInFirstLossCovers,
-                ] = await getAssetsAfterProfitAndLoss(profit, loss, lossRecovery);
-                const seniorSupply = await seniorTrancheVaultContract.totalSupply();
-                const seniorPrice = seniorAssets
-                    .mul(CONSTANTS.DEFAULT_DECIMALS_FACTOR)
-                    .div(seniorSupply);
-                const seniorAmountProcessable = seniorSharesToRedeem
-                    .mul(seniorPrice)
-                    .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR);
-                const juniorSupply = await juniorTrancheVaultContract.totalSupply();
-                const juniorPrice = juniorAssets
-                    .mul(CONSTANTS.DEFAULT_DECIMALS_FACTOR)
-                    .div(juniorSupply);
-                const juniorAmountProcessable = juniorSharesToRedeem
-                    .mul(juniorPrice)
-                    .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR);
-                const amountProcessable = seniorAmountProcessable.add(juniorAmountProcessable);
-                const poolFees = profit.sub(
-                    await poolFeeManagerContract.calcPoolFeeDistribution(profit),
-                );
-                // Payment needs to include pool fees and assets reserved for the profit and loss recovery
-                // of first loss covers, since they excluded from the total assets of the pool safe,
-                // and they 0 when we made the drawdown in the beginning of this test.
-                const paymentNeededForProcessing = amountProcessable.add(
-                    sumBNArray([
-                        poolFees,
-                        ...profitsForFirstLossCovers,
-                        ...lossRecoveredInFirstLossCovers,
-                    ]),
-                );
-                await creditContract.makePayment(
-                    ethers.constants.HashZero,
-                    // Add 1 as buffer because of potential truncation errors due to integer division rounding down.
-                    paymentNeededForProcessing.add(1),
-                );
+        async function makePaymentForRedeemableShares(
+            profit: BN,
+            loss: BN,
+            lossRecovery: BN,
+            seniorSharesToRedeem: BN = BN.from(0),
+            juniorSharesToRedeem: BN = BN.from(0),
+        ) {
+            // Based on the given PnL, make just enough payment to allow the desired number of shares
+            // to be redeemed.
 
-                return [seniorAmountProcessable, juniorAmountProcessable];
-            }
+            // Calculate how much payment we need to make into the pool.
+            const [
+                [seniorAssets, juniorAssets],
+                ,
+                profitsForFirstLossCovers,
+                lossRecoveredInFirstLossCovers,
+            ] = await getAssetsAfterProfitAndLoss(profit, loss, lossRecovery);
+            const seniorSupply = await seniorTrancheVaultContract.totalSupply();
+            const seniorPrice = seniorAssets
+                .mul(CONSTANTS.DEFAULT_DECIMALS_FACTOR)
+                .div(seniorSupply);
+            const seniorAmountProcessable = seniorSharesToRedeem
+                .mul(seniorPrice)
+                .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR);
+            const juniorSupply = await juniorTrancheVaultContract.totalSupply();
+            const juniorPrice = juniorAssets
+                .mul(CONSTANTS.DEFAULT_DECIMALS_FACTOR)
+                .div(juniorSupply);
+            const juniorAmountProcessable = juniorSharesToRedeem
+                .mul(juniorPrice)
+                .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR);
+            const amountProcessable = seniorAmountProcessable.add(juniorAmountProcessable);
+            const poolFees = profit.sub(await feeCalculator.calcPoolFeeDistribution(profit));
+            // Payment needs to include pool fees and assets reserved for the profit and loss recovery
+            // of first loss covers, since they excluded from the total assets of the pool safe,
+            // and they 0 when we made the drawdown in the beginning of this test.
+            const paymentNeededForProcessing = amountProcessable.add(
+                sumBNArray([
+                    poolFees,
+                    ...profitsForFirstLossCovers,
+                    ...lossRecoveredInFirstLossCovers,
+                ]),
+            );
+            await creditContract.makePayment(
+                ethers.constants.HashZero,
+                // Add 1 as buffer because of potential truncation errors due to integer division rounding down.
+                paymentNeededForProcessing.add(1),
+            );
 
-            it("Should close an epoch with the correct LP token prices after processing one senior redemption request fully", async function () {
-                const sharesToRedeem = toToken(2539);
-                await seniorTrancheVaultContract
-                    .connect(lender)
-                    .addRedemptionRequest(sharesToRedeem);
+            return [seniorAmountProcessable, juniorAmountProcessable];
+        }
 
-                const profit = toToken(198),
-                    loss = toToken(67),
-                    lossRecovery = toToken(39);
-                await creditContract.setRefreshPnLReturns(profit, loss, lossRecovery);
-                const [amountToRedeem] = await calcAmountsToRedeem(
-                    profit,
-                    loss,
-                    lossRecovery,
-                    sharesToRedeem,
-                    BN.from(0),
-                );
-                let epochId = await epochManagerContract.currentEpochId();
-                await testCloseEpoch(
-                    sharesToRedeem,
-                    sharesToRedeem,
-                    BN.from(0),
-                    BN.from(0),
-                    profit,
-                    loss,
-                    lossRecovery,
-                );
-                await epochChecker.checkSeniorEpochInfoById(
-                    epochId,
-                    sharesToRedeem,
-                    sharesToRedeem,
-                    amountToRedeem,
-                );
-                await epochChecker.checkSeniorCurrentEpochEmpty();
-            });
+        it("Should close an epoch with the correct LP token prices after processing one senior redemption request fully", async function () {
+            const sharesToRedeem = toToken(2539);
+            await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(sharesToRedeem);
 
-            it("Should close epochs with the correct LP token prices after processing multiple senior redemption requests fully", async function () {
+            const profit = toToken(198),
+                loss = toToken(67),
+                lossRecovery = toToken(39);
+            const [amountToRedeem] = await calcAmountsToRedeem(
+                profit,
+                loss,
+                lossRecovery,
+                sharesToRedeem,
+                BN.from(0),
+            );
+            let epochId = await epochManagerContract.currentEpochId();
+            await testCloseEpoch(
+                sharesToRedeem,
+                sharesToRedeem,
+                BN.from(0),
+                BN.from(0),
+                profit,
+                loss,
+                lossRecovery,
+            );
+            await epochChecker.checkSeniorEpochInfoById(
+                epochId,
+                sharesToRedeem,
+                sharesToRedeem,
+                amountToRedeem,
+            );
+            await epochChecker.checkSeniorCurrentEpochEmpty();
+        });
+
+        it("Should close epochs with the correct LP token prices after processing multiple senior redemption requests fully", async function () {
+            // Move all assets out of pool safe so that no redemption request can be fulfilled initially.
+            const availableAssets = await poolSafeContract.getPoolLiquidity();
+            await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
+
+            // Epoch 1
+            let sharesToRedeem = toToken(236);
+            let allShares = sharesToRedeem;
+            await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(sharesToRedeem);
+            let epochId = await epochManagerContract.currentEpochId();
+            await testCloseEpoch(sharesToRedeem, BN.from(0), BN.from(0), BN.from(0));
+            await epochChecker.checkSeniorEpochInfoById(epochId, sharesToRedeem);
+            epochId = await epochChecker.checkSeniorCurrentEpochInfo(sharesToRedeem);
+
+            // Epoch 2
+            sharesToRedeem = toToken(1357);
+            allShares = allShares.add(sharesToRedeem);
+            await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(sharesToRedeem);
+            // Make payment to the pool so that all requests can be processed.
+            const profit = toToken(198),
+                loss = toToken(67),
+                lossRecovery = toToken(39);
+            const [amountToRedeem] = await makePaymentForRedeemableShares(
+                profit,
+                loss,
+                lossRecovery,
+                allShares,
+            );
+            await testCloseEpoch(
+                allShares,
+                allShares,
+                BN.from(0),
+                BN.from(0),
+                profit,
+                loss,
+                lossRecovery,
+            );
+            await epochChecker.checkSeniorEpochInfoById(
+                epochId,
+                allShares,
+                allShares,
+                amountToRedeem,
+            );
+            await epochChecker.checkSeniorCurrentEpochEmpty();
+        });
+
+        it(
+            "Should close epochs with the correct LP token prices after processing multiple senior" +
+                " redemption requests (some are processed fully, some are processed partially" +
+                " and some are unprocessed)",
+            async function () {
                 // Move all assets out of pool safe so that no redemption request can be fulfilled initially.
                 const availableAssets = await poolSafeContract.getPoolLiquidity();
                 await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
 
                 // Epoch 1
-                let sharesToRedeem = toToken(236);
-                let allShares = sharesToRedeem;
+                // This request will be fully processed in the final epoch.
+                const sharesInEpoch1 = toToken(865);
                 await seniorTrancheVaultContract
                     .connect(lender)
-                    .addRedemptionRequest(sharesToRedeem);
+                    .addRedemptionRequest(sharesInEpoch1);
                 let epochId = await epochManagerContract.currentEpochId();
-                await testCloseEpoch(sharesToRedeem, BN.from(0), BN.from(0), BN.from(0));
-                await epochChecker.checkSeniorEpochInfoById(epochId, sharesToRedeem);
-                epochId = await epochChecker.checkSeniorCurrentEpochInfo(sharesToRedeem);
+                await testCloseEpoch(sharesInEpoch1, BN.from(0), BN.from(0), BN.from(0));
+                await epochChecker.checkSeniorEpochInfoById(epochId, sharesInEpoch1);
+                epochId = await epochChecker.checkSeniorCurrentEpochInfo(sharesInEpoch1);
 
                 // Epoch 2
-                sharesToRedeem = toToken(1357);
-                allShares = allShares.add(sharesToRedeem);
+                // This request will be partially processed in the final epoch.
+                const sharesInEpoch2 = toToken(637);
                 await seniorTrancheVaultContract
                     .connect(lender)
-                    .addRedemptionRequest(sharesToRedeem);
-                // Make payment to the pool so that all requests can be processed.
+                    .addRedemptionRequest(sharesInEpoch2);
+                await testCloseEpoch(
+                    sharesInEpoch2.add(sharesInEpoch1),
+                    BN.from(0),
+                    BN.from(0),
+                    BN.from(0),
+                );
+                await epochChecker.checkSeniorEpochInfoById(
+                    epochId,
+                    sharesInEpoch2.add(sharesInEpoch1),
+                );
+                epochId = await epochChecker.checkSeniorCurrentEpochInfo(
+                    sharesInEpoch2.add(sharesInEpoch1),
+                );
+
+                // Introduce PnL.
                 const profit = toToken(198),
                     loss = toToken(67),
                     lossRecovery = toToken(39);
-                const [amountToRedeem] = await makePaymentForRedeemableShares(
+                const sharesProcessable = sharesInEpoch1.add(toToken(160));
+                const [amountProcessable] = await makePaymentForRedeemableShares(
                     profit,
                     loss,
                     lossRecovery,
-                    allShares,
+                    sharesProcessable,
                 );
+
+                // Epoch 3
+                // This request will be unprocessed in the final epoch.
+                const sharesInEpoch3 = toToken(497);
+                const allShares = sumBNArray([sharesInEpoch1, sharesInEpoch2, sharesInEpoch3]);
+                await seniorTrancheVaultContract
+                    .connect(lender)
+                    .addRedemptionRequest(sharesInEpoch3);
                 await testCloseEpoch(
                     allShares,
-                    allShares,
+                    sharesProcessable,
                     BN.from(0),
                     BN.from(0),
                     profit,
                     loss,
                     lossRecovery,
+                    1,
                 );
                 await epochChecker.checkSeniorEpochInfoById(
                     epochId,
                     allShares,
-                    allShares,
-                    amountToRedeem,
+                    sharesProcessable,
+                    amountProcessable,
+                    1,
                 );
-                await epochChecker.checkSeniorCurrentEpochEmpty();
-            });
+            },
+        );
 
-            it(
-                "Should close epochs with the correct LP token prices after processing multiple senior" +
-                    " redemption requests (some are processed fully, some are processed partially" +
-                    " and some are unprocessed)",
-                async function () {
-                    // Move all assets out of pool safe so that no redemption request can be fulfilled initially.
-                    const availableAssets = await poolSafeContract.getPoolLiquidity();
-                    await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
+        it("Should close epochs with the correct LP token prices successfully after processing one junior redemption request fully", async function () {
+            const sharesToRedeem = toToken(1);
+            await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(sharesToRedeem);
 
-                    // Epoch 1
-                    // This request will be fully processed in the final epoch.
-                    const sharesInEpoch1 = toToken(865);
-                    await seniorTrancheVaultContract
-                        .connect(lender)
-                        .addRedemptionRequest(sharesInEpoch1);
-                    let epochId = await epochManagerContract.currentEpochId();
-                    await testCloseEpoch(sharesInEpoch1, BN.from(0), BN.from(0), BN.from(0));
-                    await epochChecker.checkSeniorEpochInfoById(epochId, sharesInEpoch1);
-                    epochId = await epochChecker.checkSeniorCurrentEpochInfo(sharesInEpoch1);
-
-                    // Epoch 2
-                    // This request will be partially processed in the final epoch.
-                    const sharesInEpoch2 = toToken(637);
-                    await seniorTrancheVaultContract
-                        .connect(lender)
-                        .addRedemptionRequest(sharesInEpoch2);
-                    await testCloseEpoch(
-                        sharesInEpoch2.add(sharesInEpoch1),
-                        BN.from(0),
-                        BN.from(0),
-                        BN.from(0),
-                    );
-                    await epochChecker.checkSeniorEpochInfoById(
-                        epochId,
-                        sharesInEpoch2.add(sharesInEpoch1),
-                    );
-                    epochId = await epochChecker.checkSeniorCurrentEpochInfo(
-                        sharesInEpoch2.add(sharesInEpoch1),
-                    );
-
-                    // Introduce PnL.
-                    const profit = toToken(198),
-                        loss = toToken(67),
-                        lossRecovery = toToken(39);
-                    const sharesProcessable = sharesInEpoch1.add(toToken(160));
-                    const [amountProcessable] = await makePaymentForRedeemableShares(
-                        profit,
-                        loss,
-                        lossRecovery,
-                        sharesProcessable,
-                    );
-
-                    // Epoch 3
-                    // This request will be unprocessed in the final epoch.
-                    const sharesInEpoch3 = toToken(497);
-                    const allShares = sumBNArray([sharesInEpoch1, sharesInEpoch2, sharesInEpoch3]);
-                    await seniorTrancheVaultContract
-                        .connect(lender)
-                        .addRedemptionRequest(sharesInEpoch3);
-                    await testCloseEpoch(
-                        allShares,
-                        sharesProcessable,
-                        BN.from(0),
-                        BN.from(0),
-                        profit,
-                        loss,
-                        lossRecovery,
-                        1,
-                    );
-                    await epochChecker.checkSeniorEpochInfoById(
-                        epochId,
-                        allShares,
-                        sharesProcessable,
-                        amountProcessable,
-                        1,
-                    );
-                },
+            const profit = toToken(198),
+                loss = toToken(67),
+                lossRecovery = toToken(39);
+            const [, amountToRedeem] = await calcAmountsToRedeem(
+                profit,
+                loss,
+                lossRecovery,
+                BN.from(0),
+                sharesToRedeem,
             );
 
-            it("Should close epochs with the correct LP token prices successfully after processing one junior redemption request fully", async function () {
-                const sharesToRedeem = toToken(1);
-                await juniorTrancheVaultContract
-                    .connect(lender)
-                    .addRedemptionRequest(sharesToRedeem);
+            let epochId = await epochManagerContract.currentEpochId();
+            await testCloseEpoch(
+                BN.from(0),
+                BN.from(0),
+                sharesToRedeem,
+                sharesToRedeem,
+                profit,
+                loss,
+                lossRecovery,
+            );
+            await epochChecker.checkJuniorEpochInfoById(
+                epochId,
+                sharesToRedeem,
+                sharesToRedeem,
+                amountToRedeem,
+            );
+            await epochChecker.checkJuniorCurrentEpochEmpty();
+        });
 
-                const profit = toToken(198),
-                    loss = toToken(67),
-                    lossRecovery = toToken(39);
-                await creditContract.setRefreshPnLReturns(profit, loss, lossRecovery);
-                const [, amountToRedeem] = await calcAmountsToRedeem(
-                    profit,
-                    loss,
-                    lossRecovery,
-                    BN.from(0),
-                    sharesToRedeem,
-                );
+        it("Should close epochs with the correct LP token prices successfully after processing multiple junior redemption requests fully", async function () {
+            const availableAssets = await poolSafeContract.getPoolLiquidity();
+            await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
 
-                let epochId = await epochManagerContract.currentEpochId();
-                await testCloseEpoch(
-                    BN.from(0),
-                    BN.from(0),
-                    sharesToRedeem,
-                    sharesToRedeem,
-                    profit,
-                    loss,
-                    lossRecovery,
-                );
-                await epochChecker.checkJuniorEpochInfoById(
-                    epochId,
-                    sharesToRedeem,
-                    sharesToRedeem,
-                    amountToRedeem,
-                );
-                await epochChecker.checkJuniorCurrentEpochEmpty();
-            });
+            // Epoch 1
+            let sharesToRedeem = toToken(396);
+            let allShares = sharesToRedeem;
+            await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(sharesToRedeem);
+            let epochId = await epochManagerContract.currentEpochId();
+            await testCloseEpoch(BN.from(0), BN.from(0), allShares, BN.from(0));
+            await epochChecker.checkJuniorEpochInfoById(epochId, allShares);
+            epochId = await epochChecker.checkJuniorCurrentEpochInfo(allShares);
 
-            it("Should close epochs with the correct LP token prices successfully after processing multiple junior redemption requests fully", async function () {
+            // Epoch 2
+            sharesToRedeem = toToken(873);
+            allShares = allShares.add(sharesToRedeem);
+            await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(sharesToRedeem);
+            await testCloseEpoch(BN.from(0), BN.from(0), allShares, BN.from(0));
+            await epochChecker.checkJuniorEpochInfoById(epochId, allShares);
+            epochId = await epochChecker.checkJuniorCurrentEpochInfo(allShares);
+
+            // Epoch 3
+            sharesToRedeem = toToken(4865);
+            allShares = allShares.add(sharesToRedeem);
+            await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(sharesToRedeem);
+            // Make payment so that all shares can be processed.
+            const profit = toToken(198),
+                loss = toToken(67),
+                lossRecovery = toToken(39);
+            const [, amountToRedeem] = await makePaymentForRedeemableShares(
+                profit,
+                loss,
+                lossRecovery,
+                BN.from(0),
+                allShares,
+            );
+            await testCloseEpoch(
+                BN.from(0),
+                BN.from(0),
+                allShares,
+                allShares,
+                profit,
+                loss,
+                lossRecovery,
+            );
+            await epochChecker.checkJuniorEpochInfoById(
+                epochId,
+                allShares,
+                allShares,
+                amountToRedeem,
+            );
+            await epochChecker.checkJuniorCurrentEpochEmpty();
+        });
+
+        it(
+            "Should close epochs with the correct LP token prices successfully after processing multiple" +
+                " junior redemption requests (some are processed fully, some are processed partially" +
+                " and some are unprocessed)",
+            async function () {
+                // Move all assets out of pool safe so that no redemption request can be fulfilled initially.
                 const availableAssets = await poolSafeContract.getPoolLiquidity();
                 await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
 
                 // Epoch 1
-                let sharesToRedeem = toToken(396);
-                let allShares = sharesToRedeem;
+                // This request will be fully processed in the final epoch.
+                const sharesInEpoch1 = toToken(1628);
                 await juniorTrancheVaultContract
                     .connect(lender)
-                    .addRedemptionRequest(sharesToRedeem);
+                    .addRedemptionRequest(sharesInEpoch1);
                 let epochId = await epochManagerContract.currentEpochId();
-                await testCloseEpoch(BN.from(0), BN.from(0), allShares, BN.from(0));
-                await epochChecker.checkJuniorEpochInfoById(epochId, allShares);
-                epochId = await epochChecker.checkJuniorCurrentEpochInfo(allShares);
+                await testCloseEpoch(BN.from(0), BN.from(0), sharesInEpoch1, BN.from(0));
+                await epochChecker.checkJuniorEpochInfoById(epochId, sharesInEpoch1);
+                epochId = await epochChecker.checkJuniorCurrentEpochInfo(sharesInEpoch1);
 
                 // Epoch 2
-                sharesToRedeem = toToken(873);
-                allShares = allShares.add(sharesToRedeem);
+                // This request will be partially processed in the final epoch.
+                const sharesInEpoch2 = toToken(3748);
                 await juniorTrancheVaultContract
                     .connect(lender)
-                    .addRedemptionRequest(sharesToRedeem);
-                await testCloseEpoch(BN.from(0), BN.from(0), allShares, BN.from(0));
-                await epochChecker.checkJuniorEpochInfoById(epochId, allShares);
-                epochId = await epochChecker.checkJuniorCurrentEpochInfo(allShares);
+                    .addRedemptionRequest(sharesInEpoch2);
+                await testCloseEpoch(
+                    BN.from(0),
+                    BN.from(0),
+                    sharesInEpoch1.add(sharesInEpoch2),
+                    BN.from(0),
+                );
+                await epochChecker.checkJuniorEpochInfoById(
+                    epochId,
+                    sharesInEpoch1.add(sharesInEpoch2),
+                );
+                epochId = await epochChecker.checkJuniorCurrentEpochInfo(
+                    sharesInEpoch1.add(sharesInEpoch2),
+                );
 
-                // Epoch 3
-                sharesToRedeem = toToken(4865);
-                allShares = allShares.add(sharesToRedeem);
-                await juniorTrancheVaultContract
-                    .connect(lender)
-                    .addRedemptionRequest(sharesToRedeem);
-                // Make payment so that all shares can be processed.
+                // Introduce PnL.
+                const sharesProcessable = sharesInEpoch1.add(toToken(2637));
                 const profit = toToken(198),
                     loss = toToken(67),
                     lossRecovery = toToken(39);
-                const [, amountToRedeem] = await makePaymentForRedeemableShares(
+                const [, amountProcessable] = await makePaymentForRedeemableShares(
                     profit,
                     loss,
                     lossRecovery,
                     BN.from(0),
-                    allShares,
+                    sharesProcessable,
                 );
+
+                // Epoch 3
+                // This request will be unprocessed in the final epoch.
+                const sharesInEpoch3 = toToken(7463);
+                const allShares = sumBNArray([sharesInEpoch1, sharesInEpoch2, sharesInEpoch3]);
+                await juniorTrancheVaultContract
+                    .connect(lender)
+                    .addRedemptionRequest(sharesInEpoch3);
                 await testCloseEpoch(
                     BN.from(0),
                     BN.from(0),
                     allShares,
-                    allShares,
+                    sharesProcessable,
                     profit,
                     loss,
                     lossRecovery,
+                    1,
                 );
                 await epochChecker.checkJuniorEpochInfoById(
                     epochId,
                     allShares,
-                    allShares,
-                    amountToRedeem,
+                    sharesProcessable,
+                    amountProcessable,
+                    1,
                 );
+                await epochChecker.checkJuniorCurrentEpochInfo(allShares.sub(sharesProcessable));
+            },
+        );
+
+        it(
+            "Should close epochs successfully with the correct LP token prices after processing multiple" +
+                " redemption requests (multiple senior epochs are processed fully," +
+                " multiple junior epochs are processed fully)",
+            async function () {
+                const availableAssets = await poolSafeContract.getPoolLiquidity();
+                await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
+
+                // Epoch 1
+                let seniorSharesToRedeem = toToken(357);
+                let allSeniorShares = seniorSharesToRedeem;
+                await seniorTrancheVaultContract
+                    .connect(lender)
+                    .addRedemptionRequest(seniorSharesToRedeem);
+                let juniorSharesToRedeem = toToken(1628);
+                let allJuniorShares = juniorSharesToRedeem;
+                await juniorTrancheVaultContract
+                    .connect(lender)
+                    .addRedemptionRequest(juniorSharesToRedeem);
+                let epochId = await epochManagerContract.currentEpochId();
+                await testCloseEpoch(allSeniorShares, BN.from(0), allJuniorShares, BN.from(0));
+                await epochChecker.checkSeniorEpochInfoById(epochId, allSeniorShares);
+                await epochChecker.checkJuniorEpochInfoById(epochId, allJuniorShares);
+                epochId = await epochChecker.checkSeniorCurrentEpochInfo(allSeniorShares);
+                epochId = await epochChecker.checkJuniorCurrentEpochInfo(allJuniorShares);
+
+                // Epoch 2
+                seniorSharesToRedeem = toToken(2536);
+                allSeniorShares = allSeniorShares.add(seniorSharesToRedeem);
+                await seniorTrancheVaultContract
+                    .connect(lender)
+                    .addRedemptionRequest(seniorSharesToRedeem);
+                juniorSharesToRedeem = toToken(3653);
+                allJuniorShares = allJuniorShares.add(juniorSharesToRedeem);
+                await juniorTrancheVaultContract
+                    .connect(lender)
+                    .addRedemptionRequest(juniorSharesToRedeem);
+                await testCloseEpoch(allSeniorShares, BN.from(0), allJuniorShares, BN.from(0));
+                await epochChecker.checkSeniorEpochInfoById(epochId, allSeniorShares);
+                await epochChecker.checkJuniorEpochInfoById(epochId, allJuniorShares);
+                epochId = await epochChecker.checkSeniorCurrentEpochInfo(allSeniorShares);
+                epochId = await epochChecker.checkJuniorCurrentEpochInfo(allJuniorShares);
+
+                // Epoch 3
+                seniorSharesToRedeem = toToken(736);
+                allSeniorShares = allSeniorShares.add(seniorSharesToRedeem);
+                await seniorTrancheVaultContract
+                    .connect(lender)
+                    .addRedemptionRequest(seniorSharesToRedeem);
+                juniorSharesToRedeem = toToken(9474);
+                allJuniorShares = allJuniorShares.add(juniorSharesToRedeem);
+                await juniorTrancheVaultContract
+                    .connect(lender)
+                    .addRedemptionRequest(juniorSharesToRedeem);
+                await testCloseEpoch(allSeniorShares, BN.from(0), allJuniorShares, BN.from(0));
+                await epochChecker.checkSeniorEpochInfoById(epochId, allSeniorShares);
+                await epochChecker.checkJuniorEpochInfoById(epochId, allJuniorShares);
+                epochId = await epochChecker.checkSeniorCurrentEpochInfo(allSeniorShares);
+                epochId = await epochChecker.checkJuniorCurrentEpochInfo(allJuniorShares);
+
+                // Introduce PnL.
+                const profit = toToken(198),
+                    loss = toToken(67),
+                    lossRecovery = toToken(39);
+                const [seniorAmountProcessed, juniorAmountProcessed] =
+                    await makePaymentForRedeemableShares(
+                        profit,
+                        loss,
+                        lossRecovery,
+                        allSeniorShares,
+                        allJuniorShares,
+                    );
+
+                // Epoch 4
+                await testCloseEpoch(
+                    allSeniorShares,
+                    allSeniorShares,
+                    allJuniorShares,
+                    allJuniorShares,
+                    profit,
+                    loss,
+                    lossRecovery,
+                    2,
+                );
+                await epochChecker.checkSeniorEpochInfoById(
+                    epochId,
+                    allSeniorShares,
+                    allSeniorShares,
+                    seniorAmountProcessed,
+                );
+                await epochChecker.checkJuniorEpochInfoById(
+                    epochId,
+                    allJuniorShares,
+                    allJuniorShares,
+                    juniorAmountProcessed,
+                );
+                await epochChecker.checkSeniorCurrentEpochEmpty();
                 await epochChecker.checkJuniorCurrentEpochEmpty();
-            });
+            },
+        );
 
-            it(
-                "Should close epochs with the correct LP token prices successfully after processing multiple" +
-                    " junior redemption requests (some are processed fully, some are processed partially" +
-                    " and some are unprocessed)",
-                async function () {
-                    // Move all assets out of pool safe so that no redemption request can be fulfilled initially.
-                    const availableAssets = await poolSafeContract.getPoolLiquidity();
-                    await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
+        it(
+            "Should close epochs successfully with the correct LP token prices after processing multiple" +
+                " redemption requests (multiple senior redemption requests are processed fully," +
+                " some junior redemption requests are processed fully," +
+                " some are processed partially and some are unprocessed)",
+            async function () {
+                // Move all assets out of the pool safe.
+                const totalAssets = await poolSafeContract.getPoolLiquidity();
+                await creditContract.drawdown(ethers.constants.HashZero, totalAssets);
 
-                    // Epoch 1
-                    // This request will be fully processed in the final epoch.
-                    const sharesInEpoch1 = toToken(1628);
-                    await juniorTrancheVaultContract
-                        .connect(lender)
-                        .addRedemptionRequest(sharesInEpoch1);
-                    let epochId = await epochManagerContract.currentEpochId();
-                    await testCloseEpoch(BN.from(0), BN.from(0), sharesInEpoch1, BN.from(0));
-                    await epochChecker.checkJuniorEpochInfoById(epochId, sharesInEpoch1);
-                    epochId = await epochChecker.checkJuniorCurrentEpochInfo(sharesInEpoch1);
-
-                    // Epoch 2
-                    // This request will be partially processed in the final epoch.
-                    const sharesInEpoch2 = toToken(3748);
-                    await juniorTrancheVaultContract
-                        .connect(lender)
-                        .addRedemptionRequest(sharesInEpoch2);
-                    await testCloseEpoch(
-                        BN.from(0),
-                        BN.from(0),
-                        sharesInEpoch1.add(sharesInEpoch2),
-                        BN.from(0),
-                    );
-                    await epochChecker.checkJuniorEpochInfoById(
-                        epochId,
-                        sharesInEpoch1.add(sharesInEpoch2),
-                    );
-                    epochId = await epochChecker.checkJuniorCurrentEpochInfo(
-                        sharesInEpoch1.add(sharesInEpoch2),
-                    );
-
-                    // Introduce PnL.
-                    const sharesProcessable = sharesInEpoch1.add(toToken(2637));
-                    const profit = toToken(198),
-                        loss = toToken(67),
-                        lossRecovery = toToken(39);
-                    const [, amountProcessable] = await makePaymentForRedeemableShares(
-                        profit,
-                        loss,
-                        lossRecovery,
-                        BN.from(0),
-                        sharesProcessable,
-                    );
-
-                    // Epoch 3
-                    // This request will be unprocessed in the final epoch.
-                    const sharesInEpoch3 = toToken(7463);
-                    const allShares = sumBNArray([sharesInEpoch1, sharesInEpoch2, sharesInEpoch3]);
-                    await juniorTrancheVaultContract
-                        .connect(lender)
-                        .addRedemptionRequest(sharesInEpoch3);
-                    await testCloseEpoch(
-                        BN.from(0),
-                        BN.from(0),
-                        allShares,
-                        sharesProcessable,
-                        profit,
-                        loss,
-                        lossRecovery,
-                        1,
-                    );
-                    await epochChecker.checkJuniorEpochInfoById(
-                        epochId,
-                        allShares,
-                        sharesProcessable,
-                        amountProcessable,
-                        1,
-                    );
-                    await epochChecker.checkJuniorCurrentEpochInfo(
-                        allShares.sub(sharesProcessable),
-                    );
-                },
-            );
-
-            it(
-                "Should close epochs successfully with the correct LP token prices after processing multiple" +
-                    " redemption requests (multiple senior epochs are processed fully," +
-                    " multiple junior epochs are processed fully)",
-                async function () {
-                    const availableAssets = await poolSafeContract.getPoolLiquidity();
-                    await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
-
-                    // Epoch 1
-                    let seniorSharesToRedeem = toToken(357);
-                    let allSeniorShares = seniorSharesToRedeem;
-                    await seniorTrancheVaultContract
-                        .connect(lender)
-                        .addRedemptionRequest(seniorSharesToRedeem);
-                    let juniorSharesToRedeem = toToken(1628);
-                    let allJuniorShares = juniorSharesToRedeem;
-                    await juniorTrancheVaultContract
-                        .connect(lender)
-                        .addRedemptionRequest(juniorSharesToRedeem);
-                    let epochId = await epochManagerContract.currentEpochId();
-                    await testCloseEpoch(allSeniorShares, BN.from(0), allJuniorShares, BN.from(0));
-                    await epochChecker.checkSeniorEpochInfoById(epochId, allSeniorShares);
-                    await epochChecker.checkJuniorEpochInfoById(epochId, allJuniorShares);
-                    epochId = await epochChecker.checkSeniorCurrentEpochInfo(allSeniorShares);
-                    epochId = await epochChecker.checkJuniorCurrentEpochInfo(allJuniorShares);
-
-                    // Epoch 2
-                    seniorSharesToRedeem = toToken(2536);
-                    allSeniorShares = allSeniorShares.add(seniorSharesToRedeem);
-                    await seniorTrancheVaultContract
-                        .connect(lender)
-                        .addRedemptionRequest(seniorSharesToRedeem);
-                    juniorSharesToRedeem = toToken(3653);
-                    allJuniorShares = allJuniorShares.add(juniorSharesToRedeem);
-                    await juniorTrancheVaultContract
-                        .connect(lender)
-                        .addRedemptionRequest(juniorSharesToRedeem);
-                    await testCloseEpoch(allSeniorShares, BN.from(0), allJuniorShares, BN.from(0));
-                    await epochChecker.checkSeniorEpochInfoById(epochId, allSeniorShares);
-                    await epochChecker.checkJuniorEpochInfoById(epochId, allJuniorShares);
-                    epochId = await epochChecker.checkSeniorCurrentEpochInfo(allSeniorShares);
-                    epochId = await epochChecker.checkJuniorCurrentEpochInfo(allJuniorShares);
-
-                    // Epoch 3
-                    seniorSharesToRedeem = toToken(736);
-                    allSeniorShares = allSeniorShares.add(seniorSharesToRedeem);
-                    await seniorTrancheVaultContract
-                        .connect(lender)
-                        .addRedemptionRequest(seniorSharesToRedeem);
-                    juniorSharesToRedeem = toToken(9474);
-                    allJuniorShares = allJuniorShares.add(juniorSharesToRedeem);
-                    await juniorTrancheVaultContract
-                        .connect(lender)
-                        .addRedemptionRequest(juniorSharesToRedeem);
-                    await testCloseEpoch(allSeniorShares, BN.from(0), allJuniorShares, BN.from(0));
-                    await epochChecker.checkSeniorEpochInfoById(epochId, allSeniorShares);
-                    await epochChecker.checkJuniorEpochInfoById(epochId, allJuniorShares);
-                    epochId = await epochChecker.checkSeniorCurrentEpochInfo(allSeniorShares);
-                    epochId = await epochChecker.checkJuniorCurrentEpochInfo(allJuniorShares);
-
-                    // Introduce PnL.
-                    const profit = toToken(198),
-                        loss = toToken(67),
-                        lossRecovery = toToken(39);
-                    const [seniorAmountProcessed, juniorAmountProcessed] =
-                        await makePaymentForRedeemableShares(
-                            profit,
-                            loss,
-                            lossRecovery,
-                            allSeniorShares,
-                            allJuniorShares,
-                        );
-
-                    // Epoch 4
-                    await testCloseEpoch(
-                        allSeniorShares,
-                        allSeniorShares,
-                        allJuniorShares,
-                        allJuniorShares,
-                        profit,
-                        loss,
-                        lossRecovery,
-                        2,
-                    );
-                    await epochChecker.checkSeniorEpochInfoById(
-                        epochId,
-                        allSeniorShares,
-                        allSeniorShares,
-                        seniorAmountProcessed,
-                    );
-                    await epochChecker.checkJuniorEpochInfoById(
-                        epochId,
-                        allJuniorShares,
-                        allJuniorShares,
-                        juniorAmountProcessed,
-                    );
-                    await epochChecker.checkSeniorCurrentEpochEmpty();
-                    await epochChecker.checkJuniorCurrentEpochEmpty();
-                },
-            );
-
-            it(
-                "Should close epochs successfully with the correct LP token prices after processing multiple" +
-                    " redemption requests (multiple senior redemption requests are processed fully," +
-                    " some junior redemption requests are processed fully," +
-                    " some are processed partially and some are unprocessed)",
-                async function () {
-                    // Move all assets out of the pool safe.
-                    const totalAssets = await poolSafeContract.getPoolLiquidity();
-                    await creditContract.drawdown(ethers.constants.HashZero, totalAssets);
-
-                    // Epoch 1
-                    // Senior redemption requests are fully processed; junior redemption requests are partially processed.
-                    const seniorSharesInEpoch1 = toToken(1938);
-                    await seniorTrancheVaultContract
-                        .connect(lender)
-                        .addRedemptionRequest(seniorSharesInEpoch1);
-                    let totalSeniorSharesToRedeem = seniorSharesInEpoch1;
-                    const juniorSharesInEpoch1 = toToken(4637);
-                    await juniorTrancheVaultContract
-                        .connect(lender)
-                        .addRedemptionRequest(juniorSharesInEpoch1);
-                    let totalJuniorSharesToRedeem = juniorSharesInEpoch1;
-                    let seniorSharesRedeemable = seniorSharesInEpoch1,
-                        juniorSharesRedeemable = toToken(1349);
-                    // Introduce PnL.
-                    const profitInEpoch1 = toToken(198),
-                        lossInEpoch1 = toToken(67),
-                        lossRecoveryInEpoch1 = toToken(39);
-                    let [seniorAmountProcessed, juniorAmountProcessed] =
-                        await makePaymentForRedeemableShares(
-                            profitInEpoch1,
-                            lossInEpoch1,
-                            lossRecoveryInEpoch1,
-                            seniorSharesRedeemable,
-                            juniorSharesRedeemable,
-                        );
-                    let epochId = await epochManagerContract.currentEpochId();
-                    await testCloseEpoch(
-                        totalSeniorSharesToRedeem,
-                        seniorSharesRedeemable,
-                        totalJuniorSharesToRedeem,
-                        juniorSharesRedeemable,
+                // Epoch 1
+                // Senior redemption requests are fully processed; junior redemption requests are partially processed.
+                const seniorSharesInEpoch1 = toToken(1938);
+                await seniorTrancheVaultContract
+                    .connect(lender)
+                    .addRedemptionRequest(seniorSharesInEpoch1);
+                let totalSeniorSharesToRedeem = seniorSharesInEpoch1;
+                const juniorSharesInEpoch1 = toToken(4637);
+                await juniorTrancheVaultContract
+                    .connect(lender)
+                    .addRedemptionRequest(juniorSharesInEpoch1);
+                let totalJuniorSharesToRedeem = juniorSharesInEpoch1;
+                let seniorSharesRedeemable = seniorSharesInEpoch1,
+                    juniorSharesRedeemable = toToken(1349);
+                // Introduce PnL.
+                const profitInEpoch1 = toToken(198),
+                    lossInEpoch1 = toToken(67),
+                    lossRecoveryInEpoch1 = toToken(39);
+                let [seniorAmountProcessed, juniorAmountProcessed] =
+                    await makePaymentForRedeemableShares(
                         profitInEpoch1,
                         lossInEpoch1,
                         lossRecoveryInEpoch1,
-                        1,
-                    );
-                    await epochChecker.checkSeniorEpochInfoById(
-                        epochId,
-                        totalSeniorSharesToRedeem,
-                        totalSeniorSharesToRedeem,
-                        seniorAmountProcessed,
-                    );
-                    await epochChecker.checkJuniorEpochInfoById(
-                        epochId,
-                        totalJuniorSharesToRedeem,
-                        juniorSharesRedeemable,
-                        juniorAmountProcessed,
-                        1,
-                    );
-                    await epochChecker.checkSeniorCurrentEpochEmpty();
-                    epochId = await epochChecker.checkJuniorCurrentEpochInfo(
-                        totalJuniorSharesToRedeem.sub(juniorSharesRedeemable),
-                    );
-
-                    totalSeniorSharesToRedeem =
-                        totalSeniorSharesToRedeem.sub(seniorSharesRedeemable);
-                    totalJuniorSharesToRedeem =
-                        totalJuniorSharesToRedeem.sub(juniorSharesRedeemable);
-
-                    // Epoch 2
-                    // Submit more redemption requests and have them fully processed.
-                    const juniorSharesInEpoch2 = toToken(8524);
-                    await juniorTrancheVaultContract
-                        .connect(lender)
-                        .addRedemptionRequest(juniorSharesInEpoch2);
-                    totalJuniorSharesToRedeem =
-                        totalJuniorSharesToRedeem.add(juniorSharesInEpoch2);
-                    seniorSharesRedeemable = totalSeniorSharesToRedeem;
-                    juniorSharesRedeemable = totalJuniorSharesToRedeem;
-                    // Introduce more PnL.
-                    const profitInEpoch2 = toToken(784),
-                        lossInEpoch2 = toToken(142),
-                        lossRecoveryInEpoch2 = toToken(77);
-                    [, juniorAmountProcessed] = await makePaymentForRedeemableShares(
-                        profitInEpoch2,
-                        lossInEpoch2,
-                        lossRecoveryInEpoch2,
                         seniorSharesRedeemable,
                         juniorSharesRedeemable,
                     );
-                    await testCloseEpoch(
-                        totalSeniorSharesToRedeem,
-                        seniorSharesRedeemable,
-                        totalJuniorSharesToRedeem,
-                        juniorSharesRedeemable,
-                        profitInEpoch2,
-                        lossInEpoch2,
-                        lossRecoveryInEpoch2,
-                        1,
-                    );
-                    await epochChecker.checkJuniorEpochInfoById(
-                        epochId,
-                        totalJuniorSharesToRedeem,
-                        totalJuniorSharesToRedeem,
-                        juniorAmountProcessed,
-                    );
-                    epochId = await epochChecker.checkSeniorCurrentEpochEmpty();
-                    epochId = await epochChecker.checkJuniorCurrentEpochEmpty();
+                let epochId = await epochManagerContract.currentEpochId();
+                await testCloseEpoch(
+                    totalSeniorSharesToRedeem,
+                    seniorSharesRedeemable,
+                    totalJuniorSharesToRedeem,
+                    juniorSharesRedeemable,
+                    profitInEpoch1,
+                    lossInEpoch1,
+                    lossRecoveryInEpoch1,
+                    1,
+                );
+                await epochChecker.checkSeniorEpochInfoById(
+                    epochId,
+                    totalSeniorSharesToRedeem,
+                    totalSeniorSharesToRedeem,
+                    seniorAmountProcessed,
+                );
+                await epochChecker.checkJuniorEpochInfoById(
+                    epochId,
+                    totalJuniorSharesToRedeem,
+                    juniorSharesRedeemable,
+                    juniorAmountProcessed,
+                    1,
+                );
+                await epochChecker.checkSeniorCurrentEpochEmpty();
+                epochId = await epochChecker.checkJuniorCurrentEpochInfo(
+                    totalJuniorSharesToRedeem.sub(juniorSharesRedeemable),
+                );
 
-                    totalSeniorSharesToRedeem =
-                        totalSeniorSharesToRedeem.sub(seniorSharesRedeemable);
-                    totalJuniorSharesToRedeem =
-                        totalJuniorSharesToRedeem.sub(juniorSharesRedeemable);
+                totalSeniorSharesToRedeem = totalSeniorSharesToRedeem.sub(seniorSharesRedeemable);
+                totalJuniorSharesToRedeem = totalJuniorSharesToRedeem.sub(juniorSharesRedeemable);
 
-                    // Epoch 3
-                    // No redemption request is processed in this epoch.
-                    const juniorSharesInEpoch3 = toToken(1837);
-                    await juniorTrancheVaultContract
-                        .connect(lender)
-                        .addRedemptionRequest(juniorSharesInEpoch3);
-                    totalJuniorSharesToRedeem =
-                        totalJuniorSharesToRedeem.add(juniorSharesInEpoch3);
-                    juniorSharesRedeemable = BN.from(0);
+                // Epoch 2
+                // Submit more redemption requests and have them fully processed.
+                const juniorSharesInEpoch2 = toToken(8524);
+                await juniorTrancheVaultContract
+                    .connect(lender)
+                    .addRedemptionRequest(juniorSharesInEpoch2);
+                totalJuniorSharesToRedeem = totalJuniorSharesToRedeem.add(juniorSharesInEpoch2);
+                seniorSharesRedeemable = totalSeniorSharesToRedeem;
+                juniorSharesRedeemable = totalJuniorSharesToRedeem;
+                // Introduce more PnL.
+                const profitInEpoch2 = toToken(784),
+                    lossInEpoch2 = toToken(142),
+                    lossRecoveryInEpoch2 = toToken(77);
+                [, juniorAmountProcessed] = await makePaymentForRedeemableShares(
+                    profitInEpoch2,
+                    lossInEpoch2,
+                    lossRecoveryInEpoch2,
+                    seniorSharesRedeemable,
+                    juniorSharesRedeemable,
+                );
+                await testCloseEpoch(
+                    totalSeniorSharesToRedeem,
+                    seniorSharesRedeemable,
+                    totalJuniorSharesToRedeem,
+                    juniorSharesRedeemable,
+                    profitInEpoch2,
+                    lossInEpoch2,
+                    lossRecoveryInEpoch2,
+                    1,
+                );
+                await epochChecker.checkJuniorEpochInfoById(
+                    epochId,
+                    totalJuniorSharesToRedeem,
+                    totalJuniorSharesToRedeem,
+                    juniorAmountProcessed,
+                );
+                epochId = await epochChecker.checkSeniorCurrentEpochEmpty();
+                epochId = await epochChecker.checkJuniorCurrentEpochEmpty();
 
-                    console.log(`pool liquidity: ${await poolSafeContract.getPoolLiquidity()}`);
+                totalSeniorSharesToRedeem = totalSeniorSharesToRedeem.sub(seniorSharesRedeemable);
+                totalJuniorSharesToRedeem = totalJuniorSharesToRedeem.sub(juniorSharesRedeemable);
 
-                    await testCloseEpoch(
-                        totalSeniorSharesToRedeem,
-                        seniorSharesRedeemable,
-                        totalJuniorSharesToRedeem,
-                        juniorSharesRedeemable,
-                        BN.from(0),
-                        BN.from(0),
-                        BN.from(0),
-                        1,
-                    );
+                // Epoch 3
+                // No redemption request is processed in this epoch.
+                const juniorSharesInEpoch3 = toToken(1837);
+                await juniorTrancheVaultContract
+                    .connect(lender)
+                    .addRedemptionRequest(juniorSharesInEpoch3);
+                totalJuniorSharesToRedeem = totalJuniorSharesToRedeem.add(juniorSharesInEpoch3);
+                juniorSharesRedeemable = BN.from(0);
 
-                    let epoch = await juniorTrancheVaultContract.epochInfoByEpochId(epochId);
-                    console.log(`epoch: ${epoch}`);
-                    await epochChecker.checkJuniorEpochInfoById(
-                        epochId,
-                        totalJuniorSharesToRedeem,
-                    );
-                    await epochChecker.checkJuniorCurrentEpochInfo(totalJuniorSharesToRedeem);
-                    await epochChecker.checkSeniorCurrentEpochEmpty();
-                },
-            );
-        });
+                // console.log(`pool liquidity: ${await poolSafeContract.getPoolLiquidity()}`);
+
+                await testCloseEpoch(
+                    totalSeniorSharesToRedeem,
+                    seniorSharesRedeemable,
+                    totalJuniorSharesToRedeem,
+                    juniorSharesRedeemable,
+                    BN.from(0),
+                    BN.from(0),
+                    BN.from(0),
+                    1,
+                );
+
+                let epoch = await juniorTrancheVaultContract.epochInfoByEpochId(epochId);
+                // console.log(`epoch: ${epoch}`);
+                await epochChecker.checkJuniorEpochInfoById(epochId, totalJuniorSharesToRedeem);
+                await epochChecker.checkJuniorCurrentEpochInfo(totalJuniorSharesToRedeem);
+                await epochChecker.checkSeniorCurrentEpochEmpty();
+            },
+        );
     });
 });

@@ -135,7 +135,7 @@ describe("PoolFeeManager Tests", function () {
         async function spendAllowance() {
             // Spend some of the allowance by investing fees into the first loss cover contract.
             const profit = toToken(500_000);
-            await creditContract.setRefreshPnLReturns(profit, toToken(0), toToken(0));
+            await creditContract.mockDistributePnL(profit, toToken(0), toToken(0));
 
             // Make sure the first loss cover has room for investment.
             await overrideFirstLossCoverConfig(
@@ -157,7 +157,6 @@ describe("PoolFeeManager Tests", function () {
             await poolConfigContract
                 .connect(poolOwner)
                 .setEpochManager(defaultDeployer.getAddress());
-            await poolContract.refreshPool();
             const feesInvestable =
                 await poolFeeManagerContract.getAvailableFeesToInvestInFirstLossCover();
             expect(feesInvestable).to.not.equal(ethers.constants.Zero);
@@ -331,15 +330,6 @@ describe("PoolFeeManager Tests", function () {
             await expect(
                 poolFeeManagerContract.connect(lender).distributePoolFees(profit),
             ).to.be.revertedWithCustomError(poolConfigContract, "notPool");
-        });
-    });
-
-    describe("calcPoolFeeDistribution", function () {
-        it("Should return the remaining profit after taking out fees", async function () {
-            await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.address);
-
-            const remainingProfit = await poolFeeManagerContract.calcPoolFeeDistribution(profit);
-            expect(remainingProfit).to.equal(profit.sub(totalFees));
         });
     });
 

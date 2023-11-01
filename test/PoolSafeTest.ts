@@ -276,7 +276,6 @@ describe("PoolSafe Tests", function () {
                 await poolConfigContract
                     .connect(poolOwner)
                     .setPoolFeeManager(defaultDeployer.getAddress());
-                await poolContract.refreshPool();
                 const totalLiquidity = await poolSafeContract.totalLiquidity();
                 const amountReserved = await poolContract.getReservedAssetsForFirstLossCovers();
                 expect(await poolSafeContract.getAvailableLiquidityForFees()).to.equal(
@@ -287,7 +286,7 @@ describe("PoolSafe Tests", function () {
 
         it("Should return 0 if the reserve exceeds the amount of assets", async function () {
             const profit = toToken(1_000_000);
-            await creditContract.setRefreshPnLReturns(profit, toToken(0), toToken(0));
+            await creditContract.mockDistributePnL(profit, toToken(0), toToken(0));
             // Withdraw assets away from pool safe so that the liquidity falls below the amount of reserve.
             await poolConfigContract
                 .connect(poolOwner)

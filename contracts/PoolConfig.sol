@@ -138,11 +138,11 @@ contract PoolConfig is AccessControl, Initializable {
     mapping(address => address) internal _profitEscrowByFirstLossCover;
     mapping(address => FirstLossCoverConfig) internal _firstLossCoverConfigs;
 
-    PoolSettings public _poolSettings;
-    LPConfig public _lpConfig;
-    AdminRnR public _adminRnR;
-    FrontLoadingFeesStructure public _frontFees;
-    FeeStructure public _feeStructure;
+    PoolSettings internal _poolSettings;
+    LPConfig internal _lpConfig;
+    AdminRnR internal _adminRnR;
+    FrontLoadingFeesStructure internal _frontFees;
+    FeeStructure internal _feeStructure;
 
     // Address for the account that handles the treasury functions for the pool owner:
     // liquidity deposits, liquidity withdrawals, and reward withdrawals
