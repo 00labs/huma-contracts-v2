@@ -95,10 +95,6 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         return remaining;
     }
 
-    function calcPoolFeeDistribution(uint256 profit) external view returns (uint256 remaining) {
-        (, remaining) = _getPoolFees(profit);
-    }
-
     function withdrawProtocolFee(uint256 amount) external {
         if (msg.sender != humaConfig.owner()) revert Errors.notProtocolOwner();
         // Invests available fees in FirstLossCover first
@@ -244,13 +240,10 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
     }
 
     function _investFeesInFirstLossCover() internal returns (AccruedIncomes memory incomes) {
-        uint96[2] memory assets = pool.refreshPool();
         (
             uint256 feesLiquidity,
             AccruedIncomes memory availableIncomes
-        ) = _getAvailableFeesToInvestInFirstLossCover(
-                assets[SENIOR_TRANCHE] + assets[JUNIOR_TRANCHE]
-            );
+        ) = _getAvailableFeesToInvestInFirstLossCover(pool.totalAssets());
         if (feesLiquidity == 0) return _accruedIncomes;
 
         // Transfers tokens from PoolSafe to this contract, firstLossCover will transfer token from this contract

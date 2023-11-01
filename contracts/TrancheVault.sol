@@ -183,7 +183,7 @@ contract TrancheVault is
         if (assets > cap) {
             revert Errors.poolLiquidityCapExceeded();
         }
-        uint96[2] memory tranches = pool.refreshPool();
+        uint96[2] memory tranches = pool.currentTranchesAssets();
         uint256 trancheAssets = tranches[trancheIndex];
         if (trancheAssets + assets > cap) {
             revert Errors.poolLiquidityCapExceeded();

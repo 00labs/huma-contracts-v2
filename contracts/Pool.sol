@@ -8,7 +8,6 @@ import {JUNIOR_TRANCHE, SENIOR_TRANCHE} from "./SharedDefs.sol";
 import {IEpochManager} from "./interfaces/IEpochManager.sol";
 import {IFirstLossCover} from "./interfaces/IFirstLossCover.sol";
 import {IPool} from "./interfaces/IPool.sol";
-import {IPoolCredit} from "./credit/interfaces/IPoolCredit.sol";
 import {IPoolFeeManager} from "./interfaces/IPoolFeeManager.sol";
 import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import {ITranchesPolicy} from "./interfaces/ITranchesPolicy.sol";
@@ -23,7 +22,8 @@ contract Pool is PoolConfigCache, IPool {
     struct TranchesAssets {
         uint96 seniorTotalAssets; // total assets of senior tranche
         uint96 juniorTotalAssets; // total assets of junior tranche
-        uint64 lastUpdatedTime; // the updated timestamp of the tranche assets
+        // This is only used for FixedSeniorYieldTranchePolicy, TODO move it to FixedSeniorYieldTranchePolicy
+        uint64 lastProfitDistributedTime;
     }
 
     struct TranchesLosses {
@@ -43,7 +43,6 @@ contract Pool is PoolConfigCache, IPool {
 
     IEpochManager public epochManager;
     IFirstLossCover[] internal _firstLossCovers;
-    IPoolCredit public credit;
     IPoolFeeManager public feeManager;
     IPoolSafe public poolSafe;
     ITranchesPolicy public tranchesPolicy;
@@ -73,6 +72,22 @@ contract Pool is PoolConfigCache, IPool {
         uint256 juniorTotalLoss
     );
 
+    event ProfitDistributed(uint256 profit, uint256 seniorTotalAssets, uint256 juniorTotalAssets);
+    event LossDistributed(
+        uint256 loss,
+        uint256 seniorTotalAssets,
+        uint256 juniorTotalAssets,
+        uint256 seniorTotalLoss,
+        uint256 juniorTotalLoss
+    );
+    event LossRecoveryDistributed(
+        uint256 lossRecovery,
+        uint256 seniorTotalAssets,
+        uint256 juniorTotalAssets,
+        uint256 seniorTotalLoss,
+        uint256 juniorTotalLoss
+    );
+
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = _poolConfig.poolSafe();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
@@ -81,10 +96,6 @@ contract Pool is PoolConfigCache, IPool {
         addr = _poolConfig.tranchesPolicy();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         tranchesPolicy = ITranchesPolicy(addr);
-
-        addr = _poolConfig.credit();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
-        credit = IPoolCredit(addr);
 
         addr = _poolConfig.poolFeeManager();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
@@ -135,56 +146,21 @@ contract Pool is PoolConfigCache, IPool {
     }
 
     /// @inheritdoc IPool
-    function refreshPool() external returns (uint96[2] memory assets) {
-        _onlyPoolRefresher(msg.sender);
-        assets = _refreshPool();
+    function distributeProfit(uint256 profit) external {
+        if (msg.sender != poolConfig.credit()) revert Errors.todo();
+        _distributeProfit(profit);
     }
 
-    function _refreshPool() internal returns (uint96[2] memory assets) {
-        (uint256 profit, uint256 loss, uint256 lossRecovery) = credit.refreshPnL();
+    /// @inheritdoc IPool
+    function distributeLoss(uint256 loss) external {
+        if (msg.sender != poolConfig.credit()) revert Errors.todo();
+        _distributeLoss(loss);
+    }
 
-        TranchesAssets memory tempTranchesAssets = tranchesAssets;
-        bool lossesUpdated;
-
-        if (profit > 0) {
-            assets = _distributeProfit(profit, tempTranchesAssets);
-        } else {
-            assets = [tempTranchesAssets.seniorTotalAssets, tempTranchesAssets.juniorTotalAssets];
-        }
-
-        TranchesLosses memory tempTranchesLosses = tranchesLosses;
-        uint96[2] memory losses = [tempTranchesLosses.seniorLoss, tempTranchesLosses.juniorLoss];
-        if (loss > 0) {
-            (assets, losses) = _distributeLoss(loss, assets, losses);
-            lossesUpdated = true;
-        }
-
-        if (lossRecovery > 0) {
-            (assets, losses) = _distributeLossRecovery(lossRecovery, assets, losses);
-            lossesUpdated = true;
-        }
-
-        tempTranchesAssets.seniorTotalAssets = assets[SENIOR_TRANCHE];
-        tempTranchesAssets.juniorTotalAssets = assets[JUNIOR_TRANCHE];
-        tempTranchesAssets.lastUpdatedTime = uint64(block.timestamp);
-        tranchesAssets = tempTranchesAssets;
-
-        if (lossesUpdated) {
-            tempTranchesLosses.seniorLoss = losses[SENIOR_TRANCHE];
-            tempTranchesLosses.juniorLoss = losses[JUNIOR_TRANCHE];
-            tranchesLosses = tempTranchesLosses;
-        }
-
-        emit PoolAssetsRefreshed(
-            block.timestamp,
-            profit,
-            loss,
-            lossRecovery,
-            assets[SENIOR_TRANCHE],
-            assets[JUNIOR_TRANCHE],
-            losses[SENIOR_TRANCHE],
-            losses[JUNIOR_TRANCHE]
-        );
+    /// @inheritdoc IPool
+    function distributeLossRecovery(uint256 lossRecovery) external {
+        if (msg.sender != poolConfig.credit()) revert Errors.todo();
+        _distributeLossRecovery(lossRecovery);
     }
 
     /**
@@ -198,7 +174,7 @@ contract Pool is PoolConfigCache, IPool {
         uint256 remainingAssets = poolSafe.totalLiquidity();
         uint256 numFirstLossCovers = _firstLossCovers.length;
         uint256 availableAssets;
-        uint256 poolAssets;
+        uint256 poolAssets = totalAssets();
         for (uint256 i = 0; i < numFirstLossCovers && remainingAssets > 0; i++) {
             bool synced = false;
             IFirstLossCover cover = _firstLossCovers[i];
@@ -223,10 +199,6 @@ contract Pool is PoolConfigCache, IPool {
                 // first loss cover providers as their income.
 
                 // Invests into the cover until it reaches capacity.
-                if (poolAssets == 0) {
-                    uint96[2] memory assets = _refreshPool();
-                    poolAssets = assets[SENIOR_TRANCHE] + assets[JUNIOR_TRANCHE];
-                }
                 uint256 availableCapacity = _getFirstLossCoverAvailableCap(cover, 0, poolAssets);
                 if (availableCapacity > 0) {
                     uint256 profitToInvestInCover = reservedAssets.profit > availableCapacity
@@ -274,17 +246,16 @@ contract Pool is PoolConfigCache, IPool {
         }
     }
 
-    function _distributeProfit(
-        uint256 profit,
-        TranchesAssets memory assets
-    ) internal returns (uint96[2] memory newAssets) {
+    function _distributeProfit(uint256 profit) internal {
+        TranchesAssets memory assets = tranchesAssets;
+
         uint256 poolProfit = feeManager.distributePoolFees(profit);
 
         if (poolProfit > 0) {
-            newAssets = tranchesPolicy.distProfitToTranches(
+            uint96[2] memory newAssets = tranchesPolicy.distProfitToTranches(
                 poolProfit,
                 [assets.seniorTotalAssets, assets.juniorTotalAssets],
-                assets.lastUpdatedTime
+                assets.lastProfitDistributedTime
             );
 
             // Distribute profit to first loss covers using profits in the junior tranche.
@@ -294,6 +265,13 @@ contract Pool is PoolConfigCache, IPool {
                     assets.juniorTotalAssets
                 )
             );
+
+            tranchesAssets = TranchesAssets({
+                seniorTotalAssets: newAssets[SENIOR_TRANCHE],
+                juniorTotalAssets: newAssets[JUNIOR_TRANCHE],
+                lastProfitDistributedTime: uint64(block.timestamp)
+            });
+            emit ProfitDistributed(profit, newAssets[SENIOR_TRANCHE], newAssets[JUNIOR_TRANCHE]);
         }
     }
 
@@ -347,11 +325,7 @@ contract Pool is PoolConfigCache, IPool {
         }
     }
 
-    function _distributeLoss(
-        uint256 loss,
-        uint96[2] memory assets,
-        uint96[2] memory losses
-    ) internal returns (uint96[2] memory newAssets, uint96[2] memory newLosses) {
+    function _distributeLoss(uint256 loss) internal {
         if (loss > 0) {
             uint256 coverCount = _firstLossCovers.length;
             for (uint256 i = 0; i < coverCount && loss > 0; i++) {
@@ -360,42 +334,77 @@ contract Pool is PoolConfigCache, IPool {
 
             if (loss > 0) {
                 // If there are losses remaining, let the junior and senior tranches cover the losses.
-                uint96[2] memory lossesDelta;
-                (assets, lossesDelta) = tranchesPolicy.distLossToTranches(loss, assets);
+                TranchesAssets memory assets = tranchesAssets;
+                (uint96[2] memory newAssets, uint96[2] memory lossesDelta) = tranchesPolicy
+                    .distLossToTranches(
+                        loss,
+                        [assets.seniorTotalAssets, assets.juniorTotalAssets]
+                    );
+                tranchesAssets = TranchesAssets({
+                    seniorTotalAssets: newAssets[SENIOR_TRANCHE],
+                    juniorTotalAssets: newAssets[JUNIOR_TRANCHE],
+                    lastProfitDistributedTime: assets.lastProfitDistributedTime
+                });
 
-                losses[SENIOR_TRANCHE] += lossesDelta[SENIOR_TRANCHE];
-                losses[JUNIOR_TRANCHE] += lossesDelta[JUNIOR_TRANCHE];
+                TranchesLosses memory losses = tranchesLosses;
+                losses.seniorLoss += lossesDelta[SENIOR_TRANCHE];
+                losses.juniorLoss += lossesDelta[JUNIOR_TRANCHE];
+                tranchesLosses = losses;
+
+                emit LossDistributed(
+                    loss,
+                    newAssets[SENIOR_TRANCHE],
+                    newAssets[JUNIOR_TRANCHE],
+                    losses.seniorLoss,
+                    losses.juniorLoss
+                );
             }
         }
-
-        return (assets, losses);
     }
 
-    function _distributeLossRecovery(
-        uint256 lossRecovery,
-        uint96[2] memory assets,
-        uint96[2] memory losses
-    ) internal returns (uint96[2] memory newAssets, uint96[2] memory newLosses) {
+    function _distributeLossRecovery(uint256 lossRecovery) internal {
         if (lossRecovery > 0) {
-            (lossRecovery, assets, losses) = tranchesPolicy.distLossRecoveryToTranches(
-                lossRecovery,
-                assets,
-                losses
+            TranchesAssets memory assets = tranchesAssets;
+            TranchesLosses memory losses = tranchesLosses;
+            (
+                uint256 remainingLossRecovery,
+                uint96[2] memory newAssets,
+                uint96[2] memory newLosses
+            ) = tranchesPolicy.distLossRecoveryToTranches(
+                    lossRecovery,
+                    [assets.seniorTotalAssets, assets.juniorTotalAssets],
+                    [losses.seniorLoss, losses.juniorLoss]
+                );
+            tranchesAssets = TranchesAssets({
+                seniorTotalAssets: newAssets[SENIOR_TRANCHE],
+                juniorTotalAssets: newAssets[JUNIOR_TRANCHE],
+                lastProfitDistributedTime: assets.lastProfitDistributedTime
+            });
+            tranchesLosses = TranchesLosses({
+                seniorLoss: newLosses[SENIOR_TRANCHE],
+                juniorLoss: newLosses[JUNIOR_TRANCHE]
+            });
+            emit LossRecoveryDistributed(
+                lossRecovery - remainingLossRecovery,
+                newAssets[SENIOR_TRANCHE],
+                newAssets[JUNIOR_TRANCHE],
+                newLosses[SENIOR_TRANCHE],
+                newLosses[JUNIOR_TRANCHE]
             );
 
             uint256 numFirstLossCovers = _firstLossCovers.length;
             uint256 recoveredAmount;
-            for (uint256 i = 0; i < numFirstLossCovers && lossRecovery > 0; i++) {
+            for (uint256 i = 0; i < numFirstLossCovers && remainingLossRecovery > 0; i++) {
                 IFirstLossCover cover = _firstLossCovers[numFirstLossCovers - i - 1];
-                (lossRecovery, recoveredAmount) = cover.calcLossRecover(lossRecovery);
+                (remainingLossRecovery, recoveredAmount) = cover.calcLossRecover(
+                    remainingLossRecovery
+                );
                 ReservedAssetsForFirstLossCover
                     memory reserveAssets = _reservedAssetsForFirstLossCovers[cover];
                 reserveAssets.lossRecovery += uint96(recoveredAmount);
                 _reservedAssetsForFirstLossCovers[cover] = reserveAssets;
             }
         }
-
-        return (assets, losses);
     }
 
     function trancheTotalAssets(uint256 index) external view returns (uint256) {
@@ -403,116 +412,20 @@ contract Pool is PoolConfigCache, IPool {
         return assets[index];
     }
 
-    function totalAssets() external view returns (uint256) {
+    function totalAssets() public view returns (uint256) {
         uint96[2] memory assets = currentTranchesAssets();
         return assets[SENIOR_TRANCHE] + assets[JUNIOR_TRANCHE];
     }
 
     function currentTranchesAssets() public view returns (uint96[2] memory assets) {
         TranchesAssets memory tempTranchesAssets = tranchesAssets;
-        if (block.timestamp <= tempTranchesAssets.lastUpdatedTime) {
-            // Return the cached asset data if in the same block, so that we don't need to do all the calculations
-            // again. Note that it's theoretically impossible for the block timestamp to be smaller than the
-            // last updated timestamp. We are adding the < check because strictly equality is frowned upon
-            // by the linter.
-            return [tempTranchesAssets.seniorTotalAssets, tempTranchesAssets.juniorTotalAssets];
-        }
-
-        (uint256 profit, uint256 loss, uint256 lossRecovery) = credit.getAccruedPnL();
-        assets[SENIOR_TRANCHE] = tempTranchesAssets.seniorTotalAssets;
-        assets[JUNIOR_TRANCHE] = tempTranchesAssets.juniorTotalAssets;
-
-        if (profit > 0) {
-            assets = _calcProfitDistributions(profit, tempTranchesAssets);
-        }
-
-        TranchesLosses memory tempTranchesLosses = tranchesLosses;
-        uint96[2] memory losses = [tempTranchesLosses.seniorLoss, tempTranchesLosses.juniorLoss];
-
-        if (loss > 0) {
-            (assets, losses) = _calcLossDistributions(loss, assets, losses);
-        }
-
-        if (lossRecovery > 0) {
-            (assets, losses) = _calcLossRecoveryDistributions(lossRecovery, assets, losses);
-        }
-
-        return assets;
-    }
-
-    function _calcProfitDistributions(
-        uint256 profit,
-        TranchesAssets memory assets
-    ) internal view returns (uint96[2] memory newAssets) {
-        uint256 poolProfit = feeManager.calcPoolFeeDistribution(profit);
-        if (poolProfit > 0) {
-            newAssets = tranchesPolicy.distProfitToTranches(
-                poolProfit,
-                [assets.seniorTotalAssets, assets.juniorTotalAssets],
-                assets.lastUpdatedTime
-            );
-
-            uint256 juniorProfit = newAssets[JUNIOR_TRANCHE] - assets.juniorTotalAssets;
-            (juniorProfit, ) = _calcProfitForFirstLossCovers(
-                juniorProfit,
-                assets.juniorTotalAssets
-            );
-            newAssets[JUNIOR_TRANCHE] = uint96(assets.juniorTotalAssets + juniorProfit);
-        }
-    }
-
-    function _calcLossDistributions(
-        uint256 loss,
-        uint96[2] memory assets,
-        uint96[2] memory losses
-    ) internal view returns (uint96[2] memory newAssets, uint96[2] memory newLosses) {
-        if (loss > 0) {
-            // First loss cover
-            uint256 coverCount = _firstLossCovers.length;
-            for (uint256 i; i < coverCount && loss > 0; i++) {
-                IFirstLossCover cover = _firstLossCovers[i];
-                loss = cover.calcLossCover(loss);
-            }
-            uint96[2] memory lossesDelta;
-            (assets, lossesDelta) = tranchesPolicy.distLossToTranches(loss, assets);
-
-            losses[SENIOR_TRANCHE] += lossesDelta[SENIOR_TRANCHE];
-            losses[JUNIOR_TRANCHE] += lossesDelta[JUNIOR_TRANCHE];
-        }
-
-        return (assets, losses);
-    }
-
-    function _calcLossRecoveryDistributions(
-        uint256 lossRecovery,
-        uint96[2] memory assets,
-        uint96[2] memory losses
-    ) internal view returns (uint96[2] memory newAssets, uint96[2] memory newLosses) {
-        if (lossRecovery > 0) {
-            (lossRecovery, assets, losses) = tranchesPolicy.distLossRecoveryToTranches(
-                lossRecovery,
-                assets,
-                losses
-            );
-
-            uint256 len = _firstLossCovers.length;
-            for (uint256 i = 0; i < len && lossRecovery > 0; i++) {
-                IFirstLossCover cover = _firstLossCovers[len - i - 1];
-                (lossRecovery, ) = cover.calcLossRecover(lossRecovery);
-            }
-        }
-
-        return (assets, losses);
+        return [tempTranchesAssets.seniorTotalAssets, tempTranchesAssets.juniorTotalAssets];
     }
 
     function updateTranchesAssets(uint96[2] memory assets) external {
         _onlyTrancheVaultOrEpochManager(msg.sender);
 
         TranchesAssets memory tempTranchesAssets = tranchesAssets;
-        // This assertion is to ensure that the asset data is up-to-date before any further
-        // updates can be made. The asset data can be brought up-to-date usually by calling
-        // `refreshPool` before calling this function.
-        assert(tempTranchesAssets.lastUpdatedTime == block.timestamp);
         tempTranchesAssets.seniorTotalAssets = assets[SENIOR_TRANCHE];
         tempTranchesAssets.juniorTotalAssets = assets[JUNIOR_TRANCHE];
         tranchesAssets = tempTranchesAssets;
@@ -553,16 +466,6 @@ contract Pool is PoolConfigCache, IPool {
             account != poolConfig.juniorTranche() &&
             account != poolConfig.seniorTranche() &&
             account != poolConfig.epochManager()
-        ) revert Errors.notAuthorizedCaller();
-    }
-
-    function _onlyPoolRefresher(address account) internal view {
-        if (
-            account != poolConfig.seniorTranche() &&
-            account != poolConfig.juniorTranche() &&
-            account != poolConfig.epochManager() &&
-            account != poolConfig.poolFeeManager() &&
-            !poolConfig.isFirstLossCover(account)
         ) revert Errors.notAuthorizedCaller();
     }
 }

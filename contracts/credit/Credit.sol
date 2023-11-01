@@ -10,7 +10,6 @@ import {CreditStorage} from "./CreditStorage.sol";
 import {CreditConfig, CreditRecord, CreditLimit, CreditLoss, CreditState, DueDetail, CreditLoss} from "./CreditStructs.sol";
 import {ICalendar} from "./interfaces/ICalendar.sol";
 import {IFirstLossCover} from "../interfaces/IFirstLossCover.sol";
-import {IPoolCredit} from "./interfaces/IPoolCredit.sol";
 import {IPoolSafe} from "../interfaces/IPoolSafe.sol";
 import {ICreditFeeManager} from "./utils/interfaces/ICreditFeeManager.sol";
 import {IERC20, IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -23,7 +22,7 @@ import "hardhat/console.sol";
  * Credit is the core borrowing concept in Huma Protocol. This abstract contract provides
  * basic operations that applies to all credits in Huma Protocol.
  */
-abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPoolCredit {
+abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
     enum CreditLineClosureReason {
         Paidoff,
         CreditLimitChangedToBeZero,
@@ -192,8 +191,6 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
         );
     }
 
-    function refreshPnL() external returns (uint256 profit, uint256 loss, uint256 lossRecovery) {}
-
     /**
      * @notice changes the available credit for a credit line. This is an administrative overwrite.
      * @param creditHash the owner of the credit line
@@ -264,12 +261,6 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
     ) public view virtual returns (CreditConfig memory) {
         return _creditConfigMap[creditHash];
     }
-
-    function getAccruedPnL()
-        external
-        view
-        returns (uint256 accruedProfit, uint256 accruedLoss, uint256 accruedLossRecovery)
-    {}
 
     function isApproved(bytes32 creditHash) public view virtual returns (bool) {
         if ((_creditRecordMap[creditHash].state >= CreditState.Approved)) return true;
