@@ -249,5 +249,17 @@ describe("CreditFeeManager Tests", function () {
                 expect(await creditFeeManagerContract.checkLate(creditRecord)).to.be.false;
             });
         });
+
+        describe("getNextBillRefreshDate", function () {
+            // TODO(jiatu): fill this in
+        });
+
+        describe("refreshLateFee", function () {
+            // TODO(jiatu): fill this in
+        });
+
+        describe("getDueInfo", function () {
+            // TODO(jiatu): fill this in
+        });
     });
 });
