@@ -9,8 +9,6 @@ import {DAYS_IN_A_MONTH, DAYS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS, MONTHS_IN_A_YEA
 import {Errors} from "../../Errors.sol";
 import {PoolConfigCache} from "../../PoolConfigCache.sol";
 
-import "hardhat/console.sol";
-
 contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
     ICalendar public calendar;
 
