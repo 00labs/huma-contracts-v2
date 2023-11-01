@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
+import {DAYS_IN_A_MONTH} from "../SharedDefs.sol";
 import {ICalendar} from "./interfaces/ICalendar.sol";
 import {BokkyPooBahsDateTimeLibrary as DTL} from "./utils/BokkyPooBahsDateTimeLibrary.sol";
 
@@ -58,8 +59,8 @@ contract Calendar is ICalendar {
     ) external view returns (uint256 daysPassed, uint256 totalDaysInPeriod) {
         (, uint256 month, uint256 day) = DTL.timestampToDate(block.timestamp);
         month = (month - 1) % periodDuration;
-        daysPassed = month * 30 + day;
-        totalDaysInPeriod = periodDuration * 30;
+        daysPassed = month * DAYS_IN_A_MONTH + day;
+        totalDaysInPeriod = periodDuration * DAYS_IN_A_MONTH;
         return (daysPassed, totalDaysInPeriod);
     }
 

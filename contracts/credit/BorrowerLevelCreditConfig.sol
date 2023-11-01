@@ -6,8 +6,6 @@ import {Credit} from "./Credit.sol";
 import {CreditConfig, CreditRecord, DueDetail} from "./CreditStructs.sol";
 import {Errors} from "../Errors.sol";
 
-import "hardhat/console.sol";
-
 /**
  * BorrowerLevelCreditConfig has a set of administrative functions to manage the settings
  * for a borrower-level credit. A borrower-level credit can have many drawdowns and paybacks

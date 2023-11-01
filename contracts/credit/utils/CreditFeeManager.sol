@@ -60,8 +60,8 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
     function refreshLateFee(
         CreditRecord memory _cr,
         DueDetail memory _dd
-    ) internal view returns (uint64 lastLateFeeDate, uint96 lateFee) {
-        lastLateFeeDate = uint64(calendar.getStartOfTomorrow());
+    ) internal view returns (uint64 lateFeeUpdatedDate, uint96 lateFee) {
+        lateFeeUpdatedDate = uint64(calendar.getStartOfTomorrow());
         (, uint256 lateFeeInBps, ) = poolConfig.getFees();
 
         // todo the computation below has slight inaccuracy. It only uses number of days, it did not
@@ -70,10 +70,10 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
             _dd.lateFee +
                 (lateFeeInBps *
                     (_cr.unbilledPrincipal + _cr.nextDue - _cr.yieldDue) *
-                    (lastLateFeeDate - _dd.lastLateFeeDate)) /
+                    (lateFeeUpdatedDate - _dd.lateFeeUpdatedDate)) /
                 (SECONDS_IN_A_DAY * DAYS_IN_A_YEAR)
         );
-        return (lastLateFeeDate, lateFee);
+        return (lateFeeUpdatedDate, lateFee);
     }
 
     /// @inheritdoc ICreditFeeManager
@@ -105,7 +105,7 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
         if (block.timestamp <= _cr.nextDueDate) {
             if (_cr.missedPeriods == 0) return (_cr, _dd, 0, false);
             else {
-                (newDD.lastLateFeeDate, newDD.lateFee) = refreshLateFee(_cr, _dd);
+                (newDD.lateFeeUpdatedDate, newDD.lateFee) = refreshLateFee(_cr, _dd);
                 return (_cr, newDD, 0, true);
             }
         }
@@ -119,7 +119,7 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
         isLate = checkLate(_cr);
         if (isLate) {
             newDD.pastDue += _cr.nextDue;
-            (newDD.lastLateFeeDate, newDD.lateFee) = refreshLateFee(_cr, _dd);
+            (newDD.lateFeeUpdatedDate, newDD.lateFee) = refreshLateFee(_cr, _dd);
         }
 
         // Calculate the yield and principal due.
