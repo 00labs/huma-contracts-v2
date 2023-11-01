@@ -32,9 +32,9 @@ import {
     printCreditRecord,
 } from "../BaseTest";
 import {
+    getFutureBlockTime,
     getMinFirstLossCoverRequirement,
     getNextDueDate,
-    getNextTime,
     getStartDateOfPeriod,
     mineNextBlockWithTimestamp,
     toToken,
@@ -580,7 +580,7 @@ describe("CreditLine Test", function () {
             const netBorrowAmount = borrowAmount
                 .mul(CONSTANTS.BP_FACTOR.sub(frontLoadingFeeBps))
                 .div(CONSTANTS.BP_FACTOR);
-            const nextTime = await getNextTime(3);
+            const nextTime = await getFutureBlockTime(3);
             await mineNextBlockWithTimestamp(nextTime);
 
             const [nextDueDate] = getNextDueDate(0, nextTime, 1);
@@ -663,7 +663,7 @@ describe("CreditLine Test", function () {
             let netBorrowAmount = borrowAmount
                 .mul(CONSTANTS.BP_FACTOR.sub(frontLoadingFeeBps))
                 .div(CONSTANTS.BP_FACTOR);
-            let nextTime = await getNextTime(3);
+            let nextTime = await getFutureBlockTime(3);
             await mineNextBlockWithTimestamp(nextTime);
 
             let [nextDueDate] = getNextDueDate(0, nextTime, 3);
@@ -895,7 +895,7 @@ describe("CreditLine Test", function () {
             let creditRecord = await creditContract.creditRecordMap(creditHash);
 
             // move forward 10 days
-            let nextTime = await getNextTime(3600 * 24 * 10);
+            let nextTime = await getFutureBlockTime(3600 * 24 * 10);
             await mineNextBlockWithTimestamp(nextTime);
 
             let preCreditRecord = creditRecord;

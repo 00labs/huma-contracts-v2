@@ -30,10 +30,8 @@ export async function setNextBlockTimestamp(nextTS: BN | number) {
 }
 
 export async function mineNextBlockWithTimestamp(nextTS: BN | number) {
-    await network.provider.request({
-        method: "evm_setNextBlockTimestamp",
-        params: [Number(nextTS)],
-    });
+    await setNextBlockTimestamp(nextTS);
+    await network.provider.send("evm_mine", []);
 }
 
 export function getNextDate(
@@ -58,17 +56,21 @@ export function getNextDate(
     return [date.unix(), numberOfPeriodsPassed];
 }
 
-export function getNextDueDate(lastDate: number, currentDate: number, periodDuration: number) {
+export function getNextDueDate(
+    lastDueDateTimestamp: number,
+    currentTimestamp: number,
+    periodDuration: number,
+) {
     let date: moment.Moment;
     let numberOfPeriodsPassed = 0;
     let monthCount = 0;
-    if (lastDate > 0) {
-        date = timestampToMoment(lastDate);
+    if (lastDueDateTimestamp > 0) {
+        date = timestampToMoment(lastDueDateTimestamp);
         numberOfPeriodsPassed = Math.floor(
-            timestampToMoment(currentDate).diff(date, "months") / periodDuration,
+            timestampToMoment(currentTimestamp).diff(date, "months") / periodDuration,
         );
     } else {
-        date = timestampToMoment(currentDate, "YYYY-MM-01");
+        date = timestampToMoment(currentTimestamp, "YYYY-MM-01");
         monthCount = 1;
     }
     monthCount += (numberOfPeriodsPassed + 1) * periodDuration;
@@ -76,14 +78,10 @@ export function getNextDueDate(lastDate: number, currentDate: number, periodDura
     return [date.unix(), numberOfPeriodsPassed];
 }
 
-export async function getNextTime(afterSeconds: number) {
-    let nextTime = Math.ceil(Date.now() / 1000) + afterSeconds;
+export async function getFutureBlockTime(offsetSeconds: number) {
     const block = await getLatestBlock();
-    if (block.timestamp >= nextTime) {
-        nextTime = block.timestamp + afterSeconds;
-    }
-
-    return nextTime;
+    const currentTimestampInSeconds = Math.ceil(Date.now() / 1000);
+    return Math.max(block.timestamp, currentTimestampInSeconds) + offsetSeconds;
 }
 
 export function getStartDateOfPeriod(periodDuration: number, endDate: number): number {
