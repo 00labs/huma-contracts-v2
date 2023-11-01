@@ -2,8 +2,9 @@
 pragma solidity ^0.8.0;
 
 import {ICalendar} from "./interfaces/ICalendar.sol";
-
 import {BokkyPooBahsDateTimeLibrary as DTL} from "./utils/BokkyPooBahsDateTimeLibrary.sol";
+
+import "hardhat/console.sol";
 
 //* todo change periodDuration to an enum {Monthly, Quarterly, SemiAnnually}
 contract Calendar is ICalendar {
@@ -23,7 +24,7 @@ contract Calendar is ICalendar {
             quarter = 1;
         } else quarter++;
 
-        startOfNextQuarter = DTL.timestampFromDate(year, quarter, 1);
+        startOfNextQuarter = DTL.timestampFromDate(year, (quarter - 1) * 3 + 1, 1);
         return startOfNextQuarter;
     }
 
