@@ -25,7 +25,7 @@ import { FirstLossCoverConfigStruct } from "../typechain-types/contracts/PoolCon
 import {
     CreditConfigStruct,
     CreditRecordStruct,
-} from "../typechain-types/contracts/credit/Credit";
+} from "../typechain-types/contracts/credit/utils/CreditFeeManager";
 import { EpochInfoStruct } from "../typechain-types/contracts/interfaces/IEpoch";
 import { minBigNumber, sumBNArray, toToken } from "./TestUtils";
 
