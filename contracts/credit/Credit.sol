@@ -490,10 +490,10 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         CreditConfig memory cc = _getCreditConfig(creditHash);
 
         uint256 payoffAmount = _feeManager.getPayoffAmount(cr);
-
-        // The amount to collect from the payer.
-        Payment memory p = Payment(0, 0, 0, 0, cr.state == CreditState.GoodStanding, false);
-
+        uint256 amountToCollect = amount < payoffAmount ? amount : payoffAmount;
+        uint256 principalPaid = 0;
+        uint256 yieldPaid = 0;
+        uint256 pastDuePaid = 0;
 
         if (amount < payoffAmount) {
             // Apply the payment to past due first.
