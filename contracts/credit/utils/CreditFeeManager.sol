@@ -128,6 +128,8 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
         // Note that if multiple periods have passed, the yield for every period is still based on the
         // outstanding principal since there was no change to the principal
         (, , uint256 membershipFee) = poolConfig.getFees();
+        // TODO(Richard): when multiple periods have passed, we need to account for all the yield
+        // due in those periods. Currently we are only accounting for one period.
         newDD.accrued = uint96(
             (principal * _cc.yieldInBps * _cc.periodDuration) /
                 (HUNDRED_PERCENT_IN_BPS * MONTHS_IN_A_YEAR) +
