@@ -7,7 +7,7 @@ import {PoolConfig, PoolSettings} from "../PoolConfig.sol";
 import {PoolConfigCache} from "../PoolConfigCache.sol";
 import "../SharedDefs.sol";
 import {CreditStorage} from "./CreditStorage.sol";
-import {CreditConfig, CreditRecord, CreditLimit, CreditLoss, CreditState, PaymentStatus, Payment, DueDetail, CreditLoss} from "./CreditStructs.sol";
+import {CreditConfig, CreditRecord, CreditLimit, CreditLoss, CreditState, DueDetail, CreditLoss} from "./CreditStructs.sol";
 import {ICalendar} from "./interfaces/ICalendar.sol";
 import {IFirstLossCover} from "../interfaces/IFirstLossCover.sol";
 import {IPoolCredit} from "./interfaces/IPoolCredit.sol";
@@ -146,10 +146,10 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
         uint256 nextDueDate,
         uint256 nextDue,
         uint256 totalPastDue,
-        uint256 totalPastDuePaid,
         uint256 unbilledPrincipal,
         uint256 principalPaid,
         uint256 yieldPaid,
+        uint256 totalPastDuePaid,
         address by
     );
     /**
@@ -159,6 +159,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
      * @param nextDueDate the due date of the next payment
      * @param nextDue the amount due on the next payment of the credit line
      * @param unbilledPrincipal the unbilled principal on the credit line after processing the payment
+     * @param principalPaid the amount of this payment applied to principal
      * @param by the address that has triggered the process of marking the payment made.
      * In most cases, it is the borrower. In receivable factoring, it is PDSServiceAccount.
      */
@@ -168,6 +169,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
         uint256 nextDueDate,
         uint256 nextDue,
         uint256 unbilledPrincipal,
+        uint256 principalPaid,
         address by
     );
 
@@ -488,22 +490,25 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
         CreditConfig memory cc = _getCreditConfig(creditHash);
 
         uint256 payoffAmount = _feeManager.getPayoffAmount(cr, cc.yieldInBps);
+        uint256 amountToCollect = amount < payoffAmount ? amount : payoffAmount;
+        uint256 principalPaid = 0;
+        uint256 yieldPaid = 0;
+        uint256 pastDuePaid = 0;
 
-        // The amount to collect from the payer.
-        Payment memory p = Payment(0, 0, 0, 0, cr.state == CreditState.GoodStanding, false);
-
-        uint256 totalPastDuePaid = 0;
         if (amount < payoffAmount) {
-            p.amountToCollect = uint96(amount);
+            // Apply the payment to past due first.
             if (cr.totalPastDue > 0) {
                 DueDetail memory dd = _getDueDetail(creditHash);
                 if (amount > cr.totalPastDue) {
+                    pastDuePaid = cr.totalPastDue;
                     amount -= cr.totalPastDue;
                     dd.lateFee = 0;
                     dd.pastDue = 0;
-                    totalPastDuePaid = cr.totalPastDue;
                     cr.totalPastDue = 0;
                 } else {
+                    // If the payment is not enough to cover the total amount past due, then
+                    // apply the payment to the yield past due first, then late fees.
+                    pastDuePaid = amount;
                     if (amount > dd.pastDue) {
                         dd.pastDue = 0;
                         dd.lateFee -= uint96(amount - dd.pastDue);
@@ -511,38 +516,26 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
                         dd.pastDue -= uint96(amount);
                     }
                     cr.totalPastDue -= uint96(amount);
-                    totalPastDuePaid = amount;
                     amount = 0;
                 }
                 dd.lastLateFeeDate = uint64(calendar.getStartOfToday());
                 _setDueDetail(creditHash, dd);
             }
             if (amount > 0) {
+                // Apply the remaining payment amount (if any) to next due.
                 if (amount < cr.nextDue) {
-                    // process order - 1. fees, 2. yield, 3. principal
-
                     uint256 principalDue = cr.nextDue - cr.yieldDue;
-
-                    // Handle yield payment.
-                    p.yieldPaid = amount < cr.yieldDue ? uint96(amount) : cr.yieldDue;
-                    cr.yieldDue -= p.yieldPaid;
-                    amount -= p.yieldPaid;
-
-                    // Handle principal payment.
-                    if (amount > 0) {
-                        p.principalPaid = (amount < principalDue)
-                            ? uint96(amount)
-                            : uint96(principalDue);
-                        amount -= p.principalPaid;
-                    }
-
+                    // Apply the payment to yield due first, then principal due.
+                    yieldPaid = amount < cr.yieldDue ? amount : cr.yieldDue;
+                    cr.yieldDue -= uint96(yieldPaid);
+                    principalPaid = amount - yieldPaid;
                     cr.nextDue = uint96(cr.nextDue - amount);
 
                     _setCreditRecord(creditHash, cr);
                 } else {
                     // Apply extra payments towards principal, reduce unbilledPrincipal amount
-                    p.principalPaid = uint96(amount - cr.yieldDue);
-                    p.yieldPaid = cr.yieldDue;
+                    principalPaid = amount - cr.yieldDue;
+                    yieldPaid = cr.yieldDue;
                     cr.unbilledPrincipal -= uint96(amount - cr.nextDue);
                     cr.nextDue = 0;
                     cr.yieldDue = 0;
@@ -555,10 +548,8 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
             }
         } else {
             // Payoff
-            p.principalPaid = cr.unbilledPrincipal + cr.nextDue - cr.yieldDue;
-            p.yieldPaid = uint96(payoffAmount - p.principalPaid);
-            p.amountToCollect = uint96(payoffAmount);
-
+            principalPaid = cr.unbilledPrincipal + cr.nextDue - cr.yieldDue;
+            yieldPaid = payoffAmount - principalPaid;
             cr.unbilledPrincipal = 0;
             cr.yieldDue = 0;
             cr.nextDue = 0;
@@ -572,24 +563,24 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
             _setCreditRecord(creditHash, cr);
         }
 
-        if (p.amountToCollect > 0) {
-            poolSafe.deposit(msg.sender, p.amountToCollect);
+        if (amountToCollect > 0) {
+            poolSafe.deposit(msg.sender, amountToCollect);
             emit PaymentMade(
                 borrower,
-                p.amountToCollect,
+                amountToCollect,
                 cr.nextDueDate,
                 cr.nextDue,
                 cr.totalPastDue,
-                totalPastDuePaid,
                 cr.unbilledPrincipal,
-                p.principalPaid,
-                p.yieldPaid,
+                principalPaid,
+                yieldPaid,
+                pastDuePaid,
                 msg.sender
             );
         }
 
-        // p.amountToCollect == payoffAmount indicates payoff or not. >= is a safe practice
-        return (p.amountToCollect, p.amountToCollect >= payoffAmount, false);
+        // amountToCollect == payoffAmount indicates payoff or not. >= is a safe practice
+        return (amountToCollect, amountToCollect >= payoffAmount, false);
     }
 
     /**
@@ -621,6 +612,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
         if (amount < principalDue) {
             cr.nextDue = uint96(cr.nextDue - amount);
         } else {
+            // Payoff the principal due, then apply the remainder of the payment to reduce unbilled principal.
             cr.nextDue = uint96(cr.nextDue - principalDue);
             cr.unbilledPrincipal = uint96(cr.unbilledPrincipal - (amountToCollect - principalDue));
         }
@@ -641,12 +633,13 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
                 cr.nextDueDate,
                 cr.nextDue,
                 cr.unbilledPrincipal,
+                amountToCollect,
                 msg.sender
             );
         }
 
-        // if there happens to be no
-        return (amountToCollect, cr.nextDue == 0);
+        // The credit is paid off if there no next due or past due.
+        return (amountToCollect, cr.nextDue == 0 && cr.totalPastDue == 0);
     }
 
     function _pauseCredit(bytes32 creditHash) internal {

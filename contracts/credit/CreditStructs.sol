@@ -33,7 +33,7 @@ struct CreditRecord {
 }
 
 /**
- * @notice DueDetail records the detail information about nextDue and pastDue
+ * @notice DueDetail records the detailed information about nextDue and pastDue
  * @notice committed is the amount of yield computed from commitment set in CreditConfig
  * @notice accrued is the amount of yield based on actual usage
  * @notice paid is the amount of yield paid for the current period
@@ -114,15 +114,6 @@ struct FacilityConfig {
     uint16 advanceRateInBps;
     uint96 committedCreditLine;
     bool autoApproval;
-}
-
-struct Payment {
-    uint96 principalPaid;
-    uint96 yieldPaid;
-    uint96 feesPaid;
-    uint96 amountToCollect;
-    bool oldLateFlag;
-    bool newLateFlag;
 }
 
 struct ReceivableInput {
