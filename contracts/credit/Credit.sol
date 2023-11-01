@@ -489,7 +489,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
 
         CreditConfig memory cc = _getCreditConfig(creditHash);
 
-        uint256 payoffAmount = _feeManager.getPayoffAmount(cr, cc.yieldInBps);
+        uint256 payoffAmount = _feeManager.getPayoffAmount(cr);
         uint256 amountToCollect = amount < payoffAmount ? amount : payoffAmount;
         uint256 principalPaid = 0;
         uint256 yieldPaid = 0;

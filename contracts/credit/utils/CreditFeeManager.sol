@@ -174,20 +174,8 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
     }
 
     function getPayoffAmount(
-        CreditRecord memory cr,
-        uint256 yieldInBps
+        CreditRecord memory cr
     ) external view virtual override returns (uint256 payoffAmount) {
-        uint256 principal = cr.unbilledPrincipal + cr.nextDue - cr.yieldDue;
-        payoffAmount = uint256(cr.nextDue + cr.unbilledPrincipal);
-        if (block.timestamp < cr.nextDueDate) {
-            // Subtract the yield for the days between the current date and the due date when payment is made
-            // in advance of the due date.
-            // TODO: should this be updated to use day-boundaries as well?
-            uint256 remainingYield = (yieldInBps *
-                principal *
-                (cr.nextDueDate - block.timestamp)) / (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS);
-            assert(payoffAmount >= remainingYield);
-            payoffAmount -= remainingYield;
-        }
+        return cr.unbilledPrincipal + cr.nextDue + cr.totalPastDue;
     }
 }
