@@ -48,8 +48,6 @@ interface IFirstLossCover {
 
     function totalAssets() external view returns (uint256);
 
-    function calcLossCover(uint256 loss) external view returns (uint256 remainingLoss);
-
     function calcLossRecover(
         uint256 recovery
     ) external view returns (uint256 remainingRecovery, uint256 recoveredAmount);
