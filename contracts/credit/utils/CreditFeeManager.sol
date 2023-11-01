@@ -26,6 +26,7 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
         (fees, frontLoadingFeeBps) = poolConfig.getFrontLoadingFees();
         if (frontLoadingFeeBps > 0)
             fees += (_amount * frontLoadingFeeBps) / HUNDRED_PERCENT_IN_BPS;
+        return fees;
     }
 
     /// @inheritdoc ICreditFeeManager
@@ -34,11 +35,8 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
     ) external view virtual returns (uint256 amtToBorrower, uint256 platformFees) {
         // Calculate platform fee, which includes protocol fee and pool fee
         platformFees = calcFrontLoadingFee(borrowAmount);
-
         if (borrowAmount < platformFees) revert Errors.borrowingAmountLessThanPlatformFees();
-
         amtToBorrower = borrowAmount - platformFees;
-
         return (amtToBorrower, platformFees);
     }
 
@@ -63,8 +61,7 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
         CreditRecord memory _cr,
         DueDetail memory _dd
     ) internal view returns (uint64 lastLateFeeDate, uint96 lateFee) {
-        // todo this needs to be startOfTomorrow
-        lastLateFeeDate = uint64(calendar.getStartOfToday());
+        lastLateFeeDate = uint64(calendar.getStartOfTomorrow());
         (, uint256 lateFeeInBps, ) = poolConfig.getFees();
 
         // todo the computation below has slight inaccuracy. It only uses number of days, it did not
