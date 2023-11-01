@@ -569,10 +569,6 @@ describe("FirstLossCover Tests", function () {
             loss: BN = BN.from(0),
             lossRecovery: BN = BN.from(0),
         ) {
-            // Distribute PnL so that the LP token isn't always 1:1 with the asset
-            // when PnL is non-zero.
-            await creditContract.setRefreshPnLReturns(profit, loss, lossRecovery);
-
             // Add the evaluation agent as a cover provider.
             affiliateFirstLossCoverContract
                 .connect(poolOwner)
@@ -586,6 +582,9 @@ describe("FirstLossCover Tests", function () {
                 .connect(evaluationAgent)
                 .approve(affiliateFirstLossCoverContract.address, assets);
 
+            // Distribute PnL so that the LP token isn't always 1:1 with the asset
+            // when PnL is non-zero.
+            await creditContract.mockDistributePnL(profit, loss, lossRecovery);
             await affiliateFirstLossCoverContract.connect(evaluationAgent).depositCover(assets);
         }
 
@@ -804,8 +803,6 @@ describe("FirstLossCover Tests", function () {
                 loss: BN = BN.from(0),
                 lossRecovery: BN = BN.from(0),
             ) {
-                await creditContract.setRefreshPnLReturns(profit, loss, lossRecovery);
-
                 // Make sure the cap is determined by tge liquidity cap for easier testing.
                 const liquidityCap = toToken(1_000_000_000);
                 await overrideFirstLossCoverConfig(
@@ -840,6 +837,7 @@ describe("FirstLossCover Tests", function () {
                     )
                 ).amount;
 
+                await creditContract.mockDistributePnL(profit, loss, lossRecovery);
                 await expect(
                     affiliateFirstLossCoverContract
                         .connect(evaluationAgent)
@@ -988,9 +986,6 @@ describe("FirstLossCover Tests", function () {
                 const newCoveredLoss = oldCoveredLoss.add(amountLossCovered);
                 const oldPoolSafeAssets = await poolSafeContract.totalLiquidity();
 
-                expect(await affiliateFirstLossCoverContract.calcLossCover(loss)).to.equal(
-                    remainingLoss,
-                );
                 await expect(affiliateFirstLossCoverContract.coverLoss(loss))
                     .to.emit(affiliateFirstLossCoverContract, "LossCovered")
                     .withArgs(amountLossCovered, remainingLoss, newCoveredLoss);

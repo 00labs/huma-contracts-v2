@@ -23,6 +23,7 @@ import {
 import {
     CONSTANTS,
     EpochChecker,
+    FeeCalculator,
     PnLCalculator,
     deployAndSetupPoolContracts,
     deployProtocolContracts,
@@ -67,7 +68,7 @@ let poolConfigContract: PoolConfig,
     creditContract: MockPoolCredit,
     creditFeeManagerContract: CreditFeeManager;
 
-let epochChecker: EpochChecker;
+let epochChecker: EpochChecker, feeCalculator: FeeCalculator;
 
 async function checkRedemptionInfoByLender(
     trancheVaultContract: TrancheVault,
@@ -167,6 +168,7 @@ describe("TrancheVault Test", function () {
             seniorTrancheVaultContract,
             juniorTrancheVaultContract,
         );
+        feeCalculator = new FeeCalculator(humaConfigContract, poolConfigContract);
     }
 
     beforeEach(async function () {
@@ -414,8 +416,6 @@ describe("TrancheVault Test", function () {
                 const initialJuniorShares = await juniorTrancheVaultContract.totalSupply();
                 const initialSeniorShares = await seniorTrancheVaultContract.totalSupply();
 
-                // Distribute profit, loss and loss recovery in the pool so that LP tokens changes in value.
-                await creditContract.setRefreshPnLReturns(profit, loss, lossRecovery);
                 await poolConfigContract
                     .connect(poolOwner)
                     .setEpochManager(defaultDeployer.address);
@@ -429,8 +429,7 @@ describe("TrancheVault Test", function () {
                     assetInfo[CONSTANTS.SENIOR_TRANCHE],
                     assetInfo[CONSTANTS.JUNIOR_TRANCHE],
                 ];
-                const profitAfterFees =
-                    await poolFeeManagerContract.calcPoolFeeDistribution(profit);
+                const profitAfterFees = await feeCalculator.calcPoolFeeDistribution(profit);
                 const firstLossCoverInfos = await Promise.all(
                     [borrowerFirstLossCoverContract, affiliateFirstLossCoverContract].map(
                         async (contract) =>
@@ -454,6 +453,8 @@ describe("TrancheVault Test", function () {
                 const expectedNewJuniorShares = juniorAmount
                     .mul(initialJuniorShares)
                     .div(juniorAssets);
+                // Distribute profit, loss and loss recovery in the pool so that LP tokens changes in value.
+                await creditContract.mockDistributePnL(profit, loss, lossRecovery);
                 await expect(
                     juniorTrancheVaultContract
                         .connect(lender3)

@@ -10,7 +10,6 @@ import {CreditStorage} from "./CreditStorage.sol";
 import {CreditConfig, CreditRecord, CreditLimit, CreditLoss, CreditState, DueDetail, CreditLoss} from "./CreditStructs.sol";
 import {ICalendar} from "./interfaces/ICalendar.sol";
 import {IFirstLossCover} from "../interfaces/IFirstLossCover.sol";
-import {IPoolCredit} from "./interfaces/IPoolCredit.sol";
 import {IPoolSafe} from "../interfaces/IPoolSafe.sol";
 import {ICreditFeeManager} from "./utils/interfaces/ICreditFeeManager.sol";
 import {IERC20, IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -23,7 +22,7 @@ import "hardhat/console.sol";
  * Credit is the core borrowing concept in Huma Protocol. This abstract contract provides
  * basic operations that applies to all credits in Huma Protocol.
  */
-abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPoolCredit {
+abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
     enum CreditLineClosureReason {
         Paidoff,
         CreditLimitChangedToBeZero,
@@ -192,8 +191,6 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
         );
     }
 
-    function refreshPnL() external returns (uint256 profit, uint256 loss, uint256 lossRecovery) {}
-
     /**
      * @notice changes the available credit for a credit line. This is an administrative overwrite.
      * @param creditHash the owner of the credit line
@@ -264,12 +261,6 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
     ) public view virtual returns (CreditConfig memory) {
         return _creditConfigMap[creditHash];
     }
-
-    function getAccruedPnL()
-        external
-        view
-        returns (uint256 accruedProfit, uint256 accruedLoss, uint256 accruedLossRecovery)
-    {}
 
     function isApproved(bytes32 creditHash) public view virtual returns (bool) {
         if ((_creditRecordMap[creditHash].state >= CreditState.Approved)) return true;
@@ -382,7 +373,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
         _onlyBorrowerOrEAServiceAccount(_creditBorrowerMap[creditHash]);
 
         CreditRecord memory cr = _getCreditRecord(creditHash);
-        if (cr.nextDue != 0 || cr.unbilledPrincipal != 0) {
+        if (cr.nextDue != 0 || cr.totalPastDue != 0 || cr.unbilledPrincipal != 0) {
             revert Errors.creditLineHasOutstandingBalance();
         } else {
             CreditConfig memory cc = _getCreditConfig(creditHash);
@@ -487,9 +478,18 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
         if (amount == 0) revert Errors.zeroAmountProvided();
 
         CreditRecord memory cr = _updateDueInfo(creditHash);
+        if (
+            // TODO: do we still need the requested state?
+            cr.state == CreditState.Requested ||
+            cr.state == CreditState.Approved ||
+            cr.state == CreditState.Deleted
+        ) {
+            revert Errors.creditLineNotInStateForMakingPayment();
+        }
+
         CreditConfig memory cc = _getCreditConfig(creditHash);
 
-        uint256 payoffAmount = _feeManager.getPayoffAmount(cr, cc.yieldInBps);
+        uint256 payoffAmount = _feeManager.getPayoffAmount(cr);
         uint256 amountToCollect = amount < payoffAmount ? amount : payoffAmount;
         uint256 principalPaid = 0;
         uint256 yieldPaid = 0;
@@ -563,21 +563,20 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
             _setCreditRecord(creditHash, cr);
         }
 
-        if (amountToCollect > 0) {
-            poolSafe.deposit(msg.sender, amountToCollect);
-            emit PaymentMade(
-                borrower,
-                amountToCollect,
-                cr.nextDueDate,
-                cr.nextDue,
-                cr.totalPastDue,
-                cr.unbilledPrincipal,
-                principalPaid,
-                yieldPaid,
-                pastDuePaid,
-                msg.sender
-            );
-        }
+        assert(amountToCollect > 0);
+        poolSafe.deposit(msg.sender, amountToCollect);
+        emit PaymentMade(
+            borrower,
+            amountToCollect,
+            cr.nextDueDate,
+            cr.nextDue,
+            cr.totalPastDue,
+            cr.unbilledPrincipal,
+            principalPaid,
+            yieldPaid,
+            pastDuePaid,
+            msg.sender
+        );
 
         // amountToCollect == payoffAmount indicates payoff or not. >= is a safe practice
         return (amountToCollect, amountToCollect >= payoffAmount, false);
@@ -599,6 +598,14 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
         if (amount == 0) revert Errors.zeroAmountProvided();
 
         CreditRecord memory cr = _getCreditRecord(creditHash);
+        if (
+            // TODO: do we need the requested state?
+            cr.state == CreditState.Requested ||
+            cr.state == CreditState.Approved ||
+            cr.state == CreditState.Deleted
+        ) {
+            revert Errors.creditLineNotInStateForMakingPayment();
+        }
 
         if (block.timestamp > cr.nextDueDate) {
             cr = _updateDueInfo(creditHash);
@@ -625,18 +632,17 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
             } else cr.state = CreditState.GoodStanding;
         }
 
-        if (amountToCollect > 0) {
-            poolSafe.deposit(msg.sender, amountToCollect);
-            emit PrincipalPaymentMade(
-                borrower,
-                amountToCollect,
-                cr.nextDueDate,
-                cr.nextDue,
-                cr.unbilledPrincipal,
-                amountToCollect,
-                msg.sender
-            );
-        }
+        assert(amountToCollect > 0);
+        poolSafe.deposit(msg.sender, amountToCollect);
+        emit PrincipalPaymentMade(
+            borrower,
+            amountToCollect,
+            cr.nextDueDate,
+            cr.nextDue,
+            cr.unbilledPrincipal,
+            amountToCollect,
+            msg.sender
+        );
 
         // The credit is paid off if there no next due or past due.
         return (amountToCollect, cr.nextDue == 0 && cr.totalPastDue == 0);
@@ -919,7 +925,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage, IPool
     ) internal returns (uint256 amountWaived) {
         CreditRecord memory cr = _getCreditRecord(creditHash);
         DueDetail memory dd = _getDueDetail(creditHash);
-        amountWaived = amount > dd.lateFee ? amount : dd.lateFee;
+        amountWaived = amount > dd.lateFee ? dd.lateFee : amount;
         dd.lateFee -= uint96(amountWaived);
         cr.totalPastDue -= uint96(amountWaived);
         _setDueDetail(creditHash, dd);

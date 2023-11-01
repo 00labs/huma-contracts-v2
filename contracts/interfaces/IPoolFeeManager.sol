@@ -8,11 +8,6 @@ pragma solidity ^0.8.0;
 interface IPoolFeeManager {
     function distributePoolFees(uint256 profit) external returns (uint256 remaining);
 
-    /**
-     * @notice Returns the remaining profit after deducting various fees
-     */
-    function calcPoolFeeDistribution(uint256 profit) external view returns (uint256 remaining);
-
     function withdrawProtocolFee(uint256 amount) external;
 
     function withdrawPoolOwnerFee(uint256 amount) external;
