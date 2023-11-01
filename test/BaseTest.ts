@@ -51,6 +51,16 @@ export type TranchesPolicyContractName =
     | "RiskAdjustedTranchesPolicy";
 export type CreditContractName = "CreditLine" | "MockPoolCredit";
 
+export enum CreditState {
+    Deleted,
+    Requested,
+    Paused,
+    Approved,
+    GoodStanding,
+    Delayed,
+    Defaulted,
+}
+
 export enum ReceivableState {
     Deleted,
     Minted,

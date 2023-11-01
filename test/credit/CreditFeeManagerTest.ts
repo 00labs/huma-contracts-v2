@@ -3,6 +3,7 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { BigNumber as BN } from "ethers";
 import { ethers } from "hardhat";
+import moment from "moment";
 import {
     Calendar,
     CreditFeeManager,
@@ -20,8 +21,13 @@ import {
     RiskAdjustedTranchesPolicy,
     TrancheVault,
 } from "../../typechain-types";
-import { CONSTANTS, deployAndSetupPoolContracts, deployProtocolContracts } from "../BaseTest";
-import { toToken } from "../TestUtils";
+import {
+    CONSTANTS,
+    CreditState,
+    deployAndSetupPoolContracts,
+    deployProtocolContracts,
+} from "../BaseTest";
+import { mineNextBlockWithTimestamp, timestampToMoment, toToken } from "../TestUtils";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
@@ -111,71 +117,6 @@ describe("CreditFeeManager Tests", function () {
         await loadFixture(prepare);
     });
 
-    describe("accruedDebt", function () {
-        // TODO(jiatu): fill this in
-    });
-
-    describe("calcYieldDuePerPeriod", function () {
-        let lateFeeFlat: BN, lateFeeBps: number, membershipFee: BN;
-        let principal: BN, baseYieldInBps: number, periodDuration: number;
-
-        async function setFeeStructure() {
-            // Assign some non-zero values to make the test non-trivial.
-            lateFeeFlat = toToken(100);
-            lateFeeBps = 500;
-            membershipFee = toToken(50);
-            principal = toToken(1_000_000);
-            baseYieldInBps = 1_200;
-            periodDuration = 3;
-            await poolConfigContract.connect(poolOwner).setFeeStructure({
-                yieldInBps: 0,
-                minPrincipalRateInBps: 0,
-                lateFeeFlat,
-                lateFeeBps,
-                membershipFee,
-            });
-        }
-
-        beforeEach(async function () {
-            await loadFixture(setFeeStructure);
-        });
-
-        it("Should account for the late fee if the bill is late", async function () {
-            const expectedYieldDue = principal
-                .mul(baseYieldInBps + lateFeeBps)
-                .mul(periodDuration)
-                .div(CONSTANTS.BP_FACTOR)
-                .div(12)
-                .add(lateFeeFlat)
-                .add(membershipFee);
-            expect(
-                await creditFeeManagerContract.calcYieldDuePerPeriod(
-                    principal,
-                    baseYieldInBps,
-                    periodDuration,
-                    true,
-                ),
-            ).to.equal(expectedYieldDue);
-        });
-
-        it("Should not account for the late fee if the bill is current", async function () {
-            const expectedYieldDue = principal
-                .mul(baseYieldInBps)
-                .mul(periodDuration)
-                .div(CONSTANTS.BP_FACTOR)
-                .div(12)
-                .add(membershipFee);
-            expect(
-                await creditFeeManagerContract.calcYieldDuePerPeriod(
-                    principal,
-                    baseYieldInBps,
-                    periodDuration,
-                    false,
-                ),
-            ).to.equal(expectedYieldDue);
-        });
-    });
-
     describe("calcFrontLoadingFee", function () {
         let amount: BN;
 
@@ -240,6 +181,72 @@ describe("CreditFeeManager Tests", function () {
                     creditFeeManagerContract,
                     "borrowingAmountLessThanPlatformFees",
                 );
+            });
+        });
+
+        describe("checkLate", function () {
+            it("Should return true if there are missed periods", async function () {
+                const creditRecord = {
+                    unbilledPrincipal: 0,
+                    nextDueDate: Date.now(),
+                    nextDue: 0,
+                    yieldDue: 0,
+                    totalPastDue: 0,
+                    missedPeriods: 1,
+                    remainingPeriods: 0,
+                    state: CreditState.Delayed,
+                };
+                expect(await creditFeeManagerContract.checkLate(creditRecord)).to.be.true;
+            });
+
+            it("Should return true if there is payment due and we've already passed the payment grace period", async function () {
+                const nextDueDate = moment();
+                const poolSettings = await poolConfigContract.getPoolSettings();
+                // Advance next block time to be a second after the end of the late payment grace period.
+                const nextBlockTime = moment()
+                    .add(poolSettings.latePaymentGracePeriodInDays, "days")
+                    .add(1, "second");
+                await mineNextBlockWithTimestamp(nextBlockTime.unix());
+                const creditRecord = {
+                    unbilledPrincipal: 0,
+                    nextDueDate: nextDueDate.unix(),
+                    nextDue: toToken(1_000),
+                    yieldDue: 0,
+                    totalPastDue: 0,
+                    missedPeriods: 0,
+                    remainingPeriods: 0,
+                    state: CreditState.GoodStanding,
+                };
+                expect(await creditFeeManagerContract.checkLate(creditRecord)).to.be.true;
+            });
+
+            it("Should return false if there is no missed periods and no next due", async function () {
+                const creditRecord = {
+                    unbilledPrincipal: 0,
+                    nextDueDate: 0,
+                    nextDue: 0,
+                    yieldDue: 0,
+                    totalPastDue: 0,
+                    missedPeriods: 0,
+                    remainingPeriods: 0,
+                    state: CreditState.Approved,
+                };
+                expect(await creditFeeManagerContract.checkLate(creditRecord)).to.be.false;
+            });
+
+            it("Should return false if there is next due but we are not at the due date yet", async function () {
+                const nextDueDate = timestampToMoment(Date.now()).add(1, "day");
+                const creditRecord = {
+                    unbilledPrincipal: 0,
+                    nextDueDate: nextDueDate.unix(),
+                    nextDue: toToken(1_000),
+                    yieldDue: 0,
+                    totalPastDue: 0,
+                    missedPeriods: 0,
+                    remainingPeriods: 0,
+                    state: CreditState.Approved,
+                };
+                expect(await creditFeeManagerContract.checkLate(creditRecord)).to.be.false;
             });
         });
     });

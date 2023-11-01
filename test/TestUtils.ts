@@ -34,6 +34,7 @@ export async function mineNextBlockWithTimestamp(nextTS: BN | number) {
         method: "evm_setNextBlockTimestamp",
         params: [Number(nextTS)],
     });
+    await network.provider.send("evm_mine", []);
 }
 
 export function getNextDate(
