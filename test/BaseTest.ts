@@ -6,11 +6,12 @@ import {
     BaseTranchesPolicy,
     Calendar,
     CreditFeeManager,
+    CreditLine,
     EpochManager,
     EvaluationAgentNFT,
     FirstLossCover,
     HumaConfig,
-    IPoolCredit,
+    MockPoolCredit,
     MockToken,
     Pool,
     PoolConfig,
@@ -28,6 +29,7 @@ import {
 import { EpochInfoStruct } from "../typechain-types/contracts/interfaces/IEpoch";
 import { minBigNumber, sumBNArray, toToken } from "./TestUtils";
 
+export type CreditContractType = MockPoolCredit | CreditLine;
 export type ProtocolContracts = [EvaluationAgentNFT, HumaConfig, MockToken];
 export type PoolContracts = [
     PoolConfig,
@@ -42,7 +44,7 @@ export type PoolContracts = [
     EpochManager,
     TrancheVault,
     TrancheVault,
-    IPoolCredit,
+    CreditContractType,
     CreditFeeManager,
     Receivable,
 ];
@@ -304,7 +306,7 @@ export async function setupPoolContracts(
     poolContract: Pool,
     juniorTrancheVaultContract: TrancheVault,
     seniorTrancheVaultContract: TrancheVault,
-    creditContract: IPoolCredit,
+    creditContract: CreditContractType,
     poolOwner: SignerWithAddress,
     evaluationAgent: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
@@ -684,6 +686,32 @@ export const PnLCalculator = {
     calcLossRecovery,
     calcRiskAdjustedProfitAndLoss,
 };
+
+export class FeeCalculator {
+    humaConfigContract: HumaConfig;
+    poolConfigContract: PoolConfig;
+
+    constructor(humaConfigContract: HumaConfig, poolConfigContract: PoolConfig) {
+        this.humaConfigContract = humaConfigContract;
+        this.poolConfigContract = poolConfigContract;
+    }
+
+    async calcPoolFeeDistribution(profit: BN): Promise<BN> {
+        const protocolFeeInBps = await this.humaConfigContract.protocolFeeInBps();
+        const adminRnR = await this.poolConfigContract.getAdminRnR();
+        let remaining = profit.sub(profit.mul(BN.from(protocolFeeInBps)).div(CONSTANTS.BP_FACTOR));
+        remaining = remaining.sub(
+            remaining
+                .mul(
+                    BN.from(adminRnR.rewardRateInBpsForPoolOwner).add(
+                        BN.from(adminRnR.rewardRateInBpsForEA),
+                    ),
+                )
+                .div(CONSTANTS.BP_FACTOR),
+        );
+        return remaining;
+    }
+}
 
 export function checkEpochInfo(
     epochInfo: EpochInfoStruct,

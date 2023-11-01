@@ -10,7 +10,7 @@ import {
     EvaluationAgentNFT,
     FirstLossCover,
     HumaConfig,
-    IPoolCredit,
+    MockPoolCredit,
     MockToken,
     Pool,
     PoolConfig,
@@ -54,7 +54,7 @@ let poolConfigContract: PoolConfig,
     epochManagerContract: EpochManager,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
-    creditContract: IPoolCredit,
+    creditContract: MockPoolCredit,
     creditFeeManagerContract: CreditFeeManager;
 
 describe("BaseTranchesPolicy Tests", function () {
@@ -95,7 +95,7 @@ describe("BaseTranchesPolicy Tests", function () {
             epochManagerContract,
             seniorTrancheVaultContract,
             juniorTrancheVaultContract,
-            creditContract,
+            creditContract as unknown,
             creditFeeManagerContract,
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
