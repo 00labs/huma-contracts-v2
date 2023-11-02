@@ -347,7 +347,9 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
      * @dev Revert if the committed amount is non-zero and there are periods remaining
      */
     function _closeCredit(bytes32 creditHash) internal virtual {
-        _onlyBorrowerOrEAServiceAccount(_creditBorrowerMap[creditHash]);
+        address borrower = _creditBorrowerMap[creditHash];
+        if (borrower == address(0)) revert Errors.creditLineDoesNotExist();
+        _onlyBorrowerOrEAServiceAccount(borrower);
 
         CreditRecord memory cr = _getCreditRecord(creditHash);
         if (cr.nextDue != 0 || cr.totalPastDue != 0 || cr.unbilledPrincipal != 0) {
@@ -355,7 +357,8 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         }
 
         CreditConfig memory cc = _getCreditConfig(creditHash);
-        if (cc.committedAmount > 0 && cr.remainingPeriods > 0) revert Errors.todo();
+        if (cc.committedAmount > 0 && cr.remainingPeriods > 0)
+            revert Errors.creditLineHasUnfulfilledCommitment();
 
         // Close the credit by removing relevant record.
         cr.state = CreditState.Deleted;
@@ -798,6 +801,10 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
             ((daysPassed * cc.yieldInBps + (totalDays - daysPassed) * yieldInBps) * principal) /
                 DAYS_IN_A_YEAR
         );
+        dd.committed = uint96(
+            ((daysPassed * cc.yieldInBps + (totalDays - daysPassed) * yieldInBps) *
+                cc.committedAmount) / DAYS_IN_A_YEAR
+        );
         uint256 updatedYieldDue = dd.committed > dd.accrued ? dd.committed : dd.accrued;
         cr.nextDue = uint96(cr.nextDue - cr.yieldDue + updatedYieldDue);
         cr.yieldDue = uint96(updatedYieldDue);
@@ -865,10 +872,10 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
 
     function _isOverdue(uint256 dueDate) internal view returns (bool) {}
 
-    /// "Modifier" function that limits access to eaServiceAccount only
+    /// "Modifier" function that limits access to the borrower and eaServiceAccount only
     function _onlyBorrowerOrEAServiceAccount(address borrower) internal view {
         if (msg.sender != borrower && msg.sender != _humaConfig.eaServiceAccount())
-            revert Errors.evaluationAgentServiceAccountRequired();
+            revert Errors.notBorrowerOrEA();
     }
 
     /// "Modifier" function that limits access to eaServiceAccount only

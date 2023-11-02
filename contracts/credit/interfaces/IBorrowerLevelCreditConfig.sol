@@ -11,11 +11,15 @@ interface IBorrowerLevelCreditConfig {
 
     /**
      * @notice Triggers the default process
-     * @return losses the amount of remaining losses to the pool
+     * @return principalLoss the amount of principal loss
+     * @return yieldLoss the amount of yield loss
+     * @return feesLoss the amount of fees loss
      * @dev It is possible for the borrower to payback even after default, especially in
      * receivable factoring cases.
      */
-    function triggerDefault(address borrower) external returns (uint256 losses);
+    function triggerDefault(
+        address borrower
+    ) external returns (uint256 principalLoss, uint256 yieldLoss, uint256 feesLoss);
 
     /**
      * @notice Closes a credit record.

@@ -27,6 +27,7 @@ contract Errors {
     error notNFTOwner(); // 0x091a5762
     error notProcessor(); // 0x90409ca1
     error notBorrower(); // 0xb18f4d11
+    error notBorrowerOrEA(); // 0xa0bb841d
     error notCurrentEpoch(); // 0x50c5dd13
     error notCoverProvider(); // 0xed74bd11
     error notAuthorizedCaller(); // 0x06bc68f5
@@ -66,6 +67,7 @@ contract Errors {
     error creditLineNotInStateForMakingPayment(); // 0xf023e48b
     error creditLineNotInStateForDrawdown(); // 0x4ff95a6d
     error creditLineExceeded(); // 0xef7d66ff
+    error creditLineDoesNotExist(); // 0x6f008b00
     error creditLineAlreadyExists(); // 0x6c5805f2
     error creditLineGreatThanUpperLimit(); // 0xd8c27d2f
     error greaterThanMaxCreditLine(); // 0x8a754ae8
@@ -77,6 +79,7 @@ contract Errors {
     error creditLineOutstanding(); // 0xc64e338c
     error creditLineNotInStateForUpdate(); // 0x80cc0c6f
     error creditLineHasOutstandingBalance(); // 0x78272365
+    error creditLineHasUnfulfilledCommitment(); // 0xb0393028
     error borrowingAmountLessThanPlatformFees(); // 0x97fde118
     error paymentAlreadyProcessed(); // 0xfd6754cf
     error settlementTooSoon(); // 0x0453e75e
