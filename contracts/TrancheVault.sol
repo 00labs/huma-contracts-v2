@@ -20,7 +20,7 @@ contract TrancheVault is
     TrancheVaultStorage,
     IEpoch
 {
-    bytes32 private constant LENDER_ROLE = keccak256("LENDER");
+    bytes32 public constant LENDER_ROLE = keccak256("LENDER");
     uint256 private constant MAX_NUMBER_FOR_PAYOUT_BATCH = 50;
     uint256 private constant MIN_PAYOUT_AMOUNT = 10;
 
@@ -101,6 +101,7 @@ contract TrancheVault is
         poolConfig.onlyPoolOperator(msg.sender);
         if (lender == address(0)) revert Errors.zeroAddressProvided();
         _revokeRole(LENDER_ROLE, lender);
+        delete userInfos[lender];
     }
 
     /// @inheritdoc IEpoch
@@ -285,11 +286,17 @@ contract TrancheVault is
             revert Errors.insufficientSharesForRequest();
         }
 
-        lenderRedemptionInfo.principalRequested =
-            (lenderRedemptionInfo.principalRequested *
-                (lenderRedemptionInfo.numSharesRequested - uint96(shares))) /
+        UserInfo memory userInfo = userInfos[msg.sender];
+        userInfo.principal +=
+            (lenderRedemptionInfo.principalRequested * uint96(shares)) /
             lenderRedemptionInfo.numSharesRequested;
-        lenderRedemptionInfo.numSharesRequested -= uint96(shares);
+        userInfos[msg.sender] = userInfo;
+
+        uint96 newNumSharesRequested = lenderRedemptionInfo.numSharesRequested - uint96(shares);
+        lenderRedemptionInfo.principalRequested =
+            (lenderRedemptionInfo.principalRequested * newNumSharesRequested) /
+            lenderRedemptionInfo.numSharesRequested;
+        lenderRedemptionInfo.numSharesRequested = newNumSharesRequested;
         redemptionInfoByLender[msg.sender] = lenderRedemptionInfo;
 
         EpochInfo memory currEpochInfo = epochInfoByEpochId[currentEpochId];
@@ -413,9 +420,7 @@ contract TrancheVault is
         if (lenderRedemptionInfo.lastUpdatedEpochIndex < epochIds.length) {
             uint256 epochId = epochIds[lenderRedemptionInfo.lastUpdatedEpochIndex];
             if (epochId < currentEpochId) {
-                uint256 sharesProcessed;
                 lenderRedemptionInfo = _updateRedemptionInfo(lenderRedemptionInfo);
-                if (sharesProcessed > 0) {}
             }
         }
     }

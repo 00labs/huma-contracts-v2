@@ -433,10 +433,10 @@ export async function setupPoolContracts(
     for (let i = 0; i < accounts.length; i++) {
         await juniorTrancheVaultContract
             .connect(poolOperator)
-            .addApprovedLender(accounts[i].getAddress());
+            .addApprovedLender(accounts[i].getAddress(), true);
         await seniorTrancheVaultContract
             .connect(poolOperator)
-            .addApprovedLender(accounts[i].getAddress());
+            .addApprovedLender(accounts[i].getAddress(), true);
         await mockTokenContract
             .connect(accounts[i])
             .approve(poolSafeContract.address, ethers.constants.MaxUint256);
