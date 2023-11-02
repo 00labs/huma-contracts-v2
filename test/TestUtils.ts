@@ -1,5 +1,5 @@
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { BigNumber as BN } from "ethers";
+import { BigNumber as BN, Contract } from "ethers";
 import { ethers, network } from "hardhat";
 import moment from "moment";
 import { FirstLossCover, Pool, PoolConfig } from "../typechain-types";
@@ -219,4 +219,16 @@ export function minBigNumber(...values: BN[]): BN {
     return values.reduce((acc, currentValue) => {
         return acc.lt(currentValue) ? acc : currentValue;
     }, BN.from(ethers.constants.MaxUint256));
+}
+
+export async function borrowerLevelCreditHash(
+    creditContract: Contract,
+    borrower: SignerWithAddress,
+) {
+    return ethers.utils.keccak256(
+        ethers.utils.defaultAbiCoder.encode(
+            ["address", "address"],
+            [creditContract.address, await borrower.getAddress()],
+        ),
+    );
 }

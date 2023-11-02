@@ -20,10 +20,13 @@ import {
     RiskAdjustedTranchesPolicy,
     TrancheVault,
 } from "../../typechain-types";
-import { CreditConfigStructOutput } from "../../typechain-types/contracts/credit/Credit";
-import { CreditRecordStructOutput } from "../../typechain-types/contracts/credit/utils/interfaces/ICreditDueManager";
+import {
+    CreditConfigStructOutput,
+    CreditRecordStructOutput,
+} from "../../typechain-types/contracts/credit/Credit";
 import {
     CONSTANTS,
+    CreditState,
     checkCreditConfig,
     checkCreditRecord,
     checkTwoCreditRecords,
@@ -32,6 +35,7 @@ import {
     printCreditRecord,
 } from "../BaseTest";
 import {
+    borrowerLevelCreditHash,
     getFutureBlockTime,
     getMinFirstLossCoverRequirement,
     getNextDueDate,
@@ -292,6 +296,321 @@ describe("CreditLine Test", function () {
 
     beforeEach(async function () {
         await loadFixture(prepare);
+    });
+
+    describe("refreshCredit", function () {
+        // TODO(jiatu): fill this in
+    });
+
+    describe("triggerDefault", function () {
+        // TODO(jiatu): fill this in
+    });
+
+    describe("closeCredit", function () {
+        describe("When the credit is not approved yet", function () {
+            it("Should not be able to close a non-existent credit", async function () {
+                await expect(
+                    creditContract.connect(borrower).closeCredit(borrower.getAddress()),
+                ).to.be.revertedWithCustomError(creditContract, "creditLineDoesNotExist");
+            });
+        });
+
+        describe("When the credit has been approved", function () {
+            let creditHash: string;
+
+            async function approveCredit(
+                remainingPeriods: number = 1,
+                committedAmount: BN = BN.from(0),
+            ) {
+                creditHash = await borrowerLevelCreditHash(creditContract, borrower);
+                await creditContract
+                    .connect(eaServiceAccount)
+                    .approveBorrower(
+                        borrower.address,
+                        toToken(100_000),
+                        remainingPeriods,
+                        1_000,
+                        committedAmount,
+                        true,
+                    );
+            }
+
+            beforeEach(async function () {
+                await loadFixture(approveCredit);
+            });
+
+            async function testCloseCredit(actor: SignerWithAddress) {
+                await creditContract.connect(actor).closeCredit(borrower.getAddress());
+
+                // Make sure relevant fields have been reset.
+                const creditRecord = await creditContract.creditRecordMap(creditHash);
+                expect(creditRecord.state).to.equal(CreditState.Deleted);
+                expect(creditRecord.remainingPeriods).to.equal(ethers.constants.Zero);
+                const creditConfig = await creditContract.creditConfigMap(creditHash);
+                expect(creditConfig.creditLimit).to.equal(ethers.constants.Zero);
+            }
+
+            async function testCloseCreditReversion(actor: SignerWithAddress, errorName: string) {
+                const oldCreditConfig = await creditContract.creditConfigMap(creditHash);
+                const oldCreditRecord = await creditContract.creditRecordMap(creditHash);
+                await expect(
+                    creditContract.connect(actor).closeCredit(borrower.getAddress()),
+                ).to.be.revertedWithCustomError(creditContract, errorName);
+
+                // Make sure neither credit config nor credit record has changed.
+                const newCreditConfig = await creditContract.creditConfigMap(creditHash);
+                checkCreditConfig(
+                    newCreditConfig,
+                    oldCreditConfig.creditLimit,
+                    oldCreditConfig.committedAmount,
+                    oldCreditConfig.periodDuration,
+                    oldCreditConfig.numOfPeriods,
+                    oldCreditConfig.yieldInBps,
+                    oldCreditConfig.revolving,
+                    oldCreditConfig.receivableBacked,
+                    oldCreditConfig.borrowerLevelCredit,
+                    oldCreditConfig.exclusive,
+                );
+                const newCreditRecord = await creditContract.creditRecordMap(creditHash);
+                checkCreditRecord(
+                    newCreditRecord,
+                    oldCreditRecord.unbilledPrincipal,
+                    oldCreditRecord.nextDueDate,
+                    oldCreditRecord.nextDue,
+                    oldCreditRecord.yieldDue,
+                    oldCreditRecord.missedPeriods,
+                    oldCreditRecord.remainingPeriods,
+                    oldCreditRecord.state,
+                );
+            }
+
+            // TODO(jiatu): test event emission.
+            it("Should allow the borrower to close a newly approved credit", async function () {
+                await testCloseCredit(borrower);
+            });
+
+            it("Should allow the evaluation agent to close a newly approved credit", async function () {
+                await testCloseCredit(eaServiceAccount);
+            });
+
+            it("Should allow the borrower to close a credit that's fully paid back", async function () {
+                const amount = toToken(1_000);
+                await creditContract.connect(borrower).drawdown(borrower.getAddress(), amount);
+                const creditRecord = await creditContract.creditRecordMap(creditHash);
+                await creditContract
+                    .connect(borrower)
+                    .makePayment(
+                        borrower.getAddress(),
+                        creditRecord.nextDue.add(creditRecord.unbilledPrincipal),
+                    );
+                await testCloseCredit(borrower);
+            });
+
+            it("Should allow the borrower to close a credit that has commitment but has reached maturity", async function () {
+                // Close the approved credit then open a new one with a different committed amount.
+                await creditContract.connect(borrower).closeCredit(borrower.getAddress());
+                await approveCredit(1, toToken(100_000));
+                // Make one round of drawdown and payment so that the borrower have a credit record.
+                const amount = toToken(1_000);
+                await creditContract.connect(borrower).drawdown(borrower.getAddress(), amount);
+                let creditRecord = await creditContract.creditRecordMap(creditHash);
+                await creditContract
+                    .connect(borrower)
+                    .makePayment(
+                        borrower.getAddress(),
+                        creditRecord.nextDue.add(creditRecord.unbilledPrincipal),
+                    );
+
+                // Advance one block so that the remaining period becomes 0.
+                const creditConfig = await creditContract.creditConfigMap(creditHash);
+                // TODO: there is some issues with date calculation when a billing cycle starts in the middle of
+                // of a period, hence the multiplication with 4. Technically speaking we don't need it.
+                const nextBlockTime = await getFutureBlockTime(
+                    4 *
+                        creditConfig.periodDuration *
+                        CONSTANTS.SECONDS_IN_A_DAY *
+                        CONSTANTS.DAYS_IN_A_MONTH,
+                );
+                await mineNextBlockWithTimestamp(nextBlockTime);
+                // Make another payment because there is yield due from commitment.
+                await creditContract.refreshCredit(borrower.getAddress());
+                creditRecord = await creditContract.creditRecordMap(creditHash);
+                await creditContract
+                    .connect(borrower)
+                    .makePayment(borrower.getAddress(), creditRecord.nextDue);
+                await testCloseCredit(borrower);
+            });
+
+            it("Should not allow the borrower to close a credit that has upcoming yield due", async function () {
+                const amount = toToken(1_000);
+                await creditContract.connect(borrower).drawdown(borrower.getAddress(), amount);
+                // Only pay back the total principal outstanding.
+                const creditRecord = await creditContract.creditRecordMap(creditHash);
+                const totalPrincipal = creditRecord.nextDue
+                    .sub(creditRecord.yieldDue)
+                    .add(creditRecord.unbilledPrincipal);
+                await creditContract
+                    .connect(borrower)
+                    .makePayment(borrower.getAddress(), totalPrincipal);
+                await testCloseCreditReversion(borrower, "creditLineHasOutstandingBalance");
+            });
+
+            it("Should not allow the borrower to close a credit that has past due", async function () {
+                // TODO(jiatu): fill this in after checking whether the past due logic is correct.
+                // const amount = toToken(1_000);
+                // await creditContract.connect(borrower).drawdown(borrower.getAddress(), amount);
+                //
+                // // Advance one block so that all due becomes past due.
+                // const creditConfig = await creditContract.creditConfigMap(creditHash);
+                // const nextBlockTime = await getFutureBlockTime(4 * creditConfig.periodDuration * CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH);
+                // await mineNextBlockWithTimestamp(nextBlockTime);
+                // await creditContract.refreshCredit(borrower.getAddress());
+                // const creditRecord = await creditContract.creditRecordMap(creditHash);
+                // // expect(creditRecord.nextDue).to.equal(ethers.constants.Zero);
+                // expect(creditRecord.totalPastDue).to.be.greaterThan(ethers.constants.Zero);
+                // expect(creditRecord.unbilledPrincipal).to.equal(ethers.constants.Zero);
+                // await testCloseCreditReversion(borrower, "creditLineHasOutstandingBalance");
+            });
+
+            it("Should not allow the borrower to close a credit that has outstanding unbilled principal", async function () {
+                const amount = toToken(1_000);
+                await creditContract.connect(borrower).drawdown(borrower.getAddress(), amount);
+                // Only pay back the next due and have unbilled principal outstanding.
+                const creditRecord = await creditContract.creditRecordMap(creditHash);
+                await creditContract
+                    .connect(borrower)
+                    .makePayment(borrower.getAddress(), creditRecord.nextDue);
+                await testCloseCreditReversion(borrower, "creditLineHasOutstandingBalance");
+            });
+
+            it("Should not allow the borrower to close a credit that has unfulfilled commitment", async function () {
+                // Close the approved credit then open a new one with a different committed amount.
+                await creditContract.connect(borrower).closeCredit(borrower.getAddress());
+                await approveCredit(3, toToken(100_000));
+                await testCloseCreditReversion(borrower, "creditLineHasUnfulfilledCommitment");
+            });
+        });
+    });
+
+    describe("pauseCredit and unpauseCredit", function () {
+        let creditHash: string;
+
+        async function approveCredit() {
+            creditHash = await borrowerLevelCreditHash(creditContract, borrower);
+            await creditContract
+                .connect(eaServiceAccount)
+                .approveBorrower(borrower.address, toToken(100_000), 1, 1_000, toToken(0), true);
+        }
+
+        beforeEach(async function () {
+            await loadFixture(approveCredit);
+        });
+
+        it("Should allow the EA to pause and unpause a credit", async function () {
+            await creditContract.connect(borrower).drawdown(borrower.getAddress(), toToken(1_000));
+            await creditContract.connect(eaServiceAccount).pauseCredit(borrower.getAddress());
+            let creditRecord = await creditContract.creditRecordMap(creditHash);
+            expect(creditRecord.state).to.equal(CreditState.Paused);
+
+            await creditContract.connect(eaServiceAccount).unpauseCredit(borrower.getAddress());
+            creditRecord = await creditContract.creditRecordMap(creditHash);
+            expect(creditRecord.state).to.equal(CreditState.GoodStanding);
+        });
+
+        it("Should do nothing if the credit line is not in the desired states", async function () {
+            const oldCreditRecord = await creditContract.creditRecordMap(creditHash);
+            await creditContract.connect(eaServiceAccount).pauseCredit(borrower.getAddress());
+            let newCreditRecord = await creditContract.creditRecordMap(creditHash);
+            expect(newCreditRecord.state).to.equal(oldCreditRecord.state);
+
+            await creditContract.connect(eaServiceAccount).unpauseCredit(borrower.getAddress());
+            newCreditRecord = await creditContract.creditRecordMap(creditHash);
+            expect(newCreditRecord.state).to.equal(oldCreditRecord.state);
+        });
+    });
+
+    describe("extendRemainingPeriod", function () {
+        let creditHash: string;
+        const numOfPeriods = 2;
+
+        async function approveCredit() {
+            creditHash = await borrowerLevelCreditHash(creditContract, borrower);
+            await creditContract
+                .connect(eaServiceAccount)
+                .approveBorrower(borrower.address, toToken(100_000), 1, 1_000, toToken(0), true);
+        }
+
+        beforeEach(async function () {
+            await loadFixture(approveCredit);
+        });
+
+        it("Should allow the EA to extend the remaining periods of a credit line", async function () {
+            const oldCreditRecord = await creditContract.creditRecordMap(creditHash);
+            const newRemainingPeriods = oldCreditRecord.remainingPeriods + numOfPeriods;
+            await expect(
+                creditContract
+                    .connect(eaServiceAccount)
+                    .extendRemainingPeriod(borrower.getAddress(), numOfPeriods),
+            )
+                .to.emit(creditContract, "RemainingPeriodsExtended")
+                .withArgs(
+                    creditHash,
+                    oldCreditRecord.remainingPeriods,
+                    newRemainingPeriods,
+                    await eaServiceAccount.getAddress(),
+                );
+            const newCreditRecord = await creditContract.creditRecordMap(creditHash);
+            expect(newCreditRecord.remainingPeriods).to.equal(newRemainingPeriods);
+        });
+
+        it("Should disallow non-EAs to extend the remaining period", async function () {
+            await expect(
+                creditContract
+                    .connect(borrower)
+                    .extendRemainingPeriod(borrower.getAddress(), numOfPeriods),
+            ).to.be.revertedWithCustomError(
+                creditContract,
+                "evaluationAgentServiceAccountRequired",
+            );
+        });
+    });
+
+    describe("updateLimitAndCommitment", function () {
+        let creditHash: string;
+
+        async function approveCredit() {
+            creditHash = await borrowerLevelCreditHash(creditContract, borrower);
+            await creditContract
+                .connect(eaServiceAccount)
+                .approveBorrower(borrower.address, toToken(100_000), 1, 1_000, toToken(0), true);
+        }
+
+        beforeEach(async function () {
+            await loadFixture(approveCredit);
+        });
+
+        it("Should allow the EA to update the credit limit and commitment amount", async function () {
+            // TODO(jiatu): fill this in after fixing days passed in period calculation.
+        });
+    });
+
+    describe("waiveLateFee", function () {
+        let creditHash: string;
+
+        async function approveCredit() {
+            creditHash = await borrowerLevelCreditHash(creditContract, borrower);
+            await creditContract
+                .connect(eaServiceAccount)
+                .approveBorrower(borrower.address, toToken(100_000), 1, 1_000, toToken(0), true);
+        }
+
+        beforeEach(async function () {
+            await loadFixture(approveCredit);
+        });
+
+        it("Should allow the EA to partially waive late fees", async function () {
+            // TODO(jiatu): fill this in
+        });
     });
 
     describe("Approve Tests", function () {
