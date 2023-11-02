@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {ICreditFeeManager} from "./interfaces/ICreditFeeManager.sol";
+import {ICreditDueManager} from "./interfaces/ICreditDueManager.sol";
 import {CreditConfig, CreditRecord, CreditState, DueDetail} from "../CreditStructs.sol";
 import {PoolConfig, PoolSettings} from "../../PoolConfig.sol";
 import {ICalendar} from "../interfaces/ICalendar.sol";
@@ -9,7 +9,7 @@ import {DAYS_IN_A_MONTH, DAYS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS, MONTHS_IN_A_YEA
 import {Errors} from "../../Errors.sol";
 import {PoolConfigCache} from "../../PoolConfigCache.sol";
 
-contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
+contract CreditDueManager is PoolConfigCache, ICreditDueManager {
     ICalendar public calendar;
 
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
@@ -18,7 +18,7 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
         calendar = ICalendar(addr);
     }
 
-    /// @inheritdoc ICreditFeeManager
+    /// @inheritdoc ICreditDueManager
     function calcFrontLoadingFee(
         uint256 _amount
     ) public view virtual override returns (uint256 fees) {
@@ -29,7 +29,7 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
         return fees;
     }
 
-    /// @inheritdoc ICreditFeeManager
+    /// @inheritdoc ICreditDueManager
     function distBorrowingAmount(
         uint256 borrowAmount
     ) external view virtual returns (uint256 amtToBorrower, uint256 platformFees) {
@@ -76,7 +76,7 @@ contract CreditFeeManager is PoolConfigCache, ICreditFeeManager {
         return (lateFeeUpdatedDate, lateFee);
     }
 
-    /// @inheritdoc ICreditFeeManager
+    /// @inheritdoc ICreditDueManager
     function getDueInfo(
         CreditRecord memory _cr,
         CreditConfig memory _cc,

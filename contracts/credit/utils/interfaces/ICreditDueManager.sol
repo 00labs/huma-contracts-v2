@@ -4,10 +4,10 @@ pragma solidity ^0.8.0;
 import {CreditConfig, CreditRecord, DueDetail} from "../../CreditStructs.sol";
 
 /**
- * @notice ICreditFeeManager defines functions to compute credit-related fees
+ * @notice ICreditDueManager.sol defines functions to compute credit-related fees
  */
 
-interface ICreditFeeManager {
+interface ICreditDueManager {
     // /**
     //  * @notice Calculates accrued interest and accrued principal from last updated timestamp to current timestamp.
     //  * @param principal the principal amount

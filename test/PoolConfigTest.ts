@@ -5,7 +5,7 @@ import { BigNumber as BN } from "ethers";
 import { ethers } from "hardhat";
 import {
     Calendar,
-    CreditFeeManager,
+    CreditDueManager,
     EpochManager,
     EvaluationAgentNFT,
     FirstLossCover,
@@ -62,7 +62,7 @@ let poolConfigContract: PoolConfig,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: MockPoolCredit,
-    creditFeeManagerContract: CreditFeeManager;
+    creditDueManagerContract: CreditDueManager;
 
 describe("PoolConfig Tests", function () {
     before(async function () {
@@ -138,9 +138,9 @@ describe("PoolConfig Tests", function () {
             creditContract = await Credit.deploy();
             await creditContract.deployed();
 
-            const CreditFeeManager = await ethers.getContractFactory("CreditFeeManager");
-            creditFeeManagerContract = await CreditFeeManager.deploy();
-            await creditFeeManagerContract.deployed();
+            const CreditDueManager = await ethers.getContractFactory("CreditDueManager");
+            creditDueManagerContract = await CreditDueManager.deploy();
+            await creditDueManagerContract.deployed();
         }
 
         beforeEach(async function () {
@@ -162,7 +162,7 @@ describe("PoolConfig Tests", function () {
                     seniorTrancheVaultContract.address,
                     juniorTrancheVaultContract.address,
                     creditContract.address,
-                    creditFeeManagerContract.address,
+                    creditDueManagerContract.address,
                 ]);
 
             const poolSettings = await poolConfigContract.getPoolSettings();
@@ -198,7 +198,7 @@ describe("PoolConfig Tests", function () {
                         seniorTrancheVaultContract.address,
                         juniorTrancheVaultContract.address,
                         creditContract.address,
-                        creditFeeManagerContract.address,
+                        creditDueManagerContract.address,
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "notPoolOwner");
         });
@@ -219,7 +219,7 @@ describe("PoolConfig Tests", function () {
                         seniorTrancheVaultContract.address,
                         juniorTrancheVaultContract.address,
                         creditContract.address,
-                        creditFeeManagerContract.address,
+                        creditDueManagerContract.address,
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
@@ -243,7 +243,7 @@ describe("PoolConfig Tests", function () {
                         seniorTrancheVaultContract.address,
                         juniorTrancheVaultContract.address,
                         creditContract.address,
-                        creditFeeManagerContract.address,
+                        creditDueManagerContract.address,
                     ]),
             ).to.be.revertedWithCustomError(
                 poolConfigContract,
@@ -267,7 +267,7 @@ describe("PoolConfig Tests", function () {
                         seniorTrancheVaultContract.address,
                         juniorTrancheVaultContract.address,
                         creditContract.address,
-                        creditFeeManagerContract.address,
+                        creditDueManagerContract.address,
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
@@ -288,7 +288,7 @@ describe("PoolConfig Tests", function () {
                         seniorTrancheVaultContract.address,
                         juniorTrancheVaultContract.address,
                         creditContract.address,
-                        creditFeeManagerContract.address,
+                        creditDueManagerContract.address,
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
@@ -309,7 +309,7 @@ describe("PoolConfig Tests", function () {
                         seniorTrancheVaultContract.address,
                         juniorTrancheVaultContract.address,
                         creditContract.address,
-                        creditFeeManagerContract.address,
+                        creditDueManagerContract.address,
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
@@ -331,7 +331,7 @@ describe("PoolConfig Tests", function () {
                         seniorTrancheVaultContract.address,
                         juniorTrancheVaultContract.address,
                         creditContract.address,
-                        creditFeeManagerContract.address,
+                        creditDueManagerContract.address,
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
@@ -352,7 +352,7 @@ describe("PoolConfig Tests", function () {
                         seniorTrancheVaultContract.address,
                         juniorTrancheVaultContract.address,
                         creditContract.address,
-                        creditFeeManagerContract.address,
+                        creditDueManagerContract.address,
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
@@ -373,7 +373,7 @@ describe("PoolConfig Tests", function () {
                         seniorTrancheVaultContract.address,
                         juniorTrancheVaultContract.address,
                         creditContract.address,
-                        creditFeeManagerContract.address,
+                        creditDueManagerContract.address,
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
@@ -394,7 +394,7 @@ describe("PoolConfig Tests", function () {
                         seniorTrancheVaultContract.address,
                         juniorTrancheVaultContract.address,
                         creditContract.address,
-                        creditFeeManagerContract.address,
+                        creditDueManagerContract.address,
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
@@ -415,7 +415,7 @@ describe("PoolConfig Tests", function () {
                         ethers.constants.AddressZero,
                         juniorTrancheVaultContract.address,
                         creditContract.address,
-                        creditFeeManagerContract.address,
+                        creditDueManagerContract.address,
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
@@ -436,7 +436,7 @@ describe("PoolConfig Tests", function () {
                         seniorTrancheVaultContract.address,
                         ethers.constants.AddressZero,
                         creditContract.address,
-                        creditFeeManagerContract.address,
+                        creditDueManagerContract.address,
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
@@ -457,12 +457,12 @@ describe("PoolConfig Tests", function () {
                         seniorTrancheVaultContract.address,
                         juniorTrancheVaultContract.address,
                         ethers.constants.AddressZero,
-                        creditFeeManagerContract.address,
+                        creditDueManagerContract.address,
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
 
-        it("Should reject zero address for creditFeeManager", async function () {
+        it("Should reject zero address for creditDueManager", async function () {
             await expect(
                 poolConfigContract
                     .connect(poolOwner)
@@ -498,7 +498,7 @@ describe("PoolConfig Tests", function () {
                     seniorTrancheVaultContract.address,
                     juniorTrancheVaultContract.address,
                     creditContract.address,
-                    creditFeeManagerContract.address,
+                    creditDueManagerContract.address,
                 ]);
             await expect(
                 poolConfigContract
@@ -515,7 +515,7 @@ describe("PoolConfig Tests", function () {
                         seniorTrancheVaultContract.address,
                         juniorTrancheVaultContract.address,
                         creditContract.address,
-                        creditFeeManagerContract.address,
+                        creditDueManagerContract.address,
                     ]),
             ).to.be.revertedWith("Initializable: contract is already initialized");
         });
@@ -544,7 +544,7 @@ describe("PoolConfig Tests", function () {
                 seniorTrancheVaultContract,
                 juniorTrancheVaultContract,
                 creditContract as unknown,
-                creditFeeManagerContract,
+                creditDueManagerContract,
             ] = await deployAndSetupPoolContracts(
                 humaConfigContract,
                 mockTokenContract,

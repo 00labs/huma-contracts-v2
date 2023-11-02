@@ -5,7 +5,7 @@ import { BigNumber as BN } from "ethers";
 import { ethers } from "hardhat";
 import {
     Calendar,
-    CreditFeeManager,
+    CreditDueManager,
     CreditLine,
     EpochManager,
     EvaluationAgentNFT,
@@ -21,7 +21,7 @@ import {
     TrancheVault,
 } from "../../typechain-types";
 import { CreditConfigStructOutput } from "../../typechain-types/contracts/credit/Credit";
-import { CreditRecordStructOutput } from "../../typechain-types/contracts/credit/utils/interfaces/ICreditFeeManager";
+import { CreditRecordStructOutput } from "../../typechain-types/contracts/credit/utils/interfaces/ICreditDueManager";
 import {
     CONSTANTS,
     checkCreditConfig,
@@ -67,7 +67,7 @@ let poolConfigContract: PoolConfig,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: CreditLine,
-    creditFeeManagerContract: CreditFeeManager;
+    creditDueManagerContract: CreditDueManager;
 
 function calcDefaultDate(cr: CreditRecordStructOutput, defaultPeriod: number): number {
     let [defaultDate] = getNextDueDate(
@@ -234,7 +234,7 @@ describe("CreditLine Test", function () {
             seniorTrancheVaultContract,
             juniorTrancheVaultContract,
             creditContract as unknown,
-            creditFeeManagerContract,
+            creditDueManagerContract,
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,

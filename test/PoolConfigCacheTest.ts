@@ -4,7 +4,7 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import {
     Calendar,
-    CreditFeeManager,
+    CreditDueManager,
     EpochManager,
     EvaluationAgentNFT,
     FirstLossCover,
@@ -48,7 +48,7 @@ let poolConfigContract: PoolConfig,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: MockPoolCredit,
-    creditFeeManagerContract: CreditFeeManager;
+    creditDueManagerContract: CreditDueManager;
 
 describe("PoolConfigCache Test", function () {
     before(async function () {
@@ -89,7 +89,7 @@ describe("PoolConfigCache Test", function () {
             seniorTrancheVaultContract,
             juniorTrancheVaultContract,
             creditContract as unknown,
-            creditFeeManagerContract,
+            creditDueManagerContract,
         ] = await deployPoolContracts(
             humaConfigContract,
             mockTokenContract,
@@ -149,7 +149,7 @@ describe("PoolConfigCache Test", function () {
             seniorTrancheVaultContract.address,
             juniorTrancheVaultContract.address,
             creditContract.address,
-            creditFeeManagerContract.address,
+            creditDueManagerContract.address,
         ]);
 
         await expect(

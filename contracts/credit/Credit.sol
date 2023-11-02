@@ -10,7 +10,7 @@ import {CreditConfig, CreditRecord, CreditLimit, CreditLoss, CreditState, DueDet
 import {ICalendar} from "./interfaces/ICalendar.sol";
 import {IFirstLossCover} from "../interfaces/IFirstLossCover.sol";
 import {IPoolSafe} from "../interfaces/IPoolSafe.sol";
-import {ICreditFeeManager} from "./utils/interfaces/ICreditFeeManager.sol";
+import {ICreditDueManager} from "./utils/interfaces/ICreditDueManager.sol";
 import {IERC20, IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {BORROWER_FIRST_LOSS_COVER_INDEX, DAYS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS, SECONDS_IN_A_DAY} from "../SharedDefs.sol";
@@ -888,9 +888,9 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         _humaConfig = HumaConfig(addr);
 
-        addr = _poolConfig.creditFeeManager();
+        addr = _poolConfig.creditDueManager();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
-        _feeManager = ICreditFeeManager(addr);
+        _feeManager = ICreditDueManager(addr);
 
         addr = _poolConfig.calendar();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
