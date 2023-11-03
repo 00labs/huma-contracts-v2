@@ -236,6 +236,160 @@ describe("Calendar Test", function () {
         });
     });
 
+    describe("getDaysDiff", function () {
+        describe("When the start and end dates fall within the same month", function () {
+            it("Should return 0 if the start and end dates are the same", async function () {
+                const date = moment.utc({
+                    year: 2024,
+                    month: 0,
+                    day: 30,
+                });
+                expect(await calendarContract.getDaysDiff(date.unix(), date.unix())).to.equal(0);
+            });
+
+            it("Should return 0 if the start and end dates are the same and both are on the 31st", async function () {
+                const date = moment.utc({
+                    year: 2024,
+                    month: 0,
+                    day: 31,
+                });
+                expect(await calendarContract.getDaysDiff(date.unix(), date.unix())).to.equal(0);
+            });
+
+            it("Should return 0 if the start date is on the 30th and end date is on the 31st", async function () {
+                const startDate = moment.utc({
+                    year: 2024,
+                    month: 0,
+                    day: 30,
+                });
+                const endDate = moment.utc({
+                    year: 2024,
+                    month: 0,
+                    day: 31,
+                });
+                expect(
+                    await calendarContract.getDaysDiff(startDate.unix(), endDate.unix()),
+                ).to.equal(0);
+            });
+
+            it("Should return the correct number of days if the end date is on the 31st, and the start date is earlier than the 30th", async function () {
+                const startDate = moment.utc({
+                    year: 2024,
+                    month: 0,
+                    day: 28,
+                });
+                const endDate = moment.utc({
+                    year: 2024,
+                    month: 0,
+                    day: 31,
+                });
+                expect(
+                    await calendarContract.getDaysDiff(startDate.unix(), endDate.unix()),
+                ).to.equal(2);
+            });
+
+            it("Should return the correct number of days if the start and end dates are otherwise different", async function () {
+                const startDate = moment.utc({
+                    year: 2024,
+                    month: 0,
+                    day: 14,
+                });
+                const endDate = moment.utc({
+                    year: 2024,
+                    month: 0,
+                    day: 27,
+                });
+                expect(
+                    await calendarContract.getDaysDiff(startDate.unix(), endDate.unix()),
+                ).to.equal(13);
+            });
+        });
+
+        describe("When the start and end dates are in different months", function () {
+            it("Should return the correct number of days if the start date is on the 31st", async function () {
+                const startDate = moment.utc({
+                    year: 2024,
+                    month: 0,
+                    day: 31,
+                });
+                const endDate = moment.utc({
+                    year: 2024,
+                    month: 1,
+                    day: 28,
+                });
+                expect(
+                    await calendarContract.getDaysDiff(startDate.unix(), endDate.unix()),
+                ).to.equal(28);
+            });
+
+            it("Should return the correct number of days if the end date is on the 31st", async function () {
+                const startDate = moment.utc({
+                    year: 2024,
+                    month: 0,
+                    day: 30,
+                });
+                const endDate = moment.utc({
+                    year: 2024,
+                    month: 2,
+                    day: 31,
+                });
+                expect(
+                    await calendarContract.getDaysDiff(startDate.unix(), endDate.unix()),
+                ).to.equal(60);
+            });
+
+            it("Should return the correct number of days if both the start the end dates are on the 31st", async function () {
+                const startDate = moment.utc({
+                    year: 2024,
+                    month: 0,
+                    day: 31,
+                });
+                const endDate = moment.utc({
+                    year: 2024,
+                    month: 2,
+                    day: 31,
+                });
+                expect(
+                    await calendarContract.getDaysDiff(startDate.unix(), endDate.unix()),
+                ).to.equal(60);
+            });
+
+            it("Should return the correct number of days if neither the start nor end dates is on the 31st", async function () {
+                const startDate = moment.utc({
+                    year: 2024,
+                    month: 0,
+                    day: 14,
+                });
+                const endDate = moment.utc({
+                    year: 2024,
+                    month: 2,
+                    day: 27,
+                });
+                expect(
+                    await calendarContract.getDaysDiff(startDate.unix(), endDate.unix()),
+                ).to.equal(73);
+            });
+        });
+
+        describe("When the start date is later than the end date", function () {
+            it("Should return 0 if the start date is on the 30th and end date is on the 31st", async function () {
+                const startDate = moment.utc({
+                    year: 2024,
+                    month: 0,
+                    day: 31,
+                });
+                const endDate = moment.utc({
+                    year: 2024,
+                    month: 0,
+                    day: 30,
+                });
+                await expect(
+                    calendarContract.getDaysDiff(startDate.unix(), endDate.unix()),
+                ).to.be.revertedWithCustomError(calendarContract, "startDateLaterThanEndDate");
+            });
+        });
+    });
+
     describe("getNextDueDate", function () {
         async function testGetNextDueDate(periodDuration: number, lastDueDate: number) {
             const nextBlockTime = await getFutureBlockTime(2);
