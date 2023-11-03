@@ -355,7 +355,8 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         }
 
         CreditConfig memory cc = _getCreditConfig(creditHash);
-        if (cc.committedAmount > 0 && cr.remainingPeriods > 0) revert Errors.todo();
+        if (cc.committedAmount > 0 && cr.remainingPeriods > 0)
+            revert Errors.creditLineHasUnfulfilledCommitment();
 
         // Close the credit by removing relevant record.
         cr.state = CreditState.Deleted;
@@ -794,9 +795,15 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
             cc.periodDuration
         );
         uint256 principal = cr.unbilledPrincipal + cr.nextDue - cr.yieldDue;
+        // Note that the new yield rate takes effect the next day, hence we need to recalculate the accrued yield
+        // and yield from commitment using the old rate for the days passed and new rate until the end of the period.
         dd.accrued = uint96(
             ((daysPassed * cc.yieldInBps + (totalDays - daysPassed) * yieldInBps) * principal) /
                 DAYS_IN_A_YEAR
+        );
+        dd.committed = uint96(
+            ((daysPassed * cc.yieldInBps + (totalDays - daysPassed) * yieldInBps) *
+                cc.committedAmount) / DAYS_IN_A_YEAR
         );
         uint256 updatedYieldDue = dd.committed > dd.accrued ? dd.committed : dd.accrued;
         cr.nextDue = uint96(cr.nextDue - cr.yieldDue + updatedYieldDue);
@@ -865,10 +872,10 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
 
     function _isOverdue(uint256 dueDate) internal view returns (bool) {}
 
-    /// "Modifier" function that limits access to eaServiceAccount only
+    /// "Modifier" function that limits access to the borrower and eaServiceAccount only
     function _onlyBorrowerOrEAServiceAccount(address borrower) internal view {
         if (msg.sender != borrower && msg.sender != _humaConfig.eaServiceAccount())
-            revert Errors.evaluationAgentServiceAccountRequired();
+            revert Errors.notBorrowerOrEA();
     }
 
     /// "Modifier" function that limits access to eaServiceAccount only

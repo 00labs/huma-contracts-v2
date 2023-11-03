@@ -79,6 +79,7 @@ enum CreditState {
     Requested,
     Paused,
     Approved,
+    // TODO(jiatu): check the reliance of ordering of enums
     GoodStanding,
     Delayed,
     Defaulted

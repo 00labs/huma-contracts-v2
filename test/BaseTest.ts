@@ -88,6 +88,8 @@ const SENIOR_TRANCHE = 0;
 const JUNIOR_TRANCHE = 1;
 const DEFAULT_DECIMALS_FACTOR = BN.from(10).pow(18);
 const BP_FACTOR = BN.from(10000);
+const MONTHS_IN_A_YEAR = 12;
+const SECONDS_IN_A_DAY = 24 * 60 * 60;
 const SECONDS_IN_YEAR = 60 * 60 * 24 * 365;
 const MAX_SECONDS_IN_A_QUARTER = 92 * 24 * 60 * 60;
 const BORROWER_FIRST_LOSS_COVER_INDEX = 0;
@@ -102,8 +104,10 @@ export const CONSTANTS = {
     JUNIOR_TRANCHE,
     DEFAULT_DECIMALS_FACTOR,
     BP_FACTOR,
-    SECONDS_IN_YEAR,
+    MONTHS_IN_A_YEAR,
+    SECONDS_IN_A_DAY,
     MAX_SECONDS_IN_A_QUARTER,
+    SECONDS_IN_YEAR,
     BORROWER_FIRST_LOSS_COVER_INDEX,
     AFFILIATE_FIRST_LOSS_COVER_INDEX,
 };
@@ -912,7 +916,7 @@ export function checkTwoCreditRecords(
 export function checkCreditRecord(
     creditRecord: CreditRecordStruct,
     unbilledPrincipal: BN,
-    nextDueDate: number,
+    nextDueDate: BN | number,
     nextDue: BN,
     yieldDue: BN,
     missedPeriods: number,

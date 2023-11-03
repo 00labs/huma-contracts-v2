@@ -25,10 +25,16 @@ abstract contract BorrowerLevelCreditConfig is Credit, IBorrowerLevelCreditConfi
     }
 
     /// @inheritdoc IBorrowerLevelCreditConfig
-    function triggerDefault(address borrower) external virtual override returns (uint256 losses) {
+    function triggerDefault(
+        address borrower
+    )
+        external
+        virtual
+        override
+        returns (uint256 principalLoss, uint256 yieldLoss, uint256 feesLoss)
+    {
         bytes32 creditHash = getCreditHash(borrower);
-        // TODO: we need to return the total losses.
-        _triggerDefault(creditHash);
+        return _triggerDefault(creditHash);
     }
 
     /// @inheritdoc IBorrowerLevelCreditConfig
@@ -76,7 +82,7 @@ abstract contract BorrowerLevelCreditConfig is Credit, IBorrowerLevelCreditConfi
         uint256 committedAmount
     ) external virtual override {
         _onlyEAServiceAccount();
-        if (committedAmount > creditLimit) revert Errors.todo();
+        if (committedAmount > creditLimit) revert Errors.committedAmountGreaterThanCreditLimit();
 
         _updateLimitAndCommitment(getCreditHash(borrower), creditLimit, committedAmount);
     }
