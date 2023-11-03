@@ -2,7 +2,10 @@
 pragma solidity ^0.8.0;
 
 /**
- * @notice ICalendar defines functions for date calculation
+ * @notice ICalendar defines functions for date calculation.
+ * @notice We use the 30/360 day count convention, which treats every month as having 30 days and every year as
+ * having 360 days, regardless of the actual number of days in a month/year. This is a common practice in
+ * corporate finance.
  */
 
 interface ICalendar {
@@ -14,7 +17,7 @@ interface ICalendar {
     /**
      * @notice Returns the beginning of the next quarter
      */
-    function getStartOfNextQuarter() external view returns (uint256 nstartOfNextQuarterextDay);
+    function getStartOfNextQuarter() external view returns (uint256 startOfNextQuarter);
 
     /**
      * @notice Returns the beginning of tomorrow as a timestamp.
@@ -30,6 +33,11 @@ interface ICalendar {
      * @notice Returns the beginning of this quarter
      */
     function getStartOfThisQuarter() external view returns (uint256 startOfQuarter);
+
+    /**
+     * @notice Returns the beginning of this half of the year. i.e. 1/1 or 7/1.
+     */
+    function getStartOfThisHalfYear() external view returns (uint256 startOfHalfYear);
 
     /**
      * @notice Returns the beginning of today

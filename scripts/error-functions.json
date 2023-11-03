@@ -90,5 +90,6 @@
   "newReceiverSameToOrigin()": "0x6d79ce50",
   "invalidCalendarUnit()": "0x353226f1",
   "zeroPayPeriods()": "0xd991f55d",
+  "invalidPayPeriod()": "0x068dc5cb",
   "todo()": "0xb47f18a1"
 }
