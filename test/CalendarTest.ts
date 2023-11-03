@@ -38,6 +38,8 @@ describe("Calendar Test", function () {
 
     describe("getStartOfNextQuarter", function () {
         it("Should return the timestamp of the beginning of next quarter", async function () {
+            // TODO(jiatu): this test in non-deterministic in that it may not always test all 4 quarters.
+            // Update the test.
             let nextBlockTime;
             const currentMoment = Date.now();
             // Test all 4 quarters. Ths guarantees that we'll cover both cases where
