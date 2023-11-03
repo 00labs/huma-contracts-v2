@@ -311,7 +311,7 @@ describe("CreditLine Test", function () {
             it("Should not be able to close a non-existent credit", async function () {
                 await expect(
                     creditContract.connect(borrower).closeCredit(borrower.getAddress()),
-                ).to.be.revertedWithCustomError(creditContract, "creditLineDoesNotExist");
+                ).to.be.revertedWithCustomError(creditContract, "notBorrowerOrEA");
             });
         });
 
