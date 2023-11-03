@@ -1264,6 +1264,51 @@ describe("TrancheVault Test", function () {
                     await checkRedemptionInfoByLender(juniorTrancheVaultContract, lender2, 2);
                 });
             });
+
+            describe("When there is PnL", function () {
+                it("Should allow lenders to request redemption and cancel redemption request when there is profit", async function () {
+                    // Introduce profit
+                    const profit = toToken(10_000);
+                    await creditContract.mockDistributePnL(profit, BN.from(0), BN.from(0));
+
+                    // lender adds redemption request
+                    const shares = toToken(10_000);
+                    let principal = await juniorTrancheVaultContract.convertToAssets(shares);
+                    const currentEpochId = await epochManagerContract.currentEpochId();
+                    let balance = await juniorTrancheVaultContract.balanceOf(lender.address);
+                    let allPrincipal = (await juniorTrancheVaultContract.userInfos(lender.address))
+                        .principal;
+                    await expect(
+                        juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares),
+                    )
+                        .to.emit(juniorTrancheVaultContract, "RedemptionRequestAdded")
+                        .withArgs(lender.address, shares, currentEpochId);
+                    expect(await juniorTrancheVaultContract.balanceOf(lender.address)).to.equal(
+                        balance.sub(shares),
+                    );
+                    expect(
+                        (await juniorTrancheVaultContract.userInfos(lender.address)).principal,
+                    ).to.equal(allPrincipal.sub(principal));
+                    await checkRedemptionInfoByLender(
+                        juniorTrancheVaultContract,
+                        lender,
+                        0,
+                        shares,
+                        principal,
+                    );
+                    expect(
+                        await juniorTrancheVaultContract.cancellableRedemptionShares(
+                            lender.address,
+                        ),
+                    ).to.equal(shares);
+
+                    let epochId = await juniorTrancheVaultContract.epochIds(0);
+                    expect(epochId).to.equal(currentEpochId);
+                    await epochChecker.checkJuniorEpochInfoById(epochId, shares);
+                });
+
+                it("Should allow lenders to request redemption and cancel redemption request when there is loss", async function () {});
+            });
         });
 
         describe("Disburse Tests", function () {
@@ -1571,6 +1616,12 @@ describe("TrancheVault Test", function () {
                     allWithdrawable2,
                 );
             });
+
+            describe("When there is PnL", function () {
+                it("Should disbuse when there is profit", async function () {});
+
+                it("Should disbuse when there is loss", async function () {});
+            });
         });
 
         describe("Process Epochs Tests", function () {
@@ -1655,5 +1706,11 @@ describe("TrancheVault Test", function () {
         });
     });
 
-    describe("Interest Tests", function () {});
+    describe("Handle Interests Tests", function () {
+        it("Should payout interests", async function () {});
+
+        it("Should reinvest interests", async function () {});
+
+        it("Should payout interests and reinvest interests", async function () {});
+    });
 });

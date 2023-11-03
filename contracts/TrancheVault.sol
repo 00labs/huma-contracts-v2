@@ -22,7 +22,7 @@ contract TrancheVault is
 {
     bytes32 public constant LENDER_ROLE = keccak256("LENDER");
     uint256 private constant MAX_NUMBER_FOR_PAYOUT_BATCH = 50;
-    uint256 private constant MIN_PAYOUT_AMOUNT = 10;
+    uint256 private constant MIN_PAYOUT_AMOUNT = 100;
 
     event EpochProcessed(
         uint256 indexed epochId,
