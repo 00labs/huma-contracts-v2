@@ -347,9 +347,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
      * @dev Revert if the committed amount is non-zero and there are periods remaining
      */
     function _closeCredit(bytes32 creditHash) internal virtual {
-        address borrower = _creditBorrowerMap[creditHash];
-        if (borrower == address(0)) revert Errors.creditLineDoesNotExist();
-        _onlyBorrowerOrEAServiceAccount(borrower);
+        _onlyBorrowerOrEAServiceAccount(_creditBorrowerMap[creditHash]);
 
         CreditRecord memory cr = _getCreditRecord(creditHash);
         if (cr.nextDue != 0 || cr.totalPastDue != 0 || cr.unbilledPrincipal != 0) {
@@ -797,6 +795,8 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
             cc.periodDuration
         );
         uint256 principal = cr.unbilledPrincipal + cr.nextDue - cr.yieldDue;
+        // Note that the new yield rate takes effect the next day, hence we need to recalculate the accrued yield
+        // and yield from commitment using the old rate for the days passed and new rate until the end of the period.
         dd.accrued = uint96(
             ((daysPassed * cc.yieldInBps + (totalDays - daysPassed) * yieldInBps) * principal) /
                 DAYS_IN_A_YEAR
