@@ -53,6 +53,12 @@ export type TranchesPolicyContractName =
     | "RiskAdjustedTranchesPolicy";
 export type CreditContractName = "CreditLine" | "MockPoolCredit";
 
+export enum PayPeriodDuration {
+    Monthly,
+    Quarterly,
+    SemiAnnually,
+}
+
 export enum CreditState {
     Deleted,
     Requested,
@@ -74,6 +80,10 @@ export enum ReceivableState {
     Defaulted,
 }
 
+const DAYS_IN_A_MONTH = 30;
+const DAYS_IN_A_QUARTER = 90;
+const DAYS_IN_A_HALF_YEAR = 180;
+const DAYS_IN_A_YEAR = 360;
 const SENIOR_TRANCHE = 0;
 const JUNIOR_TRANCHE = 1;
 const DEFAULT_DECIMALS_FACTOR = BN.from(10).pow(18);
@@ -84,6 +94,10 @@ const BORROWER_FIRST_LOSS_COVER_INDEX = 0;
 const AFFILIATE_FIRST_LOSS_COVER_INDEX = 1;
 
 export const CONSTANTS = {
+    DAYS_IN_A_MONTH,
+    DAYS_IN_A_QUARTER,
+    DAYS_IN_A_HALF_YEAR,
+    DAYS_IN_A_YEAR,
     SENIOR_TRANCHE,
     JUNIOR_TRANCHE,
     DEFAULT_DECIMALS_FACTOR,

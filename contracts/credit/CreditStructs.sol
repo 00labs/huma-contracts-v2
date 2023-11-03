@@ -68,6 +68,12 @@ struct CreditLimit {
     uint96 availableCredit;
 }
 
+enum PayPeriodDuration {
+    Monthly,
+    Quarterly,
+    SemiAnnually
+}
+
 enum CreditState {
     Deleted,
     Requested,
