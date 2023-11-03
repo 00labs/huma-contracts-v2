@@ -8,6 +8,11 @@ import {PayPeriodDuration} from "./CreditStructs.sol";
 import {Errors} from "../Errors.sol";
 
 //* todo change periodDuration to an enum {Monthly, Quarterly, SemiAnnually}
+/**
+ * @notice We use the 30/360 day count convention in this implementation, which treats every month as having 30 days
+ * and every year as having 360 days, regardless of the actual number of days in a month/year. This is a common
+ * practice in corporate finance.
+ */
 contract Calendar is ICalendar {
     /// @inheritdoc ICalendar
     function getStartOfNextMonth() external view returns (uint256 startOfNextMonth) {
@@ -83,6 +88,32 @@ contract Calendar is ICalendar {
         uint256 numMonthsPassed = DTL.diffMonths(startOfPeriod, block.timestamp);
         daysPassed = numMonthsPassed * DAYS_IN_A_MONTH + day;
         return (daysPassed, _getTotalDaysInPeriod(periodDuration));
+    }
+
+    /// @inheritdoc ICalendar
+    function getDaysDiff(
+        uint256 startDate,
+        uint256 endDate
+    ) external pure returns (uint256 daysDiff) {
+        if (startDate > endDate) {
+            revert Errors.startDateLaterThanEndDate();
+        }
+
+        (, uint256 startMonth, uint256 startDay) = DTL.timestampToDate(startDate);
+        (, uint256 endMonth, uint256 endDay) = DTL.timestampToDate(endDate);
+        // TODO(jiatu): is this correct?
+        startDay = startDay > DAYS_IN_A_MONTH ? DAYS_IN_A_MONTH : startDay;
+        endDay = endDay > DAYS_IN_A_MONTH ? DAYS_IN_A_MONTH : endDay;
+        if (startMonth == endMonth) {
+            return endDay - startDay;
+        }
+
+        uint256 numMonthsPassed = DTL.diffMonths(startDate, endDate);
+        // The final result is given by the sum of the following three components:
+        // 1. The number of days between the start date and the end of the start month.
+        // 2. The number of days in whole months passed.
+        // 3. The number of days between the start of the end month and the end date.
+        return DAYS_IN_A_MONTH - startDay + (numMonthsPassed - 1) * DAYS_IN_A_MONTH + endDay;
     }
 
     /// @inheritdoc ICalendar
