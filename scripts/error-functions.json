@@ -49,7 +49,6 @@
   "creditLineNotInStateForMakingPayment()": "0xf023e48b",
   "creditLineNotInStateForDrawdown()": "0x4ff95a6d",
   "creditLineExceeded()": "0xef7d66ff",
-  "creditLineDoesNotExist()": "0x6f008b00",
   "creditLineAlreadyExists()": "0x6c5805f2",
   "creditLineGreatThanUpperLimit()": "0xd8c27d2f",
   "greaterThanMaxCreditLine()": "0x8a754ae8",
@@ -91,5 +90,6 @@
   "invalidCalendarUnit()": "0x353226f1",
   "zeroPayPeriods()": "0xd991f55d",
   "invalidPayPeriod()": "0x068dc5cb",
+  "startDateLaterThanEndDate()": "0x73838ce7",
   "todo()": "0xb47f18a1"
 }
