@@ -21,8 +21,6 @@
   "notNFTOwner()": "0x091a5762",
   "notProcessor()": "0x90409ca1",
   "notBorrower()": "0xb18f4d11",
-  "notTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManagerOrProfitEscrow()": "0xf8902ea6",
-  "notTrancheVaultOrEpochManagerOrPoolFeeManagerOrFirstLossCover()": "0x9c8c659b",
   "notCurrentEpoch()": "0x50c5dd13",
   "notCoverProvider()": "0xed74bd11",
   "notAuthorizedCaller()": "0x06bc68f5",
@@ -89,5 +87,6 @@
   "newReceiverSameToOrigin()": "0x6d79ce50",
   "invalidCalendarUnit()": "0x353226f1",
   "zeroPayPeriods()": "0xd991f55d",
+  "invalidPayPeriod()": "0x068dc5cb",
   "todo()": "0xb47f18a1"
 }
