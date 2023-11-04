@@ -333,7 +333,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
      * @notice drawdown helper function.
      * @param creditHash the credit hash
      * @param borrowAmount the amount to borrow
-     * @dev Access control and eligibility check is done outside of this function.
+     * @dev Access control is done outside of this function.
      */
     function _drawdown(
         address borrower,
@@ -356,7 +356,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
             cr.state = CreditState.GoodStanding;
         } else {
             // Disallow repeated drawdown for non-revolving credit
-            if (!cc.revolving) revert Errors.todo();
+            if (!cc.revolving) revert Errors.attemptedDrawdownForNonrevolvingLine();
 
             // Bring the credit current and check if it is still in good standing.
             if (block.timestamp > cr.nextDueDate) {
@@ -365,10 +365,8 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
                     revert Errors.creditLineNotInGoodStandingState();
             }
 
-            // Note: drawdown is not allowed in the final pay period since the payment due for
-            // such drawdown will fall outside of the window of the credit line.
-            // Note that since we bill at the beginning of a period, cr.remainingPeriods is zero
-            // in the final period.
+            // Note: drawdown is not allowed in the final pay period when remainingPeriods is 0
+            // since the payment due for such drawdown will fall outside of the window of the credit line.
             if (cr.remainingPeriods == 0) revert Errors.creditExpiredDueToMaturity();
 
             if (
@@ -788,11 +786,10 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         uint256 borrowAmount,
         uint256 creditLimit
     ) internal view {
-        if (!firstLossCover.isSufficient(borrower)) revert Errors.todo();
+        if (!firstLossCover.isSufficient(borrower))
+            revert Errors.insufficientBorrowerFirstLossCover();
 
-        if (cr.state != CreditState.GoodStanding && cr.state != CreditState.Approved)
-            revert Errors.creditLineNotInStateForDrawdown();
-        else if (cr.state == CreditState.Approved) {
+        if (cr.state == CreditState.Approved) {
             // After the credit approval, if the pool has credit expiration for the 1st drawdown,
             // the borrower must complete the first drawdown before the expiration date, which
             // is set in cr.nextDueDate in approveCredit().
@@ -802,6 +799,8 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
                 revert Errors.creditExpiredDueToFirstDrawdownTooLate();
 
             if (borrowAmount > creditLimit) revert Errors.creditLineExceeded();
+        } else if (cr.state != CreditState.GoodStanding) {
+            revert Errors.creditNotInStateForDrawdown();
         }
     }
 
