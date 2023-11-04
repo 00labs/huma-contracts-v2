@@ -230,6 +230,15 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
                     SECONDS_IN_A_DAY)));
     }
 
+    /**
+     * @notice Approves a credit indexed by creditHash
+     * @param borrower the borrower of the credit
+     * @param creditHash the credit hash of the credit
+     * @param creditLimit the credit limit
+     * @param remainingPeriods the number of periods until maturity
+     * @param yieldInBps yield of the credit measured in basis points
+     * @param revolving whether the credit is revolving or not
+     */
     function _approveCredit(
         address borrower,
         bytes32 creditHash,
@@ -240,11 +249,9 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         bool revolving
     ) internal virtual {
         if (borrower == address(0)) revert Errors.zeroAddressProvided();
-        // TODO if (creditHash == bytes32(0)) revert Errors.zeroAddressProvided(); ？
+        if (creditHash == bytes32(0)) revert Errors.zeroAddressProvided();
         if (creditLimit == 0) revert Errors.zeroAmountProvided();
         if (remainingPeriods == 0) revert Errors.zeroPayPeriods();
-        // TODO if (yieldInBps == 0) revert Errors.zeroAmountProvided(); ？
-        // TODO if (committedAmount == 0) revert Errors.zeroAmountProvided(); ？
         if (committedAmount > creditLimit) revert Errors.committedAmountGreaterThanCreditLimit();
 
         PoolSettings memory ps = poolConfig.getPoolSettings();
@@ -253,19 +260,21 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         }
 
         // Before a drawdown happens, it is allowed to re-approve a credit to change the terms.
-        // Once a drawdown has happened, it is disallowed to re-approve a credit. One has call
-        // other functions to change the terms of the credit.
+        // Once a drawdown has happened, it is disallowed to re-approve a credit. One has to call
+        // other admin functions to change the terms of the credit.
         CreditRecord memory cr = _getCreditRecord(creditHash);
-        if (cr.state >= CreditState.Approved) revert Errors.creditLineNotInStateForUpdate();
+        if (cr.state > CreditState.Approved) revert Errors.creditLineNotInStateForUpdate();
 
         CreditConfig memory cc = _getCreditConfig(creditHash);
-        cc.creditLimit = uint96(creditLimit);
+        cc.creditLimit = creditLimit;
         cc.committedAmount = committedAmount;
         cc.periodDuration = ps.payPeriodInMonths;
-        cc.numOfPeriods = uint16(remainingPeriods);
-        cc.yieldInBps = uint16(yieldInBps);
+        cc.numOfPeriods = remainingPeriods;
+        cc.yieldInBps = yieldInBps;
         cc.revolving = revolving;
         _setCreditConfig(creditHash, cc);
+
+        // todo decide if this event emission should be kept or not
         emit CreditConfigChanged(
             creditHash,
             cc.creditLimit,
@@ -282,15 +291,11 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         // Note: Special logic. dueDate is normally used to track the next bill due.
         // Before the first drawdown, it is also used to set the deadline for the first
         // drawdown to happen, otherwise, the credit line expires.
-        // TODO: is the compromise described below still applicable?
-        // Decided to use this field in this way to save one field for the struct.
-        // Although we have room in the struct after split struct creditRecord and
-        // struct CreditConfig, we keep it unchanged to leave room for the struct
-        // to expand in the future (note Solidity has limit on 13 fields in a struct)
-        if (ps.creditApprovalExpirationInDays > 0)
+        if (ps.creditApprovalExpirationInDays > 0) {
             cr.nextDueDate = uint64(
-                block.timestamp + ps.creditApprovalExpirationInDays * SECONDS_IN_A_DAY
+                calendar.getStartOfToday() + ps.creditApprovalExpirationInDays * SECONDS_IN_A_DAY
             );
+        }
         cr.remainingPeriods = remainingPeriods;
         cr.state = CreditState.Approved;
         _setCreditRecord(creditHash, cr);
