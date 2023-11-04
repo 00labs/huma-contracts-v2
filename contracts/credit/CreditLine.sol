@@ -14,52 +14,6 @@ import "hardhat/console.sol";
  * credit line as long as they stay under the approved credit limit.
  */
 contract CreditLine is BorrowerLevelCreditConfig, ICreditLine {
-    event CreditLineApproved(
-        address indexed borrower,
-        bytes32 indexed creditHash,
-        uint256 creditLimit,
-        uint16 periodDuration,
-        uint256 remainingPeriods,
-        uint256 yieldInBps,
-        uint256 committedAmount,
-        bool revolving
-    );
-
-    /// @inheritdoc ICreditLine
-    function approveBorrower(
-        address borrower,
-        uint96 creditLimit,
-        uint16 remainingPeriods,
-        uint16 yieldInBps,
-        uint96 committedAmount,
-        bool revolving
-    ) external virtual override {
-        poolConfig.onlyProtocolAndPoolOn();
-        _onlyEAServiceAccount();
-
-        bytes32 creditHash = getCreditHash(borrower);
-        _approveCredit(
-            borrower,
-            creditHash,
-            creditLimit,
-            remainingPeriods,
-            yieldInBps,
-            committedAmount,
-            revolving
-        );
-
-        emit CreditLineApproved(
-            borrower,
-            creditHash,
-            creditLimit,
-            _getCreditConfig(creditHash).periodDuration,
-            remainingPeriods,
-            yieldInBps,
-            committedAmount,
-            revolving
-        );
-    }
-
     /// @inheritdoc ICreditLine
     function drawdown(address borrower, uint256 borrowAmount) external virtual override {
         poolConfig.onlyProtocolAndPoolOn();
