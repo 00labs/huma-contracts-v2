@@ -365,10 +365,6 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
                     revert Errors.creditLineNotInGoodStandingState();
             }
 
-            // Note: drawdown is not allowed in the final pay period when remainingPeriods is 0
-            // since the payment due for such drawdown will fall outside of the window of the credit line.
-            if (cr.remainingPeriods == 0) revert Errors.creditExpiredDueToMaturity();
-
             if (
                 borrowAmount > (cc.creditLimit - cr.unbilledPrincipal - (cr.nextDue - cr.yieldDue))
             ) revert Errors.creditLineExceeded();
