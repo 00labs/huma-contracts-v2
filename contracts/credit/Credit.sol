@@ -194,18 +194,6 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         // emit CreditLineChanged(borrower, oldCreditLimit, newCreditLimit);
     }
 
-    function creditRecordMap(
-        bytes32 creditHash
-    ) public view virtual returns (CreditRecord memory) {
-        return _creditRecordMap[creditHash];
-    }
-
-    function creditConfigMap(
-        bytes32 creditHash
-    ) public view virtual returns (CreditConfig memory) {
-        return _creditConfigMap[creditHash];
-    }
-
     function isApproved(bytes32 creditHash) public view virtual returns (bool) {
         return ((_creditRecordMap[creditHash].state >= CreditState.Approved));
     }
