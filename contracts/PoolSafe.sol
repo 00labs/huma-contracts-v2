@@ -76,8 +76,4 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
             !poolConfig.isFirstLossCoverOrProfitEscrow(account)
         ) revert Errors.notAuthorizedCaller();
     }
-
-    function getPool() external view virtual override returns (IPool) {
-        return pool;
-    }
 }

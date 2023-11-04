@@ -39,6 +39,4 @@ interface IPoolSafe {
      * 2. withdraw by admins
      */
     function getAvailableLiquidityForFees() external view returns (uint256 liquidity);
-
-    function getPool() external view returns (IPool);
 }

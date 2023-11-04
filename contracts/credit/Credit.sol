@@ -394,7 +394,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
             borrowAmount
         );
 
-        poolSafe.getPool().distributeProfit(platformProfit);
+        IPool(poolConfig.pool()).distributeProfit(platformProfit);
 
         // Transfer funds to the borrower
         poolSafe.withdraw(borrower, netAmountToBorrower);
