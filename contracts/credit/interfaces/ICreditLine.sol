@@ -4,26 +4,6 @@ import {CreditRecord} from "../CreditStructs.sol";
 
 interface ICreditLine {
     /**
-     * @notice Approves the credit with the terms provided.
-     * @param borrower the borrower address
-     * @param creditLimit the credit limit of the credit line
-     * @param remainingPeriods the number of periods before the credit line expires
-     * @param yieldInBps expected yield expressed in basis points, 1% is 100, 100% is 10000
-     * @param committedAmount the credit that the borrower has committed to use. If the used credit
-     * is less than this amount, the borrower will charged yield using this amount.
-     * @param revolving indicates if the underlying credit line is revolving or not
-     * @dev only Evaluation Agent can call
-     */
-    function approveBorrower(
-        address borrower,
-        uint96 creditLimit,
-        uint16 remainingPeriods,
-        uint16 yieldInBps,
-        uint96 committedAmount,
-        bool revolving
-    ) external;
-
-    /**
      * @notice allows the borrower to borrow against an approved credit line.
      * @param borrower hash of the credit record
      * @param borrowAmount the amount to borrow

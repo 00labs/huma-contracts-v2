@@ -13,10 +13,56 @@ import {Errors} from "../Errors.sol";
  * at the borrower-level. A classic example of borrower-level credit is credit line.
  */
 abstract contract BorrowerLevelCreditConfig is Credit, IBorrowerLevelCreditConfig {
+    //* todo standardize whether to emit events at Credit contract or this contract.
+    //* todo standardize where to place access control, at Credit contract or this contract
+
     event LateFeeWaived(address borrower, uint256 amountWaived);
 
-    //* todo standardie whether to emit events at Credit contract or this contract.
-    //* todo standardie where to place access control, at Credit contract or this contract
+    event CreditLineApproved(
+        address indexed borrower,
+        bytes32 indexed creditHash,
+        uint256 creditLimit,
+        uint16 periodDuration,
+        uint256 remainingPeriods,
+        uint256 yieldInBps,
+        uint256 committedAmount,
+        bool revolving
+    );
+
+    /// @inheritdoc IBorrowerLevelCreditConfig
+    function approveBorrower(
+        address borrower,
+        uint96 creditLimit,
+        uint16 remainingPeriods,
+        uint16 yieldInBps,
+        uint96 committedAmount,
+        bool revolving
+    ) external virtual override {
+        poolConfig.onlyProtocolAndPoolOn();
+        _onlyEAServiceAccount();
+
+        bytes32 creditHash = getCreditHash(borrower);
+        _approveCredit(
+            borrower,
+            creditHash,
+            creditLimit,
+            remainingPeriods,
+            yieldInBps,
+            committedAmount,
+            revolving
+        );
+
+        emit CreditLineApproved(
+            borrower,
+            creditHash,
+            creditLimit,
+            _getCreditConfig(creditHash).periodDuration,
+            remainingPeriods,
+            yieldInBps,
+            committedAmount,
+            revolving
+        );
+    }
 
     /// @inheritdoc IBorrowerLevelCreditConfig
     function refreshCredit(address borrower) external virtual override {
