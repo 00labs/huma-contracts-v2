@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import {Errors} from "../Errors.sol";
 import {HumaConfig} from "../HumaConfig.sol";
 import {PoolConfig, PoolSettings} from "../PoolConfig.sol";
+import {IPool} from "../interfaces/IPool.sol";
 import {PoolConfigCache} from "../PoolConfigCache.sol";
 import {CreditStorage} from "./CreditStorage.sol";
 import {CreditConfig, CreditRecord, CreditLimit, CreditLoss, CreditState, DueDetail, CreditLoss} from "./CreditStructs.sol";
@@ -87,6 +88,9 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         address by,
         CreditLineClosureReason reasonCode
     );
+
+    event CreditPaused(bytes32 indexed creditHash);
+
     /**
      * @notice The expiration (maturity) date of a credit line has been extended.
      * @param creditHash the credit hash
@@ -418,7 +422,6 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
 
         CreditRecord memory cr = _updateDueInfo(creditHash);
         if (
-            // TODO: do we still need the requested state?
             cr.state == CreditState.Requested ||
             cr.state == CreditState.Approved ||
             cr.state == CreditState.Deleted
@@ -464,7 +467,6 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
             if (amount > 0) {
                 // Apply the remaining payment amount (if any) to next due.
                 if (amount < cr.nextDue) {
-                    uint256 principalDue = cr.nextDue - cr.yieldDue;
                     // Apply the payment to yield due first, then principal due.
                     yieldPaid = amount < cr.yieldDue ? amount : cr.yieldDue;
                     cr.yieldDue -= uint96(yieldPaid);
@@ -539,7 +541,6 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
 
         CreditRecord memory cr = getCreditRecord(creditHash);
         if (
-            // TODO: do we need the requested state?
             cr.state == CreditState.Requested ||
             cr.state == CreditState.Approved ||
             cr.state == CreditState.Deleted
@@ -559,7 +560,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         if (amount < principalDue) {
             cr.nextDue = uint96(cr.nextDue - amount);
         } else {
-            // Payoff the principal due, then apply the remainder of the payment to reduce unbilled principal.
+            // Pay all the principal due, then apply the remainder of the payment to reduce unbilled principal.
             cr.nextDue = uint96(cr.nextDue - principalDue);
             cr.unbilledPrincipal = uint96(cr.unbilledPrincipal - (amountToCollect - principalDue));
         }
@@ -595,6 +596,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
             cr.state = CreditState.Paused;
             _setCreditRecord(creditHash, cr);
         }
+        emit CreditPaused(creditHash);
     }
 
     /**
@@ -650,13 +652,9 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         DueDetail memory dd = getDueDetail(creditHash);
         if (cr.state == CreditState.Defaulted) revert Errors.defaultHasAlreadyBeenTriggered();
 
-        if (block.timestamp > cr.nextDueDate) {
-            cr = _updateDueInfo(creditHash);
-        }
+        cr = _updateDueInfo(creditHash);
 
-        // Check if grace period has been exceeded. Please note that it takes a full pay period
-        // before the account is considered to be late. The time passed should be one pay period
-        // plus the grace period.
+        // Check if grace period has been exceeded.
         if (!_isDefaultReady(cr)) revert Errors.defaultTriggeredTooEarly();
 
         // todo dd.pastDue could have principal in it, to get an accurate number, need to add a field to track it separately
@@ -670,7 +668,9 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         cl.feesLoss += uint96(feesLoss);
         _setCreditLoss(creditHash, cl);
 
-        //* todo call a new function of pool to distribute loss
+        IPool(poolConfig.pool()).distributeLoss(
+            uint256(cl.principalLoss + cl.yieldLoss + cl.feesLoss)
+        );
 
         _creditRecordMap[creditHash].state = CreditState.Defaulted;
         emit DefaultTriggered(creditHash, principalLoss, yieldLoss, feesLoss, msg.sender);
