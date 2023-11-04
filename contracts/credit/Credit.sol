@@ -23,7 +23,8 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
     enum CreditLineClosureReason {
         Paidoff,
         CreditLimitChangedToBeZero,
-        OverwrittenByNewLine
+        OverwrittenByNewLine,
+        AdminClosure
     }
 
     /// Account billing info refreshed with the updated due amount and date
@@ -305,13 +306,11 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
 
     /**
      * @notice Closes a credit record.
-     * @dev Only the borrower or EA Service account can call this function
+     * @dev The calling function is responsible for access control
      * @dev Revert if there is still balance due
      * @dev Revert if the committed amount is non-zero and there are periods remaining
      */
     function _closeCredit(bytes32 creditHash) internal virtual {
-        _onlyBorrowerOrEAServiceAccount(_creditBorrowerMap[creditHash]);
-
         CreditRecord memory cr = _getCreditRecord(creditHash);
         if (cr.nextDue != 0 || cr.totalPastDue != 0 || cr.unbilledPrincipal != 0) {
             revert Errors.creditLineHasOutstandingBalance();
@@ -328,8 +327,6 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
 
         cc.creditLimit = 0;
         _setCreditConfig(creditHash, cc);
-
-        //todo emit event
     }
 
     /**
