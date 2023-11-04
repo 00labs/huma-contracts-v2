@@ -215,15 +215,19 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
 
     /**
      * @notice checks if the credit line is behind in payments
-     * @dev When the account is in Approved state, there is no borrowing yet, thus being late
-     * does not apply. Thus the check on account state.
+     * @dev When the account is in Approved state, there is no borrowing yet, being late
+     * does not apply.
      * @dev After the bill is refreshed, the due date is updated, it is possible that the new due
      * date is in the future, but if the bill refresh has set missedPeriods, the account is late.
      */
     function isLate(bytes32 creditHash) public view virtual returns (bool lateFlag) {
         CreditRecord memory cr = _getCreditRecord(creditHash);
         return (cr.state > CreditState.Approved &&
-            (cr.missedPeriods > 0 || block.timestamp > cr.nextDueDate));
+            (cr.missedPeriods > 0 ||
+                block.timestamp >
+                (cr.nextDueDate +
+                    poolConfig.getPoolSettings().latePaymentGracePeriodInDays *
+                    SECONDS_IN_A_DAY)));
     }
 
     function _approveCredit(
