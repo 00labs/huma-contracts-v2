@@ -12,11 +12,6 @@ interface ICalendar {
     function getStartOfNextMonth() external view returns (uint256 startOfNextMonth);
 
     /**
-     * @notice Returns the beginning of the next quarter
-     */
-    function getStartOfNextQuarter() external view returns (uint256 startOfNextQuarter);
-
-    /**
      * @notice Returns the beginning of tomorrow as a timestamp.
      */
     function getStartOfTomorrow() external view returns (uint256 startOfTomorrow);
@@ -35,6 +30,8 @@ interface ICalendar {
      * @notice Returns the beginning of this half of the year. i.e. 1/1 or 7/1.
      */
     function getStartOfThisHalfYear() external view returns (uint256 startOfHalfYear);
+
+    function getStartOfNextQuarter() external view returns (uint256 nstartOfNextQuarterextDay);
 
     /**
      * @notice Returns the beginning of today

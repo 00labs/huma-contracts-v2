@@ -429,8 +429,6 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
             revert Errors.creditLineNotInStateForMakingPayment();
         }
 
-        CreditConfig memory cc = getCreditConfig(creditHash);
-
         uint256 payoffAmount = _feeManager.getPayoffAmount(cr);
         uint256 amountToCollect = amount < payoffAmount ? amount : payoffAmount;
         uint256 principalPaid = 0;
