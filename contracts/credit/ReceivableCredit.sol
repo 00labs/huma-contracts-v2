@@ -68,12 +68,12 @@ contract ReceivableCredit is Credit, IReceivableCredit {
 
     function getCreditConfig(uint256 receivableId) external view returns (CreditConfig memory) {
         bytes32 creditHash = getCreditHash(receivableId);
-        return _getCreditConfig(creditHash);
+        return getCreditConfig(creditHash);
     }
 
     function getCreditRecord(uint256 receivableId) external view returns (CreditRecord memory) {
         bytes32 creditHash = getCreditHash(receivableId);
-        return _getCreditRecord(creditHash);
+        return getCreditRecord(creditHash);
     }
 
     //* Reserved for Richard review, to be deleted

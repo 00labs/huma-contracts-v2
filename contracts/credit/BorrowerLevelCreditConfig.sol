@@ -56,7 +56,7 @@ abstract contract BorrowerLevelCreditConfig is Credit, IBorrowerLevelCreditConfi
             borrower,
             creditHash,
             creditLimit,
-            _getCreditConfig(creditHash).periodDuration,
+            getCreditConfig(creditHash).periodDuration,
             remainingPeriods,
             yieldInBps,
             committedAmount,

@@ -203,7 +203,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
      * @notice checks if the credit line is ready to be triggered as defaulted
      */
     function isDefaultReady(bytes32 creditHash) public view virtual returns (bool isDefault) {
-        return _isDefaultReady(_getCreditRecord(creditHash));
+        return _isDefaultReady(getCreditRecord(creditHash));
     }
 
     function _isDefaultReady(CreditRecord memory cr) internal view returns (bool isDefault) {
@@ -222,7 +222,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
      * date is in the future, but if the bill refresh has set missedPeriods, the account is late.
      */
     function isLate(bytes32 creditHash) public view virtual returns (bool lateFlag) {
-        CreditRecord memory cr = _getCreditRecord(creditHash);
+        CreditRecord memory cr = getCreditRecord(creditHash);
         return (cr.state > CreditState.Approved &&
             (cr.missedPeriods > 0 ||
                 block.timestamp >
@@ -263,10 +263,10 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         // Before a drawdown happens, it is allowed to re-approve a credit to change the terms.
         // Once a drawdown has happened, it is disallowed to re-approve a credit. One has to call
         // other admin functions to change the terms of the credit.
-        CreditRecord memory cr = _getCreditRecord(creditHash);
+        CreditRecord memory cr = getCreditRecord(creditHash);
         if (cr.state > CreditState.Approved) revert Errors.creditLineNotInStateForUpdate();
 
-        CreditConfig memory cc = _getCreditConfig(creditHash);
+        CreditConfig memory cc = getCreditConfig(creditHash);
         cc.creditLimit = creditLimit;
         cc.committedAmount = committedAmount;
         cc.periodDuration = ps.payPeriodInMonths;
@@ -311,12 +311,12 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
      * @dev Revert if the committed amount is non-zero and there are periods remaining
      */
     function _closeCredit(bytes32 creditHash) internal virtual {
-        CreditRecord memory cr = _getCreditRecord(creditHash);
+        CreditRecord memory cr = getCreditRecord(creditHash);
         if (cr.nextDue != 0 || cr.totalPastDue != 0 || cr.unbilledPrincipal != 0) {
             revert Errors.creditLineHasOutstandingBalance();
         }
 
-        CreditConfig memory cc = _getCreditConfig(creditHash);
+        CreditConfig memory cc = getCreditConfig(creditHash);
         if (cc.committedAmount > 0 && cr.remainingPeriods > 0)
             revert Errors.creditLineHasUnfulfilledCommitment();
 
@@ -340,8 +340,8 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         bytes32 creditHash,
         uint256 borrowAmount
     ) internal virtual {
-        CreditRecord memory cr = _getCreditRecord(creditHash);
-        CreditConfig memory cc = _getCreditConfig(creditHash);
+        CreditRecord memory cr = getCreditRecord(creditHash);
+        CreditConfig memory cc = getCreditConfig(creditHash);
         _checkDrawdownEligibility(borrower, cr, borrowAmount, cc.creditLimit);
 
         if (cr.state == CreditState.Approved) {
@@ -430,7 +430,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
             revert Errors.creditLineNotInStateForMakingPayment();
         }
 
-        CreditConfig memory cc = _getCreditConfig(creditHash);
+        CreditConfig memory cc = getCreditConfig(creditHash);
 
         uint256 payoffAmount = _feeManager.getPayoffAmount(cr);
         uint256 amountToCollect = amount < payoffAmount ? amount : payoffAmount;
@@ -441,7 +441,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         if (amount < payoffAmount) {
             // Apply the payment to past due first.
             if (cr.totalPastDue > 0) {
-                DueDetail memory dd = _getDueDetail(creditHash);
+                DueDetail memory dd = getDueDetail(creditHash);
                 if (amount > cr.totalPastDue) {
                     pastDuePaid = cr.totalPastDue;
                     amount -= cr.totalPastDue;
@@ -541,7 +541,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
     ) internal returns (uint256 amountPaid, bool paidoff) {
         if (amount == 0) revert Errors.zeroAmountProvided();
 
-        CreditRecord memory cr = _getCreditRecord(creditHash);
+        CreditRecord memory cr = getCreditRecord(creditHash);
         if (
             // TODO: do we need the requested state?
             cr.state == CreditState.Requested ||
@@ -594,7 +594,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
 
     function _pauseCredit(bytes32 creditHash) internal {
         _onlyEAServiceAccount();
-        CreditRecord memory cr = _getCreditRecord(creditHash);
+        CreditRecord memory cr = getCreditRecord(creditHash);
         if (cr.state == CreditState.GoodStanding) {
             cr.state = CreditState.Paused;
             _setCreditRecord(creditHash, cr);
@@ -650,8 +650,8 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         poolConfig.onlyProtocolAndPoolOn();
 
         // check to make sure the default grace period has passed.
-        CreditRecord memory cr = _getCreditRecord(creditHash);
-        DueDetail memory dd = _getDueDetail(creditHash);
+        CreditRecord memory cr = getCreditRecord(creditHash);
+        DueDetail memory dd = getDueDetail(creditHash);
         if (cr.state == CreditState.Defaulted) revert Errors.defaultHasAlreadyBeenTriggered();
 
         if (block.timestamp > cr.nextDueDate) {
@@ -682,7 +682,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
 
     function _unpauseCredit(bytes32 creditHash) internal virtual {
         _onlyEAServiceAccount();
-        CreditRecord memory cr = _getCreditRecord(creditHash);
+        CreditRecord memory cr = getCreditRecord(creditHash);
         if (cr.state == CreditState.Paused) {
             cr.state = CreditState.GoodStanding;
             _setCreditRecord(creditHash, cr);
@@ -698,7 +698,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
      * @param creditHash the hash of the credit
      */
     function _updateDueInfo(bytes32 creditHash) internal virtual returns (CreditRecord memory cr) {
-        cr = _getCreditRecord(creditHash);
+        cr = getCreditRecord(creditHash);
 
         // Do not update dueInfo for accounts already in default state
         if (cr.state == CreditState.Defaulted) return cr;
@@ -711,8 +711,8 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         // Get the up-to-date due information for the borrower. If the account has been
         // late or dormant for multiple cycles, getDueInfo() will bring it current and
         // return the most up-to-date due information.
-        CreditConfig memory cc = _getCreditConfig(creditHash);
-        DueDetail memory dd = _getDueDetail(creditHash);
+        CreditConfig memory cc = getCreditConfig(creditHash);
+        DueDetail memory dd = getDueDetail(creditHash);
 
         uint256 periodsPassed = 0;
         bool late;
@@ -746,9 +746,9 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
     }
 
     function _updateYield(bytes32 creditHash, uint256 yieldInBps) internal virtual {
-        CreditConfig memory cc = _getCreditConfig(creditHash);
-        CreditRecord memory cr = _getCreditRecord(creditHash);
-        DueDetail memory dd = _getDueDetail(creditHash);
+        CreditConfig memory cc = getCreditConfig(creditHash);
+        CreditRecord memory cr = getCreditRecord(creditHash);
+        DueDetail memory dd = getDueDetail(creditHash);
         (uint256 daysPassed, uint256 totalDays) = calendar.getDaysPassedInPeriod(
             cc.periodDuration
         );
@@ -810,17 +810,17 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
     }
 
     /// Shared accessor to the credit config mapping for contract size consideration
-    function _getCreditConfig(bytes32 creditHash) internal view returns (CreditConfig memory) {
+    function getCreditConfig(bytes32 creditHash) public view returns (CreditConfig memory) {
         return _creditConfigMap[creditHash];
     }
 
     /// Shared accessor to the credit record mapping for contract size consideration
-    function _getCreditRecord(bytes32 creditHash) internal view returns (CreditRecord memory) {
+    function getCreditRecord(bytes32 creditHash) public view returns (CreditRecord memory) {
         return _creditRecordMap[creditHash];
     }
 
     /// Shared accessor to DueDetail for contract size consideration
-    function _getDueDetail(bytes32 creditHash) internal view returns (DueDetail memory) {
+    function getDueDetail(bytes32 creditHash) public view returns (DueDetail memory) {
         return _dueDetailMap[creditHash];
     }
 
@@ -880,7 +880,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         // Although not essential to call _updateDueInfo() to extend the credit line duration,
         // it is still a good practice to bring the account current while we update one of the fields.
         _updateDueInfo(creditHash);
-        CreditRecord memory cr = _getCreditRecord(creditHash);
+        CreditRecord memory cr = getCreditRecord(creditHash);
         uint256 oldNumOfPeriods = cr.remainingPeriods;
         cr.remainingPeriods += uint16(newNumOfPeriods);
         _creditRecordMap[creditHash] = cr;
@@ -896,8 +896,8 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         bytes32 creditHash,
         uint256 amount
     ) internal returns (uint256 amountWaived) {
-        CreditRecord memory cr = _getCreditRecord(creditHash);
-        DueDetail memory dd = _getDueDetail(creditHash);
+        CreditRecord memory cr = getCreditRecord(creditHash);
+        DueDetail memory dd = getDueDetail(creditHash);
         amountWaived = amount > dd.lateFee ? dd.lateFee : amount;
         dd.lateFee -= uint96(amountWaived);
         cr.totalPastDue -= uint96(amountWaived);
@@ -917,9 +917,9 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         uint256 creditLimit,
         uint256 committedAmount
     ) internal {
-        CreditConfig memory cc = _getCreditConfig(creditHash);
-        CreditRecord memory cr = _getCreditRecord(creditHash);
-        DueDetail memory dd = _getDueDetail(creditHash);
+        CreditConfig memory cc = getCreditConfig(creditHash);
+        CreditRecord memory cr = getCreditRecord(creditHash);
+        DueDetail memory dd = getDueDetail(creditHash);
 
         cc.creditLimit = uint96(creditLimit);
         cc.committedAmount = uint96(committedAmount);
