@@ -77,12 +77,11 @@ enum PayPeriodDuration {
 enum CreditState {
     Deleted,
     Requested,
-    Paused,
     Approved,
-    // TODO(jiatu): check the reliance of ordering of enums
     GoodStanding,
     Delayed,
-    Defaulted
+    Defaulted,
+    Paused
 }
 
 enum ReceivableState {

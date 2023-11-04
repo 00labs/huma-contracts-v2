@@ -56,7 +56,7 @@ abstract contract BorrowerLevelCreditConfig is Credit, IBorrowerLevelCreditConfi
             borrower,
             creditHash,
             creditLimit,
-            _getCreditConfig(creditHash).periodDuration,
+            getCreditConfig(creditHash).periodDuration,
             remainingPeriods,
             yieldInBps,
             committedAmount,
@@ -84,9 +84,12 @@ abstract contract BorrowerLevelCreditConfig is Credit, IBorrowerLevelCreditConfi
     }
 
     /// @inheritdoc IBorrowerLevelCreditConfig
+    /// @dev Only the borrower or EA Service account can call this function
     function closeCredit(address borrower) external virtual override {
         bytes32 creditHash = getCreditHash(borrower);
+        _onlyBorrowerOrEAServiceAccount(_creditBorrowerMap[creditHash]);
         _closeCredit(creditHash);
+        emit CreditLineClosed(borrower, msg.sender, CreditLineClosureReason.AdminClosure);
     }
 
     /// @inheritdoc IBorrowerLevelCreditConfig

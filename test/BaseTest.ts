@@ -62,11 +62,11 @@ export enum PayPeriodDuration {
 export enum CreditState {
     Deleted,
     Requested,
-    Paused,
     Approved,
     GoodStanding,
     Delayed,
     Defaulted,
+    Paused,
 }
 
 export enum ReceivableState {
