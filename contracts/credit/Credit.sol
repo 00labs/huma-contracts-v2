@@ -170,40 +170,6 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
     );
 
     /**
-     * @notice changes the available credit for a credit line. This is an administrative overwrite.
-     * @param creditHash the owner of the credit line
-     * @param newAvailableCredit the new available credit
-     * @dev The credit line is marked as Deleted if 1) the new credit line is 0 AND
-     * 2) there is no due or unbilled principals.
-     * @dev only Evaluation Agent can call
-     */
-    function updateAvailableCredit(bytes32 creditHash, uint96 newAvailableCredit) public virtual {
-        poolConfig.onlyProtocolAndPoolOn();
-        _onlyEAServiceAccount();
-
-        if (newAvailableCredit > poolConfig.getPoolSettings().maxCreditLine) {
-            revert Errors.greaterThanMaxCreditLine();
-        }
-        if (newAvailableCredit > _creditConfigMap[creditHash].creditLimit) {
-            revert Errors.greaterThanMaxCreditLine();
-        }
-        CreditLimit memory limit = _creditLimitMap[creditHash];
-        limit.availableCredit = newAvailableCredit;
-        _creditLimitMap[creditHash] = limit;
-
-        // Delete the credit record if the new limit is 0 and no outstanding balance
-        if (newAvailableCredit == 0) {
-            CreditRecord memory cr = _getCreditRecord(creditHash);
-            if (cr.unbilledPrincipal == 0 && cr.nextDue == 0) {
-                cr.state == CreditState.Deleted;
-            }
-            _setCreditRecord(creditHash, cr);
-        }
-
-        // emit CreditLineChanged(borrower, oldCreditLimit, newCreditLimit);
-    }
-
-    /**
      * @notice changes borrower's credit limit
      * @param borrower the borrower address
      * @param newCreditLimit the new limit of the line in the unit of pool token
