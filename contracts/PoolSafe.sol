@@ -15,7 +15,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  */
 contract PoolSafe is PoolConfigCache, IPoolSafe {
     IERC20 public underlyingToken;
-    IPool public pool;
+    IPool internal pool;
     IPoolFeeManager public poolFeeManager;
 
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
@@ -75,5 +75,9 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
             account != poolConfig.poolFeeManager() &&
             !poolConfig.isFirstLossCoverOrProfitEscrow(account)
         ) revert Errors.notAuthorizedCaller();
+    }
+
+    function getPool() external view virtual override returns (IPool) {
+        return pool;
     }
 }
