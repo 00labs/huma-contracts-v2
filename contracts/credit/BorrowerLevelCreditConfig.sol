@@ -5,6 +5,7 @@ import {IBorrowerLevelCreditConfig} from "./interfaces/IBorrowerLevelCreditConfi
 import {Credit} from "./Credit.sol";
 import {CreditConfig, CreditRecord, DueDetail} from "./CreditStructs.sol";
 import {Errors} from "../Errors.sol";
+import {PayPeriodDuration} from "../SharedDefs.sol";
 
 /**
  * BorrowerLevelCreditConfig has a set of administrative functions to manage the settings
@@ -22,7 +23,7 @@ abstract contract BorrowerLevelCreditConfig is Credit, IBorrowerLevelCreditConfi
         address indexed borrower,
         bytes32 indexed creditHash,
         uint256 creditLimit,
-        uint16 periodDuration,
+        PayPeriodDuration periodDuration,
         uint256 remainingPeriods,
         uint256 yieldInBps,
         uint256 committedAmount,

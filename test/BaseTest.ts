@@ -417,9 +417,6 @@ export async function setupPoolContracts(
         .depositCover(poolLiquidityCap.mul(firstLossCoverageInBps).div(CONSTANTS.BP_FACTOR));
     await poolContract.connect(poolOwner).setReadyForFirstLossCoverWithdrawal(true);
 
-    // Set pool epoch window to 3 days for testing purposes
-    await poolConfigContract.connect(poolOwner).setPoolPayPeriod(3);
-
     await poolContract.connect(poolOwner).enablePool();
     const expectedInitialLiquidity = poolOwnerLiquidity.add(evaluationAgentLiquidity);
     expect(await poolContract.totalAssets()).to.equal(expectedInitialLiquidity);

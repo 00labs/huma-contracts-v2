@@ -14,7 +14,7 @@ import {IPoolSafe} from "../interfaces/IPoolSafe.sol";
 import {ICreditDueManager} from "./utils/interfaces/ICreditDueManager.sol";
 import {IERC20, IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import {BORROWER_FIRST_LOSS_COVER_INDEX, DAYS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS, SECONDS_IN_A_DAY} from "../SharedDefs.sol";
+import {BORROWER_FIRST_LOSS_COVER_INDEX, DAYS_IN_A_MONTH, DAYS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS, PayPeriodDuration, SECONDS_IN_A_DAY} from "../SharedDefs.sol";
 
 /**
  * Credit is the core borrowing concept in Huma Protocol. This abstract contract provides
@@ -46,7 +46,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         bytes32 indexed creditHash,
         uint256 creditLimit,
         uint256 committedAmount,
-        uint256 periodDuration,
+        PayPeriodDuration periodDuration,
         uint256 numOfPeriods,
         uint256 yieldInBps,
         bool revolving,
@@ -60,7 +60,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
      * @param borrower the address of the borrower
      * @param creditLimit the credit limit of the credit line
      * @param aprInBps interest rate (APR) expressed in basis points, 1% is 100, 100% is 10000
-     * @param payPeriodInDays the number of days in each pay cycle
+     * @param periodDuration the duration of each pay cycle
      * @param remainingPeriods how many cycles are there before the credit line expires
      * @param approved flag that shows if the credit line has been approved or not
      */
@@ -68,7 +68,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         address indexed borrower,
         uint256 creditLimit,
         uint256 aprInBps,
-        uint256 payPeriodInDays,
+        PayPeriodDuration periodDuration,
         uint256 remainingPeriods,
         bool approved
     );
@@ -214,8 +214,8 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         PoolSettings memory settings = poolConfig.getPoolSettings();
         return
             cr.missedPeriods > 1 &&
-            (cr.missedPeriods - 1) * settings.payPeriodInMonths >=
-            settings.defaultGracePeriodInMonths;
+            (cr.missedPeriods - 1) * calendar.getTotalDaysInPeriod(settings.payPeriodDuration) >=
+            settings.defaultGracePeriodInMonths * DAYS_IN_A_MONTH;
     }
 
     /**
@@ -273,7 +273,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         CreditConfig memory cc = getCreditConfig(creditHash);
         cc.creditLimit = creditLimit;
         cc.committedAmount = committedAmount;
-        cc.periodDuration = ps.payPeriodInMonths;
+        cc.periodDuration = ps.payPeriodDuration;
         cc.numOfPeriods = remainingPeriods;
         cc.yieldInBps = yieldInBps;
         cc.revolving = revolving;

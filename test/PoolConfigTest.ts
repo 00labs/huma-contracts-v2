@@ -26,7 +26,12 @@ import {
     FrontLoadingFeesStructureStruct,
     LPConfigStruct,
 } from "../typechain-types/contracts/PoolConfig.sol/PoolConfig";
-import { CONSTANTS, deployAndSetupPoolContracts, deployProtocolContracts } from "./BaseTest";
+import {
+    CONSTANTS,
+    PayPeriodDuration,
+    deployAndSetupPoolContracts,
+    deployProtocolContracts,
+} from "./BaseTest";
 import {
     getMinFirstLossCoverRequirement,
     getMinLiquidityRequirementForEA,
@@ -166,7 +171,7 @@ describe("PoolConfig Tests", function () {
                 ]);
 
             const poolSettings = await poolConfigContract.getPoolSettings();
-            expect(poolSettings.payPeriodInMonths).to.equal(1);
+            expect(poolSettings.payPeriodDuration).to.equal(PayPeriodDuration.Monthly);
             expect(poolSettings.receivableRequiredInBps).to.equal(10000);
             expect(poolSettings.advanceRateInBps).to.equal(8000);
             expect(poolSettings.latePaymentGracePeriodInDays).to.equal(5);
@@ -1181,40 +1186,42 @@ describe("PoolConfig Tests", function () {
         });
 
         describe("setPoolPayPeriod", function () {
-            let calendarUnit: number, numPayPeriods: number;
-
-            before(function () {
-                numPayPeriods = 1;
-            });
-
             it("Should allow the pool owner to set the pay period", async function () {
-                await expect(poolConfigContract.connect(poolOwner).setPoolPayPeriod(numPayPeriods))
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setPoolPayPeriod(PayPeriodDuration.Quarterly),
+                )
                     .to.emit(poolConfigContract, "PoolPayPeriodChanged")
-                    .withArgs(numPayPeriods, poolOwner.address);
+                    .withArgs(PayPeriodDuration.Quarterly, poolOwner.address);
                 const poolSettings = await poolConfigContract.getPoolSettings();
-                expect(poolSettings.payPeriodInMonths).to.equal(numPayPeriods);
+                expect(poolSettings.payPeriodDuration).to.equal(PayPeriodDuration.Quarterly);
             });
 
             it("Should allow the Huma master admin to set the pay period", async function () {
                 await expect(
-                    poolConfigContract.connect(protocolOwner).setPoolPayPeriod(numPayPeriods),
+                    poolConfigContract
+                        .connect(protocolOwner)
+                        .setPoolPayPeriod(PayPeriodDuration.Quarterly),
                 )
                     .to.emit(poolConfigContract, "PoolPayPeriodChanged")
-                    .withArgs(numPayPeriods, protocolOwner.address);
+                    .withArgs(PayPeriodDuration.Quarterly, protocolOwner.address);
                 const poolSettings = await poolConfigContract.getPoolSettings();
-                expect(poolSettings.payPeriodInMonths).to.equal(numPayPeriods);
+                expect(poolSettings.payPeriodDuration).to.equal(PayPeriodDuration.Quarterly);
             });
 
-            it("Should reject non-owner or admin to set the pool", async function () {
+            it("Should reject non-owner or admin to set the pay period", async function () {
                 await expect(
-                    poolConfigContract.connect(regularUser).setPoolPayPeriod(numPayPeriods),
+                    poolConfigContract
+                        .connect(regularUser)
+                        .setPoolPayPeriod(PayPeriodDuration.Quarterly),
                 ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
             });
 
-            it("Should reject zero pay periods", async function () {
+            it("Should reject invalid pay period durations", async function () {
                 await expect(
-                    poolConfigContract.connect(poolOwner).setPoolPayPeriod(ethers.constants.Zero),
-                ).to.be.revertedWithCustomError(poolConfigContract, "zeroAmountProvided");
+                    poolConfigContract.connect(poolOwner).setPoolPayPeriod(3),
+                ).to.be.revertedWithCustomError(poolConfigContract, "invalidPayPeriod");
             });
         });
 

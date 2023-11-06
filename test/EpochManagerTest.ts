@@ -3,6 +3,7 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { BigNumber as BN } from "ethers";
 import { ethers } from "hardhat";
+import moment from "moment";
 import {
     Calendar,
     CreditDueManager,
@@ -30,10 +31,8 @@ import {
 } from "./BaseTest";
 import {
     getFirstLossCoverInfo,
-    getNextDueDate,
     mineNextBlockWithTimestamp,
     overrideLPConfig,
-    setNextBlockTimestamp,
     sumBNArray,
     toToken,
 } from "./TestUtils";
@@ -191,20 +190,26 @@ describe("EpochManager Test", function () {
 
         // Starts a new epoch
         let lastEpoch = await epochManagerContract.currentEpoch();
-        let [endTime] = getNextDueDate(
-            0,
-            Math.ceil(Date.now() / 1000),
-            settings.payPeriodInMonths,
+        let endTime = await calendarContract.getNextDueDate(
+            settings.payPeriodDuration,
+            // TODO(jiatu): this is just a placeholder that's very distant in the future,
+            // we need to replace it with a real maturity date.
+            moment.utc().add(1, "year").unix(),
         );
         await expect(poolContract.connect(poolOwner).enablePool())
             .to.emit(epochManagerContract, "NewEpochStarted")
             .withArgs(lastEpoch.id.toNumber() + 1, endTime);
 
         // Goes forward one day and start a new epoch
-        let ts = endTime + 60 * 5;
+        let ts = endTime.add(60 * 5);
         await mineNextBlockWithTimestamp(ts);
         lastEpoch = await epochManagerContract.currentEpoch();
-        [endTime] = getNextDueDate(0, ts, settings.payPeriodInMonths);
+        endTime = await calendarContract.getNextDueDate(
+            settings.payPeriodDuration,
+            // TODO(jiatu): this is just a placeholder that's very distant in the future,
+            // we need to replace it with a real maturity date.
+            moment.utc().add(1, "year").unix(),
+        );
         await expect(poolContract.connect(poolOwner).enablePool())
             .to.emit(epochManagerContract, "NewEpochStarted")
             .withArgs(lastEpoch.id.toNumber() + 1, endTime);
@@ -271,11 +276,12 @@ describe("EpochManager Test", function () {
 
         const lastEpoch = await epochManagerContract.currentEpoch();
         const ts = lastEpoch.endTime.toNumber() + 60 * 5;
-        await setNextBlockTimestamp(ts);
-        const [endTime] = getNextDueDate(
-            lastEpoch.endTime.toNumber(),
-            ts,
-            settings.payPeriodInMonths,
+        await mineNextBlockWithTimestamp(ts);
+        const endTime = await calendarContract.getNextDueDate(
+            settings.payPeriodDuration,
+            // TODO(jiatu): this is just a placeholder that's very distant in the future,
+            // we need to replace it with a real maturity date.
+            moment.utc().add(1, "year").unix(),
         );
 
         const [[seniorAssets, juniorAssets]] = await getAssetsAfterProfitAndLoss(

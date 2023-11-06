@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
+import {PayPeriodDuration} from "../SharedDefs.sol";
+
 // CreditConfig keeps track of the static settings of a credit.
 // A CreditConfig is created after the approval of each credit.
 struct CreditConfig {
     uint96 creditLimit;
     uint96 committedAmount;
-    uint16 periodDuration;
+    PayPeriodDuration periodDuration;
     uint16 numOfPeriods; // number of periods
     // Yield in BPs, mean different things for different credit types.
     // For credit line, it is APR;
@@ -66,12 +68,6 @@ struct CreditLoss {
 struct CreditLimit {
     uint96 creditLimit;
     uint96 availableCredit;
-}
-
-enum PayPeriodDuration {
-    Monthly,
-    Quarterly,
-    SemiAnnually
 }
 
 enum CreditState {

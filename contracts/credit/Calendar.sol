@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {DAYS_IN_A_MONTH, DAYS_IN_A_QUARTER, DAYS_IN_A_HALF_YEAR} from "../SharedDefs.sol";
+import {DAYS_IN_A_MONTH, DAYS_IN_A_QUARTER, DAYS_IN_A_HALF_YEAR, PayPeriodDuration} from "../SharedDefs.sol";
 import {ICalendar} from "./interfaces/ICalendar.sol";
 import {BokkyPooBahsDateTimeLibrary as DTL} from "./utils/BokkyPooBahsDateTimeLibrary.sol";
-import {PayPeriodDuration} from "./CreditStructs.sol";
 import {Errors} from "../Errors.sol";
 
 //* todo change periodDuration to an enum {Monthly, Quarterly, SemiAnnually}
@@ -58,16 +57,6 @@ contract Calendar is ICalendar {
 
     /// @inheritdoc ICalendar
     function getDaysPassedInPeriod(
-        uint256 periodDuration
-    ) external view returns (uint256 daysPassed, uint256 totalDaysInPeriod) {
-        (, uint256 month, uint256 day) = DTL.timestampToDate(block.timestamp);
-        month = (month - 1) % periodDuration;
-        daysPassed = month * DAYS_IN_A_MONTH + day;
-        totalDaysInPeriod = periodDuration * DAYS_IN_A_MONTH;
-        return (daysPassed, totalDaysInPeriod);
-    }
-
-    function getDaysPassedInPeriod(
         PayPeriodDuration periodDuration
     ) external view returns (uint256 daysPassed, uint256 totalDaysInPeriod) {
         uint256 day = DTL.getDay(block.timestamp);
@@ -76,7 +65,7 @@ contract Calendar is ICalendar {
         uint256 startOfPeriod = _getStartDateOfPeriod(periodDuration, block.timestamp);
         uint256 numMonthsPassed = DTL.diffMonths(startOfPeriod, block.timestamp);
         daysPassed = numMonthsPassed * DAYS_IN_A_MONTH + day;
-        return (daysPassed, _getTotalDaysInPeriod(periodDuration));
+        return (daysPassed, getTotalDaysInPeriod(periodDuration));
     }
 
     /// @inheritdoc ICalendar
@@ -132,27 +121,6 @@ contract Calendar is ICalendar {
 
     /// @inheritdoc ICalendar
     function getNextDueDate(
-        uint256 periodDuration,
-        uint256 lastDueDate
-    ) external view returns (uint256 dueDate, uint256 numberOfPeriodsPassed) {
-        //* todo only need to support monthly, quarterly, and semi-annually. If the loan starts
-        // in the middle of a quarter, its next due is the beginning of the next quarter (Jan, Apr, Jul, or Oct)
-        // The final period will not be a full quarter. The due date will be the maturity date.
-        // Because of this logic, the API to get the next due date should be refined.
-
-        uint256 monthCount;
-        if (lastDueDate == 0) {
-            (uint256 year, uint256 month, ) = DTL.timestampToDate(block.timestamp);
-            lastDueDate = DTL.timestampFromDate(year, month, 1);
-            monthCount = 1;
-        } else {
-            numberOfPeriodsPassed = DTL.diffMonths(lastDueDate, block.timestamp) / periodDuration;
-        }
-        monthCount += (numberOfPeriodsPassed + 1) * periodDuration;
-        dueDate = DTL.addMonths(lastDueDate, monthCount);
-    }
-
-    function getNextDueDate(
         PayPeriodDuration periodDuration,
         uint256 maturityDate
     ) public view returns (uint256 nextDueDate) {
@@ -187,9 +155,23 @@ contract Calendar is ICalendar {
         // - For an end date of 6/2 with the same start date, `numPeriodsPassed` would be 4
         //   (second half of March, the entire April and May, and the partial period of June).
         return
-            getDaysDiff(dueDateAfterStartDate, endDate) /
-            _getTotalDaysInPeriod(periodDuration) +
-            2;
+            getDaysDiff(dueDateAfterStartDate, endDate) / getTotalDaysInPeriod(periodDuration) + 2;
+    }
+
+    /// @inheritdoc ICalendar
+    function getTotalDaysInPeriod(
+        PayPeriodDuration periodDuration
+    ) public pure returns (uint256 totalDaysInPeriod) {
+        if (periodDuration == PayPeriodDuration.Monthly) {
+            return DAYS_IN_A_MONTH;
+        }
+        if (periodDuration == PayPeriodDuration.Quarterly) {
+            return DAYS_IN_A_QUARTER;
+        }
+        if (periodDuration == PayPeriodDuration.SemiAnnually) {
+            return DAYS_IN_A_HALF_YEAR;
+        }
+        revert Errors.invalidPayPeriod();
     }
 
     // TODO(jiatu): not sure if the external `getStartDateOfPeriod` is useful. If it's useful, combine the two.
@@ -222,21 +204,6 @@ contract Calendar is ICalendar {
         }
         if (periodDuration == PayPeriodDuration.SemiAnnually) {
             return _getStartOfNextHalfYear(timestamp);
-        }
-        revert Errors.invalidPayPeriod();
-    }
-
-    function _getTotalDaysInPeriod(
-        PayPeriodDuration periodDuration
-    ) internal pure returns (uint256 totalDaysInPeriod) {
-        if (periodDuration == PayPeriodDuration.Monthly) {
-            return DAYS_IN_A_MONTH;
-        }
-        if (periodDuration == PayPeriodDuration.Quarterly) {
-            return DAYS_IN_A_QUARTER;
-        }
-        if (periodDuration == PayPeriodDuration.SemiAnnually) {
-            return DAYS_IN_A_HALF_YEAR;
         }
         revert Errors.invalidPayPeriod();
     }

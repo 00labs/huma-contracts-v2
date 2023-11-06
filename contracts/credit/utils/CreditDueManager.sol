@@ -111,8 +111,9 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         }
 
         // Update the due date.
-        uint256 newDueDate;
-        (newDueDate, periodsPassed) = calendar.getNextDueDate(_cc.periodDuration, _cr.nextDueDate);
+        // TODO(jiatu): use a real maturity date. Using a placeholder for now to limit the size
+        // of the change,
+        uint256 newDueDate = calendar.getNextDueDate(_cc.periodDuration, block.timestamp);
         newCR.nextDueDate = uint64(newDueDate);
 
         // Calculates past due and late fee
@@ -128,16 +129,20 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         (, , uint256 membershipFee) = poolConfig.getFees();
         uint256 principal = _cr.unbilledPrincipal + _cr.nextDue - _cr.yieldDue;
 
+        uint256 lastDueDate = _cr.nextDueDate == 0 ? block.timestamp : _cr.nextDueDate;
+        uint256 daysPassed = calendar.getDaysDiff(lastDueDate, newDueDate);
+        periodsPassed = calendar.getNumPeriodsPassed(_cc.periodDuration, lastDueDate, newDueDate);
+        uint256 totalDaysInPeriod = calendar.getTotalDaysInPeriod(_cc.periodDuration);
         // TODO(Richard): when multiple periods have passed, we need to account for all the yield
         // due in those periods. Currently we are only accounting for one period.
         newDD.accrued = uint96(
-            (principal * _cc.yieldInBps * _cc.periodDuration) /
-                (HUNDRED_PERCENT_IN_BPS * MONTHS_IN_A_YEAR) +
+            (principal * _cc.yieldInBps * totalDaysInPeriod) /
+                (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR) +
                 membershipFee
         );
         newDD.committed = uint96(
-            (_cc.committedAmount * _cc.yieldInBps * _cc.periodDuration) /
-                (HUNDRED_PERCENT_IN_BPS * MONTHS_IN_A_YEAR) +
+            (_cc.committedAmount * _cc.yieldInBps * totalDaysInPeriod) /
+                (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR) +
                 membershipFee
         );
         uint256 yieldDue = newDD.committed > newDD.accrued ? newDD.committed : newDD.accrued;
@@ -148,7 +153,8 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             // Note that if the principalRate is R, the remaining principal rate is (1 - R).
             // When multiple periods P passed, the remaining principal rate is (1 - R)^P.
             // The incremental principal due should be 1 - (1 - R)^P.
-            // TODO(jiatu): is this off-by-one?
+            // TODO(jiatu): should we redefine `principalRate` to be an annual rate in order to
+            // accommodate bills that start mid-period?
             principalDue =
                 ((HUNDRED_PERCENT_IN_BPS ** periodsPassed -
                     (HUNDRED_PERCENT_IN_BPS - principalRate) ** periodsPassed) * principal) /

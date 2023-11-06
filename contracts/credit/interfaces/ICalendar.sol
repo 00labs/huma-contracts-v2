@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {PayPeriodDuration} from "../CreditStructs.sol";
+import {PayPeriodDuration} from "../../SharedDefs.sol";
 
 /**
  * @notice ICalendar defines functions for date calculation.
@@ -49,7 +49,7 @@ interface ICalendar {
      * @notice Returns the number of days passed and the total numbers of days of the period
      */
     function getDaysPassedInPeriod(
-        uint256 periodDuration
+        PayPeriodDuration periodDuration
     ) external view returns (uint256 daysPassed, uint256 totalDaysInPeriod);
 
     /**
@@ -89,14 +89,20 @@ interface ICalendar {
     ) external view returns (uint256 dueDateInNextPeriod);
 
     /**
-     * @notice Returns the next due date and the number of periods passed.
-     * When lastDueDate is zero, always returns the due date after a full period from
-     * the current time. For example, for a monthly period, if the first drawdown
-     * happens on 7/27, the due date is 9/1 00:00:00.
+     * @notice Returns the next due date. If the current block timestamp is less than one full period
+     * away from the maturity date, or has surpassed the maturity date, then returns the maturity date
+     * as the next due date.
      * @dev Timezone: always UTC
      */
     function getNextDueDate(
-        uint256 periodDuration,
-        uint256 lastDueDate
-    ) external view returns (uint256 dueDate, uint256 numberOfPeriodsPassed);
+        PayPeriodDuration periodDuration,
+        uint256 maturityDate
+    ) external view returns (uint256 nextDueDate);
+
+    /**
+     * @notice Returns the total number of days in the given pay period type.
+     */
+    function getTotalDaysInPeriod(
+        PayPeriodDuration periodDuration
+    ) external pure returns (uint256 totalDaysInPeriod);
 }
