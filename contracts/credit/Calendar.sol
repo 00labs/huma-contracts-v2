@@ -241,13 +241,13 @@ contract Calendar is ICalendar {
         revert Errors.invalidPayPeriod();
     }
 
-    function _getStartOfMonth(uint256 timestamp) internal view returns (uint256 startOfMonth) {
+    function _getStartOfMonth(uint256 timestamp) internal pure returns (uint256 startOfMonth) {
         (uint256 year, uint256 month, ) = DTL.timestampToDate(timestamp);
         startOfMonth = DTL.timestampFromDate(year, month, 1);
         return startOfMonth;
     }
 
-    function _getStartOfQuarter(uint256 timestamp) internal view returns (uint256 startOfQuarter) {
+    function _getStartOfQuarter(uint256 timestamp) internal pure returns (uint256 startOfQuarter) {
         (uint256 year, uint256 month, ) = DTL.timestampToDate(timestamp);
         startOfQuarter = DTL.timestampFromDate(year, ((month - 1) / 3) * 3 + 1, 1);
         return startOfQuarter;
@@ -255,7 +255,7 @@ contract Calendar is ICalendar {
 
     function _getStartOfHalfYear(
         uint256 timestamp
-    ) internal view returns (uint256 startOfHalfYear) {
+    ) internal pure returns (uint256 startOfHalfYear) {
         (uint256 year, uint256 month, ) = DTL.timestampToDate(timestamp);
         startOfHalfYear = DTL.timestampFromDate(year, month <= 6 ? 1 : 7, 1);
         return startOfHalfYear;
@@ -263,7 +263,7 @@ contract Calendar is ICalendar {
 
     function _getStartOfNextMonth(
         uint256 timestamp
-    ) internal view returns (uint256 startOfNextMonth) {
+    ) internal pure returns (uint256 startOfNextMonth) {
         uint256 startOfMonth = _getStartOfMonth(timestamp);
         startOfNextMonth = DTL.addMonths(startOfMonth, 1);
         return startOfNextMonth;
@@ -271,7 +271,7 @@ contract Calendar is ICalendar {
 
     function _getStartOfNextQuarter(
         uint256 timestamp
-    ) internal view returns (uint256 startOfNextQuarter) {
+    ) internal pure returns (uint256 startOfNextQuarter) {
         (uint256 year, uint256 month, ) = DTL.timestampToDate(timestamp);
         uint256 quarter = (month - 1) / 3 + 1;
         if (quarter == 4) {
@@ -285,7 +285,7 @@ contract Calendar is ICalendar {
 
     function _getStartOfNextHalfYear(
         uint256 timestamp
-    ) internal view returns (uint256 startOfNextHalfYear) {
+    ) internal pure returns (uint256 startOfNextHalfYear) {
         (uint256 year, uint256 month, ) = DTL.timestampToDate(timestamp);
         startOfNextHalfYear = DTL.timestampFromDate(year, month > 6 ? 1 : 7, 1);
         return startOfNextHalfYear;
