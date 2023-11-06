@@ -1,7 +1,7 @@
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
-import { BigNumber as BN } from "ethers";
+import { BigNumber as BN, Signer } from "ethers";
 import { ethers } from "hardhat";
 import {
     Calendar,
@@ -2085,22 +2085,35 @@ describe("TrancheVault Test", function () {
 
     describe("Handle Interests Tests", function () {
         class Lender {
-            lender: SignerWithAddress;
+            lender: Signer;
             principal: BN;
+            shares: BN;
             interest: BN;
 
-            constructor(lender: SignerWithAddress) {
+            constructor(lender: Signer) {
                 this.lender = lender;
                 this.principal = BN.from(0);
                 this.interest = BN.from(0);
+                this.shares = BN.from(0);
             }
 
             addPrincipal(principal: BN) {
                 this.principal = this.principal.add(principal);
             }
 
-            setInterest(totalPricipal: BN, profit: BN) {
-                this.interest = this.principal.mul(profit).div(totalPricipal);
+            setShares(shares: BN) {
+                this.shares = shares;
+            }
+
+            setInterest(totalSupply: BN, totalAssets: BN) {
+                let assets = this.shares.mul(totalAssets).div(totalSupply);
+                this.interest = assets.sub(this.principal);
+            }
+
+            async syncPrincipal(trancheVaultContract: TrancheVault) {
+                this.principal = (
+                    await trancheVaultContract.userInfos(this.lender.getAddress())
+                )[0];
             }
         }
 
@@ -2110,33 +2123,34 @@ describe("TrancheVault Test", function () {
             return BN.from(Math.ceil(Math.random() * max));
         }
 
-        async function prepareForInterestTests(
-            lenderAddrs: SignerWithAddress[],
-        ): Promise<Lender[]> {
+        async function prepareForInterestTests(lenderAddrs: Signer[]): Promise<Lender[]> {
             totalJuniorPrincipal = BN.from(0);
 
             let lenders: Lender[] = [];
 
             for (let i = 0; i < lenderAddrs.length; i++) {
                 let lender = new Lender(lenderAddrs[i]);
-                let rand = getRandomInt(lenderAddrs.length);
-                let amount = toToken(100_000).mul(rand);
+                // let rand = getRandomInt(lenderAddrs.length);
+                let amount = toToken(100_000).mul(BN.from(2));
                 await juniorTrancheVaultContract
                     .connect(lender.lender)
-                    .deposit(amount, lender.lender.address);
+                    .deposit(amount, lender.lender.getAddress());
                 totalJuniorPrincipal = totalJuniorPrincipal.add(amount);
                 lender.addPrincipal(amount);
+                lender.setShares(
+                    await juniorTrancheVaultContract.balanceOf(lender.lender.getAddress()),
+                );
+                lenders.push(lender);
                 amount = toToken(10_000).mul(getRandomInt(lenderAddrs.length));
                 await seniorTrancheVaultContract
                     .connect(lender.lender)
-                    .deposit(amount, lender.lender.address);
-                lenders.push(lender);
+                    .deposit(amount, lender.lender.getAddress());
             }
 
             return lenders;
         }
 
-        it.skip("Should payout interests", async function () {
+        it("Should payout interests", async function () {
             await juniorTrancheVaultContract
                 .connect(poolOperator)
                 .addApprovedLender(lender.address, false);
@@ -2147,50 +2161,231 @@ describe("TrancheVault Test", function () {
             let lenders = await prepareForInterestTests([lender, lender2]);
 
             // Introduce profit
-            let profit = toToken(10_000);
-            console.log(`total supply: ${await juniorTrancheVaultContract.totalSupply()}`);
+            let totalAssets = await juniorTrancheVaultContract.totalAssets();
+            let profit = totalAssets.mul(BN.from(50));
             await creditContract.mockDistributePnL(profit, BN.from(0), BN.from(0));
-            lenders[0].setInterest(totalJuniorPrincipal, profit);
-            lenders[1].setInterest(totalJuniorPrincipal, profit);
+            let totalSupply = await juniorTrancheVaultContract.totalSupply();
+            totalAssets = await juniorTrancheVaultContract.totalAssets();
+            lenders[0].setInterest(totalSupply, totalAssets);
+            lenders[1].setInterest(totalSupply, totalAssets);
 
-            console.log(
-                `lender principal: ${lenders[0].principal}, lender interest: ${lenders[0].interest}`,
+            // Pay out interests
+            let lenderAssets = await mockTokenContract.balanceOf(lender.address);
+            let lender2Assets = await mockTokenContract.balanceOf(lender2.address);
+            await expect(
+                juniorTrancheVaultContract.payoutInterestForLenders([
+                    lender.address,
+                    lender2.address,
+                ]),
+            ).to.emit(juniorTrancheVaultContract, "InterestPaidout");
+            expect(await mockTokenContract.balanceOf(lender.address)).to.equal(
+                lenderAssets.add(lenders[0].interest),
             );
-            console.log(
-                `lender principal: ${
-                    (await juniorTrancheVaultContract.userInfos(lenders[0].lender.address))
-                        .principal
-                }, lender asssets: ${await juniorTrancheVaultContract.totalAssetsOf(
-                    lenders[0].lender.address,
-                )}`,
+            expect(await mockTokenContract.balanceOf(lender2.address)).to.equal(
+                lender2Assets.add(lenders[1].interest),
             );
-            console.log(
-                `lender2 principal: ${lenders[1].principal}, lender2 interest: ${lenders[1].interest}`,
+            expect(await juniorTrancheVaultContract.totalAssetsOf(lender.address)).to.be.closeTo(
+                lenders[0].principal,
+                1,
             );
-            console.log(
-                `lender2 principal: ${
-                    (await juniorTrancheVaultContract.userInfos(lenders[1].lender.address))
-                        .principal
-                }, lender2 asssets: ${await juniorTrancheVaultContract.totalAssetsOf(
-                    lenders[1].lender.address,
-                )}`,
+            expect(await juniorTrancheVaultContract.totalAssetsOf(lender2.address)).to.be.closeTo(
+                lenders[1].principal,
+                1,
             );
-
-            // // Pay out interests
-            // let lenderAssets = await mockTokenContract.balanceOf(lenders[0].lender.address);
-            // await expect(
-            //     juniorTrancheVaultContract.payoutInterestForLenders([
-            //         lender.address,
-            //         lender2.address,
-            //     ]),
-            // ).to.emit(juniorTrancheVaultContract, "InterestPaidout");
-            // expect(await mockTokenContract.balanceOf(lenders[0].lender.address)).to.equal(
-            //     lenderAssets.add(lenders[0].interest),
-            // );
+            expect(
+                await poolSafeContract.accumulatedInterests(juniorTrancheVaultContract.address),
+            ).to.equal(0);
         });
 
-        it("Should reinvest interests", async function () {});
+        it("Should reinvest interests", async function () {
+            let lenders = await prepareForInterestTests([lender, lender2]);
 
-        it("Should payout interests and reinvest interests", async function () {});
+            // Introduce profit
+            let totalAssets = await juniorTrancheVaultContract.totalAssets();
+            let profit = totalAssets.mul(BN.from(50));
+            await creditContract.mockDistributePnL(profit, BN.from(0), BN.from(0));
+
+            // Pay out interests
+            let lenderAssets = await mockTokenContract.balanceOf(lender.address);
+            let lender2Assets = await mockTokenContract.balanceOf(lender2.address);
+            await expect(
+                juniorTrancheVaultContract.payoutInterestForLenders([
+                    lender.address,
+                    lender2.address,
+                ]),
+            ).to.emit(juniorTrancheVaultContract, "InterestReinvested");
+            expect(await mockTokenContract.balanceOf(lender.address)).to.equal(lenderAssets);
+            expect(await mockTokenContract.balanceOf(lender2.address)).to.equal(lender2Assets);
+            await lenders[0].syncPrincipal(juniorTrancheVaultContract);
+            await lenders[1].syncPrincipal(juniorTrancheVaultContract);
+            expect(await juniorTrancheVaultContract.totalAssetsOf(lender.address)).to.be.closeTo(
+                lenders[0].principal,
+                1,
+            );
+            expect(await juniorTrancheVaultContract.totalAssetsOf(lender2.address)).to.be.closeTo(
+                lenders[1].principal,
+                1,
+            );
+            expect(
+                await poolSafeContract.accumulatedInterests(juniorTrancheVaultContract.address),
+            ).to.equal(0);
+        });
+
+        it("Should payout interests and reinvest interests", async function () {
+            await juniorTrancheVaultContract
+                .connect(poolOperator)
+                .addApprovedLender(lender.address, false);
+            await juniorTrancheVaultContract
+                .connect(poolOperator)
+                .addApprovedLender(lender2.address, false);
+
+            let lenders = await prepareForInterestTests([lender, lender2, lender3, lender4]);
+
+            // Introduce profit
+            let totalAssets = await juniorTrancheVaultContract.totalAssets();
+            let profit = totalAssets.mul(BN.from(50));
+            await creditContract.mockDistributePnL(profit, BN.from(0), BN.from(0));
+            let totalSupply = await juniorTrancheVaultContract.totalSupply();
+            totalAssets = await juniorTrancheVaultContract.totalAssets();
+            lenders[0].setInterest(totalSupply, totalAssets);
+            lenders[1].setInterest(totalSupply, totalAssets);
+
+            // Pay out interests
+            let lenderAssets = await mockTokenContract.balanceOf(lender.address);
+            let lender2Assets = await mockTokenContract.balanceOf(lender2.address);
+            let lender3Assets = await mockTokenContract.balanceOf(lender3.address);
+            let lender4Assets = await mockTokenContract.balanceOf(lender4.address);
+            await expect(
+                juniorTrancheVaultContract.payoutInterestForLenders([
+                    lender.address,
+                    lender2.address,
+                    lender3.address,
+                    lender4.address,
+                ]),
+            )
+                .to.emit(juniorTrancheVaultContract, "InterestPaidout")
+                .to.emit(juniorTrancheVaultContract, "InterestReinvested");
+
+            expect(await mockTokenContract.balanceOf(lender.address)).to.equal(
+                lenderAssets.add(lenders[0].interest),
+            );
+            expect(await mockTokenContract.balanceOf(lender2.address)).to.equal(
+                lender2Assets.add(lenders[1].interest),
+            );
+            expect(await juniorTrancheVaultContract.totalAssetsOf(lender.address)).to.be.closeTo(
+                lenders[0].principal,
+                1,
+            );
+            expect(await juniorTrancheVaultContract.totalAssetsOf(lender2.address)).to.be.closeTo(
+                lenders[1].principal,
+                1,
+            );
+
+            await lenders[2].syncPrincipal(juniorTrancheVaultContract);
+            await lenders[3].syncPrincipal(juniorTrancheVaultContract);
+
+            expect(await mockTokenContract.balanceOf(lender3.address)).to.equal(lender3Assets);
+            expect(await mockTokenContract.balanceOf(lender4.address)).to.equal(lender4Assets);
+            expect(await juniorTrancheVaultContract.totalAssetsOf(lender3.address)).to.be.closeTo(
+                lenders[2].principal,
+                1,
+            );
+            expect(await juniorTrancheVaultContract.totalAssetsOf(lender4.address)).to.be.closeTo(
+                lenders[3].principal,
+                1,
+            );
+
+            expect(
+                await poolSafeContract.accumulatedInterests(juniorTrancheVaultContract.address),
+            ).to.equal(0);
+        });
+
+        it("Should do nothing when there is loss", async function () {
+            await juniorTrancheVaultContract
+                .connect(poolOperator)
+                .addApprovedLender(lender.address, false);
+            await juniorTrancheVaultContract
+                .connect(poolOperator)
+                .addApprovedLender(lender2.address, false);
+
+            let lenders = await prepareForInterestTests([lender, lender2, lender3, lender4]);
+
+            // Introduce loss
+            let loss = toToken(10_000);
+            await creditContract.mockDistributePnL(BN.from(0), loss, BN.from(0));
+
+            // Pay out interests
+            let lenderAssets = await mockTokenContract.balanceOf(lender.address);
+            let lender2Assets = await mockTokenContract.balanceOf(lender2.address);
+            let lender3Assets = await mockTokenContract.balanceOf(lender3.address);
+            let lender4Assets = await mockTokenContract.balanceOf(lender4.address);
+
+            await juniorTrancheVaultContract.payoutInterestForLenders([
+                lender.address,
+                lender2.address,
+                lender3.address,
+                lender4.address,
+            ]);
+
+            expect(await mockTokenContract.balanceOf(lender.address)).to.equal(lenderAssets);
+            expect(await mockTokenContract.balanceOf(lender2.address)).to.equal(lender2Assets);
+            expect(await mockTokenContract.balanceOf(lender3.address)).to.equal(lender3Assets);
+            expect(await mockTokenContract.balanceOf(lender4.address)).to.equal(lender4Assets);
+            expect((await juniorTrancheVaultContract.userInfos(lender.address))[0]).to.equal(
+                lenders[0].principal,
+            );
+            expect((await juniorTrancheVaultContract.userInfos(lender2.address))[0]).to.equal(
+                lenders[1].principal,
+            );
+            expect((await juniorTrancheVaultContract.userInfos(lender3.address))[0]).to.equal(
+                lenders[2].principal,
+            );
+            expect((await juniorTrancheVaultContract.userInfos(lender4.address))[0]).to.equal(
+                lenders[3].principal,
+            );
+
+            expect(
+                await poolSafeContract.accumulatedInterests(juniorTrancheVaultContract.address),
+            ).to.equal(0);
+        });
+
+        it.skip("Performance testing", async function () {
+            let lenders: Signer[] = [];
+            let addresses: string[] = [];
+
+            for (let i = 0; i < 50; i++) {
+                let lender = ethers.Wallet.createRandom();
+                lender = lender.connect(ethers.provider);
+                await defaultDeployer.sendTransaction({
+                    to: lender.address,
+                    value: ethers.utils.parseEther("1"),
+                });
+                await juniorTrancheVaultContract
+                    .connect(poolOperator)
+                    .addApprovedLender(lender.address, false);
+                await seniorTrancheVaultContract
+                    .connect(poolOperator)
+                    .addApprovedLender(lender.address, false);
+                await mockTokenContract
+                    .connect(lender)
+                    .approve(poolSafeContract.address, ethers.constants.MaxUint256);
+                await mockTokenContract.mint(lender.getAddress(), toToken(1_000_000_000));
+
+                lenders.push(lender);
+                addresses.push(lender.address);
+            }
+
+            await prepareForInterestTests(lenders);
+
+            // Introduce profit
+            let totalAssets = await juniorTrancheVaultContract.totalAssets();
+            let profit = totalAssets.mul(BN.from(30));
+            await creditContract.mockDistributePnL(profit, BN.from(0), BN.from(0));
+
+            await expect(juniorTrancheVaultContract.payoutInterestForLenders(addresses)).to.emit(
+                juniorTrancheVaultContract,
+                "InterestPaidout",
+            );
+        });
     });
 });

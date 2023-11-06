@@ -13,8 +13,6 @@ import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {IERC20MetadataUpgradeable, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 
-import "hardhat/console.sol";
-
 contract TrancheVault is
     AccessControlUpgradeable,
     ERC20Upgradeable,
@@ -42,6 +40,8 @@ contract TrancheVault is
     event RedemptionRequestRemoved(address indexed account, uint256 shareAmount, uint256 epochId);
 
     event InterestPaidout(address indexed account, uint256 interest, uint256 shares);
+
+    event InterestReinvested(address indexed account, uint256 interest);
 
     constructor() {
         // _disableInitializers();
@@ -333,26 +333,30 @@ contract TrancheVault is
         uint256 price = convertToAssets(DEFAULT_DECIMALS_FACTOR);
         uint256 len = lenders.length;
         uint256 minPayoutAmount = MIN_PAYOUT_AMOUNT * (10 ** decimals());
-        console.log("minPayoutAmount: %s", minPayoutAmount);
+        uint96[2] memory tranchesAssets = pool.currentTranchesAssets();
         for (uint256 i; i < len && i < MAX_NUMBER_FOR_PAYOUT_BATCH; i++) {
             address lender = lenders[i];
             uint256 shares = ERC20Upgradeable.balanceOf(lender);
             uint256 assets = (shares * price) / DEFAULT_DECIMALS_FACTOR;
             UserInfo memory userInfo = userInfos[lender];
-            if (!userInfo.reinvestInterest && assets > userInfo.principal) {
+            if (assets > userInfo.principal) {
                 uint256 interest = assets - userInfo.principal;
-                console.log("interest: %s, minPayoutAmount: %s", interest, minPayoutAmount);
-                // TODO change this to a configuration parameter?
-                if (interest > minPayoutAmount) {
+                if (userInfo.reinvestInterest) {
+                    userInfo.principal += uint96(interest);
+                    userInfos[lender] = userInfo;
+                    emit InterestReinvested(lender, interest);
+                } else if (interest > minPayoutAmount) {
                     // TODO rounding up?
                     shares = (interest * DEFAULT_DECIMALS_FACTOR) / price;
                     ERC20Upgradeable._burn(lender, shares);
                     poolSafe.withdraw(lender, interest);
+                    tranchesAssets[trancheIndex] -= uint96(interest);
                     emit InterestPaidout(lender, interest, shares);
                 }
             }
         }
         poolSafe.resetAccumulatedInterest(address(this));
+        pool.updateTranchesAssets(tranchesAssets);
     }
 
     /**
