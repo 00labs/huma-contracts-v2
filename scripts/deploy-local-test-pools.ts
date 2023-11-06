@@ -3,9 +3,8 @@ import { ethers, network } from "hardhat";
 import { deployAndSetupPoolContracts, deployProtocolContracts } from "../test/BaseTest";
 import { getMinFirstLossCoverRequirement, toToken } from "../test/TestUtils";
 import {
-    BaseCreditFeeManager,
-    BasePnLManager,
     Calendar,
+    CreditDueManager,
     CreditLine,
     EpochManager,
     EvaluationAgentNFT,
@@ -57,8 +56,7 @@ let poolConfigContract: PoolConfig,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: CreditLine,
-    creditFeeManagerContract: BaseCreditFeeManager,
-    creditPnlManagerContract: BasePnLManager;
+    creditDueManagerContract: CreditDueManager;
 
 async function depositFirstLossCover(
     poolContract: Pool,
@@ -133,6 +131,7 @@ async function main() {
         seniorTrancheVaultContract,
         juniorTrancheVaultContract,
         creditContract as unknown,
+        creditDueManagerContract,
     ] = await deployAndSetupPoolContracts(
         humaConfigContract,
         mockTokenContract,
@@ -173,7 +172,11 @@ async function main() {
 
     console.log("=====================================");
     console.log("Addresses:");
-    console.log(`Default pool:  ${poolContract.address}`);
+    console.log(`Default pool:    ${poolContract.address}`);
+    console.log(`Junior tranche:  ${juniorTrancheVaultContract.address}`);
+    console.log(`Senior tranche:  ${seniorTrancheVaultContract.address}`);
+    console.log(`Pool safe:       ${poolSafeContract.address}`);
+    console.log(`Test token:      ${mockTokenContract.address}`);
 }
 
 main().catch((error) => {
