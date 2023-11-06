@@ -1268,13 +1268,13 @@ describe("TrancheVault Test", function () {
             describe("When there is PnL", function () {
                 it("Should allow lenders to request redemption and cancel redemption request when there is profit", async function () {
                     // Introduce profit
-                    const profit = toToken(10_000);
+                    let profit = toToken(10_000);
                     await creditContract.mockDistributePnL(profit, BN.from(0), BN.from(0));
 
                     // lender adds redemption request
-                    const shares = toToken(10_000);
+                    let shares = toToken(10_000);
                     let principal = await juniorTrancheVaultContract.convertToAssets(shares);
-                    const currentEpochId = await epochManagerContract.currentEpochId();
+                    let currentEpochId = await epochManagerContract.currentEpochId();
                     let balance = await juniorTrancheVaultContract.balanceOf(lender.address);
                     let allPrincipal = (await juniorTrancheVaultContract.userInfos(lender.address))
                         .principal;
@@ -1301,13 +1301,256 @@ describe("TrancheVault Test", function () {
                             lender.address,
                         ),
                     ).to.equal(shares);
+                    let sharesRequested = shares;
+                    let principalRequested = principal;
 
-                    let epochId = await juniorTrancheVaultContract.epochIds(0);
-                    expect(epochId).to.equal(currentEpochId);
-                    await epochChecker.checkJuniorEpochInfoById(epochId, shares);
+                    // Introduce profit again
+                    profit = toToken(20_000);
+                    await creditContract.mockDistributePnL(profit, BN.from(0), BN.from(0));
+
+                    // lender adds redemption request again
+
+                    shares = toToken(13_000);
+                    principal = await juniorTrancheVaultContract.convertToAssets(shares);
+                    balance = await juniorTrancheVaultContract.balanceOf(lender.address);
+                    allPrincipal = (await juniorTrancheVaultContract.userInfos(lender.address))
+                        .principal;
+                    await expect(
+                        juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares),
+                    )
+                        .to.emit(juniorTrancheVaultContract, "RedemptionRequestAdded")
+                        .withArgs(lender.address, shares, currentEpochId);
+                    expect(await juniorTrancheVaultContract.balanceOf(lender.address)).to.equal(
+                        balance.sub(shares),
+                    );
+                    expect(
+                        (await juniorTrancheVaultContract.userInfos(lender.address)).principal,
+                    ).to.equal(allPrincipal.sub(principal));
+                    await checkRedemptionInfoByLender(
+                        juniorTrancheVaultContract,
+                        lender,
+                        0,
+                        sharesRequested.add(shares),
+                        principalRequested.add(principal),
+                    );
+                    expect(
+                        await juniorTrancheVaultContract.cancellableRedemptionShares(
+                            lender.address,
+                        ),
+                    ).to.equal(sharesRequested.add(shares));
+                    sharesRequested = sharesRequested.add(shares);
+                    principalRequested = principalRequested.add(principal);
+
+                    // Introduce profit again
+                    profit = toToken(3000);
+                    await creditContract.mockDistributePnL(profit, BN.from(0), BN.from(0));
+
+                    // Close current epoch while processing partially
+                    let currentEpoch = await epochManagerContract.currentEpoch();
+                    await mineNextBlockWithTimestamp(
+                        currentEpoch.endTime.add(BN.from(60 * 5)).toNumber(),
+                    );
+                    let amountProcessed = toToken(7000);
+                    let sharesProcessed =
+                        await juniorTrancheVaultContract.convertToShares(amountProcessed);
+                    const availableAssets = await poolSafeContract.getPoolLiquidity();
+                    await creditContract.drawdown(
+                        ethers.constants.HashZero,
+                        availableAssets.sub(amountProcessed),
+                    );
+                    await epochManagerContract.closeEpoch();
+                    currentEpochId = await epochManagerContract.currentEpochId();
+                    principalRequested = principalRequested
+                        .mul(sharesRequested.sub(sharesProcessed))
+                        .div(sharesRequested);
+                    sharesRequested = sharesRequested.sub(sharesProcessed);
+
+                    // Introduce profit again
+                    profit = toToken(7000);
+                    await creditContract.mockDistributePnL(profit, BN.from(0), BN.from(0));
+
+                    // lender cancels redemption request
+                    shares = toToken(10_000);
+                    principal = principalRequested.mul(shares).div(sharesRequested);
+                    balance = await juniorTrancheVaultContract.balanceOf(lender.address);
+                    allPrincipal = (await juniorTrancheVaultContract.userInfos(lender.address))
+                        .principal;
+                    await expect(
+                        juniorTrancheVaultContract.connect(lender).cancelRedemptionRequest(shares),
+                    )
+                        .to.emit(juniorTrancheVaultContract, "RedemptionRequestRemoved")
+                        .withArgs(lender.address, shares, currentEpochId);
+                    expect(await juniorTrancheVaultContract.balanceOf(lender.address)).to.equal(
+                        balance.add(shares),
+                    );
+                    expect(
+                        (await juniorTrancheVaultContract.userInfos(lender.address)).principal,
+                    ).to.equal(allPrincipal.add(principal));
+                    await checkRedemptionInfoByLender(
+                        juniorTrancheVaultContract,
+                        lender,
+                        1,
+                        sharesRequested.sub(shares),
+                        principalRequested.sub(principal),
+                        amountProcessed,
+                        BN.from(0),
+                        1,
+                    );
+                    expect(
+                        await juniorTrancheVaultContract.cancellableRedemptionShares(
+                            lender.address,
+                        ),
+                    ).to.equal(sharesRequested.sub(shares));
                 });
 
-                it("Should allow lenders to request redemption and cancel redemption request when there is loss", async function () {});
+                it("Should allow lenders to request redemption and cancel redemption request when there is loss", async function () {
+                    // Introduce profit
+                    let profit = toToken(7_000);
+                    await creditContract.mockDistributePnL(profit, BN.from(0), BN.from(0));
+
+                    // lender adds redemption request
+                    let shares = toToken(9_000);
+                    let principal = await juniorTrancheVaultContract.convertToAssets(shares);
+                    let currentEpochId = await epochManagerContract.currentEpochId();
+                    let balance = await juniorTrancheVaultContract.balanceOf(lender.address);
+                    let allPrincipal = (await juniorTrancheVaultContract.userInfos(lender.address))
+                        .principal;
+                    await expect(
+                        juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares),
+                    )
+                        .to.emit(juniorTrancheVaultContract, "RedemptionRequestAdded")
+                        .withArgs(lender.address, shares, currentEpochId);
+                    expect(await juniorTrancheVaultContract.balanceOf(lender.address)).to.equal(
+                        balance.sub(shares),
+                    );
+                    expect(
+                        (await juniorTrancheVaultContract.userInfos(lender.address)).principal,
+                    ).to.equal(allPrincipal.sub(principal));
+                    await checkRedemptionInfoByLender(
+                        juniorTrancheVaultContract,
+                        lender,
+                        0,
+                        shares,
+                        principal,
+                    );
+                    expect(
+                        await juniorTrancheVaultContract.cancellableRedemptionShares(
+                            lender.address,
+                        ),
+                    ).to.equal(shares);
+                    let sharesRequested = shares;
+                    let principalRequested = principal;
+
+                    // Introduce profit again
+                    profit = toToken(10000);
+                    await creditContract.mockDistributePnL(profit, BN.from(0), BN.from(0));
+
+                    // Close current epoch while processing partially
+                    let currentEpoch = await epochManagerContract.currentEpoch();
+                    await mineNextBlockWithTimestamp(
+                        currentEpoch.endTime.add(BN.from(60 * 5)).toNumber(),
+                    );
+                    let amountProcessed = toToken(6000);
+                    let sharesProcessed =
+                        await juniorTrancheVaultContract.convertToShares(amountProcessed);
+                    const availableAssets = await poolSafeContract.getPoolLiquidity();
+                    await creditContract.drawdown(
+                        ethers.constants.HashZero,
+                        availableAssets.sub(amountProcessed),
+                    );
+                    await epochManagerContract.closeEpoch();
+                    currentEpochId = await epochManagerContract.currentEpochId();
+                    principalRequested = principalRequested
+                        .mul(sharesRequested.sub(sharesProcessed))
+                        .div(sharesRequested);
+                    sharesRequested = sharesRequested.sub(sharesProcessed);
+
+                    // console.log(
+                    //     `borrowerFirstLossCoverContract.getFirstLossCoverConfig: ${await poolConfigContract.getFirstLossCoverConfig(
+                    //         borrowerFirstLossCoverContract.address,
+                    //     )}`,
+                    // );
+                    // console.log(
+                    //     `affiliateFirstLossCoverContract.getFirstLossCoverConfig: ${await poolConfigContract.getFirstLossCoverConfig(
+                    //         affiliateFirstLossCoverContract.address,
+                    //     )}`,
+                    // );
+
+                    // Introduce loss
+                    let loss = toToken(37_000);
+                    await creditContract.mockDistributePnL(BN.from(0), loss, BN.from(0));
+
+                    // lender adds redemption request
+                    shares = toToken(11_000);
+                    principal = await juniorTrancheVaultContract.convertToAssets(shares);
+                    currentEpochId = await epochManagerContract.currentEpochId();
+                    balance = await juniorTrancheVaultContract.balanceOf(lender.address);
+                    allPrincipal = (await juniorTrancheVaultContract.userInfos(lender.address))
+                        .principal;
+                    await expect(
+                        juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares),
+                    )
+                        .to.emit(juniorTrancheVaultContract, "RedemptionRequestAdded")
+                        .withArgs(lender.address, shares, currentEpochId);
+                    expect(await juniorTrancheVaultContract.balanceOf(lender.address)).to.equal(
+                        balance.sub(shares),
+                    );
+                    expect(
+                        (await juniorTrancheVaultContract.userInfos(lender.address)).principal,
+                    ).to.equal(allPrincipal.sub(principal));
+                    await checkRedemptionInfoByLender(
+                        juniorTrancheVaultContract,
+                        lender,
+                        1,
+                        sharesRequested.add(shares),
+                        principalRequested.add(principal),
+                        amountProcessed,
+                    );
+                    expect(
+                        await juniorTrancheVaultContract.cancellableRedemptionShares(
+                            lender.address,
+                        ),
+                    ).to.equal(sharesRequested.add(shares));
+                    sharesRequested = sharesRequested.add(shares);
+                    principalRequested = principalRequested.add(principal);
+
+                    // Introduce loss again
+                    loss = toToken(10_000);
+                    await creditContract.mockDistributePnL(BN.from(0), loss, BN.from(0));
+
+                    // lender cancels redemption request
+                    shares = toToken(10_000);
+                    principal = principalRequested.mul(shares).div(sharesRequested);
+                    balance = await juniorTrancheVaultContract.balanceOf(lender.address);
+                    allPrincipal = (await juniorTrancheVaultContract.userInfos(lender.address))
+                        .principal;
+                    await expect(
+                        juniorTrancheVaultContract.connect(lender).cancelRedemptionRequest(shares),
+                    )
+                        .to.emit(juniorTrancheVaultContract, "RedemptionRequestRemoved")
+                        .withArgs(lender.address, shares, currentEpochId);
+                    expect(await juniorTrancheVaultContract.balanceOf(lender.address)).to.equal(
+                        balance.add(shares),
+                    );
+                    expect(
+                        (await juniorTrancheVaultContract.userInfos(lender.address)).principal,
+                    ).to.equal(allPrincipal.add(principal));
+                    await checkRedemptionInfoByLender(
+                        juniorTrancheVaultContract,
+                        lender,
+                        1,
+                        sharesRequested.sub(shares),
+                        principalRequested.sub(principal),
+                        amountProcessed,
+                        BN.from(0),
+                        1,
+                    );
+                    expect(
+                        await juniorTrancheVaultContract.cancellableRedemptionShares(
+                            lender.address,
+                        ),
+                    ).to.equal(sharesRequested.sub(shares));
+                });
             });
         });
 
@@ -1618,9 +1861,143 @@ describe("TrancheVault Test", function () {
             });
 
             describe("When there is PnL", function () {
-                it("Should disbuse when there is profit", async function () {});
+                it("Should disbuse when there is profit", async function () {
+                    // Introduce profit
+                    let profit = toToken(10_000);
+                    await creditContract.mockDistributePnL(profit, BN.from(0), BN.from(0));
 
-                it("Should disbuse when there is loss", async function () {});
+                    // lender adds redemption request
+                    let shares = toToken(10_000);
+                    let principal = await juniorTrancheVaultContract.convertToAssets(shares);
+                    let currentEpochId = await epochManagerContract.currentEpochId();
+                    await expect(
+                        juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares),
+                    )
+                        .to.emit(juniorTrancheVaultContract, "RedemptionRequestAdded")
+                        .withArgs(lender.address, shares, currentEpochId);
+                    let sharesRequested = shares;
+                    let principalRequested = principal;
+
+                    // Introduce loss
+                    let loss = toToken(17_000);
+                    // console.log(
+                    //     `price: ${await juniorTrancheVaultContract.convertToAssets(toToken(1))}`,
+                    // );
+                    await creditContract.mockDistributePnL(BN.from(0), loss, BN.from(0));
+                    // console.log(
+                    //     `price: ${await juniorTrancheVaultContract.convertToAssets(toToken(1))}`,
+                    // );
+
+                    // Close current epoch while processing partially
+                    let currentEpoch = await epochManagerContract.currentEpoch();
+                    await mineNextBlockWithTimestamp(
+                        currentEpoch.endTime.add(BN.from(60 * 5)).toNumber(),
+                    );
+                    let amountProcessed = toToken(3000);
+                    let sharesProcessed =
+                        await juniorTrancheVaultContract.convertToShares(amountProcessed);
+                    const availableAssets = await poolSafeContract.getPoolLiquidity();
+                    await creditContract.drawdown(
+                        ethers.constants.HashZero,
+                        availableAssets.sub(amountProcessed),
+                    );
+                    await epochManagerContract.closeEpoch();
+                    currentEpochId = await epochManagerContract.currentEpochId();
+                    principalRequested = principalRequested
+                        .mul(sharesRequested.sub(sharesProcessed))
+                        .div(sharesRequested);
+                    sharesRequested = sharesRequested.sub(sharesProcessed);
+
+                    // Introduce profit
+                    profit = toToken(30_000);
+                    await creditContract.mockDistributePnL(profit, BN.from(0), BN.from(0));
+
+                    // Lender disbures processed redemption
+                    let balance = await mockTokenContract.balanceOf(lender.address);
+                    await expect(
+                        juniorTrancheVaultContract.connect(lender).disburse(lender.address),
+                    )
+                        .to.emit(juniorTrancheVaultContract, "LenderFundDisbursed")
+                        .withArgs(lender.address, lender.address, amountProcessed);
+                    expect(await mockTokenContract.balanceOf(lender.address)).to.equal(
+                        balance.add(amountProcessed),
+                    );
+                    await checkRedemptionInfoByLender(
+                        juniorTrancheVaultContract,
+                        lender,
+                        1,
+                        sharesRequested,
+                        principalRequested,
+                        amountProcessed,
+                        amountProcessed,
+                    );
+                });
+
+                it("Should disbuse when there is loss", async function () {
+                    // Introduce loss
+                    let loss = toToken(17_000);
+                    await creditContract.mockDistributePnL(BN.from(0), loss, BN.from(0));
+
+                    // lender adds redemption request
+                    let shares = toToken(10_000);
+                    let principal = await juniorTrancheVaultContract.convertToAssets(shares);
+                    let currentEpochId = await epochManagerContract.currentEpochId();
+                    await expect(
+                        juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares),
+                    )
+                        .to.emit(juniorTrancheVaultContract, "RedemptionRequestAdded")
+                        .withArgs(lender.address, shares, currentEpochId);
+                    let sharesRequested = shares;
+                    let principalRequested = principal;
+
+                    // Introduce loss again
+                    loss = toToken(23_000);
+                    await creditContract.mockDistributePnL(BN.from(0), loss, BN.from(0));
+
+                    // Close current epoch while processing partially
+                    let currentEpoch = await epochManagerContract.currentEpoch();
+                    await mineNextBlockWithTimestamp(
+                        currentEpoch.endTime.add(BN.from(60 * 5)).toNumber(),
+                    );
+                    let amountProcessed = toToken(5000);
+                    let sharesProcessed =
+                        await juniorTrancheVaultContract.convertToShares(amountProcessed);
+                    const availableAssets = await poolSafeContract.getPoolLiquidity();
+                    await creditContract.drawdown(
+                        ethers.constants.HashZero,
+                        availableAssets.sub(amountProcessed),
+                    );
+                    await epochManagerContract.closeEpoch();
+                    currentEpochId = await epochManagerContract.currentEpochId();
+                    principalRequested = principalRequested
+                        .mul(sharesRequested.sub(sharesProcessed))
+                        .div(sharesRequested);
+                    sharesRequested = sharesRequested.sub(sharesProcessed);
+
+                    // Introduce profit
+                    let profit = toToken(10_000);
+                    await creditContract.mockDistributePnL(profit, BN.from(0), BN.from(0));
+
+                    // Lender disbures processed redemption
+                    let balance = await mockTokenContract.balanceOf(lender.address);
+                    await expect(
+                        juniorTrancheVaultContract.connect(lender).disburse(lender.address),
+                    )
+                        .to.emit(juniorTrancheVaultContract, "LenderFundDisbursed")
+                        .withArgs(lender.address, lender.address, amountProcessed);
+                    expect(await mockTokenContract.balanceOf(lender.address)).to.equal(
+                        balance.add(amountProcessed),
+                    );
+                    await checkRedemptionInfoByLender(
+                        juniorTrancheVaultContract,
+                        lender,
+                        1,
+                        sharesRequested,
+                        principalRequested,
+                        amountProcessed,
+                        amountProcessed,
+                    );
+                });
             });
         });
 
@@ -1707,7 +2084,110 @@ describe("TrancheVault Test", function () {
     });
 
     describe("Handle Interests Tests", function () {
-        it("Should payout interests", async function () {});
+        class Lender {
+            lender: SignerWithAddress;
+            principal: BN;
+            interest: BN;
+
+            constructor(lender: SignerWithAddress) {
+                this.lender = lender;
+                this.principal = BN.from(0);
+                this.interest = BN.from(0);
+            }
+
+            addPrincipal(principal: BN) {
+                this.principal = this.principal.add(principal);
+            }
+
+            setInterest(totalPricipal: BN, profit: BN) {
+                this.interest = this.principal.mul(profit).div(totalPricipal);
+            }
+        }
+
+        let totalJuniorPrincipal: BN;
+
+        function getRandomInt(max: number): BN {
+            return BN.from(Math.ceil(Math.random() * max));
+        }
+
+        async function prepareForInterestTests(
+            lenderAddrs: SignerWithAddress[],
+        ): Promise<Lender[]> {
+            totalJuniorPrincipal = BN.from(0);
+
+            let lenders: Lender[] = [];
+
+            for (let i = 0; i < lenderAddrs.length; i++) {
+                let lender = new Lender(lenderAddrs[i]);
+                let rand = getRandomInt(lenderAddrs.length);
+                let amount = toToken(100_000).mul(rand);
+                await juniorTrancheVaultContract
+                    .connect(lender.lender)
+                    .deposit(amount, lender.lender.address);
+                totalJuniorPrincipal = totalJuniorPrincipal.add(amount);
+                lender.addPrincipal(amount);
+                amount = toToken(10_000).mul(getRandomInt(lenderAddrs.length));
+                await seniorTrancheVaultContract
+                    .connect(lender.lender)
+                    .deposit(amount, lender.lender.address);
+                lenders.push(lender);
+            }
+
+            return lenders;
+        }
+
+        it.skip("Should payout interests", async function () {
+            await juniorTrancheVaultContract
+                .connect(poolOperator)
+                .addApprovedLender(lender.address, false);
+            await juniorTrancheVaultContract
+                .connect(poolOperator)
+                .addApprovedLender(lender2.address, false);
+
+            let lenders = await prepareForInterestTests([lender, lender2]);
+
+            // Introduce profit
+            let profit = toToken(10_000);
+            console.log(`total supply: ${await juniorTrancheVaultContract.totalSupply()}`);
+            await creditContract.mockDistributePnL(profit, BN.from(0), BN.from(0));
+            lenders[0].setInterest(totalJuniorPrincipal, profit);
+            lenders[1].setInterest(totalJuniorPrincipal, profit);
+
+            console.log(
+                `lender principal: ${lenders[0].principal}, lender interest: ${lenders[0].interest}`,
+            );
+            console.log(
+                `lender principal: ${
+                    (await juniorTrancheVaultContract.userInfos(lenders[0].lender.address))
+                        .principal
+                }, lender asssets: ${await juniorTrancheVaultContract.totalAssetsOf(
+                    lenders[0].lender.address,
+                )}`,
+            );
+            console.log(
+                `lender2 principal: ${lenders[1].principal}, lender2 interest: ${lenders[1].interest}`,
+            );
+            console.log(
+                `lender2 principal: ${
+                    (await juniorTrancheVaultContract.userInfos(lenders[1].lender.address))
+                        .principal
+                }, lender2 asssets: ${await juniorTrancheVaultContract.totalAssetsOf(
+                    lenders[1].lender.address,
+                )}`,
+            );
+
+            // // Pay out interests
+            // let lenderAssets = await mockTokenContract.balanceOf(lenders[0].lender.address);
+            // await expect(
+            //     juniorTrancheVaultContract.payoutInterestForLenders([
+            //         lender.address,
+            //         lender2.address,
+            //     ]),
+            // ).to.emit(juniorTrancheVaultContract, "InterestPaidout");
+            // expect(await mockTokenContract.balanceOf(lenders[0].lender.address)).to.equal(
+            //     lenderAssets.add(lenders[0].interest),
+            // );
+        });
 
         it("Should reinvest interests", async function () {});
 
