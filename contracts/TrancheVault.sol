@@ -334,6 +334,7 @@ contract TrancheVault is
         uint256 len = lenders.length;
         uint256 minPayoutAmount = MIN_PAYOUT_AMOUNT * (10 ** decimals());
         uint96[2] memory tranchesAssets = pool.currentTranchesAssets();
+        uint256 processed;
         for (uint256 i; i < len && i < MAX_NUMBER_FOR_PAYOUT_BATCH; i++) {
             address lender = lenders[i];
             uint256 shares = ERC20Upgradeable.balanceOf(lender);
@@ -344,6 +345,7 @@ contract TrancheVault is
                 if (userInfo.reinvestInterest) {
                     userInfo.principal += uint96(interest);
                     userInfos[lender] = userInfo;
+                    processed += interest;
                     emit InterestReinvested(lender, interest);
                 } else if (interest > minPayoutAmount) {
                     // TODO rounding up?
@@ -351,11 +353,12 @@ contract TrancheVault is
                     ERC20Upgradeable._burn(lender, shares);
                     poolSafe.withdraw(lender, interest);
                     tranchesAssets[trancheIndex] -= uint96(interest);
+                    processed += interest;
                     emit InterestPaidout(lender, interest, shares);
                 }
             }
         }
-        poolSafe.resetAccumulatedInterest(address(this));
+        poolSafe.removeProcessedProfit(processed);
         pool.updateTranchesAssets(tranchesAssets);
     }
 

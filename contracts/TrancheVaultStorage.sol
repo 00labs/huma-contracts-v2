@@ -45,7 +45,7 @@ contract TrancheVaultStorage {
 
     mapping(address => RedemptionInfo) public redemptionInfoByLender;
 
-    // This mapping contrains the amount of underlying tokens deposited by lenders
+    // This mapping contains the amount of underlying tokens deposited by lenders
     mapping(address => UserInfo) public userInfos;
 
     /**

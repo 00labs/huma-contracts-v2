@@ -39,13 +39,14 @@ interface IPoolSafe {
     function getAvailableLiquidityForFees() external view returns (uint256 liquidity);
 
     /**
-     * @notice Pool calls this function to reserve the balance of interests. An autotask will pay the reserved interests to
-     * the lenders who want to receive tokens or reinvest in the pool for the lenders who want to reinvest.
+     * @notice Pool calls this function to reserve the unprocessed profit for junior/senior tranches.
+     * An autotask will handle it later to distribute the profit to the lenders who want to receive tokens
+     * or reinvest in the pool for the lenders who want to reinvest.
      */
-    function accumulateInterest(address tranche, uint256 interest) external;
+    function addUnprocessedProfit(address tranche, uint256 interest) external;
 
     /**
-     * @notice Senior/Junior tranches call this function to reset the accumulated interests to 0 after autotasks run.
+     * @notice Senior/Junior tranches call this function to removed processed profit after autotasks run.
      */
-    function resetAccumulatedInterest(address tranche) external;
+    function removeProcessedProfit(uint256 interest) external;
 }

@@ -19,7 +19,9 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
     IPool public pool;
     IPoolFeeManager public poolFeeManager;
 
-    mapping(address => uint256) public accumulatedInterests;
+    // This mapping contains the unprocessed profit for junior tranche and senior tranche.
+    // The key is junior/senior tranche address, the value is the unprocessed profit.
+    mapping(address => uint256) public unprocessedTrancheProfit;
 
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = _poolConfig.underlyingToken();
@@ -50,17 +52,17 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
         underlyingToken.transfer(to, amount);
     }
 
-    function accumulateInterest(address tranche, uint256 interest) external {
+    function addUnprocessedProfit(address tranche, uint256 profit) external {
         if (msg.sender != address(pool)) revert Errors.notAuthorizedCaller();
         if (tranche != poolConfig.seniorTranche() && tranche != poolConfig.juniorTranche())
             revert Errors.todo();
-        accumulatedInterests[tranche] += interest;
+        unprocessedTrancheProfit[tranche] += profit;
     }
 
-    function resetAccumulatedInterest(address tranche) external {
+    function removeProcessedProfit(uint256 profit) external {
         if (msg.sender != poolConfig.seniorTranche() && msg.sender != poolConfig.juniorTranche())
             revert Errors.notAuthorizedCaller();
-        accumulatedInterests[tranche] = 0;
+        unprocessedTrancheProfit[msg.sender] -= profit;
     }
 
     /// @inheritdoc IPoolSafe
@@ -68,8 +70,8 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
         uint256 reserved = pool.getReservedAssetsForFirstLossCovers();
         reserved += poolFeeManager.getTotalAvailableFees();
         reserved +=
-            accumulatedInterests[poolConfig.seniorTranche()] +
-            accumulatedInterests[poolConfig.juniorTranche()];
+            unprocessedTrancheProfit[poolConfig.seniorTranche()] +
+            unprocessedTrancheProfit[poolConfig.juniorTranche()];
         uint256 balance = underlyingToken.balanceOf(address(this));
         liquidity = balance > reserved ? balance - reserved : 0;
     }
