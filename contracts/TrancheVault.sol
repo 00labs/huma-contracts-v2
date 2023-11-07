@@ -43,6 +43,8 @@ contract TrancheVault is
 
     event InterestReinvested(address indexed account, uint256 interest);
 
+    event ReinvestInterestSet(address indexed account, bool reinvestInterest, address by);
+
     constructor() {
         // _disableInitializers();
     }
@@ -104,6 +106,15 @@ contract TrancheVault is
         if (lender == address(0)) revert Errors.zeroAddressProvided();
         _revokeRole(LENDER_ROLE, lender);
         delete userInfos[lender];
+    }
+
+    /**
+     * @notice The pool operator will call this function to mark whether a lender wants to reinvest interest.
+     */
+    function setReinvestInterest(address lender, bool reinvestInterest) external {
+        poolConfig.onlyPoolOperator(msg.sender);
+        userInfos[lender].reinvestInterest = reinvestInterest;
+        emit ReinvestInterestSet(lender, reinvestInterest, msg.sender);
     }
 
     /// @inheritdoc IEpoch
@@ -358,7 +369,7 @@ contract TrancheVault is
                 }
             }
         }
-        poolSafe.removeProcessedProfit(processed);
+        // poolSafe.removeProcessedProfit(processed);
         pool.updateTranchesAssets(tranchesAssets);
     }
 

@@ -411,6 +411,13 @@ export async function setupPoolContracts(
     await poolConfigContract.connect(poolOwner).grantRole(role, poolOwner.getAddress());
     await poolConfigContract.connect(poolOwner).grantRole(role, poolOperator.getAddress());
 
+    await juniorTrancheVaultContract
+        .connect(poolOperator)
+        .setReinvestInterest(poolOwnerTreasury.address, true);
+    await juniorTrancheVaultContract
+        .connect(poolOperator)
+        .setReinvestInterest(evaluationAgent.address, true);
+
     await affiliateFirstLossCoverContract
         .connect(poolOwnerTreasury)
         .depositCover(poolLiquidityCap.mul(firstLossCoverageInBps).div(CONSTANTS.BP_FACTOR));
