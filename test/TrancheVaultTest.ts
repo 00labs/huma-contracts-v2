@@ -2176,7 +2176,7 @@ describe("TrancheVault Test", function () {
                 juniorTrancheVaultContract.address,
             );
             await expect(
-                juniorTrancheVaultContract.payoutInterestForLenders([
+                juniorTrancheVaultContract.processInterestForLenders([
                     lender.address,
                     lender2.address,
                 ]),
@@ -2221,7 +2221,7 @@ describe("TrancheVault Test", function () {
                 juniorTrancheVaultContract.address,
             );
             await expect(
-                juniorTrancheVaultContract.payoutInterestForLenders([
+                juniorTrancheVaultContract.processInterestForLenders([
                     lender.address,
                     lender2.address,
                 ]),
@@ -2275,7 +2275,7 @@ describe("TrancheVault Test", function () {
                 juniorTrancheVaultContract.address,
             );
             await expect(
-                juniorTrancheVaultContract.payoutInterestForLenders([
+                juniorTrancheVaultContract.processInterestForLenders([
                     lender.address,
                     lender2.address,
                     lender3.address,
@@ -2347,7 +2347,7 @@ describe("TrancheVault Test", function () {
             let lender3Assets = await mockTokenContract.balanceOf(lender3.address);
             let lender4Assets = await mockTokenContract.balanceOf(lender4.address);
 
-            await juniorTrancheVaultContract.payoutInterestForLenders([
+            await juniorTrancheVaultContract.processInterestForLenders([
                 lender.address,
                 lender2.address,
                 lender3.address,
@@ -2411,7 +2411,7 @@ describe("TrancheVault Test", function () {
             let profit = totalAssets.mul(BN.from(30));
             await creditContract.mockDistributePnL(profit, BN.from(0), BN.from(0));
 
-            await expect(juniorTrancheVaultContract.payoutInterestForLenders(addresses)).to.emit(
+            await expect(juniorTrancheVaultContract.processInterestForLenders(addresses)).to.emit(
                 juniorTrancheVaultContract,
                 "InterestPaidout",
             );

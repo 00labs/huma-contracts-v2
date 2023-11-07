@@ -141,7 +141,7 @@ contract ProfitEscrow is PoolConfigCache, ProfitEscrowStorage, IProfitEscrow {
         int256 accumulated = int256(
             (tempUserInfo.amount * escrowInfo.accProfitPerShare) / DEFAULT_DECIMALS_FACTOR
         );
-        uint256 curClaimable = uint256(accumulated - tempUserInfo.profitDebt);
+        uint256 currClaimable = uint256(accumulated - tempUserInfo.profitDebt);
 
         // Effects
         tempUserInfo.profitDebt =
@@ -153,7 +153,7 @@ contract ProfitEscrow is PoolConfigCache, ProfitEscrowStorage, IProfitEscrow {
         escrowInfo.totalAmount -= uint96(amount);
         _escrowInfo = escrowInfo;
 
-        poolSafe.withdraw(msg.sender, curClaimable);
+        poolSafe.withdraw(msg.sender, currClaimable);
 
         // TODO emit event
     }

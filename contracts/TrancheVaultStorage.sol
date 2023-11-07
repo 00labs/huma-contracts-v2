@@ -13,7 +13,7 @@ contract TrancheVaultStorage {
         uint64 lastUpdatedEpochIndex;
         // The number of shares requested for redemption in this epoch
         uint96 numSharesRequested;
-        // The principal amount inclueded in the redemption request
+        // The principal amount included in the redemption request
         uint96 principalRequested;
         // The total amount processed for redemption in all epochs
         uint96 totalAmountProcessed;

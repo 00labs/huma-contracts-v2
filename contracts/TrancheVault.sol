@@ -300,12 +300,14 @@ contract TrancheVault is
         }
 
         UserInfo memory userInfo = userInfos[msg.sender];
+        // TODO rounding error?
         userInfo.principal +=
             (lenderRedemptionInfo.principalRequested * uint96(shares)) /
             lenderRedemptionInfo.numSharesRequested;
         userInfos[msg.sender] = userInfo;
 
         uint96 newNumSharesRequested = lenderRedemptionInfo.numSharesRequested - uint96(shares);
+        // TODO rounding error?
         lenderRedemptionInfo.principalRequested =
             (lenderRedemptionInfo.principalRequested * newNumSharesRequested) /
             lenderRedemptionInfo.numSharesRequested;
@@ -338,9 +340,10 @@ contract TrancheVault is
     }
 
     /**
-     * @notice Payouts interest to lenders automatically
+     * @notice Process interests of lenders, pay out interests to lenders who want to withdraw
+     * reinvest interests for lenders who want to reinvest. An autotask will call this function.
      */
-    function payoutInterestForLenders(address[] calldata lenders) external {
+    function processInterestForLenders(address[] calldata lenders) external {
         uint256 price = convertToAssets(DEFAULT_DECIMALS_FACTOR);
         uint256 len = lenders.length;
         uint256 minPayoutAmount = MIN_PAYOUT_AMOUNT * (10 ** decimals());
