@@ -53,14 +53,20 @@ export type TranchesPolicyContractName =
     | "RiskAdjustedTranchesPolicy";
 export type CreditContractName = "CreditLine" | "MockPoolCredit";
 
+export enum PayPeriodDuration {
+    Monthly,
+    Quarterly,
+    SemiAnnually,
+}
+
 export enum CreditState {
     Deleted,
     Requested,
-    Paused,
     Approved,
     GoodStanding,
     Delayed,
     Defaulted,
+    Paused,
 }
 
 export enum ReceivableState {
@@ -74,22 +80,34 @@ export enum ReceivableState {
     Defaulted,
 }
 
+const DAYS_IN_A_MONTH = 30;
+const DAYS_IN_A_QUARTER = 90;
+const DAYS_IN_A_HALF_YEAR = 180;
+const DAYS_IN_A_YEAR = 360;
 const SENIOR_TRANCHE = 0;
 const JUNIOR_TRANCHE = 1;
 const DEFAULT_DECIMALS_FACTOR = BN.from(10).pow(18);
 const BP_FACTOR = BN.from(10000);
+const MONTHS_IN_A_YEAR = 12;
+const SECONDS_IN_A_DAY = 24 * 60 * 60;
 const SECONDS_IN_YEAR = 60 * 60 * 24 * 365;
 const MAX_SECONDS_IN_A_QUARTER = 92 * 24 * 60 * 60;
 const BORROWER_FIRST_LOSS_COVER_INDEX = 0;
 const AFFILIATE_FIRST_LOSS_COVER_INDEX = 1;
 
 export const CONSTANTS = {
+    DAYS_IN_A_MONTH,
+    DAYS_IN_A_QUARTER,
+    DAYS_IN_A_HALF_YEAR,
+    DAYS_IN_A_YEAR,
     SENIOR_TRANCHE,
     JUNIOR_TRANCHE,
     DEFAULT_DECIMALS_FACTOR,
     BP_FACTOR,
-    SECONDS_IN_YEAR,
+    MONTHS_IN_A_YEAR,
+    SECONDS_IN_A_DAY,
     MAX_SECONDS_IN_A_QUARTER,
+    SECONDS_IN_YEAR,
     BORROWER_FIRST_LOSS_COVER_INDEX,
     AFFILIATE_FIRST_LOSS_COVER_INDEX,
 };
@@ -898,7 +916,7 @@ export function checkTwoCreditRecords(
 export function checkCreditRecord(
     creditRecord: CreditRecordStruct,
     unbilledPrincipal: BN,
-    nextDueDate: number,
+    nextDueDate: BN | number,
     nextDue: BN,
     yieldDue: BN,
     missedPeriods: number,

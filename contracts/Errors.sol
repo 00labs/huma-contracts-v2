@@ -27,6 +27,7 @@ contract Errors {
     error notNFTOwner(); // 0x091a5762
     error notProcessor(); // 0x90409ca1
     error notBorrower(); // 0xb18f4d11
+    error notBorrowerOrEA(); // 0xa0bb841d
     error notCurrentEpoch(); // 0x50c5dd13
     error notCoverProvider(); // 0xed74bd11
     error notAuthorizedCaller(); // 0x06bc68f5
@@ -64,7 +65,7 @@ contract Errors {
     error creditExpiredDueToMaturity(); // 0xa52f3c3f
     error creditLineNotInGoodStandingState(); // 0x96e79474
     error creditLineNotInStateForMakingPayment(); // 0xf023e48b
-    error creditLineNotInStateForDrawdown(); // 0x4ff95a6d
+    error creditNotInStateForDrawdown();
     error creditLineExceeded(); // 0xef7d66ff
     error creditLineAlreadyExists(); // 0x6c5805f2
     error creditLineGreatThanUpperLimit(); // 0xd8c27d2f
@@ -77,12 +78,15 @@ contract Errors {
     error creditLineOutstanding(); // 0xc64e338c
     error creditLineNotInStateForUpdate(); // 0x80cc0c6f
     error creditLineHasOutstandingBalance(); // 0x78272365
+    error creditLineHasUnfulfilledCommitment(); // 0xb0393028
     error borrowingAmountLessThanPlatformFees(); // 0x97fde118
     error paymentAlreadyProcessed(); // 0xfd6754cf
     error settlementTooSoon(); // 0x0453e75e
     error defaultTriggeredTooEarly(); // 0x7872424e
     error defaultHasAlreadyBeenTriggered(); // 0xeb8d2ccc
     error committedAmountGreaterThanCreditLimit(); // 0x4ff6cc6f
+    error insufficientBorrowerFirstLossCover();
+    error attemptedDrawdownForNonrevolvingLine();
 
     // receivable operation
     error receivableAssetMismatch(); // 0x41dbeec1
@@ -110,6 +114,8 @@ contract Errors {
 
     error invalidCalendarUnit(); // 0x353226f1
     error zeroPayPeriods(); // 0xd991f55d
+    error invalidPayPeriod(); // 0x068dc5cb
+    error startDateLaterThanEndDate(); // 0x73838ce7
 
     error todo(); // 0xb47f18a1
 }

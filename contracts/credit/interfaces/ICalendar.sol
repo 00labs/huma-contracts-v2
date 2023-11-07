@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 /**
- * @notice ICalendar defines functions for date calculation
+ * @notice ICalendar defines functions for date calculation.
  */
 
 interface ICalendar {
@@ -10,11 +10,6 @@ interface ICalendar {
      * @notice Returns the beginning of the next month
      */
     function getStartOfNextMonth() external view returns (uint256 startOfNextMonth);
-
-    /**
-     * @notice Returns the beginning of the next quarter
-     */
-    function getStartOfNextQuarter() external view returns (uint256 nstartOfNextQuarterextDay);
 
     /**
      * @notice Returns the beginning of tomorrow as a timestamp.
@@ -32,6 +27,13 @@ interface ICalendar {
     function getStartOfThisQuarter() external view returns (uint256 startOfQuarter);
 
     /**
+     * @notice Returns the beginning of this half of the year. i.e. 1/1 or 7/1.
+     */
+    function getStartOfThisHalfYear() external view returns (uint256 startOfHalfYear);
+
+    function getStartOfNextQuarter() external view returns (uint256 nstartOfNextQuarterextDay);
+
+    /**
      * @notice Returns the beginning of today
      */
     function getStartOfToday() external view returns (uint256 startOfToday);
@@ -42,6 +44,15 @@ interface ICalendar {
     function getDaysPassedInPeriod(
         uint256 periodDuration
     ) external view returns (uint256 daysPassed, uint256 totalDaysInPeriod);
+
+    /**
+     * @notice Returns the number of days between the two given dates.
+     * @dev The result should exclude the end date, e.g. the number of days between 1/1 and 1/2 is 1, not 2.
+     */
+    function getDaysDiff(
+        uint256 startDate,
+        uint256 endDate
+    ) external pure returns (uint256 daysDiff);
 
     /**
      * @notice Returns the start date of the period specified by the end date.

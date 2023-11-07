@@ -21,8 +21,7 @@
   "notNFTOwner()": "0x091a5762",
   "notProcessor()": "0x90409ca1",
   "notBorrower()": "0xb18f4d11",
-  "notTrancheVaultOrFirstLossCoverOrCreditOrPoolFeeManagerOrProfitEscrow()": "0xf8902ea6",
-  "notTrancheVaultOrEpochManagerOrPoolFeeManagerOrFirstLossCover()": "0x9c8c659b",
+  "notBorrowerOrEA()": "0xa0bb841d",
   "notCurrentEpoch()": "0x50c5dd13",
   "notCoverProvider()": "0xed74bd11",
   "notAuthorizedCaller()": "0x06bc68f5",
@@ -61,6 +60,7 @@
   "creditLineOutstanding()": "0xc64e338c",
   "creditLineNotInStateForUpdate()": "0x80cc0c6f",
   "creditLineHasOutstandingBalance()": "0x78272365",
+  "creditLineHasUnfulfilledCommitment()": "0xb0393028",
   "borrowingAmountLessThanPlatformFees()": "0x97fde118",
   "paymentAlreadyProcessed()": "0xfd6754cf",
   "settlementTooSoon()": "0x0453e75e",
@@ -89,5 +89,7 @@
   "newReceiverSameToOrigin()": "0x6d79ce50",
   "invalidCalendarUnit()": "0x353226f1",
   "zeroPayPeriods()": "0xd991f55d",
+  "invalidPayPeriod()": "0x068dc5cb",
+  "startDateLaterThanEndDate()": "0x73838ce7",
   "todo()": "0xb47f18a1"
 }

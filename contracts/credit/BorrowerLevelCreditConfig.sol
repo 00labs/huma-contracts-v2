@@ -13,10 +13,56 @@ import {Errors} from "../Errors.sol";
  * at the borrower-level. A classic example of borrower-level credit is credit line.
  */
 abstract contract BorrowerLevelCreditConfig is Credit, IBorrowerLevelCreditConfig {
+    //* todo standardize whether to emit events at Credit contract or this contract.
+    //* todo standardize where to place access control, at Credit contract or this contract
+
     event LateFeeWaived(address borrower, uint256 amountWaived);
 
-    //* todo standardie whether to emit events at Credit contract or this contract.
-    //* todo standardie where to place access control, at Credit contract or this contract
+    event CreditLineApproved(
+        address indexed borrower,
+        bytes32 indexed creditHash,
+        uint256 creditLimit,
+        uint16 periodDuration,
+        uint256 remainingPeriods,
+        uint256 yieldInBps,
+        uint256 committedAmount,
+        bool revolving
+    );
+
+    /// @inheritdoc IBorrowerLevelCreditConfig
+    function approveBorrower(
+        address borrower,
+        uint96 creditLimit,
+        uint16 remainingPeriods,
+        uint16 yieldInBps,
+        uint96 committedAmount,
+        bool revolving
+    ) external virtual override {
+        poolConfig.onlyProtocolAndPoolOn();
+        _onlyEAServiceAccount();
+
+        bytes32 creditHash = getCreditHash(borrower);
+        _approveCredit(
+            borrower,
+            creditHash,
+            creditLimit,
+            remainingPeriods,
+            yieldInBps,
+            committedAmount,
+            revolving
+        );
+
+        emit CreditLineApproved(
+            borrower,
+            creditHash,
+            creditLimit,
+            getCreditConfig(creditHash).periodDuration,
+            remainingPeriods,
+            yieldInBps,
+            committedAmount,
+            revolving
+        );
+    }
 
     /// @inheritdoc IBorrowerLevelCreditConfig
     function refreshCredit(address borrower) external virtual override {
@@ -25,16 +71,25 @@ abstract contract BorrowerLevelCreditConfig is Credit, IBorrowerLevelCreditConfi
     }
 
     /// @inheritdoc IBorrowerLevelCreditConfig
-    function triggerDefault(address borrower) external virtual override returns (uint256 losses) {
+    function triggerDefault(
+        address borrower
+    )
+        external
+        virtual
+        override
+        returns (uint256 principalLoss, uint256 yieldLoss, uint256 feesLoss)
+    {
         bytes32 creditHash = getCreditHash(borrower);
-        // TODO: we need to return the total losses.
-        _triggerDefault(creditHash);
+        return _triggerDefault(creditHash);
     }
 
     /// @inheritdoc IBorrowerLevelCreditConfig
+    /// @dev Only the borrower or EA Service account can call this function
     function closeCredit(address borrower) external virtual override {
         bytes32 creditHash = getCreditHash(borrower);
+        _onlyBorrowerOrEAServiceAccount(_creditBorrowerMap[creditHash]);
         _closeCredit(creditHash);
+        emit CreditLineClosed(borrower, msg.sender, CreditLineClosureReason.AdminClosure);
     }
 
     /// @inheritdoc IBorrowerLevelCreditConfig
@@ -76,7 +131,7 @@ abstract contract BorrowerLevelCreditConfig is Credit, IBorrowerLevelCreditConfi
         uint256 committedAmount
     ) external virtual override {
         _onlyEAServiceAccount();
-        if (committedAmount > creditLimit) revert Errors.todo();
+        if (committedAmount > creditLimit) revert Errors.committedAmountGreaterThanCreditLimit();
 
         _updateLimitAndCommitment(getCreditHash(borrower), creditLimit, committedAmount);
     }

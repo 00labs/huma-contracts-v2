@@ -1,11 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {DAYS_IN_A_MONTH} from "../SharedDefs.sol";
+import {DAYS_IN_A_MONTH, DAYS_IN_A_QUARTER, DAYS_IN_A_HALF_YEAR} from "../SharedDefs.sol";
 import {ICalendar} from "./interfaces/ICalendar.sol";
 import {BokkyPooBahsDateTimeLibrary as DTL} from "./utils/BokkyPooBahsDateTimeLibrary.sol";
+import {PayPeriodDuration} from "./CreditStructs.sol";
+import {Errors} from "../Errors.sol";
 
 //* todo change periodDuration to an enum {Monthly, Quarterly, SemiAnnually}
+/**
+ * @notice We use the 30/360 day count convention in this implementation, which treats every month as having 30 days
+ * and every year as having 360 days, regardless of the actual number of days in a month/year. This is a common
+ * practice in corporate finance.
+ */
 contract Calendar is ICalendar {
     /// @inheritdoc ICalendar
     function getStartOfNextMonth() external view returns (uint256 startOfNextMonth) {
@@ -40,10 +47,17 @@ contract Calendar is ICalendar {
     }
 
     /// @inheritdoc ICalendar
-    function getStartOfThisQuarter() external view returns (uint256 startOfQuarter) {
+    function getStartOfThisQuarter() public view returns (uint256 startOfQuarter) {
         (uint256 year, uint256 month, ) = DTL.timestampToDate(block.timestamp);
         startOfQuarter = DTL.timestampFromDate(year, ((month - 1) / 3) * 3 + 1, 1);
         return startOfQuarter;
+    }
+
+    /// @inheritdoc ICalendar
+    function getStartOfThisHalfYear() public view returns (uint256 startOfHalfYear) {
+        (uint256 year, uint256 month, ) = DTL.timestampToDate(block.timestamp);
+        startOfHalfYear = DTL.timestampFromDate(year, month <= 6 ? 1 : 7, 1);
+        return startOfHalfYear;
     }
 
     /// @inheritdoc ICalendar
@@ -62,6 +76,44 @@ contract Calendar is ICalendar {
         daysPassed = month * DAYS_IN_A_MONTH + day;
         totalDaysInPeriod = periodDuration * DAYS_IN_A_MONTH;
         return (daysPassed, totalDaysInPeriod);
+    }
+
+    function getDaysPassedInPeriod(
+        PayPeriodDuration periodDuration
+    ) external view returns (uint256 daysPassed, uint256 totalDaysInPeriod) {
+        uint256 day = DTL.getDay(block.timestamp);
+        // If the day falls on the 31st, move it back to the 30th.
+        day = day > DAYS_IN_A_MONTH ? DAYS_IN_A_MONTH : day;
+        uint256 startOfPeriod = _getStartDateOfPeriod(periodDuration);
+        uint256 numMonthsPassed = DTL.diffMonths(startOfPeriod, block.timestamp);
+        daysPassed = numMonthsPassed * DAYS_IN_A_MONTH + day;
+        return (daysPassed, _getTotalDaysInPeriod(periodDuration));
+    }
+
+    /// @inheritdoc ICalendar
+    function getDaysDiff(
+        uint256 startDate,
+        uint256 endDate
+    ) external pure returns (uint256 daysDiff) {
+        if (startDate > endDate) {
+            revert Errors.startDateLaterThanEndDate();
+        }
+
+        (, uint256 startMonth, uint256 startDay) = DTL.timestampToDate(startDate);
+        (, uint256 endMonth, uint256 endDay) = DTL.timestampToDate(endDate);
+        // TODO(jiatu): is this correct?
+        startDay = startDay > DAYS_IN_A_MONTH ? DAYS_IN_A_MONTH : startDay;
+        endDay = endDay > DAYS_IN_A_MONTH ? DAYS_IN_A_MONTH : endDay;
+        if (startMonth == endMonth) {
+            return endDay - startDay;
+        }
+
+        uint256 numMonthsPassed = DTL.diffMonths(startDate, endDate);
+        // The final result is given by the sum of the following three components:
+        // 1. The number of days between the start date and the end of the start month.
+        // 2. The number of days in whole months passed.
+        // 3. The number of days between the start of the end month and the end date.
+        return DAYS_IN_A_MONTH - startDay + (numMonthsPassed - 1) * DAYS_IN_A_MONTH + endDay;
     }
 
     /// @inheritdoc ICalendar
@@ -110,5 +162,37 @@ contract Calendar is ICalendar {
         }
         monthCount += (numberOfPeriodsPassed + 1) * periodDuration;
         dueDate = DTL.addMonths(lastDueDate, monthCount);
+    }
+
+    // TODO(jiatu): not sure if the external `getStartDateOfPeriod` is useful. If it's useful, combine the two.
+    // Otherwise, delete the external one.
+    function _getStartDateOfPeriod(
+        PayPeriodDuration periodDuration
+    ) internal view returns (uint256 startOfPeriod) {
+        if (periodDuration == PayPeriodDuration.Monthly) {
+            return getStartOfThisMonth();
+        }
+        if (periodDuration == PayPeriodDuration.Quarterly) {
+            return getStartOfThisQuarter();
+        }
+        if (periodDuration == PayPeriodDuration.SemiAnnually) {
+            return getStartOfThisHalfYear();
+        }
+        revert Errors.invalidPayPeriod();
+    }
+
+    function _getTotalDaysInPeriod(
+        PayPeriodDuration periodDuration
+    ) internal pure returns (uint256 totalDaysInPeriod) {
+        if (periodDuration == PayPeriodDuration.Monthly) {
+            return DAYS_IN_A_MONTH;
+        }
+        if (periodDuration == PayPeriodDuration.Quarterly) {
+            return DAYS_IN_A_QUARTER;
+        }
+        if (periodDuration == PayPeriodDuration.SemiAnnually) {
+            return DAYS_IN_A_HALF_YEAR;
+        }
+        revert Errors.invalidPayPeriod();
     }
 }
