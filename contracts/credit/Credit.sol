@@ -885,6 +885,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         // Although not essential to call _updateDueInfo() to extend the credit line duration,
         // it is still a good practice to bring the account current while we update one of the fields.
         _updateDueInfo(creditHash);
+        // TODO(jiatu): update CreditConfig since the number of periods have also been increased?
         CreditRecord memory cr = getCreditRecord(creditHash);
         uint256 oldNumOfPeriods = cr.remainingPeriods;
         cr.remainingPeriods += uint16(newNumOfPeriods);
