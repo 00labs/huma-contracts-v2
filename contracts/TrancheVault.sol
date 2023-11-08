@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import {Errors} from "./Errors.sol";
 import {PoolConfig, LPConfig} from "./PoolConfig.sol";
 import {PoolConfigCache} from "./PoolConfigCache.sol";
-import {JUNIOR_TRANCHE, SENIOR_TRANCHE} from "./SharedDefs.sol";
+import {JUNIOR_TRANCHE, SENIOR_TRANCHE, DEFAULT_DECIMALS_FACTOR} from "./SharedDefs.sol";
 import {TrancheVaultStorage, IERC20} from "./TrancheVaultStorage.sol";
 import {IEpoch, EpochInfo} from "./interfaces/IEpoch.sol";
 import {IEpochManager} from "./interfaces/IEpochManager.sol";
@@ -21,6 +21,7 @@ contract TrancheVault is
     IEpoch
 {
     bytes32 public constant LENDER_ROLE = keccak256("LENDER");
+    uint256 private constant MAX_NUMBER_FOR_PAYOUT_BATCH = 100;
 
     event EpochProcessed(
         uint256 indexed epochId,
@@ -36,6 +37,12 @@ contract TrancheVault is
     event RedemptionRequestAdded(address indexed account, uint256 shareAmount, uint256 epochId);
 
     event RedemptionRequestRemoved(address indexed account, uint256 shareAmount, uint256 epochId);
+
+    event InterestPaidout(address indexed account, uint256 interest, uint256 shares);
+
+    event InterestReinvested(address indexed account, uint256 interest);
+
+    event ReinvestInterestConfigSet(address indexed account, bool reinvestInterest, address by);
 
     constructor() {
         // _disableInitializers();
@@ -82,10 +89,11 @@ contract TrancheVault is
      * to make sure potential lenders meet the requirements. Afterwards, the pool operator will
      * call this function to mark a lender as approved.
      */
-    function addApprovedLender(address lender) external {
+    function addApprovedLender(address lender, bool reinvestInterest) external {
         poolConfig.onlyPoolOperator(msg.sender);
         if (lender == address(0)) revert Errors.zeroAddressProvided();
         _grantRole(LENDER_ROLE, lender);
+        userInfos[lender] = UserInfo({principal: 0, reinvestInterest: reinvestInterest});
     }
 
     /**
@@ -96,6 +104,16 @@ contract TrancheVault is
         poolConfig.onlyPoolOperator(msg.sender);
         if (lender == address(0)) revert Errors.zeroAddressProvided();
         _revokeRole(LENDER_ROLE, lender);
+        delete userInfos[lender];
+    }
+
+    /**
+     * @notice The pool operator will call this function to mark whether a lender wants to reinvest interest.
+     */
+    function setReinvestInterest(address lender, bool reinvestInterest) external {
+        poolConfig.onlyPoolOperator(msg.sender);
+        userInfos[lender].reinvestInterest = reinvestInterest;
+        emit ReinvestInterestConfigSet(lender, reinvestInterest, msg.sender);
     }
 
     /// @inheritdoc IEpoch
@@ -198,9 +216,11 @@ contract TrancheVault is
         }
 
         poolSafe.deposit(msg.sender, assets);
-
         shares = _convertToShares(assets, trancheAssets);
         ERC20Upgradeable._mint(receiver, shares);
+        UserInfo memory userInfo = userInfos[receiver];
+        userInfo.principal += uint96(assets);
+        userInfos[receiver] = userInfo;
 
         tranches[trancheIndex] += uint96(assets);
         pool.updateTranchesAssets(tranches);
@@ -248,7 +268,12 @@ contract TrancheVault is
             currentEpochId
         );
         lenderRedemptionInfo.numSharesRequested += uint96(shares);
+        uint256 principalRequested = convertToAssets(shares);
+        lenderRedemptionInfo.principalRequested += uint96(principalRequested);
         redemptionInfoByLender[msg.sender] = lenderRedemptionInfo;
+        UserInfo memory userInfo = userInfos[msg.sender];
+        userInfo.principal -= uint96(principalRequested);
+        userInfos[msg.sender] = userInfo;
 
         ERC20Upgradeable._transfer(msg.sender, address(this), shares);
 
@@ -273,7 +298,19 @@ contract TrancheVault is
             revert Errors.insufficientSharesForRequest();
         }
 
-        lenderRedemptionInfo.numSharesRequested -= uint96(shares);
+        UserInfo memory userInfo = userInfos[msg.sender];
+        // TODO rounding error?
+        userInfo.principal +=
+            (lenderRedemptionInfo.principalRequested * uint96(shares)) /
+            lenderRedemptionInfo.numSharesRequested;
+        userInfos[msg.sender] = userInfo;
+
+        uint96 newNumSharesRequested = lenderRedemptionInfo.numSharesRequested - uint96(shares);
+        // TODO rounding error?
+        lenderRedemptionInfo.principalRequested =
+            (lenderRedemptionInfo.principalRequested * newNumSharesRequested) /
+            lenderRedemptionInfo.numSharesRequested;
+        lenderRedemptionInfo.numSharesRequested = newNumSharesRequested;
         redemptionInfoByLender[msg.sender] = lenderRedemptionInfo;
 
         EpochInfo memory currEpochInfo = epochInfoByEpochId[currentEpochId];
@@ -299,6 +336,39 @@ contract TrancheVault is
             underlyingToken.transfer(receiver, withdrawable);
             emit LenderFundDisbursed(msg.sender, receiver, withdrawable);
         }
+    }
+
+    /**
+     * @notice Process interests of lenders, pay out interests to lenders who want to withdraw
+     * reinvest interests for lenders who want to reinvest. Expects to be called by a cron-like mechanism like autotask.
+     */
+    function processInterestForLenders(address[] calldata lenders) external {
+        uint256 price = convertToAssets(DEFAULT_DECIMALS_FACTOR);
+        uint256 len = lenders.length;
+        uint96[2] memory tranchesAssets = pool.currentTranchesAssets();
+        for (uint256 i; i < len && i < MAX_NUMBER_FOR_PAYOUT_BATCH; i++) {
+            address lender = lenders[i];
+            uint256 shares = ERC20Upgradeable.balanceOf(lender);
+            uint256 assets = (shares * price) / DEFAULT_DECIMALS_FACTOR;
+            UserInfo memory userInfo = userInfos[lender];
+            if (assets > userInfo.principal) {
+                uint256 interest = assets - userInfo.principal;
+                if (userInfo.reinvestInterest) {
+                    userInfo.principal += uint96(interest);
+                    userInfos[lender] = userInfo;
+                    emit InterestReinvested(lender, interest);
+                } else {
+                    // TODO rounding up?
+                    shares = (interest * DEFAULT_DECIMALS_FACTOR) / price;
+                    ERC20Upgradeable._burn(lender, shares);
+                    poolSafe.withdraw(lender, interest);
+                    tranchesAssets[trancheIndex] -= uint96(interest);
+                    emit InterestPaidout(lender, interest, shares);
+                }
+            }
+        }
+        poolSafe.resetUnprocessedProfit();
+        pool.updateTranchesAssets(tranchesAssets);
     }
 
     /**
@@ -392,6 +462,7 @@ contract TrancheVault is
         uint256 numEpochIds = epochIds.length;
         uint256 remainingShares = newRedemptionInfo.numSharesRequested;
         if (remainingShares > 0) {
+            uint256 totalShares = remainingShares;
             for (
                 uint256 i = newRedemptionInfo.lastUpdatedEpochIndex;
                 i < numEpochIds && remainingShares > 0;
@@ -411,6 +482,12 @@ contract TrancheVault is
                 }
             }
             newRedemptionInfo.numSharesRequested = uint96(remainingShares);
+            if (remainingShares < totalShares) {
+                // Some shares are processed, so the principal requested is reduced proportionally.
+                newRedemptionInfo.principalRequested = uint96(
+                    (remainingShares * newRedemptionInfo.principalRequested) / totalShares
+                );
+            }
         }
         newRedemptionInfo.lastUpdatedEpochIndex = uint64(numEpochIds - 1);
     }
