@@ -29,16 +29,13 @@ contract CreditStorage {
     mapping(bytes32 => DueDetail) internal _dueDetailMap;
     /// mapping from credit id to the to the CreditLoss struct
     mapping(bytes32 => CreditLoss) internal _creditLossMap;
+    /// mapping from credit hash to the CreditLimit
     mapping(bytes32 => CreditLimit) internal _creditLimitMap;
     /// mapping from borrower to the credit limit at borrower-level
     mapping(address => CreditLimit) internal _borrowerLimitMap;
 
-    //* Reserved for Richard review, to be deleted
     // This mapping is used to maintain the relationship between credit and borrower
     mapping(bytes32 => address) internal _creditBorrowerMap;
-
-    bytes32[] public activeCreditsHash;
-    bytes32[] public overdueCreditsHash;
 
     /**
      * @dev This empty reserved space is put in place to allow future versions to add new
