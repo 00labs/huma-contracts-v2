@@ -308,6 +308,18 @@ describe("EpochManager Test", function () {
         );
 
         await creditContract.mockDistributePnL(profit, loss, lossRecovery);
+        await juniorTrancheVaultContract.processInterestForLenders([
+            lender.address,
+            lender2.address,
+            poolOwnerTreasury.address,
+            evaluationAgent.address,
+        ]);
+        await seniorTrancheVaultContract.processInterestForLenders([
+            lender.address,
+            lender2.address,
+            poolOwnerTreasury.address,
+            evaluationAgent.address,
+        ]);
         await expect(epochManagerContract.closeEpoch())
             .to.emit(epochManagerContract, "EpochClosed")
             .to.emit(epochManagerContract, "NewEpochStarted")

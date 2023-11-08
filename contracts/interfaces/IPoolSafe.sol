@@ -46,7 +46,7 @@ interface IPoolSafe {
     function addUnprocessedProfit(address tranche, uint256 interest) external;
 
     /**
-     * @notice Senior/Junior tranches call this function to removed processed profit after autotasks run.
+     * @notice Senior/Junior tranches call this function to reset processed profit to 0 after autotasks run.
      */
-    function removeProcessedProfit(uint256 interest) external;
+    function resetUnprocessedProfit() external;
 }

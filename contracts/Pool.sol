@@ -257,10 +257,10 @@ contract Pool is PoolConfigCache, IPool {
                 [assets.seniorTotalAssets, assets.juniorTotalAssets],
                 assets.lastProfitDistributedTime
             );
-            // poolSafe.addUnprocessedProfit(
-            //     poolConfig.seniorTranche(),
-            //     newAssets[SENIOR_TRANCHE] - assets.seniorTotalAssets
-            // );
+            poolSafe.addUnprocessedProfit(
+                poolConfig.seniorTranche(),
+                newAssets[SENIOR_TRANCHE] - assets.seniorTotalAssets
+            );
 
             // Distribute profit to first loss covers using profits in the junior tranche.
             if (newAssets[JUNIOR_TRANCHE] > assets.juniorTotalAssets) {
@@ -270,10 +270,10 @@ contract Pool is PoolConfigCache, IPool {
                         assets.juniorTotalAssets
                     )
                 );
-                // poolSafe.addUnprocessedProfit(
-                //     poolConfig.juniorTranche(),
-                //     newAssets[JUNIOR_TRANCHE] - assets.juniorTotalAssets
-                // );
+                poolSafe.addUnprocessedProfit(
+                    poolConfig.juniorTranche(),
+                    newAssets[JUNIOR_TRANCHE] - assets.juniorTotalAssets
+                );
             }
 
             tranchesAssets = TranchesAssets({

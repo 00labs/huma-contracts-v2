@@ -2172,9 +2172,6 @@ describe("TrancheVault Test", function () {
             // Pay out interests
             let lenderAssets = await mockTokenContract.balanceOf(lender.address);
             let lender2Assets = await mockTokenContract.balanceOf(lender2.address);
-            let unprocessedProfit = await poolSafeContract.unprocessedTrancheProfit(
-                juniorTrancheVaultContract.address,
-            );
             await expect(
                 juniorTrancheVaultContract.processInterestForLenders([
                     lender.address,
@@ -2195,11 +2192,11 @@ describe("TrancheVault Test", function () {
                 lenders[1].principal,
                 1,
             );
-            // expect(
-            //     await poolSafeContract.unprocessedTrancheProfit(
-            //         juniorTrancheVaultContract.address,
-            //     ),
-            // ).to.equal(unprocessedProfit.sub(lenders[0].interest).sub(lenders[1].interest));
+            expect(
+                await poolSafeContract.unprocessedTrancheProfit(
+                    juniorTrancheVaultContract.address,
+                ),
+            ).to.equal(0);
         });
 
         it("Should reinvest interests", async function () {
@@ -2217,9 +2214,6 @@ describe("TrancheVault Test", function () {
             // Pay out interests
             let lenderAssets = await mockTokenContract.balanceOf(lender.address);
             let lender2Assets = await mockTokenContract.balanceOf(lender2.address);
-            let unprocessedProfit = await poolSafeContract.unprocessedTrancheProfit(
-                juniorTrancheVaultContract.address,
-            );
             await expect(
                 juniorTrancheVaultContract.processInterestForLenders([
                     lender.address,
@@ -2238,11 +2232,11 @@ describe("TrancheVault Test", function () {
                 lenders[1].principal,
                 1,
             );
-            // expect(
-            //     await poolSafeContract.unprocessedTrancheProfit(
-            //         juniorTrancheVaultContract.address,
-            //     ),
-            // ).to.equal(unprocessedProfit.sub(lenders[0].interest).sub(lenders[1].interest));
+            expect(
+                await poolSafeContract.unprocessedTrancheProfit(
+                    juniorTrancheVaultContract.address,
+                ),
+            ).to.equal(0);
         });
 
         it("Should payout interests and reinvest interests", async function () {
@@ -2271,9 +2265,6 @@ describe("TrancheVault Test", function () {
             let lender2Assets = await mockTokenContract.balanceOf(lender2.address);
             let lender3Assets = await mockTokenContract.balanceOf(lender3.address);
             let lender4Assets = await mockTokenContract.balanceOf(lender4.address);
-            let unprocessedProfit = await poolSafeContract.unprocessedTrancheProfit(
-                juniorTrancheVaultContract.address,
-            );
             await expect(
                 juniorTrancheVaultContract.processInterestForLenders([
                     lender.address,
@@ -2314,17 +2305,11 @@ describe("TrancheVault Test", function () {
                 1,
             );
 
-            // expect(
-            //     await poolSafeContract.unprocessedTrancheProfit(
-            //         juniorTrancheVaultContract.address,
-            //     ),
-            // ).to.equal(
-            //     unprocessedProfit
-            //         .sub(lenders[0].interest)
-            //         .sub(lenders[1].interest)
-            //         .sub(lenders[2].interest)
-            //         .sub(lenders[3].interest),
-            // );
+            expect(
+                await poolSafeContract.unprocessedTrancheProfit(
+                    juniorTrancheVaultContract.address,
+                ),
+            ).to.equal(0);
         });
 
         it("Should do nothing when there is loss", async function () {

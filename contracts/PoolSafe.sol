@@ -52,7 +52,7 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
         underlyingToken.transfer(to, amount);
     }
 
-    // TODO discuss this with Richard
+    /// @inheritdoc IPoolSafe
     function addUnprocessedProfit(address tranche, uint256 profit) external {
         if (msg.sender != address(pool)) revert Errors.notPool();
         if (tranche != poolConfig.seniorTranche() && tranche != poolConfig.juniorTranche())
@@ -60,11 +60,11 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
         unprocessedTrancheProfit[tranche] += profit;
     }
 
-    // TODO discuss this with Richard
-    function removeProcessedProfit(uint256 profit) external {
+    /// @inheritdoc IPoolSafe
+    function resetUnprocessedProfit() external {
         if (msg.sender != poolConfig.seniorTranche() && msg.sender != poolConfig.juniorTranche())
             revert Errors.notAuthorizedCaller();
-        unprocessedTrancheProfit[msg.sender] -= profit;
+        unprocessedTrancheProfit[msg.sender] = 0;
     }
 
     /// @inheritdoc IPoolSafe

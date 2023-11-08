@@ -21,8 +21,7 @@ contract TrancheVault is
     IEpoch
 {
     bytes32 public constant LENDER_ROLE = keccak256("LENDER");
-    uint256 private constant MAX_NUMBER_FOR_PAYOUT_BATCH = 50;
-    uint256 private constant MIN_PAYOUT_AMOUNT = 100;
+    uint256 private constant MAX_NUMBER_FOR_PAYOUT_BATCH = 100;
 
     event EpochProcessed(
         uint256 indexed epochId,
@@ -346,9 +345,7 @@ contract TrancheVault is
     function processInterestForLenders(address[] calldata lenders) external {
         uint256 price = convertToAssets(DEFAULT_DECIMALS_FACTOR);
         uint256 len = lenders.length;
-        uint256 minPayoutAmount = MIN_PAYOUT_AMOUNT * (10 ** decimals());
         uint96[2] memory tranchesAssets = pool.currentTranchesAssets();
-        uint256 processed;
         for (uint256 i; i < len && i < MAX_NUMBER_FOR_PAYOUT_BATCH; i++) {
             address lender = lenders[i];
             uint256 shares = ERC20Upgradeable.balanceOf(lender);
@@ -359,20 +356,18 @@ contract TrancheVault is
                 if (userInfo.reinvestInterest) {
                     userInfo.principal += uint96(interest);
                     userInfos[lender] = userInfo;
-                    processed += interest;
                     emit InterestReinvested(lender, interest);
-                } else if (interest > minPayoutAmount) {
+                } else {
                     // TODO rounding up?
                     shares = (interest * DEFAULT_DECIMALS_FACTOR) / price;
                     ERC20Upgradeable._burn(lender, shares);
                     poolSafe.withdraw(lender, interest);
                     tranchesAssets[trancheIndex] -= uint96(interest);
-                    processed += interest;
                     emit InterestPaidout(lender, interest, shares);
                 }
             }
         }
-        // poolSafe.removeProcessedProfit(processed);
+        poolSafe.resetUnprocessedProfit();
         pool.updateTranchesAssets(tranchesAssets);
     }
 
