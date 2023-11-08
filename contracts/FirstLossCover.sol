@@ -9,7 +9,6 @@ import {HUNDRED_PERCENT_IN_BPS, JUNIOR_TRANCHE, SENIOR_TRANCHE} from "./SharedDe
 import {IFirstLossCover} from "./interfaces/IFirstLossCover.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
-import {IProfitEscrow} from "./interfaces/IProfitEscrow.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20MetadataUpgradeable, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
@@ -72,15 +71,6 @@ contract FirstLossCover is
         addr = _poolConfig.pool();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         pool = IPool(addr);
-
-        addr = _poolConfig.getFirstLossCoverProfitEscrow(address(this));
-        //* todo the following comment is strange. We should not allow zero address.
-        // A careless change may get us into a situation of losing funds into
-        // zero address. We should find a different way to handle this.
-
-        // It is possible to be null for borrower first loss cover
-        // if (addr == address(0)) revert Errors.zeroAddressProvided();
-        profitEscrow = IProfitEscrow(addr);
     }
 
     function setCoverProvider(address account, LossCoverProviderConfig memory config) external {
@@ -144,7 +134,6 @@ contract FirstLossCover is
         if (!ready && assets > currTotalAssets - cap) revert Errors.insufficientAmountForRequest();
 
         ERC20Upgradeable._burn(msg.sender, shares);
-        if (address(profitEscrow) != address(0)) profitEscrow.withdraw(msg.sender, shares);
         underlyingToken.safeTransfer(receiver, assets);
         emit CoverRedeemed(msg.sender, receiver, shares, assets);
     }
@@ -263,8 +252,6 @@ contract FirstLossCover is
     function _deposit(uint256 assets, address account) internal returns (uint256 shares) {
         shares = convertToShares(assets);
         ERC20Upgradeable._mint(account, shares);
-
-        if (address(profitEscrow) != address(0)) profitEscrow.deposit(account, shares);
 
         emit CoverDeposited(account, assets, shares);
     }

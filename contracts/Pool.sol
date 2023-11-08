@@ -11,7 +11,6 @@ import {IPool} from "./interfaces/IPool.sol";
 import {IPoolFeeManager} from "./interfaces/IPoolFeeManager.sol";
 import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import {ITranchesPolicy} from "./interfaces/ITranchesPolicy.sol";
-import {IProfitEscrow} from "./interfaces/IProfitEscrow.sol";
 
 /**
  * @title Pool
@@ -212,18 +211,18 @@ contract Pool is PoolConfigCache, IPool {
                     reservedAssets.profit -= uint96(availableAssets);
                 }
 
-                // Distributes the remaining profit to the cover providers.
-                if (reservedAssets.profit > 0 && remainingAssets > 0) {
-                    availableAssets = remainingAssets > reservedAssets.profit
-                        ? reservedAssets.profit
-                        : remainingAssets;
-                    IProfitEscrow profitEscrow = IProfitEscrow(
-                        poolConfig.getFirstLossCoverProfitEscrow(address(cover))
-                    );
-                    profitEscrow.addProfit(availableAssets);
-                    remainingAssets -= availableAssets;
-                    reservedAssets.profit -= uint96(availableAssets);
-                }
+                // // Distributes the remaining profit to the cover providers.
+                // if (reservedAssets.profit > 0 && remainingAssets > 0) {
+                //     availableAssets = remainingAssets > reservedAssets.profit
+                //         ? reservedAssets.profit
+                //         : remainingAssets;
+                //     IProfitEscrow profitEscrow = IProfitEscrow(
+                //         poolConfig.getFirstLossCoverProfitEscrow(address(cover))
+                //     );
+                //     profitEscrow.addProfit(availableAssets);
+                //     remainingAssets -= availableAssets;
+                //     reservedAssets.profit -= uint96(availableAssets);
+                // }
 
                 synced = true;
             }

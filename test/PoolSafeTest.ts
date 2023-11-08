@@ -16,7 +16,6 @@ import {
     PoolConfig,
     PoolFeeManager,
     PoolSafe,
-    ProfitEscrow,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
 } from "../typechain-types";
@@ -44,7 +43,6 @@ let poolConfigContract: PoolConfig,
     calendarContract: Calendar,
     borrowerFirstLossCoverContract: FirstLossCover,
     affiliateFirstLossCoverContract: FirstLossCover,
-    affiliateFirstLossCoverProfitEscrowContract: ProfitEscrow,
     tranchesPolicyContract: RiskAdjustedTranchesPolicy,
     poolContract: Pool,
     epochManagerContract: EpochManager,
@@ -86,7 +84,6 @@ describe("PoolSafe Tests", function () {
             calendarContract,
             borrowerFirstLossCoverContract,
             affiliateFirstLossCoverContract,
-            affiliateFirstLossCoverProfitEscrowContract,
             tranchesPolicyContract,
             poolContract,
             epochManagerContract,
@@ -138,18 +135,15 @@ describe("PoolSafe Tests", function () {
         });
 
         it("Should allow first loss covers to make deposit into the safe", async function () {
-            await poolConfigContract.connect(poolOwner).setFirstLossCover(
-                1,
-                defaultDeployer.address,
-                {
+            await poolConfigContract
+                .connect(poolOwner)
+                .setFirstLossCover(1, defaultDeployer.address, {
                     coverRateInBps: 0,
                     coverCap: 0,
                     liquidityCap: 0,
                     maxPercentOfPoolValueInBps: 0,
                     riskYieldMultiplier: 0,
-                },
-                affiliateFirstLossCoverProfitEscrowContract.address,
-            );
+                });
             await testDeposit();
         });
 
@@ -194,18 +188,15 @@ describe("PoolSafe Tests", function () {
         });
 
         it("Should allow first loss covers to withdraw from the safe", async function () {
-            await poolConfigContract.connect(poolOwner).setFirstLossCover(
-                1,
-                defaultDeployer.address,
-                {
+            await poolConfigContract
+                .connect(poolOwner)
+                .setFirstLossCover(1, defaultDeployer.address, {
                     coverRateInBps: 0,
                     coverCap: 0,
                     liquidityCap: 0,
                     maxPercentOfPoolValueInBps: 0,
                     riskYieldMultiplier: 0,
-                },
-                affiliateFirstLossCoverProfitEscrowContract.address,
-            );
+                });
             await testWithdrawal();
         });
 

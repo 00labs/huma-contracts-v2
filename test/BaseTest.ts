@@ -17,7 +17,6 @@ import {
     PoolConfig,
     PoolFeeManager,
     PoolSafe,
-    ProfitEscrow,
     Receivable,
     TrancheVault,
 } from "../typechain-types";
@@ -38,7 +37,6 @@ export type PoolContracts = [
     Calendar,
     FirstLossCover,
     FirstLossCover,
-    ProfitEscrow,
     BaseTranchesPolicy,
     Pool,
     EpochManager,
@@ -175,9 +173,6 @@ export async function deployPoolContracts(
     await borrowerFirstLossCoverContract.deployed();
     const affiliateFirstLossCoverContract = await FirstLossCover.deploy();
     await affiliateFirstLossCoverContract.deployed();
-    const ProfitEscrow = await ethers.getContractFactory("ProfitEscrow");
-    const affiliateFirstLossCoverProfitEscrowContract = await ProfitEscrow.deploy();
-    await affiliateFirstLossCoverProfitEscrowContract.deployed();
 
     const TranchesPolicy = await getTranchesPolicyContractFactory(tranchesPolicyContractName);
     const tranchesPolicyContract = await TranchesPolicy.deploy();
@@ -246,7 +241,6 @@ export async function deployPoolContracts(
             maxPercentOfPoolValueInBps: 0,
             riskYieldMultiplier: 0,
         },
-        ethers.constants.AddressZero,
     );
     await poolConfigContract.setFirstLossCover(
         AFFILIATE_FIRST_LOSS_COVER_INDEX,
@@ -258,7 +252,6 @@ export async function deployPoolContracts(
             maxPercentOfPoolValueInBps: 0,
             riskYieldMultiplier: 20000,
         },
-        affiliateFirstLossCoverProfitEscrowContract.address,
     );
 
     await poolConfigContract.grantRole(
@@ -280,10 +273,6 @@ export async function deployPoolContracts(
     await affiliateFirstLossCoverContract["initialize(string,string,address)"](
         "Affiliate First Loss Cover",
         "AFLC",
-        poolConfigContract.address,
-    );
-    await affiliateFirstLossCoverProfitEscrowContract["initialize(address,address)"](
-        affiliateFirstLossCoverContract.address,
         poolConfigContract.address,
     );
     await tranchesPolicyContract.initialize(poolConfigContract.address);
@@ -311,7 +300,6 @@ export async function deployPoolContracts(
         calendarContract,
         borrowerFirstLossCoverContract,
         affiliateFirstLossCoverContract,
-        affiliateFirstLossCoverProfitEscrowContract,
         tranchesPolicyContract,
         poolContract,
         epochManagerContract,
@@ -329,7 +317,6 @@ export async function setupPoolContracts(
     mockTokenContract: MockToken,
     borrowerFirstLossCoverContract: FirstLossCover,
     affiliateFirstLossCoverContract: FirstLossCover,
-    affiliateFirstLossCoverProfitEscrowContract: ProfitEscrow,
     poolSafeContract: PoolSafe,
     poolContract: Pool,
     juniorTrancheVaultContract: TrancheVault,
@@ -472,7 +459,6 @@ export async function deployAndSetupPoolContracts(
         calendarContract,
         borrowerFirstLossCoverContract,
         affiliateFirstLossCoverContract,
-        affiliateFirstLossCoverProfitEscrowContract,
         tranchesPolicyContract,
         poolContract,
         epochManagerContract,
@@ -496,7 +482,6 @@ export async function deployAndSetupPoolContracts(
         mockTokenContract,
         borrowerFirstLossCoverContract,
         affiliateFirstLossCoverContract,
-        affiliateFirstLossCoverProfitEscrowContract,
         poolSafeContract,
         poolContract,
         juniorTrancheVaultContract,
@@ -516,7 +501,6 @@ export async function deployAndSetupPoolContracts(
         calendarContract,
         borrowerFirstLossCoverContract,
         affiliateFirstLossCoverContract,
-        affiliateFirstLossCoverProfitEscrowContract,
         tranchesPolicyContract,
         poolContract,
         epochManagerContract,
