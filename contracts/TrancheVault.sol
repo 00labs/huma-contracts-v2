@@ -21,7 +21,7 @@ contract TrancheVault is
     IEpoch
 {
     bytes32 public constant LENDER_ROLE = keccak256("LENDER");
-    uint256 private constant MAX_NUMBER_FOR_PAYOUT_BATCH = 100;
+    uint256 private constant MAX_LENDER_NUMBER = 100;
 
     event EpochProcessed(
         uint256 indexed epochId,
@@ -346,7 +346,7 @@ contract TrancheVault is
         uint256 price = convertToAssets(DEFAULT_DECIMALS_FACTOR);
         uint256 len = lenders.length;
         uint96[2] memory tranchesAssets = pool.currentTranchesAssets();
-        for (uint256 i; i < len && i < MAX_NUMBER_FOR_PAYOUT_BATCH; i++) {
+        for (uint256 i; i < len && i < MAX_LENDER_NUMBER; i++) {
             address lender = lenders[i];
             uint256 shares = ERC20Upgradeable.balanceOf(lender);
             uint256 assets = (shares * price) / DEFAULT_DECIMALS_FACTOR;

@@ -22,6 +22,8 @@ contract FirstLossCover is
     FirstLossCoverStorage,
     IFirstLossCover
 {
+    uint256 private constant MAX_PROVIDER_NUMBER = 100;
+
     using SafeERC20 for IERC20;
 
     event CoverProviderSet(
@@ -41,6 +43,8 @@ contract FirstLossCover is
         uint256 assets
     );
     event AssetsAdded(uint256 assets);
+
+    event InterestPaidout(address indexed account, uint256 interest);
 
     constructor() {
         // _disableInitializers();
@@ -189,6 +193,34 @@ contract FirstLossCover is
         uint256 currTotalAssets = totalAssets();
 
         return currTotalSupply == 0 ? shares : (shares * currTotalAssets) / currTotalSupply;
+    }
+
+    /**
+     * @notice Pay out interest above the cap to providers. Expects to be called by a cron-like mechanism like autotask.
+     * @param providers All first loss cover providers
+     */
+    function payoutInterest(address[] calldata providers) external {
+        uint256 cap = getCapacity(pool.totalAssets());
+        uint256 assets = totalAssets();
+        if (assets <= cap) return;
+
+        uint256 interest = assets - cap;
+        uint256 totalShares = totalSupply();
+        uint256 len = providers.length;
+        uint256 remainingShares = totalShares;
+        for (uint256 i; i < len && i < MAX_PROVIDER_NUMBER; i++) {
+            address provider = providers[i];
+            uint256 shares = balanceOf(provider);
+            if (shares == 0) continue;
+
+            uint256 payout = (interest * shares) / totalShares;
+            underlyingToken.safeTransfer(provider, payout);
+            remainingShares -= shares;
+            emit InterestPaidout(provider, payout);
+        }
+
+        // Reverts this transaction if only partial providers are paid out.
+        if (remainingShares > 0) revert Errors.todo();
     }
 
     function calcLossRecover(
