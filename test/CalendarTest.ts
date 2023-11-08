@@ -4,13 +4,7 @@ import { ethers } from "hardhat";
 import moment from "moment";
 import { Calendar } from "../typechain-types";
 import { CONSTANTS, PayPeriodDuration } from "./BaseTest";
-import {
-    dateToTimestamp,
-    getFutureBlockTime,
-    getNextDueDate,
-    mineNextBlockWithTimestamp,
-    timestampToMoment,
-} from "./TestUtils";
+import { getFutureBlockTime, mineNextBlockWithTimestamp, timestampToMoment } from "./TestUtils";
 
 let calendarContract: Calendar;
 
@@ -391,6 +385,161 @@ describe("Calendar Test", function () {
                 await expect(
                     calendarContract.getDaysDiff(startDate.unix(), endDate.unix()),
                 ).to.be.revertedWithCustomError(calendarContract, "startDateLaterThanEndDate");
+            });
+        });
+    });
+
+    describe("getStartDateOfNextPeriod", function () {
+        describe("With monthly period duration", function () {
+            it("Should return the start date of the immediate next period relative to the current block timestamp is timestamp is 0", async function () {
+                const nextYear = moment.utc().year() + 1;
+                const nextBlockTime = moment.utc({
+                    year: nextYear,
+                    month: 3,
+                    day: 2,
+                });
+                await mineNextBlockWithTimestamp(nextBlockTime.unix());
+
+                const startDateOfNextPeriod = moment.utc({
+                    year: nextYear,
+                    month: 4,
+                    day: 1,
+                });
+                expect(
+                    await calendarContract.getStartDateOfNextPeriod(PayPeriodDuration.Monthly, 0),
+                ).to.equal(startDateOfNextPeriod.unix());
+            });
+
+            it("Should return the start date of the immediate next period relative to the given timestamp if it's not 0", async function () {
+                const nextYear = moment.utc().year() + 1;
+                const nextBlockTime = moment.utc({
+                    year: nextYear,
+                    month: 6,
+                    day: 27,
+                });
+                await mineNextBlockWithTimestamp(nextBlockTime.unix());
+
+                const timestamp = moment.utc({
+                    year: nextYear,
+                    month: 3,
+                    day: 2,
+                });
+                // The start date should be based on `timestamp` rather `nextBlockTime`.
+                const startDateOfNextPeriod = moment.utc({
+                    year: nextYear,
+                    month: 4,
+                    day: 1,
+                });
+                expect(
+                    await calendarContract.getStartDateOfNextPeriod(
+                        PayPeriodDuration.Monthly,
+                        timestamp.unix(),
+                    ),
+                ).to.equal(startDateOfNextPeriod.unix());
+            });
+        });
+
+        describe("With quarterly period duration", function () {
+            it("Should return the start date of the immediate next period relative to the current block timestamp is timestamp is 0", async function () {
+                const nextYear = moment.utc().year() + 1;
+                const nextBlockTime = moment.utc({
+                    year: nextYear,
+                    month: 3,
+                    day: 2,
+                });
+                await mineNextBlockWithTimestamp(nextBlockTime.unix());
+
+                const startDateOfNextPeriod = moment.utc({
+                    year: nextYear,
+                    month: 6,
+                    day: 1,
+                });
+                expect(
+                    await calendarContract.getStartDateOfNextPeriod(
+                        PayPeriodDuration.Quarterly,
+                        0,
+                    ),
+                ).to.equal(startDateOfNextPeriod.unix());
+            });
+
+            it("Should return the start date of the immediate next period relative to the given timestamp if it's not 0", async function () {
+                const nextYear = moment.utc().year() + 1;
+                const nextBlockTime = moment.utc({
+                    year: nextYear,
+                    month: 6,
+                    day: 27,
+                });
+                await mineNextBlockWithTimestamp(nextBlockTime.unix());
+
+                const timestamp = moment.utc({
+                    year: nextYear,
+                    month: 3,
+                    day: 2,
+                });
+                // The start date should be based on `timestamp` rather `nextBlockTime`.
+                const startDateOfNextPeriod = moment.utc({
+                    year: nextYear,
+                    month: 6,
+                    day: 1,
+                });
+                expect(
+                    await calendarContract.getStartDateOfNextPeriod(
+                        PayPeriodDuration.Quarterly,
+                        timestamp.unix(),
+                    ),
+                ).to.equal(startDateOfNextPeriod.unix());
+            });
+        });
+
+        describe("With semi-annually period duration", function () {
+            it("Should return the start date of the immediate next period relative to the current block timestamp is timestamp is 0", async function () {
+                const nextYear = moment.utc().year() + 1;
+                const nextBlockTime = moment.utc({
+                    year: nextYear,
+                    month: 0,
+                    day: 2,
+                });
+                await mineNextBlockWithTimestamp(nextBlockTime.unix());
+
+                const startDateOfNextPeriod = moment.utc({
+                    year: nextYear,
+                    month: 6,
+                    day: 1,
+                });
+                expect(
+                    await calendarContract.getStartDateOfNextPeriod(
+                        PayPeriodDuration.SemiAnnually,
+                        0,
+                    ),
+                ).to.equal(startDateOfNextPeriod.unix());
+            });
+
+            it("Should return the start date of the immediate next period relative to the given timestamp if it's not 0", async function () {
+                const nextYear = moment.utc().year() + 1;
+                const nextBlockTime = moment.utc({
+                    year: nextYear,
+                    month: 6,
+                    day: 27,
+                });
+                await mineNextBlockWithTimestamp(nextBlockTime.unix());
+
+                const timestamp = moment.utc({
+                    year: nextYear,
+                    month: 0,
+                    day: 2,
+                });
+                // The start date should be based on `timestamp` rather `nextBlockTime`.
+                const startDateOfNextPeriod = moment.utc({
+                    year: nextYear,
+                    month: 6,
+                    day: 1,
+                });
+                expect(
+                    await calendarContract.getStartDateOfNextPeriod(
+                        PayPeriodDuration.SemiAnnually,
+                        timestamp.unix(),
+                    ),
+                ).to.equal(startDateOfNextPeriod.unix());
             });
         });
     });
@@ -816,30 +965,6 @@ describe("Calendar Test", function () {
                     ),
                 ).to.equal(4);
             });
-        });
-    });
-
-    describe("getNextPeriod", function () {
-        it("getNextPeriod while unit is Month and lastDueDate is 0", async function () {
-            const nextBlockTime = await getFutureBlockTime(2);
-            await mineNextBlockWithTimestamp(nextBlockTime);
-
-            const periods = 1;
-            const dueDateInNextPeriod = await calendarContract.getNextPeriod(periods, 0);
-            const [dueDate] = getNextDueDate(0, nextBlockTime, periods);
-            expect(dueDateInNextPeriod).to.equal(dueDate);
-        });
-
-        it("getNextPeriod while unit is Month and lastDueDate is not 0", async function () {
-            const nextBlockTime = await getFutureBlockTime(2);
-            await mineNextBlockWithTimestamp(nextBlockTime);
-
-            const lastDate = dateToTimestamp("2023-02-01");
-
-            const periods = 3;
-            const dueDateInNextPeriod = await calendarContract.getNextPeriod(periods, lastDate);
-            const [dueDate] = getNextDueDate(lastDate, lastDate, periods);
-            expect(dueDateInNextPeriod).to.equal(dueDate);
         });
     });
 });

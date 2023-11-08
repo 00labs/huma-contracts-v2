@@ -79,14 +79,13 @@ interface ICalendar {
     ) external view returns (uint256 startDate);
 
     /**
-     * @notice Returns the immediate next due date following lastDueDate. If multiple periods have
-     * passed since lastDueDate, this function returns the due date that is only one period after
-     * lastDueDate. In contract, getNextDueDate() gets the next due date based on block.timestamp.
+     * @notice Returns the start date of the immediate next period after `timestamp`.
+     * If `timestamp` is 0, use the current block timestamp.
      */
-    function getNextPeriod(
-        uint256 periodDuration,
-        uint256 lastDueDate
-    ) external view returns (uint256 dueDateInNextPeriod);
+    function getStartDateOfNextPeriod(
+        PayPeriodDuration periodDuration,
+        uint256 timestamp
+    ) external view returns (uint256 startOfNextPeriod);
 
     /**
      * @notice Returns the next due date and the number of periods passed.
