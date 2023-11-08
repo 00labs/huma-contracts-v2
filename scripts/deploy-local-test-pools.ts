@@ -173,6 +173,7 @@ async function main() {
     console.log("=====================================");
     console.log("Addresses:");
     console.log(`Default pool:    ${poolContract.address}`);
+    console.log(`Pool config:     ${poolConfigContract.address}`);
     console.log(`Junior tranche:  ${juniorTrancheVaultContract.address}`);
     console.log(`Senior tranche:  ${seniorTrancheVaultContract.address}`);
     console.log(`Pool safe:       ${poolSafeContract.address}`);
