@@ -148,6 +148,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             // Note that if the principalRate is R, the remaining principal rate is (1 - R).
             // When multiple periods P passed, the remaining principal rate is (1 - R)^P.
             // The incremental principal due should be 1 - (1 - R)^P.
+            // TODO(jiatu): is this off-by-one?
             principalDue =
                 ((HUNDRED_PERCENT_IN_BPS ** periodsPassed -
                     (HUNDRED_PERCENT_IN_BPS - principalRate) ** periodsPassed) * principal) /

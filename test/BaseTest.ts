@@ -91,7 +91,6 @@ const BP_FACTOR = BN.from(10000);
 const MONTHS_IN_A_YEAR = 12;
 const SECONDS_IN_A_DAY = 24 * 60 * 60;
 const SECONDS_IN_YEAR = 60 * 60 * 24 * 365;
-const MAX_SECONDS_IN_A_QUARTER = 92 * 24 * 60 * 60;
 const BORROWER_FIRST_LOSS_COVER_INDEX = 0;
 const AFFILIATE_FIRST_LOSS_COVER_INDEX = 1;
 
@@ -106,7 +105,6 @@ export const CONSTANTS = {
     BP_FACTOR,
     MONTHS_IN_A_YEAR,
     SECONDS_IN_A_DAY,
-    MAX_SECONDS_IN_A_QUARTER,
     SECONDS_IN_YEAR,
     BORROWER_FIRST_LOSS_COVER_INDEX,
     AFFILIATE_FIRST_LOSS_COVER_INDEX,
@@ -411,6 +409,13 @@ export async function setupPoolContracts(
     await poolConfigContract.connect(poolOwner).grantRole(role, poolOwner.getAddress());
     await poolConfigContract.connect(poolOwner).grantRole(role, poolOperator.getAddress());
 
+    await juniorTrancheVaultContract
+        .connect(poolOperator)
+        .setReinvestInterest(poolOwnerTreasury.address, true);
+    await juniorTrancheVaultContract
+        .connect(poolOperator)
+        .setReinvestInterest(evaluationAgent.address, true);
+
     await affiliateFirstLossCoverContract
         .connect(poolOwnerTreasury)
         .depositCover(poolLiquidityCap.mul(firstLossCoverageInBps).div(CONSTANTS.BP_FACTOR));
@@ -433,10 +438,10 @@ export async function setupPoolContracts(
     for (let i = 0; i < accounts.length; i++) {
         await juniorTrancheVaultContract
             .connect(poolOperator)
-            .addApprovedLender(accounts[i].getAddress());
+            .addApprovedLender(accounts[i].getAddress(), true);
         await seniorTrancheVaultContract
             .connect(poolOperator)
-            .addApprovedLender(accounts[i].getAddress());
+            .addApprovedLender(accounts[i].getAddress(), true);
         await mockTokenContract
             .connect(accounts[i])
             .approve(poolSafeContract.address, ethers.constants.MaxUint256);

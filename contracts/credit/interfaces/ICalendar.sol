@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
+import {PayPeriodDuration} from "../CreditStructs.sol";
+
 /**
  * @notice ICalendar defines functions for date calculation.
  */
@@ -10,6 +12,11 @@ interface ICalendar {
      * @notice Returns the beginning of the next month
      */
     function getStartOfNextMonth() external view returns (uint256 startOfNextMonth);
+
+    /**
+     * @notice Returns the beginning of the next half of the year.
+     */
+    function getStartOfNextHalfYear() external view returns (uint256 startOfHalfYear);
 
     /**
      * @notice Returns the beginning of tomorrow as a timestamp.
@@ -53,6 +60,15 @@ interface ICalendar {
         uint256 startDate,
         uint256 endDate
     ) external pure returns (uint256 daysDiff);
+
+    /**
+     * @notice Returns the number of periods passed between the two given dates.
+     */
+    function getNumPeriodsPassed(
+        PayPeriodDuration periodDuration,
+        uint256 startDate,
+        uint256 endDate
+    ) external view returns (uint256 numPeriodsPassed);
 
     /**
      * @notice Returns the start date of the period specified by the end date.

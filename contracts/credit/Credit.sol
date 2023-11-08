@@ -344,6 +344,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         bytes32 creditHash,
         uint256 borrowAmount
     ) internal virtual {
+        // todo need to add return values
         CreditRecord memory cr = getCreditRecord(creditHash);
         CreditConfig memory cc = getCreditConfig(creditHash);
         _checkDrawdownEligibility(borrower, cr, borrowAmount, cc.creditLimit);
@@ -629,6 +630,11 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         _dueDetailMap[creditHash] = dd;
     }
 
+    /// Shared setter to CreditLimit map for contract size consideration
+    function _setCreditLimit(bytes32 creditHash, CreditLimit memory cl) internal {
+        _creditLimitMap[creditHash] = cl;
+    }
+
     /// Shared setter to the CreditLoss mapping for contract size consideration
     function _setCreditLoss(bytes32 creditHash, CreditLoss memory cl) internal {
         _creditLossMap[creditHash] = cl;
@@ -818,6 +824,11 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         return _dueDetailMap[creditHash];
     }
 
+    /// Shared accessor to CreditLimit for contract size consideration
+    function getCreditLimit(bytes32 creditHash) public view returns (CreditLimit memory) {
+        return _creditLimitMap[creditHash];
+    }
+
     /// Shared accessor to CreditLoss for contract size consideration
     function _getCreditLoss(bytes32 creditHash) internal view returns (CreditLoss memory) {
         return _creditLossMap[creditHash];
@@ -874,6 +885,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         // Although not essential to call _updateDueInfo() to extend the credit line duration,
         // it is still a good practice to bring the account current while we update one of the fields.
         _updateDueInfo(creditHash);
+        // TODO(jiatu): update CreditConfig since the number of periods have also been increased?
         CreditRecord memory cr = getCreditRecord(creditHash);
         uint256 oldNumOfPeriods = cr.remainingPeriods;
         cr.remainingPeriods += uint16(newNumOfPeriods);
