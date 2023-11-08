@@ -13,10 +13,13 @@ struct CreditConfig {
     // for factoring, it is factoring fee for the given period;
     // for dynamic yield credit, it is the estimated APY
     uint16 yieldInBps;
+    // Percentage of receivable nominal amount to be available for drawdown.
+    uint16 advanceRateInBps;
     bool revolving; // if repeated borrowing is allowed
     bool receivableBacked; // if the credit is receivable-backed
     bool borrowerLevelCredit; // whether the credit line is at the borrower-level vs receivable-level
     bool exclusive; // if the credit pool is exclusive to a borrower
+    bool autoApproval;
 }
 
 // CreditRecord keep track of the dynamic stats of a credit that change
@@ -63,6 +66,8 @@ struct CreditLoss {
     uint96 feesRecovered;
 }
 
+// todo The design of this struct is not optiized. There is duplication of creditLimit field
+// in this struct and CreditConfig. Need to revisit and refine it.
 struct CreditLimit {
     uint96 creditLimit;
     uint96 availableCredit;
@@ -115,13 +120,7 @@ struct ReceivableInfo {
     ReceivableState state;
 }
 
-struct FacilityConfig {
-    // Percentage of receivable nominal amount to be available for drawdown.
-    uint16 advanceRateInBps;
-    uint96 committedCreditLine;
-    bool autoApproval;
-}
-
+// todo Not sure if it is a good idea to separate this struct, will research and decide later.
 struct ReceivableInput {
     uint96 receivableAmount;
     uint64 receivableId;

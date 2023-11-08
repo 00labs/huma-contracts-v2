@@ -409,6 +409,13 @@ export async function setupPoolContracts(
     await poolConfigContract.connect(poolOwner).grantRole(role, poolOwner.getAddress());
     await poolConfigContract.connect(poolOwner).grantRole(role, poolOperator.getAddress());
 
+    await juniorTrancheVaultContract
+        .connect(poolOperator)
+        .setReinvestInterest(poolOwnerTreasury.address, true);
+    await juniorTrancheVaultContract
+        .connect(poolOperator)
+        .setReinvestInterest(evaluationAgent.address, true);
+
     await affiliateFirstLossCoverContract
         .connect(poolOwnerTreasury)
         .depositCover(poolLiquidityCap.mul(firstLossCoverageInBps).div(CONSTANTS.BP_FACTOR));
@@ -431,10 +438,10 @@ export async function setupPoolContracts(
     for (let i = 0; i < accounts.length; i++) {
         await juniorTrancheVaultContract
             .connect(poolOperator)
-            .addApprovedLender(accounts[i].getAddress());
+            .addApprovedLender(accounts[i].getAddress(), true);
         await seniorTrancheVaultContract
             .connect(poolOperator)
-            .addApprovedLender(accounts[i].getAddress());
+            .addApprovedLender(accounts[i].getAddress(), true);
         await mockTokenContract
             .connect(accounts[i])
             .approve(poolSafeContract.address, ethers.constants.MaxUint256);

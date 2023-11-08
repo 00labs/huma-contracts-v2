@@ -344,6 +344,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         bytes32 creditHash,
         uint256 borrowAmount
     ) internal virtual {
+        // todo need to add return values
         CreditRecord memory cr = getCreditRecord(creditHash);
         CreditConfig memory cc = getCreditConfig(creditHash);
         _checkDrawdownEligibility(borrower, cr, borrowAmount, cc.creditLimit);
@@ -629,6 +630,11 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         _dueDetailMap[creditHash] = dd;
     }
 
+    /// Shared setter to CreditLimit map for contract size consideration
+    function _setCreditLimit(bytes32 creditHash, CreditLimit memory cl) internal {
+        _creditLimitMap[creditHash] = cl;
+    }
+
     /// Shared setter to the CreditLoss mapping for contract size consideration
     function _setCreditLoss(bytes32 creditHash, CreditLoss memory cl) internal {
         _creditLossMap[creditHash] = cl;
@@ -816,6 +822,11 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
     /// Shared accessor to DueDetail for contract size consideration
     function getDueDetail(bytes32 creditHash) public view returns (DueDetail memory) {
         return _dueDetailMap[creditHash];
+    }
+
+    /// Shared accessor to CreditLimit for contract size consideration
+    function getCreditLimit(bytes32 creditHash) public view returns (CreditLimit memory) {
+        return _creditLimitMap[creditHash];
     }
 
     /// Shared accessor to CreditLoss for contract size consideration
