@@ -42,7 +42,7 @@ contract TrancheVault is
 
     event InterestReinvested(address indexed account, uint256 interest);
 
-    event ReinvestInterestSet(address indexed account, bool reinvestInterest, address by);
+    event ReinvestInterestConfigSet(address indexed account, bool reinvestInterest, address by);
 
     constructor() {
         // _disableInitializers();
@@ -113,7 +113,7 @@ contract TrancheVault is
     function setReinvestInterest(address lender, bool reinvestInterest) external {
         poolConfig.onlyPoolOperator(msg.sender);
         userInfos[lender].reinvestInterest = reinvestInterest;
-        emit ReinvestInterestSet(lender, reinvestInterest, msg.sender);
+        emit ReinvestInterestConfigSet(lender, reinvestInterest, msg.sender);
     }
 
     /// @inheritdoc IEpoch
@@ -340,7 +340,7 @@ contract TrancheVault is
 
     /**
      * @notice Process interests of lenders, pay out interests to lenders who want to withdraw
-     * reinvest interests for lenders who want to reinvest. An autotask will call this function.
+     * reinvest interests for lenders who want to reinvest. Expects to be called by a cron-like mechanism like autotask.
      */
     function processInterestForLenders(address[] calldata lenders) external {
         uint256 price = convertToAssets(DEFAULT_DECIMALS_FACTOR);

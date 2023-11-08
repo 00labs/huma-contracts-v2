@@ -40,13 +40,14 @@ interface IPoolSafe {
 
     /**
      * @notice Pool calls this function to reserve the unprocessed profit for junior/senior tranches.
-     * An autotask will handle it later to distribute the profit to the lenders who want to receive tokens
+     * A cron-like mechanism like autotask will handle it later to distribute the profit to the lenders who want to receive tokens
      * or reinvest in the pool for the lenders who want to reinvest.
      */
     function addUnprocessedProfit(address tranche, uint256 interest) external;
 
     /**
-     * @notice Senior/Junior tranches call this function to reset processed profit to 0 after autotasks run.
+     * @notice Senior/Junior tranches call this function to reset processed profit to 0 after
+     * TrancheVault.processInterestForLenders run.
      */
     function resetUnprocessedProfit() external;
 }
