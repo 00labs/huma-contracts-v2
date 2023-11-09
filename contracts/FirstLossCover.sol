@@ -213,6 +213,7 @@ contract FirstLossCover is
             uint256 shares = balanceOf(provider);
             if (shares == 0) continue;
 
+            // TODO rounding error?
             uint256 payout = (interest * shares) / totalShares;
             underlyingToken.safeTransfer(provider, payout);
             remainingShares -= shares;
@@ -220,7 +221,7 @@ contract FirstLossCover is
         }
 
         // Reverts this transaction if only partial providers are paid out.
-        if (remainingShares > 0) revert Errors.todo();
+        if (remainingShares > 0) revert Errors.notAllProviders();
     }
 
     function calcLossRecover(
