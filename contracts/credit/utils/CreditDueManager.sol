@@ -118,38 +118,22 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             (newDD.lateFeeUpdatedDate, newDD.lateFee) = refreshLateFee(_cr, _dd);
         }
 
-        // Calculate the yield due. Note that if multiple periods have passed, the yield for every period is still
-        // based on the outstanding principal since there was no change to the principal
-        (, , uint256 membershipFee) = poolConfig.getFees();
-        uint256 principal = _cr.unbilledPrincipal + _cr.nextDue - _cr.yieldDue;
-
-        uint256 daysPassed = calendar.getDaysDiff(_cr.nextDueDate, newDueDate);
-        newDD.accrued = uint96(
-            (principal * _cc.yieldInBps * daysPassed) /
-                (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR) +
-                membershipFee
-        );
-        newDD.committed = uint96(
-            (_cc.committedAmount * _cc.yieldInBps * daysPassed) /
-                (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR) +
-                membershipFee
-        );
-        newCR.yieldDue = uint96(newDD.committed > newDD.accrued ? newDD.committed : newDD.accrued);
-
         // Calculate the principal due.
+        (uint256 daysPassed, uint256 totalDaysInPeriod) = calendar.getDaysPassedInPeriod(
+            _cc.periodDuration
+        );
         periodsPassed = calendar.getNumPeriodsPassed(
             _cc.periodDuration,
             _cr.nextDueDate,
             block.timestamp
         );
+        uint256 principalDue = 0;
         if (newDueDate >= maturityDate) {
             // All principal is due if we are in or have passed the final period.
             // Note that it's technically impossible for the > to be true, but we are using >=
             // just to be safe.
-            newCR.nextDue = uint96(newCR.yieldDue + _cr.unbilledPrincipal);
-            newCR.unbilledPrincipal = 0;
+            principalDue = _cr.unbilledPrincipal;
         } else {
-            uint256 principalDue = 0;
             uint256 principalRate = poolConfig.getMinPrincipalRateInBps();
             if (principalRate > 0) {
                 if (_cr.nextDueDate == 0) {
@@ -159,14 +143,8 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                     // For instance, if the `principalRate` is 3% for a full period, and the principal is
                     // $1,000 with only 20 out of 30 days in the first billing cycle, then the prorated principal due
                     // is $1,000 * 3% * (20/30), which equals $20.
-                    // We use `getDaysPassedInPeriod()` to determine `daysPassed` and `totalDaysInPeriod`, enabling
-                    // us to calculate the prorated days as `totalDaysInPeriod - daysPassed`.
-                    uint256 totalDaysInPeriod;
-                    // Unfortunately we have to re-use `daysPassed` variable from above to get around the
-                    // "Stack too deep" issue.
-                    (daysPassed, totalDaysInPeriod) = calendar.getDaysPassedInPeriod(
-                        _cc.periodDuration
-                    );
+                    // In this case, `daysPassed` here is the days passed in the first period, which will be used to
+                    // calculate the remaining days in the first period.
                     principalDue =
                         (principal * principalRate * (totalDaysInPeriod - daysPassed)) /
                         totalDaysInPeriod;
@@ -185,9 +163,29 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                         (HUNDRED_PERCENT_IN_BPS ** periodsPassed);
                 }
             }
-            newCR.nextDue = uint96(newCR.yieldDue + principalDue);
-            newCR.unbilledPrincipal = uint96(_cr.unbilledPrincipal - principalDue);
         }
+        newCR.unbilledPrincipal = uint96(_cr.unbilledPrincipal - principalDue);
+
+        // Calculate the yield due. Note that if multiple periods have passed, the yield for every period is still
+        // based on the outstanding principal since there was no change to the principal
+        (, , uint256 membershipFee) = poolConfig.getFees();
+        uint256 principal = _cr.unbilledPrincipal + _cr.nextDue - _cr.yieldDue;
+        daysPassed = calendar.getDaysDiff(_cr.nextDueDate, newDueDate);
+        newDD.accrued = uint96(
+            (principal * _cc.yieldInBps * totalDaysInPeriod) /
+                (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR) +
+                membershipFee
+        );
+        newDD.committed = uint96(
+            (_cc.committedAmount * _cc.yieldInBps * totalDaysInPeriod) /
+                (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR) +
+                membershipFee
+        );
+        newCR.yieldDue =
+            (uint96(newDD.committed > newDD.accrued ? newDD.committed : newDD.accrued) *
+                daysPassed) /
+            totalDaysInPeriod;
+        newCR.nextDue = uint96(nerCR.yieldDue + principalDue);
 
         // Note any non-zero existing nextDue should have been moved to pastDue already.
         // Only the newly generated nextDue needs to be recorded.
