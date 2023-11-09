@@ -945,6 +945,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         (uint256 daysPassed, uint256 totalDays) = calendar.getDaysPassedInPeriod(
             cc.periodDuration
         );
+        // TODO(jiatu): the calculation is wrong. We need to divide by days in a year and hundred percent in bps.
         dd.committed = uint96(
             (daysPassed * cc.committedAmount + (totalDays - daysPassed) * committedAmount) *
                 cc.yieldInBps

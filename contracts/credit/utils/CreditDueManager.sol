@@ -101,6 +101,8 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         // except possibly the late fee. So we only need to update the late fee if it is already late.
         if (block.timestamp <= _cr.nextDueDate) {
             if (_cr.missedPeriods == 0) return (_cr, _dd, 0, false);
+            // TODO(jiatu): we shouldn't update the late fee if the borrower makes payment
+            // within the late payment grace period.
             else {
                 (newDD.lateFeeUpdatedDate, newDD.lateFee) = refreshLateFee(_cr, _dd);
                 return (_cr, newDD, 0, true);
@@ -119,6 +121,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         }
 
         // Calculate the principal due.
+        uint256 principal = _cr.unbilledPrincipal + _cr.nextDue - _cr.yieldDue;
         (uint256 daysPassed, uint256 totalDaysInPeriod) = calendar.getDaysPassedInPeriod(
             _cc.periodDuration
         );
@@ -169,7 +172,6 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         // Calculate the yield due. Note that if multiple periods have passed, the yield for every period is still
         // based on the outstanding principal since there was no change to the principal
         (, , uint256 membershipFee) = poolConfig.getFees();
-        uint256 principal = _cr.unbilledPrincipal + _cr.nextDue - _cr.yieldDue;
         daysPassed = calendar.getDaysDiff(_cr.nextDueDate, newDueDate);
         newDD.accrued = uint96(
             (principal * _cc.yieldInBps * totalDaysInPeriod) /
@@ -181,11 +183,11 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                 (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR) +
                 membershipFee
         );
-        newCR.yieldDue =
-            (uint96(newDD.committed > newDD.accrued ? newDD.committed : newDD.accrued) *
-                daysPassed) /
-            totalDaysInPeriod;
-        newCR.nextDue = uint96(nerCR.yieldDue + principalDue);
+        newCR.yieldDue = uint96(
+            ((newDD.committed > newDD.accrued ? newDD.committed : newDD.accrued) * daysPassed) /
+                totalDaysInPeriod
+        );
+        newCR.nextDue = uint96(newCR.yieldDue + principalDue);
 
         // Note any non-zero existing nextDue should have been moved to pastDue already.
         // Only the newly generated nextDue needs to be recorded.
