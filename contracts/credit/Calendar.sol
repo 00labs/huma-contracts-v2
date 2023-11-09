@@ -116,18 +116,14 @@ contract Calendar is ICalendar {
     }
 
     /// @inheritdoc ICalendar
-    function getNextPeriod(
-        uint256 periodDuration,
-        uint256 lastDueDate
-    ) external view returns (uint256 nextDueDate) {
-        uint256 monthCount;
-        if (lastDueDate == 0) {
-            (uint256 year, uint256 month, ) = DTL.timestampToDate(block.timestamp);
-            lastDueDate = DTL.timestampFromDate(year, month, 1);
-            monthCount = 1;
+    function getStartDateOfNextPeriod(
+        PayPeriodDuration periodDuration,
+        uint256 timestamp
+    ) external view returns (uint256 startOfNextPeriod) {
+        if (timestamp == 0) {
+            timestamp = block.timestamp;
         }
-        monthCount += periodDuration;
-        nextDueDate = DTL.addMonths(lastDueDate, monthCount);
+        return _getStartDateOfNextPeriod(periodDuration, timestamp);
     }
 
     /// @inheritdoc ICalendar
