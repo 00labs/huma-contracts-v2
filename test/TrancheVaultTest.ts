@@ -116,17 +116,17 @@ function checkRedemptionInfo(
 
 type UserInfoStructOutput = [BN, boolean] & {
     principal: BN;
-    reinvestInterest: boolean;
+    reinvestYield: boolean;
 };
 
 function checkUserInfo(
     userInfo: UserInfoStructOutput,
     principal: BN = BN.from(0),
-    reinvestInterest: boolean = false,
+    reinvestYield: boolean = false,
     delta: number = 0,
 ) {
     expect(userInfo.principal).to.be.closeTo(principal, delta);
-    expect(userInfo.reinvestInterest).to.equal(reinvestInterest);
+    expect(userInfo.reinvestYield).to.equal(reinvestYield);
 }
 
 describe("TrancheVault Test", function () {
@@ -2170,11 +2170,11 @@ describe("TrancheVault Test", function () {
             let lenderAssets = await mockTokenContract.balanceOf(lender.address);
             let lender2Assets = await mockTokenContract.balanceOf(lender2.address);
             await expect(
-                juniorTrancheVaultContract.processInterestForLenders([
+                juniorTrancheVaultContract.processYieldForLenders([
                     lender.address,
                     lender2.address,
                 ]),
-            ).to.emit(juniorTrancheVaultContract, "InterestPaidout");
+            ).to.emit(juniorTrancheVaultContract, "YieldPaidout");
             expect(await mockTokenContract.balanceOf(lender.address)).to.equal(
                 lenderAssets.add(lenders[0].interest),
             );
@@ -2212,11 +2212,11 @@ describe("TrancheVault Test", function () {
             let lenderAssets = await mockTokenContract.balanceOf(lender.address);
             let lender2Assets = await mockTokenContract.balanceOf(lender2.address);
             await expect(
-                juniorTrancheVaultContract.processInterestForLenders([
+                juniorTrancheVaultContract.processYieldForLenders([
                     lender.address,
                     lender2.address,
                 ]),
-            ).to.emit(juniorTrancheVaultContract, "InterestReinvested");
+            ).to.emit(juniorTrancheVaultContract, "YieldReinvested");
             expect(await mockTokenContract.balanceOf(lender.address)).to.equal(lenderAssets);
             expect(await mockTokenContract.balanceOf(lender2.address)).to.equal(lender2Assets);
             await lenders[0].syncPrincipal(juniorTrancheVaultContract);
@@ -2263,15 +2263,15 @@ describe("TrancheVault Test", function () {
             let lender3Assets = await mockTokenContract.balanceOf(lender3.address);
             let lender4Assets = await mockTokenContract.balanceOf(lender4.address);
             await expect(
-                juniorTrancheVaultContract.processInterestForLenders([
+                juniorTrancheVaultContract.processYieldForLenders([
                     lender.address,
                     lender2.address,
                     lender3.address,
                     lender4.address,
                 ]),
             )
-                .to.emit(juniorTrancheVaultContract, "InterestPaidout")
-                .to.emit(juniorTrancheVaultContract, "InterestReinvested");
+                .to.emit(juniorTrancheVaultContract, "YieldPaidout")
+                .to.emit(juniorTrancheVaultContract, "YieldReinvested");
 
             expect(await mockTokenContract.balanceOf(lender.address)).to.equal(
                 lenderAssets.add(lenders[0].interest),
@@ -2329,7 +2329,7 @@ describe("TrancheVault Test", function () {
             let lender3Assets = await mockTokenContract.balanceOf(lender3.address);
             let lender4Assets = await mockTokenContract.balanceOf(lender4.address);
 
-            await juniorTrancheVaultContract.processInterestForLenders([
+            await juniorTrancheVaultContract.processYieldForLenders([
                 lender.address,
                 lender2.address,
                 lender3.address,
@@ -2393,7 +2393,7 @@ describe("TrancheVault Test", function () {
             let profit = totalAssets.mul(BN.from(30));
             await creditContract.mockDistributePnL(profit, BN.from(0), BN.from(0));
 
-            await expect(juniorTrancheVaultContract.processInterestForLenders(addresses)).to.emit(
+            await expect(juniorTrancheVaultContract.processYieldForLenders(addresses)).to.emit(
                 juniorTrancheVaultContract,
                 "InterestPaidout",
             );

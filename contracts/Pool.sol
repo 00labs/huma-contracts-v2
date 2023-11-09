@@ -164,8 +164,7 @@ contract Pool is PoolConfigCache, IPool {
 
     /**
      * @notice Allows the pool owner to top up the first loss covers using
-     * the reserved profit and loss recovery until they're full. Once max capacity is hit,
-     * any extra profit is given to the first loss covers as their income.
+     * the reserved profit and loss recovery until they're full.
      */
     function syncFirstLossCovers() external {
         poolConfig.onlyPoolOwner(msg.sender);

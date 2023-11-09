@@ -22,7 +22,7 @@ contract FirstLossCover is
     FirstLossCoverStorage,
     IFirstLossCover
 {
-    uint256 private constant MAX_PROVIDER_NUMBER = 100;
+    uint256 private constant MAX_ALLOWED_NUM_PROVIDERS = 100;
 
     using SafeERC20 for IERC20;
 
@@ -44,7 +44,7 @@ contract FirstLossCover is
     );
     event AssetsAdded(uint256 assets);
 
-    event InterestPaidout(address indexed account, uint256 interest);
+    event YieldPaidout(address indexed account, uint256 yield);
 
     constructor() {
         // _disableInitializers();
@@ -196,32 +196,32 @@ contract FirstLossCover is
     }
 
     /**
-     * @notice Pay out interest above the cap to providers. Expects to be called by a cron-like mechanism like autotask.
+     * @notice Pay out yield above the cap to providers. Expects to be called by a cron-like mechanism like autotask.
      * @param providers All first loss cover providers
      */
-    function payoutInterest(address[] calldata providers) external {
+    function payoutYield(address[] calldata providers) external {
         uint256 cap = getCapacity(pool.totalAssets());
         uint256 assets = totalAssets();
         if (assets <= cap) return;
 
-        uint256 interest = assets - cap;
+        uint256 yield = assets - cap;
         uint256 totalShares = totalSupply();
         uint256 len = providers.length;
         uint256 remainingShares = totalShares;
-        for (uint256 i; i < len && i < MAX_PROVIDER_NUMBER; i++) {
+        for (uint256 i; i < len && i < MAX_ALLOWED_NUM_PROVIDERS; i++) {
             address provider = providers[i];
             uint256 shares = balanceOf(provider);
             if (shares == 0) continue;
 
             // TODO rounding error?
-            uint256 payout = (interest * shares) / totalShares;
+            uint256 payout = (yield * shares) / totalShares;
             underlyingToken.safeTransfer(provider, payout);
             remainingShares -= shares;
-            emit InterestPaidout(provider, payout);
+            emit YieldPaidout(provider, payout);
         }
 
         // Reverts this transaction if only partial providers are paid out.
-        if (remainingShares > 0) revert Errors.notAllProviders();
+        if (remainingShares > 0) revert Errors.notAllProvidersPaidOut();
     }
 
     function calcLossRecover(

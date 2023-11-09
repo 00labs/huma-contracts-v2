@@ -398,10 +398,10 @@ export async function setupPoolContracts(
 
     await juniorTrancheVaultContract
         .connect(poolOperator)
-        .setReinvestInterest(poolOwnerTreasury.address, true);
+        .setReinvestYield(poolOwnerTreasury.address, true);
     await juniorTrancheVaultContract
         .connect(poolOperator)
-        .setReinvestInterest(evaluationAgent.address, true);
+        .setReinvestYield(evaluationAgent.address, true);
 
     await affiliateFirstLossCoverContract
         .connect(poolOwnerTreasury)

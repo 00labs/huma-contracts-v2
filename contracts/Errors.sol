@@ -89,7 +89,7 @@ contract Errors {
     error attemptedDrawdownForNonrevolvingLine();
 
     // first loss cover operation
-    error notAllProviders();
+    error notAllProvidersPaidOut();
 
     // receivable operation
     error receivableAssetMismatch(); // 0x41dbeec1

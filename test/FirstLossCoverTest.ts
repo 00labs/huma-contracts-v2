@@ -1218,13 +1218,13 @@ describe("FirstLossCover Tests", function () {
         });
     });
 
-    describe("payoutInterest", function () {
-        it("Should revert while paying out interest to partial providers ", async function () {
+    describe("payoutYield", function () {
+        it("Should revert while paying out yield to partial providers", async function () {
             let totalAssets = await affiliateFirstLossCoverContract.totalAssets();
             let cap = await affiliateFirstLossCoverContract.getCapacity(
                 await poolContract.totalAssets(),
             );
-            let interest = toToken(8273);
+            let yieldAmount = toToken(8273);
             // console.log(`totalAssets: ${totalAssets}, cap: ${cap}`);
 
             await overrideFirstLossCoverConfig(
@@ -1233,16 +1233,19 @@ describe("FirstLossCover Tests", function () {
                 poolConfigContract,
                 poolOwner,
                 {
-                    liquidityCap: totalAssets.sub(interest),
+                    liquidityCap: totalAssets.sub(yieldAmount),
                 },
             );
 
             await expect(
-                affiliateFirstLossCoverContract.payoutInterest([poolOwnerTreasury.address]),
-            ).to.be.revertedWithCustomError(affiliateFirstLossCoverContract, "notAllProviders");
+                affiliateFirstLossCoverContract.payoutYield([poolOwnerTreasury.address]),
+            ).to.be.revertedWithCustomError(
+                affiliateFirstLossCoverContract,
+                "notAllProvidersPaidOut",
+            );
         });
 
-        it("Should do nothing when interest is 0", async function () {
+        it("Should do nothing when yield is 0", async function () {
             let totalAssets = await affiliateFirstLossCoverContract.totalAssets();
             let cap = await affiliateFirstLossCoverContract.getCapacity(
                 await poolContract.totalAssets(),
@@ -1258,7 +1261,7 @@ describe("FirstLossCover Tests", function () {
                 },
             );
 
-            await affiliateFirstLossCoverContract.payoutInterest([
+            await affiliateFirstLossCoverContract.payoutYield([
                 poolOwnerTreasury.address,
                 evaluationAgent.address,
             ]);
@@ -1266,10 +1269,10 @@ describe("FirstLossCover Tests", function () {
             expect(await affiliateFirstLossCoverContract.totalAssets()).to.equal(totalAssets);
         });
 
-        it("Should pay out interest to all providers ", async function () {
+        it("Should pay out yield to all providers ", async function () {
             let totalAssets = await affiliateFirstLossCoverContract.totalAssets();
             let poolAssets = await poolContract.totalAssets();
-            let interest = toToken(8273);
+            let yieldAmount = toToken(8273);
 
             await overrideFirstLossCoverConfig(
                 affiliateFirstLossCoverContract,
@@ -1277,7 +1280,7 @@ describe("FirstLossCover Tests", function () {
                 poolConfigContract,
                 poolOwner,
                 {
-                    liquidityCap: totalAssets.sub(interest),
+                    liquidityCap: totalAssets.sub(yieldAmount),
                 },
             );
 
@@ -1296,35 +1299,37 @@ describe("FirstLossCover Tests", function () {
             );
 
             await expect(
-                affiliateFirstLossCoverContract.payoutInterest([
+                affiliateFirstLossCoverContract.payoutYield([
                     poolOwnerTreasury.address,
                     evaluationAgent.address,
                 ]),
             )
-                .to.emit(affiliateFirstLossCoverContract, "InterestPaidout")
+                .to.emit(affiliateFirstLossCoverContract, "YieldPaidout")
                 .withArgs(
                     poolOwnerTreasury.address,
-                    poolOwnerTreasuryShares.mul(interest).div(totalShares),
+                    poolOwnerTreasuryShares.mul(yieldAmount).div(totalShares),
                 )
-                .to.emit(affiliateFirstLossCoverContract, "InterestPaidout")
+                .to.emit(affiliateFirstLossCoverContract, "YieldPaidout")
                 .withArgs(
                     evaluationAgent.address,
-                    evaluationAgentShares.mul(interest).div(totalShares),
+                    evaluationAgentShares.mul(yieldAmount).div(totalShares),
                 );
 
             expect(await affiliateFirstLossCoverContract.totalAssets()).to.equal(
-                totalAssets.sub(interest),
+                totalAssets.sub(yieldAmount),
             );
             expect(await affiliateFirstLossCoverContract.getCapacity(poolAssets)).to.equal(
-                totalAssets.sub(interest),
+                totalAssets.sub(yieldAmount),
             );
             expect(await mockTokenContract.balanceOf(poolOwnerTreasury.address)).to.equal(
                 poolOwnerTreasuryBalance.add(
-                    poolOwnerTreasuryShares.mul(interest).div(totalShares),
+                    poolOwnerTreasuryShares.mul(yieldAmount).div(totalShares),
                 ),
             );
             expect(await mockTokenContract.balanceOf(evaluationAgent.address)).to.equal(
-                evaluationAgentBalance.add(evaluationAgentShares.mul(interest).div(totalShares)),
+                evaluationAgentBalance.add(
+                    evaluationAgentShares.mul(yieldAmount).div(totalShares),
+                ),
             );
         });
     });

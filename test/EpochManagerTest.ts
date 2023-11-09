@@ -305,13 +305,13 @@ describe("EpochManager Test", function () {
         );
 
         await creditContract.mockDistributePnL(profit, loss, lossRecovery);
-        await juniorTrancheVaultContract.processInterestForLenders([
+        await juniorTrancheVaultContract.processYieldForLenders([
             lender.address,
             lender2.address,
             poolOwnerTreasury.address,
             evaluationAgent.address,
         ]);
-        await seniorTrancheVaultContract.processInterestForLenders([
+        await seniorTrancheVaultContract.processYieldForLenders([
             lender.address,
             lender2.address,
             poolOwnerTreasury.address,
