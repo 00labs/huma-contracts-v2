@@ -58,16 +58,6 @@ contract Calendar is ICalendar {
 
     /// @inheritdoc ICalendar
     function getDaysPassedInPeriod(
-        uint256 periodDuration
-    ) external view returns (uint256 daysPassed, uint256 totalDaysInPeriod) {
-        (, uint256 month, uint256 day) = DTL.timestampToDate(block.timestamp);
-        month = (month - 1) % periodDuration;
-        daysPassed = month * DAYS_IN_A_MONTH + day;
-        totalDaysInPeriod = periodDuration * DAYS_IN_A_MONTH;
-        return (daysPassed, totalDaysInPeriod);
-    }
-
-    function getDaysPassedInPeriod(
         PayPeriodDuration periodDuration
     ) public view returns (uint256 daysPassed, uint256 totalDaysInPeriod) {
         uint256 day = DTL.getDay(block.timestamp);
@@ -84,9 +74,12 @@ contract Calendar is ICalendar {
     function getDaysDiff(
         uint256 startDate,
         uint256 endDate
-    ) public pure returns (uint256 daysDiff) {
+    ) public view returns (uint256 daysDiff) {
         if (startDate > endDate) {
             revert Errors.startDateLaterThanEndDate();
+        }
+        if (startDate == 0) {
+            startDate = block.timestamp;
         }
 
         (, uint256 startMonth, uint256 startDay) = DTL.timestampToDate(startDate);
@@ -127,7 +120,6 @@ contract Calendar is ICalendar {
         return _getStartDateOfNextPeriod(periodDuration, timestamp);
     }
 
-    /// @inheritdoc ICalendar
     function getNextDueDate(
         uint256 periodDuration,
         uint256 lastDueDate
@@ -149,6 +141,7 @@ contract Calendar is ICalendar {
         dueDate = DTL.addMonths(lastDueDate, monthCount);
     }
 
+    /// @inheritdoc ICalendar
     function getNextDueDate(
         PayPeriodDuration periodDuration,
         uint256 maturityDate
