@@ -356,14 +356,17 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
 
         if (cr.state == CreditState.Approved) {
             // Flow for first drawdown
-            // Sets the principal, then generates the first bill and sets credit status
+            // Sets the principal, generates the first bill, sets credit status and records the maturity date.
 
-            // todo need to handle middle of a period, particular, how to setup the final period
             // Note that we need to write to _creditRecordMap here directly rather than its copy `cr`
             // because `_updateDueInfo()` needs to access the updated `unbilledPrincipal` in storage.
             _creditRecordMap[creditHash].unbilledPrincipal = uint96(borrowAmount);
             cr = _updateDueInfo(creditHash);
             cr.state = CreditState.GoodStanding;
+            _maturityDates[creditHash] = calendar.getMaturityDate(
+                cc.periodDuration,
+                cc.numOfPeriods
+            );
         } else {
             // Disallow repeated drawdown for non-revolving credit
             if (!cc.revolving) revert Errors.attemptedDrawdownForNonrevolvingLine();
