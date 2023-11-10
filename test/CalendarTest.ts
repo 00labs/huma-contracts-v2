@@ -1057,7 +1057,7 @@ describe("Calendar Test", function () {
                     for (const numPeriods of [2, 3]) {
                         const expectedMaturityDate = moment.utc({
                             year: nextYear,
-                            month: numPeriods,
+                            month: numPeriods + 1,
                             day: 1,
                         });
                         expect(
