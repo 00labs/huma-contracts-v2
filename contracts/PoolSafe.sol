@@ -96,7 +96,7 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
             account != poolConfig.juniorTranche() &&
             account != poolConfig.credit() &&
             account != poolConfig.poolFeeManager() &&
-            !poolConfig.isFirstLossCoverOrProfitEscrow(account)
+            !poolConfig.isFirstLossCover(account)
         ) revert Errors.notAuthorizedCaller();
     }
 }

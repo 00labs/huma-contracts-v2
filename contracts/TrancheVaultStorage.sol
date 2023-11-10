@@ -24,8 +24,8 @@ contract TrancheVaultStorage {
     struct UserInfo {
         // The total amount of underlying tokens deposited by the lender
         uint96 principal;
-        // Whether the lender reinvests the interests
-        bool reinvestInterest;
+        // Whether the lender reinvests the yield
+        bool reinvestYield;
     }
 
     IERC20 public underlyingToken;

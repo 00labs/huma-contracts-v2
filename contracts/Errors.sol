@@ -88,6 +88,9 @@ contract Errors {
     error insufficientBorrowerFirstLossCover();
     error attemptedDrawdownForNonrevolvingLine();
 
+    // first loss cover operation
+    error notAllProvidersPaidOut();
+
     // receivable operation
     error receivableAssetMismatch(); // 0x41dbeec1
     error receivableIdMismatch(); // 0x97be2b67

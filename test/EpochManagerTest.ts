@@ -16,7 +16,6 @@ import {
     PoolConfig,
     PoolFeeManager,
     PoolSafe,
-    ProfitEscrow,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
 } from "../typechain-types";
@@ -58,7 +57,6 @@ let poolConfigContract: PoolConfig,
     calendarContract: Calendar,
     borrowerFirstLossCoverContract: FirstLossCover,
     affiliateFirstLossCoverContract: FirstLossCover,
-    affiliateFirstLossCoverProfitEscrowContract: ProfitEscrow,
     tranchesPolicyContract: RiskAdjustedTranchesPolicy,
     poolContract: Pool,
     epochManagerContract: EpochManager,
@@ -127,7 +125,6 @@ describe("EpochManager Test", function () {
             calendarContract,
             borrowerFirstLossCoverContract,
             affiliateFirstLossCoverContract,
-            affiliateFirstLossCoverProfitEscrowContract,
             tranchesPolicyContract,
             poolContract,
             epochManagerContract,
@@ -308,13 +305,13 @@ describe("EpochManager Test", function () {
         );
 
         await creditContract.mockDistributePnL(profit, loss, lossRecovery);
-        await juniorTrancheVaultContract.processInterestForLenders([
+        await juniorTrancheVaultContract.processYieldForLenders([
             lender.address,
             lender2.address,
             poolOwnerTreasury.address,
             evaluationAgent.address,
         ]);
-        await seniorTrancheVaultContract.processInterestForLenders([
+        await seniorTrancheVaultContract.processYieldForLenders([
             lender.address,
             lender2.address,
             poolOwnerTreasury.address,

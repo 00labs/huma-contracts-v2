@@ -17,7 +17,6 @@ import {
     PoolConfig,
     PoolFeeManager,
     PoolSafe,
-    ProfitEscrow,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
 } from "../../typechain-types";
@@ -54,7 +53,6 @@ let poolConfigContract: PoolConfig,
     calendarContract: Calendar,
     borrowerFirstLossCoverContract: FirstLossCover,
     affiliateFirstLossCoverContract: FirstLossCover,
-    affiliateFirstLossCoverProfitEscrowContract: ProfitEscrow,
     tranchesPolicyContract: RiskAdjustedTranchesPolicy,
     poolContract: Pool,
     epochManagerContract: EpochManager,
@@ -95,7 +93,6 @@ describe("CreditDueManager.sol Tests", function () {
             calendarContract,
             borrowerFirstLossCoverContract,
             affiliateFirstLossCoverContract,
-            affiliateFirstLossCoverProfitEscrowContract,
             tranchesPolicyContract,
             poolContract,
             epochManagerContract,
@@ -182,10 +179,10 @@ describe("CreditDueManager.sol Tests", function () {
         it("Should revert if the borrow amount is less than the platform fees", async function () {
             const borrowAmount = toToken(9);
             await expect(
-              creditDueManagerContract.distBorrowingAmount(borrowAmount),
+                creditDueManagerContract.distBorrowingAmount(borrowAmount),
             ).to.be.revertedWithCustomError(
-              creditDueManagerContract,
-              "borrowingAmountLessThanPlatformFees",
+                creditDueManagerContract,
+                "borrowingAmountLessThanPlatformFees",
             );
         });
     });
@@ -209,8 +206,8 @@ describe("CreditDueManager.sol Tests", function () {
             const poolSettings = await poolConfigContract.getPoolSettings();
             // Advance next block time to be a second after the end of the late payment grace period.
             const nextBlockTime = timestampToMoment(await getFutureBlockTime(0))
-              .add(poolSettings.latePaymentGracePeriodInDays, "days")
-              .add(1, "second");
+                .add(poolSettings.latePaymentGracePeriodInDays, "days")
+                .add(1, "second");
             await mineNextBlockWithTimestamp(nextBlockTime.unix());
             const creditRecord = {
                 unbilledPrincipal: 0,
@@ -280,9 +277,9 @@ describe("CreditDueManager.sol Tests", function () {
                 state: CreditState.Delayed,
             };
             expect(await creditDueManagerContract.getPayoffAmount(creditRecord)).to.equal(
-              creditRecord.unbilledPrincipal
-                .add(creditRecord.nextDue)
-                .add(creditRecord.totalPastDue),
+                creditRecord.unbilledPrincipal
+                    .add(creditRecord.nextDue)
+                    .add(creditRecord.totalPastDue),
             );
         });
     });
