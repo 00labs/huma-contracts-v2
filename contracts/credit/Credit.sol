@@ -380,11 +380,9 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
             );
 
             // It's important to note that the yield calculation includes the day of the drawdown. For instance,
-            // if the borrower draws down at 11:59 PM on October 31st, the yield for October 31st must be paid,
-            // hence the "+1" in the following calculation.
-            uint256 additionalYield = (borrowAmount *
-                cc.yieldInBps *
-                (totalDays - daysPassed + 1)) / (DAYS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS);
+            // if the borrower draws down at 11:59 PM on October 30th, the yield for October 30th must be paid.
+            uint256 additionalYield = (borrowAmount * cc.yieldInBps * (totalDays - daysPassed)) /
+                (DAYS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS);
             cr.yieldDue += uint96(additionalYield);
             cr.nextDue += uint96(additionalYield);
             cr.unbilledPrincipal = uint96(cr.unbilledPrincipal + borrowAmount);
@@ -749,19 +747,19 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         CreditConfig memory cc = getCreditConfig(creditHash);
         CreditRecord memory cr = getCreditRecord(creditHash);
         DueDetail memory dd = getDueDetail(creditHash);
-        (uint256 daysPassed, uint256 totalDays) = calendar.getDaysPassedInPeriod(
-            cc.periodDuration
-        );
         uint256 principal = cr.unbilledPrincipal + cr.nextDue - cr.yieldDue;
+        uint256 weightedYieldInBps = _getCurrentDayIncludedWeightValue(
+            cc.periodDuration,
+            cc.yieldInBps,
+            yieldInBps
+        );
         // Note that the new yield rate takes effect the next day, hence we need to recalculate the accrued yield
         // and yield from commitment using the old rate for the days passed and new rate until the end of the period.
         dd.accrued = uint96(
-            ((daysPassed * cc.yieldInBps + (totalDays - daysPassed) * yieldInBps) * principal) /
-                DAYS_IN_A_YEAR
+            (weightedYieldInBps * principal) / (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR)
         );
         dd.committed = uint96(
-            ((daysPassed * cc.yieldInBps + (totalDays - daysPassed) * yieldInBps) *
-                cc.committedAmount) / DAYS_IN_A_YEAR
+            (weightedYieldInBps * cc.committedAmount) / (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR)
         );
         uint256 updatedYieldDue = dd.committed > dd.accrued ? dd.committed : dd.accrued;
         cr.nextDue = uint96(cr.nextDue - cr.yieldDue + updatedYieldDue);
@@ -931,18 +929,38 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         cc.committedAmount = uint96(committedAmount);
         _setCreditConfig(creditHash, cc);
 
-        (uint256 daysPassed, uint256 totalDays) = calendar.getDaysPassedInPeriod(
-            cc.periodDuration
+        uint256 weightCommittedAmount = _getCurrentDayIncludedWeightValue(
+            cc.periodDuration,
+            cc.committedAmount,
+            committedAmount
         );
-        dd.committed = uint96(
-            (daysPassed * cc.committedAmount + (totalDays - daysPassed) * committedAmount) *
-                cc.yieldInBps
-        );
+        // The new committed amount takes effect on the next day.
+        dd.committed = uint96((weightCommittedAmount * cc.yieldInBps) / HUNDRED_PERCENT_IN_BPS);
         uint256 updatedYieldDue = dd.committed > dd.accrued ? dd.committed : dd.accrued;
         cr.nextDue = uint96(cr.nextDue - cr.yieldDue + updatedYieldDue);
         cr.yieldDue = uint96(updatedYieldDue);
         _setCreditRecord(creditHash, cr);
         _setDueDetail(creditHash, dd);
         // TODO emit event
+    }
+
+    /**
+     * @notice Calculates and returns the weighted value of `oldValue` and `newValue`.
+     * @dev This function uniquely includes the current day in the weighting of `oldValue`. The weight is based on the
+     * number of days elapsed in a period plus the current day for `oldValue`, and the remaining days of the period
+     * for `newValue`.
+     * @param periodDuration The pay period duration.
+     * @param oldValue The value applicable before the change, including today.
+     * @param newValue The value applicable after the change, starting from the next day.
+     * @return weightedValue The calculated weighted value that combines `oldValue` and `newValue` based on the time
+     * distribution in the period.
+     */
+    function _getCurrentDayIncludedWeightValue(
+        PayPeriodDuration periodDuration,
+        uint256 oldValue,
+        uint256 newValue
+    ) internal view returns (uint256 weightedValue) {
+        (uint256 daysPassed, uint256 totalDays) = calendar.getDaysPassedInPeriod(periodDuration);
+        return (daysPassed + 1) * oldValue + (totalDays - daysPassed + 1) * newValue;
     }
 }
