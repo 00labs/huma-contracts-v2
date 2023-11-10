@@ -914,7 +914,11 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         _setCreditRecord(creditHash, cr);
 
         uint256 oldMaturityDate = _maturityDates[creditHash];
-        uint256 newMaturityDate = calendar.getMaturityDate(cc.periodDuration, cr.remainingPeriods);
+        uint256 newMaturityDate = calendar.getMaturityDate(
+            cc.periodDuration,
+            newNumOfPeriods,
+            oldMaturityDate
+        );
         _maturityDates[creditHash] = newMaturityDate;
 
         emit RemainingPeriodsExtended(
