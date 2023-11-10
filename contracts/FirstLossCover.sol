@@ -9,7 +9,6 @@ import {HUNDRED_PERCENT_IN_BPS, JUNIOR_TRANCHE, SENIOR_TRANCHE} from "./SharedDe
 import {IFirstLossCover} from "./interfaces/IFirstLossCover.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
-import {IProfitEscrow} from "./interfaces/IProfitEscrow.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20MetadataUpgradeable, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
@@ -23,6 +22,8 @@ contract FirstLossCover is
     FirstLossCoverStorage,
     IFirstLossCover
 {
+    uint256 private constant MAX_ALLOWED_NUM_PROVIDERS = 100;
+
     using SafeERC20 for IERC20;
 
     event CoverProviderSet(
@@ -42,6 +43,8 @@ contract FirstLossCover is
         uint256 assets
     );
     event AssetsAdded(uint256 assets);
+
+    event YieldPaidout(address indexed account, uint256 yield);
 
     constructor() {
         // _disableInitializers();
@@ -72,15 +75,6 @@ contract FirstLossCover is
         addr = _poolConfig.pool();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         pool = IPool(addr);
-
-        addr = _poolConfig.getFirstLossCoverProfitEscrow(address(this));
-        //* todo the following comment is strange. We should not allow zero address.
-        // A careless change may get us into a situation of losing funds into
-        // zero address. We should find a different way to handle this.
-
-        // It is possible to be null for borrower first loss cover
-        // if (addr == address(0)) revert Errors.zeroAddressProvided();
-        profitEscrow = IProfitEscrow(addr);
     }
 
     function setCoverProvider(address account, LossCoverProviderConfig memory config) external {
@@ -144,7 +138,6 @@ contract FirstLossCover is
         if (!ready && assets > currTotalAssets - cap) revert Errors.insufficientAmountForRequest();
 
         ERC20Upgradeable._burn(msg.sender, shares);
-        if (address(profitEscrow) != address(0)) profitEscrow.withdraw(msg.sender, shares);
         underlyingToken.safeTransfer(receiver, assets);
         emit CoverRedeemed(msg.sender, receiver, shares, assets);
     }
@@ -200,6 +193,35 @@ contract FirstLossCover is
         uint256 currTotalAssets = totalAssets();
 
         return currTotalSupply == 0 ? shares : (shares * currTotalAssets) / currTotalSupply;
+    }
+
+    /**
+     * @notice Pay out yield above the cap to providers. Expects to be called by a cron-like mechanism like autotask.
+     * @param providers All first loss cover providers
+     */
+    function payoutYield(address[] calldata providers) external {
+        uint256 cap = getCapacity(pool.totalAssets());
+        uint256 assets = totalAssets();
+        if (assets <= cap) return;
+
+        uint256 yield = assets - cap;
+        uint256 totalShares = totalSupply();
+        uint256 len = providers.length;
+        uint256 remainingShares = totalShares;
+        for (uint256 i; i < len && i < MAX_ALLOWED_NUM_PROVIDERS; i++) {
+            address provider = providers[i];
+            uint256 shares = balanceOf(provider);
+            if (shares == 0) continue;
+
+            // TODO rounding error?
+            uint256 payout = (yield * shares) / totalShares;
+            underlyingToken.safeTransfer(provider, payout);
+            remainingShares -= shares;
+            emit YieldPaidout(provider, payout);
+        }
+
+        // Reverts this transaction if only partial providers are paid out.
+        if (remainingShares > 0) revert Errors.notAllProvidersPaidOut();
     }
 
     function calcLossRecover(
@@ -263,8 +285,6 @@ contract FirstLossCover is
     function _deposit(uint256 assets, address account) internal returns (uint256 shares) {
         shares = convertToShares(assets);
         ERC20Upgradeable._mint(account, shares);
-
-        if (address(profitEscrow) != address(0)) profitEscrow.deposit(account, shares);
 
         emit CoverDeposited(account, assets, shares);
     }

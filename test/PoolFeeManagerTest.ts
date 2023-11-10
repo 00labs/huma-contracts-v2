@@ -16,7 +16,6 @@ import {
     PoolConfig,
     PoolFeeManager,
     PoolSafe,
-    ProfitEscrow,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
 } from "../typechain-types";
@@ -48,7 +47,6 @@ let poolConfigContract: PoolConfig,
     calendarContract: Calendar,
     borrowerFirstLossCoverContract: FirstLossCover,
     affiliateFirstLossCoverContract: FirstLossCover,
-    affiliateFirstLossCoverProfitEscrowContract: ProfitEscrow,
     tranchesPolicyContract: RiskAdjustedTranchesPolicy,
     poolContract: Pool,
     epochManagerContract: EpochManager,
@@ -92,7 +90,6 @@ describe("PoolFeeManager Tests", function () {
             calendarContract,
             borrowerFirstLossCoverContract,
             affiliateFirstLossCoverContract,
-            affiliateFirstLossCoverProfitEscrowContract,
             tranchesPolicyContract,
             poolContract,
             epochManagerContract,
@@ -140,7 +137,6 @@ describe("PoolFeeManager Tests", function () {
             // Make sure the first loss cover has room for investment.
             await overrideFirstLossCoverConfig(
                 affiliateFirstLossCoverContract,
-                affiliateFirstLossCoverProfitEscrowContract.address,
                 CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
                 poolConfigContract,
                 poolOwner,
@@ -197,7 +193,6 @@ describe("PoolFeeManager Tests", function () {
                     maxPercentOfPoolValueInBps: 0,
                     riskYieldMultiplier: 20000,
                 },
-                affiliateFirstLossCoverProfitEscrowContract.address,
             );
             await poolFeeManagerContract
                 .connect(poolOwner)
@@ -345,7 +340,6 @@ describe("PoolFeeManager Tests", function () {
             // this function easier.
             await overrideFirstLossCoverConfig(
                 affiliateFirstLossCoverContract,
-                affiliateFirstLossCoverProfitEscrowContract.address,
                 CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
                 poolConfigContract,
                 poolOwner,
@@ -415,7 +409,6 @@ describe("PoolFeeManager Tests", function () {
         it("Should allow the pool owner to withdraw the fees", async function () {
             await overrideFirstLossCoverConfig(
                 affiliateFirstLossCoverContract,
-                affiliateFirstLossCoverProfitEscrowContract.address,
                 CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
                 poolConfigContract,
                 poolOwner,
@@ -511,7 +504,6 @@ describe("PoolFeeManager Tests", function () {
         it("Should allow the EA to withdraw the fees", async function () {
             await overrideFirstLossCoverConfig(
                 affiliateFirstLossCoverContract,
-                affiliateFirstLossCoverProfitEscrowContract.address,
                 CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
                 poolConfigContract,
                 poolOwner,
@@ -592,7 +584,6 @@ describe("PoolFeeManager Tests", function () {
             // Zero-out the first loss cover capacity so that the fees cannot be invested.
             await overrideFirstLossCoverConfig(
                 affiliateFirstLossCoverContract,
-                affiliateFirstLossCoverProfitEscrowContract.address,
                 CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
                 poolConfigContract,
                 poolOwner,
@@ -629,7 +620,6 @@ describe("PoolFeeManager Tests", function () {
             async function () {
                 await overrideFirstLossCoverConfig(
                     affiliateFirstLossCoverContract,
-                    affiliateFirstLossCoverProfitEscrowContract.address,
                     CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
                     poolConfigContract,
                     poolOwner,
@@ -677,7 +667,6 @@ describe("PoolFeeManager Tests", function () {
                 // Make the first loss cover available capacity less than the total available fees.
                 await overrideFirstLossCoverConfig(
                     affiliateFirstLossCoverContract,
-                    affiliateFirstLossCoverProfitEscrowContract.address,
                     CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
                     poolConfigContract,
                     poolOwner,
@@ -797,7 +786,6 @@ describe("PoolFeeManager Tests", function () {
                 // Make sure the first loss cover cap is large enough.
                 await overrideFirstLossCoverConfig(
                     affiliateFirstLossCoverContract,
-                    affiliateFirstLossCoverProfitEscrowContract.address,
                     CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
                     poolConfigContract,
                     poolOwner,
@@ -826,7 +814,6 @@ describe("PoolFeeManager Tests", function () {
                 // Make sure the first loss cover cap is large enough.
                 await overrideFirstLossCoverConfig(
                     affiliateFirstLossCoverContract,
-                    affiliateFirstLossCoverProfitEscrowContract.address,
                     CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
                     poolConfigContract,
                     poolOwner,
@@ -862,7 +849,6 @@ describe("PoolFeeManager Tests", function () {
                 // Make sure the first loss cover cap is large enough.
                 await overrideFirstLossCoverConfig(
                     affiliateFirstLossCoverContract,
-                    affiliateFirstLossCoverProfitEscrowContract.address,
                     CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
                     poolConfigContract,
                     poolOwner,

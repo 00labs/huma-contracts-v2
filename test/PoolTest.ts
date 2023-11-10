@@ -16,7 +16,6 @@ import {
     PoolConfig,
     PoolFeeManager,
     PoolSafe,
-    ProfitEscrow,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
 } from "../typechain-types";
@@ -61,7 +60,6 @@ let poolConfigContract: PoolConfig,
     calendarContract: Calendar,
     borrowerFirstLossCoverContract: FirstLossCover,
     affiliateFirstLossCoverContract: FirstLossCover,
-    affiliateFirstLossCoverProfitEscrowContract: ProfitEscrow,
     tranchesPolicyContract: RiskAdjustedTranchesPolicy,
     poolContract: Pool,
     epochManagerContract: EpochManager,
@@ -108,7 +106,6 @@ describe("Pool Test", function () {
                 calendarContract,
                 borrowerFirstLossCoverContract,
                 affiliateFirstLossCoverContract,
-                affiliateFirstLossCoverProfitEscrowContract,
                 tranchesPolicyContract,
                 poolContract,
                 epochManagerContract,
@@ -291,7 +288,6 @@ describe("Pool Test", function () {
                 calendarContract,
                 borrowerFirstLossCoverContract,
                 affiliateFirstLossCoverContract,
-                affiliateFirstLossCoverProfitEscrowContract,
                 tranchesPolicyContract,
                 poolContract,
                 epochManagerContract,
@@ -347,10 +343,6 @@ describe("Pool Test", function () {
                     .deposit(seniorDepositAmount, lender.address);
                 // Override the config so that first loss covers cover
                 // all losses up to the amount of their total assets.
-                const profitEscrowAddresses = [
-                    ethers.constants.AddressZero,
-                    affiliateFirstLossCoverProfitEscrowContract.address,
-                ];
                 const firstLossCovers = [
                     borrowerFirstLossCoverContract,
                     affiliateFirstLossCoverContract,
@@ -361,7 +353,6 @@ describe("Pool Test", function () {
                 for (const [index, cover] of firstLossCovers.entries()) {
                     await overrideFirstLossCoverConfig(
                         cover,
-                        profitEscrowAddresses[index],
                         index,
                         poolConfigContract,
                         poolOwner,
@@ -835,7 +826,6 @@ describe("Pool Test", function () {
                         const coverCap = coverTotalAssets.add(1);
                         await overrideFirstLossCoverConfig(
                             affiliateFirstLossCoverContract,
-                            affiliateFirstLossCoverProfitEscrowContract.address,
                             CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
                             poolConfigContract,
                             poolOwner,
@@ -862,7 +852,6 @@ describe("Pool Test", function () {
                     // is no availability.
                     await overrideFirstLossCoverConfig(
                         affiliateFirstLossCoverContract,
-                        affiliateFirstLossCoverProfitEscrowContract.address,
                         CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
                         poolConfigContract,
                         poolOwner,

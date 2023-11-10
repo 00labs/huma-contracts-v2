@@ -186,7 +186,6 @@ export async function overrideLossCoverProviderConfig(
 
 export async function overrideFirstLossCoverConfig(
     firstLossCoverContract: FirstLossCover,
-    firstLossCoverProfitEscrowAddress: string,
     firstLossCoverIndex: number,
     poolConfigContract: PoolConfig,
     poolOwner: SignerWithAddress,
@@ -201,12 +200,7 @@ export async function overrideFirstLossCoverConfig(
     };
     await poolConfigContract
         .connect(poolOwner)
-        .setFirstLossCover(
-            firstLossCoverIndex,
-            firstLossCoverContract.address,
-            newConfig,
-            firstLossCoverProfitEscrowAddress,
-        );
+        .setFirstLossCover(firstLossCoverIndex, firstLossCoverContract.address, newConfig);
 }
 
 export function maxBigNumber(...values: BN[]): BN {
