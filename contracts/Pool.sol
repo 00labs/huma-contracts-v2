@@ -11,7 +11,6 @@ import {IPool} from "./interfaces/IPool.sol";
 import {IPoolFeeManager} from "./interfaces/IPoolFeeManager.sol";
 import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import {ITranchesPolicy} from "./interfaces/ITranchesPolicy.sol";
-import {IProfitEscrow} from "./interfaces/IProfitEscrow.sol";
 
 /**
  * @title Pool
@@ -165,8 +164,7 @@ contract Pool is PoolConfigCache, IPool {
 
     /**
      * @notice Allows the pool owner to top up the first loss covers using
-     * the reserved profit and loss recovery until they're full. Once max capacity is hit,
-     * any extra profit is given to the first loss covers as their income.
+     * the reserved profit and loss recovery until they're full.
      */
     function syncFirstLossCovers() external {
         poolConfig.onlyPoolOwner(msg.sender);
@@ -174,7 +172,6 @@ contract Pool is PoolConfigCache, IPool {
         uint256 remainingAssets = poolSafe.totalLiquidity();
         uint256 numFirstLossCovers = _firstLossCovers.length;
         uint256 availableAssets;
-        uint256 poolAssets = totalAssets();
         for (uint256 i = 0; i < numFirstLossCovers && remainingAssets > 0; i++) {
             bool synced = false;
             IFirstLossCover cover = _firstLossCovers[i];
@@ -194,37 +191,12 @@ contract Pool is PoolConfigCache, IPool {
 
             // Adds profit in the FirstLossCover with available liquidity.
             if (reservedAssets.profit > 0 && remainingAssets > 0) {
-                // Distributes profit to the cover. If there is still room in the cover, this profit
-                // is applied towards increasing coverage. The remainder of the profit is distributed to the
-                // first loss cover providers as their income.
-
-                // Invests into the cover until it reaches capacity.
-                uint256 availableCapacity = _getFirstLossCoverAvailableCap(cover, 0, poolAssets);
-                if (availableCapacity > 0) {
-                    uint256 profitToInvestInCover = reservedAssets.profit > availableCapacity
-                        ? availableCapacity
-                        : reservedAssets.profit;
-                    availableAssets = remainingAssets > profitToInvestInCover
-                        ? profitToInvestInCover
-                        : remainingAssets;
-                    cover.addCoverAssets(availableAssets);
-                    remainingAssets -= availableAssets;
-                    reservedAssets.profit -= uint96(availableAssets);
-                }
-
-                // Distributes the remaining profit to the cover providers.
-                if (reservedAssets.profit > 0 && remainingAssets > 0) {
-                    availableAssets = remainingAssets > reservedAssets.profit
-                        ? reservedAssets.profit
-                        : remainingAssets;
-                    IProfitEscrow profitEscrow = IProfitEscrow(
-                        poolConfig.getFirstLossCoverProfitEscrow(address(cover))
-                    );
-                    profitEscrow.addProfit(availableAssets);
-                    remainingAssets -= availableAssets;
-                    reservedAssets.profit -= uint96(availableAssets);
-                }
-
+                availableAssets = remainingAssets > reservedAssets.profit
+                    ? reservedAssets.profit
+                    : remainingAssets;
+                cover.addCoverAssets(availableAssets);
+                remainingAssets -= availableAssets;
+                reservedAssets.profit -= uint96(availableAssets);
                 synced = true;
             }
 

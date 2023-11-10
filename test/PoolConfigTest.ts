@@ -16,7 +16,6 @@ import {
     PoolConfig,
     PoolFeeManager,
     PoolSafe,
-    ProfitEscrow,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
 } from "../typechain-types";
@@ -55,7 +54,6 @@ let poolConfigContract: PoolConfig,
     calendarContract: Calendar,
     borrowerFirstLossCoverContract: FirstLossCover,
     affiliateFirstLossCoverContract: FirstLossCover,
-    affiliateFirstLossCoverProfitEscrowContract: ProfitEscrow,
     tranchesPolicyContract: RiskAdjustedTranchesPolicy,
     poolContract: Pool,
     epochManagerContract: EpochManager,
@@ -537,7 +535,6 @@ describe("PoolConfig Tests", function () {
                 calendarContract,
                 borrowerFirstLossCoverContract,
                 affiliateFirstLossCoverContract,
-                affiliateFirstLossCoverProfitEscrowContract,
                 tranchesPolicyContract,
                 poolContract,
                 epochManagerContract,
@@ -1544,7 +1541,6 @@ describe("PoolConfig Tests", function () {
                             CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
                             affiliateFirstLossCoverContract.address,
                             config,
-                            affiliateFirstLossCoverProfitEscrowContract.address,
                         ),
                 )
                     .to.emit(poolConfigContract, "FirstLossCoverChanged")
@@ -1556,7 +1552,6 @@ describe("PoolConfig Tests", function () {
                         config.liquidityCap,
                         config.maxPercentOfPoolValueInBps,
                         config.riskYieldMultiplier,
-                        affiliateFirstLossCoverProfitEscrowContract.address,
                         await actor.getAddress(),
                     );
 
@@ -1570,14 +1565,6 @@ describe("PoolConfig Tests", function () {
                     config.maxPercentOfPoolValueInBps,
                 );
                 expect(coverConfig.riskYieldMultiplier).to.equal(config.riskYieldMultiplier);
-
-                const profitEscrowContractAddress =
-                    await poolConfigContract.getFirstLossCoverProfitEscrow(
-                        affiliateFirstLossCoverContract.address,
-                    );
-                expect(profitEscrowContractAddress).to.equal(
-                    affiliateFirstLossCoverProfitEscrowContract.address,
-                );
             }
 
             it("Should allow the pool owner to set the first loss cover", async function () {
@@ -1596,7 +1583,6 @@ describe("PoolConfig Tests", function () {
                             CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
                             affiliateFirstLossCoverContract.address,
                             config,
-                            affiliateFirstLossCoverProfitEscrowContract.address,
                         ),
                 ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
             });

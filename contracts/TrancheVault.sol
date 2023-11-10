@@ -21,7 +21,7 @@ contract TrancheVault is
     IEpoch
 {
     bytes32 public constant LENDER_ROLE = keccak256("LENDER");
-    uint256 private constant MAX_NUMBER_FOR_PAYOUT_BATCH = 100;
+    uint256 private constant MAX_ALLOWED_NUM_LENDERS = 100;
 
     event EpochProcessed(
         uint256 indexed epochId,
@@ -38,11 +38,11 @@ contract TrancheVault is
 
     event RedemptionRequestRemoved(address indexed account, uint256 shareAmount, uint256 epochId);
 
-    event InterestPaidout(address indexed account, uint256 interest, uint256 shares);
+    event YieldPaidout(address indexed account, uint256 yield, uint256 shares);
 
-    event InterestReinvested(address indexed account, uint256 interest);
+    event YieldReinvested(address indexed account, uint256 yield);
 
-    event ReinvestInterestConfigSet(address indexed account, bool reinvestInterest, address by);
+    event ReinvestYieldConfigSet(address indexed account, bool reinvestYield, address by);
 
     constructor() {
         // _disableInitializers();
@@ -89,11 +89,11 @@ contract TrancheVault is
      * to make sure potential lenders meet the requirements. Afterwards, the pool operator will
      * call this function to mark a lender as approved.
      */
-    function addApprovedLender(address lender, bool reinvestInterest) external {
+    function addApprovedLender(address lender, bool reinvestYield) external {
         poolConfig.onlyPoolOperator(msg.sender);
         if (lender == address(0)) revert Errors.zeroAddressProvided();
         _grantRole(LENDER_ROLE, lender);
-        userInfos[lender] = UserInfo({principal: 0, reinvestInterest: reinvestInterest});
+        userInfos[lender] = UserInfo({principal: 0, reinvestYield: reinvestYield});
     }
 
     /**
@@ -108,12 +108,12 @@ contract TrancheVault is
     }
 
     /**
-     * @notice The pool operator will call this function to mark whether a lender wants to reinvest interest.
+     * @notice The pool operator will call this function to mark whether a lender wants to reinvest yield.
      */
-    function setReinvestInterest(address lender, bool reinvestInterest) external {
+    function setReinvestYield(address lender, bool reinvestYield) external {
         poolConfig.onlyPoolOperator(msg.sender);
-        userInfos[lender].reinvestInterest = reinvestInterest;
-        emit ReinvestInterestConfigSet(lender, reinvestInterest, msg.sender);
+        userInfos[lender].reinvestYield = reinvestYield;
+        emit ReinvestYieldConfigSet(lender, reinvestYield, msg.sender);
     }
 
     /// @inheritdoc IEpoch
@@ -175,7 +175,7 @@ contract TrancheVault is
     }
 
     /**
-     * @notice LP deposits to the pool to earn interest, and share losses
+     * @notice LP deposits to the pool to earn yield, and share losses
      *
      * @notice All deposits should be made by calling this function and
      * makeInitialDeposit() (for pool owner and EA's initial deposit) only.
@@ -339,31 +339,31 @@ contract TrancheVault is
     }
 
     /**
-     * @notice Process interests of lenders, pay out interests to lenders who want to withdraw
-     * reinvest interests for lenders who want to reinvest. Expects to be called by a cron-like mechanism like autotask.
+     * @notice Process yield of lenders, pay out yield to lenders who want to withdraw
+     * reinvest yield for lenders who want to reinvest. Expects to be called by a cron-like mechanism like autotask.
      */
-    function processInterestForLenders(address[] calldata lenders) external {
+    function processYieldForLenders(address[] calldata lenders) external {
         uint256 price = convertToAssets(DEFAULT_DECIMALS_FACTOR);
         uint256 len = lenders.length;
         uint96[2] memory tranchesAssets = pool.currentTranchesAssets();
-        for (uint256 i; i < len && i < MAX_NUMBER_FOR_PAYOUT_BATCH; i++) {
+        for (uint256 i; i < len && i < MAX_ALLOWED_NUM_LENDERS; i++) {
             address lender = lenders[i];
             uint256 shares = ERC20Upgradeable.balanceOf(lender);
             uint256 assets = (shares * price) / DEFAULT_DECIMALS_FACTOR;
             UserInfo memory userInfo = userInfos[lender];
             if (assets > userInfo.principal) {
-                uint256 interest = assets - userInfo.principal;
-                if (userInfo.reinvestInterest) {
-                    userInfo.principal += uint96(interest);
+                uint256 yield = assets - userInfo.principal;
+                if (userInfo.reinvestYield) {
+                    userInfo.principal += uint96(yield);
                     userInfos[lender] = userInfo;
-                    emit InterestReinvested(lender, interest);
+                    emit YieldReinvested(lender, yield);
                 } else {
                     // TODO rounding up?
-                    shares = (interest * DEFAULT_DECIMALS_FACTOR) / price;
+                    shares = (yield * DEFAULT_DECIMALS_FACTOR) / price;
                     ERC20Upgradeable._burn(lender, shares);
-                    poolSafe.withdraw(lender, interest);
-                    tranchesAssets[trancheIndex] -= uint96(interest);
-                    emit InterestPaidout(lender, interest, shares);
+                    poolSafe.withdraw(lender, yield);
+                    tranchesAssets[trancheIndex] -= uint96(yield);
+                    emit YieldPaidout(lender, yield, shares);
                 }
             }
         }

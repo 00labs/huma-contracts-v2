@@ -134,8 +134,6 @@ contract PoolConfig is AccessControl, Initializable {
 
     // The maximum number of first loss covers we allow is 16, which should be sufficient for now.
     address[16] internal _firstLossCovers;
-    // first loss cover address => profit escrow address
-    mapping(address => address) internal _profitEscrowByFirstLossCover;
     mapping(address => FirstLossCoverConfig) internal _firstLossCoverConfigs;
 
     PoolSettings internal _poolSettings;
@@ -190,7 +188,6 @@ contract PoolConfig is AccessControl, Initializable {
         uint96 liquidityCap,
         uint16 maxPercentOfPoolValueInBps,
         uint16 riskYieldMultiplier,
-        address profitEscrow,
         address by
     );
     event CalendarChanged(address calendar, address by);
@@ -563,12 +560,10 @@ contract PoolConfig is AccessControl, Initializable {
     function setFirstLossCover(
         uint8 index,
         address firstLossCover,
-        FirstLossCoverConfig memory config,
-        address profitEscrow
+        FirstLossCoverConfig memory config
     ) external {
         _onlyOwnerOrHumaMasterAdmin();
         _firstLossCovers[index] = firstLossCover;
-        _profitEscrowByFirstLossCover[firstLossCover] = profitEscrow;
         _firstLossCoverConfigs[firstLossCover] = config;
 
         emit FirstLossCoverChanged(
@@ -579,7 +574,6 @@ contract PoolConfig is AccessControl, Initializable {
             config.liquidityCap,
             config.maxPercentOfPoolValueInBps,
             config.riskYieldMultiplier,
-            profitEscrow,
             msg.sender
         );
     }
@@ -802,28 +796,10 @@ contract PoolConfig is AccessControl, Initializable {
         return false;
     }
 
-    function isFirstLossCoverOrProfitEscrow(
-        address account
-    ) external view returns (bool isCoverOrProfitEscrow) {
-        uint256 numCovers = _firstLossCovers.length;
-        for (uint256 i = 0; i < numCovers; i++) {
-            address firstLossCoverAddr = address(_firstLossCovers[i]);
-            if (account == firstLossCoverAddr) return true;
-            if (account == _profitEscrowByFirstLossCover[firstLossCoverAddr]) return true;
-        }
-        return false;
-    }
-
     function getFirstLossCoverConfig(
         address firstLossCover
     ) external view returns (FirstLossCoverConfig memory) {
         return _firstLossCoverConfigs[firstLossCover];
-    }
-
-    function getFirstLossCoverProfitEscrow(
-        address firstLossCover
-    ) external view returns (address) {
-        return _profitEscrowByFirstLossCover[firstLossCover];
     }
 
     function getPoolSettings() external view returns (PoolSettings memory) {
