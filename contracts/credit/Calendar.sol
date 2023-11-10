@@ -192,14 +192,14 @@ contract Calendar is ICalendar {
         PayPeriodDuration periodDuration,
         uint256 numPeriods
     ) external view returns (uint256 maturityDate) {
-        // The maturity date can be computed using the following algorithm:
-        // 1. Compute the start date of the next period.
-        // 2. Add the number of whole periods to the start date above.
-        // 3. Add the left-over days in the first partial period to get the maturity date.
+        // Algorithm to compute the maturity date:
+        // Step 1: Find the start date for the next period.
+        // Step 2: Add the total number of complete periods to the start date.
+        // Step 3: Include any remaining days from the initial partial period to determine the maturity date.
+
         // Step 1.
         maturityDate = _getStartDateOfNextPeriod(periodDuration, block.timestamp);
-        // Step 2 and 3. Note that we are adding the number of months instead of the number of days since
-        // so that we don't have to deal with converting each month to 30 days.
+        // Steps 2 and 3: Here, we add months rather than days to avoid the complexity of converting each month into a fixed number of days.
         (uint256 leftOverDaysInFirstPeriod, ) = getDaysPassedInPeriod(periodDuration);
         uint256 monthCount;
         if (leftOverDaysInFirstPeriod == 0) {
@@ -214,15 +214,14 @@ contract Calendar is ICalendar {
         } else if (periodDuration == PayPeriodDuration.SemiAnnually) {
             monthCount *= 6;
         }
-        // Since the number of left over days in the first period may also span multiple months,
-        // we need to account for these additional months in `monthCount` as well.
+        // It's important to consider that the leftover days in the first period might span across several months.
+        // These are also factored into `monthCount`.
         monthCount += leftOverDaysInFirstPeriod / DAYS_IN_A_MONTH;
         maturityDate = DTL.addMonths(maturityDate, monthCount);
         leftOverDaysInFirstPeriod %= DAYS_IN_A_MONTH;
-        // Special handling for Feb: since `leftOverDaysInFirstPeriod % DAYS_IN_A_MONTH` might be
-        // 29, if the computed `maturityDate` is 2/1 as of this step, and the current year is not
-        // a leap year, then naively adding 29 to it would incorrectly push the date maturity date
-        // to 3/2 when it should be 3/1.
+        // Specific consideration for February: If `leftOverDaysInFirstPeriod % DAYS_IN_A_MONTH` equals 29,
+        // and the calculated maturityDate falls on 2/1 in a non-leap year, directly adding
+        // 29 days would erroneously move the maturity date to 3/2 instead of the correct 3/1.
         uint256 daysInMonth = DTL.getDaysInMonth(maturityDate);
         if (leftOverDaysInFirstPeriod > daysInMonth) {
             return DTL.addMonths(maturityDate, 1);
