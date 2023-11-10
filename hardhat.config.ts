@@ -1,5 +1,18 @@
-import "@nomicfoundation/hardhat-toolbox";
+import "@nomicfoundation/hardhat-chai-matchers";
+import "@nomicfoundation/hardhat-ethers";
+import "@typechain/hardhat";
+import "hardhat-gas-reporter";
+import "solidity-coverage";
+
 import "hardhat-contract-sizer";
+
+import "@nomiclabs/hardhat-ethers";
+
+import "@openzeppelin/hardhat-upgrades";
+
+import "dotenv/config";
+import "hardhat-deploy";
+import "hardhat-deploy-ethers";
 
 const EMPTY_URL = "empty url";
 const EMPTY_PRIVATE_KEY = "0x0000000000000000000000000000000000000000000000000000000000000000";

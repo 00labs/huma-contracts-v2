@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "./SharedDefs.sol";
 import {IERC20MetadataUpgradeable, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {TrancheVaultStorage, IERC20} from "./TrancheVaultStorage.sol";
@@ -18,6 +19,7 @@ contract TrancheVault is
     ERC20Upgradeable,
     PoolConfigCache,
     TrancheVaultStorage,
+    UUPSUpgradeable,
     IEpoch
 {
     bytes32 public constant LENDER_ROLE = keccak256("LENDER");
@@ -148,7 +150,12 @@ contract TrancheVault is
         // Withdraw underlying tokens from the reserve so that LPs can redeem.
         poolVault.withdraw(address(this), amountProcessed);
 
-        emit EpochsProcessed(numEpochsProcessed, sharesProcessed, amountProcessed, unprocessedIndex);
+        emit EpochsProcessed(
+            numEpochsProcessed,
+            sharesProcessed,
+            amountProcessed,
+            unprocessedIndex
+        );
     }
 
     /**
@@ -187,8 +194,10 @@ contract TrancheVault is
         if (trancheIndex == SENIOR_TRANCHE_INDEX) {
             // Make sure that the max senior : junior asset ratio is still valid.
             LPConfig memory lpConfig = poolConfig.getLPConfig();
-            if ((trancheAssets + assets) > tranches[JUNIOR_TRANCHE_INDEX] * lpConfig.maxSeniorJuniorRatio)
-                revert Errors.maxSeniorJuniorRatioExceeded();
+            if (
+                (trancheAssets + assets) >
+                tranches[JUNIOR_TRANCHE_INDEX] * lpConfig.maxSeniorJuniorRatio
+            ) revert Errors.maxSeniorJuniorRatioExceeded();
         }
 
         poolVault.deposit(msg.sender, assets);
@@ -305,9 +314,10 @@ contract TrancheVault is
     function disburse(address receiver) external {
         poolConfig.onlyProtocolAndPoolOn();
 
-        (uint256 withdrawableAmount, RedemptionDisbursementInfo memory disbursementInfo) = _getWithdrawableAmountForLender(
-            msg.sender
-        );
+        (
+            uint256 withdrawableAmount,
+            RedemptionDisbursementInfo memory disbursementInfo
+        ) = _getWithdrawableAmountForLender(msg.sender);
         redemptionDisbursementInfoByLender[msg.sender] = disbursementInfo;
 
         underlyingToken.transfer(receiver, withdrawableAmount);
@@ -332,7 +342,8 @@ contract TrancheVault is
             RedemptionRequest memory request = requests[lastIndex];
             uint256 currentEpochId = epochManager.currentEpochId();
             if (request.epochId == currentEpochId) {
-                RedemptionDisbursementInfo memory disbursementInfo = redemptionDisbursementInfoByLender[account];
+                RedemptionDisbursementInfo
+                    memory disbursementInfo = redemptionDisbursementInfoByLender[account];
                 if (
                     disbursementInfo.requestsIndex == lastIndex &&
                     disbursementInfo.actualSharesProcessed > 0
@@ -383,7 +394,11 @@ contract TrancheVault is
      */
     function _getWithdrawableAmountForLender(
         address account
-    ) internal view returns (uint256 withdrawableAmount, RedemptionDisbursementInfo memory disbursementInfo) {
+    )
+        internal
+        view
+        returns (uint256 withdrawableAmount, RedemptionDisbursementInfo memory disbursementInfo)
+    {
         disbursementInfo = redemptionDisbursementInfoByLender[account];
         RedemptionRequest[] storage requests = redemptionRequestsByLender[account];
         uint256 numEpochsWithRedemption = epochIds.length;
@@ -398,10 +413,10 @@ contract TrancheVault is
                 // The redemption requests in the epoch have been fully processed.
                 EpochInfo memory epoch = epochInfoByEpochId[request.epochId];
                 // TODO There will be one decimal unit of rounding error here if it can't be divisible.
-                uint256 sharesProcessed = (request.numSharesRequested * epoch.totalSharesProcessed) /
-                    epoch.totalSharesRequested;
-                uint256 amountProcessed = (request.numSharesRequested * epoch.totalAmountProcessed) /
-                    epoch.totalSharesRequested;
+                uint256 sharesProcessed = (request.numSharesRequested *
+                    epoch.totalSharesProcessed) / epoch.totalSharesRequested;
+                uint256 amountProcessed = (request.numSharesRequested *
+                    epoch.totalAmountProcessed) / epoch.totalSharesRequested;
                 if (disbursementInfo.actualSharesProcessed > 0) {
                     sharesProcessed -= disbursementInfo.actualSharesProcessed;
                     amountProcessed -= disbursementInfo.actualAmountProcessed;
@@ -415,8 +430,8 @@ contract TrancheVault is
                 // The redemption requests in the epoch have been partially processed or unprocessed.
                 EpochInfo memory epoch = epochInfoByEpochId[request.epochId];
                 if (epoch.totalSharesProcessed > 0) {
-                    uint256 sharesProcessed = (request.numSharesRequested * epoch.totalSharesProcessed) /
-                        epoch.totalSharesRequested;
+                    uint256 sharesProcessed = (request.numSharesRequested *
+                        epoch.totalSharesProcessed) / epoch.totalSharesRequested;
                     uint256 amountProcessed = (request.numSharesRequested *
                         epoch.totalAmountProcessed) / epoch.totalSharesRequested;
                     withdrawableAmount += amountProcessed - disbursementInfo.actualAmountProcessed;
@@ -434,4 +449,6 @@ contract TrancheVault is
     function _onlyLender(address account) internal view {
         if (!hasRole(LENDER_ROLE, account)) revert Errors.permissionDeniedNotLender();
     }
+
+     function _authorizeUpgrade(address) internal override {}
 }
