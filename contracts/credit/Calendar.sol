@@ -69,13 +69,12 @@ contract Calendar is ICalendar {
 
     function getDaysPassedInPeriod(
         PayPeriodDuration periodDuration
-    ) external view returns (uint256 daysPassed, uint256 totalDaysInPeriod) {
-        uint256 day = DTL.getDay(block.timestamp);
-        // If the day falls on the 31st, move it back to the 30th.
-        day = day > DAYS_IN_A_MONTH ? DAYS_IN_A_MONTH : day;
+    ) public view returns (uint256 daysPassed, uint256 totalDaysInPeriod) {
         uint256 startOfPeriod = _getStartDateOfPeriod(periodDuration, block.timestamp);
         uint256 numMonthsPassed = DTL.diffMonths(startOfPeriod, block.timestamp);
-        daysPassed = numMonthsPassed * DAYS_IN_A_MONTH + day;
+        uint256 day = DTL.getDay(block.timestamp);
+        // -1 here since we are using the beginning of the day.
+        daysPassed = numMonthsPassed * DAYS_IN_A_MONTH + day - 1;
         return (daysPassed, _getTotalDaysInPeriod(periodDuration));
     }
 
@@ -186,6 +185,49 @@ contract Calendar is ICalendar {
             getDaysDiff(dueDateAfterStartDate, endDate) /
             _getTotalDaysInPeriod(periodDuration) +
             2;
+    }
+
+    /// @inheritdoc ICalendar
+    function getMaturityDate(
+        PayPeriodDuration periodDuration,
+        uint256 numPeriods
+    ) external view returns (uint256 maturityDate) {
+        // The maturity date can be computed using the following algorithm:
+        // 1. Compute the start date of the next period.
+        // 2. Add the number of whole periods to the start date above.
+        // 3. Add the left-over days in the first partial period to get the maturity date.
+        // Step 1.
+        maturityDate = _getStartDateOfNextPeriod(periodDuration, block.timestamp);
+        // Step 2 and 3. Note that we are adding the number of months instead of the number of days since
+        // so that we don't have to deal with converting each month to 30 days.
+        (uint256 leftOverDaysInFirstPeriod, ) = getDaysPassedInPeriod(periodDuration);
+        uint256 monthCount;
+        if (leftOverDaysInFirstPeriod == 0) {
+            // `leftOverDaysInFirstPeriod == 0` means the start date is on the 1st of the month,
+            // which means that the there are no partial periods.
+            monthCount = numPeriods - 1;
+        } else {
+            monthCount = numPeriods - 2;
+        }
+        if (periodDuration == PayPeriodDuration.Quarterly) {
+            monthCount *= 3;
+        } else if (periodDuration == PayPeriodDuration.SemiAnnually) {
+            monthCount *= 6;
+        }
+        // Since the number of left over days in the first period may also span multiple months,
+        // we need to account for these additional months in `monthCount` as well.
+        monthCount += leftOverDaysInFirstPeriod / DAYS_IN_A_MONTH;
+        maturityDate = DTL.addMonths(maturityDate, monthCount);
+        leftOverDaysInFirstPeriod %= DAYS_IN_A_MONTH;
+        // Special handling for Feb: since `leftOverDaysInFirstPeriod % DAYS_IN_A_MONTH` might be
+        // 29, if the computed `maturityDate` is 2/1 as of this step, and the current year is not
+        // a leap year, then naively adding 29 to it would incorrectly push the date maturity date
+        // to 3/2 when it should be 3/1.
+        uint256 daysInMonth = DTL.getDaysInMonth(maturityDate);
+        if (leftOverDaysInFirstPeriod > daysInMonth) {
+            return DTL.addMonths(maturityDate, 1);
+        }
+        return DTL.addDays(maturityDate, leftOverDaysInFirstPeriod);
     }
 
     // TODO(jiatu): not sure if the external `getStartDateOfPeriod` is useful. If it's useful, combine the two.

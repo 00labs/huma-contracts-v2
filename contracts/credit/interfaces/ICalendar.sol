@@ -14,6 +14,11 @@ interface ICalendar {
     function getStartOfNextMonth() external view returns (uint256 startOfNextMonth);
 
     /**
+     * @notice Returns the beginning of the next quarter.
+     */
+    function getStartOfNextQuarter() external view returns (uint256 startOfNextQuarter);
+
+    /**
      * @notice Returns the beginning of the next half of the year.
      */
     function getStartOfNextHalfYear() external view returns (uint256 startOfHalfYear);
@@ -37,8 +42,6 @@ interface ICalendar {
      * @notice Returns the beginning of this half of the year. i.e. 1/1 or 7/1.
      */
     function getStartOfThisHalfYear() external view returns (uint256 startOfHalfYear);
-
-    function getStartOfNextQuarter() external view returns (uint256 nstartOfNextQuarterextDay);
 
     /**
      * @notice Returns the beginning of today
@@ -86,6 +89,17 @@ interface ICalendar {
         PayPeriodDuration periodDuration,
         uint256 timestamp
     ) external view returns (uint256 startOfNextPeriod);
+
+    /**
+     * @notice Returns the maturity date, which is `numPeriods` number of periods after the current block timestamp.
+     * E.g. if the current block timestamp is 3/15, `periodDuration` is monthly and `numPeriods` is 3,
+     * then this function should return the beginning of the day of 5/15. The three periods are 3/15 - 4/1, 4/1 - 5/1,
+     * 5/1 - 5/15.
+     */
+    function getMaturityDate(
+        PayPeriodDuration periodDuration,
+        uint256 numPeriods
+    ) external view returns (uint256 maturityDate);
 
     /**
      * @notice Returns the next due date and the number of periods passed.
