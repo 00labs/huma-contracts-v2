@@ -139,9 +139,8 @@ describe("Calendar Test", function () {
                     day: 28,
                 });
                 await mineNextBlockWithTimestamp(nextBlockTime.unix());
-                const [daysPassed, totalDaysInPeriod] = await calendarContract[
-                    "getDaysPassedInPeriod(uint8)"
-                ](PayPeriodDuration.Monthly);
+                const [daysPassed, totalDaysInPeriod] =
+                    await calendarContract.getDaysPassedInPeriod(PayPeriodDuration.Monthly);
                 expect(daysPassed).to.equal(28);
                 expect(totalDaysInPeriod).to.equal(CONSTANTS.DAYS_IN_A_MONTH);
             });
@@ -154,9 +153,8 @@ describe("Calendar Test", function () {
                     day: 31,
                 });
                 await mineNextBlockWithTimestamp(nextBlockTime.unix());
-                const [daysPassed, totalDaysInPeriod] = await calendarContract[
-                    "getDaysPassedInPeriod(uint8)"
-                ](PayPeriodDuration.Monthly);
+                const [daysPassed, totalDaysInPeriod] =
+                    await calendarContract.getDaysPassedInPeriod(PayPeriodDuration.Monthly);
                 expect(daysPassed).to.equal(30);
                 expect(totalDaysInPeriod).to.equal(CONSTANTS.DAYS_IN_A_MONTH);
             });
@@ -172,9 +170,8 @@ describe("Calendar Test", function () {
                         day: 28,
                     });
                     await mineNextBlockWithTimestamp(nextBlockTime.unix());
-                    const [daysPassed, totalDaysInPeriod] = await calendarContract[
-                        "getDaysPassedInPeriod(uint8)"
-                    ](PayPeriodDuration.Quarterly);
+                    const [daysPassed, totalDaysInPeriod] =
+                        await calendarContract.getDaysPassedInPeriod(PayPeriodDuration.Quarterly);
                     expect(daysPassed).to.equal((i % 3) * CONSTANTS.DAYS_IN_A_MONTH + 28);
                     expect(totalDaysInPeriod).to.equal(CONSTANTS.DAYS_IN_A_QUARTER);
                 }
@@ -189,9 +186,8 @@ describe("Calendar Test", function () {
                         day: 31,
                     });
                     await mineNextBlockWithTimestamp(nextBlockTime.unix());
-                    const [daysPassed, totalDaysInPeriod] = await calendarContract[
-                        "getDaysPassedInPeriod(uint8)"
-                    ](PayPeriodDuration.Quarterly);
+                    const [daysPassed, totalDaysInPeriod] =
+                        await calendarContract.getDaysPassedInPeriod(PayPeriodDuration.Quarterly);
                     expect(daysPassed).to.equal((i % 3) * CONSTANTS.DAYS_IN_A_MONTH + 30);
                     expect(totalDaysInPeriod).to.equal(CONSTANTS.DAYS_IN_A_QUARTER);
                 }
@@ -208,9 +204,10 @@ describe("Calendar Test", function () {
                         day: 28,
                     });
                     await mineNextBlockWithTimestamp(nextBlockTime.unix());
-                    const [daysPassed, totalDaysInPeriod] = await calendarContract[
-                        "getDaysPassedInPeriod(uint8)"
-                    ](PayPeriodDuration.SemiAnnually);
+                    const [daysPassed, totalDaysInPeriod] =
+                        await calendarContract.getDaysPassedInPeriod(
+                            PayPeriodDuration.SemiAnnually,
+                        );
                     expect(daysPassed).to.equal((i % 6) * CONSTANTS.DAYS_IN_A_MONTH + 28);
                     expect(totalDaysInPeriod).to.equal(CONSTANTS.DAYS_IN_A_HALF_YEAR);
                 }
@@ -225,9 +222,10 @@ describe("Calendar Test", function () {
                         day: 31,
                     });
                     await mineNextBlockWithTimestamp(nextBlockTime.unix());
-                    const [daysPassed, totalDaysInPeriod] = await calendarContract[
-                        "getDaysPassedInPeriod(uint8)"
-                    ](PayPeriodDuration.SemiAnnually);
+                    const [daysPassed, totalDaysInPeriod] =
+                        await calendarContract.getDaysPassedInPeriod(
+                            PayPeriodDuration.SemiAnnually,
+                        );
                     expect(daysPassed).to.equal((i % 6) * CONSTANTS.DAYS_IN_A_MONTH + 30);
                     expect(totalDaysInPeriod).to.equal(CONSTANTS.DAYS_IN_A_HALF_YEAR);
                 }

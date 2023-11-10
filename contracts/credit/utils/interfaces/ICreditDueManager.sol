@@ -55,16 +55,13 @@ interface ICreditDueManager {
      * @param _cr the credit record associated with the account
      * @param _cc the credit config associated with with account
      * @param _dd the due details associated with the account
+     * @param maturityDate The maturity date of the credit.
      */
-    // function getDueInfo(
-    //     CreditRecord memory _cr,
-    //     CreditConfig memory _cc
-    // ) external view returns (CreditRecord memory cr, uint256 periodsPassed, bool isLate);
-
     function getDueInfo(
         CreditRecord memory _cr,
         CreditConfig memory _cc,
-        DueDetail memory _dd
+        DueDetail memory _dd,
+        uint256 maturityDate
     )
         external
         view

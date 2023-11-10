@@ -7,7 +7,7 @@ import {PoolConfig, PoolSettings} from "../PoolConfig.sol";
 import {IPool} from "../interfaces/IPool.sol";
 import {PoolConfigCache} from "../PoolConfigCache.sol";
 import {CreditStorage} from "./CreditStorage.sol";
-import {CreditConfig, CreditRecord, CreditLimit, CreditLoss, CreditState, DueDetail, CreditLoss} from "./CreditStructs.sol";
+import {CreditConfig, CreditRecord, CreditLimit, CreditLoss, CreditState, DueDetail, CreditLoss, PayPeriodDuration} from "./CreditStructs.sol";
 import {ICalendar} from "./interfaces/ICalendar.sol";
 import {IFirstLossCover} from "../interfaces/IFirstLossCover.sol";
 import {IPoolSafe} from "../interfaces/IPoolSafe.sol";
@@ -46,7 +46,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         bytes32 indexed creditHash,
         uint256 creditLimit,
         uint256 committedAmount,
-        uint256 periodDuration,
+        PayPeriodDuration periodDuration,
         uint256 numOfPeriods,
         uint256 yieldInBps,
         bool revolving,
@@ -60,7 +60,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
      * @param borrower the address of the borrower
      * @param creditLimit the credit limit of the credit line
      * @param aprInBps interest rate (APR) expressed in basis points, 1% is 100, 100% is 10000
-     * @param payPeriodInDays the number of days in each pay cycle
+     * @param periodDuration The pay period duration
      * @param remainingPeriods how many cycles are there before the credit line expires
      * @param approved flag that shows if the credit line has been approved or not
      */
@@ -68,7 +68,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         address indexed borrower,
         uint256 creditLimit,
         uint256 aprInBps,
-        uint256 payPeriodInDays,
+        PayPeriodDuration periodDuration,
         uint256 remainingPeriods,
         bool approved
     );
@@ -227,6 +227,8 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
      */
     function isLate(bytes32 creditHash) public view virtual returns (bool lateFlag) {
         CreditRecord memory cr = getCreditRecord(creditHash);
+        // TODO(jiatu): we shouldn't rely on the ordering of enums since there is no semantic guarantee
+        // of the ordering.
         return (cr.state > CreditState.Approved &&
             (cr.missedPeriods > 0 ||
                 block.timestamp >
@@ -273,7 +275,10 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         CreditConfig memory cc = getCreditConfig(creditHash);
         cc.creditLimit = creditLimit;
         cc.committedAmount = committedAmount;
-        cc.periodDuration = ps.payPeriodInMonths;
+        // TODO(jiatu): replace the following assignment with the value from `PoolConfig`.
+        // It's temporarily assigned to monthly so that we don't have to make simultaneous changes
+        // to the LP side, thus limiting the size of the change.
+        cc.periodDuration = PayPeriodDuration.Monthly;
         cc.numOfPeriods = remainingPeriods;
         cc.yieldInBps = yieldInBps;
         cc.revolving = revolving;
@@ -713,11 +718,12 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         // return the most up-to-date due information.
         CreditConfig memory cc = getCreditConfig(creditHash);
         DueDetail memory dd = getDueDetail(creditHash);
+        uint256 maturityDate = getMaturityDate(creditHash);
 
         uint256 periodsPassed = 0;
         bool late;
 
-        (cr, dd, periodsPassed, late) = _feeManager.getDueInfo(cr, cc, dd);
+        (cr, dd, periodsPassed, late) = _feeManager.getDueInfo(cr, cc, dd, maturityDate);
 
         if (periodsPassed > 0) {
             // Adjusts remainingPeriods. Sets remainingPeriods to 0 if the credit line has reached maturity.
@@ -834,6 +840,11 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         return _creditLossMap[creditHash];
     }
 
+    /// Shared accessor to the maturity date for contract size consideration
+    function getMaturityDate(bytes32 creditHash) public view returns (uint256 maturityDate) {
+        return _maturityDates[creditHash];
+    }
+
     function _isOverdue(uint256 dueDate) internal view returns (bool) {}
 
     /// "Modifier" function that limits access to the borrower and eaServiceAccount only
@@ -934,6 +945,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         (uint256 daysPassed, uint256 totalDays) = calendar.getDaysPassedInPeriod(
             cc.periodDuration
         );
+        // TODO(jiatu): the calculation is wrong. We need to divide by days in a year and hundred percent in bps.
         dd.committed = uint96(
             (daysPassed * cc.committedAmount + (totalDays - daysPassed) * committedAmount) *
                 cc.yieldInBps
