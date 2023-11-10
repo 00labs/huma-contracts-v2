@@ -94,13 +94,17 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
     /**
      * @notice The expiration (maturity) date of a credit line has been extended.
      * @param creditHash the credit hash
-     * @param numOfPeriods the number of pay periods to be extended
-     * @param remainingPeriods the remaining number of pay periods after the extension
+     * @param oldRemainingPeriods the number of remaining pay periods before the extension
+     * @param newRemainingPeriods the number of remaining pay periods after the extension
+     * @param oldMaturityDate The maturity date before the extension.
+     * @param newMaturityDate The maturity date after the extension.
      */
     event RemainingPeriodsExtended(
         bytes32 indexed creditHash,
-        uint256 numOfPeriods,
-        uint256 remainingPeriods,
+        uint256 oldRemainingPeriods,
+        uint256 newRemainingPeriods,
+        uint256 oldMaturityDate,
+        uint256 newMaturityDate,
         address by
     );
     /**
@@ -899,15 +903,26 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         // Although not essential to call _updateDueInfo() to extend the credit line duration,
         // it is still a good practice to bring the account current while we update one of the fields.
         _updateDueInfo(creditHash);
-        // TODO(jiatu): update CreditConfig since the number of periods have also been increased?
+
+        CreditConfig memory cc = getCreditConfig(creditHash);
+        cc.numOfPeriods += uint16(newNumOfPeriods);
+        _setCreditConfig(creditHash, cc);
+
         CreditRecord memory cr = getCreditRecord(creditHash);
-        uint256 oldNumOfPeriods = cr.remainingPeriods;
+        uint256 oldRemainingPeriods = cr.remainingPeriods;
         cr.remainingPeriods += uint16(newNumOfPeriods);
-        _creditRecordMap[creditHash] = cr;
+        _setCreditRecord(creditHash, cr);
+
+        uint256 oldMaturityDate = _maturityDates[creditHash];
+        uint256 newMaturityDate = calendar.getMaturityDate(cc.periodDuration, cr.remainingPeriods);
+        _maturityDates[creditHash] = newMaturityDate;
+
         emit RemainingPeriodsExtended(
             creditHash,
-            oldNumOfPeriods,
+            oldRemainingPeriods,
             cr.remainingPeriods,
+            oldMaturityDate,
+            newMaturityDate,
             msg.sender
         );
     }
