@@ -51,9 +51,7 @@ contract Calendar is ICalendar {
 
     /// @inheritdoc ICalendar
     function getStartOfToday() public view returns (uint256 startOfToday) {
-        (uint256 year, uint256 month, uint256 day) = DTL.timestampToDate(block.timestamp);
-        startOfToday = DTL.timestampFromDate(year, month, day);
-        return startOfToday;
+        return _getStartOfDay(block.timestamp);
     }
 
     /// @inheritdoc ICalendar
@@ -185,9 +183,10 @@ contract Calendar is ICalendar {
     /// @inheritdoc ICalendar
     function getMaturityDate(
         PayPeriodDuration periodDuration,
-        uint256 numPeriods
+        uint256 numPeriods,
+        uint256 timestamp
     ) external view returns (uint256 maturityDate) {
-        uint256 startDate = getStartOfToday();
+        uint256 startDate = _getStartOfDay(timestamp);
         uint256 dayOfMonth = DTL.getDay(startDate);
         uint256 monthCount = numPeriods;
         if (dayOfMonth == 31) {
@@ -257,6 +256,11 @@ contract Calendar is ICalendar {
             return DAYS_IN_A_HALF_YEAR;
         }
         revert Errors.invalidPayPeriod();
+    }
+
+    function _getStartOfDay(uint256 timestamp) internal pure returns (uint256 startOfDay) {
+        (uint256 year, uint256 month, uint256 day) = DTL.timestampToDate(timestamp);
+        return DTL.timestampFromDate(year, month, day);
     }
 
     function _getStartOfMonth(uint256 timestamp) internal pure returns (uint256 startOfMonth) {
