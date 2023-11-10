@@ -157,7 +157,7 @@ describe("Calendar Test", function () {
                 const [daysPassed, totalDaysInPeriod] = await calendarContract[
                     "getDaysPassedInPeriod(uint8)"
                 ](PayPeriodDuration.Monthly);
-                expect(daysPassed).to.equal(30);
+                expect(daysPassed).to.equal(29);
                 expect(totalDaysInPeriod).to.equal(CONSTANTS.DAYS_IN_A_MONTH);
             });
 
@@ -207,7 +207,7 @@ describe("Calendar Test", function () {
                     const [daysPassed, totalDaysInPeriod] = await calendarContract[
                         "getDaysPassedInPeriod(uint8)"
                     ](PayPeriodDuration.Quarterly);
-                    expect(daysPassed).to.equal((i % 3) * CONSTANTS.DAYS_IN_A_MONTH + 30);
+                    expect(daysPassed).to.equal((i % 3) * CONSTANTS.DAYS_IN_A_MONTH + 29);
                     expect(totalDaysInPeriod).to.equal(CONSTANTS.DAYS_IN_A_QUARTER);
                 }
             });
@@ -260,7 +260,7 @@ describe("Calendar Test", function () {
                     const [daysPassed, totalDaysInPeriod] = await calendarContract[
                         "getDaysPassedInPeriod(uint8)"
                     ](PayPeriodDuration.SemiAnnually);
-                    expect(daysPassed).to.equal((i % 6) * CONSTANTS.DAYS_IN_A_MONTH + 30);
+                    expect(daysPassed).to.equal((i % 6) * CONSTANTS.DAYS_IN_A_MONTH + 29);
                     expect(totalDaysInPeriod).to.equal(CONSTANTS.DAYS_IN_A_HALF_YEAR);
                 }
             });

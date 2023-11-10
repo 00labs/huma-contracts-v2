@@ -49,7 +49,9 @@ interface ICalendar {
     function getStartOfToday() external view returns (uint256 startOfToday);
 
     /**
-     * @notice Returns the number of days passed and the total numbers of days of the period
+     * @notice Returns the number of days passed and the total numbers of days of the period.
+     * @dev Since we are aligning at the start of a day, the maximum number of `daysPassed` possible
+     * is `totalDaysInPeriod - 1`, e.g. for a monthly period, the maximum possible `daysPassed` is 29.
      */
     function getDaysPassedInPeriod(
         uint256 periodDuration

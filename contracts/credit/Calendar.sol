@@ -70,9 +70,11 @@ contract Calendar is ICalendar {
     function getDaysPassedInPeriod(
         PayPeriodDuration periodDuration
     ) public view returns (uint256 daysPassed, uint256 totalDaysInPeriod) {
+        uint256 day = DTL.getDay(block.timestamp);
+        // If the day falls on the 31st, move it back to the 30th.
+        day = day > DAYS_IN_A_MONTH ? DAYS_IN_A_MONTH : day;
         uint256 startOfPeriod = _getStartDateOfPeriod(periodDuration, block.timestamp);
         uint256 numMonthsPassed = DTL.diffMonths(startOfPeriod, block.timestamp);
-        uint256 day = DTL.getDay(block.timestamp);
         // -1 here since we are using the beginning of the day.
         daysPassed = numMonthsPassed * DAYS_IN_A_MONTH + day - 1;
         return (daysPassed, _getTotalDaysInPeriod(periodDuration));
