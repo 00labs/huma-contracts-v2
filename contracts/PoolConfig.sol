@@ -11,12 +11,13 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {AFFILIATE_FIRST_LOSS_COVER_INDEX, HUNDRED_PERCENT_IN_BPS, JUNIOR_TRANCHE, SENIOR_TRANCHE} from "./SharedDefs.sol";
 import {HumaConfig} from "./HumaConfig.sol";
 import {Errors} from "./Errors.sol";
+import {PayPeriodDuration} from "./credit/CreditStructs.sol";
 
 struct PoolSettings {
     // The maximum credit line for a borrower in terms of the amount of poolTokens
     uint96 maxCreditLine;
     // The number of months in one pay period
-    uint8 payPeriodInMonths;
+    PayPeriodDuration payPeriodDuration;
     // The duration of a credit line without an initial drawdown
     uint16 creditApprovalExpirationInDays;
     // The grace period before a late fee can be charged, in the unit of number of days
@@ -165,7 +166,7 @@ contract PoolConfig is AccessControl, Initializable {
     event PoolChanged(address pool, address by);
     event PoolDefaultGracePeriodChanged(uint256 gracePeriodInMonths, address by);
     event PoolLiquidityCapChanged(uint256 liquidityCap, address by);
-    event PoolPayPeriodChanged(uint256 number, address by);
+    event PoolPayPeriodChanged(PayPeriodDuration payPeriodDuration, address by);
     event PoolNameChanged(string name, address by);
     event PoolOwnerRewardsAndLiquidityChanged(
         uint256 rewardRate,
@@ -305,7 +306,7 @@ contract PoolConfig is AccessControl, Initializable {
         // these values when setting up the pools. Setting these default values to avoid
         // strange behaviors when the pool owner missed setting up these configurations.
         PoolSettings memory tempPoolSettings = _poolSettings;
-        tempPoolSettings.payPeriodInMonths = 1; // 1 month
+        tempPoolSettings.payPeriodDuration = PayPeriodDuration.Monthly;
         tempPoolSettings.receivableRequiredInBps = 10000; // 100%
         tempPoolSettings.advanceRateInBps = 8000; // 80%
         tempPoolSettings.latePaymentGracePeriodInDays = 5;
@@ -487,13 +488,12 @@ contract PoolConfig is AccessControl, Initializable {
         emit PoolLiquidityCapChanged(liquidityCap, msg.sender);
     }
 
-    function setPoolPayPeriod(uint256 number) external {
+    function setPoolPayPeriod(PayPeriodDuration duration) external {
         _onlyOwnerOrHumaMasterAdmin();
-        if (number == 0) revert Errors.zeroAmountProvided();
         PoolSettings memory _settings = _poolSettings;
-        _settings.payPeriodInMonths = uint8(number);
+        _settings.payPeriodDuration = duration;
         _poolSettings = _settings;
-        emit PoolPayPeriodChanged(number, msg.sender);
+        emit PoolPayPeriodChanged(duration, msg.sender);
     }
 
     /**
@@ -738,8 +738,14 @@ contract PoolConfig is AccessControl, Initializable {
      * Returns a summary information of the pool.
      * @return token the address of the pool token
      * @return yieldInBps the default annual percentage yield of the pool, measured in basis points
-     * @return payPeriod the standard pay period for the pool
+     * @return payPeriodDuration the pay period duration for the pool
      * @return maxCreditAmount the max amount for the credit line
+     * @return liquidityCap The liquidity cap of the pool
+     * @return name The name of the pool
+     * @return symbol The symbol of the underlying token of the pool
+     * @return decimals The number of decimals of the underlying token of the pool
+     * @return eaId The tokenId of the EA NFT
+     * @return eaNFTAddress The contract address of the EA NFT
      */
     function getPoolSummary()
         external
@@ -747,7 +753,7 @@ contract PoolConfig is AccessControl, Initializable {
         returns (
             address token,
             uint256 yieldInBps,
-            uint256 payPeriod,
+            PayPeriodDuration payPeriodDuration,
             uint256 maxCreditAmount,
             uint256 liquidityCap,
             string memory name,
@@ -761,7 +767,7 @@ contract PoolConfig is AccessControl, Initializable {
         return (
             address(underlyingToken),
             _feeStructure.yieldInBps,
-            _poolSettings.payPeriodInMonths,
+            _poolSettings.payPeriodDuration,
             _poolSettings.maxCreditLine,
             _lpConfig.liquidityCap,
             erc20Contract.name(),
