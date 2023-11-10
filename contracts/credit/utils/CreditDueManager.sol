@@ -110,8 +110,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         }
 
         // Update the due date.
-        uint256 newDueDate = calendar.getNextDueDate(_cc.periodDuration, maturityDate);
-        newCR.nextDueDate = uint64(newDueDate);
+        newCR.nextDueDate = uint64(calendar.getNextDueDate(_cc.periodDuration, maturityDate));
 
         // Calculates past due and late fee
         isLate = checkLate(_cr);
@@ -131,7 +130,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             block.timestamp
         );
         uint256 principalDue = 0;
-        if (newDueDate >= maturityDate) {
+        if (newCR.nextDueDate >= maturityDate) {
             // All principal is due if we are in or have passed the final period.
             // Note that it's technically impossible for the > to be true, but we are using >=
             // just to be safe.
@@ -172,7 +171,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         // Calculate the yield due. Note that if multiple periods have passed, the yield for every period is still
         // based on the outstanding principal since there was no change to the principal
         (, , uint256 membershipFee) = poolConfig.getFees();
-        daysPassed = calendar.getDaysDiff(_cr.nextDueDate, newDueDate);
+        daysPassed = calendar.getDaysDiff(_cr.nextDueDate, newCR.nextDueDate);
         newDD.accrued = uint96(
             (principal * _cc.yieldInBps * totalDaysInPeriod) /
                 (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR) +
