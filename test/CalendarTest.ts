@@ -1041,28 +1041,55 @@ describe("Calendar Test", function () {
                     }
                 });
 
-                it("Should return the correct maturity date if the cycle starts on the 31st of the month", async function () {
+                it("Should return the beginning of the last day of Feb if the cycle starts on 1/30 or 1/31 and there are 2 periods", async function () {
                     const nextYear = moment.utc().year() + 1;
-                    const timestamp = moment.utc({
-                        year: nextYear,
-                        month: 0,
-                        day: 31,
-                    });
-                    for (const numPeriods of [2, 3]) {
-                        const expectedMaturityDate = moment.utc({
+                    const expectedMaturityDate = moment
+                        .utc()
+                        .year(nextYear)
+                        .month(1)
+                        .endOf("month")
+                        .startOf("day");
+                    for (const day of [30, 31]) {
+                        const timestamp = moment.utc({
                             year: nextYear,
-                            month: numPeriods + 1,
-                            day: 1,
+                            month: 0,
+                            day: day,
                         });
                         expect(
                             await calendarContract.getMaturityDate(
                                 PayPeriodDuration.Monthly,
-                                numPeriods,
+                                2,
                                 timestamp.unix(),
                             ),
                         ).to.equal(expectedMaturityDate.unix());
                     }
                 });
+
+                it(
+                    "Should return the beginning of the 30th of the month" +
+                        " that the due date is in if the cycle starts on the 31st of the month" +
+                        " and the due date does not fall in Feb",
+                    async function () {
+                        const nextYear = moment.utc().year() + 1;
+                        const timestamp = moment.utc({
+                            year: nextYear,
+                            month: 0,
+                            day: 31,
+                        });
+                        const expectedMaturityDate = moment.utc({
+                            year: nextYear,
+                            month: 2,
+                            day: 30,
+                        });
+                        expect(
+                            await calendarContract.getMaturityDate(
+                                PayPeriodDuration.Monthly,
+                                3,
+                                timestamp.unix(),
+                            ),
+                        ).to.equal(expectedMaturityDate.unix());
+                    },
+                );
             });
 
             describe("When the timestamp is not on special days", function () {
@@ -1147,8 +1174,8 @@ describe("Calendar Test", function () {
                     const numPeriods = 2;
                     const expectedMaturityDate = moment.utc({
                         year: nextYear,
-                        month: 4,
-                        day: 1,
+                        month: 3,
+                        day: 30,
                     });
                     expect(
                         await calendarContract.getMaturityDate(
@@ -1169,8 +1196,8 @@ describe("Calendar Test", function () {
                     const numPeriods = 3;
                     const expectedMaturityDate = moment.utc({
                         year: nextYear,
-                        month: 7,
-                        day: 1,
+                        month: 6,
+                        day: 30,
                     });
                     expect(
                         await calendarContract.getMaturityDate(
@@ -1264,8 +1291,8 @@ describe("Calendar Test", function () {
                     const numPeriods = 2;
                     const expectedMaturityDate = moment.utc({
                         year: nextYear,
-                        month: 7,
-                        day: 1,
+                        month: 6,
+                        day: 30,
                     });
                     expect(
                         await calendarContract.getMaturityDate(
@@ -1286,8 +1313,8 @@ describe("Calendar Test", function () {
                     const numPeriods = 3;
                     const expectedMaturityDate = moment.utc({
                         year: nextYear + 1,
-                        month: 1,
-                        day: 1,
+                        month: 0,
+                        day: 30,
                     });
                     expect(
                         await calendarContract.getMaturityDate(
