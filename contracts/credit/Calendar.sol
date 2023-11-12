@@ -51,25 +51,13 @@ contract Calendar is ICalendar {
 
     /// @inheritdoc ICalendar
     function getStartOfToday() public view returns (uint256 startOfToday) {
-        (uint256 year, uint256 month, uint256 day) = DTL.timestampToDate(block.timestamp);
-        startOfToday = DTL.timestampFromDate(year, month, day);
-        return startOfToday;
+        return _getStartOfDay(block.timestamp);
     }
 
     /// @inheritdoc ICalendar
     function getDaysPassedInPeriod(
-        uint256 periodDuration
-    ) external view returns (uint256 daysPassed, uint256 totalDaysInPeriod) {
-        (, uint256 month, uint256 day) = DTL.timestampToDate(block.timestamp);
-        month = (month - 1) % periodDuration;
-        daysPassed = month * DAYS_IN_A_MONTH + day;
-        totalDaysInPeriod = periodDuration * DAYS_IN_A_MONTH;
-        return (daysPassed, totalDaysInPeriod);
-    }
-
-    function getDaysPassedInPeriod(
         PayPeriodDuration periodDuration
-    ) public view returns (uint256 daysPassed, uint256 totalDaysInPeriod) {
+    ) external view returns (uint256 daysPassed, uint256 totalDaysInPeriod) {
         uint256 day = DTL.getDay(block.timestamp);
         // If the day falls on the 31st, move it back to the 30th.
         day = day > DAYS_IN_A_MONTH ? DAYS_IN_A_MONTH : day;
@@ -84,9 +72,12 @@ contract Calendar is ICalendar {
     function getDaysDiff(
         uint256 startDate,
         uint256 endDate
-    ) public pure returns (uint256 daysDiff) {
+    ) public view returns (uint256 daysDiff) {
         if (startDate > endDate) {
             revert Errors.startDateLaterThanEndDate();
+        }
+        if (startDate == 0) {
+            startDate = block.timestamp;
         }
 
         (, uint256 startMonth, uint256 startDay) = DTL.timestampToDate(startDate);
@@ -127,7 +118,6 @@ contract Calendar is ICalendar {
         return _getStartDateOfNextPeriod(periodDuration, timestamp);
     }
 
-    /// @inheritdoc ICalendar
     function getNextDueDate(
         uint256 periodDuration,
         uint256 lastDueDate
@@ -149,6 +139,7 @@ contract Calendar is ICalendar {
         dueDate = DTL.addMonths(lastDueDate, monthCount);
     }
 
+    /// @inheritdoc ICalendar
     function getNextDueDate(
         PayPeriodDuration periodDuration,
         uint256 maturityDate
@@ -192,21 +183,18 @@ contract Calendar is ICalendar {
     /// @inheritdoc ICalendar
     function getMaturityDate(
         PayPeriodDuration periodDuration,
-        uint256 numPeriods
+        uint256 numPeriods,
+        uint256 timestamp
     ) external view returns (uint256 maturityDate) {
-        uint256 startDate = getStartOfToday();
-        uint256 dayOfMonth = DTL.getDay(startDate);
-        uint256 monthCount = numPeriods;
-        if (dayOfMonth == 31) {
-            // If the start date is on the 31st, then move it to the beginning of the next month
-            // since the days diff between the 31st and the 1st of the next month is 0.
-            startDate = _getStartOfNextMonth(startDate);
-        }
+        (uint256 year, uint256 month, uint256 day) = DTL.timestampToDate(timestamp);
+        day = day > DAYS_IN_A_MONTH ? DAYS_IN_A_MONTH : day;
+        uint256 startDate = DTL.timestampFromDate(year, month, day);
 
+        uint256 monthCount = numPeriods;
         if (startDate != _getStartDateOfPeriod(periodDuration, startDate)) {
-            // If the bill doesn't start at the beginning of the period, then we need to subtract 1 from `monthCount`
-            // since both the beginning and ending periods are partial periods, and the two partial periods added
-            // together forms a whole period.
+            // Adjust `monthCount` by subtracting 1 if the bill cycle doesn't begin at the start of the period.
+            // This accounts for the scenario where both the start and end of the billing periods are partial periods,
+            // combining to make one full period.
             --monthCount;
         }
         if (periodDuration == PayPeriodDuration.Quarterly) {
@@ -264,6 +252,11 @@ contract Calendar is ICalendar {
             return DAYS_IN_A_HALF_YEAR;
         }
         revert Errors.invalidPayPeriod();
+    }
+
+    function _getStartOfDay(uint256 timestamp) internal pure returns (uint256 startOfDay) {
+        (uint256 year, uint256 month, uint256 day) = DTL.timestampToDate(timestamp);
+        return DTL.timestampFromDate(year, month, day);
     }
 
     function _getStartOfMonth(uint256 timestamp) internal pure returns (uint256 startOfMonth) {

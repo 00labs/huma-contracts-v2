@@ -6,7 +6,7 @@ pragma solidity ^0.8.0;
 struct CreditConfig {
     uint96 creditLimit;
     uint96 committedAmount;
-    uint16 periodDuration;
+    PayPeriodDuration periodDuration;
     uint16 numOfPeriods; // number of periods
     // Yield in BPs, mean different things for different credit types.
     // For credit line, it is APR;
