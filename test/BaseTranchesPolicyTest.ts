@@ -1,31 +1,31 @@
-import { ethers } from "hardhat";
-import { expect } from "chai";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import {
-    CONSTANTS,
-    deployAndSetupPoolContracts,
-    deployProtocolContracts,
-    PnLCalculator,
-} from "./BaseTest";
-import { toToken } from "./TestUtils";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { expect } from "chai";
+import { BigNumber as BN } from "ethers";
+import { ethers } from "hardhat";
 import {
-    BaseCreditFeeManager,
-    BasePnLManager,
     Calendar,
+    CreditDueManager,
     EpochManager,
     EvaluationAgentNFT,
     FirstLossCover,
     HumaConfig,
-    IPoolCredit,
+    MockPoolCredit,
     MockToken,
-    PlatformFeeManager,
     Pool,
     PoolConfig,
-    PoolVault,
+    PoolFeeManager,
+    PoolSafe,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
 } from "../typechain-types";
+import {
+    CONSTANTS,
+    PnLCalculator,
+    deployAndSetupPoolContracts,
+    deployProtocolContracts,
+} from "./BaseTest";
+import { getFirstLossCoverInfo, toToken } from "./TestUtils";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
@@ -42,20 +42,20 @@ let eaNFTContract: EvaluationAgentNFT,
     humaConfigContract: HumaConfig,
     mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
-    platformFeeManagerContract: PlatformFeeManager,
-    poolVaultContract: PoolVault,
+    poolFeeManagerContract: PoolFeeManager,
+    poolSafeContract: PoolSafe,
     calendarContract: Calendar,
-    poolOwnerAndEAFirstLossCoverContract: FirstLossCover,
+    borrowerFirstLossCoverContract: FirstLossCover,
+    affiliateFirstLossCoverContract: FirstLossCover,
     tranchesPolicyContract: RiskAdjustedTranchesPolicy,
     poolContract: Pool,
     epochManagerContract: EpochManager,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
-    creditContract: IPoolCredit,
-    creditFeeManagerContract: BaseCreditFeeManager,
-    creditPnlManagerContract: BasePnLManager;
+    creditContract: MockPoolCredit,
+    creditDueManagerContract: CreditDueManager;
 
-describe("BaseTranchesPolicy Test", function () {
+describe("BaseTranchesPolicy Tests", function () {
     before(async function () {
         [
             defaultDeployer,
@@ -82,23 +82,23 @@ describe("BaseTranchesPolicy Test", function () {
 
         [
             poolConfigContract,
-            platformFeeManagerContract,
-            poolVaultContract,
+            poolFeeManagerContract,
+            poolSafeContract,
             calendarContract,
-            poolOwnerAndEAFirstLossCoverContract,
+            borrowerFirstLossCoverContract,
+            affiliateFirstLossCoverContract,
             tranchesPolicyContract,
             poolContract,
             epochManagerContract,
             seniorTrancheVaultContract,
             juniorTrancheVaultContract,
-            creditContract,
-            creditFeeManagerContract,
-            creditPnlManagerContract,
+            creditContract as unknown,
+            creditDueManagerContract,
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
             eaNFTContract,
-            "FixedAprTranchesPolicy",
+            "FixedSeniorYieldTranchePolicy",
             defaultDeployer,
             poolOwner,
             "MockPoolCredit",
@@ -108,11 +108,11 @@ describe("BaseTranchesPolicy Test", function () {
             [lender],
         );
 
-        let juniorDepositAmount = toToken(100_000);
+        const juniorDepositAmount = toToken(100_000);
         await juniorTrancheVaultContract
             .connect(lender)
             .deposit(juniorDepositAmount, lender.address);
-        let seniorDepositAmount = toToken(300_000);
+        const seniorDepositAmount = toToken(300_000);
         await seniorTrancheVaultContract
             .connect(lender)
             .deposit(seniorDepositAmount, lender.address);
@@ -122,153 +122,145 @@ describe("BaseTranchesPolicy Test", function () {
         await loadFixture(prepare);
     });
 
-    it("Junior assets can cover loss", async function () {
-        const assets = await poolContract.currentTranchesAssets();
-        const loss = toToken(27937);
+    describe("distLossToTranches", function () {
+        it("Calculates the correct loss when the junior tranche loss can be covered by assets", async function () {
+            const assets = await poolContract.currentTranchesAssets();
+            const loss = assets[CONSTANTS.JUNIOR_TRANCHE];
 
-        const [newAssets, newLosses] = PnLCalculator.calcLoss(loss, assets);
-        const result = await tranchesPolicyContract.calcTranchesAssetsForLoss(loss, assets);
-
-        expect(result[0][CONSTANTS.SENIOR_TRANCHE_INDEX]).to.equal(
-            newAssets[CONSTANTS.SENIOR_TRANCHE_INDEX],
-        );
-        expect(result[0][CONSTANTS.JUNIOR_TRANCHE_INDEX]).to.equal(
-            newAssets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
-        );
-        expect(result[1][CONSTANTS.SENIOR_TRANCHE_INDEX]).to.equal(
-            newLosses[CONSTANTS.SENIOR_TRANCHE_INDEX],
-        );
-        expect(result[1][CONSTANTS.JUNIOR_TRANCHE_INDEX]).to.equal(
-            newLosses[CONSTANTS.JUNIOR_TRANCHE_INDEX],
-        );
-    });
-
-    it("Junior assets can not cover loss", async function () {
-        let assets = await poolContract.currentTranchesAssets();
-        let loss = toToken(153648);
-
-        let [newAssets, newLosses] = PnLCalculator.calcLoss(loss, assets);
-        let result = await tranchesPolicyContract.calcTranchesAssetsForLoss(loss, assets);
-
-        expect(result[0][CONSTANTS.SENIOR_TRANCHE_INDEX]).to.equal(
-            newAssets[CONSTANTS.SENIOR_TRANCHE_INDEX],
-        );
-        expect(result[0][CONSTANTS.JUNIOR_TRANCHE_INDEX]).to.equal(
-            newAssets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
-        );
-        expect(result[0][CONSTANTS.JUNIOR_TRANCHE_INDEX]).to.equal(0);
-        expect(result[1][CONSTANTS.SENIOR_TRANCHE_INDEX]).to.equal(
-            newLosses[CONSTANTS.SENIOR_TRANCHE_INDEX],
-        );
-        expect(result[1][CONSTANTS.JUNIOR_TRANCHE_INDEX]).to.equal(
-            newLosses[CONSTANTS.JUNIOR_TRANCHE_INDEX],
-        );
-        expect(result[1][CONSTANTS.JUNIOR_TRANCHE_INDEX]).to.equal(
-            assets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
-        );
-    });
-
-    it("Only recover senior loss", async function () {
-        let assets = await poolContract.currentTranchesAssets();
-        let loss = toToken(128356);
-
-        let [newAssets, newLosses] = PnLCalculator.calcLoss(loss, assets);
-        let result = await tranchesPolicyContract.calcTranchesAssetsForLoss(loss, assets);
-
-        expect(result[0][CONSTANTS.SENIOR_TRANCHE_INDEX]).to.equal(
-            newAssets[CONSTANTS.SENIOR_TRANCHE_INDEX],
-        );
-        expect(result[0][CONSTANTS.JUNIOR_TRANCHE_INDEX]).to.equal(
-            newAssets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
-        );
-        expect(result[0][CONSTANTS.JUNIOR_TRANCHE_INDEX]).to.equal(0);
-        expect(result[1][CONSTANTS.SENIOR_TRANCHE_INDEX]).to.equal(
-            newLosses[CONSTANTS.SENIOR_TRANCHE_INDEX],
-        );
-        expect(result[1][CONSTANTS.JUNIOR_TRANCHE_INDEX]).to.equal(
-            newLosses[CONSTANTS.JUNIOR_TRANCHE_INDEX],
-        );
-        expect(result[1][CONSTANTS.JUNIOR_TRANCHE_INDEX]).to.equal(
-            assets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
-        );
-
-        const recovery = toToken(17937);
-        const [, newAssetsWithLossRecovery, newLossesWithLossRecovery] =
-            PnLCalculator.calcLossRecovery(recovery, result[0], result[1]);
-        const resultWithLossRecovery =
-            await tranchesPolicyContract.calcTranchesAssetsForLossRecovery(
-                recovery,
-                result[0],
-                result[1],
+            const firstLossCoverInfos = await Promise.all(
+                [borrowerFirstLossCoverContract, affiliateFirstLossCoverContract].map(
+                    async (contract) => await getFirstLossCoverInfo(contract, poolConfigContract),
+                ),
             );
-        expect(resultWithLossRecovery[0]).to.equal(0);
-        expect(resultWithLossRecovery[1][CONSTANTS.SENIOR_TRANCHE_INDEX]).to.equal(
-            newAssetsWithLossRecovery[CONSTANTS.SENIOR_TRANCHE_INDEX],
-        );
-        expect(resultWithLossRecovery[1][CONSTANTS.JUNIOR_TRANCHE_INDEX]).to.equal(
-            newAssetsWithLossRecovery[CONSTANTS.JUNIOR_TRANCHE_INDEX],
-        );
-        expect(resultWithLossRecovery[1][CONSTANTS.JUNIOR_TRANCHE_INDEX]).to.equal(0);
-        expect(resultWithLossRecovery[2][CONSTANTS.SENIOR_TRANCHE_INDEX]).to.equal(
-            newLossesWithLossRecovery[CONSTANTS.SENIOR_TRANCHE_INDEX],
-        );
-        expect(resultWithLossRecovery[2][CONSTANTS.JUNIOR_TRANCHE_INDEX]).to.equal(
-            newLossesWithLossRecovery[CONSTANTS.JUNIOR_TRANCHE_INDEX],
-        );
-        expect(resultWithLossRecovery[2][CONSTANTS.JUNIOR_TRANCHE_INDEX]).to.equal(
-            assets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
-        );
+            const [newAssets, newLosses] = await PnLCalculator.calcLoss(
+                loss,
+                assets,
+                firstLossCoverInfos,
+            );
+            const result = await tranchesPolicyContract.distLossToTranches(loss, assets);
+
+            expect(result[0][CONSTANTS.SENIOR_TRANCHE]).to.equal(
+                newAssets[CONSTANTS.SENIOR_TRANCHE],
+            );
+            expect(result[0][CONSTANTS.JUNIOR_TRANCHE]).to.equal(
+                newAssets[CONSTANTS.JUNIOR_TRANCHE],
+            );
+            expect(result[1][CONSTANTS.SENIOR_TRANCHE]).to.equal(
+                newLosses[CONSTANTS.SENIOR_TRANCHE],
+            );
+            expect(result[1][CONSTANTS.JUNIOR_TRANCHE]).to.equal(
+                newLosses[CONSTANTS.JUNIOR_TRANCHE],
+            );
+        });
+
+        it("Calculates the correct loss when junior tranche loss cannot be covered", async function () {
+            const assets = await poolContract.currentTranchesAssets();
+            const loss = assets[CONSTANTS.JUNIOR_TRANCHE].add(1);
+
+            const firstLossCoverInfos = await Promise.all(
+                [borrowerFirstLossCoverContract, affiliateFirstLossCoverContract].map(
+                    async (contract) => await getFirstLossCoverInfo(contract, poolConfigContract),
+                ),
+            );
+            const [newAssets, newLosses] = await PnLCalculator.calcLoss(
+                loss,
+                assets,
+                firstLossCoverInfos,
+            );
+            const result = await tranchesPolicyContract.distLossToTranches(loss, assets);
+
+            expect(result[0][CONSTANTS.SENIOR_TRANCHE]).to.equal(
+                newAssets[CONSTANTS.SENIOR_TRANCHE],
+            );
+            expect(result[0][CONSTANTS.JUNIOR_TRANCHE]).to.equal(
+                newAssets[CONSTANTS.JUNIOR_TRANCHE],
+            );
+            expect(result[0][CONSTANTS.JUNIOR_TRANCHE]).to.equal(0);
+            expect(result[1][CONSTANTS.SENIOR_TRANCHE]).to.equal(
+                newLosses[CONSTANTS.SENIOR_TRANCHE],
+            );
+            expect(result[1][CONSTANTS.JUNIOR_TRANCHE]).to.equal(
+                newLosses[CONSTANTS.JUNIOR_TRANCHE],
+            );
+            expect(result[1][CONSTANTS.JUNIOR_TRANCHE]).to.equal(assets[CONSTANTS.JUNIOR_TRANCHE]);
+        });
     });
 
-    it("Recover senior loss and junior loss", async function () {
-        const assets = await poolContract.currentTranchesAssets();
-        const loss = toToken(113638);
+    describe("distLossRecoveryToTranches", function () {
+        it("Calculates the correct loss when only the senior loss can be recovered", async function () {
+            const assets = await poolContract.currentTranchesAssets();
+            const loss = assets[CONSTANTS.SENIOR_TRANCHE].add(assets[CONSTANTS.JUNIOR_TRANCHE]);
+            const recovery = assets[CONSTANTS.SENIOR_TRANCHE];
 
-        const [newAssets, newLosses] = PnLCalculator.calcLoss(loss, assets);
-        const result = await tranchesPolicyContract.calcTranchesAssetsForLoss(loss, assets);
-
-        expect(result[0][CONSTANTS.SENIOR_TRANCHE_INDEX]).to.equal(
-            newAssets[CONSTANTS.SENIOR_TRANCHE_INDEX],
-        );
-        expect(result[0][CONSTANTS.JUNIOR_TRANCHE_INDEX]).to.equal(
-            newAssets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
-        );
-        expect(result[0][CONSTANTS.JUNIOR_TRANCHE_INDEX]).to.equal(0);
-        expect(result[1][CONSTANTS.SENIOR_TRANCHE_INDEX]).to.equal(
-            newLosses[CONSTANTS.SENIOR_TRANCHE_INDEX],
-        );
-        expect(result[1][CONSTANTS.JUNIOR_TRANCHE_INDEX]).to.equal(
-            newLosses[CONSTANTS.JUNIOR_TRANCHE_INDEX],
-        );
-        expect(result[1][CONSTANTS.JUNIOR_TRANCHE_INDEX]).to.equal(
-            assets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
-        );
-
-        const recovery = toToken(38566);
-        const [, newAssetsWithLossRecovery, newLossesWithLossRecovery] =
-            PnLCalculator.calcLossRecovery(recovery, result[0], result[1]);
-        const resultWithLossRecovery =
-            await tranchesPolicyContract.calcTranchesAssetsForLossRecovery(
-                recovery,
-                result[0],
-                result[1],
+            const [assetsAfterLosses, losses] = await tranchesPolicyContract.distLossToTranches(
+                loss,
+                assets,
             );
-        expect(resultWithLossRecovery[0]).to.equal(0);
-        expect(resultWithLossRecovery[1][CONSTANTS.SENIOR_TRANCHE_INDEX]).to.equal(
-            newAssetsWithLossRecovery[CONSTANTS.SENIOR_TRANCHE_INDEX],
-        );
-        expect(resultWithLossRecovery[1][CONSTANTS.JUNIOR_TRANCHE_INDEX]).to.equal(
-            newAssetsWithLossRecovery[CONSTANTS.JUNIOR_TRANCHE_INDEX],
-        );
-        expect(resultWithLossRecovery[1][CONSTANTS.SENIOR_TRANCHE_INDEX]).to.equal(
-            assets[CONSTANTS.SENIOR_TRANCHE_INDEX],
-        );
-        expect(resultWithLossRecovery[2][CONSTANTS.SENIOR_TRANCHE_INDEX]).to.equal(
-            newLossesWithLossRecovery[CONSTANTS.SENIOR_TRANCHE_INDEX],
-        );
-        expect(resultWithLossRecovery[2][CONSTANTS.JUNIOR_TRANCHE_INDEX]).to.equal(
-            newLossesWithLossRecovery[CONSTANTS.JUNIOR_TRANCHE_INDEX],
-        );
-        expect(resultWithLossRecovery[2][CONSTANTS.SENIOR_TRANCHE_INDEX]).to.equal(0);
+            const [, newAssetsWithLossRecovery, newLossesWithLossRecovery] =
+                await PnLCalculator.calcLossRecovery(recovery, assetsAfterLosses, losses, [
+                    BN.from(0),
+                    BN.from(0),
+                ]);
+            const resultWithLossRecovery = await tranchesPolicyContract.distLossRecoveryToTranches(
+                recovery,
+                assetsAfterLosses,
+                losses,
+            );
+            expect(resultWithLossRecovery[0]).to.equal(0);
+            expect(resultWithLossRecovery[1][CONSTANTS.SENIOR_TRANCHE]).to.equal(
+                newAssetsWithLossRecovery[CONSTANTS.SENIOR_TRANCHE],
+            );
+            expect(resultWithLossRecovery[1][CONSTANTS.JUNIOR_TRANCHE]).to.equal(
+                newAssetsWithLossRecovery[CONSTANTS.JUNIOR_TRANCHE],
+            );
+            expect(resultWithLossRecovery[1][CONSTANTS.JUNIOR_TRANCHE]).to.equal(0);
+            expect(resultWithLossRecovery[2][CONSTANTS.SENIOR_TRANCHE]).to.equal(
+                newLossesWithLossRecovery[CONSTANTS.SENIOR_TRANCHE],
+            );
+            expect(resultWithLossRecovery[2][CONSTANTS.JUNIOR_TRANCHE]).to.equal(
+                newLossesWithLossRecovery[CONSTANTS.JUNIOR_TRANCHE],
+            );
+            expect(resultWithLossRecovery[2][CONSTANTS.JUNIOR_TRANCHE]).to.equal(
+                assets[CONSTANTS.JUNIOR_TRANCHE],
+            );
+        });
+
+        it("Calculates the correct loss when both the senior and junior loss can be recovered", async function () {
+            const assets = await poolContract.currentTranchesAssets();
+            const loss = assets[CONSTANTS.SENIOR_TRANCHE].add(assets[CONSTANTS.JUNIOR_TRANCHE]);
+            const recovery = loss;
+
+            const [assetsAfterLosses, losses] = await tranchesPolicyContract.distLossToTranches(
+                loss,
+                assets,
+            );
+            const [, newAssetsWithLossRecovery, newLossesWithLossRecovery] =
+                await PnLCalculator.calcLossRecovery(recovery, assetsAfterLosses, losses, [
+                    BN.from(0),
+                    BN.from(0),
+                ]);
+            const resultWithLossRecovery = await tranchesPolicyContract.distLossRecoveryToTranches(
+                recovery,
+                assetsAfterLosses,
+                losses,
+            );
+            expect(resultWithLossRecovery[0]).to.equal(0);
+            expect(resultWithLossRecovery[1][CONSTANTS.SENIOR_TRANCHE]).to.equal(
+                newAssetsWithLossRecovery[CONSTANTS.SENIOR_TRANCHE],
+            );
+            expect(resultWithLossRecovery[1][CONSTANTS.JUNIOR_TRANCHE]).to.equal(
+                newAssetsWithLossRecovery[CONSTANTS.JUNIOR_TRANCHE],
+            );
+            expect(resultWithLossRecovery[1][CONSTANTS.SENIOR_TRANCHE]).to.equal(
+                assets[CONSTANTS.SENIOR_TRANCHE],
+            );
+            expect(resultWithLossRecovery[2][CONSTANTS.SENIOR_TRANCHE]).to.equal(
+                newLossesWithLossRecovery[CONSTANTS.SENIOR_TRANCHE],
+            );
+            expect(resultWithLossRecovery[2][CONSTANTS.JUNIOR_TRANCHE]).to.equal(
+                newLossesWithLossRecovery[CONSTANTS.JUNIOR_TRANCHE],
+            );
+            expect(resultWithLossRecovery[2][CONSTANTS.SENIOR_TRANCHE]).to.equal(0);
+        });
     });
 });

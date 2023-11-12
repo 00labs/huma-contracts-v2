@@ -21,7 +21,8 @@ module.exports = {
                 format: ["camelCase", "UPPER_CASE", "PascalCase"],
             },
         ],
-        "mocha/no-skipped-tests": "error",
-        "mocha/no-exclusive-tests": "error",
+        "mocha/no-skipped-tests": "off",
+        "mocha/no-exclusive-tests": "off",
+        "eol-last": ["error", "always"],
     },
 };

@@ -2,12 +2,13 @@
 pragma solidity ^0.8.0;
 
 import {ReceivableInfo} from "./CreditStructs.sol";
-import "@openzeppelin/contracts-upgradeable/utils/CountersUpgradeable.sol";
+import {CountersUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/CountersUpgradeable.sol";
 
 contract ReceivableStorage {
     using CountersUpgradeable for CountersUpgradeable.Counter;
 
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+    bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
     CountersUpgradeable.Counter internal _tokenIdCounter;
 
     // Map tokenId to receivable information

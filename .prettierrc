@@ -1,13 +1,12 @@
 {
-    "plugins": ["prettier-plugin-solidity"],
+    "plugins": ["prettier-plugin-organize-imports", "prettier-plugin-solidity"],
     "overrides": [
         {
             "files": "*.sol",
             "options": {
                 "printWidth": 99,
                 "tabWidth": 4,
-                "useTabs": false,
-                "explicitTypes": "always"
+                "useTabs": false
             }
         },
         {

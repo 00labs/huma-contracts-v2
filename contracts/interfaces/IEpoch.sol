@@ -9,11 +9,13 @@ struct EpochInfo {
 }
 
 interface IEpoch {
-    function unprocessedEpochInfos() external view returns (EpochInfo[] memory);
+    /**
+     * @notice Returns unprocessed epoch info.
+     */
+    function currentEpochInfo() external view returns (EpochInfo memory);
 
-    function processEpochs(
-        EpochInfo[] memory epochsProcessed,
-        uint256 sharesProcessed,
-        uint256 amountProcessed
-    ) external;
+    /**
+     * @notice Executes processed epoch
+     */
+    function executeEpoch(EpochInfo memory epochProcessed) external;
 }

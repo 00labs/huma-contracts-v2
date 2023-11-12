@@ -1,32 +1,31 @@
-import { ethers } from "hardhat";
+import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { BigNumber as BN } from "ethers";
-import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { ethers } from "hardhat";
 import {
-    CONSTANTS,
-    deployAndSetupPoolContracts,
-    deployProtocolContracts,
-    PnLCalculator,
-} from "./BaseTest";
-import { copyLPConfigWithOverrides, toToken } from "./TestUtils";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import {
-    BaseCreditFeeManager,
-    BasePnLManager,
     Calendar,
+    CreditDueManager,
     EpochManager,
     EvaluationAgentNFT,
-    HumaConfig,
     FirstLossCover,
+    HumaConfig,
     MockPoolCredit,
     MockToken,
-    PlatformFeeManager,
     Pool,
     PoolConfig,
-    PoolVault,
+    PoolFeeManager,
+    PoolSafe,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
 } from "../typechain-types";
+import {
+    CONSTANTS,
+    PnLCalculator,
+    deployAndSetupPoolContracts,
+    deployProtocolContracts,
+} from "./BaseTest";
+import { overrideLPConfig, toToken } from "./TestUtils";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
@@ -43,18 +42,18 @@ let eaNFTContract: EvaluationAgentNFT,
     humaConfigContract: HumaConfig,
     mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
-    platformFeeManagerContract: PlatformFeeManager,
-    poolVaultContract: PoolVault,
+    poolFeeManagerContract: PoolFeeManager,
+    poolSafeContract: PoolSafe,
     calendarContract: Calendar,
-    poolOwnerAndEAFirstLossCoverContract: FirstLossCover,
+    borrowerFirstLossCoverContract: FirstLossCover,
+    affiliateFirstLossCoverContract: FirstLossCover,
     tranchesPolicyContract: RiskAdjustedTranchesPolicy,
     poolContract: Pool,
     epochManagerContract: EpochManager,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: MockPoolCredit,
-    creditFeeManagerContract: BaseCreditFeeManager,
-    creditPnlManagerContract: BasePnLManager;
+    creditDueManagerContract: CreditDueManager;
 
 describe("RiskAdjustedTranchesPolicy Test", function () {
     before(async function () {
@@ -83,18 +82,18 @@ describe("RiskAdjustedTranchesPolicy Test", function () {
 
         [
             poolConfigContract,
-            platformFeeManagerContract,
-            poolVaultContract,
+            poolFeeManagerContract,
+            poolSafeContract,
             calendarContract,
-            poolOwnerAndEAFirstLossCoverContract,
+            borrowerFirstLossCoverContract,
+            affiliateFirstLossCoverContract,
             tranchesPolicyContract,
             poolContract,
             epochManagerContract,
             seniorTrancheVaultContract,
             juniorTrancheVaultContract,
             creditContract as unknown,
-            creditFeeManagerContract,
-            creditPnlManagerContract,
+            creditDueManagerContract,
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
@@ -109,11 +108,11 @@ describe("RiskAdjustedTranchesPolicy Test", function () {
             [lender],
         );
 
-        let juniorDepositAmount = toToken(100_000);
+        const juniorDepositAmount = toToken(100_000);
         await juniorTrancheVaultContract
             .connect(lender)
             .deposit(juniorDepositAmount, lender.address);
-        let seniorDepositAmount = toToken(300_000);
+        const seniorDepositAmount = toToken(300_000);
         await seniorTrancheVaultContract
             .connect(lender)
             .deposit(seniorDepositAmount, lender.address);
@@ -123,14 +122,11 @@ describe("RiskAdjustedTranchesPolicy Test", function () {
         await loadFixture(prepare);
     });
 
-    it("Should call calcTranchesAssetsForProfit correctly", async function () {
+    it("Should call distProfitToTranches correctly", async function () {
         const adjustment = 8000;
-
-        const lpConfig = await poolConfigContract.getLPConfig();
-        const newLpConfig = copyLPConfigWithOverrides(lpConfig, {
+        await overrideLPConfig(poolConfigContract, poolOwner, {
             tranchesRiskAdjustmentInBps: adjustment,
         });
-        await poolConfigContract.connect(poolOwner).setLPConfig(newLpConfig);
 
         const assets = await poolContract.currentTranchesAssets();
         const profit = toToken(14837);
@@ -140,16 +136,8 @@ describe("RiskAdjustedTranchesPolicy Test", function () {
             assets,
             BN.from(adjustment),
         );
-        const result = await tranchesPolicyContract.calcTranchesAssetsForProfit(
-            profit,
-            [...assets],
-            0,
-        );
-        expect(result[CONSTANTS.SENIOR_TRANCHE_INDEX]).to.equal(
-            newAssets[CONSTANTS.SENIOR_TRANCHE_INDEX],
-        );
-        expect(result[CONSTANTS.JUNIOR_TRANCHE_INDEX]).to.equal(
-            newAssets[CONSTANTS.JUNIOR_TRANCHE_INDEX],
-        );
+        const result = await tranchesPolicyContract.distProfitToTranches(profit, [...assets], 0);
+        expect(result[CONSTANTS.SENIOR_TRANCHE]).to.equal(newAssets[CONSTANTS.SENIOR_TRANCHE]);
+        expect(result[CONSTANTS.JUNIOR_TRANCHE]).to.equal(newAssets[CONSTANTS.JUNIOR_TRANCHE]);
     });
 });

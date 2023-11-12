@@ -1,64 +1,53 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {ITranchesPolicy} from "./interfaces/ITranchesPolicy.sol";
 import {PoolConfig} from "./PoolConfig.sol";
 import {PoolConfigCache} from "./PoolConfigCache.sol";
-import {Errors} from "./Errors.sol";
-import "./SharedDefs.sol";
+import {ITranchesPolicy} from "./interfaces/ITranchesPolicy.sol";
+import {JUNIOR_TRANCHE, SENIOR_TRANCHE} from "./SharedDefs.sol";
 
 abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {}
 
-    function calcTranchesAssetsForLoss(
+    /// @inheritdoc ITranchesPolicy
+    function distLossToTranches(
         uint256 loss,
         uint96[2] memory assets
-    ) external pure returns (uint96[2] memory newAssets, uint96[2] memory newLosses) {
-        // The junior tranches covers the loss first
-        uint256 juniorTotalAssets = assets[JUNIOR_TRANCHE_INDEX];
-        uint256 juniorLoss = juniorTotalAssets >= loss ? loss : juniorTotalAssets;
-        uint256 seniorLoss = loss - juniorLoss;
-        newAssets[JUNIOR_TRANCHE_INDEX] = uint96(assets[JUNIOR_TRANCHE_INDEX] - juniorLoss);
-        newAssets[SENIOR_TRANCHE_INDEX] = uint96(assets[SENIOR_TRANCHE_INDEX] - seniorLoss);
-        newLosses[JUNIOR_TRANCHE_INDEX] = uint96(juniorLoss);
-        newLosses[SENIOR_TRANCHE_INDEX] = uint96(seniorLoss);
-        return (newAssets, newLosses);
+    ) external pure returns (uint96[2] memory updatedAssets, uint96[2] memory losses) {
+        uint256 juniorTotalAssets = assets[JUNIOR_TRANCHE];
+        // Distribute losses to junior tranche up to the total junior asset
+        losses[JUNIOR_TRANCHE] = uint96(juniorTotalAssets >= loss ? loss : juniorTotalAssets);
+        losses[SENIOR_TRANCHE] = uint96(loss - losses[JUNIOR_TRANCHE]);
+        updatedAssets[JUNIOR_TRANCHE] = uint96(assets[JUNIOR_TRANCHE] - losses[JUNIOR_TRANCHE]);
+        updatedAssets[SENIOR_TRANCHE] = uint96(assets[SENIOR_TRANCHE] - losses[SENIOR_TRANCHE]);
+        return (updatedAssets, losses);
     }
 
-    function calcTranchesAssetsForLossRecovery(
+    /// @inheritdoc ITranchesPolicy
+    function distLossRecoveryToTranches(
         uint256 lossRecovery,
         uint96[2] memory assets,
         uint96[2] memory losses
-    )
-        external
-        pure
-        returns (uint256 newLossRecovery, uint96[2] memory newAssets, uint96[2] memory newLosses)
-    {
-        uint96 seniorLoss = losses[SENIOR_TRANCHE_INDEX];
+    ) external pure returns (uint256 remainingLossRecovery, uint96[2] memory, uint96[2] memory) {
+        uint96 seniorLoss = losses[SENIOR_TRANCHE];
+        // Allocates recovery to senior first, up to the total senior losses
         uint256 seniorLossRecovery = lossRecovery >= seniorLoss ? seniorLoss : lossRecovery;
         if (seniorLossRecovery > 0) {
-            assets[SENIOR_TRANCHE_INDEX] =
-                assets[SENIOR_TRANCHE_INDEX] +
-                uint96(seniorLossRecovery);
-            losses[SENIOR_TRANCHE_INDEX] =
-                losses[SENIOR_TRANCHE_INDEX] -
-                uint96(seniorLossRecovery);
-        }
-        newLossRecovery = lossRecovery - seniorLossRecovery;
-        if (newLossRecovery > 0) {
-            uint96 juniorLoss = losses[JUNIOR_TRANCHE_INDEX];
-            uint256 juniorLossRecovery = newLossRecovery >= juniorLoss
-                ? juniorLoss
-                : newLossRecovery;
-            assets[JUNIOR_TRANCHE_INDEX] =
-                assets[JUNIOR_TRANCHE_INDEX] +
-                uint96(juniorLossRecovery);
-            losses[JUNIOR_TRANCHE_INDEX] =
-                losses[JUNIOR_TRANCHE_INDEX] -
-                uint96(juniorLossRecovery);
-            newLossRecovery = newLossRecovery - juniorLossRecovery;
+            assets[SENIOR_TRANCHE] += uint96(seniorLossRecovery);
+            losses[SENIOR_TRANCHE] -= uint96(seniorLossRecovery);
         }
 
-        return (newLossRecovery, assets, losses);
+        remainingLossRecovery = lossRecovery - seniorLossRecovery;
+        if (remainingLossRecovery > 0) {
+            uint96 juniorLoss = losses[JUNIOR_TRANCHE];
+            uint256 juniorLossRecovery = remainingLossRecovery >= juniorLoss
+                ? juniorLoss
+                : remainingLossRecovery;
+            assets[JUNIOR_TRANCHE] += uint96(juniorLossRecovery);
+            losses[JUNIOR_TRANCHE] -= uint96(juniorLossRecovery);
+            remainingLossRecovery = remainingLossRecovery - juniorLossRecovery;
+        }
+
+        return (remainingLossRecovery, assets, losses);
     }
 }

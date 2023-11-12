@@ -1,17 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721URIStorageUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721BurnableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/CountersUpgradeable.sol";
-import "../Errors.sol";
-import "./ReceivableStorage.sol";
-import "./interfaces/IReceivable.sol";
+import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
+import {ERC721EnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol";
+import {ERC721URIStorageUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721URIStorageUpgradeable.sol";
+import {ERC721BurnableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721BurnableUpgradeable.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {CountersUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/CountersUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {Errors} from "../Errors.sol";
+import {ReceivableStorage} from "./ReceivableStorage.sol";
+import {IReceivable} from "./interfaces/IReceivable.sol";
 import {ReceivableInfo, ReceivableState} from "./CreditStructs.sol";
+import "hardhat/console.sol";
 
 /**
  * @title RealWorldReceivable
@@ -25,7 +27,8 @@ contract Receivable is
     ERC721EnumerableUpgradeable,
     ERC721URIStorageUpgradeable,
     ERC721BurnableUpgradeable,
-    AccessControlUpgradeable
+    AccessControlUpgradeable,
+    UUPSUpgradeable
 {
     using CountersUpgradeable for CountersUpgradeable.Counter;
 
@@ -61,7 +64,7 @@ contract Receivable is
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
-        _disableInitializers();
+        // _disableInitializers();
     }
 
     /**
@@ -69,14 +72,16 @@ contract Receivable is
      */
     function initialize() public initializer {
         // todo change the upgradability to be consistent with what we will use in v2
-        __ERC721_init("RealWorldReceivable", "RWR");
+        __ERC721_init("Receivable", "REC");
         __ERC721Enumerable_init();
         __ERC721URIStorage_init();
         __ERC721Burnable_init();
         __AccessControl_init();
+        __UUPSUpgradeable_init();
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(MINTER_ROLE, msg.sender);
+        _grantRole(UPGRADER_ROLE, msg.sender);
     }
 
     /**
@@ -91,8 +96,8 @@ contract Receivable is
         uint96 receivableAmount,
         uint64 maturityDate,
         string memory uri
-    ) public onlyRole(MINTER_ROLE) {
-        uint256 tokenId = _tokenIdCounter.current();
+    ) public onlyRole(MINTER_ROLE) returns (uint256 tokenId) {
+        tokenId = _tokenIdCounter.current();
         _tokenIdCounter.increment();
         _safeMint(msg.sender, tokenId);
 
@@ -165,6 +170,10 @@ contract Receivable is
         return receivableInfoMap[tokenId].state;
     }
 
+    function _authorizeUpgrade(
+        address newImplementation
+    ) internal override onlyRole(UPGRADER_ROLE) {}
+
     // The following functions are overrides required by Solidity.
     // super calls functions from right-to-left in the inheritance hierarchy: https://solidity-by-example.org/inheritance/#multiple-inheritance-order
     function _beforeTokenTransfer(
@@ -201,8 +210,8 @@ contract Receivable is
         override(
             ERC721Upgradeable,
             ERC721EnumerableUpgradeable,
-            AccessControlUpgradeable,
-            ERC721URIStorageUpgradeable
+            ERC721URIStorageUpgradeable,
+            AccessControlUpgradeable
         )
         returns (bool)
     {

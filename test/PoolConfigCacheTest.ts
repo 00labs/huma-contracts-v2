@@ -1,25 +1,24 @@
-import { ethers } from "hardhat";
-import { expect } from "chai";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { deployPoolContracts, deployProtocolContracts } from "./BaseTest";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { expect } from "chai";
+import { ethers } from "hardhat";
 import {
-    BaseCreditFeeManager,
-    BasePnLManager,
     Calendar,
+    CreditDueManager,
     EpochManager,
     EvaluationAgentNFT,
-    HumaConfig,
     FirstLossCover,
+    HumaConfig,
     MockPoolCredit,
     MockToken,
-    PlatformFeeManager,
     Pool,
     PoolConfig,
-    PoolVault,
+    PoolFeeManager,
+    PoolSafe,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
 } from "../typechain-types";
+import { deployPoolContracts, deployProtocolContracts } from "./BaseTest";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
@@ -36,18 +35,18 @@ let eaNFTContract: EvaluationAgentNFT,
     humaConfigContract: HumaConfig,
     mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
-    platformFeeManagerContract: PlatformFeeManager,
-    poolVaultContract: PoolVault,
+    poolFeeManagerContract: PoolFeeManager,
+    poolSafeContract: PoolSafe,
     calendarContract: Calendar,
-    poolOwnerAndEAFirstLossCoverContract: FirstLossCover,
+    borrowerFirstLossCoverContract: FirstLossCover,
+    affiliateFirstLossCoverContract: FirstLossCover,
     tranchesPolicyContract: RiskAdjustedTranchesPolicy,
     poolContract: Pool,
     epochManagerContract: EpochManager,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: MockPoolCredit,
-    creditFeeManagerContract: BaseCreditFeeManager,
-    creditPnlManagerContract: BasePnLManager;
+    creditDueManagerContract: CreditDueManager;
 
 describe("PoolConfigCache Test", function () {
     before(async function () {
@@ -76,18 +75,18 @@ describe("PoolConfigCache Test", function () {
 
         [
             poolConfigContract,
-            platformFeeManagerContract,
-            poolVaultContract,
+            poolFeeManagerContract,
+            poolSafeContract,
             calendarContract,
-            poolOwnerAndEAFirstLossCoverContract,
+            borrowerFirstLossCoverContract,
+            affiliateFirstLossCoverContract,
             tranchesPolicyContract,
             poolContract,
             epochManagerContract,
             seniorTrancheVaultContract,
             juniorTrancheVaultContract,
             creditContract as unknown,
-            creditFeeManagerContract,
-            creditPnlManagerContract,
+            creditDueManagerContract,
         ] = await deployPoolContracts(
             humaConfigContract,
             mockTokenContract,
@@ -109,13 +108,13 @@ describe("PoolConfigCache Test", function () {
     });
 
     it("Should update pool config cache", async function () {
-        await poolConfigContract.connect(poolOwner).setPoolVault(defaultDeployer.address);
+        await poolConfigContract.connect(poolOwner).setPoolSafe(defaultDeployer.address);
 
         await expect(juniorTrancheVaultContract.connect(poolOwner).updatePoolConfigData())
             .to.emit(juniorTrancheVaultContract, "PoolConfigCacheUpdated")
             .withArgs(poolConfigContract.address);
 
-        expect(await juniorTrancheVaultContract.poolVault()).to.equal(defaultDeployer.address);
+        expect(await juniorTrancheVaultContract.poolSafe()).to.equal(defaultDeployer.address);
     });
 
     it("Should not set pool config to empty address", async function () {
@@ -138,18 +137,16 @@ describe("PoolConfigCache Test", function () {
         await newPoolConfigContract.initialize("Test New Pool", [
             humaConfigContract.address,
             mockTokenContract.address,
-            platformFeeManagerContract.address,
             calendarContract.address,
-            calendarContract.address,
-            poolOwnerAndEAFirstLossCoverContract.address,
             tranchesPolicyContract.address,
+            calendarContract.address,
+            poolFeeManagerContract.address,
             tranchesPolicyContract.address,
             mockTokenContract.address,
             seniorTrancheVaultContract.address,
             juniorTrancheVaultContract.address,
             creditContract.address,
-            creditFeeManagerContract.address,
-            creditPnlManagerContract.address,
+            creditDueManagerContract.address,
         ]);
 
         await expect(
@@ -161,7 +158,7 @@ describe("PoolConfigCache Test", function () {
             .withArgs(newPoolConfigContract.address, poolConfigContract.address);
 
         expect(await seniorTrancheVaultContract.pool()).to.equal(tranchesPolicyContract.address);
-        expect(await seniorTrancheVaultContract.poolVault()).to.equal(calendarContract.address);
+        expect(await seniorTrancheVaultContract.poolSafe()).to.equal(calendarContract.address);
         expect(await seniorTrancheVaultContract.epochManager()).to.equal(
             mockTokenContract.address,
         );

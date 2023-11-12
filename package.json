@@ -3,47 +3,51 @@
   "version": "1.0.0",
   "description": "",
   "keywords": [],
-  "license": "LGPL-3.0-or-later",
+  "license": "AGPL-3.0-or-later",
   "author": "",
-  "main": "index.js",
   "scripts": {
     "build": "hardhat compile",
     "chain": "hardhat node",
     "clean": "hardhat clean",
     "compile": "hardhat compile",
     "coverage": "hardhat coverage --network hardhat",
-    "format": "prettier 'test/**/*.ts' --write",
+    "deploy-local": "hardhat run ./scripts/deploy-local-test-pools.ts --network localhost",
+    "format": "prettier '**/*.{js,json,ts,yml,yaml}' --write --plugin=prettier-plugin-organize-imports",
+    "format-solidity": "prettier 'contracts/**/*.sol' --write --plugin=prettier-plugin-solidity",
+    "foundry": "bash scripts/install-foundry.sh",
     "gitleaks": "bash scripts/gitleaks.sh",
     "lint": "eslint 'test/**/*.ts'",
-    "lint-solidity": "yarn solhint -f table 'contracts/**/*.sol'",
     "lint:fix": "eslint 'test/**/*.ts' --fix",
+    "lint-solidity": "solhint -f table 'contracts/**/*.sol'",
+    "lint-solidity:fix": "solhint --fix -f table 'contracts/**/*.sol'",
     "prepare": "husky install",
     "test": "hardhat test --network hardhat --typecheck",
     "verify": "hardhat verify",
     "gen-error-ids": "hardhat run scripts/gen-error-function-ids.ts --network hardhat && prettier --write scripts/error-functions.json"
   },
-  "husky": {
-    "hooks": {
-      "pre-commit": "lint-staged"
-    }
-  },
   "lint-staged": {
-    "*.ts": [
+    "*.{js,json,ts,yaml,yml}": [
       "eslint --fix",
-      "prettier --write"
+      "prettier --write --plugin=prettier-plugin-organize-imports"
+    ],
+    "*.sol": [
+      "solhint --fix -f table",
+      "prettier --write --plugin=prettier-plugin-solidity"
     ]
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.2",
     "@nomicfoundation/hardhat-ethers": "^3.0.4",
+    "@nomicfoundation/hardhat-foundry": "^1.1.1",
     "@nomicfoundation/hardhat-network-helpers": "^1.0.7",
     "@nomicfoundation/hardhat-verify": "^1.1.0",
     "@nomiclabs/hardhat-ethers": "^2.2.3",
     "@nomiclabs/hardhat-etherscan": "^3.0.0",
     "@openzeppelin/contracts": "^4.8.3",
     "@openzeppelin/contracts-upgradeable": "^4.8.3",
-    "@typechain/ethers-v6": "^0.5.0",
-    "@typechain/hardhat": "^9.0.0",
+    "@superfluid-finance/ethereum-contracts": "^1.5.0",
+    "@typechain/ethers-v5": "^10.1.0",
+    "@typechain/hardhat": "^6.1.2",
     "@types/chai": "^4.3.6",
     "@types/mocha": "^10.0.1",
     "@types/node": "^20.6.0",
@@ -65,6 +69,7 @@
     "lint-staged": "^14.0.1",
     "moment": "2.29.4",
     "prettier": "^3.0.3",
+    "prettier-plugin-organize-imports": "^3.2.3",
     "prettier-plugin-solidity": "^1.0.0-beta.24",
     "solhint": "^3.6.2",
     "solidity-coverage": "^0.8.5",

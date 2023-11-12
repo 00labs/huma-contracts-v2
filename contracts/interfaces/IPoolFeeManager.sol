@@ -2,16 +2,11 @@
 pragma solidity ^0.8.0;
 
 /**
- * @notice IPlatformFeeManager provides functions about fees.
+ * @notice IPoolFeeManager provides functions about fees.
  */
 
-interface IPlatformFeeManager {
-    function distributePlatformFees(uint256 profit) external returns (uint256 remaining);
-
-    /**
-     * @notice Returns the remaining profit after deducting various fees
-     */
-    function calcPlatformFeeDistribution(uint256 profit) external view returns (uint256 remaining);
+interface IPoolFeeManager {
+    function distributePoolFees(uint256 profit) external returns (uint256 remaining);
 
     function withdrawProtocolFee(uint256 amount) external;
 
@@ -27,4 +22,9 @@ interface IPlatformFeeManager {
             uint256 poolOwnerWithdrawable,
             uint256 eaWithdrawable
         );
+
+    /**
+     * @notice Gets total available incomes, PoolSafe uses this function to reserve the balance of fees
+     */
+    function getTotalAvailableFees() external view returns (uint256);
 }
