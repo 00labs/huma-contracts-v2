@@ -365,12 +365,13 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
             // Note that we need to write to _creditRecordMap here directly rather than its copy `cr`
             // because `_updateDueInfo()` needs to access the updated `unbilledPrincipal` in storage.
             _creditRecordMap[creditHash].unbilledPrincipal = uint96(borrowAmount);
-            cr = _updateDueInfo(creditHash);
-            cr.state = CreditState.GoodStanding;
             _maturityDates[creditHash] = calendar.getMaturityDate(
                 cc.periodDuration,
-                cc.numOfPeriods
+                cc.numOfPeriods,
+                block.timestamp
             );
+            cr = _updateDueInfo(creditHash);
+            cr.state = CreditState.GoodStanding;
         } else {
             // Disallow repeated drawdown for non-revolving credit
             if (!cc.revolving) revert Errors.attemptedDrawdownForNonrevolvingLine();
