@@ -57,7 +57,7 @@ contract Calendar is ICalendar {
     /// @inheritdoc ICalendar
     function getDaysPassedInPeriod(
         PayPeriodDuration periodDuration
-    ) public view returns (uint256 daysPassed, uint256 totalDaysInPeriod) {
+    ) external view returns (uint256 daysPassed, uint256 totalDaysInPeriod) {
         uint256 day = DTL.getDay(block.timestamp);
         // If the day falls on the 31st, move it back to the 30th.
         day = day > DAYS_IN_A_MONTH ? DAYS_IN_A_MONTH : day;
