@@ -143,8 +143,8 @@ contract EpochManager is PoolConfigCache, IEpochManager {
     function _createNextEpoch(CurrentEpoch memory epoch) internal {
         epoch.id += 1;
         PoolSettings memory poolSettings = poolConfig.getPoolSettings();
-        (uint256 nextEndTime, ) = calendar.getNextDueDate(
-            poolSettings.payPeriodInMonths,
+        uint256 nextEndTime = calendar.getStartDateOfNextPeriod(
+            poolSettings.payPeriodDuration,
             epoch.endTime
         );
         epoch.endTime = uint64(nextEndTime);

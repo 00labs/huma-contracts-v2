@@ -216,10 +216,10 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
 
     function _isDefaultReady(CreditRecord memory cr) internal view returns (bool isDefault) {
         PoolSettings memory settings = poolConfig.getPoolSettings();
+        // TODO(jiatu): this implementation is utterly incorrect. We need to fix how default is calculated.
         return
             cr.missedPeriods > 1 &&
-            (cr.missedPeriods - 1) * settings.payPeriodInMonths >=
-            settings.defaultGracePeriodInMonths;
+            (cr.missedPeriods - 1) * 30 >= settings.defaultGracePeriodInMonths;
     }
 
     /**
@@ -279,10 +279,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         CreditConfig memory cc = getCreditConfig(creditHash);
         cc.creditLimit = creditLimit;
         cc.committedAmount = committedAmount;
-        // TODO(jiatu): replace the following assignment with the value from `PoolConfig`.
-        // It's temporarily assigned to monthly so that we don't have to make simultaneous changes
-        // to the LP side, thus limiting the size of the change.
-        cc.periodDuration = PayPeriodDuration.Monthly;
+        cc.periodDuration = ps.payPeriodDuration;
         cc.numOfPeriods = remainingPeriods;
         cc.yieldInBps = yieldInBps;
         cc.revolving = revolving;
