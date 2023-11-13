@@ -716,9 +716,10 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         bytes32 creditHash
     ) internal virtual returns (CreditRecord memory cr, DueDetail memory dd) {
         cr = getCreditRecord(creditHash);
+        dd = getDueDetail(creditHash);
 
         // Do not update dueInfo for accounts already in default state
-        if (cr.state == CreditState.Defaulted) return cr;
+        if (cr.state == CreditState.Defaulted) return (cr, dd);
 
         // Before the first drawdown, cr.nextDueDate is used to capture credit expiration
         // date. It is validated in the precheck logic for the first drawdown, thus safe
@@ -729,17 +730,15 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         // late or dormant for multiple cycles, getDueInfo() will bring it current and
         // return the most up-to-date due information.
         CreditConfig memory cc = getCreditConfig(creditHash);
-        DueDetail memory dd = getDueDetail(creditHash);
         uint256 maturityDate = getMaturityDate(creditHash);
 
-        bool late;
-
-        (cr, dd, late) = _feeManager.getDueInfo(cr, cc, dd, maturityDate);
         uint256 periodsPassed = calendar.getNumPeriodsPassed(
-            _cc.periodDuration,
-            _cr.nextDueDate,
+            cc.periodDuration,
+            cr.nextDueDate,
             block.timestamp
         );
+        bool late;
+        (cr, dd, late) = _feeManager.getDueInfo(cr, cc, dd, maturityDate);
 
         if (periodsPassed > 0) {
             // Adjusts remainingPeriods. Sets remainingPeriods to 0 if the credit line has reached maturity.

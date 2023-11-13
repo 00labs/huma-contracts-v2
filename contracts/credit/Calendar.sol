@@ -196,6 +196,7 @@ contract Calendar is ICalendar {
         day = day > DAYS_IN_A_MONTH ? DAYS_IN_A_MONTH : day;
         uint256 startDate = DTL.timestampFromDate(year, month, day);
 
+        uint256 monthCount = numPeriods;
         if (startDate != getStartDateOfPeriod(periodDuration, startDate)) {
             // Adjust `monthCount` by subtracting 1 if the bill cycle doesn't begin at the start of the period.
             // This accounts for the scenario where both the start and end of the billing periods are partial periods,
