@@ -62,15 +62,7 @@ interface ICreditDueManager {
         CreditConfig memory _cc,
         DueDetail memory _dd,
         uint256 maturityDate
-    )
-        external
-        view
-        returns (
-            CreditRecord memory newCR,
-            DueDetail memory newDD,
-            uint256 periodsPassed,
-            bool isLate
-        );
+    ) external view returns (CreditRecord memory newCR, DueDetail memory newDD, bool isLate);
 
     function getPayoffAmount(CreditRecord memory cr) external view returns (uint256 payoffAmount);
 }

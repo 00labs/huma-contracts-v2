@@ -40,7 +40,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         return (amtToBorrower, platformFees);
     }
 
-    function checkLate(CreditRecord memory _cr) public view returns (bool) {
+    function checkIsLate(CreditRecord memory _cr) public view returns (bool) {
         if (_cr.missedPeriods > 0) return true;
 
         PoolSettings memory poolSettings = poolConfig.getPoolSettings();
@@ -85,119 +85,180 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         view
         virtual
         override
-        returns (
-            CreditRecord memory newCR,
-            DueDetail memory newDD,
-            uint256 periodsPassed,
-            bool isLate
-        )
+        returns (CreditRecord memory newCR, DueDetail memory newDD, bool isLate)
     {
         //* todo currently, we do not mutate the input struct param. Mutating will be more efficiency but
         // has worse readability. Let us test the mutate approach as well.
-        newCR = _cr;
-        newDD = _dd;
+        newCR = _deepCopyCreditRecord(_cr);
+        newDD = _deepCopyDueDetail(_dd);
 
         // If the current timestamp still falls within the billing cycle, then all the amount due is up-to-date
         // except possibly the late fee. So we only need to update the late fee if it is already late.
         if (block.timestamp <= _cr.nextDueDate) {
-            if (_cr.missedPeriods == 0) return (_cr, _dd, 0, false);
-            // TODO(jiatu): we shouldn't update the late fee if the borrower makes payment
-            // within the late payment grace period.
+            if (_cr.missedPeriods == 0) return (_cr, _dd, false);
             else {
                 (newDD.lateFeeUpdatedDate, newDD.lateFee) = refreshLateFee(_cr, _dd);
-                return (_cr, newDD, 0, true);
+                return (_cr, newDD, true);
             }
+        }
+        if (block.timestamp <= getNextBillRefreshDate(_cr)) {
+            // If the bill is late but still within the late payment grace period, then don't generate a new bill
+            // so that the user can focus on paying off the past dues first.
+            return (_cr, _dd, false);
         }
 
         // Update the due date.
         newCR.nextDueDate = uint64(calendar.getNextDueDate(_cc.periodDuration, maturityDate));
 
-        // Calculates past due and late fee
-        isLate = checkLate(_cr);
-        if (isLate) {
-            newDD.pastDue += _cr.nextDue;
+        if (_cr.nextDueDate != 0) {
+            // If this is not the first drawdown, then the bill must be late at this point.
+            // Move all current next due to past due and calculate late fees.
+            newDD.yieldPastDue += _cr.yieldDue;
+            newDD.principalPastDue += _cr.nextDue - _cr.yieldDue;
             (newDD.lateFeeUpdatedDate, newDD.lateFee) = refreshLateFee(_cr, _dd);
         }
 
-        // Calculate the principal due.
-        uint256 principal = _cr.unbilledPrincipal + _cr.nextDue - _cr.yieldDue;
-        (uint256 daysPassed, uint256 totalDaysInPeriod) = calendar.getDaysPassedInPeriod(
-            _cc.periodDuration
-        );
-        periodsPassed = calendar.getNumPeriodsPassed(
-            _cc.periodDuration,
-            _cr.nextDueDate,
-            block.timestamp
-        );
         uint256 principalDue = 0;
-        if (newCR.nextDueDate >= maturityDate) {
-            // All principal is due if we are in or have passed the final period.
-            // Note that it's technically impossible for the > to be true, but we are using >=
-            // just to be safe.
-            principalDue = _cr.unbilledPrincipal;
-        } else {
-            uint256 principalRate = poolConfig.getMinPrincipalRateInBps();
+        // Compute the number of days past due and until next due so that we can compute the yield past due
+        // and next due accordingly.
+        uint256 daysPastDue;
+        uint256 daysNextDue;
+        uint256 principalRate = poolConfig.getMinPrincipalRateInBps();
+        if (_cr.nextDueDate == 0) {
+            // If this is the first drawdown, then there is no past due. The number of days until next due
+            // is the number of days in the first period.
+            (uint256 daysPassed, uint256 totalDaysInPeriod) = calendar.getDaysPassedInPeriod(
+                _cc.periodDuration
+            );
+            daysNextDue = totalDaysInPeriod - daysPassed;
+            // Given that the billing period may start mid-period and `principalRate` is for whole periods,
+            // we must calculate a prorated amount for the initial period based on the actual days.
+            // For instance, if the `principalRate` is 3% for a full period, and the principal is
+            // $1,000 with only 20 out of 30 days in the first billing cycle, then the prorated principal due
+            // is $1,000 * 3% * (20/30), which equals $20.
             if (principalRate > 0) {
-                if (_cr.nextDueDate == 0) {
-                    // This is the first drawdown and the due info has never been updated.
-                    // Given that the billing period may start mid-period and `principalRate` is for whole periods,
-                    // we must calculate a prorated amount for the initial period based on the actual days.
-                    // For instance, if the `principalRate` is 3% for a full period, and the principal is
-                    // $1,000 with only 20 out of 30 days in the first billing cycle, then the prorated principal due
-                    // is $1,000 * 3% * (20/30), which equals $20.
-                    // In this case, `daysPassed` here is the days passed in the first period, which will be used to
-                    // calculate the remaining days in the first period.
-                    principalDue =
-                        (principal * principalRate * (totalDaysInPeriod - daysPassed)) /
-                        totalDaysInPeriod;
-                } else {
-                    // For subsequent drawdowns, apply the full principal rate over the entire periods that have passed.
-                    // There's no need to prorate the last partial period, as this scenario is separately accounted for
-                    // in the case where `nextDueDate` is on or after the `maturityDate`.
-                    // Assuming the `principalRate` is represented by R, the remaining principal after one period is (1 - R).
-                    // When P full periods have elapsed, the remaining principal is calculated as (1 - R)^P.
-                    // Therefore, the principal due for these periods is computed as 1 minus the remaining principal,
-                    // which is 1 - (1 - R)^P.
-                    principalDue =
-                        ((HUNDRED_PERCENT_IN_BPS ** periodsPassed -
-                            (HUNDRED_PERCENT_IN_BPS - principalRate) ** periodsPassed) *
-                            principal) /
-                        (HUNDRED_PERCENT_IN_BPS ** periodsPassed);
-                }
+                principalDue =
+                    (_cr.unbilledPrincipal * principalRate * daysNextDue) /
+                    totalDaysInPeriod;
+                newCR.unbilledPrincipal -= uint96(principalDue);
+            }
+        } else if (block.timestamp >= maturityDate) {
+            // If the bill has passed the maturity date, then all days between the last due date and the maturity date
+            // are past due.
+            daysPastDue = calendar.getDaysDiff(_cr.nextDueDate, maturityDate);
+            // All principal is also past due in this case.
+            newDD.principalPastDue += _cr.unbilledPrincipal;
+            newCR.unbilledPrincipal = 0;
+        } else {
+            // If the bill is anywhere in between, then the days between the last due date and the due date
+            // of the preceding billing cycle is past due, and the days in the current
+            // billing cycle is next due.
+            uint256 startOfPeriod = calendar.getStartDateOfPeriod(
+                _cc.periodDuration,
+                block.timestamp
+            );
+            daysPastDue = calendar.getDaysDiff(_cr.nextDueDate, startOfPeriod);
+            daysNextDue = calendar.getDaysDiff(startOfPeriod, newCR.nextDueDate);
+            // Assuming the `principalRate` is represented by R, the remaining principal rate after one period is (1 - R).
+            // When P full periods have elapsed, the remaining principal rate is calculated as (1 - R)^P.
+            // Therefore, the principal due rate for these periods is computed as 1 minus the remaining principal,
+            // which is 1 - (1 - R)^P.
+            uint256 periodsPassedDue = calendar.getNumPeriodsPassed(
+                _cc.periodDuration,
+                _cr.nextDueDate,
+                startOfPeriod
+            );
+            if (principalRate > 0) {
+                newDD.principalPastDue += uint96(
+                    ((HUNDRED_PERCENT_IN_BPS ** periodsPassedDue -
+                        (HUNDRED_PERCENT_IN_BPS - principalRate) ** periodsPassedDue) *
+                        _cr.unbilledPrincipal) / (HUNDRED_PERCENT_IN_BPS ** periodsPassedDue)
+                );
+                newCR.unbilledPrincipal = uint96(_cr.unbilledPrincipal - newDD.principalPastDue);
+                (, uint256 totalDaysInPeriod) = calendar.getDaysPassedInPeriod(_cc.periodDuration);
+                principalDue =
+                    (newCR.unbilledPrincipal * principalRate * daysNextDue) /
+                    totalDaysInPeriod;
+                newCR.unbilledPrincipal -= uint96(principalDue);
             }
         }
-        newCR.unbilledPrincipal = uint96(_cr.unbilledPrincipal - principalDue);
-
-        // Calculate the yield due. Note that if multiple periods have passed, the yield for every period is still
-        // based on the outstanding principal since there was no change to the principal
+        // Update yield past due and next due.
+        uint256 principal = _cr.unbilledPrincipal + _cr.nextDue - _cr.yieldDue;
         (, , uint256 membershipFee) = poolConfig.getFees();
-        daysPassed = calendar.getDaysDiff(_cr.nextDueDate, newCR.nextDueDate);
-        newDD.accrued = uint96(
-            (principal * _cc.yieldInBps * totalDaysInPeriod) /
-                (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR) +
-                membershipFee
+        (uint256 accruedPastDue, uint256 committedPastDue) = _getYieldDue(
+            _cc,
+            principal,
+            daysPastDue,
+            membershipFee
         );
-        newDD.committed = uint96(
-            (_cc.committedAmount * _cc.yieldInBps * totalDaysInPeriod) /
-                (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR) +
-                membershipFee
+        newDD.yieldPastDue += uint96(
+            accruedPastDue > committedPastDue ? accruedPastDue : committedPastDue
         );
-        newCR.yieldDue = uint96(
-            ((newDD.committed > newDD.accrued ? newDD.committed : newDD.accrued) * daysPassed) /
-                totalDaysInPeriod
+        (newDD.accrued, newDD.committed) = _getYieldDue(
+            _cc,
+            principal,
+            daysNextDue,
+            membershipFee
         );
+        newCR.yieldDue = newDD.committed > newDD.accrued ? newDD.committed : newDD.accrued;
         newCR.nextDue = uint96(newCR.yieldDue + principalDue);
 
         // Note any non-zero existing nextDue should have been moved to pastDue already.
         // Only the newly generated nextDue needs to be recorded.
-        newCR.totalPastDue = newDD.lateFee + newDD.pastDue;
+        newCR.totalPastDue = newDD.lateFee + newDD.yieldPastDue + newDD.principalPastDue;
 
-        return (newCR, newDD, periodsPassed, isLate);
+        return (newCR, newDD, isLate);
     }
 
     function getPayoffAmount(
         CreditRecord memory cr
     ) external view virtual override returns (uint256 payoffAmount) {
         return cr.unbilledPrincipal + cr.nextDue + cr.totalPastDue;
+    }
+
+    function _deepCopyCreditRecord(
+        CreditRecord memory cr
+    ) internal pure returns (CreditRecord memory newCR) {
+        newCR.unbilledPrincipal = cr.unbilledPrincipal;
+        newCR.nextDueDate = cr.nextDueDate;
+        newCR.nextDue = cr.nextDue;
+        newCR.yieldDue = cr.yieldDue;
+        newCR.totalPastDue = cr.totalPastDue;
+        newCR.missedPeriods = cr.missedPeriods;
+        newCR.remainingPeriods = cr.remainingPeriods;
+        newCR.state = cr.state;
+        return newCR;
+    }
+
+    function _deepCopyDueDetail(
+        DueDetail memory dd
+    ) internal pure returns (DueDetail memory newDD) {
+        newDD.lateFeeUpdatedDate = dd.lateFeeUpdatedDate;
+        newDD.lateFee = dd.lateFee;
+        newDD.yieldPastDue = dd.yieldPastDue;
+        newDD.principalPastDue = dd.principalPastDue;
+        newDD.committed = dd.committed;
+        newDD.accrued = dd.accrued;
+        newDD.paid = dd.paid;
+        return newDD;
+    }
+
+    function _getYieldDue(
+        CreditConfig memory cc,
+        uint256 principal,
+        uint256 membershipFee,
+        uint256 daysPassed
+    ) internal view returns (uint96 accrued, uint96 committed) {
+        accrued = uint96(
+            (principal * cc.yieldInBps * daysPassed) /
+                (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR) +
+                membershipFee
+        );
+        committed = uint96(
+            (cc.committedAmount * cc.yieldInBps * daysPassed) /
+                (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR) +
+                membershipFee
+        );
+        return (accrued, committed);
     }
 }

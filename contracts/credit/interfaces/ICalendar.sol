@@ -77,12 +77,12 @@ interface ICalendar {
     ) external view returns (uint256 numPeriodsPassed);
 
     /**
-     * @notice Returns the start date of the period specified by the end date.
+     * @notice Returns the start date of the period specified by the timestamp.
      */
     function getStartDateOfPeriod(
-        uint256 periodDuration,
-        uint256 periodEndDate
-    ) external view returns (uint256 startDate);
+        PayPeriodDuration periodDuration,
+        uint256 timestamp
+    ) external view returns (uint256 startOfPeriod);
 
     /**
      * @notice Returns the start date of the immediate next period after `timestamp`.

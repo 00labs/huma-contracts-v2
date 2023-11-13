@@ -362,19 +362,21 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
             // Note that we need to write to _creditRecordMap here directly rather than its copy `cr`
             // because `_updateDueInfo()` needs to access the updated `unbilledPrincipal` in storage.
             _creditRecordMap[creditHash].unbilledPrincipal = uint96(borrowAmount);
-            cr = _updateDueInfo(creditHash);
-            cr.state = CreditState.GoodStanding;
             _maturityDates[creditHash] = calendar.getMaturityDate(
                 cc.periodDuration,
-                cc.numOfPeriods
+                cc.numOfPeriods,
+                block.timestamp
             );
+            (cr, ) = _updateDueInfo(creditHash);
+            cr.state = CreditState.GoodStanding;
         } else {
             // Disallow repeated drawdown for non-revolving credit
             if (!cc.revolving) revert Errors.attemptedDrawdownForNonrevolvingLine();
 
             // Bring the credit current and check if it is still in good standing.
+            DueDetail memory dd;
             if (block.timestamp > cr.nextDueDate) {
-                cr = _updateDueInfo(creditHash);
+                (cr, dd) = _updateDueInfo(creditHash);
                 if (cr.state != CreditState.GoodStanding)
                     revert Errors.creditLineNotInGoodStandingState();
             }
@@ -389,13 +391,15 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
             );
 
             // It's important to note that the yield calculation includes the day of the drawdown. For instance,
-            // if the borrower draws down at 11:59 PM on October 31st, the yield for October 31st must be paid,
-            // hence the "+1" in the following calculation.
-            uint256 additionalYield = (borrowAmount *
+            // if the borrower draws down at 11:59 PM on October 30th, the yield for October 30th must be paid.
+            uint256 additionalYieldAccrued = (borrowAmount *
                 cc.yieldInBps *
-                (totalDays - daysPassed + 1)) / (DAYS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS);
-            cr.yieldDue += uint96(additionalYield);
-            cr.nextDue += uint96(additionalYield);
+                (totalDays - daysPassed)) / (DAYS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS);
+            dd.accrued += uint96(additionalYieldAccrued);
+            if (dd.accrued > dd.committed) {
+                cr.yieldDue += uint96(additionalYieldAccrued);
+                cr.nextDue += uint96(additionalYieldAccrued);
+            }
             cr.unbilledPrincipal = uint96(cr.unbilledPrincipal + borrowAmount);
         }
         _setCreditRecord(creditHash, cr);
@@ -403,7 +407,6 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         (uint256 netAmountToBorrower, uint256 platformProfit) = _feeManager.distBorrowingAmount(
             borrowAmount
         );
-
         IPool(poolConfig.pool()).distributeProfit(platformProfit);
 
         // Transfer funds to the borrower
@@ -430,7 +433,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
     ) internal returns (uint256 amountPaid, bool paidoff, bool isReviewRequired) {
         if (amount == 0) revert Errors.zeroAmountProvided();
 
-        CreditRecord memory cr = _updateDueInfo(creditHash);
+        (CreditRecord memory cr, ) = _updateDueInfo(creditHash);
         if (
             cr.state == CreditState.Requested ||
             cr.state == CreditState.Approved ||
@@ -453,17 +456,19 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
                     pastDuePaid = cr.totalPastDue;
                     amount -= cr.totalPastDue;
                     dd.lateFee = 0;
-                    dd.pastDue = 0;
+                    dd.yieldPastDue = 0;
+                    dd.principalPastDue = 0;
                     cr.totalPastDue = 0;
                 } else {
                     // If the payment is not enough to cover the total amount past due, then
                     // apply the payment to the yield past due first, then late fees.
+                    // TODO(jiatu): we also need to pay off principal past due.
                     pastDuePaid = amount;
-                    if (amount > dd.pastDue) {
-                        dd.lateFee -= uint96(amount - dd.pastDue);
-                        dd.pastDue = 0;
+                    if (amount > dd.yieldPastDue) {
+                        dd.lateFee -= uint96(amount - dd.yieldPastDue);
+                        dd.yieldPastDue = 0;
                     } else {
-                        dd.pastDue -= uint96(amount);
+                        dd.yieldPastDue -= uint96(amount);
                     }
                     cr.totalPastDue -= uint96(amount);
                     amount = 0;
@@ -557,7 +562,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         }
 
         if (block.timestamp > cr.nextDueDate) {
-            cr = _updateDueInfo(creditHash);
+            (cr, ) = _updateDueInfo(creditHash);
         }
 
         uint256 principalDue = cr.nextDue - cr.yieldDue;
@@ -618,7 +623,9 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
      * to the LPs. Unfortunately, this special business consideration added more complexity
      * and cognitive load to `_updateDueInfo`.
      */
-    function _refreshCredit(bytes32 creditHash) internal returns (CreditRecord memory cr) {
+    function _refreshCredit(
+        bytes32 creditHash
+    ) internal returns (CreditRecord memory cr, DueDetail memory dd) {
         if (_creditRecordMap[creditHash].state != CreditState.Defaulted) {
             return _updateDueInfo(creditHash);
         }
@@ -665,14 +672,13 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         DueDetail memory dd = getDueDetail(creditHash);
         if (cr.state == CreditState.Defaulted) revert Errors.defaultHasAlreadyBeenTriggered();
 
-        cr = _updateDueInfo(creditHash);
+        (cr, ) = _updateDueInfo(creditHash);
 
         // Check if grace period has been exceeded.
         if (!_isDefaultReady(cr)) revert Errors.defaultTriggeredTooEarly();
 
-        // todo dd.pastDue could have principal in it, to get an accurate number, need to add a field to track it separately
-        principalLoss = cr.unbilledPrincipal + cr.nextDue - cr.yieldDue;
-        yieldLoss = cr.yieldDue + dd.pastDue;
+        principalLoss = cr.unbilledPrincipal + cr.nextDue - cr.yieldDue + dd.principalPastDue;
+        yieldLoss = cr.yieldDue + dd.yieldPastDue;
         feesLoss = dd.lateFee;
 
         CreditLoss memory cl = _getCreditLoss(creditHash);
@@ -706,7 +712,9 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
      * This function reflects the due info in creditRecordMap
      * @param creditHash the hash of the credit
      */
-    function _updateDueInfo(bytes32 creditHash) internal virtual returns (CreditRecord memory cr) {
+    function _updateDueInfo(
+        bytes32 creditHash
+    ) internal virtual returns (CreditRecord memory cr, DueDetail memory dd) {
         cr = getCreditRecord(creditHash);
 
         // Do not update dueInfo for accounts already in default state
@@ -724,10 +732,14 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         DueDetail memory dd = getDueDetail(creditHash);
         uint256 maturityDate = getMaturityDate(creditHash);
 
-        uint256 periodsPassed = 0;
         bool late;
 
-        (cr, dd, periodsPassed, late) = _feeManager.getDueInfo(cr, cc, dd, maturityDate);
+        (cr, dd, late) = _feeManager.getDueInfo(cr, cc, dd, maturityDate);
+        uint256 periodsPassed = calendar.getNumPeriodsPassed(
+            _cc.periodDuration,
+            _cr.nextDueDate,
+            block.timestamp
+        );
 
         if (periodsPassed > 0) {
             // Adjusts remainingPeriods. Sets remainingPeriods to 0 if the credit line has reached maturity.
@@ -753,6 +765,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         } else if (late) {
             _setDueDetail(creditHash, dd);
         }
+        return (cr, dd);
     }
 
     function _updateYield(bytes32 creditHash, uint256 yieldInBps) internal virtual {
