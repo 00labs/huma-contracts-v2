@@ -51,9 +51,7 @@ contract Calendar is ICalendar {
 
     /// @inheritdoc ICalendar
     function getStartOfToday() public view returns (uint256 startOfToday) {
-        (uint256 year, uint256 month, uint256 day) = DTL.timestampToDate(block.timestamp);
-        startOfToday = DTL.timestampFromDate(year, month, day);
-        return startOfToday;
+        return _getStartOfDay(block.timestamp);
     }
 
     /// @inheritdoc ICalendar
@@ -65,7 +63,8 @@ contract Calendar is ICalendar {
         day = day > DAYS_IN_A_MONTH ? DAYS_IN_A_MONTH : day;
         uint256 startOfPeriod = _getStartDateOfPeriod(periodDuration, block.timestamp);
         uint256 numMonthsPassed = DTL.diffMonths(startOfPeriod, block.timestamp);
-        daysPassed = numMonthsPassed * DAYS_IN_A_MONTH + day;
+        // -1 here since we are using the beginning of the day.
+        daysPassed = numMonthsPassed * DAYS_IN_A_MONTH + day - 1;
         return (daysPassed, _getTotalDaysInPeriod(periodDuration));
     }
 
@@ -181,6 +180,31 @@ contract Calendar is ICalendar {
             2;
     }
 
+    /// @inheritdoc ICalendar
+    function getMaturityDate(
+        PayPeriodDuration periodDuration,
+        uint256 numPeriods,
+        uint256 timestamp
+    ) external view returns (uint256 maturityDate) {
+        (uint256 year, uint256 month, uint256 day) = DTL.timestampToDate(timestamp);
+        day = day > DAYS_IN_A_MONTH ? DAYS_IN_A_MONTH : day;
+        uint256 startDate = DTL.timestampFromDate(year, month, day);
+
+        uint256 monthCount = numPeriods;
+        if (startDate != _getStartDateOfPeriod(periodDuration, startDate)) {
+            // Adjust `monthCount` by subtracting 1 if the bill cycle doesn't begin at the start of the period.
+            // This accounts for the scenario where both the start and end of the billing periods are partial periods,
+            // combining to make one full period.
+            --monthCount;
+        }
+        if (periodDuration == PayPeriodDuration.Quarterly) {
+            monthCount *= 3;
+        } else if (periodDuration == PayPeriodDuration.SemiAnnually) {
+            monthCount *= 6;
+        }
+        return DTL.addMonths(startDate, monthCount);
+    }
+
     // TODO(jiatu): not sure if the external `getStartDateOfPeriod` is useful. If it's useful, combine the two.
     // Otherwise, delete the external one.
     function _getStartDateOfPeriod(
@@ -228,6 +252,11 @@ contract Calendar is ICalendar {
             return DAYS_IN_A_HALF_YEAR;
         }
         revert Errors.invalidPayPeriod();
+    }
+
+    function _getStartOfDay(uint256 timestamp) internal pure returns (uint256 startOfDay) {
+        (uint256 year, uint256 month, uint256 day) = DTL.timestampToDate(timestamp);
+        return DTL.timestampFromDate(year, month, day);
     }
 
     function _getStartOfMonth(uint256 timestamp) internal pure returns (uint256 startOfMonth) {

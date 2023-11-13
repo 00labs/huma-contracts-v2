@@ -14,6 +14,11 @@ interface ICalendar {
     function getStartOfNextMonth() external view returns (uint256 startOfNextMonth);
 
     /**
+     * @notice Returns the beginning of the next quarter.
+     */
+    function getStartOfNextQuarter() external view returns (uint256 startOfNextQuarter);
+
+    /**
      * @notice Returns the beginning of the next half of the year.
      */
     function getStartOfNextHalfYear() external view returns (uint256 startOfHalfYear);
@@ -38,15 +43,15 @@ interface ICalendar {
      */
     function getStartOfThisHalfYear() external view returns (uint256 startOfHalfYear);
 
-    function getStartOfNextQuarter() external view returns (uint256 nstartOfNextQuarterextDay);
-
     /**
      * @notice Returns the beginning of today
      */
     function getStartOfToday() external view returns (uint256 startOfToday);
 
     /**
-     * @notice Returns the number of days passed and the total numbers of days of the period
+     * @notice Returns the number of days passed and the total numbers of days of the period.
+     * @dev Since we are aligning at the start of a day, the maximum number of `daysPassed` possible
+     * is `totalDaysInPeriod - 1`, e.g. for a monthly period, the maximum possible `daysPassed` is 29.
      */
     function getDaysPassedInPeriod(
         PayPeriodDuration periodDuration
@@ -102,4 +107,16 @@ interface ICalendar {
         uint256 periodDuration,
         uint256 lastDueDate
     ) external view returns (uint256 dueDate, uint256 numberOfPeriodsPassed);
+
+    /**
+     * @notice Returns the maturity date, which is `numPeriods` number of periods after the given `timestamp`.
+     * E.g. if the current block timestamp is 3/15, `periodDuration` is monthly and `numPeriods` is 3,
+     * then this function should return the beginning of the day of 5/15. The three periods are 3/15 - 4/1, 4/1 - 5/1,
+     * 5/1 - 5/15.
+     */
+    function getMaturityDate(
+        PayPeriodDuration periodDuration,
+        uint256 numPeriods,
+        uint256 timestamp
+    ) external view returns (uint256 maturityDate);
 }
