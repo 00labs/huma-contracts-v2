@@ -607,7 +607,7 @@ describe("Calendar Test", function () {
                     day: 31,
                 });
                 expect(
-                    await calendarContract["getNextDueDate(uint8,uint256)"](
+                    await calendarContract.getNextDueDate(
                         PayPeriodDuration.Monthly,
                         maturityDate.unix(),
                     ),
@@ -632,7 +632,7 @@ describe("Calendar Test", function () {
                         day: 15,
                     });
                     expect(
-                        await calendarContract["getNextDueDate(uint8,uint256)"](
+                        await calendarContract.getNextDueDate(
                             PayPeriodDuration.Monthly,
                             maturityDate.unix(),
                         ),
@@ -660,7 +660,7 @@ describe("Calendar Test", function () {
                     day: 1,
                 });
                 expect(
-                    await calendarContract["getNextDueDate(uint8,uint256)"](
+                    await calendarContract.getNextDueDate(
                         PayPeriodDuration.Monthly,
                         maturityDate.unix(),
                     ),
@@ -684,7 +684,7 @@ describe("Calendar Test", function () {
                     day: 31,
                 });
                 expect(
-                    await calendarContract["getNextDueDate(uint8,uint256)"](
+                    await calendarContract.getNextDueDate(
                         PayPeriodDuration.Quarterly,
                         maturityDate.unix(),
                     ),
@@ -709,7 +709,7 @@ describe("Calendar Test", function () {
                         day: 15,
                     });
                     expect(
-                        await calendarContract["getNextDueDate(uint8,uint256)"](
+                        await calendarContract.getNextDueDate(
                             PayPeriodDuration.Quarterly,
                             maturityDate.unix(),
                         ),
@@ -737,7 +737,7 @@ describe("Calendar Test", function () {
                     day: 1,
                 });
                 expect(
-                    await calendarContract["getNextDueDate(uint8,uint256)"](
+                    await calendarContract.getNextDueDate(
                         PayPeriodDuration.Quarterly,
                         maturityDate.unix(),
                     ),
@@ -761,7 +761,7 @@ describe("Calendar Test", function () {
                     day: 31,
                 });
                 expect(
-                    await calendarContract["getNextDueDate(uint8,uint256)"](
+                    await calendarContract.getNextDueDate(
                         PayPeriodDuration.SemiAnnually,
                         maturityDate.unix(),
                     ),
@@ -786,7 +786,7 @@ describe("Calendar Test", function () {
                         day: 15,
                     });
                     expect(
-                        await calendarContract["getNextDueDate(uint8,uint256)"](
+                        await calendarContract.getNextDueDate(
                             PayPeriodDuration.SemiAnnually,
                             maturityDate.unix(),
                         ),
@@ -814,7 +814,7 @@ describe("Calendar Test", function () {
                     day: 1,
                 });
                 expect(
-                    await calendarContract["getNextDueDate(uint8,uint256)"](
+                    await calendarContract.getNextDueDate(
                         PayPeriodDuration.SemiAnnually,
                         maturityDate.unix(),
                     ),
@@ -1011,6 +1011,65 @@ describe("Calendar Test", function () {
                     ),
                 ).to.equal(4);
             });
+        });
+    });
+
+    describe("getStartDateOfPeriod", function () {
+        it("Should return the start of the month for the monthly period duration", async function () {
+            const timestamp = moment.utc({
+                year: 2024,
+                month: 5,
+                day: 30,
+            });
+            const expectedStartDate = moment.utc({
+                year: 2024,
+                month: 5,
+                day: 1,
+            });
+            expect(
+                await calendarContract.getStartDateOfPeriod(
+                    PayPeriodDuration.Monthly,
+                    timestamp.unix(),
+                ),
+            ).to.equal(expectedStartDate.unix());
+        });
+
+        it("Should return the start of the month for the quarterly period duration", async function () {
+            const timestamp = moment.utc({
+                year: 2024,
+                month: 5,
+                day: 30,
+            });
+            const expectedStartDate = moment.utc({
+                year: 2024,
+                month: 3,
+                day: 1,
+            });
+            expect(
+                await calendarContract.getStartDateOfPeriod(
+                    PayPeriodDuration.Quarterly,
+                    timestamp.unix(),
+                ),
+            ).to.equal(expectedStartDate.unix());
+        });
+
+        it("Should return the start of the month for the semi-annually period duration", async function () {
+            const timestamp = moment.utc({
+                year: 2024,
+                month: 5,
+                day: 30,
+            });
+            const expectedStartDate = moment.utc({
+                year: 2024,
+                month: 0,
+                day: 1,
+            });
+            expect(
+                await calendarContract.getStartDateOfPeriod(
+                    PayPeriodDuration.SemiAnnually,
+                    timestamp.unix(),
+                ),
+            ).to.equal(expectedStartDate.unix());
         });
     });
 

@@ -124,39 +124,15 @@ contract Calendar is ICalendar {
         return _getStartDateOfNextPeriod(periodDuration, timestamp);
     }
 
-    function getNextDueDate(
-        uint256 periodDuration,
-        uint256 lastDueDate
-    ) external view returns (uint256 dueDate, uint256 numberOfPeriodsPassed) {
-        //* todo only need to support monthly, quarterly, and semi-annually. If the loan starts
-        // in the middle of a quarter, its next due is the beginning of the next quarter (Jan, Apr, Jul, or Oct)
-        // The final period will not be a full quarter. The due date will be the maturity date.
-        // Because of this logic, the API to get the next due date should be refined.
-
-        uint256 monthCount;
-        if (lastDueDate == 0) {
-            (uint256 year, uint256 month, ) = DTL.timestampToDate(block.timestamp);
-            lastDueDate = DTL.timestampFromDate(year, month, 1);
-            monthCount = 1;
-        } else {
-            numberOfPeriodsPassed = DTL.diffMonths(lastDueDate, block.timestamp) / periodDuration;
-        }
-        monthCount += (numberOfPeriodsPassed + 1) * periodDuration;
-        dueDate = DTL.addMonths(lastDueDate, monthCount);
-    }
-
     /// @inheritdoc ICalendar
     function getNextDueDate(
         PayPeriodDuration periodDuration,
         uint256 maturityDate
     ) public view returns (uint256 nextDueDate) {
-        if (block.timestamp >= getStartDateOfPeriod(periodDuration, maturityDate)) {
-            // The `maturityDate` becomes the next due date if the current block timestamp has surpassed the due
-            // date immediately preceding the maturity date.
-            return maturityDate;
-        } else {
-            return _getStartDateOfNextPeriod(periodDuration, block.timestamp);
-        }
+        nextDueDate = _getStartDateOfNextPeriod(periodDuration, block.timestamp);
+        // The maturityDate is set as the upcoming due date when the current block timestamp
+        // exceeds the most recent due date prior to the maturity date.
+        return nextDueDate < maturityDate ? nextDueDate : maturityDate;
     }
 
     /// @inheritdoc ICalendar
