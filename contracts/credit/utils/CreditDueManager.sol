@@ -119,10 +119,9 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         }
 
         uint256 principalDue = 0;
-        // Compute the number of days past due and until next due so that we can compute the yield past due
-        // and next due accordingly.
-        uint256 daysPastDue;
-        uint256 daysNextDue;
+        // Calculate days overdue and days remaining until next due date to determine respective yields.
+        uint256 daysOverdue;
+        uint256 daysUntilNextDue;
         uint256 principalRate = poolConfig.getMinPrincipalRateInBps();
         if (_cr.nextDueDate == 0) {
             // If this is the first drawdown, then there is no past due. The number of days until next due
@@ -130,7 +129,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             (uint256 daysPassed, uint256 totalDaysInPeriod) = calendar.getDaysPassedInPeriod(
                 _cc.periodDuration
             );
-            daysNextDue = totalDaysInPeriod - daysPassed;
+            daysUntilNextDue = totalDaysInPeriod - daysPassed;
             // Given that the billing period may start mid-period and `principalRate` is for whole periods,
             // we must calculate a prorated amount for the initial period based on the actual days.
             // For instance, if the `principalRate` is 3% for a full period, and the principal is
@@ -138,27 +137,26 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             // is $1,000 * 3% * (20/30), which equals $20.
             if (principalRate > 0) {
                 principalDue =
-                    (_cr.unbilledPrincipal * principalRate * daysNextDue) /
+                    (_cr.unbilledPrincipal * principalRate * daysUntilNextDue) /
                     totalDaysInPeriod;
                 newCR.unbilledPrincipal -= uint96(principalDue);
             }
         } else if (block.timestamp >= maturityDate) {
-            // If the bill has passed the maturity date, then all days between the last due date and the maturity date
-            // are past due.
-            daysPastDue = calendar.getDaysDiff(_cr.nextDueDate, maturityDate);
+            // Post-maturity, all days from the last due date to maturity are considered overdue.
+            daysOverdue = calendar.getDaysDiff(_cr.nextDueDate, maturityDate);
             // All principal is also past due in this case.
             newDD.principalPastDue += _cr.unbilledPrincipal;
             newCR.unbilledPrincipal = 0;
         } else {
-            // If the bill is anywhere in between, then the days between the last due date and the due date
-            // of the preceding billing cycle is past due, and the days in the current
-            // billing cycle is next due.
-            uint256 startOfPeriod = calendar.getStartDateOfPeriod(
+            // For intermediate billing periods, calculate `daysOverdue` as the time span between
+            // the previous due date and the start date of the current billing cycle.
+            // Additionally, calculate `daysUntilNextDue` as the remaining time until the due date in the current cycle.
+            uint256 periodStartDate = calendar.getStartDateOfPeriod(
                 _cc.periodDuration,
                 block.timestamp
             );
-            daysPastDue = calendar.getDaysDiff(_cr.nextDueDate, startOfPeriod);
-            daysNextDue = calendar.getDaysDiff(startOfPeriod, newCR.nextDueDate);
+            daysOverdue = calendar.getDaysDiff(_cr.nextDueDate, periodStartDate);
+            daysUntilNextDue = calendar.getDaysDiff(periodStartDate, newCR.nextDueDate);
             // Assuming the `principalRate` is represented by R, the remaining principal rate after one period is (1 - R).
             // When P full periods have elapsed, the remaining principal rate is calculated as (1 - R)^P.
             // Therefore, the principal due rate for these periods is computed as 1 minus the remaining principal,
@@ -166,7 +164,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             uint256 periodsPassedDue = calendar.getNumPeriodsPassed(
                 _cc.periodDuration,
                 _cr.nextDueDate,
-                startOfPeriod
+                periodStartDate
             );
             if (principalRate > 0) {
                 newDD.principalPastDue += uint96(
@@ -177,18 +175,18 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                 newCR.unbilledPrincipal = uint96(_cr.unbilledPrincipal - newDD.principalPastDue);
                 (, uint256 totalDaysInPeriod) = calendar.getDaysPassedInPeriod(_cc.periodDuration);
                 principalDue =
-                    (newCR.unbilledPrincipal * principalRate * daysNextDue) /
+                    (newCR.unbilledPrincipal * principalRate * daysUntilNextDue) /
                     totalDaysInPeriod;
                 newCR.unbilledPrincipal -= uint96(principalDue);
             }
         }
-        // Update yield past due and next due.
+        // Recalculate both overdue and upcoming yields.
         uint256 principal = _cr.unbilledPrincipal + _cr.nextDue - _cr.yieldDue;
         (, , uint256 membershipFee) = poolConfig.getFees();
         (uint256 accruedPastDue, uint256 committedPastDue) = _getYieldDue(
             _cc,
             principal,
-            daysPastDue,
+            daysOverdue,
             membershipFee
         );
         newDD.yieldPastDue += uint96(
@@ -197,14 +195,13 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         (newDD.accrued, newDD.committed) = _getYieldDue(
             _cc,
             principal,
-            daysNextDue,
+            daysUntilNextDue,
             membershipFee
         );
         newCR.yieldDue = newDD.committed > newDD.accrued ? newDD.committed : newDD.accrued;
-        newCR.nextDue = uint96(newCR.yieldDue + principalDue);
-
-        // Note any non-zero existing nextDue should have been moved to pastDue already.
+        // Note that any non-zero existing nextDue should have been moved to pastDue already.
         // Only the newly generated nextDue needs to be recorded.
+        newCR.nextDue = uint96(newCR.yieldDue + principalDue);
         newCR.totalPastDue = newDD.lateFee + newDD.yieldPastDue + newDD.principalPastDue;
 
         return (newCR, newDD, isLate);
