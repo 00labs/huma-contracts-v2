@@ -104,13 +104,14 @@ interface ICalendar {
     ) external view returns (uint256 nextDueDate);
 
     /**
-     * @notice Returns the maturity date, which is `numPeriods` number of periods after the current block timestamp.
+     * @notice Returns the maturity date, which is `numPeriods` number of periods after the given `timestamp`.
      * E.g. if the current block timestamp is 3/15, `periodDuration` is monthly and `numPeriods` is 3,
      * then this function should return the beginning of the day of 5/15. The three periods are 3/15 - 4/1, 4/1 - 5/1,
      * 5/1 - 5/15.
      */
     function getMaturityDate(
         PayPeriodDuration periodDuration,
-        uint256 numPeriods
+        uint256 numPeriods,
+        uint256 timestamp
     ) external view returns (uint256 maturityDate);
 }

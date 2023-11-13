@@ -1016,16 +1016,14 @@ describe("Calendar Test", function () {
 
     describe("getMaturityDate", function () {
         describe("With monthly period duration", function () {
-            describe("When the current block timestamp is on special days", function () {
+            describe("When the timestamp is on special days", function () {
                 it("Should return the correct maturity date if the cycle starts on the 1st of the month", async function () {
                     const nextYear = moment.utc().year() + 1;
-                    const nextBlockTime = moment.utc({
+                    const timestamp = moment.utc({
                         year: nextYear,
                         month: 0,
                         day: 1,
                     });
-                    await mineNextBlockWithTimestamp(nextBlockTime.unix());
-
                     for (const numPeriods of [1, 2, 3]) {
                         // The case for February is covered when `numPeriods == 2`
                         const expectedMaturityDate = moment.utc({
@@ -1037,46 +1035,71 @@ describe("Calendar Test", function () {
                             await calendarContract.getMaturityDate(
                                 PayPeriodDuration.Monthly,
                                 numPeriods,
+                                timestamp.unix(),
                             ),
                         ).to.equal(expectedMaturityDate.unix());
                     }
                 });
 
-                it("Should return the correct maturity date if the cycle starts on the 31st of the month", async function () {
+                it("Should return the beginning of the last day of Feb if the cycle starts on 1/30 or 1/31 and there are 2 periods", async function () {
                     const nextYear = moment.utc().year() + 1;
-                    const nextBlockTime = moment.utc({
-                        year: nextYear,
-                        month: 0,
-                        day: 31,
-                    });
-                    await mineNextBlockWithTimestamp(nextBlockTime.unix());
-
-                    for (const numPeriods of [2, 3]) {
-                        const expectedMaturityDate = moment.utc({
+                    const expectedMaturityDate = moment
+                        .utc()
+                        .year(nextYear)
+                        .month(1)
+                        .endOf("month")
+                        .startOf("day");
+                    for (const day of [30, 31]) {
+                        const timestamp = moment.utc({
                             year: nextYear,
-                            month: numPeriods + 1,
-                            day: 1,
+                            month: 0,
+                            day: day,
                         });
                         expect(
                             await calendarContract.getMaturityDate(
                                 PayPeriodDuration.Monthly,
-                                numPeriods,
+                                2,
+                                timestamp.unix(),
                             ),
                         ).to.equal(expectedMaturityDate.unix());
                     }
                 });
+
+                it(
+                    "Should return the beginning of the 30th of the month" +
+                        " that the due date is in if the cycle starts on the 31st of the month" +
+                        " and the due date does not fall in Feb",
+                    async function () {
+                        const nextYear = moment.utc().year() + 1;
+                        const timestamp = moment.utc({
+                            year: nextYear,
+                            month: 0,
+                            day: 31,
+                        });
+                        const expectedMaturityDate = moment.utc({
+                            year: nextYear,
+                            month: 2,
+                            day: 30,
+                        });
+                        expect(
+                            await calendarContract.getMaturityDate(
+                                PayPeriodDuration.Monthly,
+                                3,
+                                timestamp.unix(),
+                            ),
+                        ).to.equal(expectedMaturityDate.unix());
+                    },
+                );
             });
 
-            describe("When the current block timestamp is not on special days", function () {
+            describe("When the timestamp is not on special days", function () {
                 it("Should return the correct maturity date if there are only 2 periods", async function () {
                     const nextYear = moment.utc().year() + 1;
-                    const nextBlockTime = moment.utc({
+                    const timestamp = moment.utc({
                         year: nextYear,
                         month: 2,
                         day: 10,
                     });
-                    await mineNextBlockWithTimestamp(nextBlockTime.unix());
-
                     const numPeriods = 2;
                     const expectedMaturityDate = moment.utc({
                         year: nextYear,
@@ -1087,19 +1110,18 @@ describe("Calendar Test", function () {
                         await calendarContract.getMaturityDate(
                             PayPeriodDuration.Monthly,
                             numPeriods,
+                            timestamp.unix(),
                         ),
                     ).to.equal(expectedMaturityDate.unix());
                 });
 
                 it("Should return the correct maturity date if there are more than 2 periods", async function () {
                     const nextYear = moment.utc().year() + 1;
-                    const nextBlockTime = moment.utc({
+                    const timestamp = moment.utc({
                         year: nextYear,
                         month: 2,
                         day: 10,
                     });
-                    await mineNextBlockWithTimestamp(nextBlockTime.unix());
-
                     const numPeriods = 4;
                     const expectedMaturityDate = moment.utc({
                         year: nextYear,
@@ -1110,6 +1132,7 @@ describe("Calendar Test", function () {
                         await calendarContract.getMaturityDate(
                             PayPeriodDuration.Monthly,
                             numPeriods,
+                            timestamp.unix(),
                         ),
                     ).to.equal(expectedMaturityDate.unix());
                 });
@@ -1117,16 +1140,14 @@ describe("Calendar Test", function () {
         });
 
         describe("With quarterly period duration", function () {
-            describe("When the current block timestamp is on special days", function () {
+            describe("When the timestamp is on special days", function () {
                 it("Should return the correct maturity date if the cycle starts on the 1st of the month", async function () {
                     const nextYear = moment.utc().year() + 1;
-                    const nextBlockTime = moment.utc({
+                    const timestamp = moment.utc({
                         year: nextYear,
                         month: 0,
                         day: 1,
                     });
-                    await mineNextBlockWithTimestamp(nextBlockTime.unix());
-
                     for (const numPeriods of [1, 2, 3]) {
                         const expectedMaturityDate = moment.utc({
                             year: nextYear,
@@ -1137,6 +1158,7 @@ describe("Calendar Test", function () {
                             await calendarContract.getMaturityDate(
                                 PayPeriodDuration.Quarterly,
                                 numPeriods,
+                                timestamp.unix(),
                             ),
                         ).to.equal(expectedMaturityDate.unix());
                     }
@@ -1144,61 +1166,57 @@ describe("Calendar Test", function () {
 
                 it("Should return the correct maturity date if the start date is on the 31st and there are only 2 periods", async function () {
                     const nextYear = moment.utc().year() + 1;
-                    const nextBlockTime = moment.utc({
+                    const timestamp = moment.utc({
                         year: nextYear,
                         month: 0,
                         day: 31,
                     });
-                    await mineNextBlockWithTimestamp(nextBlockTime.unix());
-
                     const numPeriods = 2;
                     const expectedMaturityDate = moment.utc({
                         year: nextYear,
-                        month: 4,
-                        day: 1,
+                        month: 3,
+                        day: 30,
                     });
                     expect(
                         await calendarContract.getMaturityDate(
                             PayPeriodDuration.Quarterly,
                             numPeriods,
+                            timestamp.unix(),
                         ),
                     ).to.equal(expectedMaturityDate.unix());
                 });
 
                 it("Should return the correct maturity date if the start date is on the 31st and there are more than 2 periods", async function () {
                     const nextYear = moment.utc().year() + 1;
-                    const nextBlockTime = moment.utc({
+                    const timestamp = moment.utc({
                         year: nextYear,
                         month: 0,
                         day: 31,
                     });
-                    await mineNextBlockWithTimestamp(nextBlockTime.unix());
-
                     const numPeriods = 3;
                     const expectedMaturityDate = moment.utc({
                         year: nextYear,
-                        month: 7,
-                        day: 1,
+                        month: 6,
+                        day: 30,
                     });
                     expect(
                         await calendarContract.getMaturityDate(
                             PayPeriodDuration.Quarterly,
                             numPeriods,
+                            timestamp.unix(),
                         ),
                     ).to.equal(expectedMaturityDate.unix());
                 });
             });
 
-            describe("When the current block timestamp is not on special days", function () {
+            describe("When the timestamp is not on special days", function () {
                 it("Should return the correct maturity date if there are only 2 periods", async function () {
                     const nextYear = moment.utc().year() + 1;
-                    const nextBlockTime = moment.utc({
+                    const timestamp = moment.utc({
                         year: nextYear,
                         month: 2,
                         day: 10,
                     });
-                    await mineNextBlockWithTimestamp(nextBlockTime.unix());
-
                     const numPeriods = 2;
                     const expectedMaturityDate = moment.utc({
                         year: nextYear,
@@ -1209,19 +1227,18 @@ describe("Calendar Test", function () {
                         await calendarContract.getMaturityDate(
                             PayPeriodDuration.Quarterly,
                             numPeriods,
+                            timestamp.unix(),
                         ),
                     ).to.equal(expectedMaturityDate.unix());
                 });
 
                 it("Should return the correct maturity date if there are more than 2 periods", async function () {
                     const nextYear = moment.utc().year() + 1;
-                    const nextBlockTime = moment.utc({
+                    const timestamp = moment.utc({
                         year: nextYear,
                         month: 2,
                         day: 10,
                     });
-                    await mineNextBlockWithTimestamp(nextBlockTime.unix());
-
                     const numPeriods = 4;
                     const expectedMaturityDate = moment.utc({
                         year: nextYear,
@@ -1232,6 +1249,7 @@ describe("Calendar Test", function () {
                         await calendarContract.getMaturityDate(
                             PayPeriodDuration.Quarterly,
                             numPeriods,
+                            timestamp.unix(),
                         ),
                     ).to.equal(expectedMaturityDate.unix());
                 });
@@ -1239,16 +1257,14 @@ describe("Calendar Test", function () {
         });
 
         describe("With semi-annually period duration", function () {
-            describe("When the current block timestamp is on special days", function () {
+            describe("When the timestamp is on special days", function () {
                 it("Should return the correct maturity date if the cycle starts on the 1st of the month", async function () {
                     const nextYear = moment.utc().year() + 1;
-                    const nextBlockTime = moment.utc({
+                    const timestamp = moment.utc({
                         year: nextYear,
                         month: 0,
                         day: 1,
                     });
-                    await mineNextBlockWithTimestamp(nextBlockTime.unix());
-
                     for (const numPeriods of [1, 2, 3]) {
                         const expectedMaturityDate = moment.utc({
                             year: nextYear + numPeriods / 2,
@@ -1259,6 +1275,7 @@ describe("Calendar Test", function () {
                             await calendarContract.getMaturityDate(
                                 PayPeriodDuration.SemiAnnually,
                                 numPeriods,
+                                timestamp.unix(),
                             ),
                         ).to.equal(expectedMaturityDate.unix());
                     }
@@ -1266,61 +1283,57 @@ describe("Calendar Test", function () {
 
                 it("Should return the correct maturity date if the start date is on the 31st and there are only 2 periods", async function () {
                     const nextYear = moment.utc().year() + 1;
-                    const nextBlockTime = moment.utc({
+                    const timestamp = moment.utc({
                         year: nextYear,
                         month: 0,
                         day: 31,
                     });
-                    await mineNextBlockWithTimestamp(nextBlockTime.unix());
-
                     const numPeriods = 2;
                     const expectedMaturityDate = moment.utc({
                         year: nextYear,
-                        month: 7,
-                        day: 1,
+                        month: 6,
+                        day: 30,
                     });
                     expect(
                         await calendarContract.getMaturityDate(
                             PayPeriodDuration.SemiAnnually,
                             numPeriods,
+                            timestamp.unix(),
                         ),
                     ).to.equal(expectedMaturityDate.unix());
                 });
 
                 it("Should return the correct maturity date if the start date is on the 31st and there are more than 2 periods", async function () {
                     const nextYear = moment.utc().year() + 1;
-                    const nextBlockTime = moment.utc({
+                    const timestamp = moment.utc({
                         year: nextYear,
                         month: 0,
                         day: 31,
                     });
-                    await mineNextBlockWithTimestamp(nextBlockTime.unix());
-
                     const numPeriods = 3;
                     const expectedMaturityDate = moment.utc({
                         year: nextYear + 1,
-                        month: 1,
-                        day: 1,
+                        month: 0,
+                        day: 30,
                     });
                     expect(
                         await calendarContract.getMaturityDate(
                             PayPeriodDuration.SemiAnnually,
                             numPeriods,
+                            timestamp.unix(),
                         ),
                     ).to.equal(expectedMaturityDate.unix());
                 });
             });
 
-            describe("When the current block timestamp is not on special days", function () {
+            describe("When the timestamp is not on special days", function () {
                 it("Should return the correct maturity date if there are only 2 periods", async function () {
                     const nextYear = moment.utc().year() + 1;
-                    const nextBlockTime = moment.utc({
+                    const timestamp = moment.utc({
                         year: nextYear,
                         month: 2,
                         day: 10,
                     });
-                    await mineNextBlockWithTimestamp(nextBlockTime.unix());
-
                     const numPeriods = 2;
                     const expectedMaturityDate = moment.utc({
                         year: nextYear,
@@ -1331,19 +1344,18 @@ describe("Calendar Test", function () {
                         await calendarContract.getMaturityDate(
                             PayPeriodDuration.SemiAnnually,
                             numPeriods,
+                            timestamp.unix(),
                         ),
                     ).to.equal(expectedMaturityDate.unix());
                 });
 
                 it("Should return the correct maturity date if there are more than 2 periods", async function () {
                     const nextYear = moment.utc().year() + 1;
-                    const nextBlockTime = moment.utc({
+                    const timestamp = moment.utc({
                         year: nextYear,
                         month: 2,
                         day: 10,
                     });
-                    await mineNextBlockWithTimestamp(nextBlockTime.unix());
-
                     const numPeriods = 4;
                     const expectedMaturityDate = moment.utc({
                         year: nextYear + 1,
@@ -1354,6 +1366,7 @@ describe("Calendar Test", function () {
                         await calendarContract.getMaturityDate(
                             PayPeriodDuration.SemiAnnually,
                             numPeriods,
+                            timestamp.unix(),
                         ),
                     ).to.equal(expectedMaturityDate.unix());
                 });
