@@ -126,19 +126,19 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         if (_cr.nextDueDate == 0) {
             // If this is the first drawdown, then there is no past due. The number of days until next due
             // is the number of days in the first period.
-            (uint256 daysPassed, uint256 totalDaysInPeriod) = calendar.getDaysPassedInPeriod(
-                _cc.periodDuration
-            );
-            daysUntilNextDue = totalDaysInPeriod - daysPassed;
+            daysUntilNextDue = calendar.getDaysDiff(block.timestamp, newCR.nextDueDate);
             // Given that the billing period may start mid-period and `principalRate` is for whole periods,
             // we must calculate a prorated amount for the initial period based on the actual days.
             // For instance, if the `principalRate` is 3% for a full period, and the principal is
             // $1,000 with only 20 out of 30 days in the first billing cycle, then the prorated principal due
             // is $1,000 * 3% * (20/30), which equals $20.
             if (principalRate > 0) {
+                uint256 totalDaysInFullPeriod = calendar.getTotalDaysInFullPeriod(
+                    _cc.periodDuration
+                );
                 principalDue =
                     (_cr.unbilledPrincipal * principalRate * daysUntilNextDue) /
-                    totalDaysInPeriod;
+                    totalDaysInFullPeriod;
                 newCR.unbilledPrincipal -= uint96(principalDue);
             }
         } else if (block.timestamp >= maturityDate) {
@@ -173,10 +173,12 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                         _cr.unbilledPrincipal) / (HUNDRED_PERCENT_IN_BPS ** periodsPassedDue)
                 );
                 newCR.unbilledPrincipal = uint96(_cr.unbilledPrincipal - newDD.principalPastDue);
-                (, uint256 totalDaysInPeriod) = calendar.getDaysPassedInPeriod(_cc.periodDuration);
+                uint256 totalDaysInFullPeriod = calendar.getTotalDaysInFullPeriod(
+                    _cc.periodDuration
+                );
                 principalDue =
                     (newCR.unbilledPrincipal * principalRate * daysUntilNextDue) /
-                    totalDaysInPeriod;
+                    totalDaysInFullPeriod;
                 newCR.unbilledPrincipal -= uint96(principalDue);
             }
         }
