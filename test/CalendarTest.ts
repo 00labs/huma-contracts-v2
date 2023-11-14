@@ -232,8 +232,13 @@ describe("Calendar Test", function () {
                     day: 13,
                 });
                 await mineNextBlockWithTimestamp(nextBlockTime.unix());
-                await expect(calendarContract.getDaysPassedInPeriod(PayPeriodDuration.Monthly, nextDueDate.unix())).to.be.revertedWithCustomError(calendarContract, "startDateLaterThanEndDate");
-            })
+                await expect(
+                    calendarContract.getDaysPassedInPeriod(
+                        PayPeriodDuration.Monthly,
+                        nextDueDate.unix(),
+                    ),
+                ).to.be.revertedWithCustomError(calendarContract, "startDateLaterThanEndDate");
+            });
         });
 
         describe("With quarterly period duration", function () {
@@ -348,8 +353,13 @@ describe("Calendar Test", function () {
                     day: 13,
                 });
                 await mineNextBlockWithTimestamp(nextBlockTime.unix());
-                await expect(calendarContract.getDaysPassedInPeriod(PayPeriodDuration.Quarterly, nextDueDate.unix())).to.be.revertedWithCustomError(calendarContract, "startDateLaterThanEndDate");
-            })
+                await expect(
+                    calendarContract.getDaysPassedInPeriod(
+                        PayPeriodDuration.Quarterly,
+                        nextDueDate.unix(),
+                    ),
+                ).to.be.revertedWithCustomError(calendarContract, "startDateLaterThanEndDate");
+            });
         });
 
         describe("With semi-annually period duration", function () {
@@ -464,8 +474,13 @@ describe("Calendar Test", function () {
                     day: 13,
                 });
                 await mineNextBlockWithTimestamp(nextBlockTime.unix());
-                await expect(calendarContract.getDaysPassedInPeriod(PayPeriodDuration.SemiAnnually, nextDueDate.unix())).to.be.revertedWithCustomError(calendarContract, "startDateLaterThanEndDate");
-            })
+                await expect(
+                    calendarContract.getDaysPassedInPeriod(
+                        PayPeriodDuration.SemiAnnually,
+                        nextDueDate.unix(),
+                    ),
+                ).to.be.revertedWithCustomError(calendarContract, "startDateLaterThanEndDate");
+            });
         });
     });
 
