@@ -397,8 +397,14 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
                 (totalDays - daysPassed)) / (DAYS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS);
             dd.accrued += uint96(additionalYieldAccrued);
             if (dd.accrued > dd.committed) {
-                cr.yieldDue += uint96(additionalYieldAccrued);
-                cr.nextDue += uint96(additionalYieldAccrued);
+                // 1. If `dd.committed` was higher than `dd.accrued` before the drawdown but lower afterwards,
+                // then we need to reset yield due using the accrued amount.
+                // 2. If `dd.committed` was lower than `dd.accrued` before the drawdown, now it's only going to be even
+                // lower, so we need to recompute the yield due to account for the additional yield generated
+                // from the additional principal.
+                // 3. Otherwise, yield due stays as-is.
+                cr.nextDue = cr.nextDue - cr.yieldDue + dd.accrued;
+                cr.yieldDue = dd.accrued;
             }
             cr.unbilledPrincipal = uint96(cr.unbilledPrincipal + borrowAmount);
         }
