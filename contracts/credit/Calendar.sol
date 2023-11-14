@@ -59,6 +59,9 @@ contract Calendar is ICalendar {
         PayPeriodDuration periodDuration,
         uint256 nextDueDate
     ) external view returns (uint256 daysPassed, uint256 totalDaysInPeriod) {
+        if (block.timestamp > nextDueDate) {
+            revert Errors.startDateLaterThanEndDate();
+        }
         uint256 day = DTL.getDay(block.timestamp);
         // If the day falls on the 31st, move it back to the 30th.
         day = day > DAYS_IN_A_MONTH ? DAYS_IN_A_MONTH : day;

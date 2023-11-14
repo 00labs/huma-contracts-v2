@@ -218,6 +218,22 @@ describe("Calendar Test", function () {
                 expect(daysPassed).to.equal(13);
                 expect(totalDaysInPeriod).to.equal(CONSTANTS.DAYS_IN_A_MONTH);
             });
+
+            it("Should revert if the current block timestamp has surpassed the next due date", async function () {
+                const nextYear = moment.utc().year() + 1;
+                const nextBlockTime = moment.utc({
+                    year: nextYear,
+                    month: 1,
+                    day: 14,
+                });
+                const nextDueDate = moment.utc({
+                    year: nextYear,
+                    month: 1,
+                    day: 13,
+                });
+                await mineNextBlockWithTimestamp(nextBlockTime.unix());
+                await expect(calendarContract.getDaysPassedInPeriod(PayPeriodDuration.Monthly, nextDueDate.unix())).to.be.revertedWithCustomError(calendarContract, "startDateLaterThanEndDate");
+            })
         });
 
         describe("With quarterly period duration", function () {
@@ -318,6 +334,22 @@ describe("Calendar Test", function () {
                     expect(totalDaysInPeriod).to.equal(CONSTANTS.DAYS_IN_A_QUARTER);
                 }
             });
+
+            it("Should revert if the current block timestamp has surpassed the next due date", async function () {
+                const nextYear = moment.utc().year() + 1;
+                const nextBlockTime = moment.utc({
+                    year: nextYear,
+                    month: 1,
+                    day: 14,
+                });
+                const nextDueDate = moment.utc({
+                    year: nextYear,
+                    month: 1,
+                    day: 13,
+                });
+                await mineNextBlockWithTimestamp(nextBlockTime.unix());
+                await expect(calendarContract.getDaysPassedInPeriod(PayPeriodDuration.Quarterly, nextDueDate.unix())).to.be.revertedWithCustomError(calendarContract, "startDateLaterThanEndDate");
+            })
         });
 
         describe("With semi-annually period duration", function () {
@@ -395,7 +427,7 @@ describe("Calendar Test", function () {
                 }
             });
 
-            it.only("Should return the correct values otherwise", async function () {
+            it("Should return the correct values otherwise", async function () {
                 const nextYear = moment.utc().year() + 1;
                 for (let i = 0; i < 12; i++) {
                     const nextBlockTime = moment.utc({
@@ -418,6 +450,22 @@ describe("Calendar Test", function () {
                     expect(totalDaysInPeriod).to.equal(CONSTANTS.DAYS_IN_A_HALF_YEAR);
                 }
             });
+
+            it("Should revert if the current block timestamp has surpassed the next due date", async function () {
+                const nextYear = moment.utc().year() + 1;
+                const nextBlockTime = moment.utc({
+                    year: nextYear,
+                    month: 1,
+                    day: 14,
+                });
+                const nextDueDate = moment.utc({
+                    year: nextYear,
+                    month: 1,
+                    day: 13,
+                });
+                await mineNextBlockWithTimestamp(nextBlockTime.unix());
+                await expect(calendarContract.getDaysPassedInPeriod(PayPeriodDuration.SemiAnnually, nextDueDate.unix())).to.be.revertedWithCustomError(calendarContract, "startDateLaterThanEndDate");
+            })
         });
     });
 
