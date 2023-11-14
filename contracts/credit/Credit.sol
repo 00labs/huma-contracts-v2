@@ -782,12 +782,19 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         // Note that the new yield rate takes effect the next day. We need to:
         // 1. Deduct the yield that was computed with the previous rate from tomorrow onwards, and
         // 2. Incorporate the yield calculated with the new rate, also beginning tomorrow.
-        dd.accrued = uint96(_computeUpdatedYield(
-            cc, cr, dd.accrued, cc.yieldInBps, yieldInBps, principal
-        ));
-        dd.committed = uint96(_computeUpdatedYield(
-            cc, cr, dd.committed, cc.yieldInBps, yieldInBps, cc.committedAmount
-        ));
+        dd.accrued = uint96(
+            _computeUpdatedYield(cc, cr, dd.accrued, cc.yieldInBps, yieldInBps, principal)
+        );
+        dd.committed = uint96(
+            _computeUpdatedYield(
+                cc,
+                cr,
+                dd.committed,
+                cc.yieldInBps,
+                yieldInBps,
+                cc.committedAmount
+            )
+        );
         uint256 updatedYieldDue = dd.committed > dd.accrued ? dd.committed : dd.accrued;
         cr.nextDue = uint96(cr.nextDue - cr.yieldDue + updatedYieldDue);
         cr.yieldDue = uint96(updatedYieldDue);
@@ -973,9 +980,16 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         cc.committedAmount = uint96(committedAmount);
         _setCreditConfig(creditHash, cc);
 
-        dd.committed = uint96(_computeUpdatedYield(
-            cc, cr, dd.committed, cc.committedAmount, committedAmount, cc.yieldInBps
-        ));
+        dd.committed = uint96(
+            _computeUpdatedYield(
+                cc,
+                cr,
+                dd.committed,
+                cc.committedAmount,
+                committedAmount,
+                cc.yieldInBps
+            )
+        );
         uint256 updatedYieldDue = dd.committed > dd.accrued ? dd.committed : dd.accrued;
         cr.nextDue = uint96(cr.nextDue - cr.yieldDue + updatedYieldDue);
         cr.yieldDue = uint96(updatedYieldDue);
@@ -1002,7 +1016,8 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         );
         // Since the new value may be smaller than the old value, we need to work with signed integers.
         int256 valueDiff = int256(newValue) - int256(oldValue);
-        int256 yieldDiff = int256((totalDays - daysPassed) * multiplier) * valueDiff / int256(HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR);
+        int256 yieldDiff = (int256((totalDays - daysPassed) * multiplier) * valueDiff) /
+            int256(HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR);
         return uint256(int256(oldYield) + yieldDiff);
     }
 }
