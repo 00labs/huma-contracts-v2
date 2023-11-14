@@ -946,8 +946,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         bytes32 creditHash,
         uint256 amount
     ) internal returns (uint256 amountWaived) {
-        CreditRecord memory cr = getCreditRecord(creditHash);
-        DueDetail memory dd = getDueDetail(creditHash);
+        (CreditRecord memory cr, DueDetail memory dd) = _updateDueInfo(creditHash);
         amountWaived = amount > dd.lateFee ? dd.lateFee : amount;
         dd.lateFee -= uint96(amountWaived);
         cr.totalPastDue -= uint96(amountWaived);
