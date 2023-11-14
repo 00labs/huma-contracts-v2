@@ -31,6 +31,7 @@ contract Errors {
     error notCurrentEpoch(); // 0x50c5dd13
     error notCoverProvider(); // 0xed74bd11
     error notAuthorizedCaller(); // 0x06bc68f5
+    error permissionDeniedNotPayer();
 
     // system config
     error defaultGracePeriodLessThanMinAllowed(); // 0xa733ff9c
