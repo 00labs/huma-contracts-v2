@@ -61,7 +61,7 @@ contract Calendar is ICalendar {
         uint256 day = DTL.getDay(block.timestamp);
         // If the day falls on the 31st, move it back to the 30th.
         day = day > DAYS_IN_A_MONTH ? DAYS_IN_A_MONTH : day;
-        uint256 startOfPeriod = _getStartDateOfPeriod(periodDuration, block.timestamp);
+        uint256 startOfPeriod = getStartDateOfPeriod(periodDuration, block.timestamp);
         uint256 numMonthsPassed = DTL.diffMonths(startOfPeriod, block.timestamp);
         // -1 here since we are using the beginning of the day.
         daysPassed = numMonthsPassed * DAYS_IN_A_MONTH + day - 1;
@@ -98,13 +98,19 @@ contract Calendar is ICalendar {
 
     /// @inheritdoc ICalendar
     function getStartDateOfPeriod(
-        uint256 periodDuration,
-        uint256 periodEndDate
-    ) external pure returns (uint256 startDate) {
-        //* todo This implementation is not right. For quarterly, periodDuration=3,
-        // if it is 2/1/xxxx, startDateOfPeriod should be 1/1/xxxx, instead of
-        // going back 3 months. Need to check if we really this function and fix.
-        return DTL.subMonths(periodEndDate, periodDuration);
+        PayPeriodDuration periodDuration,
+        uint256 timestamp
+    ) public view returns (uint256 startOfPeriod) {
+        if (periodDuration == PayPeriodDuration.Monthly) {
+            return _getStartOfMonth(timestamp);
+        }
+        if (periodDuration == PayPeriodDuration.Quarterly) {
+            return _getStartOfQuarter(timestamp);
+        }
+        if (periodDuration == PayPeriodDuration.SemiAnnually) {
+            return _getStartOfHalfYear(timestamp);
+        }
+        revert Errors.invalidPayPeriod();
     }
 
     /// @inheritdoc ICalendar
@@ -118,39 +124,15 @@ contract Calendar is ICalendar {
         return _getStartDateOfNextPeriod(periodDuration, timestamp);
     }
 
-    function getNextDueDate(
-        uint256 periodDuration,
-        uint256 lastDueDate
-    ) external view returns (uint256 dueDate, uint256 numberOfPeriodsPassed) {
-        //* todo only need to support monthly, quarterly, and semi-annually. If the loan starts
-        // in the middle of a quarter, its next due is the beginning of the next quarter (Jan, Apr, Jul, or Oct)
-        // The final period will not be a full quarter. The due date will be the maturity date.
-        // Because of this logic, the API to get the next due date should be refined.
-
-        uint256 monthCount;
-        if (lastDueDate == 0) {
-            (uint256 year, uint256 month, ) = DTL.timestampToDate(block.timestamp);
-            lastDueDate = DTL.timestampFromDate(year, month, 1);
-            monthCount = 1;
-        } else {
-            numberOfPeriodsPassed = DTL.diffMonths(lastDueDate, block.timestamp) / periodDuration;
-        }
-        monthCount += (numberOfPeriodsPassed + 1) * periodDuration;
-        dueDate = DTL.addMonths(lastDueDate, monthCount);
-    }
-
     /// @inheritdoc ICalendar
     function getNextDueDate(
         PayPeriodDuration periodDuration,
         uint256 maturityDate
     ) public view returns (uint256 nextDueDate) {
-        if (block.timestamp >= _getStartDateOfPeriod(periodDuration, maturityDate)) {
-            // The `maturityDate` becomes the next due date if the current block timestamp has surpassed the due
-            // date immediately preceding the maturity date.
-            return maturityDate;
-        } else {
-            return _getStartDateOfNextPeriod(periodDuration, block.timestamp);
-        }
+        nextDueDate = _getStartDateOfNextPeriod(periodDuration, block.timestamp);
+        // The maturityDate is set as the upcoming due date when the current block timestamp
+        // exceeds the most recent due date prior to the maturity date.
+        return nextDueDate < maturityDate ? nextDueDate : maturityDate;
     }
 
     /// @inheritdoc ICalendar
@@ -191,7 +173,7 @@ contract Calendar is ICalendar {
         uint256 startDate = DTL.timestampFromDate(year, month, day);
 
         uint256 monthCount = numPeriods;
-        if (startDate != _getStartDateOfPeriod(periodDuration, startDate)) {
+        if (startDate != getStartDateOfPeriod(periodDuration, startDate)) {
             // Adjust `monthCount` by subtracting 1 if the bill cycle doesn't begin at the start of the period.
             // This accounts for the scenario where both the start and end of the billing periods are partial periods,
             // combining to make one full period.
@@ -203,24 +185,6 @@ contract Calendar is ICalendar {
             monthCount *= 6;
         }
         return DTL.addMonths(startDate, monthCount);
-    }
-
-    // TODO(jiatu): not sure if the external `getStartDateOfPeriod` is useful. If it's useful, combine the two.
-    // Otherwise, delete the external one.
-    function _getStartDateOfPeriod(
-        PayPeriodDuration periodDuration,
-        uint256 timestamp
-    ) internal view returns (uint256 startOfPeriod) {
-        if (periodDuration == PayPeriodDuration.Monthly) {
-            return _getStartOfMonth(timestamp);
-        }
-        if (periodDuration == PayPeriodDuration.Quarterly) {
-            return _getStartOfQuarter(timestamp);
-        }
-        if (periodDuration == PayPeriodDuration.SemiAnnually) {
-            return _getStartOfHalfYear(timestamp);
-        }
-        revert Errors.invalidPayPeriod();
     }
 
     function _getStartDateOfNextPeriod(

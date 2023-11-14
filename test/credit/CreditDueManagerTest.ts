@@ -187,7 +187,7 @@ describe("CreditDueManager.sol Tests", function () {
         });
     });
 
-    describe("checkLate", function () {
+    describe("checkIsLate", function () {
         it("Should return true if there are missed periods", async function () {
             const creditRecord = {
                 unbilledPrincipal: 0,
@@ -199,7 +199,7 @@ describe("CreditDueManager.sol Tests", function () {
                 remainingPeriods: 0,
                 state: CreditState.Delayed,
             };
-            expect(await creditDueManagerContract.checkLate(creditRecord)).to.be.true;
+            expect(await creditDueManagerContract.checkIsLate(creditRecord)).to.be.true;
         });
 
         it("Should return true if there is payment due and we've already passed the payment grace period", async function () {
@@ -219,7 +219,7 @@ describe("CreditDueManager.sol Tests", function () {
                 remainingPeriods: 0,
                 state: CreditState.GoodStanding,
             };
-            expect(await creditDueManagerContract.checkLate(creditRecord)).to.be.true;
+            expect(await creditDueManagerContract.checkIsLate(creditRecord)).to.be.true;
         });
 
         it("Should return false if there is no missed periods and no next due", async function () {
@@ -233,7 +233,7 @@ describe("CreditDueManager.sol Tests", function () {
                 remainingPeriods: 0,
                 state: CreditState.Approved,
             };
-            expect(await creditDueManagerContract.checkLate(creditRecord)).to.be.false;
+            expect(await creditDueManagerContract.checkIsLate(creditRecord)).to.be.false;
         });
 
         it("Should return false if there is next due but we are not at the due date yet", async function () {
@@ -248,7 +248,7 @@ describe("CreditDueManager.sol Tests", function () {
                 remainingPeriods: 0,
                 state: CreditState.Approved,
             };
-            expect(await creditDueManagerContract.checkLate(creditRecord)).to.be.false;
+            expect(await creditDueManagerContract.checkIsLate(creditRecord)).to.be.false;
         });
     });
 
