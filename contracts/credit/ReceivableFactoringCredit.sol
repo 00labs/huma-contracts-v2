@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import {IERC721, IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {Credit} from "./Credit.sol";
-import {ReceivableInput} from "./CreditStructs.sol";
+import {ReceivableInput, CreditRecord} from "./CreditStructs.sol";
 import {IReceivableFactoringCredit} from "./interfaces/IReceivableFactoringCredit.sol";
 import {PoolConfig} from "../PoolConfig.sol";
 import {Errors} from "../Errors.sol";
@@ -162,6 +162,11 @@ contract ReceivableFactoringCredit is
         if (paidoff) {
             // TODO delete receivable? transfer back?
         }
+    }
+
+    function getCreditRecord(uint256 receivableId) external view returns (CreditRecord memory) {
+        bytes32 creditHash = _getCreditHash(receivableId);
+        return getCreditRecord(creditHash);
     }
 
     function onERC721Received(

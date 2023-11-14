@@ -9,7 +9,7 @@ import {SuperfluidProcessorStorage} from "./SuperfluidProcessorStorage.sol";
 import {PoolConfigCache} from "../../PoolConfigCache.sol";
 import {PoolConfig, PoolSettings} from "../../PoolConfig.sol";
 import {HumaConfig} from "../../HumaConfig.sol";
-import {IOldReceivableCredit} from "../interfaces/IOldReceivableCredit.sol";
+import {IReceivableFactoringCredit} from "../interfaces/IReceivableFactoringCredit.sol";
 import {IReceivable} from "../interfaces/IReceivable.sol";
 import {ReceivableInput} from "../CreditStructs.sol";
 import {CreditConfig, CreditRecord, CreditState} from "../CreditStructs.sol";
@@ -46,7 +46,7 @@ contract SuperfluidProcessor is PoolConfigCache, SuperAppBase, SuperfluidProcess
 
         addr = address(_poolConfig.credit());
         if (addr == address(0)) revert Errors.zeroAddressProvided();
-        receivableCredit = IOldReceivableCredit(addr);
+        receivableFactoringCredit = IReceivableFactoringCredit(addr);
 
         addr = address(_poolConfig.receivableAsset());
         if (addr == address(0)) revert Errors.zeroAddressProvided();
@@ -78,7 +78,7 @@ contract SuperfluidProcessor is PoolConfigCache, SuperAppBase, SuperfluidProcess
             ""
         );
 
-        receivableCredit.approveReceivable(
+        receivableFactoringCredit.approveReceivable(
             borrower,
             ReceivableInput(sfReceivableInfo.receivableAmount, uint64(tokenId)),
             creditLimit,
@@ -124,7 +124,7 @@ contract SuperfluidProcessor is PoolConfigCache, SuperAppBase, SuperfluidProcess
 
         uint256 sfReceivableId = _mintNFT(receivableAsset, dataForMintTo);
 
-        receivableCredit.drawdownWithReceivable(borrower, internalTokenId, borrowAmount);
+        receivableFactoringCredit.drawdownWithReceivable(borrower, internalTokenId, borrowAmount);
 
         _sfReceivableIdInternalReceivableIdMapping[sfReceivableId] = internalTokenId;
 
@@ -169,7 +169,9 @@ contract SuperfluidProcessor is PoolConfigCache, SuperAppBase, SuperfluidProcess
         uint256 amountReceived = underlyingToken.balanceOf(address(this)) - beforeAmount;
 
         uint256 internalTokenId = _sfReceivableIdInternalReceivableIdMapping[receivableId];
-        CreditRecord memory creditRecord = receivableCredit.getCreditRecord(internalTokenId);
+        CreditRecord memory creditRecord = receivableFactoringCredit.getCreditRecord(
+            internalTokenId
+        );
 
         if (amountReceived < creditRecord.nextDue) {
             uint256 difference = creditRecord.nextDue - amountReceived;
@@ -184,7 +186,7 @@ contract SuperfluidProcessor is PoolConfigCache, SuperAppBase, SuperfluidProcess
 
         bool paidoff;
         if (amountReceived > 0) {
-            (, paidoff) = receivableCredit.makePaymentWithReceivable(
+            (, paidoff) = receivableFactoringCredit.makePaymentWithReceivable(
                 si.borrower,
                 internalTokenId,
                 amountReceived
@@ -231,7 +233,9 @@ contract SuperfluidProcessor is PoolConfigCache, SuperAppBase, SuperfluidProcess
         if (si.flowrate != 0) revert Errors.invalidFlowrate();
 
         uint256 internalTokenId = _sfReceivableIdInternalReceivableIdMapping[receivableId];
-        CreditRecord memory creditRecord = receivableCredit.getCreditRecord(internalTokenId);
+        CreditRecord memory creditRecord = receivableFactoringCredit.getCreditRecord(
+            internalTokenId
+        );
         if (creditRecord.state > CreditState.GoodStanding)
             revert Errors.creditLineNotInGoodStandingState();
 
@@ -247,7 +251,11 @@ contract SuperfluidProcessor is PoolConfigCache, SuperAppBase, SuperfluidProcess
             );
 
             if (received > 0) {
-                receivableCredit.makePaymentWithReceivable(si.borrower, internalTokenId, received);
+                receivableFactoringCredit.makePaymentWithReceivable(
+                    si.borrower,
+                    internalTokenId,
+                    received
+                );
                 if (received >= diff) {
                     // TODO add event later
                     // emit ReadyToSettlement(
@@ -295,7 +303,11 @@ contract SuperfluidProcessor is PoolConfigCache, SuperAppBase, SuperfluidProcess
 
         if (received > 0) {
             uint256 internalTokenId = _sfReceivableIdInternalReceivableIdMapping[receivableId];
-            receivableCredit.makePaymentWithReceivable(borrower, internalTokenId, received);
+            receivableFactoringCredit.makePaymentWithReceivable(
+                borrower,
+                internalTokenId,
+                received
+            );
         }
 
         if (received < difference) {
