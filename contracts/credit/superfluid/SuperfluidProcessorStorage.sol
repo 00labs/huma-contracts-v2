@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {HumaConfig} from "../../HumaConfig.sol";
-import {IReceivableCredit} from "../interfaces/IReceivableCredit.sol";
+import {IOldReceivableCredit} from "../interfaces/IOldReceivableCredit.sol";
 import {IReceivable} from "../interfaces/IReceivable.sol";
 import {ReceivableInput} from "../CreditStructs.sol";
 
@@ -16,7 +16,7 @@ contract SuperfluidProcessorStorage {
     }
 
     HumaConfig public humaConfig;
-    IReceivableCredit public receivableCredit;
+    IOldReceivableCredit public receivableCredit;
     IReceivable public receivableAsset;
 
     /// mapping from wallet address to the receivable supplied by this wallet

@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import {ReceivableInput} from "../CreditStructs.sol";
 import {CreditConfig, CreditRecord} from "../CreditStructs.sol";
 
-interface IReceivableCredit {
+interface IOldReceivableCredit {
     function approveReceivable(
         address borrower,
         ReceivableInput memory receivableInput,

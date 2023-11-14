@@ -9,7 +9,7 @@ import {SuperfluidProcessorStorage} from "./SuperfluidProcessorStorage.sol";
 import {PoolConfigCache} from "../../PoolConfigCache.sol";
 import {PoolConfig, PoolSettings} from "../../PoolConfig.sol";
 import {HumaConfig} from "../../HumaConfig.sol";
-import {IReceivableCredit} from "../interfaces/IReceivableCredit.sol";
+import {IOldReceivableCredit} from "../interfaces/IOldReceivableCredit.sol";
 import {IReceivable} from "../interfaces/IReceivable.sol";
 import {ReceivableInput} from "../CreditStructs.sol";
 import {CreditConfig, CreditRecord, CreditState} from "../CreditStructs.sol";
@@ -46,7 +46,7 @@ contract SuperfluidProcessor is PoolConfigCache, SuperAppBase, SuperfluidProcess
 
         addr = address(_poolConfig.credit());
         if (addr == address(0)) revert Errors.zeroAddressProvided();
-        receivableCredit = IReceivableCredit(addr);
+        receivableCredit = IOldReceivableCredit(addr);
 
         addr = address(_poolConfig.receivableAsset());
         if (addr == address(0)) revert Errors.zeroAddressProvided();
