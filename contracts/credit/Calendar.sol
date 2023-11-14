@@ -56,16 +56,17 @@ contract Calendar is ICalendar {
 
     /// @inheritdoc ICalendar
     function getDaysPassedInPeriod(
-        PayPeriodDuration periodDuration
+        PayPeriodDuration periodDuration,
+        uint256 nextDueDate
     ) external view returns (uint256 daysPassed, uint256 totalDaysInPeriod) {
         uint256 day = DTL.getDay(block.timestamp);
         // If the day falls on the 31st, move it back to the 30th.
         day = day > DAYS_IN_A_MONTH ? DAYS_IN_A_MONTH : day;
-        uint256 startOfPeriod = getStartDateOfPeriod(periodDuration, block.timestamp);
-        uint256 numMonthsPassed = DTL.diffMonths(startOfPeriod, block.timestamp);
+        uint256 periodStartDate = getStartDateOfPeriod(periodDuration, block.timestamp);
+        uint256 numMonthsPassed = DTL.diffMonths(periodStartDate, block.timestamp);
         // -1 here since we are using the beginning of the day.
         daysPassed = numMonthsPassed * DAYS_IN_A_MONTH + day - 1;
-        return (daysPassed, _getTotalDaysInPeriod(periodDuration));
+        return (daysPassed, getDaysDiff(periodStartDate, nextDueDate));
     }
 
     /// @inheritdoc ICalendar
@@ -158,7 +159,7 @@ contract Calendar is ICalendar {
         //   (second half of March, the entire April and May, and the partial period of June).
         return
             getDaysDiff(dueDateAfterStartDate, endDate) /
-            _getTotalDaysInPeriod(periodDuration) +
+            getTotalDaysInFullPeriod(periodDuration) +
             2;
     }
 
@@ -203,9 +204,10 @@ contract Calendar is ICalendar {
         revert Errors.invalidPayPeriod();
     }
 
-    function _getTotalDaysInPeriod(
+    /// @inheritdoc ICalendar
+    function getTotalDaysInFullPeriod(
         PayPeriodDuration periodDuration
-    ) internal pure returns (uint256 totalDaysInPeriod) {
+    ) public pure returns (uint256 totalDaysInPeriod) {
         if (periodDuration == PayPeriodDuration.Monthly) {
             return DAYS_IN_A_MONTH;
         }

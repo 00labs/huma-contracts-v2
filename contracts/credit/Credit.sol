@@ -387,7 +387,8 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
 
             // Add the yield of new borrowAmount for the remainder of the period
             (uint256 daysPassed, uint256 totalDays) = calendar.getDaysPassedInPeriod(
-                cc.periodDuration
+                cc.periodDuration,
+                cr.nextDueDate
             );
 
             // It's important to note that the yield calculation includes the day of the drawdown. For instance,
@@ -774,11 +775,12 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
     }
 
     function _updateYield(bytes32 creditHash, uint256 yieldInBps) internal virtual {
+        (CreditRecord memory cr, DueDetail memory dd) = _updateDueInfo(creditHash);
+
         CreditConfig memory cc = getCreditConfig(creditHash);
-        CreditRecord memory cr = getCreditRecord(creditHash);
-        DueDetail memory dd = getDueDetail(creditHash);
         (uint256 daysPassed, uint256 totalDays) = calendar.getDaysPassedInPeriod(
-            cc.periodDuration
+            cc.periodDuration,
+            cr.nextDueDate
         );
         uint256 principal = cr.unbilledPrincipal + cr.nextDue - cr.yieldDue;
         // Note that the new yield rate takes effect the next day, hence we need to recalculate the accrued yield
@@ -917,13 +919,12 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
     function _extendRemainingPeriod(bytes32 creditHash, uint256 newNumOfPeriods) internal virtual {
         // Although not essential to call _updateDueInfo() to extend the credit line duration,
         // it is still a good practice to bring the account current while we update one of the fields.
-        _updateDueInfo(creditHash);
+        (CreditRecord memory cr, ) = _updateDueInfo(creditHash);
 
         CreditConfig memory cc = getCreditConfig(creditHash);
         cc.numOfPeriods += uint16(newNumOfPeriods);
         _setCreditConfig(creditHash, cc);
 
-        CreditRecord memory cr = getCreditRecord(creditHash);
         uint256 oldRemainingPeriods = cr.remainingPeriods;
         cr.remainingPeriods += uint16(newNumOfPeriods);
         _setCreditRecord(creditHash, cr);
@@ -980,7 +981,8 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         _setCreditConfig(creditHash, cc);
 
         (uint256 daysPassed, uint256 totalDays) = calendar.getDaysPassedInPeriod(
-            cc.periodDuration
+            cc.periodDuration,
+            cr.nextDueDate
         );
         // TODO(jiatu): the calculation is wrong. We need to divide by days in a year and hundred percent in bps.
         dd.committed = uint96(

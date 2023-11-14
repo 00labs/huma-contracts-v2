@@ -54,7 +54,8 @@ interface ICalendar {
      * is `totalDaysInPeriod - 1`, e.g. for a monthly period, the maximum possible `daysPassed` is 29.
      */
     function getDaysPassedInPeriod(
-        PayPeriodDuration periodDuration
+        PayPeriodDuration periodDuration,
+        uint256 nextDueDate
     ) external view returns (uint256 daysPassed, uint256 totalDaysInPeriod);
 
     /**
@@ -114,4 +115,11 @@ interface ICalendar {
         uint256 numPeriods,
         uint256 timestamp
     ) external view returns (uint256 maturityDate);
+
+    /**
+     * @notice Returns the total number of days in a full period, e.g. 30, 90 or 180 days.
+     */
+    function getTotalDaysInFullPeriod(
+        PayPeriodDuration periodDuration
+    ) external pure returns (uint256 totalDaysInPeriod);
 }
