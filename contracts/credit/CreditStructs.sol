@@ -55,7 +55,7 @@ struct DueDetail {
     uint96 principalPastDue;
     uint96 yieldPastDue;
     // The following three fields are intended to track yield for the current period only.
-    // It resets for every new period.
+    // They reset for every new period.
     uint96 committed;
     uint96 accrued;
     uint96 paid;

@@ -62,14 +62,20 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         DueDetail memory _dd
     ) internal view returns (uint64 lateFeeUpdatedDate, uint96 lateFee) {
         lateFeeUpdatedDate = uint64(calendar.getStartOfTomorrow());
+        // TODO(jiatu): how do we deal with partial periods for the flat late fee?
         (, uint256 lateFeeInBps, ) = poolConfig.getFees();
+        // If `_dd.lateFeeUpdatedDate` is 0, then the bill is late for the first time.
+        // We need to charge the late fee from the last due date onwards.
+        uint256 lateFeeStartDate = _dd.lateFeeUpdatedDate == 0
+            ? _cr.nextDueDate
+            : _dd.lateFeeUpdatedDate;
 
         lateFee = uint96(
             _dd.lateFee +
                 (lateFeeInBps *
                     (_cr.unbilledPrincipal + _cr.nextDue - _cr.yieldDue) *
-                    calendar.getDaysDiff(_dd.lateFeeUpdatedDate, lateFeeUpdatedDate)) /
-                DAYS_IN_A_YEAR
+                    calendar.getDaysDiff(lateFeeStartDate, lateFeeUpdatedDate)) /
+                (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR)
         );
         return (lateFeeUpdatedDate, lateFee);
     }
@@ -116,6 +122,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             newDD.yieldPastDue += _cr.yieldDue;
             newDD.principalPastDue += _cr.nextDue - _cr.yieldDue;
             (newDD.lateFeeUpdatedDate, newDD.lateFee) = refreshLateFee(_cr, _dd);
+            isLate = true;
         }
 
         uint256 principalDue = 0;
@@ -138,7 +145,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                 );
                 principalDue =
                     (_cr.unbilledPrincipal * principalRate * daysUntilNextDue) /
-                    totalDaysInFullPeriod;
+                    (HUNDRED_PERCENT_IN_BPS * totalDaysInFullPeriod);
                 newCR.unbilledPrincipal -= uint96(principalDue);
             }
         } else if (block.timestamp >= maturityDate) {
@@ -167,18 +174,17 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                 periodStartDate
             );
             if (principalRate > 0) {
-                newDD.principalPastDue += uint96(
-                    ((HUNDRED_PERCENT_IN_BPS ** periodsPassedDue -
-                        (HUNDRED_PERCENT_IN_BPS - principalRate) ** periodsPassedDue) *
-                        _cr.unbilledPrincipal) / (HUNDRED_PERCENT_IN_BPS ** periodsPassedDue)
-                );
-                newCR.unbilledPrincipal = uint96(_cr.unbilledPrincipal - newDD.principalPastDue);
+                uint256 principalPastDue = ((HUNDRED_PERCENT_IN_BPS ** periodsPassedDue -
+                    (HUNDRED_PERCENT_IN_BPS - principalRate) ** periodsPassedDue) *
+                    _cr.unbilledPrincipal) / (HUNDRED_PERCENT_IN_BPS ** periodsPassedDue);
+                newDD.principalPastDue += uint96(principalPastDue);
+                newCR.unbilledPrincipal = uint96(_cr.unbilledPrincipal - principalPastDue);
                 uint256 totalDaysInFullPeriod = calendar.getTotalDaysInFullPeriod(
                     _cc.periodDuration
                 );
                 principalDue =
                     (newCR.unbilledPrincipal * principalRate * daysUntilNextDue) /
-                    totalDaysInFullPeriod;
+                    (HUNDRED_PERCENT_IN_BPS * totalDaysInFullPeriod);
                 newCR.unbilledPrincipal -= uint96(principalDue);
             }
         }
@@ -194,12 +200,15 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         newDD.yieldPastDue += uint96(
             accruedPastDue > committedPastDue ? accruedPastDue : committedPastDue
         );
+        // Reset the recorded yield due amounts since we are in a new billing cycle now.
         (newDD.accrued, newDD.committed) = _getYieldDue(
             _cc,
             principal,
             daysUntilNextDue,
             membershipFee
         );
+        newDD.paid = 0;
+
         newCR.yieldDue = newDD.committed > newDD.accrued ? newDD.committed : newDD.accrued;
         // Note that any non-zero existing nextDue should have been moved to pastDue already.
         // Only the newly generated nextDue needs to be recorded.
@@ -245,8 +254,8 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
     function _getYieldDue(
         CreditConfig memory cc,
         uint256 principal,
-        uint256 membershipFee,
-        uint256 daysPassed
+        uint256 daysPassed,
+        uint256 membershipFee
     ) internal view returns (uint96 accrued, uint96 committed) {
         accrued = uint96(
             (principal * cc.yieldInBps * daysPassed) /

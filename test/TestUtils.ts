@@ -58,8 +58,8 @@ export function getNextDate(
 
 export async function getFutureBlockTime(offsetSeconds: number) {
     const block = await getLatestBlock();
-    const currentTimestampInSeconds = Math.ceil(Date.now() / 1000);
-    return Math.max(block.timestamp, currentTimestampInSeconds) + offsetSeconds;
+    const currentMoment = moment.utc();
+    return Math.max(block.timestamp, currentMoment.unix()) + offsetSeconds;
 }
 
 export function getStartDateOfPeriod(periodDuration: number, endDate: number): number {
