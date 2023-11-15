@@ -64,9 +64,9 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         lateFeeUpdatedDate = uint64(calendar.getStartOfTomorrow());
         // TODO(jiatu): how do we deal with partial periods for the flat late fee?
         (, uint256 lateFeeInBps, ) = poolConfig.getFees();
-        // If `_dd.lateFeeUpdatedDate` is 0, then the bill is late for the first time.
+        // If the credit state is good-standing, then the bill is late for the first time.
         // We need to charge the late fee from the last due date onwards.
-        uint256 lateFeeStartDate = _dd.lateFeeUpdatedDate == 0
+        uint256 lateFeeStartDate = _cr.state == CreditState.GoodStanding
             ? _cr.nextDueDate
             : _dd.lateFeeUpdatedDate;
 
@@ -256,7 +256,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         uint256 principal,
         uint256 daysPassed,
         uint256 membershipFee
-    ) internal view returns (uint96 accrued, uint96 committed) {
+    ) internal pure returns (uint96 accrued, uint96 committed) {
         accrued = uint96(
             (principal * cc.yieldInBps * daysPassed) /
                 (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR) +

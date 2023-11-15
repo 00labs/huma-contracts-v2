@@ -138,10 +138,10 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
      * @param nextDueDate the due date of the next payment
      * @param nextDue the amount due on the next payment of the credit line
      * @param totalPastDue the sum of lateFee + pastDue. See CreditStructs.DueDetail for more info
-     * @param totalPastDuePaid the payment amount applied to past due
      * @param unbilledPrincipal the unbilled principal on the credit line after processing the payment
      * @param principalPaid the amount of this payment applied to principal
      * @param yieldPaid the amount of this payment applied to yield
+     * @param totalPastDuePaid the payment amount applied to past due
      * @param by the address that has triggered the process of marking the payment made.
      * In most cases, it is the borrower. In receivable factoring, it is PDSServiceAccount.
      */
@@ -442,7 +442,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
     ) internal returns (uint256 amountPaid, bool paidoff, bool isReviewRequired) {
         if (amount == 0) revert Errors.zeroAmountProvided();
 
-        (CreditRecord memory cr, ) = _updateDueInfo(creditHash);
+        (CreditRecord memory cr, DueDetail memory dd) = _updateDueInfo(creditHash);
         if (
             cr.state == CreditState.Requested ||
             cr.state == CreditState.Approved ||
@@ -460,27 +460,39 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         if (amount < payoffAmount) {
             // Apply the payment to past due first.
             if (cr.totalPastDue > 0) {
-                DueDetail memory dd = getDueDetail(creditHash);
-                if (amount > cr.totalPastDue) {
+                if (amount >= cr.totalPastDue) {
                     pastDuePaid = cr.totalPastDue;
                     amount -= cr.totalPastDue;
                     dd.lateFee = 0;
+                    dd.lateFeeUpdatedDate = 0;
                     dd.yieldPastDue = 0;
                     dd.principalPastDue = 0;
                     cr.totalPastDue = 0;
+                    cr.missedPeriods = 0;
                 } else {
                     // If the payment is not enough to cover the total amount past due, then
-                    // apply the payment to the yield past due first, then late fees.
-                    // TODO(jiatu): we also need to pay off principal past due.
+                    // apply the payment to the yield past due, followed by principal past due,
+                    // then lastly late fees.
                     pastDuePaid = amount;
                     if (amount > dd.yieldPastDue) {
-                        dd.lateFee -= uint96(amount - dd.yieldPastDue);
+                        amount -= dd.yieldPastDue;
                         dd.yieldPastDue = 0;
                     } else {
                         dd.yieldPastDue -= uint96(amount);
                     }
-                    cr.totalPastDue -= uint96(amount);
-                    amount = 0;
+                    if (amount > dd.principalPastDue) {
+                        amount -= dd.principalPastDue;
+                        dd.principalPastDue = 0;
+                    } else if (amount > 0) {
+                        dd.principalPastDue -= uint96(amount);
+                    }
+                    // Since `amount < totalPastDue`, the remaining amount must be smaller than
+                    // the late fee.
+                    if (amount > 0) {
+                        dd.lateFee -= uint96(amount);
+                        amount = 0;
+                    }
+                    cr.totalPastDue -= uint96(pastDuePaid);
                 }
                 dd.lateFeeUpdatedDate = uint64(calendar.getStartOfToday());
                 _setDueDetail(creditHash, dd);
@@ -491,15 +503,18 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
                 if (amount < cr.nextDue) {
                     // Apply the payment to yield due first, then principal due.
                     yieldPaid = amount < cr.yieldDue ? amount : cr.yieldDue;
+                    dd.paid = uint96(yieldPaid);
                     cr.yieldDue -= uint96(yieldPaid);
                     principalPaid = amount - yieldPaid;
                     cr.nextDue = uint96(cr.nextDue - amount);
 
+                    _setDueDetail(creditHash, dd);
                     _setCreditRecord(creditHash, cr);
                 } else {
                     // Apply extra payments towards principal, reduce unbilledPrincipal amount
                     principalPaid = amount - cr.yieldDue;
                     yieldPaid = cr.yieldDue;
+                    dd.paid = uint96(yieldPaid);
                     cr.unbilledPrincipal -= uint96(amount - cr.nextDue);
                     cr.nextDue = 0;
                     cr.yieldDue = 0;
@@ -507,23 +522,35 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
                     // Moves account to GoodStanding if it was delayed.
                     if (cr.state == CreditState.Delayed) cr.state = CreditState.GoodStanding;
 
+                    _setDueDetail(creditHash, dd);
                     _setCreditRecord(creditHash, cr);
                 }
             }
         } else {
             // Payoff
+            // All past due is 0.
+            dd.lateFee = 0;
+            dd.lateFeeUpdatedDate = 0;
+            dd.yieldPastDue = 0;
+            dd.principalPastDue = 0;
+
+            // All next due is also 0.
             principalPaid = cr.unbilledPrincipal + cr.nextDue - cr.yieldDue;
             yieldPaid = payoffAmount - principalPaid;
+            dd.paid = uint96(yieldPaid);
             cr.unbilledPrincipal = 0;
             cr.yieldDue = 0;
             cr.nextDue = 0;
+            cr.totalPastDue = 0;
             cr.missedPeriods = 0;
+
             // Closes the credit line if it is in the final period
             if (cr.remainingPeriods == 0) {
                 cr.state = CreditState.Deleted;
                 emit CreditLineClosed(borrower, msg.sender, CreditLineClosureReason.Paidoff);
             } else cr.state = CreditState.GoodStanding;
 
+            _setDueDetail(creditHash, dd);
             _setCreditRecord(creditHash, cr);
         }
 
