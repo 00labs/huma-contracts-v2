@@ -24,7 +24,8 @@ import { FirstLossCoverConfigStruct } from "../typechain-types/contracts/PoolCon
 import {
     CreditConfigStruct,
     CreditRecordStruct,
-} from "../typechain-types/contracts/credit/utils/CreditDueManager";
+    DueDetailStruct,
+} from "../typechain-types/contracts/credit/Credit";
 import { EpochInfoStruct } from "../typechain-types/contracts/interfaces/IEpoch";
 import { minBigNumber, sumBNArray, toToken } from "./TestUtils";
 
@@ -410,9 +411,6 @@ export async function setupPoolContracts(
         .connect(evaluationAgent)
         .depositCover(poolLiquidityCap.mul(firstLossCoverageInBps).div(CONSTANTS.BP_FACTOR));
     await poolContract.connect(poolOwner).setReadyForFirstLossCoverWithdrawal(true);
-
-    // Set pool epoch window to 3 days for testing purposes
-    await poolConfigContract.connect(poolOwner).setPoolPayPeriod(3);
 
     await poolContract.connect(poolOwner).enablePool();
     const expectedInitialLiquidity = poolOwnerLiquidity.add(evaluationAgentLiquidity);
@@ -889,17 +887,18 @@ export function checkCreditConfig(
     expect(creditConfig.exclusive).to.equal(exclusive);
 }
 
-export function checkTwoCreditRecords(
-    preCreditRecord: CreditRecordStruct,
-    creditRecord: CreditRecordStruct,
+export function checkCreditRecordsMatch(
+    actualCR: CreditRecordStruct,
+    expectedCR: CreditRecordStruct,
 ) {
-    expect(creditRecord.unbilledPrincipal).to.equal(preCreditRecord.unbilledPrincipal);
-    expect(creditRecord.nextDueDate).to.equal(preCreditRecord.nextDueDate);
-    expect(creditRecord.nextDue).to.equal(preCreditRecord.nextDue);
-    expect(creditRecord.yieldDue).to.equal(preCreditRecord.yieldDue);
-    expect(creditRecord.missedPeriods).to.equal(preCreditRecord.missedPeriods);
-    expect(creditRecord.remainingPeriods).to.equal(preCreditRecord.remainingPeriods);
-    expect(creditRecord.state).to.equal(preCreditRecord.state);
+    expect(actualCR.unbilledPrincipal).to.equal(expectedCR.unbilledPrincipal);
+    expect(actualCR.nextDueDate).to.equal(expectedCR.nextDueDate);
+    expect(actualCR.nextDue).to.equal(expectedCR.nextDue);
+    expect(actualCR.yieldDue).to.equal(expectedCR.yieldDue);
+    expect(actualCR.totalPastDue).to.equal(expectedCR.totalPastDue);
+    expect(actualCR.missedPeriods).to.equal(expectedCR.missedPeriods);
+    expect(actualCR.remainingPeriods).to.equal(expectedCR.remainingPeriods);
+    expect(actualCR.state).to.equal(expectedCR.state);
 }
 
 export function checkCreditRecord(
@@ -908,17 +907,29 @@ export function checkCreditRecord(
     nextDueDate: BN | number,
     nextDue: BN,
     yieldDue: BN,
+    totalPastDue: BN,
     missedPeriods: number,
     remainingPeriods: number,
-    state: number,
+    state: CreditState,
 ) {
     expect(creditRecord.unbilledPrincipal).to.equal(unbilledPrincipal);
     expect(creditRecord.nextDueDate).to.equal(nextDueDate);
     expect(creditRecord.nextDue).to.equal(nextDue);
     expect(creditRecord.yieldDue).to.equal(yieldDue);
+    expect(creditRecord.totalPastDue).to.equal(totalPastDue);
     expect(creditRecord.missedPeriods).to.equal(missedPeriods);
     expect(creditRecord.remainingPeriods).to.equal(remainingPeriods);
     expect(creditRecord.state).to.equal(state);
+}
+
+export function checkDueDetailsMatch(actualDD: DueDetailStruct, expectedDD: DueDetailStruct) {
+    expect(actualDD.lateFeeUpdatedDate).to.equal(expectedDD.lateFeeUpdatedDate);
+    expect(actualDD.lateFee).to.equal(expectedDD.lateFee);
+    expect(actualDD.principalPastDue).to.equal(expectedDD.principalPastDue);
+    expect(actualDD.yieldPastDue).to.equal(expectedDD.yieldPastDue);
+    expect(actualDD.committed).to.equal(expectedDD.committed);
+    expect(actualDD.accrued).to.equal(expectedDD.accrued);
+    expect(actualDD.paid).to.equal(expectedDD.paid);
 }
 
 export function checkCreditLoss(
@@ -929,6 +940,122 @@ export function checkCreditLoss(
 ) {
     // expect(creditLoss.totalAccruedLoss).to.be.closeTo(totalAccruedLoss, delta);
     // expect(creditLoss.totalLossRecovery).to.be.closeTo(totalLossRecovery, delta);
+}
+
+export function calcYieldDue(
+    cc: CreditConfigStruct,
+    principal: BN,
+    membershipFee: BN,
+    daysPassed: number,
+): [BN, BN] {
+    const accrued = principal
+        .mul(BN.from(cc.yieldInBps))
+        .mul(daysPassed)
+        .div(CONSTANTS.BP_FACTOR.mul(CONSTANTS.DAYS_IN_A_YEAR))
+        .add(membershipFee);
+    const committed = BN.from(cc.committedAmount)
+        .mul(BN.from(cc.yieldInBps))
+        .mul(daysPassed)
+        .div(CONSTANTS.BP_FACTOR.mul(CONSTANTS.DAYS_IN_A_YEAR))
+        .add(membershipFee);
+    return [accrued, committed];
+}
+
+// Returns three values in the following order:
+// 1. Unbilled principal
+// 2. Principal past due
+// 3. Principal next due
+export async function calcPrincipalDue(
+    calendarContract: Calendar,
+    initialPrincipal: BN,
+    currentDate: number,
+    lastDueDate: number,
+    nextDueDate: number,
+    periodDuration: number,
+    principalRateInBps: number,
+): Promise<[BN, BN, BN]> {
+    if (currentDate >= nextDueDate) {
+        // All principal is past due if the current date has passed the
+        // next due date. Note that the next due date can only be the maturity
+        // date in this case.
+        return [BN.from(0), initialPrincipal, BN.from(0)];
+    }
+    const totalDaysInFullPeriod = await calendarContract.getTotalDaysInFullPeriod(periodDuration);
+    if (lastDueDate == 0) {
+        // During first drawdown, there is no principal past due, only next due.
+        const daysUntilNextDue = await calendarContract.getDaysDiff(currentDate, nextDueDate);
+        const principalNextDue = initialPrincipal
+            .mul(principalRateInBps)
+            .mul(daysUntilNextDue)
+            .div(totalDaysInFullPeriod.mul(CONSTANTS.BP_FACTOR));
+        return [initialPrincipal.sub(principalNextDue), BN.from(0), principalNextDue];
+    }
+    // Otherwise, there is both principal past due and next due.
+    const periodStartDate = await calendarContract.getStartDateOfPeriod(
+        periodDuration,
+        currentDate,
+    );
+    const numPeriodsPassed = await calendarContract.getNumPeriodsPassed(
+        periodDuration,
+        lastDueDate,
+        periodStartDate,
+    );
+    const principalPastDue = CONSTANTS.BP_FACTOR.pow(numPeriodsPassed)
+        .sub(CONSTANTS.BP_FACTOR.sub(principalRateInBps).pow(numPeriodsPassed))
+        .mul(initialPrincipal)
+        .div(CONSTANTS.BP_FACTOR.pow(numPeriodsPassed));
+    const daysUntilNextDue = await calendarContract.getDaysDiff(periodStartDate, nextDueDate);
+    const principalNextDue = initialPrincipal
+        .sub(principalPastDue)
+        .mul(principalRateInBps)
+        .mul(daysUntilNextDue)
+        .div(totalDaysInFullPeriod.mul(CONSTANTS.BP_FACTOR));
+    return [
+        initialPrincipal.sub(principalPastDue).sub(principalNextDue),
+        principalPastDue,
+        principalNextDue,
+    ];
+}
+
+export async function calcLateFee(
+    poolConfigContract: PoolConfig,
+    calendarContract: Calendar,
+    cr: CreditRecordStruct,
+    dd: DueDetailStruct,
+) {
+    const [, lateFeeInBps] = await poolConfigContract.getFees();
+    const lateFeeStartDate = BN.from(dd.lateFeeUpdatedDate).isZero()
+        ? cr.nextDueDate
+        : dd.lateFeeUpdatedDate;
+    const lateFeeUpdatedDate = await calendarContract.getStartOfTomorrow();
+    const principal = getPrincipal(cr);
+    const lateFeeDays = await calendarContract.getDaysDiff(lateFeeStartDate, lateFeeUpdatedDate);
+    return [
+        lateFeeUpdatedDate,
+        BN.from(dd.lateFee).add(
+            principal
+                .mul(lateFeeInBps)
+                .mul(lateFeeDays)
+                .div(CONSTANTS.BP_FACTOR.mul(CONSTANTS.DAYS_IN_A_YEAR)),
+        ),
+    ];
+}
+
+export function getPrincipal(cr: CreditRecordStruct): BN {
+    return BN.from(cr.unbilledPrincipal).add(BN.from(cr.nextDue).sub(BN.from(cr.yieldDue)));
+}
+
+export function getTotalDaysInPeriod(periodDuration: number) {
+    switch (periodDuration) {
+        case PayPeriodDuration.Monthly:
+            return CONSTANTS.DAYS_IN_A_MONTH;
+        case PayPeriodDuration.Quarterly:
+            return CONSTANTS.DAYS_IN_A_QUARTER;
+        case PayPeriodDuration.SemiAnnually:
+            return CONSTANTS.DAYS_IN_A_HALF_YEAR;
+        default:
+            throw Error("Invalid period duration");
+    }
 }
 
 export function checkTwoCreditLosses() {

@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {IBorrowerLevelCreditConfig} from "./interfaces/IBorrowerLevelCreditConfig.sol";
 import {Credit} from "./Credit.sol";
-import {CreditConfig, CreditRecord, DueDetail} from "./CreditStructs.sol";
+import {CreditConfig, CreditRecord, DueDetail, PayPeriodDuration} from "./CreditStructs.sol";
 import {Errors} from "../Errors.sol";
 
 /**
@@ -22,7 +22,7 @@ abstract contract BorrowerLevelCreditConfig is Credit, IBorrowerLevelCreditConfi
         address indexed borrower,
         bytes32 indexed creditHash,
         uint256 creditLimit,
-        uint16 periodDuration,
+        PayPeriodDuration periodDuration,
         uint256 remainingPeriods,
         uint256 yieldInBps,
         uint256 committedAmount,

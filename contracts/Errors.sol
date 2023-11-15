@@ -31,6 +31,7 @@ contract Errors {
     error notCurrentEpoch(); // 0x50c5dd13
     error notCoverProvider(); // 0xed74bd11
     error notAuthorizedCaller(); // 0x06bc68f5
+    error permissionDeniedNotPayer();
 
     // system config
     error defaultGracePeriodLessThanMinAllowed(); // 0xa733ff9c
@@ -97,6 +98,7 @@ contract Errors {
     error unsupportedReceivableAsset(); // 0xe60c383e
     error receivableAssetParamMismatch(); // 0x1400a0b4
     error insufficientReceivableAmount(); // 0xf7f34854
+    error zeroReceivableIdProvided();
 
     // superfluid
     error durationTooLong(); // 0xf1dd53a8

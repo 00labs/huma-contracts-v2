@@ -6,7 +6,7 @@ pragma solidity ^0.8.0;
 struct CreditConfig {
     uint96 creditLimit;
     uint96 committedAmount;
-    uint16 periodDuration;
+    PayPeriodDuration periodDuration;
     uint16 numOfPeriods; // number of periods
     // Yield in BPs, mean different things for different credit types.
     // For credit line, it is APR;
@@ -39,19 +39,23 @@ struct CreditRecord {
  * @notice DueDetail records the detailed information about nextDue and pastDue
  * @notice CreditRecord.nextDue = max(committed, accrued) - paid
  * @notice lateFee tracks late charges only. It is always updated together with lateFeeUpdatedDate.
- * @notice pastDue tracks unpaid yield only.
+ * @notice principalPastDue tracks unpaid principal past due.
+ * @notice yieldPastDue tracks unpaid yield past due.
  * @notice committed is the amount of yield computed from commitment set in CreditConfig
  * @notice accrued is the amount of yield based on actual usage
  * @notice paid is the amount of yield paid for the current period
  * @notice when there is partial payment to past due, it is applied towards pastDue first,
  * then lateFee.
- * @notice CreditRecord.totalPastDue = lateFee + pastDue
+ * @notice CreditRecord.totalPastDue = lateFee + principalPastDue + yieldPastDue
  * @note This struct is necessary since commitment requirement might change within a period
  */
 struct DueDetail {
     uint64 lateFeeUpdatedDate;
     uint96 lateFee;
-    uint96 pastDue;
+    uint96 principalPastDue;
+    uint96 yieldPastDue;
+    // The following three fields are intended to track yield for the current period only.
+    // They reset for every new period.
     uint96 committed;
     uint96 accrued;
     uint96 paid;

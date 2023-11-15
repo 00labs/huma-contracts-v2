@@ -56,32 +56,10 @@ export function getNextDate(
     return [date.unix(), numberOfPeriodsPassed];
 }
 
-export function getNextDueDate(
-    lastDueDateTimestamp: number,
-    currentTimestamp: number,
-    periodDuration: number,
-) {
-    let date: moment.Moment;
-    let numberOfPeriodsPassed = 0;
-    let monthCount = 0;
-    if (lastDueDateTimestamp > 0) {
-        date = timestampToMoment(lastDueDateTimestamp);
-        numberOfPeriodsPassed = Math.floor(
-            timestampToMoment(currentTimestamp).diff(date, "months") / periodDuration,
-        );
-    } else {
-        date = timestampToMoment(currentTimestamp, "YYYY-MM-01");
-        monthCount = 1;
-    }
-    monthCount += (numberOfPeriodsPassed + 1) * periodDuration;
-    date.add(monthCount, "months");
-    return [date.unix(), numberOfPeriodsPassed];
-}
-
 export async function getFutureBlockTime(offsetSeconds: number) {
     const block = await getLatestBlock();
-    const currentTimestampInSeconds = Math.ceil(Date.now() / 1000);
-    return Math.max(block.timestamp, currentTimestampInSeconds) + offsetSeconds;
+    const currentMoment = moment.utc();
+    return Math.max(block.timestamp, currentMoment.unix()) + offsetSeconds;
 }
 
 export function getStartDateOfPeriod(periodDuration: number, endDate: number): number {
