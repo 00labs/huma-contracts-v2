@@ -371,12 +371,7 @@ describe("CreditDueManager Tests", function () {
                             dd,
                             maturityDate,
                         );
-                        const lateFeeUpdatedDate = moment(nextBlockTime * 1000)
-                            .utc()
-                            .add(1, "day")
-                            .startOf("day")
-                            .unix();
-                        const [, lateFee] = await calcLateFee(
+                        const [lateFeeUpdatedDate, lateFee] = await calcLateFee(
                             poolConfigContract,
                             calendarContract,
                             cr,
@@ -560,22 +555,20 @@ describe("CreditDueManager Tests", function () {
                             const expectedYieldDue = maxBigNumber(accruedYield, committedYield);
                             // Since the principal rate is 0, no principal is due. Only yield is due in the first
                             // partial period.
-                            const expectedPrincipalDue = await calcPrincipalDue(
-                                calendarContract,
-                                BN.from(cr.unbilledPrincipal),
-                                nextBlockTime.unix(),
-                                Number(cr.nextDueDate),
-                                nextDueDate.unix(),
-                                PayPeriodDuration.Monthly,
-                                maturityDate.unix(),
-                                principalRateInBps,
-                            );
+                            const [unbilledPrincipal, , expectedPrincipalDue] =
+                                await calcPrincipalDue(
+                                    calendarContract,
+                                    BN.from(cr.unbilledPrincipal),
+                                    nextBlockTime.unix(),
+                                    Number(cr.nextDueDate),
+                                    nextDueDate.unix(),
+                                    PayPeriodDuration.Monthly,
+                                    principalRateInBps,
+                                );
                             const expectedNewCR = {
                                 ...cr,
                                 ...{
-                                    unbilledPrincipal: BN.from(cr.unbilledPrincipal).sub(
-                                        expectedPrincipalDue,
-                                    ),
+                                    unbilledPrincipal: unbilledPrincipal,
                                     nextDueDate: nextDueDate.unix(),
                                     nextDue: expectedPrincipalDue.add(expectedYieldDue),
                                     yieldDue: expectedYieldDue,
@@ -595,7 +588,7 @@ describe("CreditDueManager Tests", function () {
                     });
                 });
 
-                describe("If the bill has been late", function () {
+                describe("If the bill is late", function () {
                     describe("If this is the first time the bill is late", function () {
                         describe("If the principal rate is 0", function () {
                             it("Should return the correct due date and amounts", async function () {
@@ -787,37 +780,23 @@ describe("CreditDueManager Tests", function () {
                                 );
 
                                 // Calculate principal due.
-                                const periodStartDate = moment.utc({
-                                    year: nextYear,
-                                    month: 3,
-                                    day: 1,
-                                });
-                                const expectedPrincipalPastDue = await calcPrincipalDue(
+                                const [
+                                    unbilledPrincipal,
+                                    expectedPrincipalPastDue,
+                                    expectedPrincipalNextDue,
+                                ] = await calcPrincipalDue(
                                     calendarContract,
                                     BN.from(cr.unbilledPrincipal),
                                     nextBlockTime.unix(),
-                                    lastDueDate.unix(),
-                                    periodStartDate.unix(),
-                                    PayPeriodDuration.Monthly,
-                                    maturityDate.unix(),
-                                    principalRateInBps,
-                                );
-                                const expectedPrincipalNextDue = await calcPrincipalDue(
-                                    calendarContract,
-                                    BN.from(cr.unbilledPrincipal).sub(expectedPrincipalPastDue),
-                                    nextBlockTime.unix(),
-                                    periodStartDate.unix(),
+                                    Number(cr.nextDueDate),
                                     nextDueDate.unix(),
                                     PayPeriodDuration.Monthly,
-                                    maturityDate.unix(),
                                     principalRateInBps,
                                 );
                                 const expectedNewCR = {
                                     ...cr,
                                     ...{
-                                        unbilledPrincipal: BN.from(cr.unbilledPrincipal)
-                                            .sub(expectedPrincipalPastDue)
-                                            .sub(expectedPrincipalNextDue),
+                                        unbilledPrincipal: unbilledPrincipal,
                                         nextDueDate: nextDueDate.unix(),
                                         nextDue:
                                             expectedYieldNextDue.add(expectedPrincipalNextDue),
@@ -1061,37 +1040,23 @@ describe("CreditDueManager Tests", function () {
                                 );
 
                                 // Calculate principal due.
-                                const periodStartDate = moment.utc({
-                                    year: nextYear,
-                                    month: 3,
-                                    day: 1,
-                                });
-                                const expectedPrincipalPastDue = await calcPrincipalDue(
+                                const [
+                                    unbilledPrincipal,
+                                    expectedPrincipalPastDue,
+                                    expectedPrincipalNextDue,
+                                ] = await calcPrincipalDue(
                                     calendarContract,
                                     BN.from(cr.unbilledPrincipal),
                                     nextBlockTime.unix(),
-                                    lastDueDate.unix(),
-                                    periodStartDate.unix(),
-                                    PayPeriodDuration.Monthly,
-                                    maturityDate.unix(),
-                                    principalRateInBps,
-                                );
-                                const expectedPrincipalNextDue = await calcPrincipalDue(
-                                    calendarContract,
-                                    BN.from(cr.unbilledPrincipal).sub(expectedPrincipalPastDue),
-                                    nextBlockTime.unix(),
-                                    periodStartDate.unix(),
+                                    Number(cr.nextDueDate),
                                     nextDueDate.unix(),
                                     PayPeriodDuration.Monthly,
-                                    maturityDate.unix(),
                                     principalRateInBps,
                                 );
                                 const expectedNewCR = {
                                     ...cr,
                                     ...{
-                                        unbilledPrincipal: BN.from(cr.unbilledPrincipal)
-                                            .sub(expectedPrincipalPastDue)
-                                            .sub(expectedPrincipalNextDue),
+                                        unbilledPrincipal: unbilledPrincipal,
                                         nextDueDate: nextDueDate.unix(),
                                         nextDue:
                                             expectedYieldNextDue.add(expectedPrincipalNextDue),
@@ -1203,28 +1168,23 @@ describe("CreditDueManager Tests", function () {
                             );
 
                             // Calculate principal due.
-                            const periodStartDate = moment.utc({
-                                year: nextYear,
-                                month: 3,
-                                day: 1,
-                            });
-                            const expectedPrincipalPastDue = await calcPrincipalDue(
+                            const [
+                                unbilledPrincipal,
+                                expectedPrincipalPastDue,
+                                expectedPrincipalNextDue,
+                            ] = await calcPrincipalDue(
                                 calendarContract,
                                 BN.from(cr.unbilledPrincipal),
                                 nextBlockTime.unix(),
-                                lastDueDate.unix(),
+                                Number(cr.nextDueDate),
                                 maturityDate.unix(),
                                 PayPeriodDuration.Monthly,
-                                maturityDate.unix(),
                                 principalRateInBps,
                             );
-                            const expectedPrincipalNextDue = 0;
                             const expectedNewCR = {
                                 ...cr,
                                 ...{
-                                    unbilledPrincipal: BN.from(cr.unbilledPrincipal)
-                                        .sub(expectedPrincipalPastDue)
-                                        .sub(expectedPrincipalNextDue),
+                                    unbilledPrincipal: unbilledPrincipal,
                                     nextDueDate: maturityDate.unix(),
                                     nextDue: expectedYieldNextDue.add(expectedPrincipalNextDue),
                                     yieldDue: expectedYieldNextDue,

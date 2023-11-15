@@ -961,6 +961,10 @@ export function calcYieldDue(
     return [accrued, committed];
 }
 
+// Returns three values in the following order:
+// 1. Unbilled principal
+// 2. Principal past due
+// 3. Principal next due
 export async function calcPrincipalDue(
     calendarContract: Calendar,
     initialPrincipal: BN,
@@ -968,34 +972,49 @@ export async function calcPrincipalDue(
     lastDueDate: number,
     nextDueDate: number,
     periodDuration: number,
-    maturityDate: number,
     principalRateInBps: number,
-) {
-    console.log(
-        `Current date ${currentDate}, maturity date ${maturityDate}, lastDueDate ${lastDueDate}, nextDueDate ${nextDueDate}`,
-    );
-    if (currentDate >= Number(maturityDate)) {
-        return initialPrincipal;
+): Promise<[BN, BN, BN]> {
+    if (currentDate >= nextDueDate) {
+        // All principal is past due if the current date has passed the
+        // next due date. Note that the next due date can only be the maturity
+        // date in this case.
+        return [BN.from(0), initialPrincipal, BN.from(0)];
     }
+    const totalDaysInFullPeriod = await calendarContract.getTotalDaysInFullPeriod(periodDuration);
     if (lastDueDate == 0) {
-        const totalDaysInFullPeriod =
-            await calendarContract.getTotalDaysInFullPeriod(periodDuration);
+        // During first drawdown, there is no principal past due, only next due.
         const daysUntilNextDue = await calendarContract.getDaysDiff(currentDate, nextDueDate);
-        return initialPrincipal
+        const principalNextDue = initialPrincipal
             .mul(principalRateInBps)
             .mul(daysUntilNextDue)
             .div(totalDaysInFullPeriod.mul(CONSTANTS.BP_FACTOR));
+        return [initialPrincipal.sub(principalNextDue), BN.from(0), principalNextDue];
     }
+    // Otherwise, there is both principal past due and next due.
+    const periodStartDate = await calendarContract.getStartDateOfPeriod(
+        periodDuration,
+        currentDate,
+    );
     const numPeriodsPassed = await calendarContract.getNumPeriodsPassed(
         periodDuration,
         lastDueDate,
-        nextDueDate,
+        periodStartDate,
     );
-    console.log(`numPeriodsPassed ${numPeriodsPassed}, initialPrincipal ${initialPrincipal}`);
-    return CONSTANTS.BP_FACTOR.pow(numPeriodsPassed)
+    const principalPastDue = CONSTANTS.BP_FACTOR.pow(numPeriodsPassed)
         .sub(CONSTANTS.BP_FACTOR.sub(principalRateInBps).pow(numPeriodsPassed))
         .mul(initialPrincipal)
         .div(CONSTANTS.BP_FACTOR.pow(numPeriodsPassed));
+    const daysUntilNextDue = await calendarContract.getDaysDiff(periodStartDate, nextDueDate);
+    const principalNextDue = initialPrincipal
+        .sub(principalPastDue)
+        .mul(principalRateInBps)
+        .mul(daysUntilNextDue)
+        .div(totalDaysInFullPeriod.mul(CONSTANTS.BP_FACTOR));
+    return [
+        initialPrincipal.sub(principalPastDue).sub(principalNextDue),
+        principalPastDue,
+        principalNextDue,
+    ];
 }
 
 export async function calcLateFee(
