@@ -778,20 +778,22 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         (CreditRecord memory cr, DueDetail memory dd) = _updateDueInfo(creditHash);
 
         CreditConfig memory cc = getCreditConfig(creditHash);
-        (uint256 daysPassed, uint256 totalDays) = calendar.getDaysPassedInPeriod(
-            cc.periodDuration,
-            cr.nextDueDate
-        );
         uint256 principal = cr.unbilledPrincipal + cr.nextDue - cr.yieldDue;
-        // Note that the new yield rate takes effect the next day, hence we need to recalculate the accrued yield
-        // and yield from commitment using the old rate for the days passed and new rate until the end of the period.
+        // Note that the new yield rate takes effect the next day. We need to:
+        // 1. Deduct the yield that was computed with the previous rate from tomorrow onwards, and
+        // 2. Incorporate the yield calculated with the new rate, also beginning tomorrow.
         dd.accrued = uint96(
-            ((daysPassed * cc.yieldInBps + (totalDays - daysPassed) * yieldInBps) * principal) /
-                DAYS_IN_A_YEAR
+            _computeUpdatedYield(cc, cr, dd.accrued, cc.yieldInBps, yieldInBps, principal)
         );
         dd.committed = uint96(
-            ((daysPassed * cc.yieldInBps + (totalDays - daysPassed) * yieldInBps) *
-                cc.committedAmount) / DAYS_IN_A_YEAR
+            _computeUpdatedYield(
+                cc,
+                cr,
+                dd.committed,
+                cc.yieldInBps,
+                yieldInBps,
+                cc.committedAmount
+            )
         );
         uint256 updatedYieldDue = dd.committed > dd.accrued ? dd.committed : dd.accrued;
         cr.nextDue = uint96(cr.nextDue - cr.yieldDue + updatedYieldDue);
@@ -951,8 +953,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         bytes32 creditHash,
         uint256 amount
     ) internal returns (uint256 amountWaived) {
-        CreditRecord memory cr = getCreditRecord(creditHash);
-        DueDetail memory dd = getDueDetail(creditHash);
+        (CreditRecord memory cr, DueDetail memory dd) = _updateDueInfo(creditHash);
         amountWaived = amount > dd.lateFee ? dd.lateFee : amount;
         dd.lateFee -= uint96(amountWaived);
         cr.totalPastDue -= uint96(amountWaived);
@@ -973,21 +974,21 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         uint256 committedAmount
     ) internal {
         CreditConfig memory cc = getCreditConfig(creditHash);
-        CreditRecord memory cr = getCreditRecord(creditHash);
-        DueDetail memory dd = getDueDetail(creditHash);
+        (CreditRecord memory cr, DueDetail memory dd) = _updateDueInfo(creditHash);
 
         cc.creditLimit = uint96(creditLimit);
         cc.committedAmount = uint96(committedAmount);
         _setCreditConfig(creditHash, cc);
 
-        (uint256 daysPassed, uint256 totalDays) = calendar.getDaysPassedInPeriod(
-            cc.periodDuration,
-            cr.nextDueDate
-        );
-        // TODO(jiatu): the calculation is wrong. We need to divide by days in a year and hundred percent in bps.
         dd.committed = uint96(
-            (daysPassed * cc.committedAmount + (totalDays - daysPassed) * committedAmount) *
+            _computeUpdatedYield(
+                cc,
+                cr,
+                dd.committed,
+                cc.committedAmount,
+                committedAmount,
                 cc.yieldInBps
+            )
         );
         uint256 updatedYieldDue = dd.committed > dd.accrued ? dd.committed : dd.accrued;
         cr.nextDue = uint96(cr.nextDue - cr.yieldDue + updatedYieldDue);
@@ -995,5 +996,28 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         _setCreditRecord(creditHash, cr);
         _setDueDetail(creditHash, dd);
         // TODO emit event
+    }
+
+    /**
+     * @notice Returns the difference in yield due to the value that the yield is calculated from changed from the old
+     * value to the new value.
+     */
+    function _computeUpdatedYield(
+        CreditConfig memory cc,
+        CreditRecord memory cr,
+        uint256 oldYield,
+        uint256 oldValue,
+        uint256 newValue,
+        uint256 multiplier
+    ) internal view returns (uint256 updatedYield) {
+        (uint256 daysPassed, uint256 totalDays) = calendar.getDaysPassedInPeriod(
+            cc.periodDuration,
+            cr.nextDueDate
+        );
+        // Since the new value may be smaller than the old value, we need to work with signed integers.
+        int256 valueDiff = int256(newValue) - int256(oldValue);
+        int256 yieldDiff = (int256((totalDays - daysPassed) * multiplier) * valueDiff) /
+            int256(HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR);
+        return uint256(int256(oldYield) + yieldDiff);
     }
 }
