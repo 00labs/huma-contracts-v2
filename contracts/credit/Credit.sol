@@ -274,6 +274,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         // Once a drawdown has happened, it is disallowed to re-approve a credit. One has to call
         // other admin functions to change the terms of the credit.
         CreditRecord memory cr = getCreditRecord(creditHash);
+        // TODO(jiatu): we shouldn't rely on the order of enum values.
         if (cr.state > CreditState.Approved) revert Errors.creditLineNotInStateForUpdate();
 
         CreditConfig memory cc = getCreditConfig(creditHash);
@@ -369,6 +370,14 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
                 cc.numOfPeriods,
                 block.timestamp
             );
+            uint256 startOfPeriod = calendar.getStartDateOfPeriod(ps.payPeriodDuration);
+            if (block.timestamp != startOfPeriod) {
+                // If the first drawdown happens mid-period, then we have two partial periods at both ends.
+                // So add 1 to the number of periods to account for the two partial periods.
+                // We also need to store the updated values since `_updateDueInfo()` needs to access them.
+                _creditConfigMap[creditHash].numOfPeriods = cc.numOfPeriods + 1;
+                _creditRecordMap[creditHash].remainingPeriods = cr.remainingPeriods + 1;
+            }
             (cr, ) = _updateDueInfo(creditHash);
             cr.state = CreditState.GoodStanding;
         } else {
