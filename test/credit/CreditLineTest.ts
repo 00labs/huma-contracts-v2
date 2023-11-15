@@ -471,7 +471,17 @@ describe("CreditLine Test", function () {
             );
 
             let creditRecord = await creditContract.getCreditRecord(creditHash);
-            checkCreditRecord(creditRecord, BN.from(0), 0, BN.from(0), BN.from(0), 0, 1, 2);
+            checkCreditRecord(
+                creditRecord,
+                BN.from(0),
+                0,
+                BN.from(0),
+                BN.from(0),
+                BN.from(0),
+                0,
+                1,
+                2,
+            );
         });
 
         it("Should approve again after a credit is closed", async function () {
@@ -542,7 +552,17 @@ describe("CreditLine Test", function () {
             );
 
             let creditRecord = await creditContract.getCreditRecord(creditHash);
-            checkCreditRecord(creditRecord, BN.from(0), 0, BN.from(0), BN.from(0), 0, 3, 2);
+            checkCreditRecord(
+                creditRecord,
+                BN.from(0),
+                0,
+                BN.from(0),
+                BN.from(0),
+                BN.from(0),
+                0,
+                3,
+                2,
+            );
         });
     });
 
