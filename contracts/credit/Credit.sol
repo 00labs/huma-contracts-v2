@@ -286,6 +286,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         _setCreditConfig(creditHash, cc);
 
         // todo decide if this event emission should be kept or not
+        // TODO decide if cc.receivableBacked, cc.borrowerLevelCredit and cc.exclusive should be kept or not
         emit CreditConfigChanged(
             creditHash,
             cc.creditLimit,
@@ -327,6 +328,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         }
 
         CreditConfig memory cc = getCreditConfig(creditHash);
+        // TODO How to handle the case the borrower never draws down?
         if (cc.committedAmount > 0 && cr.remainingPeriods > 0)
             revert Errors.creditLineHasUnfulfilledCommitment();
 
