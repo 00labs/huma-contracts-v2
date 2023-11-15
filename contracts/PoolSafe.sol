@@ -8,6 +8,7 @@ import {IPoolFeeManager} from "./interfaces/IPoolFeeManager.sol";
 import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {JUNIOR_TRANCHE, SENIOR_TRANCHE} from "./SharedDefs.sol";
 
 /**
@@ -15,6 +16,8 @@ import {JUNIOR_TRANCHE, SENIOR_TRANCHE} from "./SharedDefs.sol";
  * @notice PoolSafe tracks the in flow and out flow of underlying tokens
  */
 contract PoolSafe is PoolConfigCache, IPoolSafe {
+    using SafeERC20 for IERC20;
+
     IERC20 public underlyingToken;
     IPool public pool;
     IPoolFeeManager public poolFeeManager;
@@ -41,7 +44,7 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
     function deposit(address from, uint256 amount) external virtual {
         _onlyCustodian(msg.sender);
 
-        underlyingToken.transferFrom(from, address(this), amount);
+        underlyingToken.safeTransferFrom(from, address(this), amount);
     }
 
     /// @inheritdoc IPoolSafe
@@ -49,7 +52,7 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
         if (to == address(0)) revert Errors.zeroAddressProvided();
         _onlyCustodian(msg.sender);
 
-        underlyingToken.transfer(to, amount);
+        underlyingToken.safeTransfer(to, amount);
     }
 
     /// @inheritdoc IPoolSafe
