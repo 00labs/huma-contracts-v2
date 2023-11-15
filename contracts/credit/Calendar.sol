@@ -172,6 +172,12 @@ contract Calendar is ICalendar {
         uint256 numPeriods,
         uint256 timestamp
     ) external view returns (uint256 maturityDate) {
+        // TODO if the timestamp is 1/31, 2/28 or 4/30, the first period will only be 1 day
+
+        if (numPeriods == 1) {
+            return _getStartDateOfNextPeriod(periodDuration, timestamp);
+        }
+
         (uint256 year, uint256 month, uint256 day) = DTL.timestampToDate(timestamp);
         day = day > DAYS_IN_A_MONTH ? DAYS_IN_A_MONTH : day;
         uint256 startDate = DTL.timestampFromDate(year, month, day);
@@ -194,7 +200,7 @@ contract Calendar is ICalendar {
     function _getStartDateOfNextPeriod(
         PayPeriodDuration periodDuration,
         uint256 timestamp
-    ) internal view returns (uint256 startOfNextPeriod) {
+    ) internal pure returns (uint256 startOfNextPeriod) {
         if (periodDuration == PayPeriodDuration.Monthly) {
             return _getStartOfNextMonth(timestamp);
         }

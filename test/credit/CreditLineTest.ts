@@ -394,19 +394,30 @@ describe("CreditLine Test", function () {
                     ),
             ).to.be.revertedWithCustomError(creditContract, "greaterThanMaxCreditLine");
 
-            // TODO add expect for creditLineNotInStateForUpdate
+            await creditContract
+                .connect(eaServiceAccount)
+                .approveBorrower(
+                    borrower.address,
+                    toToken(10_000),
+                    1,
+                    1217,
+                    toToken(10_000),
+                    true,
+                );
+            await creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000));
 
-            // await creditContract
-            //     .connect(eaServiceAccount)
-            //     .approveBorrower(
-            //         borrower.address,
-            //         toToken(10_000),
-            //         1,
-            //         1217,
-            //         toToken(10_000),
-            //         true,
-            //     );
-            // await creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000));
+            await expect(
+                creditContract
+                    .connect(eaServiceAccount)
+                    .approveBorrower(
+                        borrower.address,
+                        toToken(10_000),
+                        1,
+                        1217,
+                        toToken(10_000),
+                        true,
+                    ),
+            ).to.be.revertedWithCustomError(creditContract, "creditLineNotInStateForUpdate");
         });
 
         it("Should approve a borrower correctly", async function () {
