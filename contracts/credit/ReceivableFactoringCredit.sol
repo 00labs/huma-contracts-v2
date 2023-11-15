@@ -153,7 +153,7 @@ contract ReceivableFactoringCredit is
         if (borrower != _creditBorrowerMap[creditHash]) revert Errors.notBorrower();
 
         (amountPaid, paidoff, ) = _makePayment(borrower, creditHash, amount);
-        if (amount > amountPaid || msg.sender != borrower) {
+        if (amount > amountPaid && msg.sender != borrower) {
             uint256 disbursedAmount = amount - amountPaid;
             poolSafe.deposit(msg.sender, disbursedAmount);
             poolSafe.withdraw(borrower, disbursedAmount);
