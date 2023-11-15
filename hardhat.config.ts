@@ -48,6 +48,13 @@ const config = {
             accounts: [deployer],
         },
     },
+
+    etherscan: {
+        apiKey: {
+            sepolia: process.env.ETHERSCAN_API_KEY || null,
+        },
+    },
+
     contractSizer: {
         alphaSort: true,
         disambiguatePaths: false,
