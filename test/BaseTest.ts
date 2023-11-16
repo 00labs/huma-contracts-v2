@@ -1071,6 +1071,7 @@ export function printCreditRecord(name: string, creditRecord: CreditRecordStruct
             nextDueDate: ${creditRecord.nextDueDate},
             nextDue: ${creditRecord.nextDue},
             yieldDue: ${creditRecord.yieldDue},
+            totalPastDue: ${creditRecord.totalPastDue},
             missedPeriods: ${creditRecord.missedPeriods},
             remainingPeriods: ${creditRecord.remainingPeriods},
             state: ${creditRecord.state}]`,

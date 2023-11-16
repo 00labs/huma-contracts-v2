@@ -16,6 +16,8 @@ import {IERC20, IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {BORROWER_FIRST_LOSS_COVER_INDEX, DAYS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS, SECONDS_IN_A_DAY} from "../SharedDefs.sol";
 
+import "hardhat/console.sol";
+
 /**
  * Credit is the core borrowing concept in Huma Protocol. This abstract contract provides
  * basic operations that applies to all credits in Huma Protocol.
@@ -455,7 +457,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
     ) internal returns (uint256 amountPaid, bool paidoff, bool isReviewRequired) {
         if (amount == 0) revert Errors.zeroAmountProvided();
 
-        (CreditRecord memory cr, DueDetail memory dd) = _updateDueInfo(creditHash);
+        CreditRecord memory cr = getCreditRecord(creditHash);
         if (
             cr.state == CreditState.Requested ||
             cr.state == CreditState.Approved ||
@@ -463,6 +465,8 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         ) {
             revert Errors.creditLineNotInStateForMakingPayment();
         }
+        DueDetail memory dd;
+        (cr, dd) = _updateDueInfo(creditHash);
 
         uint256 payoffAmount = _feeManager.getPayoffAmount(cr);
         uint256 amountToCollect = amount < payoffAmount ? amount : payoffAmount;
@@ -474,6 +478,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
             // Apply the payment to past due first.
             if (cr.totalPastDue > 0) {
                 if (amount >= cr.totalPastDue) {
+                    principalPaid = dd.principalPastDue;
                     pastDuePaid = cr.totalPastDue;
                     amount -= cr.totalPastDue;
                     dd.lateFee = 0;
@@ -481,7 +486,8 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
                     dd.yieldPastDue = 0;
                     dd.principalPastDue = 0;
                     cr.totalPastDue = 0;
-                    cr.missedPeriods = 0;
+                    // TODO(jiatu): is this correct?
+                    //                    cr.missedPeriods = 0;
                 } else {
                     // If the payment is not enough to cover the total amount past due, then
                     // apply the payment to the yield past due, followed by principal past due,
@@ -495,8 +501,10 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
                     }
                     if (amount > dd.principalPastDue) {
                         amount -= dd.principalPastDue;
+                        principalPaid = dd.principalPastDue;
                         dd.principalPastDue = 0;
                     } else if (amount > 0) {
+                        principalPaid = amount;
                         dd.principalPastDue -= uint96(amount);
                     }
                     // Since `amount < totalPastDue`, the remaining amount must be smaller than
@@ -516,16 +524,16 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
                 if (amount < cr.nextDue) {
                     // Apply the payment to yield due first, then principal due.
                     yieldPaid = amount < cr.yieldDue ? amount : cr.yieldDue;
-                    dd.paid = uint96(yieldPaid);
+                    dd.paid += uint96(yieldPaid);
                     cr.yieldDue -= uint96(yieldPaid);
-                    principalPaid = amount - yieldPaid;
+                    principalPaid += amount - yieldPaid;
                     cr.nextDue = uint96(cr.nextDue - amount);
 
                     _setDueDetail(creditHash, dd);
                     _setCreditRecord(creditHash, cr);
                 } else {
-                    // Apply extra payments towards principal, reduce unbilledPrincipal amount
-                    principalPaid = amount - cr.yieldDue;
+                    // Apply extra payments towards principal, reduce unbilledPrincipal amount.
+                    principalPaid += amount - cr.yieldDue;
                     yieldPaid = cr.yieldDue;
                     dd.paid = uint96(yieldPaid);
                     cr.unbilledPrincipal -= uint96(amount - cr.nextDue);
@@ -541,6 +549,9 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
             }
         } else {
             // Payoff
+            uint256 outstandingPrincipal = cr.unbilledPrincipal + cr.nextDue - cr.yieldDue;
+            principalPaid = outstandingPrincipal + dd.principalPastDue;
+
             // All past due is 0.
             dd.lateFee = 0;
             dd.lateFeeUpdatedDate = 0;
@@ -548,9 +559,8 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
             dd.principalPastDue = 0;
 
             // All next due is also 0.
-            principalPaid = cr.unbilledPrincipal + cr.nextDue - cr.yieldDue;
-            yieldPaid = payoffAmount - principalPaid;
-            dd.paid = uint96(yieldPaid);
+            yieldPaid = payoffAmount - outstandingPrincipal;
+            dd.paid += uint96(yieldPaid);
             cr.unbilledPrincipal = 0;
             cr.yieldDue = 0;
             cr.nextDue = 0;
@@ -568,6 +578,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         }
 
         assert(amountToCollect > 0);
+        // TODO: should we distribute profit here since yield due might have been paid?
         poolSafe.deposit(msg.sender, amountToCollect);
         emit PaymentMade(
             borrower,
@@ -781,11 +792,15 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         CreditConfig memory cc = getCreditConfig(creditHash);
         uint256 maturityDate = getMaturityDate(creditHash);
 
-        uint256 periodsPassed = calendar.getNumPeriodsPassed(
-            cc.periodDuration,
-            cr.nextDueDate,
-            block.timestamp
-        );
+        uint256 periodsPassed = 0;
+        if (block.timestamp > cr.nextDueDate) {
+            // TODO(jiatu): should periodsPassed be 1 or 0 if we are within the late payment grace period?
+            periodsPassed = calendar.getNumPeriodsPassed(
+                cc.periodDuration,
+                cr.nextDueDate,
+                block.timestamp
+            );
+        }
         bool late;
         (cr, dd, late) = _feeManager.getDueInfo(cr, cc, dd, maturityDate);
 

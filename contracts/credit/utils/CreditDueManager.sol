@@ -257,6 +257,9 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         uint256 daysPassed,
         uint256 membershipFee
     ) internal pure returns (uint96 accrued, uint96 committed) {
+        if (daysPassed == 0) {
+            return (0, 0);
+        }
         accrued = uint96(
             (principal * cc.yieldInBps * daysPassed) /
                 (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR) +
