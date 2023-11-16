@@ -66,6 +66,18 @@ export function getStartDateOfPeriod(periodDuration: number, endDate: number): n
     return timestampToMoment(endDate).subtract(periodDuration, "months").unix();
 }
 
+export function getStartOfDay(timestamp: number): number {
+    return timestampToMoment(timestamp, "YYYY-MM-DD").unix();
+}
+
+export function getDateAfterMonths(timestamp: number, months: number): number {
+    return timestampToMoment(timestamp).add(months, "months").unix();
+}
+
+export function getDate(timestamp: number): number {
+    return timestampToMoment(timestamp).date();
+}
+
 export async function getLatestBlock() {
     return await ethers.provider.getBlock("latest");
 }

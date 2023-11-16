@@ -134,7 +134,7 @@ contract ReceivableFactoringCredit is
         if (receivableId == 0) revert Errors.zeroReceivableIdProvided();
         if (amount == 0) revert Errors.zeroAmountProvided();
         bytes32 creditHash = _getCreditHash(receivableId);
-        if (borrower != _creditBorrowerMap[creditHash]) revert Errors.notBorrower();
+        if (borrower != creditBorrowerMap[creditHash]) revert Errors.notBorrower();
 
         IERC721 receivableAsset = IERC721(poolConfig.receivableAsset());
         receivableAsset.safeTransferFrom(borrower, address(this), receivableId);
@@ -150,7 +150,7 @@ contract ReceivableFactoringCredit is
         poolConfig.onlyProtocolAndPoolOn();
         if (msg.sender != borrower) _onlyPayer(msg.sender);
         bytes32 creditHash = _getCreditHash(receivableId);
-        if (borrower != _creditBorrowerMap[creditHash]) revert Errors.notBorrower();
+        if (borrower != creditBorrowerMap[creditHash]) revert Errors.notBorrower();
 
         (amountPaid, paidoff, ) = _makePayment(borrower, creditHash, amount);
         if (amount > amountPaid && msg.sender != borrower) {

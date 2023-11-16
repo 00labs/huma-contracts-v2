@@ -73,7 +73,7 @@ contract ReceivableBackedCreditLine is
         // todo check to make sure the amount is below availableCredit
 
         bytes32 creditHash = getCreditHash(borrower);
-        if (borrower != _creditBorrowerMap[creditHash]) revert Errors.notBorrower();
+        if (borrower != creditBorrowerMap[creditHash]) revert Errors.notBorrower();
 
         // todo transfer the receivable to the PoolSafe?
 
