@@ -22,6 +22,7 @@ import {
 import { CreditRecordStructOutput } from "../../typechain-types/contracts/credit/Credit";
 import {
     CONSTANTS,
+    calcYieldDue,
     checkCreditConfig,
     checkCreditRecord,
     checkDueDetailsMatch,
@@ -31,14 +32,12 @@ import {
 } from "../BaseTest";
 import {
     borrowerLevelCreditHash,
+    getDate,
     getDateAfterMonths,
-    getDateOfMonth,
-    getDaysDiff,
     getFutureBlockTime,
     getLatestBlock,
     getMinFirstLossCoverRequirement,
     getStartOfDay,
-    getStartOfNextMonth,
     mineNextBlockWithTimestamp,
     setNextBlockTimestamp,
     toToken,
@@ -91,13 +90,6 @@ function calcProfitRateWithPrincipal(principal: BN, yieldInBps: number): BN {
         .mul(BN.from(yieldInBps))
         .mul(CONSTANTS.DEFAULT_DECIMALS_FACTOR)
         .div(CONSTANTS.BP_FACTOR.mul(CONSTANTS.SECONDS_IN_YEAR));
-}
-
-function calcYield(principal: BN, yieldInBps: number, days: number): BN {
-    return principal
-        .mul(BN.from(yieldInBps))
-        .mul(BN.from(days))
-        .div(BN.from(CONSTANTS.DAYS_IN_A_YEAR).mul(CONSTANTS.BP_FACTOR));
 }
 
 function calcLateFee(configs: BN[], principal: BN): BN {
@@ -713,7 +705,7 @@ describe("CreditLine Test", function () {
             ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
         });
 
-        it("Should not drawdown with invalid parameters", async function () {
+        it("Should not allow drawdown with invalid parameters", async function () {
             await expect(
                 creditContract.connect(borrower).drawdown(borrower2.address, toToken(10_000)),
             ).to.be.revertedWithCustomError(creditContract, "notBorrower");
@@ -731,7 +723,7 @@ describe("CreditLine Test", function () {
             ).to.be.revertedWithCustomError(creditContract, "creditLineExceeded");
         });
 
-        it("Should not drawdown while credit line is in wrong state", async function () {
+        it("Should not allow drawdown while credit line is in wrong state", async function () {
             await creditContract.connect(borrower).closeCredit(borrower.address);
 
             await expect(
@@ -752,7 +744,7 @@ describe("CreditLine Test", function () {
             ).to.be.revertedWithCustomError(creditContract, "insufficientBorrowerFirstLossCover");
         });
 
-        it("Should not borrow after credit approvement expired", async function () {
+        it("Should not borrow after credit approval expired", async function () {
             await poolConfigContract.connect(poolOwner).setCreditApprovalExpiration(1);
             await creditContract
                 .connect(eaServiceAccount)
@@ -842,30 +834,26 @@ describe("CreditLine Test", function () {
             await mineNextBlockWithTimestamp(nextTime);
 
             let startOfDay = getStartOfDay(nextTime);
-            let nextDueDate = getStartOfNextMonth(nextTime);
-            let days = getDaysDiff(startOfDay, nextDueDate);
-            console.log(`nextDueDate: ${nextDueDate}, startOfDay: ${startOfDay}, days: ${days}`);
-            const yieldDue = calcYield(borrowAmount, yieldInBps, days);
-
-            const beforeBalanceForBorrower = await mockTokenContract.balanceOf(borrower.address);
-            const beforeBalanceForPoolSafe = await mockTokenContract.balanceOf(
-                poolSafeContract.address,
+            let nextDueDate = await calendarContract.getStartDateOfNextPeriod(
+                CONSTANTS.PERIOD_DURATION_MONTHLY,
+                nextTime,
             );
+            let days = (await calendarContract.getDaysDiff(startOfDay, nextDueDate)).toNumber();
+            console.log(`nextDueDate: ${nextDueDate}, startOfDay: ${startOfDay}, days: ${days}`);
+            let cc = await creditContract.getCreditConfig(creditHash);
+            const [yieldDue] = calcYieldDue(cc, borrowAmount, BN.from(0), days);
+
+            const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
+            const poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
             await expect(creditContract.connect(borrower).drawdown(borrower.address, borrowAmount))
                 .to.emit(creditContract, "DrawdownMade")
                 .withArgs(borrower.address, borrowAmount, netBorrowAmount)
                 .to.emit(creditContract, "BillRefreshed")
                 .withArgs(creditHash, nextDueDate, yieldDue);
-            const afterBalanceForBorrower = await mockTokenContract.balanceOf(borrower.address);
-            const afterBalanceForPoolSafe = await mockTokenContract.balanceOf(
-                poolSafeContract.address,
-            );
-            expect(afterBalanceForBorrower.sub(beforeBalanceForBorrower)).to.equal(
-                netBorrowAmount,
-            );
-            expect(beforeBalanceForPoolSafe.sub(afterBalanceForPoolSafe)).to.equal(
-                netBorrowAmount,
-            );
+            const borrowerNewBalance = await mockTokenContract.balanceOf(borrower.address);
+            const poolSafeNewBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
+            expect(borrowerNewBalance.sub(borrowerOldBalance)).to.equal(netBorrowAmount);
+            expect(poolSafeOldBalance.sub(poolSafeNewBalance)).to.equal(netBorrowAmount);
 
             const creditRecord = await creditContract.getCreditRecord(creditHash);
             checkCreditRecord(
@@ -876,7 +864,7 @@ describe("CreditLine Test", function () {
                 yieldDue,
                 BN.from(0),
                 0,
-                getDateOfMonth(nextTime) == 1 ? numOfPeriods - 1 : numOfPeriods,
+                getDate(nextTime) == 1 ? numOfPeriods - 1 : numOfPeriods,
                 3,
             );
 

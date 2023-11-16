@@ -34,21 +34,6 @@ export async function mineNextBlockWithTimestamp(nextTS: BN | number) {
     await network.provider.send("evm_mine", []);
 }
 
-export function getStartOfNextMonth(currentDate: number): number {
-    let date = timestampToMoment(currentDate, "YYYY-MM-01");
-    return date.add(1, "months").unix();
-}
-
-export function getDaysDiff(startDate: number, endDate: number): number {
-    let st = timestampToMoment(startDate);
-    let sd = st.date() > 30 ? 30 : st.date();
-    let et = timestampToMoment(endDate);
-    let ed = et.date() > 30 ? 30 : et.date();
-    let monthDiff = et.year() * 12 + et.month() - (st.year() * 12 + st.month());
-
-    return monthDiff * 30 + ed - sd;
-}
-
 export function getNextDate(
     lastDate: number,
     currentDate: number,
@@ -89,7 +74,7 @@ export function getDateAfterMonths(timestamp: number, months: number): number {
     return timestampToMoment(timestamp).add(months, "months").unix();
 }
 
-export function getDateOfMonth(timestamp: number): number {
+export function getDate(timestamp: number): number {
     return timestampToMoment(timestamp).date();
 }
 

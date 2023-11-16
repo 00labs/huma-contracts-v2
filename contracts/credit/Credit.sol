@@ -760,6 +760,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         CreditConfig memory cc = getCreditConfig(creditHash);
         uint256 maturityDate = maturityDates[creditHash];
 
+        // TODO There is something wrong here.
         uint256 periodsPassed = calendar.getNumPeriodsPassed(
             cc.periodDuration,
             block.timestamp,
