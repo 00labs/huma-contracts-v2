@@ -31,8 +31,7 @@ contract CreditLine is BorrowerLevelCreditConfig, ICreditLine {
         uint256 amount
     ) external virtual override returns (uint256 amountPaid, bool paidoff) {
         poolConfig.onlyProtocolAndPoolOn();
-        // TODO: Remove the following condition since we want to allow non-borrowers to make payment
-        // on the behalf of the borrower (mostly intended for invoice issuers).
+        // TODO: do we still need the PDS service account to make payment?
         if (msg.sender != borrower) _onlyPDSServiceAccount();
 
         bytes32 creditHash = getCreditHash(borrower);

@@ -362,7 +362,11 @@ describe("CreditDueManager Tests", function () {
 
                         const [cc, cr, dd] = getInputParams(
                             {},
-                            { nextDueDate: nextBlockTime + 1, missedPeriods: 1 },
+                            {
+                                nextDueDate: nextBlockTime + 1,
+                                missedPeriods: 1,
+                                state: CreditState.Delayed,
+                            },
                         );
                         const maturityDate = nextBlockTime + 5;
                         const [newCR, newDD, isLate] = await creditDueManagerContract.getDueInfo(
@@ -406,7 +410,10 @@ describe("CreditDueManager Tests", function () {
                             .subtract(latePaymentGracePeriodInDays, "days")
                             .add(1, "second")
                             .unix();
-                        const [cc, cr, dd] = getInputParams({}, { nextDueDate: nextDueDate });
+                        const [cc, cr, dd] = getInputParams(
+                            {},
+                            { nextDueDate: nextDueDate, state: CreditState.Delayed },
+                        );
                         const maturityDate = nextBlockTime + 5;
                         const [newCR, newDD, isLate] = await creditDueManagerContract.getDueInfo(
                             cr,
@@ -621,6 +628,9 @@ describe("CreditDueManager Tests", function () {
                                         nextDueDate: lastDueDate.unix(),
                                         state: CreditState.GoodStanding,
                                     },
+                                    {
+                                        lateFeeUpdatedDate: 0,
+                                    },
                                 );
                                 const maturityDate = moment.utc({
                                     year: nextYear,
@@ -730,6 +740,9 @@ describe("CreditDueManager Tests", function () {
                                     {
                                         nextDueDate: lastDueDate.unix(),
                                         state: CreditState.GoodStanding,
+                                    },
+                                    {
+                                        lateFeeUpdatedDate: 0,
                                     },
                                 );
                                 const maturityDate = moment.utc({
@@ -1122,7 +1135,7 @@ describe("CreditDueManager Tests", function () {
                                 {},
                                 {
                                     nextDueDate: lastDueDate.unix(),
-                                    state: CreditState.GoodStanding,
+                                    state: CreditState.Delayed,
                                 },
                             );
                             const maturityDate = moment.utc({

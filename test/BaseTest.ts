@@ -1024,9 +1024,8 @@ export async function calcLateFee(
     dd: DueDetailStruct,
 ) {
     const [, lateFeeInBps] = await poolConfigContract.getFees();
-    const lateFeeStartDate = BN.from(dd.lateFeeUpdatedDate).isZero()
-        ? cr.nextDueDate
-        : dd.lateFeeUpdatedDate;
+    const lateFeeStartDate =
+        cr.state === CreditState.GoodStanding ? cr.nextDueDate : dd.lateFeeUpdatedDate;
     const lateFeeUpdatedDate = await calendarContract.getStartOfTomorrow();
     const principal = getPrincipal(cr);
     const lateFeeDays = await calendarContract.getDaysDiff(lateFeeStartDate, lateFeeUpdatedDate);
