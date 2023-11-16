@@ -92,6 +92,9 @@ const SECONDS_IN_A_DAY = 24 * 60 * 60;
 const SECONDS_IN_YEAR = 60 * 60 * 24 * 365;
 const BORROWER_FIRST_LOSS_COVER_INDEX = 0;
 const AFFILIATE_FIRST_LOSS_COVER_INDEX = 1;
+const PERIOD_DURATION_MONTHLY = 0;
+const PERIOD_DURATION_QUARTERLY = 1;
+const PERIOD_DURATION_SEMI_ANNUALLY = 2;
 
 export const CONSTANTS = {
     DAYS_IN_A_MONTH,
@@ -107,6 +110,9 @@ export const CONSTANTS = {
     SECONDS_IN_YEAR,
     BORROWER_FIRST_LOSS_COVER_INDEX,
     AFFILIATE_FIRST_LOSS_COVER_INDEX,
+    PERIOD_DURATION_MONTHLY,
+    PERIOD_DURATION_QUARTERLY,
+    PERIOD_DURATION_SEMI_ANNUALLY,
 };
 
 export async function deployProtocolContracts(
@@ -920,6 +926,21 @@ export function checkCreditRecord(
     expect(creditRecord.missedPeriods).to.equal(missedPeriods);
     expect(creditRecord.remainingPeriods).to.equal(remainingPeriods);
     expect(creditRecord.state).to.equal(state);
+}
+
+export function genDueDetail(ddOverrides: Partial<DueDetailStruct>): DueDetailStruct {
+    return {
+        ...{
+            lateFeeUpdatedDate: 0,
+            lateFee: 0,
+            yieldPastDue: 0,
+            principalPastDue: 0,
+            committed: 0,
+            accrued: 0,
+            paid: 0,
+        },
+        ...ddOverrides,
+    };
 }
 
 export function checkDueDetailsMatch(actualDD: DueDetailStruct, expectedDD: DueDetailStruct) {

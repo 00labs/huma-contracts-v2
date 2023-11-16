@@ -21,7 +21,7 @@ contract CreditLine is BorrowerLevelCreditConfig, ICreditLine {
         if (borrowAmount == 0) revert Errors.zeroAmountProvided();
 
         bytes32 creditHash = getCreditHash(borrower);
-        if (borrower != _creditBorrowerMap[creditHash]) revert Errors.notBorrower();
+        if (borrower != creditBorrowerMap[creditHash]) revert Errors.notBorrower();
         _drawdown(borrower, creditHash, borrowAmount);
     }
 
@@ -35,7 +35,7 @@ contract CreditLine is BorrowerLevelCreditConfig, ICreditLine {
         if (msg.sender != borrower) _onlyPDSServiceAccount();
 
         bytes32 creditHash = getCreditHash(borrower);
-        if (borrower != _creditBorrowerMap[creditHash]) revert Errors.notBorrower();
+        if (borrower != creditBorrowerMap[creditHash]) revert Errors.notBorrower();
 
         (amountPaid, paidoff, ) = _makePayment(borrower, creditHash, amount);
         return (amountPaid, paidoff);
@@ -52,7 +52,7 @@ contract CreditLine is BorrowerLevelCreditConfig, ICreditLine {
         if (msg.sender != borrower) _onlyPDSServiceAccount();
 
         bytes32 creditHash = getCreditHash(borrower);
-        if (borrower != _creditBorrowerMap[creditHash]) revert Errors.notBorrower();
+        if (borrower != creditBorrowerMap[creditHash]) revert Errors.notBorrower();
 
         (amountPaid, paidoff) = _makePrincipalPayment(borrower, creditHash, amount);
         return (amountPaid, paidoff);

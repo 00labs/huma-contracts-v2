@@ -9,6 +9,8 @@ import {DAYS_IN_A_MONTH, DAYS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS, MONTHS_IN_A_YEA
 import {Errors} from "../../Errors.sol";
 import {PoolConfigCache} from "../../PoolConfigCache.sol";
 
+import "hardhat/console.sol";
+
 contract CreditDueManager is PoolConfigCache, ICreditDueManager {
     ICalendar public calendar;
 
@@ -209,7 +211,14 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         );
         newDD.paid = 0;
 
+        console.log(
+            "daysUntilNextDue: %s, principal: %s, membershipFee: %s",
+            daysUntilNextDue,
+            principal,
+            membershipFee
+        );
         newCR.yieldDue = newDD.committed > newDD.accrued ? newDD.committed : newDD.accrued;
+        console.log("newDD.committed: %s, newDD.accrued: %s", newDD.committed, newDD.accrued);
         // Note that any non-zero existing nextDue should have been moved to pastDue already.
         // Only the newly generated nextDue needs to be recorded.
         newCR.nextDue = uint96(newCR.yieldDue + principalDue);
