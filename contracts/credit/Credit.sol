@@ -370,11 +370,12 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
                 cc.numOfPeriods,
                 block.timestamp
             );
+            uint256 startOfToday = calendar.getStartOfToday();
             uint256 startOfPeriod = calendar.getStartDateOfPeriod(
                 cc.periodDuration,
                 block.timestamp
             );
-            if (block.timestamp != startOfPeriod) {
+            if (startOfToday != startOfPeriod) {
                 // If the first drawdown happens mid-period, then we have two partial periods at both ends.
                 // So add 1 to the number of periods to account for the two partial periods.
                 // We also need to store the updated values since `_updateDueInfo()` needs to access them.
