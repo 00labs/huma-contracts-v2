@@ -922,6 +922,21 @@ export function checkCreditRecord(
     expect(creditRecord.state).to.equal(state);
 }
 
+export function genDueDetail(ddOverrides: Partial<DueDetailStruct>): DueDetailStruct {
+    return {
+        ...{
+            lateFeeUpdatedDate: 0,
+            lateFee: 0,
+            yieldPastDue: 0,
+            principalPastDue: 0,
+            committed: 0,
+            accrued: 0,
+            paid: 0,
+        },
+        ...ddOverrides,
+    };
+}
+
 export function checkDueDetailsMatch(actualDD: DueDetailStruct, expectedDD: DueDetailStruct) {
     expect(actualDD.lateFeeUpdatedDate).to.equal(expectedDD.lateFeeUpdatedDate);
     expect(actualDD.lateFee).to.equal(expectedDD.lateFee);

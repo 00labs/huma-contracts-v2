@@ -37,9 +37,9 @@ contract CreditStorage {
     // We are not putting the maturity date into `CreditConfig` because that would
     // double the size of the `CreditConfig` struct, and the maturity date is only
     // used when calculating the next due date.
-    mapping(bytes32 => uint256) internal _maturityDates;
+    mapping(bytes32 => uint256) public maturityDates;
     // This mapping is used to maintain the relationship between credit and borrower
-    mapping(bytes32 => address) internal _creditBorrowerMap;
+    mapping(bytes32 => address) public creditBorrowerMap;
 
     /**
      * @dev This empty reserved space is put in place to allow future versions to add new
