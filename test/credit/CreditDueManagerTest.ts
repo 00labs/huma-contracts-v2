@@ -267,7 +267,31 @@ describe("CreditDueManager Tests", function () {
     });
 
     describe("getNextBillRefreshDate", function () {
-        // TODO(jiatu): fill this in
+        it("Should return the correct date", async function () {
+            const latePaymentGracePeriodInDays = 5;
+            await poolConfigContract
+                .connect(poolOwner)
+                .setLatePaymentGracePeriodInDays(latePaymentGracePeriodInDays);
+
+            const nextDueDate = moment.utc({
+                year: 2024,
+                month: 1,
+                day: 28,
+            });
+            const creditRecord = {
+                unbilledPrincipal: 0,
+                nextDueDate: nextDueDate.unix(),
+                nextDue: toToken(1_000),
+                yieldDue: 0,
+                totalPastDue: 0,
+                missedPeriods: 0,
+                remainingPeriods: 2,
+                state: CreditState.GoodStanding,
+            };
+            expect(await creditDueManagerContract.getNextBillRefreshDate(creditRecord)).to.equal(
+                nextDueDate.add(latePaymentGracePeriodInDays, "days").unix(),
+            );
+        });
     });
 
     describe("getDueInfo", function () {
