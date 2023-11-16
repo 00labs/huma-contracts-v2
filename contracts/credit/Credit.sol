@@ -16,6 +16,8 @@ import {IERC20, IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {BORROWER_FIRST_LOSS_COVER_INDEX, DAYS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS, SECONDS_IN_A_DAY} from "../SharedDefs.sol";
 
+import "hardhat/console.sol";
+
 /**
  * Credit is the core borrowing concept in Huma Protocol. This abstract contract provides
  * basic operations that applies to all credits in Huma Protocol.
@@ -313,7 +315,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         cr.state = CreditState.Approved;
         _setCreditRecord(creditHash, cr);
 
-        _creditBorrowerMap[creditHash] = borrower;
+        creditBorrowerMap[creditHash] = borrower;
     }
 
     /**
@@ -358,6 +360,8 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         CreditConfig memory cc = getCreditConfig(creditHash);
         _checkDrawdownEligibility(borrower, cr, borrowAmount, cc.creditLimit);
 
+        // TODO refactor this logic to avoid store credit record mulitple times and separate first drawdown logic from updateDueInfo
+
         if (cr.state == CreditState.Approved) {
             // Flow for first drawdown
             // Sets the principal, generates the first bill, sets credit status and records the maturity date.
@@ -370,16 +374,18 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
                 cc.periodDuration,
                 block.timestamp
             );
+            uint256 numOfPeriods = cc.numOfPeriods;
             if (startOfToday != startOfPeriod) {
                 // If the first drawdown happens mid-period, then we have two partial periods at both ends.
                 // So add 1 to the number of periods to account for the two partial periods.
                 // We also need to store the updated values since `_updateDueInfo()` needs to access them.
-                _creditConfigMap[creditHash].numOfPeriods = cc.numOfPeriods + 1;
-                _creditRecordMap[creditHash].remainingPeriods = cr.remainingPeriods + 1;
+                ++numOfPeriods;
+                _creditConfigMap[creditHash].numOfPeriods = uint16(numOfPeriods);
+                _creditRecordMap[creditHash].remainingPeriods = uint16(numOfPeriods);
             }
-            _maturityDates[creditHash] = calendar.getMaturityDate(
+            maturityDates[creditHash] = calendar.getMaturityDate(
                 cc.periodDuration,
-                cc.numOfPeriods,
+                numOfPeriods,
                 block.timestamp
             );
             (cr, ) = _updateDueInfo(creditHash);
@@ -752,18 +758,24 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         // late or dormant for multiple cycles, getDueInfo() will bring it current and
         // return the most up-to-date due information.
         CreditConfig memory cc = getCreditConfig(creditHash);
-        uint256 maturityDate = getMaturityDate(creditHash);
+        uint256 maturityDate = maturityDates[creditHash];
 
+        // TODO There is something wrong here.
         uint256 periodsPassed = calendar.getNumPeriodsPassed(
             cc.periodDuration,
-            cr.nextDueDate,
-            block.timestamp
+            block.timestamp,
+            cr.nextDueDate
         );
         bool late;
         (cr, dd, late) = _feeManager.getDueInfo(cr, cc, dd, maturityDate);
 
         if (periodsPassed > 0) {
             // Adjusts remainingPeriods. Sets remainingPeriods to 0 if the credit line has reached maturity.
+            console.log(
+                "cr.remainingPeriods: %s, periodsPassed: %s",
+                cr.remainingPeriods,
+                periodsPassed
+            );
             cr.remainingPeriods = cr.remainingPeriods > periodsPassed
                 ? uint16(cr.remainingPeriods - periodsPassed)
                 : 0;
@@ -881,11 +893,6 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         return _creditLossMap[creditHash];
     }
 
-    /// Shared accessor to the maturity date for contract size consideration
-    function getMaturityDate(bytes32 creditHash) public view returns (uint256 maturityDate) {
-        return _maturityDates[creditHash];
-    }
-
     function _isOverdue(uint256 dueDate) internal view returns (bool) {}
 
     /// "Modifier" function that limits access to the borrower and eaServiceAccount only
@@ -946,13 +953,13 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         cr.remainingPeriods += uint16(newNumOfPeriods);
         _setCreditRecord(creditHash, cr);
 
-        uint256 oldMaturityDate = _maturityDates[creditHash];
+        uint256 oldMaturityDate = maturityDates[creditHash];
         uint256 newMaturityDate = calendar.getMaturityDate(
             cc.periodDuration,
             newNumOfPeriods,
             oldMaturityDate
         );
-        _maturityDates[creditHash] = newMaturityDate;
+        maturityDates[creditHash] = newMaturityDate;
 
         emit RemainingPeriodsExtended(
             creditHash,
