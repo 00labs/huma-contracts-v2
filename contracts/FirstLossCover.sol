@@ -44,7 +44,7 @@ contract FirstLossCover is
     );
     event AssetsAdded(uint256 assets);
 
-    event YieldPaidout(address indexed account, uint256 yield);
+    event YieldPaidout(address indexed account, uint256 yields);
 
     constructor() {
         // _disableInitializers();
