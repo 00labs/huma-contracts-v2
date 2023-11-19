@@ -42,7 +42,8 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         return (amtToBorrower, platformFees);
     }
 
-    function checkIsLate(CreditRecord memory _cr) public view returns (bool) {
+    function checkIsLate(CreditRecord memory _cr) public view returns (bool isLate) {
+        // TODO(jiatu): should we check cr.state instead? Feels more explicit that way.
         if (_cr.missedPeriods > 0) return true;
 
         PoolSettings memory poolSettings = poolConfig.getPoolSettings();
@@ -79,6 +80,11 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                     calendar.getDaysDiff(lateFeeStartDate, lateFeeUpdatedDate)) /
                 (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR)
         );
+        //        console.log("In refresh late fee");
+        //        console.log("original late fee %d", _dd.lateFee);
+        //        console.log("principal %d, late fee start date %d, late fee updated date %d", _cr.unbilledPrincipal + _cr.nextDue - _cr.yieldDue, lateFeeStartDate, lateFeeUpdatedDate);
+        //        console.log("late fee %d", lateFee);
+        //        console.log("~~~~~~~~~~~~~~~~~~~~~~");
         return (lateFeeUpdatedDate, lateFee);
     }
 
@@ -100,24 +106,22 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         newCR = _deepCopyCreditRecord(_cr);
         newDD = _deepCopyDueDetail(_dd);
 
-        // If the current timestamp still falls within the billing cycle, then all the amount due is up-to-date
+        // If the current timestamp still falls within the late payment grace period, then all the amount due is up-to-date
         // except possibly the late fee. So we only need to update the late fee if it is already late.
-        if (block.timestamp <= _cr.nextDueDate) {
+        if (block.timestamp <= getNextBillRefreshDate(_cr)) {
             if (_cr.missedPeriods == 0) return (_cr, _dd, false);
             else {
+                newCR.totalPastDue -= _dd.lateFee;
                 (newDD.lateFeeUpdatedDate, newDD.lateFee) = refreshLateFee(_cr, _dd);
-                return (_cr, newDD, true);
+                newCR.totalPastDue += newDD.lateFee;
+                return (newCR, newDD, true);
             }
-        }
-        if (block.timestamp <= getNextBillRefreshDate(_cr)) {
-            // If the bill is late but still within the late payment grace period, then don't generate a new bill
-            // so that the user can focus on paying off the past dues first.
-            return (_cr, _dd, false);
         }
 
         // Update the due date.
         newCR.nextDueDate = uint64(calendar.getNextDueDate(_cc.periodDuration, maturityDate));
 
+        // TODO(jiatu): Should we use `cr.state != CreditState.GoodStanding` instead?
         if (_cr.nextDueDate != 0) {
             // If this is not the first drawdown, then the bill must be late at this point.
             // Move all current next due to past due and calculate late fees.
@@ -150,12 +154,16 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                     (HUNDRED_PERCENT_IN_BPS * totalDaysInFullPeriod);
                 newCR.unbilledPrincipal -= uint96(principalDue);
             }
-        } else if (block.timestamp >= maturityDate) {
+        } else if (block.timestamp > maturityDate) {
             // Post-maturity, all days from the last due date to maturity are considered overdue.
             daysOverdue = calendar.getDaysDiff(_cr.nextDueDate, maturityDate);
             // All principal is also past due in this case.
             newDD.principalPastDue += _cr.unbilledPrincipal;
             newCR.unbilledPrincipal = 0;
+            //            console.log("Post maturity");
+            //            console.log("_cr.nextDueDate %d", _cr.nextDueDate);
+            //            console.log("days overdue %d, principal past due %d", daysOverdue, newDD.principalPastDue);
+            //            console.log("********************");
         } else {
             // For intermediate billing periods, calculate `daysOverdue` as the time span between
             // the previous due date and the start date of the current billing cycle.
@@ -191,6 +199,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             }
         }
         // Recalculate both overdue and upcoming yields.
+        // TODO(jiatu): do we need to account for principal past due?
         uint256 principal = _cr.unbilledPrincipal + _cr.nextDue - _cr.yieldDue;
         (, , uint256 membershipFee) = poolConfig.getFees();
         (uint256 accruedPastDue, uint256 committedPastDue) = _getYieldDue(
@@ -211,18 +220,21 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         );
         newDD.paid = 0;
 
-        console.log(
-            "daysUntilNextDue: %s, principal: %s, membershipFee: %s",
-            daysUntilNextDue,
-            principal,
-            membershipFee
-        );
+        //        console.log(
+        //            "daysUntilNextDue: %s, principal: %s, membershipFee: %s",
+        //            daysUntilNextDue,
+        //            principal,
+        //            membershipFee
+        //        );
         newCR.yieldDue = newDD.committed > newDD.accrued ? newDD.committed : newDD.accrued;
-        console.log("newDD.committed: %s, newDD.accrued: %s", newDD.committed, newDD.accrued);
+        //        console.log("newDD.committed: %s, newDD.accrued: %s", newDD.committed, newDD.accrued);
         // Note that any non-zero existing nextDue should have been moved to pastDue already.
         // Only the newly generated nextDue needs to be recorded.
         newCR.nextDue = uint96(newCR.yieldDue + principalDue);
         newCR.totalPastDue = newDD.lateFee + newDD.yieldPastDue + newDD.principalPastDue;
+        //        console.log("yield due %d, principal due %d", newCR.yieldDue, principalDue);
+        //        console.log("yield past due %d, principal past due %d, late fee %d", newDD.yieldPastDue, newDD.principalPastDue, newDD.lateFee);
+        //        console.log("#####################");
 
         return (newCR, newDD, isLate);
     }

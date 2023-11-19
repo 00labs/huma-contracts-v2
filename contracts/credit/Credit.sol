@@ -147,6 +147,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
      * @param by the address that has triggered the process of marking the payment made.
      * In most cases, it is the borrower. In receivable factoring, it is PDSServiceAccount.
      */
+    // TODO(jiatu): do we want to further break down principal paid and yield paid to next due paid and past due paid?
     event PaymentMade(
         address indexed borrower,
         uint256 amount,
@@ -471,76 +472,86 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         }
         DueDetail memory dd;
         (cr, dd) = _updateDueInfo(creditHash);
+        //        console.log("remaining periods in credit.sol %d", cr.remainingPeriods);
 
         uint256 payoffAmount = _feeManager.getPayoffAmount(cr);
         uint256 amountToCollect = amount < payoffAmount ? amount : payoffAmount;
         uint256 principalPaid = 0;
         uint256 yieldPaid = 0;
         uint256 pastDuePaid = 0;
+        //        console.log("total past due prior to payment %d", cr.totalPastDue);
 
         if (amount < payoffAmount) {
             // Apply the payment to past due first.
             if (cr.totalPastDue > 0) {
                 if (amount >= cr.totalPastDue) {
-                    principalPaid = dd.principalPastDue;
-                    pastDuePaid = cr.totalPastDue;
+                    yieldPaid += dd.yieldPastDue;
+                    principalPaid += dd.principalPastDue;
+                    pastDuePaid += cr.totalPastDue;
                     amount -= cr.totalPastDue;
                     dd.lateFee = 0;
                     dd.lateFeeUpdatedDate = 0;
                     dd.yieldPastDue = 0;
                     dd.principalPastDue = 0;
                     cr.totalPastDue = 0;
-                    // TODO(jiatu): is this correct?
-                    //                    cr.missedPeriods = 0;
                 } else {
                     // If the payment is not enough to cover the total amount past due, then
                     // apply the payment to the yield past due, followed by principal past due,
                     // then lastly late fees.
-                    pastDuePaid = amount;
+                    pastDuePaid += amount;
                     if (amount > dd.yieldPastDue) {
+                        yieldPaid += dd.yieldPastDue;
                         amount -= dd.yieldPastDue;
                         dd.yieldPastDue = 0;
                     } else {
+                        yieldPaid += amount;
                         dd.yieldPastDue -= uint96(amount);
+                        amount = 0;
                     }
                     if (amount > dd.principalPastDue) {
                         amount -= dd.principalPastDue;
-                        principalPaid = dd.principalPastDue;
+                        principalPaid += dd.principalPastDue;
                         dd.principalPastDue = 0;
                     } else if (amount > 0) {
-                        principalPaid = amount;
+                        principalPaid += amount;
                         dd.principalPastDue -= uint96(amount);
+                        amount = 0;
                     }
                     // Since `amount < totalPastDue`, the remaining amount must be smaller than
-                    // the late fee.
+                    // the late fee (unless the late fee is 0, in which case the amount must be 0 as well).
                     if (amount > 0) {
                         dd.lateFee -= uint96(amount);
                         amount = 0;
                     }
                     cr.totalPastDue -= uint96(pastDuePaid);
+                    //                    console.log("total past due %d, past due paid %d", cr.totalPastDue, pastDuePaid);
+                    dd.lateFeeUpdatedDate = uint64(calendar.getStartOfToday());
                 }
-                dd.lateFeeUpdatedDate = uint64(calendar.getStartOfToday());
                 _setDueDetail(creditHash, dd);
+                _setCreditRecord(creditHash, cr);
             }
             // Apply the remaining payment amount (if any) to next due.
             if (amount > 0) {
                 // Apply the remaining payment amount (if any) to next due.
                 if (amount < cr.nextDue) {
                     // Apply the payment to yield due first, then principal due.
-                    yieldPaid = amount < cr.yieldDue ? amount : cr.yieldDue;
-                    dd.paid += uint96(yieldPaid);
-                    cr.yieldDue -= uint96(yieldPaid);
-                    principalPaid += amount - yieldPaid;
+                    uint256 yieldNextDuePaid = amount < cr.yieldDue ? amount : cr.yieldDue;
+                    yieldPaid += yieldNextDuePaid;
+                    dd.paid += uint96(yieldNextDuePaid);
+                    cr.yieldDue -= uint96(yieldNextDuePaid);
+                    principalPaid += amount - yieldNextDuePaid;
                     cr.nextDue = uint96(cr.nextDue - amount);
+                    amount = 0;
 
                     _setDueDetail(creditHash, dd);
                     _setCreditRecord(creditHash, cr);
                 } else {
                     // Apply extra payments towards principal, reduce unbilledPrincipal amount.
                     principalPaid += amount - cr.yieldDue;
-                    yieldPaid = cr.yieldDue;
-                    dd.paid = uint96(yieldPaid);
+                    yieldPaid += cr.yieldDue;
+                    dd.paid = uint96(cr.yieldDue);
                     cr.unbilledPrincipal -= uint96(amount - cr.nextDue);
+                    amount -= cr.nextDue;
                     cr.nextDue = 0;
                     cr.yieldDue = 0;
                     cr.missedPeriods = 0;
@@ -553,8 +564,11 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
             }
         } else {
             // Payoff
+            //            console.log("pay off");
             uint256 outstandingPrincipal = cr.unbilledPrincipal + cr.nextDue - cr.yieldDue;
-            principalPaid = outstandingPrincipal + dd.principalPastDue;
+            principalPaid += outstandingPrincipal + dd.principalPastDue;
+            yieldPaid += dd.yieldPastDue + cr.yieldDue;
+            pastDuePaid += dd.yieldPastDue + dd.principalPastDue + dd.lateFee;
 
             // All past due is 0.
             dd.lateFee = 0;
@@ -563,8 +577,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
             dd.principalPastDue = 0;
 
             // All next due is also 0.
-            yieldPaid = payoffAmount - outstandingPrincipal;
-            dd.paid += uint96(yieldPaid);
+            dd.paid += uint96(cr.yieldDue);
             cr.unbilledPrincipal = 0;
             cr.yieldDue = 0;
             cr.nextDue = 0;
@@ -581,21 +594,32 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
             _setCreditRecord(creditHash, cr);
         }
 
-        assert(amountToCollect > 0);
-        // TODO: should we distribute profit here since yield due might have been paid?
-        poolSafe.deposit(msg.sender, amountToCollect);
-        emit PaymentMade(
-            borrower,
-            amountToCollect,
-            cr.nextDueDate,
-            cr.nextDue,
-            cr.totalPastDue,
-            cr.unbilledPrincipal,
-            principalPaid,
-            yieldPaid,
-            pastDuePaid,
-            msg.sender
-        );
+        //        console.log("Within make payment");
+        //        console.log(
+        //            "amountToCollect %d, cr.nextDueDate %d, cr.nextDue %d", amountToCollect, cr.nextDueDate, cr.nextDue
+        //        );
+        //        console.log(
+        //            "cr.totalPastDue %d, cr.unbilledPrincipal %d, principalPaid %d", cr.totalPastDue, cr.unbilledPrincipal, principalPaid
+        //        );
+        //        console.log(
+        //            "yieldPaid %d, pastDuePaid %d", yieldPaid, pastDuePaid
+        //        );
+        if (amountToCollect > 0) {
+            // TODO: should we distribute profit here since yield due might have been paid?
+            poolSafe.deposit(msg.sender, amountToCollect);
+            emit PaymentMade(
+                borrower,
+                amountToCollect,
+                cr.nextDueDate,
+                cr.nextDue,
+                cr.totalPastDue,
+                cr.unbilledPrincipal,
+                principalPaid,
+                yieldPaid,
+                pastDuePaid,
+                msg.sender
+            );
+        }
 
         // amountToCollect == payoffAmount indicates payoff or not. >= is a safe practice
         return (amountToCollect, amountToCollect >= payoffAmount, false);
@@ -810,11 +834,11 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
 
         if (periodsPassed > 0) {
             // Adjusts remainingPeriods. Sets remainingPeriods to 0 if the credit line has reached maturity.
-            console.log(
-                "cr.remainingPeriods: %s, periodsPassed: %s",
-                cr.remainingPeriods,
-                periodsPassed
-            );
+            //            console.log(
+            //                "cr.remainingPeriods: %s, periodsPassed: %s",
+            //                cr.remainingPeriods,
+            //                periodsPassed
+            //            );
             cr.remainingPeriods = cr.remainingPeriods > periodsPassed
                 ? uint16(cr.remainingPeriods - periodsPassed)
                 : 0;
