@@ -847,7 +847,7 @@ describe("CreditLine Test", function () {
                 yieldDue,
                 BN.from(0),
                 0,
-                getDate(nextTime) == 1 ? numOfPeriods - 1 : numOfPeriods,
+                getDate(nextTime) === 1 ? numOfPeriods - 1 : numOfPeriods,
                 3,
             );
 
@@ -1093,7 +1093,7 @@ describe("CreditLine Test", function () {
                 paymentAmount: BN,
                 paymentDate: moment.Moment = makePaymentDate,
             ) {
-                console.log("\n\ncommencing payment making");
+                console.log("commencing payment making");
                 const cc = await creditContract.getCreditConfig(creditHash);
                 const cr = await creditContract.getCreditRecord(creditHash);
                 const dd = await creditContract.getDueDetail(creditHash);
@@ -1142,14 +1142,6 @@ describe("CreditLine Test", function () {
                     latePaymentGracePeriodInDays,
                 );
                 let nextDueBefore = remainingPrincipalNextDue.add(remainingYieldNextDue);
-                console.log(
-                    `yield past due ${remainingYieldPastDue}, principal past due ${remainingPrincipalPastDue}, late fee ${remainingLateFee}`,
-                );
-                console.log(
-                    `yield due ${remainingYieldNextDue}, principal due ${remainingPrincipalNextDue}, unbilled principal ${remainingUnbilledPrincipal}`,
-                );
-                console.log(`maturity date ${maturityDate}`);
-                console.log("-----------------------");
 
                 let principalPaid = BN.from(0),
                     yieldPaid = BN.from(0),
@@ -1168,7 +1160,6 @@ describe("CreditLine Test", function () {
                         remainingLateFee = BN.from(0);
                         remainingPaymentAmount = paymentAmount.sub(remainingPastDue);
                         pastDuePaid = remainingPastDue;
-                        lateFeeUpdatedDate = BN.from(0);
                     } else if (
                         paymentAmount.gte(remainingYieldPastDue.add(remainingPrincipalPastDue))
                     ) {
@@ -1183,7 +1174,6 @@ describe("CreditLine Test", function () {
                         remainingPrincipalPastDue = BN.from(0);
                         pastDuePaid = paymentAmount;
                         remainingPaymentAmount = BN.from(0);
-                        lateFeeUpdatedDate = BN.from(paymentDate.clone().startOf("day").unix());
                     } else if (paymentAmount.gte(remainingYieldPastDue)) {
                         principalPaid = paymentAmount.sub(remainingYieldPastDue);
                         remainingPrincipalPastDue = remainingPrincipalPastDue.sub(principalPaid);
@@ -1191,14 +1181,13 @@ describe("CreditLine Test", function () {
                         remainingYieldPastDue = BN.from(0);
                         pastDuePaid = paymentAmount;
                         remainingPaymentAmount = BN.from(0);
-                        lateFeeUpdatedDate = BN.from(paymentDate.clone().startOf("day").unix());
                     } else {
                         yieldPaid = paymentAmount;
                         remainingYieldPastDue = remainingYieldPastDue.sub(paymentAmount);
                         pastDuePaid = paymentAmount;
                         remainingPaymentAmount = BN.from(0);
-                        lateFeeUpdatedDate = BN.from(paymentDate.clone().startOf("day").unix());
                     }
+                    lateFeeUpdatedDate = BN.from(paymentDate.clone().startOf("day").unix());
                     remainingPastDue = remainingPrincipalPastDue
                         .add(remainingYieldPastDue)
                         .add(remainingLateFee);
@@ -1237,6 +1226,12 @@ describe("CreditLine Test", function () {
                     }
                     nextDueAfter = remainingYieldNextDue.add(remainingPrincipalNextDue);
                 }
+
+                // Clear late fee updated date if the bill is paid off
+                if (remainingPastDue.isZero() && nextDueAfter.isZero()) {
+                    lateFeeUpdatedDate = BN.from(0);
+                }
+
                 let newDueDate;
                 if (
                     paymentDate.isSameOrBefore(
@@ -1254,16 +1249,6 @@ describe("CreditLine Test", function () {
                 }
                 const paymentAmountUsed = paymentAmount.sub(remainingPaymentAmount);
 
-                console.log(
-                    `paymentAmount: ${paymentAmountUsed}\n`,
-                    `newDueDate: ${newDueDate}\n`,
-                    `nextDueAfter: ${nextDueAfter}\n`,
-                    `remainingPastDue: ${remainingPastDue}\n`,
-                    `remainingUnbilledPrincipal: ${remainingUnbilledPrincipal}\n`,
-                    `principalPaid: ${principalPaid}\n`,
-                    `yieldPaid: ${yieldPaid}\n`,
-                    `pastDuePaid: ${pastDuePaid}\n`,
-                );
                 if (paymentAmountUsed.gt(ethers.constants.Zero)) {
                     await expect(
                         creditContract
@@ -1327,13 +1312,6 @@ describe("CreditLine Test", function () {
                         ? 0
                         : cr.missedPeriods + periodsPassed;
                 let creditState;
-                console.log(
-                    `remaining periods ${remainingPeriods}\n`,
-                    `remaining unbilled principal ${remainingUnbilledPrincipal}\n`,
-                    `remaining due after ${nextDueAfter}\n`,
-                    `remaining past due ${remainingPastDue}\n`,
-                    `missed periods ${missedPeriods}`,
-                );
                 if (
                     remainingPeriods === 0 &&
                     remainingUnbilledPrincipal.isZero() &&
@@ -1346,7 +1324,6 @@ describe("CreditLine Test", function () {
                 } else {
                     creditState = CreditState.GoodStanding;
                 }
-                console.log(`credit state ${creditState}`);
                 const expectedNewCR = {
                     unbilledPrincipal: remainingUnbilledPrincipal,
                     nextDueDate: newDueDate,
@@ -3519,7 +3496,7 @@ describe("CreditLine Test", function () {
                             await testMakePayment(paymentAmount);
                         });
 
-                        it.skip("Should allow the borrower to make multiple payments", async function () {
+                        it("Should allow the borrower to make multiple payments", async function () {
                             const cc = await creditContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
@@ -3557,7 +3534,6 @@ describe("CreditLine Test", function () {
 
                             await testMakePayment(yieldPastDue);
 
-                            console.log("second payment");
                             const secondPaymentDate = makePaymentDate
                                 .clone()
                                 .add(1, "day")
@@ -3566,19 +3542,16 @@ describe("CreditLine Test", function () {
                             setNextBlockTimestamp(secondPaymentDate.unix());
                             await testMakePayment(lateFee, secondPaymentDate);
 
-                            console.log("third payment");
                             const thirdPaymentDate = secondPaymentDate
                                 .clone()
                                 .add("39", "seconds");
                             setNextBlockTimestamp(thirdPaymentDate.unix());
                             await testMakePayment(yieldNextDue, thirdPaymentDate);
 
-                            console.log("forth payment");
                             const fourthPaymentDate = thirdPaymentDate.clone().add("11", "hours");
                             setNextBlockTimestamp(fourthPaymentDate.unix());
                             await testMakePayment(principalNextDue, fourthPaymentDate);
 
-                            console.log("fifth payment");
                             const fifthPaymentDate = fourthPaymentDate
                                 .clone()
                                 .add(2, "days")
@@ -3587,7 +3560,6 @@ describe("CreditLine Test", function () {
                             setNextBlockTimestamp(fifthPaymentDate.unix());
                             await testMakePayment(unbilledPrincipal, fifthPaymentDate);
 
-                            console.log("sixth payment");
                             const sixthPaymentDate = fifthPaymentDate.clone().add(46, "seconds");
                             setNextBlockTimestamp(sixthPaymentDate.unix());
                             await testMakePayment(toToken(1), sixthPaymentDate);
@@ -4086,9 +4058,6 @@ describe("CreditLine Test", function () {
                                 membershipFee,
                             );
                             const paymentAmount = yieldPastDue.sub(toToken(1));
-                            console.log(
-                                `yield past due ${yieldPastDue}, payment amount ${paymentAmount}`,
-                            );
                             await testMakePayment(paymentAmount);
                         });
 

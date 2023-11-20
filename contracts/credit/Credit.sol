@@ -472,14 +472,12 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         }
         DueDetail memory dd;
         (cr, dd) = _updateDueInfo(creditHash);
-        //        console.log("remaining periods in credit.sol %d", cr.remainingPeriods);
 
         uint256 payoffAmount = _feeManager.getPayoffAmount(cr);
         uint256 amountToCollect = amount < payoffAmount ? amount : payoffAmount;
         uint256 principalPaid = 0;
         uint256 yieldPaid = 0;
         uint256 pastDuePaid = 0;
-        //        console.log("total past due prior to payment %d", cr.totalPastDue);
 
         if (amount < payoffAmount) {
             // Apply the payment to past due first.
@@ -490,7 +488,6 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
                     pastDuePaid += cr.totalPastDue;
                     amount -= cr.totalPastDue;
                     dd.lateFee = 0;
-                    dd.lateFeeUpdatedDate = 0;
                     dd.yieldPastDue = 0;
                     dd.principalPastDue = 0;
                     cr.totalPastDue = 0;
@@ -524,9 +521,9 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
                         amount = 0;
                     }
                     cr.totalPastDue -= uint96(pastDuePaid);
-                    //                    console.log("total past due %d, past due paid %d", cr.totalPastDue, pastDuePaid);
-                    dd.lateFeeUpdatedDate = uint64(calendar.getStartOfToday());
                 }
+                // TODO(jiatu): is this correct?
+                dd.lateFeeUpdatedDate = uint64(calendar.getStartOfToday());
                 _setDueDetail(creditHash, dd);
                 _setCreditRecord(creditHash, cr);
             }
@@ -555,6 +552,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
                     cr.nextDue = 0;
                     cr.yieldDue = 0;
                     cr.missedPeriods = 0;
+                    dd.lateFeeUpdatedDate = 0;
                     // Moves account to GoodStanding if it was delayed.
                     if (cr.state == CreditState.Delayed) cr.state = CreditState.GoodStanding;
 
@@ -564,7 +562,6 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
             }
         } else {
             // Payoff
-            //            console.log("pay off");
             uint256 outstandingPrincipal = cr.unbilledPrincipal + cr.nextDue - cr.yieldDue;
             principalPaid += outstandingPrincipal + dd.principalPastDue;
             yieldPaid += dd.yieldPastDue + cr.yieldDue;
@@ -594,16 +591,6 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
             _setCreditRecord(creditHash, cr);
         }
 
-        //        console.log("Within make payment");
-        //        console.log(
-        //            "amountToCollect %d, cr.nextDueDate %d, cr.nextDue %d", amountToCollect, cr.nextDueDate, cr.nextDue
-        //        );
-        //        console.log(
-        //            "cr.totalPastDue %d, cr.unbilledPrincipal %d, principalPaid %d", cr.totalPastDue, cr.unbilledPrincipal, principalPaid
-        //        );
-        //        console.log(
-        //            "yieldPaid %d, pastDuePaid %d", yieldPaid, pastDuePaid
-        //        );
         if (amountToCollect > 0) {
             // TODO: should we distribute profit here since yield due might have been paid?
             poolSafe.deposit(msg.sender, amountToCollect);
@@ -834,11 +821,6 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
 
         if (periodsPassed > 0) {
             // Adjusts remainingPeriods. Sets remainingPeriods to 0 if the credit line has reached maturity.
-            //            console.log(
-            //                "cr.remainingPeriods: %s, periodsPassed: %s",
-            //                cr.remainingPeriods,
-            //                periodsPassed
-            //            );
             cr.remainingPeriods = cr.remainingPeriods > periodsPassed
                 ? uint16(cr.remainingPeriods - periodsPassed)
                 : 0;

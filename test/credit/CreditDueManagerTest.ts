@@ -370,7 +370,7 @@ describe("CreditDueManager Tests", function () {
                 });
 
                 describe("If the bill is late", function () {
-                    it("Should return the CreditRecord as is, but a new DueDetail with refreshed late fees", async function () {
+                    it.only("Should return updated CreditRecord and DueDetail with refreshed late fees", async function () {
                         const nextBlockTime = await getFutureBlockTime(2);
                         await setNextBlockTimestamp(nextBlockTime);
 
@@ -405,11 +405,17 @@ describe("CreditDueManager Tests", function () {
                             cr,
                             dd,
                         );
+                        const expectedNewCR = {
+                            ...cr,
+                            ...{
+                                totalPastDue: BN.from(cr.totalPastDue).add(lateFee),
+                            },
+                        };
                         const expectedNewDD = {
                             ...dd,
                             ...{ lateFeeUpdatedDate: lateFeeUpdatedDate, lateFee: lateFee },
                         };
-                        checkCreditRecordsMatch(newCR, cr);
+                        checkCreditRecordsMatch(newCR, expectedNewCR);
                         checkDueDetailsMatch(newDD, expectedNewDD);
                         expect(isLate).to.be.true;
                     });

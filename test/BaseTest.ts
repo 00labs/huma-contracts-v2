@@ -1004,7 +1004,6 @@ export async function calcYieldDueNew(
         latePaymentGracePeriodInDays,
     );
     if (currentDate.isSameOrBefore(latePaymentDeadline)) {
-        // console.log(`Aha! ${dd.yieldPastDue}, ${cr.yieldDue}`);
         return [dd.yieldPastDue, cr.yieldDue];
     }
 
@@ -1021,11 +1020,10 @@ export async function calcYieldDueNew(
             membershipFee,
             daysUntilNextDue.toNumber(),
         );
-        // console.log(`days until next due ${daysUntilNextDue}, accrued yield next due ${accruedYieldNextDue}, committed yield next due ${committedYieldNextDue}`);
         return [BN.from(0), maxBigNumber(accruedYieldNextDue, committedYieldNextDue)];
     }
     let daysOverdue, daysUntilNextDue;
-    if (currentDate.isAfter(maturityDate)) {
+    if (currentDate.isAfter(maturityDate.clone().add(latePaymentGracePeriodInDays, "days"))) {
         daysOverdue = await calendarContract.getDaysDiff(cr.nextDueDate, nextDueDate);
         daysUntilNextDue = BN.from(0);
     } else {
@@ -1051,7 +1049,6 @@ export async function calcYieldDueNew(
     );
     const yieldPastDue = maxBigNumber(accruedYieldPastDue, committedYieldPastDue);
 
-    // console.log(`daysUntilNextDue ${daysUntilNextDue}, principal ${principal}, accruedYieldNextDue ${accruedYieldNextDue}, committedYieldNextDue ${committedYieldNextDue}`)
     const yieldNextDue = maxBigNumber(accruedYieldNextDue, committedYieldNextDue);
     return [yieldPastDue.add(dd.yieldPastDue).add(cr.yieldDue), yieldNextDue];
 }
@@ -1132,10 +1129,7 @@ export async function calcPrincipalDueNew(
         // or within the late payment grace period.
         return [cr.unbilledPrincipal, dd.principalPastDue, cr.nextDue.sub(cr.yieldDue)];
     }
-    if (currentDate.isAfter(maturityDate)) {
-        console.log("%%%%%%%%%%%%%%%%");
-        console.log(currentDate, maturityDate);
-        console.log("%%%%%%%%%%%%%%%%");
+    if (currentDate.isAfter(maturityDate.clone().add(latePaymentGracePeriodInDays, "days"))) {
         // All principal is past due if the current date has passed the maturity date.
         return [BN.from(0), dd.principalPastDue.add(principal), BN.from(0)];
     }
@@ -1230,8 +1224,6 @@ export async function calcLateFeeNew(
         lateFeeStartDate,
         lateFeeUpdatedDate.unix(),
     );
-    // console.log("In late fee calculation")
-    // console.log(`principal ${principal}, lateFeeDays ${lateFeeDays}, late fee start date ${lateFeeStartDate}, late fee updated date ${lateFeeUpdatedDate}, existing late fee ${dd.lateFee}`)
     return [
         BN.from(lateFeeUpdatedDate.unix()),
         BN.from(dd.lateFee).add(

@@ -56,8 +56,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
     function getNextBillRefreshDate(
         CreditRecord memory _cr
     ) public view returns (uint256 refreshDate) {
-        PoolSettings memory poolSettings = poolConfig.getPoolSettings();
-        return _cr.nextDueDate + poolSettings.latePaymentGracePeriodInDays * SECONDS_IN_A_DAY;
+        return _getNextBillRefreshDate(_cr.nextDueDate);
     }
 
     function refreshLateFee(
@@ -80,11 +79,6 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                     calendar.getDaysDiff(lateFeeStartDate, lateFeeUpdatedDate)) /
                 (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR)
         );
-        //        console.log("In refresh late fee");
-        //        console.log("original late fee %d", _dd.lateFee);
-        //        console.log("principal %d, late fee start date %d, late fee updated date %d", _cr.unbilledPrincipal + _cr.nextDue - _cr.yieldDue, lateFeeStartDate, lateFeeUpdatedDate);
-        //        console.log("late fee %d", lateFee);
-        //        console.log("~~~~~~~~~~~~~~~~~~~~~~");
         return (lateFeeUpdatedDate, lateFee);
     }
 
@@ -154,16 +148,12 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                     (HUNDRED_PERCENT_IN_BPS * totalDaysInFullPeriod);
                 newCR.unbilledPrincipal -= uint96(principalDue);
             }
-        } else if (block.timestamp > maturityDate) {
+        } else if (block.timestamp > _getNextBillRefreshDate(maturityDate)) {
             // Post-maturity, all days from the last due date to maturity are considered overdue.
             daysOverdue = calendar.getDaysDiff(_cr.nextDueDate, maturityDate);
             // All principal is also past due in this case.
             newDD.principalPastDue += _cr.unbilledPrincipal;
             newCR.unbilledPrincipal = 0;
-            //            console.log("Post maturity");
-            //            console.log("_cr.nextDueDate %d", _cr.nextDueDate);
-            //            console.log("days overdue %d, principal past due %d", daysOverdue, newDD.principalPastDue);
-            //            console.log("********************");
         } else {
             // For intermediate billing periods, calculate `daysOverdue` as the time span between
             // the previous due date and the start date of the current billing cycle.
@@ -232,9 +222,6 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         // Only the newly generated nextDue needs to be recorded.
         newCR.nextDue = uint96(newCR.yieldDue + principalDue);
         newCR.totalPastDue = newDD.lateFee + newDD.yieldPastDue + newDD.principalPastDue;
-        //        console.log("yield due %d, principal due %d", newCR.yieldDue, principalDue);
-        //        console.log("yield past due %d, principal past due %d, late fee %d", newDD.yieldPastDue, newDD.principalPastDue, newDD.lateFee);
-        //        console.log("#####################");
 
         return (newCR, newDD, isLate);
     }
@@ -292,5 +279,12 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                 membershipFee
         );
         return (accrued, committed);
+    }
+
+    function _getNextBillRefreshDate(
+        uint256 dueDate
+    ) internal view returns (uint256 nextBillRefreshDate) {
+        PoolSettings memory poolSettings = poolConfig.getPoolSettings();
+        return dueDate + poolSettings.latePaymentGracePeriodInDays * SECONDS_IN_A_DAY;
     }
 }
