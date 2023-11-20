@@ -952,9 +952,9 @@ export function checkDueDetailsMatch(actualDD: DueDetailStruct, expectedDD: DueD
     expect(actualDD.lateFee).to.equal(expectedDD.lateFee);
     expect(actualDD.principalPastDue).to.equal(expectedDD.principalPastDue);
     expect(actualDD.yieldPastDue).to.equal(expectedDD.yieldPastDue);
-    // expect(actualDD.committed).to.equal(expectedDD.committed);
-    // expect(actualDD.accrued).to.equal(expectedDD.accrued);
-    // expect(actualDD.paid).to.equal(expectedDD.paid);
+    expect(actualDD.committed).to.equal(expectedDD.committed);
+    expect(actualDD.accrued).to.equal(expectedDD.accrued);
+    expect(actualDD.paid).to.equal(expectedDD.paid);
 }
 
 export function checkCreditLoss(
@@ -998,17 +998,17 @@ export async function calcYieldDueNew(
     maturityDate: moment.Moment,
     latePaymentGracePeriodInDays: number,
     membershipFee: BN,
-): Promise<[BN, BN]> {
+): Promise<[BN, BN, [BN, BN]]> {
     const latePaymentDeadline = getLatePaymentGracePeriodDeadline(
         cr,
         latePaymentGracePeriodInDays,
     );
     if (currentDate.isSameOrBefore(latePaymentDeadline)) {
-        return [dd.yieldPastDue, cr.yieldDue];
+        return [dd.yieldPastDue, cr.yieldDue, [dd.accrued, dd.committed]];
     }
 
     const nextDueDate = await getNextDueDate(calendarContract, cc, currentDate, maturityDate);
-    const principal = getPrincipal(cr);
+    const principal = getPrincipal(cr, dd);
     if (cr.state === CreditState.Approved) {
         const daysUntilNextDue = await calendarContract.getDaysDiff(
             currentDate.unix(),
@@ -1020,10 +1020,14 @@ export async function calcYieldDueNew(
             membershipFee,
             daysUntilNextDue.toNumber(),
         );
-        return [BN.from(0), maxBigNumber(accruedYieldNextDue, committedYieldNextDue)];
+        return [
+            BN.from(0),
+            maxBigNumber(accruedYieldNextDue, committedYieldNextDue),
+            [accruedYieldNextDue, committedYieldNextDue],
+        ];
     }
     let daysOverdue, daysUntilNextDue;
-    if (currentDate.isAfter(maturityDate.clone().add(latePaymentGracePeriodInDays, "days"))) {
+    if (currentDate.isAfter(maturityDate)) {
         daysOverdue = await calendarContract.getDaysDiff(cr.nextDueDate, nextDueDate);
         daysUntilNextDue = BN.from(0);
     } else {
@@ -1035,12 +1039,6 @@ export async function calcYieldDueNew(
         daysUntilNextDue = await calendarContract.getDaysDiff(periodStartDate, nextDueDate);
     }
 
-    const [accruedYieldNextDue, committedYieldNextDue] = calcYieldDue(
-        cc,
-        principal,
-        membershipFee,
-        daysUntilNextDue.toNumber(),
-    );
     const [accruedYieldPastDue, committedYieldPastDue] = calcYieldDue(
         cc,
         principal,
@@ -1048,9 +1046,18 @@ export async function calcYieldDueNew(
         daysOverdue.toNumber(),
     );
     const yieldPastDue = maxBigNumber(accruedYieldPastDue, committedYieldPastDue);
-
+    const [accruedYieldNextDue, committedYieldNextDue] = calcYieldDue(
+        cc,
+        principal,
+        membershipFee,
+        daysUntilNextDue.toNumber(),
+    );
     const yieldNextDue = maxBigNumber(accruedYieldNextDue, committedYieldNextDue);
-    return [yieldPastDue.add(dd.yieldPastDue).add(cr.yieldDue), yieldNextDue];
+    return [
+        yieldPastDue.add(dd.yieldPastDue).add(cr.yieldDue),
+        yieldNextDue,
+        [accruedYieldNextDue, committedYieldNextDue],
+    ];
 }
 
 // Returns three values in the following order:
@@ -1119,7 +1126,7 @@ export async function calcPrincipalDueNew(
     latePaymentGracePeriodInDays: number,
     principalRateInBps: number,
 ): Promise<[BN, BN, BN]> {
-    const principal = getPrincipal(cr);
+    const principal = getPrincipal(cr, dd);
     if (
         currentDate.isSameOrBefore(
             getLatePaymentGracePeriodDeadline(cr, latePaymentGracePeriodInDays),
@@ -1129,9 +1136,9 @@ export async function calcPrincipalDueNew(
         // or within the late payment grace period.
         return [cr.unbilledPrincipal, dd.principalPastDue, cr.nextDue.sub(cr.yieldDue)];
     }
-    if (currentDate.isAfter(maturityDate.clone().add(latePaymentGracePeriodInDays, "days"))) {
+    if (currentDate.isAfter(maturityDate)) {
         // All principal is past due if the current date has passed the maturity date.
-        return [BN.from(0), dd.principalPastDue.add(principal), BN.from(0)];
+        return [BN.from(0), principal, BN.from(0)];
     }
     const totalDaysInFullPeriod = await calendarContract.getTotalDaysInFullPeriod(
         cc.periodDuration,
@@ -1186,7 +1193,7 @@ export async function calcLateFee(
     const lateFeeStartDate =
         cr.state === CreditState.GoodStanding ? cr.nextDueDate : dd.lateFeeUpdatedDate;
     const lateFeeUpdatedDate = await calendarContract.getStartOfTomorrow();
-    const principal = getPrincipal(cr);
+    const principal = getPrincipal(cr, dd);
     const lateFeeDays = await calendarContract.getDaysDiff(lateFeeStartDate, lateFeeUpdatedDate);
     return [
         lateFeeUpdatedDate,
@@ -1208,10 +1215,11 @@ export async function calcLateFeeNew(
     latePaymentGracePeriodInDays: number,
 ): Promise<[BN, BN]> {
     if (
-        currentDate.isBefore(
+        (currentDate.isBefore(
             getLatePaymentGracePeriodDeadline(cr, latePaymentGracePeriodInDays),
         ) &&
-        cr.state === CreditState.GoodStanding
+            cr.state === CreditState.GoodStanding) ||
+        (cr.nextDue.isZero() && cr.totalPastDue.isZero())
     ) {
         return [dd.lateFeeUpdatedDate, dd.lateFee];
     }
@@ -1219,7 +1227,7 @@ export async function calcLateFeeNew(
     const lateFeeStartDate =
         cr.state === CreditState.GoodStanding ? cr.nextDueDate : dd.lateFeeUpdatedDate;
     const lateFeeUpdatedDate = currentDate.clone().add(1, "day").startOf("day");
-    const principal = getPrincipal(cr);
+    const principal = getPrincipal(cr, dd);
     const lateFeeDays = await calendarContract.getDaysDiff(
         lateFeeStartDate,
         lateFeeUpdatedDate.unix(),
@@ -1235,8 +1243,10 @@ export async function calcLateFeeNew(
     ];
 }
 
-export function getPrincipal(cr: CreditRecordStruct): BN {
-    return BN.from(cr.unbilledPrincipal).add(BN.from(cr.nextDue).sub(BN.from(cr.yieldDue)));
+export function getPrincipal(cr: CreditRecordStruct, dd: DueDetailStruct): BN {
+    return BN.from(cr.unbilledPrincipal)
+        .add(BN.from(cr.nextDue).sub(BN.from(cr.yieldDue)))
+        .add(BN.from(dd.principalPastDue));
 }
 
 export async function getNextDueDate(

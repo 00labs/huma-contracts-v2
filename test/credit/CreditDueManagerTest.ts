@@ -370,7 +370,7 @@ describe("CreditDueManager Tests", function () {
                 });
 
                 describe("If the bill is late", function () {
-                    it.only("Should return updated CreditRecord and DueDetail with refreshed late fees", async function () {
+                    it("Should return updated CreditRecord and DueDetail with refreshed late fees", async function () {
                         const nextBlockTime = await getFutureBlockTime(2);
                         await setNextBlockTimestamp(nextBlockTime);
 
@@ -504,7 +504,7 @@ describe("CreditDueManager Tests", function () {
                                 month: 2,
                                 day: 1,
                             });
-                            const principal = getPrincipal(cr);
+                            const principal = getPrincipal(cr, dd);
                             const [accruedYield, committedYield] = calcYieldDue(
                                 cc,
                                 principal,
@@ -582,7 +582,7 @@ describe("CreditDueManager Tests", function () {
                                 month: 2,
                                 day: 1,
                             });
-                            const principal = getPrincipal(cr);
+                            const principal = getPrincipal(cr, dd);
                             const [accruedYield, committedYield] = calcYieldDue(
                                 cc,
                                 principal,
@@ -679,7 +679,7 @@ describe("CreditDueManager Tests", function () {
                                     month: 4,
                                     day: 1,
                                 });
-                                const principal = getPrincipal(cr);
+                                const principal = getPrincipal(cr, dd);
                                 // All yield prior to 4/1 are now past due.
                                 const [accruedYieldPastDue, committedYieldPastDue] = calcYieldDue(
                                     cc,
@@ -792,7 +792,7 @@ describe("CreditDueManager Tests", function () {
                                     month: 4,
                                     day: 1,
                                 });
-                                const principal = getPrincipal(cr);
+                                const principal = getPrincipal(cr, dd);
 
                                 // Calculate yield due.
                                 const [accruedYieldPastDue, committedYieldPastDue] = calcYieldDue(
@@ -931,7 +931,7 @@ describe("CreditDueManager Tests", function () {
                                     month: 4,
                                     day: 1,
                                 });
-                                const principal = getPrincipal(cr);
+                                const principal = getPrincipal(cr, dd);
                                 // All yield prior to 4/1 are now past due.
                                 const [accruedYieldPastDue, committedYieldPastDue] = calcYieldDue(
                                     cc,
@@ -1052,7 +1052,7 @@ describe("CreditDueManager Tests", function () {
                                     month: 4,
                                     day: 1,
                                 });
-                                const principal = getPrincipal(cr);
+                                const principal = getPrincipal(cr, dd);
 
                                 // Calculate yield due.
                                 const [accruedYieldPastDue, committedYieldPastDue] = calcYieldDue(
@@ -1141,7 +1141,7 @@ describe("CreditDueManager Tests", function () {
                             const nextBlockTime = moment.utc({
                                 year: nextYear,
                                 month: 5,
-                                day: 15,
+                                day: 20,
                             });
                             await setNextBlockTimestamp(nextBlockTime.unix());
 
@@ -1180,7 +1180,7 @@ describe("CreditDueManager Tests", function () {
                                     dd,
                                     maturityDate.unix(),
                                 );
-                            const principal = getPrincipal(cr);
+                            const principal = getPrincipal(cr, dd);
 
                             // Calculate yield due.
                             const [accruedYieldPastDue, committedYieldPastDue] = calcYieldDue(

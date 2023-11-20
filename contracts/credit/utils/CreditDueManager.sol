@@ -56,7 +56,8 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
     function getNextBillRefreshDate(
         CreditRecord memory _cr
     ) public view returns (uint256 refreshDate) {
-        return _getNextBillRefreshDate(_cr.nextDueDate);
+        PoolSettings memory poolSettings = poolConfig.getPoolSettings();
+        return _cr.nextDueDate + poolSettings.latePaymentGracePeriodInDays * SECONDS_IN_A_DAY;
     }
 
     function refreshLateFee(
@@ -72,10 +73,11 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             ? _cr.nextDueDate
             : _dd.lateFeeUpdatedDate;
 
+        // TODO(jiatu): gas-golf dd reading
         lateFee = uint96(
             _dd.lateFee +
                 (lateFeeInBps *
-                    (_cr.unbilledPrincipal + _cr.nextDue - _cr.yieldDue) *
+                    (_cr.unbilledPrincipal + _cr.nextDue - _cr.yieldDue + _dd.principalPastDue) *
                     calendar.getDaysDiff(lateFeeStartDate, lateFeeUpdatedDate)) /
                 (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR)
         );
@@ -115,10 +117,9 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         // Update the due date.
         newCR.nextDueDate = uint64(calendar.getNextDueDate(_cc.periodDuration, maturityDate));
 
-        // TODO(jiatu): Should we use `cr.state != CreditState.GoodStanding` instead?
-        if (_cr.nextDueDate != 0) {
-            // If this is not the first drawdown, then the bill must be late at this point.
-            // Move all current next due to past due and calculate late fees.
+        if (_cr.nextDue > 0 || _cr.totalPastDue > 0) {
+            // If this is not the first drawdown, and there is amount due unpaid, then the bill must be late
+            // at this point. Move all current next due to past due and calculate late fees.
             newDD.yieldPastDue += _cr.yieldDue;
             newDD.principalPastDue += _cr.nextDue - _cr.yieldDue;
             (newDD.lateFeeUpdatedDate, newDD.lateFee) = refreshLateFee(_cr, _dd);
@@ -148,7 +149,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                     (HUNDRED_PERCENT_IN_BPS * totalDaysInFullPeriod);
                 newCR.unbilledPrincipal -= uint96(principalDue);
             }
-        } else if (block.timestamp > _getNextBillRefreshDate(maturityDate)) {
+        } else if (block.timestamp > maturityDate) {
             // Post-maturity, all days from the last due date to maturity are considered overdue.
             daysOverdue = calendar.getDaysDiff(_cr.nextDueDate, maturityDate);
             // All principal is also past due in this case.
@@ -189,8 +190,10 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             }
         }
         // Recalculate both overdue and upcoming yields.
-        // TODO(jiatu): do we need to account for principal past due?
-        uint256 principal = _cr.unbilledPrincipal + _cr.nextDue - _cr.yieldDue;
+        uint256 principal = _cr.unbilledPrincipal +
+            _cr.nextDue -
+            _cr.yieldDue +
+            _dd.principalPastDue;
         (, , uint256 membershipFee) = poolConfig.getFees();
         (uint256 accruedPastDue, uint256 committedPastDue) = _getYieldDue(
             _cc,
@@ -279,12 +282,5 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                 membershipFee
         );
         return (accrued, committed);
-    }
-
-    function _getNextBillRefreshDate(
-        uint256 dueDate
-    ) internal view returns (uint256 nextBillRefreshDate) {
-        PoolSettings memory poolSettings = poolConfig.getPoolSettings();
-        return dueDate + poolSettings.latePaymentGracePeriodInDays * SECONDS_IN_A_DAY;
     }
 }

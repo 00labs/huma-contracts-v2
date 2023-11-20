@@ -141,13 +141,15 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
      * @param nextDue the amount due on the next payment of the credit line
      * @param totalPastDue the sum of lateFee + pastDue. See CreditStructs.DueDetail for more info
      * @param unbilledPrincipal the unbilled principal on the credit line after processing the payment
-     * @param principalPaid the amount of this payment applied to principal
-     * @param yieldPaid the amount of this payment applied to yield
-     * @param totalPastDuePaid the payment amount applied to past due
+     * @param principalDuePaid the amount of this payment applied to principal due in the current billing cycle
+     * @param yieldDuePaid the amount of this payment applied to yield due in the current billing cycle
+     * @param unbilledPrincipalPaid the amount of this payment applied to unbilled principal
+     * @param principalPastDuePaid the amount of this payment applied to principal past due
+     * @param yieldPastDuePaid the amount of this payment applied to yield past due
+     * @param lateFeePaid the amount of this payment applied to late fee
      * @param by the address that has triggered the process of marking the payment made.
      * In most cases, it is the borrower. In receivable factoring, it is PDSServiceAccount.
      */
-    // TODO(jiatu): do we want to further break down principal paid and yield paid to next due paid and past due paid?
     event PaymentMade(
         address indexed borrower,
         uint256 amount,
@@ -155,9 +157,12 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         uint256 nextDue,
         uint256 totalPastDue,
         uint256 unbilledPrincipal,
-        uint256 principalPaid,
-        uint256 yieldPaid,
-        uint256 totalPastDuePaid,
+        uint256 principalDuePaid,
+        uint256 yieldDuePaid,
+        uint256 unbilledPrincipalPaid,
+        uint256 principalPastDuePaid,
+        uint256 yieldPastDuePaid,
+        uint256 lateFeePaid,
         address by
     );
     /**
@@ -428,8 +433,8 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
                 // lower, so we need to recompute the yield due to account for the additional yield generated
                 // from the additional principal.
                 // 3. Otherwise, yield due stays as-is.
-                cr.nextDue = cr.nextDue - cr.yieldDue + dd.accrued;
-                cr.yieldDue = dd.accrued;
+                cr.nextDue = cr.nextDue - cr.yieldDue + dd.accrued - dd.paid;
+                cr.yieldDue = dd.accrued - dd.paid;
             }
             // TODO process the case of principalRate > 0 ?
             cr.unbilledPrincipal = uint96(cr.unbilledPrincipal + borrowAmount);
@@ -479,17 +484,20 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
 
         uint256 payoffAmount = _feeManager.getPayoffAmount(cr);
         uint256 amountToCollect = amount < payoffAmount ? amount : payoffAmount;
-        uint256 principalPaid = 0;
-        uint256 yieldPaid = 0;
-        uint256 pastDuePaid = 0;
+        uint256 principalDuePaid;
+        uint256 yieldDuePaid;
+        uint256 unbilledPrincipalPaid;
+        uint256 principalPastDuePaid;
+        uint256 yieldPastDuePaid;
+        uint256 lateFeePaid;
 
         if (amount < payoffAmount) {
             // Apply the payment to past due first.
             if (cr.totalPastDue > 0) {
                 if (amount >= cr.totalPastDue) {
-                    yieldPaid += dd.yieldPastDue;
-                    principalPaid += dd.principalPastDue;
-                    pastDuePaid += cr.totalPastDue;
+                    yieldPastDuePaid = dd.yieldPastDue;
+                    principalPastDuePaid = dd.principalPastDue;
+                    lateFeePaid = dd.lateFee;
                     amount -= cr.totalPastDue;
                     dd.lateFee = 0;
                     dd.yieldPastDue = 0;
@@ -499,22 +507,21 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
                     // If the payment is not enough to cover the total amount past due, then
                     // apply the payment to the yield past due, followed by principal past due,
                     // then lastly late fees.
-                    pastDuePaid += amount;
                     if (amount > dd.yieldPastDue) {
-                        yieldPaid += dd.yieldPastDue;
+                        yieldPastDuePaid = dd.yieldPastDue;
                         amount -= dd.yieldPastDue;
                         dd.yieldPastDue = 0;
                     } else {
-                        yieldPaid += amount;
+                        yieldPastDuePaid = amount;
                         dd.yieldPastDue -= uint96(amount);
                         amount = 0;
                     }
                     if (amount > dd.principalPastDue) {
                         amount -= dd.principalPastDue;
-                        principalPaid += dd.principalPastDue;
+                        principalPastDuePaid = dd.principalPastDue;
                         dd.principalPastDue = 0;
                     } else if (amount > 0) {
-                        principalPaid += amount;
+                        principalPastDuePaid = amount;
                         dd.principalPastDue -= uint96(amount);
                         amount = 0;
                     }
@@ -522,12 +529,13 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
                     // the late fee (unless the late fee is 0, in which case the amount must be 0 as well).
                     if (amount > 0) {
                         dd.lateFee -= uint96(amount);
+                        lateFeePaid = amount;
                         amount = 0;
                     }
-                    cr.totalPastDue -= uint96(pastDuePaid);
+                    cr.totalPastDue -= uint96(
+                        yieldPastDuePaid + principalPastDuePaid + lateFeePaid
+                    );
                 }
-                // TODO(jiatu): is this correct?
-                dd.lateFeeUpdatedDate = uint64(calendar.getStartOfToday());
                 _setDueDetail(creditHash, dd);
                 _setCreditRecord(creditHash, cr);
             }
@@ -536,11 +544,10 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
                 // Apply the remaining payment amount (if any) to next due.
                 if (amount < cr.nextDue) {
                     // Apply the payment to yield due first, then principal due.
-                    uint256 yieldNextDuePaid = amount < cr.yieldDue ? amount : cr.yieldDue;
-                    yieldPaid += yieldNextDuePaid;
-                    dd.paid += uint96(yieldNextDuePaid);
-                    cr.yieldDue -= uint96(yieldNextDuePaid);
-                    principalPaid += amount - yieldNextDuePaid;
+                    yieldDuePaid = amount < cr.yieldDue ? amount : cr.yieldDue;
+                    dd.paid += uint96(yieldDuePaid);
+                    cr.yieldDue -= uint96(yieldDuePaid);
+                    principalDuePaid = amount - yieldDuePaid;
                     cr.nextDue = uint96(cr.nextDue - amount);
                     amount = 0;
 
@@ -548,10 +555,11 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
                     _setCreditRecord(creditHash, cr);
                 } else {
                     // Apply extra payments towards principal, reduce unbilledPrincipal amount.
-                    principalPaid += amount - cr.yieldDue;
-                    yieldPaid += cr.yieldDue;
-                    dd.paid = uint96(cr.yieldDue);
-                    cr.unbilledPrincipal -= uint96(amount - cr.nextDue);
+                    principalDuePaid = cr.nextDue - cr.yieldDue;
+                    yieldDuePaid = cr.yieldDue;
+                    dd.paid += uint96(cr.yieldDue);
+                    unbilledPrincipalPaid = amount - principalDuePaid - yieldDuePaid;
+                    cr.unbilledPrincipal -= uint96(unbilledPrincipalPaid);
                     amount -= cr.nextDue;
                     cr.nextDue = 0;
                     cr.yieldDue = 0;
@@ -566,10 +574,12 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
             }
         } else {
             // Payoff
-            uint256 outstandingPrincipal = cr.unbilledPrincipal + cr.nextDue - cr.yieldDue;
-            principalPaid += outstandingPrincipal + dd.principalPastDue;
-            yieldPaid += dd.yieldPastDue + cr.yieldDue;
-            pastDuePaid += dd.yieldPastDue + dd.principalPastDue + dd.lateFee;
+            principalDuePaid = cr.nextDue - cr.yieldDue;
+            yieldDuePaid = cr.yieldDue;
+            unbilledPrincipalPaid = cr.unbilledPrincipal;
+            principalPastDuePaid = dd.principalPastDue;
+            yieldPastDuePaid = dd.yieldPastDue;
+            lateFeePaid = dd.lateFee;
 
             // All past due is 0.
             dd.lateFee = 0;
@@ -605,9 +615,12 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
                 cr.nextDue,
                 cr.totalPastDue,
                 cr.unbilledPrincipal,
-                principalPaid,
-                yieldPaid,
-                pastDuePaid,
+                principalDuePaid,
+                yieldDuePaid,
+                unbilledPrincipalPaid,
+                principalPastDuePaid,
+                yieldPastDuePaid,
+                lateFeePaid,
                 msg.sender
             );
         }
@@ -857,7 +870,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         (CreditRecord memory cr, DueDetail memory dd) = _updateDueInfo(creditHash);
 
         CreditConfig memory cc = getCreditConfig(creditHash);
-        uint256 principal = cr.unbilledPrincipal + cr.nextDue - cr.yieldDue;
+        uint256 principal = cr.unbilledPrincipal + cr.nextDue - cr.yieldDue + dd.principalPastDue;
         // Note that the new yield rate takes effect the next day. We need to:
         // 1. Deduct the yield that was computed with the previous rate from tomorrow onwards, and
         // 2. Incorporate the yield calculated with the new rate, also beginning tomorrow.
