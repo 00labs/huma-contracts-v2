@@ -1071,6 +1071,7 @@ describe("CreditLine Test", function () {
                     getDate(nextTime) == 1 ? numOfPeriods - 1 : numOfPeriods,
                     3,
                 );
+                const remainingPeriods = creditRecord.remainingPeriods;
                 let dueDetail = await creditContract.getDueDetail(creditHash);
                 checkDueDetailsMatch(dueDetail, genDueDetail({ accrued: yieldDue }));
                 let maturityDate = await creditContract.maturityDates(creditHash);
@@ -1116,7 +1117,7 @@ describe("CreditLine Test", function () {
                     totalYieldDue,
                     BN.from(0),
                     0,
-                    getDate(nextTime) == 1 ? numOfPeriods - 1 : numOfPeriods,
+                    remainingPeriods,
                     3,
                 );
                 dueDetail = await creditContract.getDueDetail(creditHash);
@@ -1413,6 +1414,7 @@ describe("CreditLine Test", function () {
                     getDate(nextTime) == 1 ? numOfPeriods - 1 : numOfPeriods,
                     3,
                 );
+                const remainingPeriods = creditRecord.remainingPeriods;
 
                 let dueDetail = await creditContract.getDueDetail(creditHash);
                 checkDueDetailsMatch(
@@ -1463,7 +1465,7 @@ describe("CreditLine Test", function () {
                     totalYieldDue,
                     BN.from(0),
                     0,
-                    getDate(nextTime) == 1 ? numOfPeriods - 1 : numOfPeriods,
+                    remainingPeriods,
                     3,
                 );
                 dueDetail = await creditContract.getDueDetail(creditHash);
@@ -1524,6 +1526,7 @@ describe("CreditLine Test", function () {
                     getDate(nextTime) == 1 ? numOfPeriods - 1 : numOfPeriods,
                     3,
                 );
+                const remainingPeriods = creditRecord.remainingPeriods;
 
                 let dueDetail = await creditContract.getDueDetail(creditHash);
                 checkDueDetailsMatch(
@@ -1574,7 +1577,7 @@ describe("CreditLine Test", function () {
                     totalYieldDue,
                     BN.from(0),
                     0,
-                    getDate(nextTime) == 1 ? numOfPeriods - 1 : numOfPeriods,
+                    remainingPeriods,
                     3,
                 );
                 dueDetail = await creditContract.getDueDetail(creditHash);
