@@ -400,6 +400,8 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
                 (cr, dd) = _updateDueInfo(creditHash);
                 if (cr.state != CreditState.GoodStanding)
                     revert Errors.creditLineNotInGoodStandingState();
+            } else {
+                dd = getDueDetail(creditHash);
             }
 
             if (
@@ -428,7 +430,9 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
                 cr.nextDue = cr.nextDue - cr.yieldDue + dd.accrued;
                 cr.yieldDue = dd.accrued;
             }
+            // TODO process the case of principalRate > 0 ?
             cr.unbilledPrincipal = uint96(cr.unbilledPrincipal + borrowAmount);
+            _setDueDetail(creditHash, dd);
         }
         _setCreditRecord(creditHash, cr);
 
@@ -760,15 +764,21 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         CreditConfig memory cc = getCreditConfig(creditHash);
         uint256 maturityDate = maturityDates[creditHash];
 
-        // TODO There is something wrong here.
-        uint256 periodsPassed = calendar.getNumPeriodsPassed(
-            cc.periodDuration,
-            block.timestamp,
-            cr.nextDueDate
-        );
+        uint256 periodsPassed;
+        console.log("block.timestamp: %s, cr.nextDueDate: %s", block.timestamp, cr.nextDueDate);
+        if (cr.nextDueDate == 0) {
+            periodsPassed = 1;
+        } else if (block.timestamp > cr.nextDueDate) {
+            periodsPassed = calendar.getNumPeriodsPassed(
+                cc.periodDuration,
+                cr.nextDueDate,
+                block.timestamp
+            );
+        }
+
         bool late;
         (cr, dd, late) = _feeManager.getDueInfo(cr, cc, dd, maturityDate);
-
+        console.log("periodsPassed: %s", periodsPassed);
         if (periodsPassed > 0) {
             // Adjusts remainingPeriods. Sets remainingPeriods to 0 if the credit line has reached maturity.
             console.log(

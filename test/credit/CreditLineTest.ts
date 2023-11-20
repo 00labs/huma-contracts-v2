@@ -38,7 +38,6 @@ import {
     getLatestBlock,
     getMinFirstLossCoverRequirement,
     getStartOfDay,
-    mineNextBlockWithTimestamp,
     setNextBlockTimestamp,
     toToken,
 } from "../TestUtils";
@@ -255,12 +254,14 @@ describe("CreditLine Test", function () {
         await borrowerFirstLossCoverContract
             .connect(borrower)
             .depositCover(
-                await getMinFirstLossCoverRequirement(
-                    borrowerFirstLossCoverContract,
-                    poolConfigContract,
-                    poolContract,
-                    borrower.address,
-                ),
+                (
+                    await getMinFirstLossCoverRequirement(
+                        borrowerFirstLossCoverContract,
+                        poolConfigContract,
+                        poolContract,
+                        borrower.address,
+                    )
+                ).mul(2),
             );
 
         await borrowerFirstLossCoverContract
@@ -275,12 +276,14 @@ describe("CreditLine Test", function () {
         await borrowerFirstLossCoverContract
             .connect(borrower2)
             .depositCover(
-                await getMinFirstLossCoverRequirement(
-                    borrowerFirstLossCoverContract,
-                    poolConfigContract,
-                    poolContract,
-                    borrower2.address,
-                ),
+                (
+                    await getMinFirstLossCoverRequirement(
+                        borrowerFirstLossCoverContract,
+                        poolConfigContract,
+                        poolContract,
+                        borrower2.address,
+                    )
+                ).mul(2),
             );
     }
 
@@ -675,329 +678,916 @@ describe("CreditLine Test", function () {
         let yieldInBps = 1217;
         let numOfPeriods = 5;
 
-        async function prepareForDrawdown() {
-            await creditContract
-                .connect(eaServiceAccount)
-                .approveBorrower(
-                    borrower.address,
-                    toToken(100_000),
-                    numOfPeriods,
-                    yieldInBps,
-                    toToken(0),
-                    true,
-                );
-        }
+        describe("Without committed", function () {
+            async function prepareForDrawdown() {
+                await creditContract
+                    .connect(eaServiceAccount)
+                    .approveBorrower(
+                        borrower.address,
+                        toToken(100_000),
+                        numOfPeriods,
+                        yieldInBps,
+                        toToken(0),
+                        true,
+                    );
+            }
 
-        beforeEach(async function () {
-            await loadFixture(prepareForDrawdown);
-        });
-
-        it("Should not approve while protocol is paused or pool is not on", async function () {
-            await humaConfigContract.connect(protocolOwner).pause();
-            await expect(
-                creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
-            ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
-            await humaConfigContract.connect(protocolOwner).unpause();
-
-            await poolContract.connect(poolOwner).disablePool();
-            await expect(
-                creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
-            ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
-        });
-
-        it("Should not allow drawdown with invalid parameters", async function () {
-            await expect(
-                creditContract.connect(borrower).drawdown(borrower2.address, toToken(10_000)),
-            ).to.be.revertedWithCustomError(creditContract, "notBorrower");
-
-            await expect(
-                creditContract.connect(borrower2).drawdown(borrower2.address, toToken(10_000)),
-            ).to.be.revertedWithCustomError(creditContract, "notBorrower");
-
-            await expect(
-                creditContract.connect(borrower).drawdown(borrower.address, toToken(0)),
-            ).to.be.revertedWithCustomError(creditContract, "zeroAmountProvided");
-
-            await expect(
-                creditContract.connect(borrower).drawdown(borrower.address, toToken(100_001)),
-            ).to.be.revertedWithCustomError(creditContract, "creditLineExceeded");
-        });
-
-        it("Should not allow drawdown while credit line is in wrong state", async function () {
-            await creditContract.connect(borrower).closeCredit(borrower.address);
-
-            await expect(
-                creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
-            ).to.be.revertedWithCustomError(creditContract, "creditNotInStateForDrawdown");
-        });
-
-        it("Should not borrow while borrowers don't meet first loss cover requirement", async function () {
-            await borrowerFirstLossCoverContract
-                .connect(poolOwner)
-                .setCoverProvider(borrower.address, {
-                    poolCapCoverageInBps: 5,
-                    poolValueCoverageInBps: 500,
-                });
-
-            await expect(
-                creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
-            ).to.be.revertedWithCustomError(creditContract, "insufficientBorrowerFirstLossCover");
-        });
-
-        it("Should not borrow after credit approval expired", async function () {
-            await poolConfigContract.connect(poolOwner).setCreditApprovalExpiration(1);
-            await creditContract
-                .connect(eaServiceAccount)
-                .approveBorrower(borrower.address, toToken(100_000), 1, 1217, toToken(0), true);
-            const creditHash = ethers.utils.keccak256(
-                ethers.utils.defaultAbiCoder.encode(
-                    ["address", "address"],
-                    [creditContract.address, borrower.address],
-                ),
-            );
-            let cr = await creditContract.getCreditRecord(creditHash);
-            await setNextBlockTimestamp(cr.nextDueDate.toNumber() + 100);
-
-            await expect(
-                creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
-            ).to.be.revertedWithCustomError(
-                creditContract,
-                "creditExpiredDueToFirstDrawdownTooLate",
-            );
-        });
-
-        it("Should not borrow again while revolving is false", async function () {
-            await creditContract
-                .connect(eaServiceAccount)
-                .approveBorrower(borrower.address, toToken(100_000), 1, 1217, toToken(0), false);
-            await creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000));
-
-            await expect(
-                creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
-            ).to.be.revertedWithCustomError(
-                creditContract,
-                "attemptedDrawdownForNonrevolvingLine",
-            );
-        });
-
-        it.skip("Should not borrow again while current credit is late", async function () {
-            await creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000));
-            const creditHash = ethers.utils.keccak256(
-                ethers.utils.defaultAbiCoder.encode(
-                    ["address", "address"],
-                    [creditContract.address, borrower.address],
-                ),
-            );
-            let cr = await creditContract.getCreditRecord(creditHash);
-            await setNextBlockTimestamp(cr.nextDueDate.toNumber() + 100);
-
-            await creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000));
-            // await expect(
-            //     creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
-            // ).to.be.revertedWithCustomError(creditContract, "creditLineNotInGoodStandingState");
-        });
-
-        it("Should not borrow again while credit limit is exceeded after updateDueInfo", async function () {
-            await creditContract
-                .connect(eaServiceAccount)
-                .approveBorrower(borrower.address, toToken(10_000), 5, 1217, toToken(0), true);
-            await creditContract.connect(borrower).drawdown(borrower.address, toToken(9_000));
-
-            await expect(
-                creditContract.connect(borrower).drawdown(borrower.address, toToken(1_001)),
-            ).to.be.revertedWithCustomError(creditContract, "creditLineExceeded");
-        });
-
-        it("Should not borrow while borrow amount is less than front loading fees after updateDueInfo", async function () {});
-
-        it("Should allow the borrower to borrow for the first time successfully", async function () {
-            const frontLoadingFeeFlat = toToken(100);
-            const frontLoadingFeeBps = BN.from(100);
-            await poolConfigContract.connect(poolOwner).setFrontLoadingFees({
-                frontLoadingFeeFlat: frontLoadingFeeFlat,
-                frontLoadingFeeBps: frontLoadingFeeBps,
+            beforeEach(async function () {
+                await loadFixture(prepareForDrawdown);
             });
 
-            const creditHash = ethers.utils.keccak256(
-                ethers.utils.defaultAbiCoder.encode(
-                    ["address", "address"],
-                    [creditContract.address, borrower.address],
-                ),
-            );
+            it("Should not approve while protocol is paused or pool is not on", async function () {
+                await humaConfigContract.connect(protocolOwner).pause();
+                await expect(
+                    creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
+                ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+                await humaConfigContract.connect(protocolOwner).unpause();
 
-            const borrowAmount = toToken(50_000);
-            const netBorrowAmount = borrowAmount
-                .mul(CONSTANTS.BP_FACTOR.sub(frontLoadingFeeBps))
-                .div(CONSTANTS.BP_FACTOR)
-                .sub(frontLoadingFeeFlat);
-            let nextTime = await getFutureBlockTime(3);
-            await mineNextBlockWithTimestamp(nextTime);
+                await poolContract.connect(poolOwner).disablePool();
+                await expect(
+                    creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
+                ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+            });
 
-            let startOfDay = getStartOfDay(nextTime);
-            let nextDueDate = await calendarContract.getStartDateOfNextPeriod(
-                CONSTANTS.PERIOD_DURATION_MONTHLY,
-                nextTime,
-            );
-            let days = (await calendarContract.getDaysDiff(startOfDay, nextDueDate)).toNumber();
-            console.log(`nextDueDate: ${nextDueDate}, startOfDay: ${startOfDay}, days: ${days}`);
-            let cc = await creditContract.getCreditConfig(creditHash);
-            const [yieldDue] = calcYieldDue(cc, borrowAmount, BN.from(0), days);
+            it("Should not allow drawdown with invalid parameters", async function () {
+                await expect(
+                    creditContract.connect(borrower).drawdown(borrower2.address, toToken(10_000)),
+                ).to.be.revertedWithCustomError(creditContract, "notBorrower");
 
-            const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
-            const poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
-            await expect(creditContract.connect(borrower).drawdown(borrower.address, borrowAmount))
-                .to.emit(creditContract, "DrawdownMade")
-                .withArgs(borrower.address, borrowAmount, netBorrowAmount)
-                .to.emit(creditContract, "BillRefreshed")
-                .withArgs(creditHash, nextDueDate, yieldDue);
-            const borrowerNewBalance = await mockTokenContract.balanceOf(borrower.address);
-            const poolSafeNewBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
-            expect(borrowerNewBalance.sub(borrowerOldBalance)).to.equal(netBorrowAmount);
-            expect(poolSafeOldBalance.sub(poolSafeNewBalance)).to.equal(netBorrowAmount);
+                await expect(
+                    creditContract.connect(borrower2).drawdown(borrower2.address, toToken(10_000)),
+                ).to.be.revertedWithCustomError(creditContract, "notBorrower");
 
-            const creditRecord = await creditContract.getCreditRecord(creditHash);
-            checkCreditRecord(
-                creditRecord,
-                borrowAmount,
-                nextDueDate,
-                yieldDue,
-                yieldDue,
-                BN.from(0),
-                0,
-                getDate(nextTime) == 1 ? numOfPeriods - 1 : numOfPeriods,
-                3,
-            );
+                await expect(
+                    creditContract.connect(borrower).drawdown(borrower.address, toToken(0)),
+                ).to.be.revertedWithCustomError(creditContract, "zeroAmountProvided");
 
-            const dueDetail = await creditContract.getDueDetail(creditHash);
-            checkDueDetailsMatch(dueDetail, genDueDetail({ accrued: yieldDue }));
+                await expect(
+                    creditContract.connect(borrower).drawdown(borrower.address, toToken(100_001)),
+                ).to.be.revertedWithCustomError(creditContract, "creditLineExceeded");
+            });
 
-            expect(await creditContract.maturityDates(creditHash)).to.equal(
-                getDateAfterMonths(startOfDay, numOfPeriods),
-            );
+            it("Should not allow drawdown while credit line is in wrong state", async function () {
+                await creditContract.connect(borrower).closeCredit(borrower.address);
+
+                await expect(
+                    creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
+                ).to.be.revertedWithCustomError(creditContract, "creditNotInStateForDrawdown");
+            });
+
+            it("Should not borrow while borrowers don't meet first loss cover requirement", async function () {
+                await borrowerFirstLossCoverContract
+                    .connect(poolOwner)
+                    .setCoverProvider(borrower.address, {
+                        poolCapCoverageInBps: 5,
+                        poolValueCoverageInBps: 500,
+                    });
+
+                await expect(
+                    creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
+                ).to.be.revertedWithCustomError(
+                    creditContract,
+                    "insufficientBorrowerFirstLossCover",
+                );
+            });
+
+            it("Should not borrow after credit approval expired", async function () {
+                await poolConfigContract.connect(poolOwner).setCreditApprovalExpiration(1);
+                await creditContract
+                    .connect(eaServiceAccount)
+                    .approveBorrower(
+                        borrower.address,
+                        toToken(100_000),
+                        1,
+                        1217,
+                        toToken(0),
+                        true,
+                    );
+                const creditHash = ethers.utils.keccak256(
+                    ethers.utils.defaultAbiCoder.encode(
+                        ["address", "address"],
+                        [creditContract.address, borrower.address],
+                    ),
+                );
+                let cr = await creditContract.getCreditRecord(creditHash);
+                await setNextBlockTimestamp(cr.nextDueDate.toNumber() + 100);
+
+                await expect(
+                    creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
+                ).to.be.revertedWithCustomError(
+                    creditContract,
+                    "creditExpiredDueToFirstDrawdownTooLate",
+                );
+            });
+
+            it("Should not borrow again while revolving is false", async function () {
+                await creditContract
+                    .connect(eaServiceAccount)
+                    .approveBorrower(
+                        borrower.address,
+                        toToken(100_000),
+                        1,
+                        1217,
+                        toToken(0),
+                        false,
+                    );
+                await creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000));
+
+                await expect(
+                    creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
+                ).to.be.revertedWithCustomError(
+                    creditContract,
+                    "attemptedDrawdownForNonrevolvingLine",
+                );
+            });
+
+            it.skip("Should not borrow again while current credit is late", async function () {
+                await creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000));
+                const creditHash = ethers.utils.keccak256(
+                    ethers.utils.defaultAbiCoder.encode(
+                        ["address", "address"],
+                        [creditContract.address, borrower.address],
+                    ),
+                );
+                let cr = await creditContract.getCreditRecord(creditHash);
+                await setNextBlockTimestamp(cr.nextDueDate.toNumber() + 100);
+
+                await creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000));
+                // await expect(
+                //     creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
+                // ).to.be.revertedWithCustomError(creditContract, "creditLineNotInGoodStandingState");
+            });
+
+            it("Should not borrow again while credit limit is exceeded after updateDueInfo", async function () {
+                await creditContract
+                    .connect(eaServiceAccount)
+                    .approveBorrower(borrower.address, toToken(10_000), 5, 1217, toToken(0), true);
+                await creditContract.connect(borrower).drawdown(borrower.address, toToken(9_000));
+
+                await expect(
+                    creditContract.connect(borrower).drawdown(borrower.address, toToken(1_001)),
+                ).to.be.revertedWithCustomError(creditContract, "creditLineExceeded");
+            });
+
+            it("Should not borrow while borrow amount is less than front loading fees after updateDueInfo", async function () {
+                const frontLoadingFeeFlat = toToken(1000);
+                const frontLoadingFeeBps = BN.from(0);
+                await poolConfigContract.connect(poolOwner).setFrontLoadingFees({
+                    frontLoadingFeeFlat: frontLoadingFeeFlat,
+                    frontLoadingFeeBps: frontLoadingFeeBps,
+                });
+
+                await expect(
+                    creditContract.connect(borrower).drawdown(borrower.address, toToken(999)),
+                ).to.be.revertedWithCustomError(
+                    creditDueManagerContract,
+                    "borrowingAmountLessThanPlatformFees",
+                );
+            });
+
+            it("Should allow the borrower to borrow for the first time", async function () {
+                const frontLoadingFeeFlat = toToken(100);
+                const frontLoadingFeeBps = BN.from(100);
+                await poolConfigContract.connect(poolOwner).setFrontLoadingFees({
+                    frontLoadingFeeFlat: frontLoadingFeeFlat,
+                    frontLoadingFeeBps: frontLoadingFeeBps,
+                });
+
+                const creditHash = ethers.utils.keccak256(
+                    ethers.utils.defaultAbiCoder.encode(
+                        ["address", "address"],
+                        [creditContract.address, borrower.address],
+                    ),
+                );
+
+                const borrowAmount = toToken(50_000);
+                const netBorrowAmount = borrowAmount
+                    .mul(CONSTANTS.BP_FACTOR.sub(frontLoadingFeeBps))
+                    .div(CONSTANTS.BP_FACTOR)
+                    .sub(frontLoadingFeeFlat);
+                let nextTime = await getFutureBlockTime(3);
+                await setNextBlockTimestamp(nextTime);
+
+                let startOfDay = getStartOfDay(nextTime);
+                let nextDueDate = await calendarContract.getStartDateOfNextPeriod(
+                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    nextTime,
+                );
+                let days = (
+                    await calendarContract.getDaysDiff(startOfDay, nextDueDate)
+                ).toNumber();
+                let cc = await creditContract.getCreditConfig(creditHash);
+                const [yieldDue] = calcYieldDue(cc, borrowAmount, BN.from(0), days);
+
+                const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
+                const poolSafeOldBalance = await mockTokenContract.balanceOf(
+                    poolSafeContract.address,
+                );
+                await expect(
+                    creditContract.connect(borrower).drawdown(borrower.address, borrowAmount),
+                )
+                    .to.emit(creditContract, "DrawdownMade")
+                    .withArgs(borrower.address, borrowAmount, netBorrowAmount)
+                    .to.emit(creditContract, "BillRefreshed")
+                    .withArgs(creditHash, nextDueDate, yieldDue);
+                const borrowerNewBalance = await mockTokenContract.balanceOf(borrower.address);
+                const poolSafeNewBalance = await mockTokenContract.balanceOf(
+                    poolSafeContract.address,
+                );
+                expect(borrowerNewBalance.sub(borrowerOldBalance)).to.equal(netBorrowAmount);
+                expect(poolSafeOldBalance.sub(poolSafeNewBalance)).to.equal(netBorrowAmount);
+
+                const creditRecord = await creditContract.getCreditRecord(creditHash);
+                checkCreditRecord(
+                    creditRecord,
+                    borrowAmount,
+                    nextDueDate,
+                    yieldDue,
+                    yieldDue,
+                    BN.from(0),
+                    0,
+                    getDate(nextTime) == 1 ? numOfPeriods - 1 : numOfPeriods,
+                    3,
+                );
+
+                const dueDetail = await creditContract.getDueDetail(creditHash);
+                checkDueDetailsMatch(dueDetail, genDueDetail({ accrued: yieldDue }));
+
+                expect(await creditContract.maturityDates(creditHash)).to.equal(
+                    getDateAfterMonths(startOfDay, numOfPeriods),
+                );
+            });
+
+            it("Should allow the borrower to borrow for the first time while princiipalRate > 0", async function () {
+                const frontLoadingFeeFlat = toToken(100);
+                const frontLoadingFeeBps = BN.from(100);
+                await poolConfigContract.connect(poolOwner).setFrontLoadingFees({
+                    frontLoadingFeeFlat: frontLoadingFeeFlat,
+                    frontLoadingFeeBps: frontLoadingFeeBps,
+                });
+
+                const principalRateInBps = BN.from(100);
+                await poolConfigContract.connect(poolOwner).setFeeStructure({
+                    yieldInBps: 0,
+                    minPrincipalRateInBps: principalRateInBps,
+                    lateFeeFlat: 0,
+                    lateFeeBps: 0,
+                    membershipFee: 0,
+                });
+
+                const creditHash = ethers.utils.keccak256(
+                    ethers.utils.defaultAbiCoder.encode(
+                        ["address", "address"],
+                        [creditContract.address, borrower.address],
+                    ),
+                );
+
+                const borrowAmount = toToken(50_000);
+                const netBorrowAmount = borrowAmount
+                    .mul(CONSTANTS.BP_FACTOR.sub(frontLoadingFeeBps))
+                    .div(CONSTANTS.BP_FACTOR)
+                    .sub(frontLoadingFeeFlat);
+                let nextTime = await getFutureBlockTime(3);
+                await setNextBlockTimestamp(nextTime);
+
+                let startOfDay = getStartOfDay(nextTime);
+                let nextDueDate = await calendarContract.getStartDateOfNextPeriod(
+                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    nextTime,
+                );
+                let days = (
+                    await calendarContract.getDaysDiff(startOfDay, nextDueDate)
+                ).toNumber();
+                let cc = await creditContract.getCreditConfig(creditHash);
+                const [yieldDue] = calcYieldDue(cc, borrowAmount, BN.from(0), days);
+                const principalDue = borrowAmount
+                    .mul(principalRateInBps)
+                    .mul(days)
+                    .div(CONSTANTS.BP_FACTOR.mul(30));
+                const totalDue = yieldDue.add(principalDue);
+
+                const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
+                const poolSafeOldBalance = await mockTokenContract.balanceOf(
+                    poolSafeContract.address,
+                );
+                await expect(
+                    creditContract.connect(borrower).drawdown(borrower.address, borrowAmount),
+                )
+                    .to.emit(creditContract, "DrawdownMade")
+                    .withArgs(borrower.address, borrowAmount, netBorrowAmount)
+                    .to.emit(creditContract, "BillRefreshed")
+                    .withArgs(creditHash, nextDueDate, totalDue);
+                const borrowerNewBalance = await mockTokenContract.balanceOf(borrower.address);
+                const poolSafeNewBalance = await mockTokenContract.balanceOf(
+                    poolSafeContract.address,
+                );
+                expect(borrowerNewBalance.sub(borrowerOldBalance)).to.equal(netBorrowAmount);
+                expect(poolSafeOldBalance.sub(poolSafeNewBalance)).to.equal(netBorrowAmount);
+
+                const creditRecord = await creditContract.getCreditRecord(creditHash);
+                checkCreditRecord(
+                    creditRecord,
+                    borrowAmount.sub(principalDue),
+                    nextDueDate,
+                    totalDue,
+                    yieldDue,
+                    BN.from(0),
+                    0,
+                    getDate(nextTime) == 1 ? numOfPeriods - 1 : numOfPeriods,
+                    3,
+                );
+
+                const dueDetail = await creditContract.getDueDetail(creditHash);
+                checkDueDetailsMatch(dueDetail, genDueDetail({ accrued: yieldDue }));
+
+                expect(await creditContract.maturityDates(creditHash)).to.equal(
+                    getDateAfterMonths(startOfDay, numOfPeriods),
+                );
+            });
+
+            it("Should allow the borrower to borrow again in the same period", async function () {
+                const frontLoadingFeeFlat = toToken(100);
+                const frontLoadingFeeBps = BN.from(100);
+                await poolConfigContract.connect(poolOwner).setFrontLoadingFees({
+                    frontLoadingFeeFlat: frontLoadingFeeFlat,
+                    frontLoadingFeeBps: frontLoadingFeeBps,
+                });
+
+                const creditHash = ethers.utils.keccak256(
+                    ethers.utils.defaultAbiCoder.encode(
+                        ["address", "address"],
+                        [creditContract.address, borrower.address],
+                    ),
+                );
+
+                let borrowAmount = toToken(30_000);
+                let totalBorrowAmount = borrowAmount;
+                let netBorrowAmount = borrowAmount
+                    .mul(CONSTANTS.BP_FACTOR.sub(frontLoadingFeeBps))
+                    .div(CONSTANTS.BP_FACTOR)
+                    .sub(frontLoadingFeeFlat);
+                let nextTime = await getFutureBlockTime(3);
+                await setNextBlockTimestamp(nextTime);
+
+                let startOfDay = getStartOfDay(nextTime);
+                let nextDueDate = await calendarContract.getStartDateOfNextPeriod(
+                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    nextTime,
+                );
+                let days = (
+                    await calendarContract.getDaysDiff(startOfDay, nextDueDate)
+                ).toNumber();
+                let cc = await creditContract.getCreditConfig(creditHash);
+                let [yieldDue] = calcYieldDue(cc, borrowAmount, BN.from(0), days);
+                let totalYieldDue = yieldDue;
+
+                let borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
+                let poolSafeOldBalance = await mockTokenContract.balanceOf(
+                    poolSafeContract.address,
+                );
+                await expect(
+                    creditContract.connect(borrower).drawdown(borrower.address, borrowAmount),
+                )
+                    .to.emit(creditContract, "DrawdownMade")
+                    .withArgs(borrower.address, borrowAmount, netBorrowAmount)
+                    .to.emit(creditContract, "BillRefreshed")
+                    .withArgs(creditHash, nextDueDate, yieldDue);
+                let borrowerNewBalance = await mockTokenContract.balanceOf(borrower.address);
+                let poolSafeNewBalance = await mockTokenContract.balanceOf(
+                    poolSafeContract.address,
+                );
+                expect(borrowerNewBalance.sub(borrowerOldBalance)).to.equal(netBorrowAmount);
+                expect(poolSafeOldBalance.sub(poolSafeNewBalance)).to.equal(netBorrowAmount);
+
+                let creditRecord = await creditContract.getCreditRecord(creditHash);
+                checkCreditRecord(
+                    creditRecord,
+                    borrowAmount,
+                    nextDueDate,
+                    yieldDue,
+                    yieldDue,
+                    BN.from(0),
+                    0,
+                    getDate(nextTime) == 1 ? numOfPeriods - 1 : numOfPeriods,
+                    3,
+                );
+                const remainingPeriods = creditRecord.remainingPeriods;
+                let dueDetail = await creditContract.getDueDetail(creditHash);
+                checkDueDetailsMatch(dueDetail, genDueDetail({ accrued: yieldDue }));
+                let maturityDate = await creditContract.maturityDates(creditHash);
+                expect(maturityDate).to.equal(getDateAfterMonths(startOfDay, numOfPeriods));
+
+                // move forward to the middle of the remaining time of the period
+                nextTime = nextTime + Math.floor((nextDueDate.toNumber() - nextTime) / 2);
+                await setNextBlockTimestamp(nextTime);
+
+                borrowAmount = toToken(10_000);
+                totalBorrowAmount = totalBorrowAmount.add(borrowAmount);
+                netBorrowAmount = borrowAmount
+                    .mul(CONSTANTS.BP_FACTOR.sub(frontLoadingFeeBps))
+                    .div(CONSTANTS.BP_FACTOR)
+                    .sub(frontLoadingFeeFlat);
+
+                startOfDay = getStartOfDay(nextTime);
+                days = (await calendarContract.getDaysDiff(startOfDay, nextDueDate)).toNumber();
+                [yieldDue] = calcYieldDue(cc, borrowAmount, BN.from(0), days);
+                totalYieldDue = totalYieldDue.add(yieldDue);
+                // console.log(
+                //     `startOfDay: ${startOfDay}, nextDueDate: ${nextDueDate}, days: ${days}, yieldDue: ${yieldDue}, totalYieldDue: ${totalYieldDue}`,
+                // );
+
+                borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
+                poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
+                await expect(
+                    creditContract.connect(borrower).drawdown(borrower.address, borrowAmount),
+                )
+                    .to.emit(creditContract, "DrawdownMade")
+                    .withArgs(borrower.address, borrowAmount, netBorrowAmount);
+                borrowerNewBalance = await mockTokenContract.balanceOf(borrower.address);
+                poolSafeNewBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
+                expect(borrowerNewBalance.sub(borrowerOldBalance)).to.equal(netBorrowAmount);
+                expect(poolSafeOldBalance.sub(poolSafeNewBalance)).to.equal(netBorrowAmount);
+
+                creditRecord = await creditContract.getCreditRecord(creditHash);
+                checkCreditRecord(
+                    creditRecord,
+                    totalBorrowAmount,
+                    nextDueDate,
+                    totalYieldDue,
+                    totalYieldDue,
+                    BN.from(0),
+                    0,
+                    remainingPeriods,
+                    3,
+                );
+                dueDetail = await creditContract.getDueDetail(creditHash);
+                checkDueDetailsMatch(dueDetail, genDueDetail({ accrued: totalYieldDue }));
+                expect(await creditContract.maturityDates(creditHash)).to.equal(maturityDate);
+            });
+
+            it("Should allow the borrower to borrow again in the next period", async function () {
+                const creditHash = ethers.utils.keccak256(
+                    ethers.utils.defaultAbiCoder.encode(
+                        ["address", "address"],
+                        [creditContract.address, borrower.address],
+                    ),
+                );
+
+                let borrowAmount = toToken(25000);
+                let totalBorroweAmount = borrowAmount;
+                await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
+
+                let creditRecord = await creditContract.getCreditRecord(creditHash);
+                await creditContract
+                    .connect(borrower)
+                    .makePayment(borrower.address, creditRecord.nextDue);
+
+                const nextTime = creditRecord.nextDueDate.toNumber() + 3600 * 24 * 10;
+                await setNextBlockTimestamp(nextTime);
+
+                const frontLoadingFeeFlat = toToken(200);
+                const frontLoadingFeeBps = BN.from(200);
+                await poolConfigContract.connect(poolOwner).setFrontLoadingFees({
+                    frontLoadingFeeFlat: frontLoadingFeeFlat,
+                    frontLoadingFeeBps: frontLoadingFeeBps,
+                });
+
+                let cc = await creditContract.getCreditConfig(creditHash);
+                let [yieldDue] = calcYieldDue(cc, borrowAmount, BN.from(0), 30);
+                let totallYieldDue = yieldDue;
+                borrowAmount = toToken(35000);
+                totalBorroweAmount = totalBorroweAmount.add(borrowAmount);
+                const netBorrowAmount = borrowAmount
+                    .mul(CONSTANTS.BP_FACTOR.sub(frontLoadingFeeBps))
+                    .div(CONSTANTS.BP_FACTOR)
+                    .sub(frontLoadingFeeFlat);
+
+                let startOfDay = getStartOfDay(nextTime);
+                let nextDueDate = await calendarContract.getStartDateOfNextPeriod(
+                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    nextTime,
+                );
+                let days = (
+                    await calendarContract.getDaysDiff(startOfDay, nextDueDate)
+                ).toNumber();
+                [yieldDue] = calcYieldDue(cc, borrowAmount, BN.from(0), days);
+
+                const maturityDate = await creditContract.maturityDates(creditHash);
+                const remainingPeriods = creditRecord.remainingPeriods;
+                const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
+                const poolSafeOldBalance = await mockTokenContract.balanceOf(
+                    poolSafeContract.address,
+                );
+                await expect(
+                    creditContract.connect(borrower).drawdown(borrower.address, borrowAmount),
+                )
+                    .to.emit(creditContract, "DrawdownMade")
+                    .withArgs(borrower.address, borrowAmount, netBorrowAmount)
+                    .to.emit(creditContract, "BillRefreshed")
+                    .withArgs(creditHash, nextDueDate, totallYieldDue);
+                const borrowerNewBalance = await mockTokenContract.balanceOf(borrower.address);
+                const poolSafeNewBalance = await mockTokenContract.balanceOf(
+                    poolSafeContract.address,
+                );
+                expect(borrowerNewBalance.sub(borrowerOldBalance)).to.equal(netBorrowAmount);
+                expect(poolSafeOldBalance.sub(poolSafeNewBalance)).to.equal(netBorrowAmount);
+
+                totallYieldDue = totallYieldDue.add(yieldDue);
+
+                creditRecord = await creditContract.getCreditRecord(creditHash);
+                checkCreditRecord(
+                    creditRecord,
+                    totalBorroweAmount,
+                    nextDueDate,
+                    totallYieldDue,
+                    totallYieldDue,
+                    BN.from(0),
+                    0,
+                    remainingPeriods - 1,
+                    3,
+                );
+
+                const dueDetail = await creditContract.getDueDetail(creditHash);
+                checkDueDetailsMatch(dueDetail, genDueDetail({ accrued: totallYieldDue }));
+
+                expect(await creditContract.maturityDates(creditHash)).to.equal(maturityDate);
+            });
         });
 
-        // it.skip("Should allow the borrower to borrow for the second time in the same period successfully", async function () {
-        //     let frontLoadingFeeBps = BN.from(100);
-        //     await poolConfigContract.connect(poolOwner).setFrontLoadingFees({
-        //         frontLoadingFeeFlat: 0,
-        //         frontLoadingFeeBps: frontLoadingFeeBps,
-        //     });
-        //
-        //     await poolConfigContract.connect(poolOwner).setPoolPayPeriod(3);
-        //
-        //     let juniorDepositAmount = toToken(300_000);
-        //     await juniorTrancheVaultContract
-        //         .connect(lender)
-        //         .deposit(juniorDepositAmount, lender.address);
-        //     let seniorDepositAmount = toToken(100_000);
-        //     await seniorTrancheVaultContract
-        //         .connect(lender)
-        //         .deposit(seniorDepositAmount, lender.address);
-        //
-        //     // The borrower needs to make additional first loss cover deposits in order to
-        //     // cover for the new funds made by the lenders.
-        //     await borrowerFirstLossCoverContract
-        //         .connect(borrower)
-        //         .depositCover(
-        //             await getMinFirstLossCoverRequirement(
-        //                 borrowerFirstLossCoverContract,
-        //                 poolConfigContract,
-        //                 poolContract,
-        //                 borrower.address,
-        //             ),
-        //         );
-        //
-        //     const yieldInBps = 1217;
-        //     await creditContract
-        //         .connect(eaServiceAccount)
-        //         .approveBorrower(
-        //             borrower.address,
-        //             toToken(100_000),
-        //             3,
-        //             yieldInBps,
-        //             toToken(100_000),
-        //             true,
-        //         );
-        //
-        //     const creditHash = ethers.utils.keccak256(
-        //         ethers.utils.defaultAbiCoder.encode(
-        //             ["address", "address"],
-        //             [creditContract.address, borrower.address],
-        //         ),
-        //     );
-        //
-        //     let borrowAmount = toToken(30_000);
-        //     let allBorrowAmount = borrowAmount;
-        //     let netBorrowAmount = borrowAmount
-        //         .mul(CONSTANTS.BP_FACTOR.sub(frontLoadingFeeBps))
-        //         .div(CONSTANTS.BP_FACTOR);
-        //     let nextTime = await getFutureBlockTime(3);
-        //     await mineNextBlockWithTimestamp(nextTime);
-        //
-        //     let [nextDueDate] = getNextDueDate(0, nextTime, 3);
-        //     let yieldDue = calcYield(borrowAmount, yieldInBps, nextDueDate - nextTime);
-        //
-        //     let userBeforeBalance = await mockTokenContract.balanceOf(borrower.address);
-        //     let pvBeforeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
-        //     await expect(creditContract.connect(borrower).drawdown(borrower.address, borrowAmount))
-        //         .to.emit(creditContract, "DrawdownMade")
-        //         .withArgs(borrower.address, borrowAmount, netBorrowAmount)
-        //         .to.emit(creditContract, "BillRefreshed")
-        //         .withArgs(creditHash, nextDueDate, yieldDue);
-        //     let userAfterBalance = await mockTokenContract.balanceOf(borrower.address);
-        //     let pvAfterBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
-        //     expect(userAfterBalance.sub(userBeforeBalance)).to.equal(netBorrowAmount);
-        //     expect(pvBeforeBalance.sub(pvAfterBalance)).to.equal(netBorrowAmount);
-        //
-        //     let creditRecord = await creditContract.getCreditRecord(creditHash);
-        //     // console.log(`creditRecord: ${creditRecord}`);
-        //     checkCreditRecord(
-        //         creditRecord,
-        //         borrowAmount,
-        //         nextDueDate,
-        //         yieldDue,
-        //         yieldDue,
-        //         0,
-        //         2,
-        //         4,
-        //     );
-        //
-        //     // move forward 10 days
-        //     nextTime = nextTime + 3600 * 24 * 10;
-        //     await mineNextBlockWithTimestamp(nextTime);
-        //
-        //     borrowAmount = toToken(20_000);
-        //     allBorrowAmount = allBorrowAmount.add(borrowAmount);
-        //     netBorrowAmount = borrowAmount
-        //         .mul(CONSTANTS.BP_FACTOR.sub(frontLoadingFeeBps))
-        //         .div(CONSTANTS.BP_FACTOR);
-        //
-        //     userBeforeBalance = await mockTokenContract.balanceOf(borrower.address);
-        //     pvBeforeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
-        //     await expect(creditContract.connect(borrower).drawdown(borrower.address, borrowAmount))
-        //         .to.emit(creditContract, "DrawdownMade")
-        //         .withArgs(borrower.address, borrowAmount, netBorrowAmount);
-        //     // .to.emit(creditContract, "BillRefreshed");
-        //     // .withArgs(creditHash, nextDueDate, yieldDue);
-        //     userAfterBalance = await mockTokenContract.balanceOf(borrower.address);
-        //     pvAfterBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
-        //     expect(userAfterBalance.sub(userBeforeBalance)).to.equal(netBorrowAmount);
-        //     expect(pvBeforeBalance.sub(pvAfterBalance)).to.equal(netBorrowAmount);
-        //
-        //     yieldDue = yieldDue.add(calcYield(borrowAmount, yieldInBps, nextDueDate - nextTime));
-        //     creditRecord = await creditContract.getCreditRecord(creditHash);
-        //     // console.log(`creditRecord: ${creditRecord}`);
-        //     checkCreditRecord(
-        //         creditRecord,
-        //         allBorrowAmount,
-        //         nextDueDate,
-        //         yieldDue,
-        //         yieldDue,
-        //         0,
-        //         2,
-        //         4,
-        //     );
-        // });
+        describe("With committed", function () {
+            async function prepareForDrawdown() {
+                await creditContract
+                    .connect(eaServiceAccount)
+                    .approveBorrower(
+                        borrower.address,
+                        toToken(100_000),
+                        numOfPeriods,
+                        yieldInBps,
+                        toToken(20_000),
+                        true,
+                    );
+            }
+
+            beforeEach(async function () {
+                await loadFixture(prepareForDrawdown);
+            });
+
+            it("Should allow the borrower to borrow while committed is less than accrued", async function () {
+                const creditHash = ethers.utils.keccak256(
+                    ethers.utils.defaultAbiCoder.encode(
+                        ["address", "address"],
+                        [creditContract.address, borrower.address],
+                    ),
+                );
+
+                const borrowAmount = toToken(30_000);
+                const netBorrowAmount = borrowAmount;
+                let nextTime = await getFutureBlockTime(3);
+                await setNextBlockTimestamp(nextTime);
+
+                let startOfDay = getStartOfDay(nextTime);
+                let nextDueDate = await calendarContract.getStartDateOfNextPeriod(
+                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    nextTime,
+                );
+                let days = (
+                    await calendarContract.getDaysDiff(startOfDay, nextDueDate)
+                ).toNumber();
+                let cc = await creditContract.getCreditConfig(creditHash);
+                const [yieldDue, committed] = calcYieldDue(cc, borrowAmount, BN.from(0), days);
+
+                const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
+                const poolSafeOldBalance = await mockTokenContract.balanceOf(
+                    poolSafeContract.address,
+                );
+                await expect(
+                    creditContract.connect(borrower).drawdown(borrower.address, borrowAmount),
+                )
+                    .to.emit(creditContract, "DrawdownMade")
+                    .withArgs(borrower.address, borrowAmount, netBorrowAmount)
+                    .to.emit(creditContract, "BillRefreshed")
+                    .withArgs(creditHash, nextDueDate, yieldDue);
+                const borrowerNewBalance = await mockTokenContract.balanceOf(borrower.address);
+                const poolSafeNewBalance = await mockTokenContract.balanceOf(
+                    poolSafeContract.address,
+                );
+                expect(borrowerNewBalance.sub(borrowerOldBalance)).to.equal(netBorrowAmount);
+                expect(poolSafeOldBalance.sub(poolSafeNewBalance)).to.equal(netBorrowAmount);
+
+                const creditRecord = await creditContract.getCreditRecord(creditHash);
+                checkCreditRecord(
+                    creditRecord,
+                    borrowAmount,
+                    nextDueDate,
+                    yieldDue,
+                    yieldDue,
+                    BN.from(0),
+                    0,
+                    getDate(nextTime) == 1 ? numOfPeriods - 1 : numOfPeriods,
+                    3,
+                );
+
+                const dueDetail = await creditContract.getDueDetail(creditHash);
+                checkDueDetailsMatch(
+                    dueDetail,
+                    genDueDetail({ accrued: yieldDue, committed: committed }),
+                );
+
+                expect(await creditContract.maturityDates(creditHash)).to.equal(
+                    getDateAfterMonths(startOfDay, numOfPeriods),
+                );
+            });
+
+            it("Should allow the borrower to borrow while committed is greater than accrued", async function () {
+                const creditHash = ethers.utils.keccak256(
+                    ethers.utils.defaultAbiCoder.encode(
+                        ["address", "address"],
+                        [creditContract.address, borrower.address],
+                    ),
+                );
+
+                const borrowAmount = toToken(10_000);
+                const netBorrowAmount = borrowAmount;
+                let nextTime = await getFutureBlockTime(3);
+                await setNextBlockTimestamp(nextTime);
+
+                let startOfDay = getStartOfDay(nextTime);
+                let nextDueDate = await calendarContract.getStartDateOfNextPeriod(
+                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    nextTime,
+                );
+                let days = (
+                    await calendarContract.getDaysDiff(startOfDay, nextDueDate)
+                ).toNumber();
+                let cc = await creditContract.getCreditConfig(creditHash);
+                const [yieldDue, committed] = calcYieldDue(cc, borrowAmount, BN.from(0), days);
+
+                const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
+                const poolSafeOldBalance = await mockTokenContract.balanceOf(
+                    poolSafeContract.address,
+                );
+                await expect(
+                    creditContract.connect(borrower).drawdown(borrower.address, borrowAmount),
+                )
+                    .to.emit(creditContract, "DrawdownMade")
+                    .withArgs(borrower.address, borrowAmount, netBorrowAmount)
+                    .to.emit(creditContract, "BillRefreshed")
+                    .withArgs(creditHash, nextDueDate, committed);
+                const borrowerNewBalance = await mockTokenContract.balanceOf(borrower.address);
+                const poolSafeNewBalance = await mockTokenContract.balanceOf(
+                    poolSafeContract.address,
+                );
+                expect(borrowerNewBalance.sub(borrowerOldBalance)).to.equal(netBorrowAmount);
+                expect(poolSafeOldBalance.sub(poolSafeNewBalance)).to.equal(netBorrowAmount);
+
+                const creditRecord = await creditContract.getCreditRecord(creditHash);
+                checkCreditRecord(
+                    creditRecord,
+                    borrowAmount,
+                    nextDueDate,
+                    committed,
+                    committed,
+                    BN.from(0),
+                    0,
+                    getDate(nextTime) == 1 ? numOfPeriods - 1 : numOfPeriods,
+                    3,
+                );
+
+                const dueDetail = await creditContract.getDueDetail(creditHash);
+                checkDueDetailsMatch(
+                    dueDetail,
+                    genDueDetail({ accrued: yieldDue, committed: committed }),
+                );
+
+                expect(await creditContract.maturityDates(creditHash)).to.equal(
+                    getDateAfterMonths(startOfDay, numOfPeriods),
+                );
+            });
+
+            it("Should allow the borrower to borrow while committed is greater than accrued first, and becomes less than accrued then", async function () {
+                const frontLoadingFeeFlat = toToken(100);
+                const frontLoadingFeeBps = BN.from(100);
+                await poolConfigContract.connect(poolOwner).setFrontLoadingFees({
+                    frontLoadingFeeFlat: frontLoadingFeeFlat,
+                    frontLoadingFeeBps: frontLoadingFeeBps,
+                });
+
+                const creditHash = ethers.utils.keccak256(
+                    ethers.utils.defaultAbiCoder.encode(
+                        ["address", "address"],
+                        [creditContract.address, borrower.address],
+                    ),
+                );
+
+                let borrowAmount = toToken(10_000);
+                let totalBorrowAmount = borrowAmount;
+                let netBorrowAmount = borrowAmount
+                    .mul(CONSTANTS.BP_FACTOR.sub(frontLoadingFeeBps))
+                    .div(CONSTANTS.BP_FACTOR)
+                    .sub(frontLoadingFeeFlat);
+                let nextTime = await getFutureBlockTime(3);
+                await setNextBlockTimestamp(nextTime);
+
+                let startOfDay = getStartOfDay(nextTime);
+                let nextDueDate = await calendarContract.getStartDateOfNextPeriod(
+                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    nextTime,
+                );
+                let days = (
+                    await calendarContract.getDaysDiff(startOfDay, nextDueDate)
+                ).toNumber();
+                const cc = await creditContract.getCreditConfig(creditHash);
+                let [yieldDue, committed] = calcYieldDue(cc, borrowAmount, BN.from(0), days);
+                let totalYieldDue = yieldDue;
+
+                await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
+
+                let creditRecord = await creditContract.getCreditRecord(creditHash);
+                checkCreditRecord(
+                    creditRecord,
+                    borrowAmount,
+                    nextDueDate,
+                    committed,
+                    committed,
+                    BN.from(0),
+                    0,
+                    getDate(nextTime) == 1 ? numOfPeriods - 1 : numOfPeriods,
+                    3,
+                );
+                const remainingPeriods = creditRecord.remainingPeriods;
+
+                let dueDetail = await creditContract.getDueDetail(creditHash);
+                checkDueDetailsMatch(
+                    dueDetail,
+                    genDueDetail({ accrued: yieldDue, committed: committed }),
+                );
+                let maturityDate = await creditContract.maturityDates(creditHash);
+                expect(maturityDate).to.equal(getDateAfterMonths(startOfDay, numOfPeriods));
+
+                // move forward to the middle of the remaining time of the period
+                nextTime = nextTime + Math.floor((nextDueDate.toNumber() - nextTime) / 2);
+                await setNextBlockTimestamp(nextTime);
+
+                borrowAmount = toToken(50_000);
+                totalBorrowAmount = totalBorrowAmount.add(borrowAmount);
+                netBorrowAmount = borrowAmount
+                    .mul(CONSTANTS.BP_FACTOR.sub(frontLoadingFeeBps))
+                    .div(CONSTANTS.BP_FACTOR)
+                    .sub(frontLoadingFeeFlat);
+
+                startOfDay = getStartOfDay(nextTime);
+                days = (await calendarContract.getDaysDiff(startOfDay, nextDueDate)).toNumber();
+                [yieldDue] = calcYieldDue(cc, borrowAmount, BN.from(0), days);
+                totalYieldDue = totalYieldDue.add(yieldDue);
+
+                let borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
+                let poolSafeOldBalance = await mockTokenContract.balanceOf(
+                    poolSafeContract.address,
+                );
+                await expect(
+                    creditContract.connect(borrower).drawdown(borrower.address, borrowAmount),
+                )
+                    .to.emit(creditContract, "DrawdownMade")
+                    .withArgs(borrower.address, borrowAmount, netBorrowAmount);
+                let borrowerNewBalance = await mockTokenContract.balanceOf(borrower.address);
+                let poolSafeNewBalance = await mockTokenContract.balanceOf(
+                    poolSafeContract.address,
+                );
+                expect(borrowerNewBalance.sub(borrowerOldBalance)).to.equal(netBorrowAmount);
+                expect(poolSafeOldBalance.sub(poolSafeNewBalance)).to.equal(netBorrowAmount);
+
+                creditRecord = await creditContract.getCreditRecord(creditHash);
+                checkCreditRecord(
+                    creditRecord,
+                    totalBorrowAmount,
+                    nextDueDate,
+                    totalYieldDue,
+                    totalYieldDue,
+                    BN.from(0),
+                    0,
+                    remainingPeriods,
+                    3,
+                );
+                dueDetail = await creditContract.getDueDetail(creditHash);
+                checkDueDetailsMatch(
+                    dueDetail,
+                    genDueDetail({ accrued: totalYieldDue, committed: committed }),
+                );
+                expect(await creditContract.maturityDates(creditHash)).to.equal(maturityDate);
+            });
+
+            it("Should allow the borrower to borrow twice while committed is greater than accrued", async function () {
+                const frontLoadingFeeFlat = toToken(100);
+                const frontLoadingFeeBps = BN.from(100);
+                await poolConfigContract.connect(poolOwner).setFrontLoadingFees({
+                    frontLoadingFeeFlat: frontLoadingFeeFlat,
+                    frontLoadingFeeBps: frontLoadingFeeBps,
+                });
+
+                const creditHash = ethers.utils.keccak256(
+                    ethers.utils.defaultAbiCoder.encode(
+                        ["address", "address"],
+                        [creditContract.address, borrower.address],
+                    ),
+                );
+
+                let borrowAmount = toToken(25_000);
+                let totalBorrowAmount = borrowAmount;
+                let netBorrowAmount = borrowAmount
+                    .mul(CONSTANTS.BP_FACTOR.sub(frontLoadingFeeBps))
+                    .div(CONSTANTS.BP_FACTOR)
+                    .sub(frontLoadingFeeFlat);
+                let nextTime = await getFutureBlockTime(3);
+                await setNextBlockTimestamp(nextTime);
+
+                let startOfDay = getStartOfDay(nextTime);
+                let nextDueDate = await calendarContract.getStartDateOfNextPeriod(
+                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    nextTime,
+                );
+                let days = (
+                    await calendarContract.getDaysDiff(startOfDay, nextDueDate)
+                ).toNumber();
+                const cc = await creditContract.getCreditConfig(creditHash);
+                let [yieldDue, committed] = calcYieldDue(cc, borrowAmount, BN.from(0), days);
+                let totalYieldDue = yieldDue;
+
+                await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
+
+                let creditRecord = await creditContract.getCreditRecord(creditHash);
+                checkCreditRecord(
+                    creditRecord,
+                    borrowAmount,
+                    nextDueDate,
+                    totalYieldDue,
+                    totalYieldDue,
+                    BN.from(0),
+                    0,
+                    getDate(nextTime) == 1 ? numOfPeriods - 1 : numOfPeriods,
+                    3,
+                );
+                const remainingPeriods = creditRecord.remainingPeriods;
+
+                let dueDetail = await creditContract.getDueDetail(creditHash);
+                checkDueDetailsMatch(
+                    dueDetail,
+                    genDueDetail({ accrued: totalYieldDue, committed: committed }),
+                );
+                let maturityDate = await creditContract.maturityDates(creditHash);
+                expect(maturityDate).to.equal(getDateAfterMonths(startOfDay, numOfPeriods));
+
+                // move forward to the middle of the remaining time of the period
+                nextTime = nextTime + Math.floor((nextDueDate.toNumber() - nextTime) / 2);
+                await setNextBlockTimestamp(nextTime);
+
+                borrowAmount = toToken(10_000);
+                totalBorrowAmount = totalBorrowAmount.add(borrowAmount);
+                netBorrowAmount = borrowAmount
+                    .mul(CONSTANTS.BP_FACTOR.sub(frontLoadingFeeBps))
+                    .div(CONSTANTS.BP_FACTOR)
+                    .sub(frontLoadingFeeFlat);
+
+                startOfDay = getStartOfDay(nextTime);
+                days = (await calendarContract.getDaysDiff(startOfDay, nextDueDate)).toNumber();
+                [yieldDue] = calcYieldDue(cc, borrowAmount, BN.from(0), days);
+                totalYieldDue = totalYieldDue.add(yieldDue);
+
+                let borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
+                let poolSafeOldBalance = await mockTokenContract.balanceOf(
+                    poolSafeContract.address,
+                );
+                await expect(
+                    creditContract.connect(borrower).drawdown(borrower.address, borrowAmount),
+                )
+                    .to.emit(creditContract, "DrawdownMade")
+                    .withArgs(borrower.address, borrowAmount, netBorrowAmount);
+                let borrowerNewBalance = await mockTokenContract.balanceOf(borrower.address);
+                let poolSafeNewBalance = await mockTokenContract.balanceOf(
+                    poolSafeContract.address,
+                );
+                expect(borrowerNewBalance.sub(borrowerOldBalance)).to.equal(netBorrowAmount);
+                expect(poolSafeOldBalance.sub(poolSafeNewBalance)).to.equal(netBorrowAmount);
+
+                creditRecord = await creditContract.getCreditRecord(creditHash);
+                checkCreditRecord(
+                    creditRecord,
+                    totalBorrowAmount,
+                    nextDueDate,
+                    totalYieldDue,
+                    totalYieldDue,
+                    BN.from(0),
+                    0,
+                    remainingPeriods,
+                    3,
+                );
+                dueDetail = await creditContract.getDueDetail(creditHash);
+                checkDueDetailsMatch(
+                    dueDetail,
+                    genDueDetail({ accrued: totalYieldDue, committed: committed }),
+                );
+                expect(await creditContract.maturityDates(creditHash)).to.equal(maturityDate);
+            });
+        });
     });
 
     describe("refreshCredit", function () {
