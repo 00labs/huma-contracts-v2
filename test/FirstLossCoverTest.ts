@@ -376,6 +376,9 @@ describe("FirstLossCover Tests", function () {
             const oldFirstLossCoverContractBalance = await mockTokenContract.balanceOf(
                 affiliateFirstLossCoverContract.address,
             );
+            const oldAssetsOf = await affiliateFirstLossCoverContract.totalAssetsOf(
+                evaluationAgent.getAddress(),
+            );
 
             await expect(
                 affiliateFirstLossCoverContract.connect(evaluationAgent).depositCover(assets),
@@ -389,6 +392,9 @@ describe("FirstLossCover Tests", function () {
             expect(await affiliateFirstLossCoverContract.totalAssets()).to.equal(
                 oldAssets.add(assets),
             );
+            expect(
+                await affiliateFirstLossCoverContract.totalAssetsOf(evaluationAgent.getAddress()),
+            ).to.equal(oldAssetsOf.add(assets));
             expect(await mockTokenContract.balanceOf(evaluationAgent.getAddress())).to.equal(
                 oldEABalance.sub(assets),
             );

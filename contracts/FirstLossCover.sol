@@ -197,6 +197,10 @@ contract FirstLossCover is
         return currTotalSupply == 0 ? shares : (shares * currTotalAssets) / currTotalSupply;
     }
 
+    function totalAssetsOf(address account) external view returns (uint256 assets) {
+        return convertToAssets(ERC20Upgradeable.balanceOf(account));
+    }
+
     /**
      * @notice Pay out yield above the cap to providers. Expects to be called by a cron-like mechanism like autotask.
      * @param providers All first loss cover providers
