@@ -838,7 +838,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         if (cr.state == CreditState.Approved && maturityDate == 0) return (cr, dd);
 
         uint256 periodsPassed;
-        console.log("block.timestamp: %s, cr.nextDueDate: %s", block.timestamp, cr.nextDueDate);
+        // console.log("block.timestamp: %s, cr.nextDueDate: %s", block.timestamp, cr.nextDueDate);
         if (cr.nextDueDate == 0) {
             periodsPassed = 1;
         } else if (block.timestamp > cr.nextDueDate) {
@@ -865,6 +865,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
 
         bool late;
         (cr, dd, late) = _feeManager.getDueInfo(cr, cc, dd, maturityDate);
+        // console.log("periodsPassed: %s", periodsPassed);
         if (periodsPassed > 0) {
             // Adjusts remainingPeriods. Sets remainingPeriods to 0 if the credit line has reached maturity.
             cr.remainingPeriods = cr.remainingPeriods > periodsPassed

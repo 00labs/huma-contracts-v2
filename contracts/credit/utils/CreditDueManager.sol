@@ -195,6 +195,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             _cr.yieldDue +
             _dd.principalPastDue;
         (, , uint256 membershipFee) = poolConfig.getFees();
+        console.log("membershipFee: %s, daysOverdue: %s", membershipFee, daysOverdue);
         (uint256 accruedPastDue, uint256 committedPastDue) = _getYieldDue(
             _cc,
             principal,
@@ -205,6 +206,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             accruedPastDue > committedPastDue ? accruedPastDue : committedPastDue
         );
         // Reset the recorded yield due amounts since we are in a new billing cycle now.
+        // console.log("membershipFee: %s, daysUntilNextDue: %s", membershipFee, daysUntilNextDue);
         (newDD.accrued, newDD.committed) = _getYieldDue(
             _cc,
             principal,

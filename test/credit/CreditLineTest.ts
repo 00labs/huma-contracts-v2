@@ -82,15 +82,6 @@ let poolConfigContract: PoolConfig,
     creditContract: CreditLine,
     creditDueManagerContract: CreditDueManager;
 
-// function calcDefaultDate(cr: CreditRecordStructOutput, defaultPeriod: number): number {
-//     let [defaultDate] = getNextDueDate(
-//         cr.nextDueDate.toNumber(),
-//         cr.nextDueDate.toNumber(),
-//         defaultPeriod,
-//     );
-//     return defaultDate;
-// }
-
 async function getCreditRecordSettings(): Promise<BN[]> {
     let settings = Array<BN>();
     let fees = await poolConfigContract.getFees();
@@ -99,6 +90,38 @@ async function getCreditRecordSettings(): Promise<BN[]> {
     settings.push(fees[2]);
     settings.push(await poolConfigContract.getMinPrincipalRateInBps());
     return settings;
+}
+
+function calcPrincipalDueForFullPeriods(
+    unbilledPrincipal: BN,
+    principalRateInBps: number,
+    numPeriods: number,
+): BN {
+    const principalDue = CONSTANTS.BP_FACTOR.pow(numPeriods)
+        .sub(CONSTANTS.BP_FACTOR.sub(principalRateInBps).pow(numPeriods))
+        .mul(unbilledPrincipal)
+        .div(CONSTANTS.BP_FACTOR.pow(numPeriods));
+    return principalDue;
+}
+
+function calcPrincipalDueForPartialPeriod(
+    unbilledPrincipal: BN,
+    principalRateInBps: number,
+    daysLeft: number | BN,
+    totalDaysInFullPeriod: number | BN,
+) {
+    const principalDue = unbilledPrincipal
+        .mul(principalRateInBps)
+        .mul(daysLeft)
+        .div(CONSTANTS.BP_FACTOR.mul(totalDaysInFullPeriod));
+    return principalDue;
+}
+
+function calcYield(principal: BN, yieldInBps: number, days: number): BN {
+    return principal
+        .mul(yieldInBps)
+        .mul(days)
+        .div(CONSTANTS.BP_FACTOR.mul(CONSTANTS.DAYS_IN_A_YEAR));
 }
 
 describe("CreditLine Test", function () {
@@ -592,7 +615,7 @@ describe("CreditLine Test", function () {
         let yieldInBps = 1217;
         let numOfPeriods = 5;
 
-        describe("Without commitment", function () {
+        describe("Without committment", function () {
             async function prepareForDrawdown() {
                 await creditContract
                     .connect(eaServiceAccount)
@@ -649,7 +672,36 @@ describe("CreditLine Test", function () {
                 ).to.be.revertedWithCustomError(creditContract, "creditNotInStateForDrawdown");
             });
 
-            it("Should not allow drawdown if borrowers don't meet first loss cover requirement", async function () {
+            // TODO is this test valid?
+            it.skip("Should not allow drawdown during late grace period", async function () {});
+
+            it("Should not allow drawdown while credit state is Delayed", async function () {
+                await creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000));
+                const creditHash = ethers.utils.keccak256(
+                    ethers.utils.defaultAbiCoder.encode(
+                        ["address", "address"],
+                        [creditContract.address, borrower.address],
+                    ),
+                );
+                let creditRecord = await creditContract.getCreditRecord(creditHash);
+                let settings = await poolConfigContract.getPoolSettings();
+                let nextTime =
+                    creditRecord.nextDueDate.toNumber() +
+                    settings.latePaymentGracePeriodInDays * 3600 * 24 +
+                    100;
+                await setNextBlockTimestamp(nextTime);
+
+                await expect(
+                    creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
+                ).to.be.revertedWithCustomError(
+                    creditContract,
+                    "creditLineNotInGoodStandingState",
+                );
+            });
+
+            it("Should not allow drawdown while credit state is Defaulted", async function () {});
+
+            it("Should not allow drawdown while borrowers don't meet first loss cover requirement", async function () {
                 await borrowerFirstLossCoverContract
                     .connect(poolOwner)
                     .setCoverProvider(borrower.address, {
@@ -715,24 +767,7 @@ describe("CreditLine Test", function () {
                 );
             });
 
-            it.skip("Should not allow drawdown again if the current credit is late", async function () {
-                await creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000));
-                const creditHash = ethers.utils.keccak256(
-                    ethers.utils.defaultAbiCoder.encode(
-                        ["address", "address"],
-                        [creditContract.address, borrower.address],
-                    ),
-                );
-                let cr = await creditContract.getCreditRecord(creditHash);
-                await setNextBlockTimestamp(cr.nextDueDate.toNumber() + 100);
-
-                await creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000));
-                // await expect(
-                //     creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
-                // ).to.be.revertedWithCustomError(creditContract, "creditLineNotInGoodStandingState");
-            });
-
-            it("Should not allow drawdown again if the credit limit is exceeded after updateDueInfo", async function () {
+            it("Should not allow drawdown again while credit limit is exceeded after updateDueInfo", async function () {
                 await creditContract
                     .connect(eaServiceAccount)
                     .approveBorrower(borrower.address, toToken(10_000), 5, 1217, toToken(0), true);
@@ -817,93 +852,6 @@ describe("CreditLine Test", function () {
                     borrowAmount,
                     nextDueDate,
                     yieldDue,
-                    yieldDue,
-                    BN.from(0),
-                    0,
-                    getDate(nextTime) == 1 ? numOfPeriods - 1 : numOfPeriods,
-                    3,
-                );
-
-                const dueDetail = await creditContract.getDueDetail(creditHash);
-                checkDueDetailsMatch(dueDetail, genDueDetail({ accrued: yieldDue }));
-
-                expect(await creditContract.maturityDates(creditHash)).to.equal(
-                    getDateAfterMonths(startOfDay, numOfPeriods),
-                );
-            });
-
-            it("Should allow the borrower to borrow for the first time while principalRate > 0", async function () {
-                const frontLoadingFeeFlat = toToken(100);
-                const frontLoadingFeeBps = BN.from(100);
-                await poolConfigContract.connect(poolOwner).setFrontLoadingFees({
-                    frontLoadingFeeFlat: frontLoadingFeeFlat,
-                    frontLoadingFeeBps: frontLoadingFeeBps,
-                });
-
-                const principalRateInBps = BN.from(100);
-                await poolConfigContract.connect(poolOwner).setFeeStructure({
-                    yieldInBps: 0,
-                    minPrincipalRateInBps: principalRateInBps,
-                    lateFeeFlat: 0,
-                    lateFeeBps: 0,
-                    membershipFee: 0,
-                });
-
-                const creditHash = ethers.utils.keccak256(
-                    ethers.utils.defaultAbiCoder.encode(
-                        ["address", "address"],
-                        [creditContract.address, borrower.address],
-                    ),
-                );
-
-                const borrowAmount = toToken(50_000);
-                const netBorrowAmount = borrowAmount
-                    .mul(CONSTANTS.BP_FACTOR.sub(frontLoadingFeeBps))
-                    .div(CONSTANTS.BP_FACTOR)
-                    .sub(frontLoadingFeeFlat);
-                let nextTime = await getFutureBlockTime(3);
-                await setNextBlockTimestamp(nextTime);
-
-                let startOfDay = getStartOfDay(nextTime);
-                let nextDueDate = await calendarContract.getStartDateOfNextPeriod(
-                    CONSTANTS.PERIOD_DURATION_MONTHLY,
-                    nextTime,
-                );
-                let days = (
-                    await calendarContract.getDaysDiff(startOfDay, nextDueDate)
-                ).toNumber();
-                let cc = await creditContract.getCreditConfig(creditHash);
-                const [yieldDue] = calcYieldDue(cc, borrowAmount, BN.from(0), days);
-                const principalDue = borrowAmount
-                    .mul(principalRateInBps)
-                    .mul(days)
-                    .div(CONSTANTS.BP_FACTOR.mul(30));
-                const totalDue = yieldDue.add(principalDue);
-
-                const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
-                const poolSafeOldBalance = await mockTokenContract.balanceOf(
-                    poolSafeContract.address,
-                );
-                await expect(
-                    creditContract.connect(borrower).drawdown(borrower.address, borrowAmount),
-                )
-                    .to.emit(creditContract, "DrawdownMade")
-                    .withArgs(borrower.address, borrowAmount, netBorrowAmount)
-                    .to.emit(creditContract, "BillRefreshed")
-                    .withArgs(creditHash, nextDueDate, totalDue);
-                const borrowerNewBalance = await mockTokenContract.balanceOf(borrower.address);
-                const poolSafeNewBalance = await mockTokenContract.balanceOf(
-                    poolSafeContract.address,
-                );
-                expect(borrowerNewBalance.sub(borrowerOldBalance)).to.equal(netBorrowAmount);
-                expect(poolSafeOldBalance.sub(poolSafeNewBalance)).to.equal(netBorrowAmount);
-
-                const creditRecord = await creditContract.getCreditRecord(creditHash);
-                checkCreditRecord(
-                    creditRecord,
-                    borrowAmount.sub(principalDue),
-                    nextDueDate,
-                    totalDue,
                     yieldDue,
                     BN.from(0),
                     0,
@@ -1128,7 +1076,7 @@ describe("CreditLine Test", function () {
             });
         });
 
-        describe("With commitment", function () {
+        describe("With committment", function () {
             async function prepareForDrawdown() {
                 await creditContract
                     .connect(eaServiceAccount)
@@ -1502,10 +1450,521 @@ describe("CreditLine Test", function () {
                 expect(await creditContract.maturityDates(creditHash)).to.equal(maturityDate);
             });
         });
+
+        describe("With principalRate", function () {
+            const principalRateInBps = 100;
+            async function prepareForDrawdown() {
+                await poolConfigContract.connect(poolOwner).setFeeStructure({
+                    yieldInBps: 0,
+                    minPrincipalRateInBps: principalRateInBps,
+                    lateFeeFlat: 0,
+                    lateFeeBps: 0,
+                    membershipFee: 0,
+                });
+
+                await creditContract
+                    .connect(eaServiceAccount)
+                    .approveBorrower(
+                        borrower.address,
+                        toToken(100_000),
+                        numOfPeriods,
+                        yieldInBps,
+                        toToken(0),
+                        true,
+                    );
+            }
+
+            beforeEach(async function () {
+                await loadFixture(prepareForDrawdown);
+            });
+
+            it("Should allow the borrower to borrow for the first time while principalRate > 0", async function () {
+                const frontLoadingFeeFlat = toToken(100);
+                const frontLoadingFeeBps = BN.from(100);
+                await poolConfigContract.connect(poolOwner).setFrontLoadingFees({
+                    frontLoadingFeeFlat: frontLoadingFeeFlat,
+                    frontLoadingFeeBps: frontLoadingFeeBps,
+                });
+
+                const creditHash = ethers.utils.keccak256(
+                    ethers.utils.defaultAbiCoder.encode(
+                        ["address", "address"],
+                        [creditContract.address, borrower.address],
+                    ),
+                );
+
+                const borrowAmount = toToken(50_000);
+                const netBorrowAmount = borrowAmount
+                    .mul(CONSTANTS.BP_FACTOR.sub(frontLoadingFeeBps))
+                    .div(CONSTANTS.BP_FACTOR)
+                    .sub(frontLoadingFeeFlat);
+                let nextTime = await getFutureBlockTime(3);
+                await setNextBlockTimestamp(nextTime);
+
+                let startOfDay = getStartOfDay(nextTime);
+                let nextDueDate = await calendarContract.getStartDateOfNextPeriod(
+                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    nextTime,
+                );
+                let days = (
+                    await calendarContract.getDaysDiff(startOfDay, nextDueDate)
+                ).toNumber();
+                let cc = await creditContract.getCreditConfig(creditHash);
+                const [yieldDue] = calcYieldDue(cc, borrowAmount, BN.from(0), days);
+                const principalDue = calcPrincipalDueForPartialPeriod(
+                    borrowAmount,
+                    principalRateInBps,
+                    days,
+                    30,
+                );
+                const totalDue = yieldDue.add(principalDue);
+
+                const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
+                const poolSafeOldBalance = await mockTokenContract.balanceOf(
+                    poolSafeContract.address,
+                );
+                await expect(
+                    creditContract.connect(borrower).drawdown(borrower.address, borrowAmount),
+                )
+                    .to.emit(creditContract, "DrawdownMade")
+                    .withArgs(borrower.address, borrowAmount, netBorrowAmount)
+                    .to.emit(creditContract, "BillRefreshed")
+                    .withArgs(creditHash, nextDueDate, totalDue);
+                const borrowerNewBalance = await mockTokenContract.balanceOf(borrower.address);
+                const poolSafeNewBalance = await mockTokenContract.balanceOf(
+                    poolSafeContract.address,
+                );
+                expect(borrowerNewBalance.sub(borrowerOldBalance)).to.equal(netBorrowAmount);
+                expect(poolSafeOldBalance.sub(poolSafeNewBalance)).to.equal(netBorrowAmount);
+
+                const creditRecord = await creditContract.getCreditRecord(creditHash);
+                checkCreditRecord(
+                    creditRecord,
+                    borrowAmount.sub(principalDue),
+                    nextDueDate,
+                    totalDue,
+                    yieldDue,
+                    BN.from(0),
+                    0,
+                    getDate(nextTime) == 1 ? numOfPeriods - 1 : numOfPeriods,
+                    3,
+                );
+
+                const dueDetail = await creditContract.getDueDetail(creditHash);
+                checkDueDetailsMatch(dueDetail, genDueDetail({ accrued: yieldDue }));
+
+                expect(await creditContract.maturityDates(creditHash)).to.equal(
+                    getDateAfterMonths(startOfDay, numOfPeriods),
+                );
+            });
+
+            it("Should allow the borrower to borrow again in the same period while principalRate > 0", async function () {});
+        });
     });
 
     describe("refreshCredit", function () {
-        // TODO(jiatu): fill this in
+        let yieldInBps = 1217;
+        let numOfPeriods = 3;
+        let committedAmount: BN;
+        let borrowAmount: BN;
+        let creditHash: string;
+
+        describe("Negative Tests", function () {
+            async function prepareForNegativeTests() {
+                await creditContract
+                    .connect(eaServiceAccount)
+                    .approveBorrower(
+                        borrower.address,
+                        toToken(100_000),
+                        numOfPeriods,
+                        yieldInBps,
+                        toToken(10_000),
+                        true,
+                    );
+
+                creditHash = ethers.utils.keccak256(
+                    ethers.utils.defaultAbiCoder.encode(
+                        ["address", "address"],
+                        [creditContract.address, borrower.address],
+                    ),
+                );
+
+                borrowAmount = toToken(20_000);
+                await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
+            }
+
+            beforeEach(async function () {
+                await loadFixture(prepareForNegativeTests);
+            });
+
+            it("Should not update anything while current timestamp is less than next due date", async function () {
+                let creditRecord = await creditContract.getCreditRecord(creditHash);
+                await creditContract.refreshCredit(borrower.address);
+                checkCreditRecordsMatch(
+                    await creditContract.getCreditRecord(creditHash),
+                    creditRecord,
+                );
+            });
+
+            it("Should not update anything while current timestamp is greater than next due date and less than late grace period", async function () {
+                let creditRecord = await creditContract.getCreditRecord(creditHash);
+                let nextTime = creditRecord.nextDueDate.toNumber() + 3600;
+                await setNextBlockTimestamp(nextTime);
+
+                await creditContract.refreshCredit(borrower.address);
+                checkCreditRecordsMatch(
+                    await creditContract.getCreditRecord(creditHash),
+                    creditRecord,
+                );
+            });
+
+            it("Should not update anything while credit state is Defaulted", async function () {});
+        });
+
+        describe("Without Settings", function () {
+            async function prepareForTestsWithoutSettings() {
+                committedAmount = toToken(10_000);
+                await creditContract
+                    .connect(eaServiceAccount)
+                    .approveBorrower(
+                        borrower.address,
+                        toToken(100_000),
+                        numOfPeriods,
+                        yieldInBps,
+                        committedAmount,
+                        true,
+                    );
+
+                creditHash = ethers.utils.keccak256(
+                    ethers.utils.defaultAbiCoder.encode(
+                        ["address", "address"],
+                        [creditContract.address, borrower.address],
+                    ),
+                );
+            }
+
+            beforeEach(async function () {
+                await loadFixture(prepareForTestsWithoutSettings);
+            });
+
+            it("Should update correctly while credit delayed 1 period", async function () {
+                borrowAmount = toToken(20_000);
+                await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
+
+                let creditRecord = await creditContract.getCreditRecord(creditHash);
+                let settings = await poolConfigContract.getPoolSettings();
+                let nextTime =
+                    creditRecord.nextDueDate.toNumber() +
+                    settings.latePaymentGracePeriodInDays * 3600 * 24 +
+                    100;
+                await setNextBlockTimestamp(nextTime);
+
+                let nextDueDate = await calendarContract.getStartDateOfNextPeriod(
+                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    nextTime,
+                );
+                let days = (
+                    await calendarContract.getDaysDiff(creditRecord.nextDueDate, nextDueDate)
+                ).toNumber();
+                let cc = await creditContract.getCreditConfig(creditHash);
+                const [yieldDue, committed] = calcYieldDue(cc, borrowAmount, BN.from(0), days);
+                let totalPastDue = creditRecord.nextDue;
+
+                const remainingPeriods = creditRecord.remainingPeriods;
+                await expect(creditContract.refreshCredit(borrower.address))
+                    .to.emit(creditContract, "BillRefreshed")
+                    .withArgs(creditHash, nextDueDate, yieldDue);
+
+                let tomorrow = await calendarContract.getStartOfTomorrow();
+                creditRecord = await creditContract.getCreditRecord(creditHash);
+                checkCreditRecord(
+                    creditRecord,
+                    borrowAmount,
+                    nextDueDate,
+                    yieldDue,
+                    yieldDue,
+                    totalPastDue,
+                    1,
+                    remainingPeriods - 1,
+                    4,
+                );
+
+                const dueDetail = await creditContract.getDueDetail(creditHash);
+                checkDueDetailsMatch(
+                    dueDetail,
+                    genDueDetail({
+                        lateFeeUpdatedDate: tomorrow,
+                        accrued: yieldDue,
+                        committed: committed,
+                        yieldPastDue: totalPastDue,
+                    }),
+                );
+            });
+
+            it("Should update correctly again in the same period while credit state is Delayed", async function () {
+                borrowAmount = toToken(20_000);
+                await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
+
+                let creditRecord = await creditContract.getCreditRecord(creditHash);
+                let settings = await poolConfigContract.getPoolSettings();
+                let nextTime =
+                    creditRecord.nextDueDate.toNumber() +
+                    settings.latePaymentGracePeriodInDays * 3600 * 24 +
+                    100;
+                await setNextBlockTimestamp(nextTime);
+
+                await creditContract.refreshCredit(borrower.address);
+
+                const days = 1 * 3600 * 24;
+                nextTime = nextTime + days;
+                await setNextBlockTimestamp(nextTime);
+
+                creditRecord = await creditContract.getCreditRecord(creditHash);
+                let dueDetail = await creditContract.getDueDetail(creditHash);
+                await creditContract.refreshCredit(borrower.address);
+                checkCreditRecordsMatch(
+                    await creditContract.getCreditRecord(creditHash),
+                    creditRecord,
+                );
+                dueDetail = {
+                    ...dueDetail,
+                    ...{ lateFeeUpdatedDate: dueDetail.lateFeeUpdatedDate.add(days) },
+                };
+                checkDueDetailsMatch(await creditContract.getDueDetail(creditHash), dueDetail);
+            });
+
+            it.skip("Should update correctly agin in the next period while credit state is Delayed", async function () {
+                borrowAmount = toToken(20_000);
+                await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
+
+                let creditRecord = await creditContract.getCreditRecord(creditHash);
+                let settings = await poolConfigContract.getPoolSettings();
+                let nextTime =
+                    creditRecord.nextDueDate.toNumber() +
+                    settings.latePaymentGracePeriodInDays * 3600 * 24 +
+                    100;
+                await setNextBlockTimestamp(nextTime);
+
+                let totalPastDue = creditRecord.nextDue;
+                await creditContract.refreshCredit(borrower.address);
+
+                creditRecord = await creditContract.getCreditRecord(creditHash);
+                nextTime = creditRecord.nextDueDate.toNumber() + 100;
+                await setNextBlockTimestamp(nextTime);
+
+                let nextDueDate = await calendarContract.getStartDateOfNextPeriod(
+                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    nextTime,
+                );
+                let days = (
+                    await calendarContract.getDaysDiff(creditRecord.nextDueDate, nextDueDate)
+                ).toNumber();
+                let cc = await creditContract.getCreditConfig(creditHash);
+                const [yieldDue, committed] = calcYieldDue(cc, borrowAmount, BN.from(0), days);
+
+                totalPastDue = totalPastDue.add(creditRecord.nextDue);
+                await expect(creditContract.refreshCredit(borrower.address))
+                    .to.emit(creditContract, "BillRefreshed")
+                    .withArgs(creditHash, nextDueDate, yieldDue);
+
+                const remainingPeriods = creditRecord.remainingPeriods;
+                const missingPeriods = creditRecord.missedPeriods;
+                creditRecord = await creditContract.getCreditRecord(creditHash);
+                checkCreditRecord(
+                    creditRecord,
+                    borrowAmount,
+                    nextDueDate,
+                    yieldDue,
+                    yieldDue,
+                    totalPastDue,
+                    missingPeriods + 1,
+                    remainingPeriods - 1,
+                    4,
+                );
+            });
+
+            it("Should update correctly for the first time in the last period", async function () {
+                borrowAmount = toToken(5_000);
+                await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
+
+                const maturityDate = await creditContract.maturityDates(creditHash);
+                let nextTime = maturityDate.toNumber() - 600;
+                await setNextBlockTimestamp(nextTime);
+
+                let startDateOfLastPeriod = await calendarContract.getStartDateOfPeriod(
+                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    nextTime,
+                );
+                let days = (
+                    await calendarContract.getDaysDiff(startDateOfLastPeriod, maturityDate)
+                ).toNumber();
+                let cc = await creditContract.getCreditConfig(creditHash);
+                const [yieldDue, committed] = calcYieldDue(cc, borrowAmount, BN.from(0), days);
+
+                let creditRecord = await creditContract.getCreditRecord(creditHash);
+                let totalPastDue = creditRecord.nextDue;
+                totalPastDue = totalPastDue.add(
+                    calcYieldDue(
+                        cc,
+                        committedAmount,
+                        BN.from(0),
+                        (
+                            await calendarContract.getDaysDiff(
+                                creditRecord.nextDueDate,
+                                startDateOfLastPeriod,
+                            )
+                        ).toNumber(),
+                    )[0],
+                );
+
+                const remainingPeriods = creditRecord.remainingPeriods;
+                await expect(creditContract.refreshCredit(borrower.address))
+                    .to.emit(creditContract, "BillRefreshed")
+                    .withArgs(creditHash, maturityDate, committed);
+
+                // let tomorrow = await calendarContract.getStartOfTomorrow();
+                creditRecord = await creditContract.getCreditRecord(creditHash);
+                checkCreditRecord(
+                    creditRecord,
+                    borrowAmount,
+                    maturityDate,
+                    committed,
+                    committed,
+                    totalPastDue,
+                    remainingPeriods,
+                    0,
+                    4,
+                );
+
+                const dueDetail = await creditContract.getDueDetail(creditHash);
+                checkDueDetailsMatch(
+                    dueDetail,
+                    genDueDetail({
+                        lateFeeUpdatedDate: maturityDate,
+                        accrued: yieldDue,
+                        committed: committed,
+                        yieldPastDue: totalPastDue,
+                    }),
+                );
+            });
+
+            it("Should update correctly for the first time after maturity date", async function () {});
+        });
+
+        describe("With Settings(principalRate, membershipFee, lateFeeInBps)", function () {
+            const principalRate = 100;
+            const lateFeeFlat = 0;
+            const lateFeeBps = 2400;
+            let membershipFee: BN;
+
+            async function prepareForTestsWithSettings() {
+                membershipFee = toToken(100);
+                await poolConfigContract.connect(poolOwner).setFeeStructure({
+                    yieldInBps: yieldInBps,
+                    minPrincipalRateInBps: principalRate,
+                    lateFeeFlat: lateFeeFlat,
+                    lateFeeBps: lateFeeBps,
+                    membershipFee: membershipFee,
+                });
+
+                committedAmount = toToken(10_000);
+                await creditContract
+                    .connect(eaServiceAccount)
+                    .approveBorrower(
+                        borrower.address,
+                        toToken(100_000),
+                        numOfPeriods,
+                        yieldInBps,
+                        committedAmount,
+                        true,
+                    );
+
+                creditHash = ethers.utils.keccak256(
+                    ethers.utils.defaultAbiCoder.encode(
+                        ["address", "address"],
+                        [creditContract.address, borrower.address],
+                    ),
+                );
+            }
+
+            beforeEach(async function () {
+                await loadFixture(prepareForTestsWithSettings);
+            });
+
+            it.skip("Should update correctly while credit delayed 1 period", async function () {
+                borrowAmount = toToken(5_000);
+                await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
+
+                let creditRecord = await creditContract.getCreditRecord(creditHash);
+                let settings = await poolConfigContract.getPoolSettings();
+                let nextTime =
+                    creditRecord.nextDueDate.toNumber() +
+                    settings.latePaymentGracePeriodInDays * 3600 * 24 +
+                    100;
+                await setNextBlockTimestamp(nextTime);
+
+                let nextDueDate = await calendarContract.getStartDateOfNextPeriod(
+                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    nextTime,
+                );
+                let days = (
+                    await calendarContract.getDaysDiff(creditRecord.nextDueDate, nextDueDate)
+                ).toNumber();
+                let cc = await creditContract.getCreditConfig(creditHash);
+                const [yieldDue, committed] = calcYieldDue(cc, borrowAmount, membershipFee, days);
+                let principalDue = calcPrincipalDueForFullPeriods(
+                    creditRecord.unbilledPrincipal,
+                    principalRate,
+                    1,
+                );
+                let nextDue = committed.add(principalDue);
+
+                await expect(creditContract.refreshCredit(borrower.address))
+                    .to.emit(creditContract, "BillRefreshed")
+                    .withArgs(creditHash, nextDueDate, nextDue);
+
+                let tomorrow = await calendarContract.getStartOfTomorrow();
+                let lateFee = calcYield(
+                    borrowAmount,
+                    lateFeeBps,
+                    (
+                        await calendarContract.getDaysDiff(creditRecord.nextDueDate, tomorrow)
+                    ).toNumber(),
+                );
+
+                let newCreditRecord = await creditContract.getCreditRecord(creditHash);
+                checkCreditRecord(
+                    newCreditRecord,
+                    creditRecord.unbilledPrincipal.sub(principalDue),
+                    nextDueDate,
+                    nextDue,
+                    committed,
+                    creditRecord.nextDue.add(lateFee),
+                    1,
+                    creditRecord.remainingPeriods - 1,
+                    4,
+                );
+
+                const dueDetail = await creditContract.getDueDetail(creditHash);
+                checkDueDetailsMatch(
+                    dueDetail,
+                    genDueDetail({
+                        lateFeeUpdatedDate: tomorrow,
+                        lateFee: lateFee,
+                        accrued: yieldDue,
+                        committed: committed,
+                        yieldPastDue: creditRecord.yieldDue,
+                        principalPastDue: creditRecord.nextDue.sub(creditRecord.yieldDue),
+                    }),
+                );
+            });
+
+            it("Should update correctly for the first time in the last period", async function () {});
+
+            it("Should update correctly agin in the next period while credit state is Delayed", async function () {});
+
+            it("Should update correctly for the first time after maturity date", async function () {});
+        });
     });
 
     describe("makePayment", function () {
@@ -1841,6 +2300,9 @@ describe("CreditLine Test", function () {
                     ).toNumber();
                 }
                 const remainingPeriods = Math.max(cr.remainingPeriods - periodsPassed, 0);
+                console.log(
+                    `periodsPassed: ${periodsPassed}, cr.remainingPeriods: ${cr.remainingPeriods}, remainingPeriods: ${remainingPeriods}`,
+                );
                 // Whether the bill is late up until payment is made.
                 const isLate =
                     cr.missedPeriods > 0 ||
