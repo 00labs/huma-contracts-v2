@@ -148,6 +148,10 @@ contract Calendar is ICalendar {
         if (startDate > endDate) {
             revert Errors.startDateLaterThanEndDate();
         }
+        // TODO(jiatu): do we need to align on the beginning of the day?
+        if (startDate == endDate) {
+            return 0;
+        }
         uint256 dueDateAfterStartDate = _getStartDateOfNextPeriod(periodDuration, startDate);
         if (endDate <= dueDateAfterStartDate) {
             // `numPeriodsPassed` is 1 if the current block timestamp and the last due date are

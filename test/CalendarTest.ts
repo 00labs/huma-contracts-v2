@@ -1028,6 +1028,22 @@ describe("Calendar Test", function () {
 
     describe("getNumPeriodsPassed", function () {
         describe("With monthly period duration", function () {
+            it("Should return 0 if the start and end dates are the same", async function () {
+                const nextYear = moment.utc().year() + 1;
+                const date = moment.utc({
+                    year: nextYear,
+                    month: 1,
+                    day: 15,
+                });
+                expect(
+                    await calendarContract.getNumPeriodsPassed(
+                        PayPeriodDuration.Monthly,
+                        date.unix(),
+                        date.unix(),
+                    ),
+                ).to.equal(0);
+            });
+
             it("Should return 1 if the start and end dates are within the same period", async function () {
                 const nextYear = moment.utc().year() + 1;
                 const startDate = moment.utc({
@@ -1114,6 +1130,22 @@ describe("Calendar Test", function () {
         });
 
         describe("With quarterly period duration", function () {
+            it("Should return 0 if the start and end dates are the same", async function () {
+                const nextYear = moment.utc().year() + 1;
+                const date = moment.utc({
+                    year: nextYear,
+                    month: 1,
+                    day: 15,
+                });
+                expect(
+                    await calendarContract.getNumPeriodsPassed(
+                        PayPeriodDuration.Quarterly,
+                        date.unix(),
+                        date.unix(),
+                    ),
+                ).to.equal(0);
+            });
+
             it("Should return 1 if the start and end dates are within the same period", async function () {
                 const startDate = moment.utc({
                     year: 2024,
@@ -1197,6 +1229,22 @@ describe("Calendar Test", function () {
         });
 
         describe("With semi-annually period duration", function () {
+            it("Should return 0 if the start and end dates are the same", async function () {
+                const nextYear = moment.utc().year() + 1;
+                const date = moment.utc({
+                    year: nextYear,
+                    month: 1,
+                    day: 15,
+                });
+                expect(
+                    await calendarContract.getNumPeriodsPassed(
+                        PayPeriodDuration.SemiAnnually,
+                        date.unix(),
+                        date.unix(),
+                    ),
+                ).to.equal(0);
+            });
+
             it("Should return 1 if the start and end dates are within the same period", async function () {
                 const startDate = moment.utc({
                     year: 2024,

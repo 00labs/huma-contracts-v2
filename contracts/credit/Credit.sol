@@ -170,9 +170,12 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
      * @param borrower the address of the borrower
      * @param amount the payback amount
      * @param nextDueDate the due date of the next payment
-     * @param nextDue the amount due on the next payment of the credit line
+     * @param principalDue the principal due on the credit line after processing the payment
+     * @param principalPastDue the principal past due on the credit line after processing the payment
      * @param unbilledPrincipal the unbilled principal on the credit line after processing the payment
-     * @param principalPaid the amount of this payment applied to principal
+     * @param principalDuePaid the amount of this payment applied to principal due
+     * @param unbilledPrincipalPaid the amount of this payment applied to unbilled principal
+     * @param principalPastDuePaid the amount of this payment applied to principal past due
      * @param by the address that has triggered the process of marking the payment made.
      * In most cases, it is the borrower. In receivable factoring, it is PDSServiceAccount.
      */
@@ -180,9 +183,12 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         address indexed borrower,
         uint256 amount,
         uint256 nextDueDate,
-        uint256 nextDue,
+        uint256 principalDue,
+        uint256 principalPastDue,
         uint256 unbilledPrincipal,
-        uint256 principalPaid,
+        uint256 principalDuePaid,
+        uint256 unbilledPrincipalPaid,
+        uint256 principalPastDuePaid,
         address by
     );
 
@@ -402,6 +408,8 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
 
             // Bring the credit current and check if it is still in good standing.
             DueDetail memory dd;
+            // TODO(jiatu): check cr.state here so that we don't allow drawdown before _updateDueInfo?
+            // Otherwise we'd be preventing late fee to be refreshed with this check.
             if (block.timestamp > cr.nextDueDate) {
                 (cr, dd) = _updateDueInfo(creditHash);
                 if (cr.state != CreditState.GoodStanding)
@@ -625,7 +633,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
             );
         }
 
-        // amountToCollect == payoffAmount indicates payoff or not. >= is a safe practice
+        // amountToCollect == payoffAmount indicates paidoff or not. >= is a safe practice
         return (amountToCollect, amountToCollect >= payoffAmount, false);
     }
 
@@ -653,45 +661,65 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
             revert Errors.creditLineNotInStateForMakingPayment();
         }
 
-        if (block.timestamp > cr.nextDueDate) {
-            (cr, ) = _updateDueInfo(creditHash);
-        }
+        DueDetail memory dd;
+        (cr, dd) = _updateDueInfo(creditHash);
 
         uint256 principalDue = cr.nextDue - cr.yieldDue;
-        uint256 totalPrincipal = principalDue + cr.unbilledPrincipal;
-
+        uint256 totalPrincipal = principalDue + cr.unbilledPrincipal + dd.principalPastDue;
         uint256 amountToCollect = amount < totalPrincipal ? amount : totalPrincipal;
 
-        if (amount < principalDue) {
-            cr.nextDue = uint96(cr.nextDue - amount);
-        } else {
-            // Pay all the principal due, then apply the remainder of the payment to reduce unbilled principal.
-            cr.nextDue = uint96(cr.nextDue - principalDue);
-            cr.unbilledPrincipal = uint96(cr.unbilledPrincipal - (amountToCollect - principalDue));
+        // Pay principal past due first, then principal due, then unbilled principal.
+        uint256 principalPastDuePaid = amount > dd.principalPastDue ? dd.principalPastDue : amount;
+        amount -= principalPastDuePaid;
+        dd.principalPastDue -= uint96(principalPastDuePaid);
+        cr.totalPastDue -= uint96(principalPastDuePaid);
+
+        uint256 principalDuePaid;
+        if (amount > 0) {
+            principalDuePaid = amount > principalDue ? principalDue : amount;
+            amount -= principalDuePaid;
+            cr.nextDue -= uint96(principalDuePaid);
         }
 
-        // Adjust credit record status if needed. This happens when the yieldDue happens to be 0.
-        if (cr.nextDue == 0) {
+        uint256 unbilledPrincipalPaid;
+        if (amount > 0) {
+            unbilledPrincipalPaid = amount > cr.unbilledPrincipal ? cr.unbilledPrincipal : amount;
+            amount -= unbilledPrincipalPaid;
+            cr.unbilledPrincipal -= uint96(unbilledPrincipalPaid);
+        }
+
+        // Adjust credit record status if needed. This happens when the next due and past due happen to be 0.
+        if (cr.nextDue == 0 && cr.totalPastDue == 0) {
             if (cr.unbilledPrincipal == 0 && cr.remainingPeriods == 0) {
                 cr.state = CreditState.Deleted;
                 emit CreditLineClosed(borrower, msg.sender, CreditLineClosureReason.Paidoff);
             } else cr.state = CreditState.GoodStanding;
         }
 
-        assert(amountToCollect > 0);
-        poolSafe.deposit(msg.sender, amountToCollect);
-        emit PrincipalPaymentMade(
-            borrower,
-            amountToCollect,
-            cr.nextDueDate,
-            cr.nextDue,
-            cr.unbilledPrincipal,
-            amountToCollect,
-            msg.sender
-        );
+        _setCreditRecord(creditHash, cr);
+        _setDueDetail(creditHash, dd);
 
-        // The credit is paid off if there no next due or past due.
-        return (amountToCollect, cr.nextDue == 0 && cr.totalPastDue == 0);
+        if (amountToCollect > 0) {
+            poolSafe.deposit(msg.sender, amountToCollect);
+            emit PrincipalPaymentMade(
+                borrower,
+                amountToCollect,
+                cr.nextDueDate,
+                cr.nextDue - cr.yieldDue,
+                dd.principalPastDue,
+                cr.unbilledPrincipal,
+                principalDuePaid,
+                principalPastDuePaid,
+                unbilledPrincipalPaid,
+                msg.sender
+            );
+        }
+
+        // The credit is paid off if there no next due, past due or unbilled principal.
+        return (
+            amountToCollect,
+            cr.nextDue == 0 && cr.totalPastDue == 0 && cr.unbilledPrincipal == 0
+        );
     }
 
     function _pauseCredit(bytes32 creditHash) internal {
@@ -829,6 +857,8 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         if (cr.nextDueDate == 0) {
             periodsPassed = 1;
         } else if (block.timestamp > cr.nextDueDate) {
+            // TODO(jiatu): this is wrong. If two payments are made post maturity, then the second
+            // payment should not increase periods passed.
             periodsPassed = calendar.getNumPeriodsPassed(
                 cc.periodDuration,
                 cr.nextDueDate,
