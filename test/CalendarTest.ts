@@ -1090,6 +1090,27 @@ describe("Calendar Test", function () {
                     ),
                 ).to.equal(3);
             });
+
+            it("Should revert if the start date is later than the end date", async function () {
+                const nextYear = moment.utc().year() + 1;
+                const startDate = moment.utc({
+                    year: nextYear,
+                    month: 3,
+                    day: 15,
+                });
+                const endDate = moment.utc({
+                    year: nextYear,
+                    month: 3,
+                    day: 14,
+                });
+                await expect(
+                    calendarContract.getNumPeriodsPassed(
+                        PayPeriodDuration.Monthly,
+                        startDate.unix(),
+                        endDate.unix(),
+                    ),
+                ).to.be.revertedWithCustomError(calendarContract, "startDateLaterThanEndDate");
+            });
         });
 
         describe("With quarterly period duration", function () {
@@ -1152,6 +1173,27 @@ describe("Calendar Test", function () {
                     ),
                 ).to.equal(4);
             });
+
+            it("Should revert if the start date is later than the end date", async function () {
+                const nextYear = moment.utc().year() + 1;
+                const startDate = moment.utc({
+                    year: nextYear,
+                    month: 3,
+                    day: 15,
+                });
+                const endDate = moment.utc({
+                    year: nextYear,
+                    month: 3,
+                    day: 14,
+                });
+                await expect(
+                    calendarContract.getNumPeriodsPassed(
+                        PayPeriodDuration.Quarterly,
+                        startDate.unix(),
+                        endDate.unix(),
+                    ),
+                ).to.be.revertedWithCustomError(calendarContract, "startDateLaterThanEndDate");
+            });
         });
 
         describe("With semi-annually period duration", function () {
@@ -1213,6 +1255,27 @@ describe("Calendar Test", function () {
                         endDate.unix(),
                     ),
                 ).to.equal(4);
+            });
+
+            it("Should revert if the start date is later than the end date", async function () {
+                const nextYear = moment.utc().year() + 1;
+                const startDate = moment.utc({
+                    year: nextYear,
+                    month: 3,
+                    day: 15,
+                });
+                const endDate = moment.utc({
+                    year: nextYear,
+                    month: 3,
+                    day: 14,
+                });
+                await expect(
+                    calendarContract.getNumPeriodsPassed(
+                        PayPeriodDuration.SemiAnnually,
+                        startDate.unix(),
+                        endDate.unix(),
+                    ),
+                ).to.be.revertedWithCustomError(calendarContract, "startDateLaterThanEndDate");
             });
         });
     });

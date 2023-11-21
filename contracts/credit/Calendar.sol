@@ -145,6 +145,9 @@ contract Calendar is ICalendar {
         uint256 startDate,
         uint256 endDate
     ) public view returns (uint256 numPeriodsPassed) {
+        if (startDate > endDate) {
+            revert Errors.startDateLaterThanEndDate();
+        }
         uint256 dueDateAfterStartDate = _getStartDateOfNextPeriod(periodDuration, startDate);
         if (endDate <= dueDateAfterStartDate) {
             // `numPeriodsPassed` is 1 if the current block timestamp and the last due date are

@@ -3,6 +3,7 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { BigNumber as BN } from "ethers";
 import { ethers } from "hardhat";
+import moment from "moment";
 import {
     Calendar,
     CreditDueManager,
@@ -19,16 +20,22 @@ import {
     RiskAdjustedTranchesPolicy,
     TrancheVault,
 } from "../../typechain-types";
-import { CreditRecordStructOutput } from "../../typechain-types/contracts/credit/Credit";
 import {
     CONSTANTS,
+    CreditState,
+    calcLateFeeNew,
+    calcPrincipalDueNew,
     calcYieldDue,
+    calcYieldDueNew,
     checkCreditConfig,
     checkCreditRecord,
+    checkCreditRecordsMatch,
     checkDueDetailsMatch,
     deployAndSetupPoolContracts,
     deployProtocolContracts,
     genDueDetail,
+    getLatePaymentGracePeriodDeadline,
+    getNextDueDate,
 } from "../BaseTest";
 import {
     borrowerLevelCreditHash,
@@ -38,6 +45,7 @@ import {
     getLatestBlock,
     getMinFirstLossCoverRequirement,
     getStartOfDay,
+    minBigNumber,
     setNextBlockTimestamp,
     toToken,
 } from "../TestUtils";
@@ -77,104 +85,6 @@ let poolConfigContract: PoolConfig,
 //         defaultPeriod,
 //     );
 //     return defaultDate;
-// }
-
-function calcProfitRateWithCR(cr: CreditRecordStructOutput, yieldInBps: number): BN {
-    let principal = getPrincipal(cr);
-    return calcProfitRateWithPrincipal(principal, yieldInBps);
-}
-
-function calcProfitRateWithPrincipal(principal: BN, yieldInBps: number): BN {
-    return principal
-        .mul(BN.from(yieldInBps))
-        .mul(CONSTANTS.DEFAULT_DECIMALS_FACTOR)
-        .div(CONSTANTS.BP_FACTOR.mul(CONSTANTS.SECONDS_IN_YEAR));
-}
-
-function calcLateFee(configs: BN[], principal: BN): BN {
-    let fees = configs[0];
-    // todo this implementation needs to be changed to reflect the new late fee policy
-    if (configs[1].gt(0)) {
-        fees = fees.add(principal.mul(configs[1]).div(CONSTANTS.BP_FACTOR));
-    }
-    return fees;
-}
-
-function getPrincipal(cr: CreditRecordStructOutput): BN {
-    return cr.unbilledPrincipal.add(cr.nextDue.sub(cr.yieldDue));
-}
-
-// function calcLateCreditRecord(
-//     cr: CreditRecordStructOutput,
-//     cc: CreditConfigStructOutput,
-//     periodCount: number,
-//     currentTime: number,
-//     configs: BN[],
-// ): [CreditRecordStructOutput, BN, BN] {
-//     let ncr = { ...cr };
-//     let principalDiff = BN.from(0);
-//     let missProfit = BN.from(0);
-//     let preDueDate = 0;
-//
-//     // console.log(`currentTime: ${currentTime}`);
-//
-//     for (let i = 0; i < periodCount; i++) {
-//         let [nextDueDate] = getNextDueDate(
-//             ncr.nextDueDate.toNumber(),
-//             ncr.nextDueDate.toNumber(),
-//             cc.periodDuration,
-//         );
-//         let seconds = nextDueDate - ncr.nextDueDate.toNumber();
-//
-//         // console.log(`nextDueDate: ${nextDueDate}, seconds: ${seconds}`);
-//
-//         // console.log(
-//         //     `ncr.nextDue: ${ncr.nextDue}, ncr.unbilledPrincipal: ${ncr.unbilledPrincipal}`,
-//         // );
-//
-//         if (ncr.nextDue.gt(BN.from(0))) {
-//             ncr.unbilledPrincipal = ncr.unbilledPrincipal.add(ncr.nextDue);
-//             principalDiff = principalDiff.add(ncr.nextDue);
-//         }
-//
-//         ncr.yieldDue = calcYield(ncr.unbilledPrincipal, cc.yieldInBps, seconds);
-//
-//         // console.log(`ncr.yieldDue: ${ncr.yieldDue}`);
-//
-//         let principalToBill = ncr.unbilledPrincipal.mul(configs[3]).div(CONSTANTS.BP_FACTOR);
-//         ncr.nextDue = ncr.yieldDue.add(principalToBill);
-//         ncr.unbilledPrincipal = ncr.unbilledPrincipal.sub(principalToBill);
-//
-//         // console.log(
-//         //     `ncr.nextDue: ${ncr.nextDue}, ncr.unbilledPrincipal: ${ncr.unbilledPrincipal}, principalDiff: ${principalDiff}`,
-//         // );
-//
-//         if (principalDiff.gt(BN.from(0)) && currentTime > nextDueDate) {
-//             missProfit = missProfit.add(calcYield(principalDiff, cc.yieldInBps, seconds));
-//             // console.log(`missProfit: ${missProfit}`);
-//         }
-//
-//         preDueDate = ncr.nextDueDate.toNumber();
-//         ncr.nextDueDate = BN.from(nextDueDate);
-//     }
-//     if (currentTime > preDueDate) {
-//         missProfit = missProfit.add(
-//             calcYield(principalDiff, cc.yieldInBps, currentTime - preDueDate),
-//         );
-//         // console.log(`missProfit: ${missProfit}`);
-//     }
-//
-//     ncr.remainingPeriods = ncr.remainingPeriods - periodCount;
-//     ncr.missedPeriods = ncr.missedPeriods + periodCount;
-//
-//     if (ncr.remainingPeriods === 0) {
-//         ncr.nextDue = ncr.nextDue.add(ncr.unbilledPrincipal);
-//         ncr.unbilledPrincipal = BN.from(0);
-//     }
-//
-//     ncr.state = 5;
-//
-//     return [ncr, principalDiff, missProfit];
 // }
 
 async function getCreditRecordSettings(): Promise<BN[]> {
@@ -678,7 +588,7 @@ describe("CreditLine Test", function () {
         let yieldInBps = 1217;
         let numOfPeriods = 5;
 
-        describe("Without committed", function () {
+        describe("Without commitment", function () {
             async function prepareForDrawdown() {
                 await creditContract
                     .connect(eaServiceAccount)
@@ -727,7 +637,7 @@ describe("CreditLine Test", function () {
                 ).to.be.revertedWithCustomError(creditContract, "creditLineExceeded");
             });
 
-            it("Should not allow drawdown while credit line is in wrong state", async function () {
+            it("Should not allow drawdown if the credit line is in wrong state", async function () {
                 await creditContract.connect(borrower).closeCredit(borrower.address);
 
                 await expect(
@@ -735,7 +645,7 @@ describe("CreditLine Test", function () {
                 ).to.be.revertedWithCustomError(creditContract, "creditNotInStateForDrawdown");
             });
 
-            it("Should not borrow while borrowers don't meet first loss cover requirement", async function () {
+            it("Should not allow drawdown if borrowers don't meet first loss cover requirement", async function () {
                 await borrowerFirstLossCoverContract
                     .connect(poolOwner)
                     .setCoverProvider(borrower.address, {
@@ -751,7 +661,7 @@ describe("CreditLine Test", function () {
                 );
             });
 
-            it("Should not borrow after credit approval expired", async function () {
+            it("Should not allow drawdown after credit approval expiration", async function () {
                 await poolConfigContract.connect(poolOwner).setCreditApprovalExpiration(1);
                 await creditContract
                     .connect(eaServiceAccount)
@@ -780,7 +690,7 @@ describe("CreditLine Test", function () {
                 );
             });
 
-            it("Should not borrow again while revolving is false", async function () {
+            it("Should not allow drawdown again if the credit line is non-revolving", async function () {
                 await creditContract
                     .connect(eaServiceAccount)
                     .approveBorrower(
@@ -801,7 +711,7 @@ describe("CreditLine Test", function () {
                 );
             });
 
-            it.skip("Should not borrow again while current credit is late", async function () {
+            it.skip("Should not allow drawdown again if the current credit is late", async function () {
                 await creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000));
                 const creditHash = ethers.utils.keccak256(
                     ethers.utils.defaultAbiCoder.encode(
@@ -818,7 +728,7 @@ describe("CreditLine Test", function () {
                 // ).to.be.revertedWithCustomError(creditContract, "creditLineNotInGoodStandingState");
             });
 
-            it("Should not borrow again while credit limit is exceeded after updateDueInfo", async function () {
+            it("Should not allow drawdown again if the credit limit is exceeded after updateDueInfo", async function () {
                 await creditContract
                     .connect(eaServiceAccount)
                     .approveBorrower(borrower.address, toToken(10_000), 5, 1217, toToken(0), true);
@@ -829,7 +739,7 @@ describe("CreditLine Test", function () {
                 ).to.be.revertedWithCustomError(creditContract, "creditLineExceeded");
             });
 
-            it("Should not borrow while borrow amount is less than front loading fees after updateDueInfo", async function () {
+            it("Should not allow drawdown if the borrow amount is less than front loading fees after updateDueInfo", async function () {
                 const frontLoadingFeeFlat = toToken(1000);
                 const frontLoadingFeeBps = BN.from(0);
                 await poolConfigContract.connect(poolOwner).setFrontLoadingFees({
@@ -918,7 +828,7 @@ describe("CreditLine Test", function () {
                 );
             });
 
-            it("Should allow the borrower to borrow for the first time while princiipalRate > 0", async function () {
+            it("Should allow the borrower to borrow for the first time while principalRate > 0", async function () {
                 const frontLoadingFeeFlat = toToken(100);
                 const frontLoadingFeeBps = BN.from(100);
                 await poolConfigContract.connect(poolOwner).setFrontLoadingFees({
@@ -1214,7 +1124,7 @@ describe("CreditLine Test", function () {
             });
         });
 
-        describe("With committed", function () {
+        describe("With commitment", function () {
             async function prepareForDrawdown() {
                 await creditContract
                     .connect(eaServiceAccount)
@@ -1232,7 +1142,7 @@ describe("CreditLine Test", function () {
                 await loadFixture(prepareForDrawdown);
             });
 
-            it("Should allow the borrower to borrow while committed is less than accrued", async function () {
+            it("Should allow the borrower to borrow if the committed yield is less than the accrued yield", async function () {
                 const creditHash = ethers.utils.keccak256(
                     ethers.utils.defaultAbiCoder.encode(
                         ["address", "address"],
@@ -1298,7 +1208,7 @@ describe("CreditLine Test", function () {
                 );
             });
 
-            it("Should allow the borrower to borrow while committed is greater than accrued", async function () {
+            it("Should allow the borrower to borrow if the committed yield is greater than the accrued yield", async function () {
                 const creditHash = ethers.utils.keccak256(
                     ethers.utils.defaultAbiCoder.encode(
                         ["address", "address"],
@@ -1364,7 +1274,7 @@ describe("CreditLine Test", function () {
                 );
             });
 
-            it("Should allow the borrower to borrow while committed is greater than accrued first, and becomes less than accrued then", async function () {
+            it("Should allow the borrower to borrow if the committed yield is greater than the accrued yield first, but becomes less than accrued yield after drawdown", async function () {
                 const frontLoadingFeeFlat = toToken(100);
                 const frontLoadingFeeBps = BN.from(100);
                 await poolConfigContract.connect(poolOwner).setFrontLoadingFees({
@@ -1476,7 +1386,7 @@ describe("CreditLine Test", function () {
                 expect(await creditContract.maturityDates(creditHash)).to.equal(maturityDate);
             });
 
-            it("Should allow the borrower to borrow twice while committed is greater than accrued", async function () {
+            it("Should allow the borrower to borrow twice if the committed yield is greater than the accrued yield", async function () {
                 const frontLoadingFeeFlat = toToken(100);
                 const frontLoadingFeeBps = BN.from(100);
                 await poolConfigContract.connect(poolOwner).setFrontLoadingFees({
@@ -1594,96 +1504,3537 @@ describe("CreditLine Test", function () {
         // TODO(jiatu): fill this in
     });
 
-    // describe("MakePayment Tests", function () {
-    //     const yieldInBps = 1217;
-    //     const frontLoadingFeeBps = 100;
-    //     const periodDuration = 2;
-    //
-    //     let borrowAmount: BN, creditHash: string;
-    //
-    //     async function prepareForMakePayment() {
-    //         await poolConfigContract.connect(poolOwner).setFrontLoadingFees({
-    //             frontLoadingFeeFlat: 0,
-    //             frontLoadingFeeBps: frontLoadingFeeBps,
-    //         });
-    //
-    //         await poolConfigContract.connect(poolOwner).setPoolPayPeriod(periodDuration);
-    //
-    //         let juniorDepositAmount = toToken(300_000);
-    //         await juniorTrancheVaultContract
-    //             .connect(lender)
-    //             .deposit(juniorDepositAmount, lender.address);
-    //         let seniorDepositAmount = toToken(100_000);
-    //         await seniorTrancheVaultContract
-    //             .connect(lender)
-    //             .deposit(seniorDepositAmount, lender.address);
-    //
-    //         await creditContract
-    //             .connect(eaServiceAccount)
-    //             .approveBorrower(
-    //                 borrower.address,
-    //                 toToken(100_000),
-    //                 3,
-    //                 yieldInBps,
-    //                 toToken(100_000),
-    //                 true,
-    //             );
-    //         await borrowerFirstLossCoverContract
-    //             .connect(borrower)
-    //             .depositCover(
-    //                 await getMinFirstLossCoverRequirement(
-    //                     borrowerFirstLossCoverContract,
-    //                     poolConfigContract,
-    //                     poolContract,
-    //                     borrower.address,
-    //                 ),
-    //             );
-    //
-    //         borrowAmount = toToken(50_000);
-    //         await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
-    //
-    //         creditHash = ethers.utils.keccak256(
-    //             ethers.utils.defaultAbiCoder.encode(
-    //                 ["address", "address"],
-    //                 [creditContract.address, borrower.address],
-    //             ),
-    //         );
-    //     }
-    //
-    //     beforeEach(async function () {
-    //         await loadFixture(prepareForMakePayment);
-    //     });
-    //
-    //     it("Should not approve while protocol is paused or pool is not on", async function () {
-    //         await humaConfigContract.connect(protocolOwner).pause();
-    //         await expect(
-    //             creditContract.makePayment(borrower.address, toToken(1)),
-    //         ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
-    //         await humaConfigContract.connect(protocolOwner).unpause();
-    //
-    //         await poolContract.connect(poolOwner).disablePool();
-    //         await expect(
-    //             creditContract.makePayment(borrower.address, toToken(1)),
-    //         ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
-    //         await poolContract.connect(poolOwner).enablePool();
-    //     });
-    //
-    //     it("Should not allow non-borrower or non-PDS service account to makePayment", async function () {});
-    //
-    //     it("Should not makePayment with invalid parameters", async function () {});
-    //
-    //     it("Should make payment partially payment successfully in GoodStanding state and before due date", async function () {});
-    //
-    //     it("Should make payment partially payment successfully in GoodStanding state and between due date and grace late period", async function () {});
-    //
-    //     it("Should make payment fully successfully in GoodStanding state and before due date", async function () {});
-    //
-    //     it("Should make payment fully successfully in GoodStanding state and between due date and grace late period", async function () {});
-    //
-    //     it("Should pay off successfully in GoodStanding state and before due date", async function () {});
-    //
-    //     it("Should pay off successfully in GoodStanding state and between due date and grace late period", async function () {});
-    // });
+    describe("makePayment", function () {
+        const yieldInBps = 1217,
+            lateFeeFlat = 0,
+            lateFeeBps = 300,
+            latePaymentGracePeriodInDays = 5;
+        let principalRateInBps: number, membershipFee: BN;
+        let borrowAmount: BN, creditHash: string;
+        let nextYear: number,
+            drawdownDate: moment.Moment,
+            makePaymentDate: moment.Moment,
+            firstDueDate: moment.Moment;
+
+        beforeEach(function () {
+            membershipFee = toToken(10);
+            creditHash = ethers.utils.keccak256(
+                ethers.utils.defaultAbiCoder.encode(
+                    ["address", "address"],
+                    [creditContract.address, borrower.address],
+                ),
+            );
+        });
+
+        async function approveCredit() {
+            await poolConfigContract.connect(poolOwner).setLatePaymentGracePeriodInDays(5);
+
+            await creditContract
+                .connect(eaServiceAccount)
+                .approveBorrower(
+                    borrower.getAddress(),
+                    toToken(100_000),
+                    6,
+                    yieldInBps,
+                    toToken(100_000),
+                    true,
+                );
+        }
+
+        async function drawdown() {
+            // Make sure the borrower has enough first loss cover so that they
+            // can drawdown.
+            await borrowerFirstLossCoverContract
+                .connect(borrower)
+                .depositCover(
+                    await getMinFirstLossCoverRequirement(
+                        borrowerFirstLossCoverContract,
+                        poolConfigContract,
+                        poolContract,
+                        await borrower.getAddress(),
+                    ),
+                );
+
+            // Make the time of drawdown deterministic by using a fixed date
+            // in the next year.
+            nextYear = moment.utc().year() + 1;
+            drawdownDate = moment.utc({
+                year: nextYear,
+                month: 1,
+                day: 12,
+                hour: 13,
+                minute: 47,
+                second: 8,
+            });
+            await setNextBlockTimestamp(drawdownDate.unix());
+
+            borrowAmount = toToken(50_000);
+            await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
+
+            firstDueDate = moment.utc({
+                year: nextYear,
+                month: 2,
+                day: 1,
+            });
+        }
+
+        describe("If the borrower does not have a credit line approved", function () {
+            it("Should not allow a borrower to make payment", async function () {
+                await expect(
+                    creditContract
+                        .connect(borrower)
+                        .makePayment(borrower.getAddress(), toToken(1)),
+                ).to.be.revertedWithCustomError(creditContract, "notBorrower");
+            });
+        });
+
+        describe("If the borrower has not drawn down from the credit line", function () {
+            beforeEach(async function () {
+                await loadFixture(approveCredit);
+            });
+
+            it("Should not allow the borrower to make payment", async function () {
+                await expect(
+                    creditContract
+                        .connect(borrower)
+                        .makePayment(borrower.getAddress(), toToken(1)),
+                ).to.be.revertedWithCustomError(
+                    creditContract,
+                    "creditLineNotInStateForMakingPayment",
+                );
+            });
+        });
+
+        describe("If the borrower has drawn down from the credit line", function () {
+            async function testMakePayment(
+                paymentAmount: BN,
+                paymentDate: moment.Moment = makePaymentDate,
+            ) {
+                const cc = await creditContract.getCreditConfig(creditHash);
+                const cr = await creditContract.getCreditRecord(creditHash);
+                const dd = await creditContract.getDueDetail(creditHash);
+                const maturityDate = moment.utc(
+                    (await creditContract.maturityDates(creditHash)).toNumber() * 1000,
+                );
+
+                const borrowerBalanceBefore = await mockTokenContract.balanceOf(
+                    borrower.getAddress(),
+                );
+                const poolSafeBalanceBefore = await mockTokenContract.balanceOf(
+                    poolSafeContract.address,
+                );
+
+                // Calculate the dues, fees and dates right before the payment is made.
+                let [
+                    remainingUnbilledPrincipal,
+                    remainingPrincipalPastDue,
+                    remainingPrincipalNextDue,
+                ] = await calcPrincipalDueNew(
+                    calendarContract,
+                    cc,
+                    cr,
+                    dd,
+                    paymentDate,
+                    maturityDate,
+                    latePaymentGracePeriodInDays,
+                    principalRateInBps,
+                );
+                let [
+                    remainingYieldPastDue,
+                    remainingYieldNextDue,
+                    [accruedYieldNextDue, committedYieldNextDue],
+                ] = await calcYieldDueNew(
+                    calendarContract,
+                    cc,
+                    cr,
+                    dd,
+                    paymentDate,
+                    maturityDate,
+                    latePaymentGracePeriodInDays,
+                    membershipFee,
+                );
+                let [lateFeeUpdatedDate, remainingLateFee] = await calcLateFeeNew(
+                    poolConfigContract,
+                    calendarContract,
+                    cr,
+                    dd,
+                    paymentDate,
+                    latePaymentGracePeriodInDays,
+                );
+                let nextDueBefore = remainingPrincipalNextDue.add(remainingYieldNextDue);
+
+                let principalDuePaid = BN.from(0),
+                    yieldDuePaid = BN.from(0),
+                    unbilledPrincipalPaid = BN.from(0),
+                    principalPastDuePaid = BN.from(0),
+                    yieldPastDuePaid = BN.from(0),
+                    lateFeePaid = BN.from(0),
+                    remainingPaymentAmount = paymentAmount;
+                // If there is past due, attempt to pay past due first.
+                let remainingPastDue = remainingPrincipalPastDue
+                    .add(remainingYieldPastDue)
+                    .add(remainingLateFee);
+                if (remainingPastDue.gt(0)) {
+                    if (paymentAmount.gte(remainingPastDue)) {
+                        yieldPastDuePaid = remainingYieldPastDue;
+                        remainingYieldPastDue = BN.from(0);
+                        principalPastDuePaid = remainingPrincipalPastDue;
+                        remainingPrincipalPastDue = BN.from(0);
+                        lateFeePaid = remainingLateFee;
+                        remainingLateFee = BN.from(0);
+                        remainingPaymentAmount = paymentAmount.sub(remainingPastDue);
+                    } else if (
+                        paymentAmount.gte(remainingYieldPastDue.add(remainingPrincipalPastDue))
+                    ) {
+                        lateFeePaid = paymentAmount
+                            .sub(remainingYieldPastDue)
+                            .sub(remainingPrincipalPastDue);
+                        remainingLateFee = remainingLateFee.sub(lateFeePaid);
+                        yieldPastDuePaid = remainingYieldPastDue;
+                        remainingYieldPastDue = BN.from(0);
+                        principalPastDuePaid = remainingPrincipalPastDue;
+                        remainingPrincipalPastDue = BN.from(0);
+                        remainingPaymentAmount = BN.from(0);
+                    } else if (paymentAmount.gte(remainingYieldPastDue)) {
+                        principalPastDuePaid = paymentAmount.sub(remainingYieldPastDue);
+                        remainingPrincipalPastDue =
+                            remainingPrincipalPastDue.sub(principalPastDuePaid);
+                        yieldPastDuePaid = remainingYieldPastDue;
+                        remainingYieldPastDue = BN.from(0);
+                        remainingPaymentAmount = BN.from(0);
+                    } else {
+                        yieldPastDuePaid = paymentAmount;
+                        remainingYieldPastDue = remainingYieldPastDue.sub(paymentAmount);
+                        remainingPaymentAmount = BN.from(0);
+                    }
+                    remainingPastDue = remainingPrincipalPastDue
+                        .add(remainingYieldPastDue)
+                        .add(remainingLateFee);
+                }
+                // Then pay next due.
+                let nextDueAfter = nextDueBefore;
+                if (remainingPaymentAmount.gt(0)) {
+                    if (remainingPaymentAmount.gte(nextDueBefore)) {
+                        yieldDuePaid = remainingYieldNextDue;
+                        principalDuePaid = remainingPrincipalNextDue;
+                        remainingPaymentAmount = remainingPaymentAmount.sub(nextDueBefore);
+                        remainingYieldNextDue = BN.from(0);
+                        remainingPrincipalNextDue = BN.from(0);
+                        unbilledPrincipalPaid = minBigNumber(
+                            remainingUnbilledPrincipal,
+                            remainingPaymentAmount,
+                        );
+                        remainingUnbilledPrincipal =
+                            remainingUnbilledPrincipal.sub(unbilledPrincipalPaid);
+                        remainingPaymentAmount = remainingPaymentAmount.sub(unbilledPrincipalPaid);
+                    } else if (remainingPaymentAmount.gte(remainingYieldNextDue)) {
+                        yieldDuePaid = remainingYieldNextDue;
+                        principalDuePaid = remainingPaymentAmount.sub(remainingYieldNextDue);
+                        remainingPrincipalNextDue = remainingPrincipalNextDue.sub(
+                            remainingPaymentAmount.sub(remainingYieldNextDue),
+                        );
+                        remainingYieldNextDue = BN.from(0);
+                        remainingPaymentAmount = BN.from(0);
+                    } else {
+                        yieldDuePaid = remainingPaymentAmount;
+                        remainingYieldNextDue = remainingYieldNextDue.sub(remainingPaymentAmount);
+                        remainingPaymentAmount = BN.from(0);
+                    }
+                    nextDueAfter = remainingYieldNextDue.add(remainingPrincipalNextDue);
+                }
+
+                // Clear late fee updated date if the bill is paid off
+                if (remainingPastDue.isZero() && nextDueAfter.isZero()) {
+                    lateFeeUpdatedDate = BN.from(0);
+                }
+
+                let newDueDate;
+                if (
+                    paymentDate.isSameOrBefore(
+                        getLatePaymentGracePeriodDeadline(cr, latePaymentGracePeriodInDays),
+                    )
+                ) {
+                    newDueDate = cr.nextDueDate;
+                } else {
+                    newDueDate = await getNextDueDate(
+                        calendarContract,
+                        cc,
+                        paymentDate,
+                        maturityDate,
+                    );
+                }
+                const paymentAmountUsed = paymentAmount.sub(remainingPaymentAmount);
+
+                if (paymentAmountUsed.gt(ethers.constants.Zero)) {
+                    await expect(
+                        creditContract
+                            .connect(borrower)
+                            .makePayment(borrower.getAddress(), paymentAmount),
+                    )
+                        .to.emit(creditContract, "PaymentMade")
+                        .withArgs(
+                            await borrower.getAddress(),
+                            paymentAmountUsed,
+                            newDueDate,
+                            nextDueAfter,
+                            remainingPastDue,
+                            remainingUnbilledPrincipal,
+                            principalDuePaid,
+                            yieldDuePaid,
+                            unbilledPrincipalPaid,
+                            principalPastDuePaid,
+                            yieldPastDuePaid,
+                            lateFeePaid,
+                            await borrower.getAddress(),
+                        );
+                } else {
+                    creditContract
+                        .connect(borrower)
+                        .makePayment(borrower.getAddress(), paymentAmount);
+                }
+
+                // Make sure the funds has been transferred from the borrower to the pool safe.
+                const borrowerBalanceAfter = await mockTokenContract.balanceOf(
+                    borrower.getAddress(),
+                );
+                expect(borrowerBalanceBefore.sub(borrowerBalanceAfter)).to.equal(
+                    paymentAmountUsed,
+                );
+                const poolSafeBalanceAfter = await mockTokenContract.balanceOf(
+                    poolSafeContract.address,
+                );
+                expect(poolSafeBalanceAfter.sub(poolSafeBalanceBefore)).to.equal(
+                    paymentAmountUsed,
+                );
+
+                const newCR = await creditContract.getCreditRecord(creditHash);
+                let periodsPassed = 0;
+                if (paymentDate > moment.utc(cr.nextDueDate.toNumber() * 1000)) {
+                    periodsPassed = (
+                        await calendarContract.getNumPeriodsPassed(
+                            cc.periodDuration,
+                            cr.nextDueDate,
+                            paymentDate.unix(),
+                        )
+                    ).toNumber();
+                }
+                const remainingPeriods = Math.max(cr.remainingPeriods - periodsPassed, 0);
+                // Whether the bill is late up until payment is made.
+                const isLate =
+                    cr.missedPeriods > 0 ||
+                    (cr.nextDue.gt(0) &&
+                        paymentDate.isAfter(
+                            getLatePaymentGracePeriodDeadline(cr, latePaymentGracePeriodInDays),
+                        ));
+                const missedPeriods =
+                    !isLate || (nextDueAfter.isZero() && remainingPastDue.isZero())
+                        ? 0
+                        : cr.missedPeriods + periodsPassed;
+                let creditState;
+                if (
+                    remainingPeriods === 0 &&
+                    remainingUnbilledPrincipal.isZero() &&
+                    nextDueAfter.isZero() &&
+                    remainingPastDue.isZero()
+                ) {
+                    creditState = CreditState.Deleted;
+                } else if (missedPeriods !== 0) {
+                    creditState = CreditState.Delayed;
+                } else {
+                    creditState = CreditState.GoodStanding;
+                }
+                const expectedNewCR = {
+                    unbilledPrincipal: remainingUnbilledPrincipal,
+                    nextDueDate: newDueDate,
+                    nextDue: nextDueAfter,
+                    yieldDue: remainingYieldNextDue,
+                    totalPastDue: remainingPastDue,
+                    missedPeriods: missedPeriods,
+                    remainingPeriods,
+                    state: creditState,
+                };
+                await checkCreditRecordsMatch(newCR, expectedNewCR);
+
+                const newDD = await creditContract.getDueDetail(creditHash);
+                const yieldPaidInCurrentCycle =
+                    newDueDate === cr.nextDueDate ? dd.paid.add(yieldDuePaid) : yieldDuePaid;
+                const expectedNewDD = {
+                    lateFeeUpdatedDate,
+                    lateFee: remainingLateFee,
+                    principalPastDue: remainingPrincipalPastDue,
+                    yieldPastDue: remainingYieldPastDue,
+                    accrued: accruedYieldNextDue,
+                    committed: committedYieldNextDue,
+                    paid: yieldPaidInCurrentCycle,
+                };
+                await checkDueDetailsMatch(newDD, expectedNewDD);
+            }
+
+            describe("If the principal rate is zero", function () {
+                async function prepareForMakePayment() {
+                    principalRateInBps = 0;
+                    await poolConfigContract.connect(poolOwner).setFeeStructure({
+                        yieldInBps,
+                        minPrincipalRateInBps: principalRateInBps,
+                        lateFeeFlat,
+                        lateFeeBps,
+                        membershipFee,
+                    });
+                    await approveCredit();
+                    await drawdown();
+                }
+
+                beforeEach(async function () {
+                    await loadFixture(prepareForMakePayment);
+                });
+
+                describe("If the bill is currently in good standing", function () {
+                    describe("When the payment is made within the current billing cycle", function () {
+                        async function prepareForMakePaymentInCurrentBillingCycle() {
+                            makePaymentDate = moment.utc({
+                                year: nextYear,
+                                month: 1,
+                                day: 28,
+                                hour: 21,
+                                minute: 35,
+                                second: 54,
+                            });
+                            await setNextBlockTimestamp(makePaymentDate.unix());
+                        }
+
+                        beforeEach(async function () {
+                            await loadFixture(prepareForMakePaymentInCurrentBillingCycle);
+                        });
+
+                        it("Should allow the borrower to make partial payment that covers part of yield next due", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const paymentAmount = yieldNextDue.sub(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make full payment that covers part of all of next due and part of unbilled principal", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const paymentAmount = yieldNextDue.add(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to payoff the bill", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const paymentAmount = yieldNextDue.add(borrowAmount);
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make payment that covers the entire bill, and only the pay off amount is collected", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const paymentAmount = yieldNextDue.add(borrowAmount).add(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make multiple payments", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+
+                            // Make a series of payment gradually and eventually pay off the bill.
+                            await testMakePayment(yieldNextDue);
+
+                            const secondPaymentDate = moment.utc({
+                                year: nextYear,
+                                month: 1,
+                                day: 28,
+                                hour: 3,
+                                minute: 22,
+                                second: 57,
+                            });
+                            setNextBlockTimestamp(secondPaymentDate.unix());
+                            await testMakePayment(borrowAmount, secondPaymentDate);
+
+                            const thirdPaymentDate = moment.utc({
+                                year: nextYear,
+                                month: 1,
+                                day: 28,
+                                hour: 18,
+                                minute: 30,
+                            });
+                            setNextBlockTimestamp(thirdPaymentDate.unix());
+                            await testMakePayment(toToken(1), thirdPaymentDate);
+                        });
+                    });
+
+                    describe("When the payment is made after the due date of the current billing cycle, but within the late payment grace period", function () {
+                        async function prepareForMakePaymentWithinLatePaymentGracePeriod() {
+                            makePaymentDate = firstDueDate
+                                .clone()
+                                .add(latePaymentGracePeriodInDays, "days")
+                                .subtract(1, "second");
+                            await setNextBlockTimestamp(makePaymentDate.unix());
+                        }
+
+                        beforeEach(async function () {
+                            await loadFixture(prepareForMakePaymentWithinLatePaymentGracePeriod);
+                        });
+
+                        it("Should allow the borrower to make partial payment that covers part of yield next due", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const paymentAmount = yieldNextDue.sub(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make full payment that covers part of all of next due and part of unbilled principal", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const paymentAmount = yieldNextDue.add(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to payoff the bill", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const paymentAmount = yieldNextDue.add(borrowAmount);
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make payment that covers the entire bill, and only the pay off amount is collected", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const paymentAmount = yieldNextDue.add(borrowAmount).add(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make multiple payments", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            let cr = await creditContract.getCreditRecord(creditHash);
+                            let dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            let [, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+
+                            // Make a series of payment gradually and eventually pay off the bill.
+                            await testMakePayment(yieldNextDue);
+
+                            // The second payment is made after the late payment grace period of the first due date.
+                            // But since there is no next due, there is no late fee. However, there is new
+                            // yield due since a new bill is generated.
+                            const secondPaymentDate = makePaymentDate
+                                .clone()
+                                .add(1, "day")
+                                .add("4", "hours")
+                                .add(5, "minutes");
+                            setNextBlockTimestamp(secondPaymentDate.unix());
+                            cr = await creditContract.getCreditRecord(creditHash);
+                            dd = await creditContract.getDueDetail(creditHash);
+                            [, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                secondPaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            await testMakePayment(
+                                borrowAmount.add(yieldNextDue),
+                                secondPaymentDate,
+                            );
+                            cr = await creditContract.getCreditRecord(creditHash);
+                            expect(cr.unbilledPrincipal).to.equal(0);
+                            expect(cr.nextDue).to.equal(0);
+                            expect(cr.totalPastDue).to.equal(0);
+
+                            const thirdPaymentDate = secondPaymentDate.clone().add(38, "minutes");
+                            setNextBlockTimestamp(thirdPaymentDate.unix());
+                            await testMakePayment(toToken(1), thirdPaymentDate);
+                        });
+                    });
+
+                    describe("When the payment is made after the late payment grace period", function () {
+                        async function prepareForMakePaymentAfterLatePaymentGracePeriod() {
+                            makePaymentDate = firstDueDate
+                                .clone()
+                                .add(latePaymentGracePeriodInDays, "days")
+                                .add(1, "second");
+                            await setNextBlockTimestamp(makePaymentDate.unix());
+                        }
+
+                        beforeEach(async function () {
+                            await loadFixture(prepareForMakePaymentAfterLatePaymentGracePeriod);
+                        });
+
+                        it("Should allow the borrower to make partial payment that covers part of yield past due", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const paymentAmount = yieldPastDue.sub(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make partial payment that covers all of yield past due and part of late fee", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const paymentAmount = yieldPastDue.add(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make partial payment that covers all of past due and part of next due", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            const paymentAmount = yieldPastDue.add(lateFee).add(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make full payment that covers all of past and next due", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            const paymentAmount = yieldPastDue.add(lateFee).add(yieldNextDue);
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to payoff the bill", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            const paymentAmount = yieldPastDue
+                                .add(lateFee)
+                                .add(yieldNextDue)
+                                .add(borrowAmount);
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make payment that covers the entire bill, and only the pay off amount is collected", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            const paymentAmount = yieldPastDue
+                                .add(yieldNextDue)
+                                .add(lateFee)
+                                .add(borrowAmount)
+                                .add(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make multiple payments", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+
+                            await testMakePayment(yieldPastDue);
+
+                            const secondPaymentDate = makePaymentDate
+                                .clone()
+                                .add(1, "day")
+                                .add("4", "hours")
+                                .add(5, "minutes");
+                            setNextBlockTimestamp(secondPaymentDate.unix());
+                            await testMakePayment(lateFee, secondPaymentDate);
+
+                            const thirdPaymentDate = secondPaymentDate
+                                .clone()
+                                .add("39", "seconds");
+                            setNextBlockTimestamp(thirdPaymentDate.unix());
+                            await testMakePayment(yieldNextDue, thirdPaymentDate);
+
+                            const fourthPaymentDate = thirdPaymentDate.clone().add("11", "hours");
+                            setNextBlockTimestamp(fourthPaymentDate.unix());
+                            await testMakePayment(borrowAmount, fourthPaymentDate);
+
+                            const fifthPaymentDate = fourthPaymentDate
+                                .clone()
+                                .add(2, "days")
+                                .add("21", "hours")
+                                .add(1, "second");
+                            setNextBlockTimestamp(fifthPaymentDate.unix());
+                            await testMakePayment(toToken(1), fifthPaymentDate);
+                        });
+                    });
+
+                    describe("When the payment is in the final period", function () {
+                        async function prepareForMakePaymentInFinalPeriod() {
+                            makePaymentDate = moment.utc({
+                                year: nextYear,
+                                month: 7,
+                                day: 12,
+                            });
+                            await setNextBlockTimestamp(makePaymentDate.unix());
+                        }
+
+                        beforeEach(async function () {
+                            await loadFixture(prepareForMakePaymentInFinalPeriod);
+                        });
+
+                        it("Should allow the borrower to make partial payment that covers part of yield past due", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const paymentAmount = yieldPastDue.sub(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make partial payment that covers all of yield past due and part of late fee", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const paymentAmount = yieldPastDue.add(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make partial payment that covers all of past due and part of next due", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            const paymentAmount = yieldPastDue.add(lateFee).add(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make full payment that covers all of past and next due", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            const paymentAmount = yieldPastDue.add(lateFee).add(yieldNextDue);
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to payoff the bill and close the credit line", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            const paymentAmount = yieldPastDue
+                                .add(lateFee)
+                                .add(yieldNextDue)
+                                .add(borrowAmount);
+                            await testMakePayment(paymentAmount);
+
+                            // Payment should no longer be allowed after the credit line is deleted.
+                            await expect(
+                                creditContract
+                                    .connect(borrower)
+                                    .makePayment(borrower.getAddress(), paymentAmount),
+                            ).to.be.revertedWithCustomError(
+                                creditContract,
+                                "creditLineNotInStateForMakingPayment",
+                            );
+                        });
+
+                        it("Should allow the borrower to make payment that covers the entire bill, and only the pay off amount is collected", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            const paymentAmount = yieldPastDue
+                                .add(yieldNextDue)
+                                .add(lateFee)
+                                .add(borrowAmount)
+                                .add(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make multiple payments", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            let cr = await creditContract.getCreditRecord(creditHash);
+                            let dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+
+                            await testMakePayment(yieldPastDue);
+
+                            const secondPaymentDate = makePaymentDate
+                                .clone()
+                                .add(1, "day")
+                                .add("4", "hours")
+                                .add(5, "minutes");
+                            cr = await creditContract.getCreditRecord(creditHash);
+                            dd = await creditContract.getDueDetail(creditHash);
+                            let [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                secondPaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            setNextBlockTimestamp(secondPaymentDate.unix());
+                            await testMakePayment(lateFee, secondPaymentDate);
+
+                            const thirdPaymentDate = secondPaymentDate
+                                .clone()
+                                .add("39", "seconds");
+                            cr = await creditContract.getCreditRecord(creditHash);
+                            dd = await creditContract.getDueDetail(creditHash);
+                            [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                thirdPaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            setNextBlockTimestamp(thirdPaymentDate.unix());
+                            await testMakePayment(yieldNextDue.add(lateFee), thirdPaymentDate);
+
+                            const fourthPaymentDate = thirdPaymentDate.clone().add("11", "hours");
+                            cr = await creditContract.getCreditRecord(creditHash);
+                            dd = await creditContract.getDueDetail(creditHash);
+                            [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                fourthPaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            expect(lateFee).to.equal(0);
+                            setNextBlockTimestamp(fourthPaymentDate.unix());
+                            await testMakePayment(borrowAmount.add(lateFee), fourthPaymentDate);
+
+                            const fifthPaymentDate = fourthPaymentDate
+                                .clone()
+                                .add(2, "days")
+                                .add("21", "hours")
+                                .add(1, "second");
+                            setNextBlockTimestamp(fifthPaymentDate.unix());
+                            await expect(
+                                creditContract
+                                    .connect(borrower)
+                                    .makePayment(borrower.getAddress(), toToken(1)),
+                            ).to.be.revertedWithCustomError(
+                                creditContract,
+                                "creditLineNotInStateForMakingPayment",
+                            );
+                        });
+                    });
+
+                    describe("When the payment is made after the maturity date", function () {
+                        async function prepareForMakePaymentAfterMaturityDate() {
+                            // The payment is made after the late payment grace period of the maturity date.
+                            makePaymentDate = moment.utc({
+                                year: nextYear,
+                                month: 7,
+                                day: 20,
+                                second: 1,
+                            });
+                            await setNextBlockTimestamp(makePaymentDate.unix());
+                        }
+
+                        beforeEach(async function () {
+                            await loadFixture(prepareForMakePaymentAfterMaturityDate);
+                        });
+
+                        it("Should allow the borrower to make partial payment that covers part of yield past due", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const paymentAmount = yieldPastDue.sub(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make partial payment that covers all of yield past due and part of late fee", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const paymentAmount = yieldPastDue.add(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to payoff the bill and close the credit line", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            const paymentAmount = yieldPastDue
+                                .add(lateFee)
+                                .add(yieldNextDue)
+                                .add(borrowAmount);
+                            await testMakePayment(paymentAmount);
+
+                            // Payment should no longer be allowed after the credit line is deleted.
+                            await expect(
+                                creditContract
+                                    .connect(borrower)
+                                    .makePayment(borrower.getAddress(), paymentAmount),
+                            ).to.be.revertedWithCustomError(
+                                creditContract,
+                                "creditLineNotInStateForMakingPayment",
+                            );
+                        });
+
+                        it("Should allow the borrower to make payment that covers the entire bill, and only the pay off amount is collected", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            const paymentAmount = yieldPastDue
+                                .add(yieldNextDue)
+                                .add(lateFee)
+                                .add(borrowAmount)
+                                .add(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make multiple payments", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            let cr = await creditContract.getCreditRecord(creditHash);
+                            let dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+
+                            await testMakePayment(yieldPastDue);
+
+                            const secondPaymentDate = makePaymentDate
+                                .clone()
+                                .add(1, "day")
+                                .add("4", "hours")
+                                .add(5, "minutes");
+                            cr = await creditContract.getCreditRecord(creditHash);
+                            dd = await creditContract.getDueDetail(creditHash);
+                            let [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                secondPaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            setNextBlockTimestamp(secondPaymentDate.unix());
+                            await testMakePayment(lateFee, secondPaymentDate);
+
+                            const thirdPaymentDate = secondPaymentDate
+                                .clone()
+                                .add("39", "seconds");
+                            cr = await creditContract.getCreditRecord(creditHash);
+                            dd = await creditContract.getDueDetail(creditHash);
+                            [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                thirdPaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            setNextBlockTimestamp(thirdPaymentDate.unix());
+                            await testMakePayment(yieldNextDue.add(lateFee), thirdPaymentDate);
+
+                            const fourthPaymentDate = thirdPaymentDate.clone().add("11", "hours");
+                            cr = await creditContract.getCreditRecord(creditHash);
+                            dd = await creditContract.getDueDetail(creditHash);
+                            [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                fourthPaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            setNextBlockTimestamp(fourthPaymentDate.unix());
+                            await testMakePayment(borrowAmount.add(lateFee), fourthPaymentDate);
+
+                            const fifthPaymentDate = fourthPaymentDate
+                                .clone()
+                                .add(2, "days")
+                                .add("21", "hours")
+                                .add(1, "second");
+                            setNextBlockTimestamp(fifthPaymentDate.unix());
+                            await expect(
+                                creditContract
+                                    .connect(borrower)
+                                    .makePayment(borrower.getAddress(), toToken(1)),
+                            ).to.be.revertedWithCustomError(
+                                creditContract,
+                                "creditLineNotInStateForMakingPayment",
+                            );
+                        });
+                    });
+                });
+
+                describe("If the bill is delayed", function () {
+                    async function prepareForLateBillPayment() {
+                        // Refresh the credit many cycles after drawdown so that the bill is delayed
+                        // at the time payment is made.
+                        const billRefreshDate = moment.utc({
+                            year: nextYear,
+                            month: 3,
+                            day: 1,
+                            hour: 12,
+                            minute: 28,
+                        });
+                        await setNextBlockTimestamp(billRefreshDate.unix());
+                        await creditContract.refreshCredit(borrower.getAddress());
+                        const cr = await creditContract.getCreditRecord(creditHash);
+                        expect(cr.state).to.equal(CreditState.Delayed);
+                    }
+
+                    beforeEach(async function () {
+                        await loadFixture(prepareForLateBillPayment);
+                    });
+
+                    describe("When the payment is made within the current billing cycle", function () {
+                        async function prepareForMakePaymentInCurrentBillingCycle() {
+                            makePaymentDate = moment.utc({
+                                year: nextYear,
+                                month: 3,
+                                day: 28,
+                                hour: 21,
+                                minute: 35,
+                                second: 54,
+                            });
+                            await setNextBlockTimestamp(makePaymentDate.unix());
+                        }
+
+                        beforeEach(async function () {
+                            await loadFixture(prepareForMakePaymentInCurrentBillingCycle);
+                        });
+
+                        it("Should allow the borrower to make partial payment that covers part of yield past due", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const paymentAmount = yieldPastDue.sub(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make partial payment that covers all of yield past due and part of late fee", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const paymentAmount = yieldPastDue.add(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make partial payment that covers all of past due and part of next due", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            const paymentAmount = yieldPastDue.add(lateFee).add(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make full payment that covers all of past and next due", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            const paymentAmount = yieldPastDue.add(lateFee).add(yieldNextDue);
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to payoff the bill", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            const paymentAmount = yieldPastDue
+                                .add(lateFee)
+                                .add(yieldNextDue)
+                                .add(borrowAmount);
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make multiple payments", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            let cr = await creditContract.getCreditRecord(creditHash);
+                            let dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+
+                            await testMakePayment(yieldPastDue);
+
+                            const secondPaymentDate = makePaymentDate
+                                .clone()
+                                .add(1, "day")
+                                .add("4", "hours")
+                                .add(5, "minutes");
+                            cr = await creditContract.getCreditRecord(creditHash);
+                            dd = await creditContract.getDueDetail(creditHash);
+                            let [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                secondPaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            setNextBlockTimestamp(secondPaymentDate.unix());
+                            await testMakePayment(lateFee, secondPaymentDate);
+
+                            const thirdPaymentDate = secondPaymentDate
+                                .clone()
+                                .add("39", "seconds");
+                            cr = await creditContract.getCreditRecord(creditHash);
+                            dd = await creditContract.getDueDetail(creditHash);
+                            [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                thirdPaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            setNextBlockTimestamp(thirdPaymentDate.unix());
+                            await testMakePayment(yieldNextDue.add(lateFee), thirdPaymentDate);
+
+                            const fourthPaymentDate = thirdPaymentDate.clone().add("11", "hours");
+                            cr = await creditContract.getCreditRecord(creditHash);
+                            dd = await creditContract.getDueDetail(creditHash);
+                            [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                fourthPaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            expect(lateFee).to.equal(0);
+                            setNextBlockTimestamp(fourthPaymentDate.unix());
+                            await testMakePayment(borrowAmount.add(lateFee), fourthPaymentDate);
+
+                            const fifthPaymentDate = fourthPaymentDate
+                                .clone()
+                                .add(2, "days")
+                                .add("21", "hours")
+                                .add(1, "second");
+                            setNextBlockTimestamp(fifthPaymentDate.unix());
+                            await testMakePayment(toToken(1), fifthPaymentDate);
+                        });
+                    });
+
+                    describe("When the payment is made outside of the current billing cycle", function () {
+                        async function prepareForMakePaymentAfterLatePaymentGracePeriod() {
+                            makePaymentDate = moment.utc({
+                                year: nextYear,
+                                month: 4,
+                                day: 8,
+                                minute: 21,
+                            });
+                            await setNextBlockTimestamp(makePaymentDate.unix());
+                        }
+
+                        beforeEach(async function () {
+                            await loadFixture(prepareForMakePaymentAfterLatePaymentGracePeriod);
+                        });
+
+                        it("Should allow the borrower to make partial payment that covers part of yield past due", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const paymentAmount = yieldPastDue.sub(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make partial payment that covers all of yield and principal past due and part of late fee", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const paymentAmount = yieldPastDue.add(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make partial payment that covers all of past due and part of next due", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            const paymentAmount = yieldPastDue.add(lateFee).add(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make full payment that covers all of past and next due", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            const paymentAmount = yieldPastDue.add(lateFee).add(yieldNextDue);
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to payoff the bill", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            const paymentAmount = yieldPastDue
+                                .add(lateFee)
+                                .add(yieldNextDue)
+                                .add(borrowAmount);
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make multiple payments", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            let cr = await creditContract.getCreditRecord(creditHash);
+                            let dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+
+                            await testMakePayment(yieldPastDue);
+
+                            const secondPaymentDate = makePaymentDate
+                                .clone()
+                                .add(1, "day")
+                                .add("4", "hours")
+                                .add(5, "minutes");
+                            cr = await creditContract.getCreditRecord(creditHash);
+                            dd = await creditContract.getDueDetail(creditHash);
+                            let [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                secondPaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            setNextBlockTimestamp(secondPaymentDate.unix());
+                            await testMakePayment(lateFee, secondPaymentDate);
+
+                            const thirdPaymentDate = secondPaymentDate
+                                .clone()
+                                .add("39", "seconds");
+                            cr = await creditContract.getCreditRecord(creditHash);
+                            dd = await creditContract.getDueDetail(creditHash);
+                            [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                thirdPaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            setNextBlockTimestamp(thirdPaymentDate.unix());
+                            await testMakePayment(yieldNextDue.add(lateFee), thirdPaymentDate);
+
+                            const fourthPaymentDate = thirdPaymentDate.clone().add("11", "hours");
+                            cr = await creditContract.getCreditRecord(creditHash);
+                            dd = await creditContract.getDueDetail(creditHash);
+                            [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                fourthPaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            expect(lateFee).to.equal(0);
+                            setNextBlockTimestamp(fourthPaymentDate.unix());
+                            await testMakePayment(borrowAmount.add(lateFee), fourthPaymentDate);
+
+                            const fifthPaymentDate = fourthPaymentDate
+                                .clone()
+                                .add(2, "days")
+                                .add("21", "hours")
+                                .add(1, "second");
+                            setNextBlockTimestamp(fifthPaymentDate.unix());
+                            await testMakePayment(toToken(1), fifthPaymentDate);
+                        });
+                    });
+                });
+            });
+
+            describe("If the principal rate is non-zero", function () {
+                async function prepareForMakePayment() {
+                    principalRateInBps = 200;
+                    await poolConfigContract.connect(poolOwner).setFeeStructure({
+                        yieldInBps,
+                        minPrincipalRateInBps: principalRateInBps,
+                        lateFeeFlat,
+                        lateFeeBps,
+                        membershipFee,
+                    });
+                    await approveCredit();
+                    await drawdown();
+                }
+
+                beforeEach(async function () {
+                    await loadFixture(prepareForMakePayment);
+                });
+
+                describe("If the bill is currently in good standing", function () {
+                    describe("When the payment is made within the current billing cycle", function () {
+                        async function prepareForMakePaymentInCurrentBillingCycle() {
+                            makePaymentDate = moment.utc({
+                                year: nextYear,
+                                month: 1,
+                                day: 28,
+                                hour: 21,
+                                minute: 35,
+                                second: 54,
+                            });
+                            await setNextBlockTimestamp(makePaymentDate.unix());
+                        }
+
+                        beforeEach(async function () {
+                            await loadFixture(prepareForMakePaymentInCurrentBillingCycle);
+                        });
+
+                        it("Should allow the borrower to make partial payment that covers part of yield next due", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const paymentAmount = yieldNextDue.sub(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make partial payment that covers part of all of yield next due and part of principal next due", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const paymentAmount = yieldNextDue.add(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make full payment that covers part of all of next due and part of unbilled principal", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [, , principalNextDue] = await calcPrincipalDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                principalRateInBps,
+                            );
+                            const paymentAmount = yieldNextDue
+                                .add(principalNextDue)
+                                .add(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to payoff the bill", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [unbilledPrincipal, , principalNextDue] =
+                                await calcPrincipalDueNew(
+                                    calendarContract,
+                                    cc,
+                                    cr,
+                                    dd,
+                                    makePaymentDate,
+                                    moment.utc(maturityDate.toNumber() * 1000),
+                                    latePaymentGracePeriodInDays,
+                                    principalRateInBps,
+                                );
+                            const paymentAmount = yieldNextDue
+                                .add(principalNextDue)
+                                .add(unbilledPrincipal);
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make payment that covers the entire bill, and only the pay off amount is collected", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [unbilledPrincipal, , principalNextDue] =
+                                await calcPrincipalDueNew(
+                                    calendarContract,
+                                    cc,
+                                    cr,
+                                    dd,
+                                    makePaymentDate,
+                                    moment.utc(maturityDate.toNumber() * 1000),
+                                    latePaymentGracePeriodInDays,
+                                    principalRateInBps,
+                                );
+                            const paymentAmount = yieldNextDue
+                                .add(principalNextDue)
+                                .add(unbilledPrincipal)
+                                .add(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make multiple payments", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [unbilledPrincipal, , principalNextDue] =
+                                await calcPrincipalDueNew(
+                                    calendarContract,
+                                    cc,
+                                    cr,
+                                    dd,
+                                    makePaymentDate,
+                                    moment.utc(maturityDate.toNumber() * 1000),
+                                    latePaymentGracePeriodInDays,
+                                    principalRateInBps,
+                                );
+
+                            // Make a series of payment gradually and eventually pay off the bill.
+                            await testMakePayment(yieldNextDue);
+
+                            const secondPaymentDate = moment.utc({
+                                year: nextYear,
+                                month: 1,
+                                day: 28,
+                                hour: 3,
+                                minute: 22,
+                                second: 57,
+                            });
+                            setNextBlockTimestamp(secondPaymentDate.unix());
+                            await testMakePayment(principalNextDue, secondPaymentDate);
+
+                            const thirdPaymentDate = moment.utc({
+                                year: nextYear,
+                                month: 1,
+                                day: 28,
+                                hour: 18,
+                                minute: 30,
+                            });
+                            setNextBlockTimestamp(thirdPaymentDate.unix());
+                            await testMakePayment(unbilledPrincipal, thirdPaymentDate);
+
+                            const fourthPaymentDate = moment.utc({
+                                year: nextYear,
+                                month: 1,
+                                day: 28,
+                                hour: 18,
+                                minute: 31,
+                            });
+                            setNextBlockTimestamp(fourthPaymentDate.unix());
+                            await testMakePayment(toToken(1), thirdPaymentDate);
+                        });
+                    });
+
+                    describe("When the payment is made after the due date of the current billing cycle, but within the late payment grace period", function () {
+                        async function prepareForMakePaymentWithinLatePaymentGracePeriod() {
+                            makePaymentDate = firstDueDate
+                                .clone()
+                                .add(latePaymentGracePeriodInDays, "days")
+                                .subtract(1, "second");
+                            await setNextBlockTimestamp(makePaymentDate.unix());
+                        }
+
+                        beforeEach(async function () {
+                            await loadFixture(prepareForMakePaymentWithinLatePaymentGracePeriod);
+                        });
+
+                        it("Should allow the borrower to make partial payment that covers part of yield next due", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const paymentAmount = yieldNextDue.sub(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make partial payment that covers part of all of yield next due and part of principal next due", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const paymentAmount = yieldNextDue.add(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make full payment that covers part of all of next due and part of unbilled principal", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [, , principalNextDue] = await calcPrincipalDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                principalRateInBps,
+                            );
+                            const paymentAmount = yieldNextDue
+                                .add(principalNextDue)
+                                .add(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to payoff the bill", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [unbilledPrincipal, , principalNextDue] =
+                                await calcPrincipalDueNew(
+                                    calendarContract,
+                                    cc,
+                                    cr,
+                                    dd,
+                                    makePaymentDate,
+                                    moment.utc(maturityDate.toNumber() * 1000),
+                                    latePaymentGracePeriodInDays,
+                                    principalRateInBps,
+                                );
+                            const paymentAmount = yieldNextDue
+                                .add(principalNextDue)
+                                .add(unbilledPrincipal);
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make payment that covers the entire bill, and only the pay off amount is collected", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [unbilledPrincipal, , principalNextDue] =
+                                await calcPrincipalDueNew(
+                                    calendarContract,
+                                    cc,
+                                    cr,
+                                    dd,
+                                    makePaymentDate,
+                                    moment.utc(maturityDate.toNumber() * 1000),
+                                    latePaymentGracePeriodInDays,
+                                    principalRateInBps,
+                                );
+                            const paymentAmount = yieldNextDue
+                                .add(principalNextDue)
+                                .add(unbilledPrincipal)
+                                .add(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make multiple payments", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [unbilledPrincipal, , principalNextDue] =
+                                await calcPrincipalDueNew(
+                                    calendarContract,
+                                    cc,
+                                    cr,
+                                    dd,
+                                    makePaymentDate,
+                                    moment.utc(maturityDate.toNumber() * 1000),
+                                    latePaymentGracePeriodInDays,
+                                    principalRateInBps,
+                                );
+
+                            await testMakePayment(yieldNextDue);
+
+                            const secondPaymentDate = makePaymentDate
+                                .clone()
+                                .add(1, "day")
+                                .add("4", "hours")
+                                .add(5, "minutes");
+                            setNextBlockTimestamp(secondPaymentDate.unix());
+                            await testMakePayment(principalNextDue, secondPaymentDate);
+
+                            const thirdPaymentDate = secondPaymentDate.clone().add(38, "minutes");
+                            setNextBlockTimestamp(thirdPaymentDate.unix());
+                            await testMakePayment(unbilledPrincipal, thirdPaymentDate);
+
+                            const fourthPaymentDate = thirdPaymentDate.clone().add(1, "hour");
+                            setNextBlockTimestamp(fourthPaymentDate.unix());
+                            await testMakePayment(toToken(1), thirdPaymentDate);
+                        });
+                    });
+
+                    describe("When the payment is made after the late payment grace period", function () {
+                        async function prepareForMakePaymentAfterLatePaymentGracePeriod() {
+                            makePaymentDate = firstDueDate
+                                .clone()
+                                .add(latePaymentGracePeriodInDays, "days")
+                                .add(1, "second");
+                            await setNextBlockTimestamp(makePaymentDate.unix());
+                        }
+
+                        beforeEach(async function () {
+                            await loadFixture(prepareForMakePaymentAfterLatePaymentGracePeriod);
+                        });
+
+                        it("Should allow the borrower to make partial payment that covers part of yield past due", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const paymentAmount = yieldPastDue.sub(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make partial payment that covers all of yield past due and part of principal past due", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const paymentAmount = yieldPastDue.add(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make partial payment that covers all of yield and principal past due and part of late fee", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [, principalPastDue] = await calcPrincipalDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                principalRateInBps,
+                            );
+                            const paymentAmount = yieldPastDue
+                                .add(principalPastDue)
+                                .add(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make partial payment that covers all of past due and part of next due", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [, principalPastDue] = await calcPrincipalDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                principalRateInBps,
+                            );
+                            const [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            const paymentAmount = yieldPastDue
+                                .add(principalPastDue)
+                                .add(lateFee)
+                                .add(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make full payment that covers all of past and next due", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [principalPastDue, principalNextDue] = await calcPrincipalDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                principalRateInBps,
+                            );
+                            const [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            const paymentAmount = yieldPastDue
+                                .add(principalPastDue)
+                                .add(lateFee)
+                                .add(yieldNextDue)
+                                .add(principalNextDue);
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to payoff the bill", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [unbilledPrincipal, principalPastDue, principalNextDue] =
+                                await calcPrincipalDueNew(
+                                    calendarContract,
+                                    cc,
+                                    cr,
+                                    dd,
+                                    makePaymentDate,
+                                    moment.utc(maturityDate.toNumber() * 1000),
+                                    latePaymentGracePeriodInDays,
+                                    principalRateInBps,
+                                );
+                            const [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            const paymentAmount = yieldPastDue
+                                .add(principalPastDue)
+                                .add(lateFee)
+                                .add(yieldNextDue)
+                                .add(principalNextDue)
+                                .add(unbilledPrincipal);
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make payment that covers the entire bill, and only the pay off amount is collected", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [unbilledPrincipal, principalPastDue, principalNextDue] =
+                                await calcPrincipalDueNew(
+                                    calendarContract,
+                                    cc,
+                                    cr,
+                                    dd,
+                                    makePaymentDate,
+                                    moment.utc(maturityDate.toNumber() * 1000),
+                                    latePaymentGracePeriodInDays,
+                                    principalRateInBps,
+                                );
+                            const paymentAmount = yieldPastDue
+                                .add(yieldNextDue)
+                                .add(principalPastDue)
+                                .add(principalNextDue)
+                                .add(unbilledPrincipal)
+                                .add(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make multiple payments", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [unbilledPrincipal, principalPastDue, principalNextDue] =
+                                await calcPrincipalDueNew(
+                                    calendarContract,
+                                    cc,
+                                    cr,
+                                    dd,
+                                    makePaymentDate,
+                                    moment.utc(maturityDate.toNumber() * 1000),
+                                    latePaymentGracePeriodInDays,
+                                    principalRateInBps,
+                                );
+                            const [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+
+                            await testMakePayment(yieldPastDue);
+
+                            const secondPaymentDate = makePaymentDate
+                                .clone()
+                                .add(1, "day")
+                                .add("4", "hours")
+                                .add(5, "minutes");
+                            setNextBlockTimestamp(secondPaymentDate.unix());
+                            await testMakePayment(lateFee, secondPaymentDate);
+
+                            const thirdPaymentDate = secondPaymentDate
+                                .clone()
+                                .add("39", "seconds");
+                            setNextBlockTimestamp(thirdPaymentDate.unix());
+                            await testMakePayment(yieldNextDue, thirdPaymentDate);
+
+                            const fourthPaymentDate = thirdPaymentDate.clone().add("11", "hours");
+                            setNextBlockTimestamp(fourthPaymentDate.unix());
+                            await testMakePayment(principalNextDue, fourthPaymentDate);
+
+                            const fifthPaymentDate = fourthPaymentDate
+                                .clone()
+                                .add(2, "days")
+                                .add("21", "hours")
+                                .add(1, "second");
+                            setNextBlockTimestamp(fifthPaymentDate.unix());
+                            await testMakePayment(unbilledPrincipal, fifthPaymentDate);
+
+                            const sixthPaymentDate = fifthPaymentDate.clone().add(46, "seconds");
+                            setNextBlockTimestamp(sixthPaymentDate.unix());
+                            await testMakePayment(toToken(1), sixthPaymentDate);
+                        });
+                    });
+
+                    describe("When the payment is in the final period", function () {
+                        async function prepareForMakePaymentInFinalPeriod() {
+                            makePaymentDate = moment.utc({
+                                year: nextYear,
+                                month: 7,
+                                day: 12,
+                            });
+                            await setNextBlockTimestamp(makePaymentDate.unix());
+                        }
+
+                        beforeEach(async function () {
+                            await loadFixture(prepareForMakePaymentInFinalPeriod);
+                        });
+
+                        it("Should allow the borrower to make partial payment that covers part of yield past due", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const paymentAmount = yieldPastDue.sub(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make partial payment that covers all of yield past due and part of principal past due", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const paymentAmount = yieldPastDue.add(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make partial payment that covers all of yield and principal past due and part of late fee", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [, principalPastDue] = await calcPrincipalDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                principalRateInBps,
+                            );
+                            const paymentAmount = yieldPastDue
+                                .add(principalPastDue)
+                                .add(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make partial payment that covers all of past due and part of next due", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [, principalPastDue] = await calcPrincipalDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                principalRateInBps,
+                            );
+                            const [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            const paymentAmount = yieldPastDue
+                                .add(principalPastDue)
+                                .add(lateFee)
+                                .add(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make full payment that covers all of past and next due", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [principalPastDue, principalNextDue] = await calcPrincipalDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                principalRateInBps,
+                            );
+                            const [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            const paymentAmount = yieldPastDue
+                                .add(principalPastDue)
+                                .add(lateFee)
+                                .add(yieldNextDue)
+                                .add(principalNextDue);
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to payoff the bill and close the credit line", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [unbilledPrincipal, principalPastDue, principalNextDue] =
+                                await calcPrincipalDueNew(
+                                    calendarContract,
+                                    cc,
+                                    cr,
+                                    dd,
+                                    makePaymentDate,
+                                    moment.utc(maturityDate.toNumber() * 1000),
+                                    latePaymentGracePeriodInDays,
+                                    principalRateInBps,
+                                );
+                            const [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            const paymentAmount = yieldPastDue
+                                .add(principalPastDue)
+                                .add(lateFee)
+                                .add(yieldNextDue)
+                                .add(principalNextDue)
+                                .add(unbilledPrincipal);
+                            await testMakePayment(paymentAmount);
+
+                            // Payment should no longer be allowed after the credit line is deleted.
+                            await expect(
+                                creditContract
+                                    .connect(borrower)
+                                    .makePayment(borrower.getAddress(), paymentAmount),
+                            ).to.be.revertedWithCustomError(
+                                creditContract,
+                                "creditLineNotInStateForMakingPayment",
+                            );
+                        });
+
+                        it("Should allow the borrower to make payment that covers the entire bill, and only the pay off amount is collected", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [unbilledPrincipal, principalPastDue, principalNextDue] =
+                                await calcPrincipalDueNew(
+                                    calendarContract,
+                                    cc,
+                                    cr,
+                                    dd,
+                                    makePaymentDate,
+                                    moment.utc(maturityDate.toNumber() * 1000),
+                                    latePaymentGracePeriodInDays,
+                                    principalRateInBps,
+                                );
+                            const paymentAmount = yieldPastDue
+                                .add(yieldNextDue)
+                                .add(principalPastDue)
+                                .add(principalNextDue)
+                                .add(unbilledPrincipal)
+                                .add(toToken(1));
+                        });
+                    });
+
+                    describe("When the payment is made after maturity date", function () {
+                        async function prepareForMakePaymentAfterMaturityDate() {
+                            makePaymentDate = moment.utc({
+                                year: nextYear,
+                                month: 7,
+                                day: 12,
+                                second: 1,
+                            });
+                            await setNextBlockTimestamp(makePaymentDate.unix());
+                        }
+
+                        beforeEach(async function () {
+                            await loadFixture(prepareForMakePaymentAfterMaturityDate);
+                        });
+
+                        it("Should allow the borrower to make partial payment that covers part of yield past due", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const paymentAmount = yieldPastDue.sub(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make partial payment that covers all of yield past due and part of principal past due", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const paymentAmount = yieldPastDue.add(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make partial payment that covers all of yield and principal past due and part of late fee", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [, principalPastDue] = await calcPrincipalDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                principalRateInBps,
+                            );
+                            const paymentAmount = yieldPastDue
+                                .add(principalPastDue)
+                                .add(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to payoff the bill and close the credit line", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [unbilledPrincipal, principalPastDue, principalNextDue] =
+                                await calcPrincipalDueNew(
+                                    calendarContract,
+                                    cc,
+                                    cr,
+                                    dd,
+                                    makePaymentDate,
+                                    moment.utc(maturityDate.toNumber() * 1000),
+                                    latePaymentGracePeriodInDays,
+                                    principalRateInBps,
+                                );
+                            const [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            const paymentAmount = yieldPastDue
+                                .add(principalPastDue)
+                                .add(lateFee)
+                                .add(yieldNextDue)
+                                .add(principalNextDue)
+                                .add(unbilledPrincipal);
+                            await testMakePayment(paymentAmount);
+
+                            // Payment should no longer be allowed after the credit line is deleted.
+                            await expect(
+                                creditContract
+                                    .connect(borrower)
+                                    .makePayment(borrower.getAddress(), paymentAmount),
+                            ).to.be.revertedWithCustomError(
+                                creditContract,
+                                "creditLineNotInStateForMakingPayment",
+                            );
+                        });
+
+                        it("Should allow the borrower to make payment that covers the entire bill, and only the pay off amount is collected", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [unbilledPrincipal, principalPastDue, principalNextDue] =
+                                await calcPrincipalDueNew(
+                                    calendarContract,
+                                    cc,
+                                    cr,
+                                    dd,
+                                    makePaymentDate,
+                                    moment.utc(maturityDate.toNumber() * 1000),
+                                    latePaymentGracePeriodInDays,
+                                    principalRateInBps,
+                                );
+                            const paymentAmount = yieldPastDue
+                                .add(yieldNextDue)
+                                .add(principalPastDue)
+                                .add(principalNextDue)
+                                .add(unbilledPrincipal)
+                                .add(toToken(1));
+                        });
+                    });
+                });
+
+                describe("If the bill is delayed", function () {
+                    async function prepareForLateBillPayment() {
+                        // Refresh the credit many cycles after drawdown so that the bill is delayed
+                        // at the time payment is made.
+                        const billRefreshDate = moment.utc({
+                            year: nextYear,
+                            month: 3,
+                            day: 1,
+                            hour: 12,
+                            minute: 28,
+                        });
+                        await setNextBlockTimestamp(billRefreshDate.unix());
+                        await creditContract.refreshCredit(borrower.getAddress());
+                        const cr = await creditContract.getCreditRecord(creditHash);
+                        expect(cr.state).to.equal(CreditState.Delayed);
+                    }
+
+                    beforeEach(async function () {
+                        await loadFixture(prepareForLateBillPayment);
+                    });
+
+                    describe("When the payment is made within the current billing cycle", function () {
+                        async function prepareForMakePaymentInCurrentBillingCycle() {
+                            makePaymentDate = moment.utc({
+                                year: nextYear,
+                                month: 3,
+                                day: 28,
+                                hour: 21,
+                                minute: 35,
+                                second: 54,
+                            });
+                            await setNextBlockTimestamp(makePaymentDate.unix());
+                        }
+
+                        beforeEach(async function () {
+                            await loadFixture(prepareForMakePaymentInCurrentBillingCycle);
+                        });
+
+                        it("Should allow the borrower to make partial payment that covers part of yield past due", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const paymentAmount = yieldPastDue.sub(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make partial payment that covers all of yield past due and part of principal past due", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const paymentAmount = yieldPastDue.add(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make partial payment that covers all of yield and principal past due and part of late fee", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [, principalPastDue] = await calcPrincipalDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                principalRateInBps,
+                            );
+                            const paymentAmount = yieldPastDue
+                                .add(principalPastDue)
+                                .add(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make partial payment that covers all of past due and part of next due", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [, principalPastDue] = await calcPrincipalDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                principalRateInBps,
+                            );
+                            const [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            const paymentAmount = yieldPastDue
+                                .add(principalPastDue)
+                                .add(lateFee)
+                                .add(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make full payment that covers all of past and next due", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [principalPastDue, principalNextDue] = await calcPrincipalDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                principalRateInBps,
+                            );
+                            const [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            const paymentAmount = yieldPastDue
+                                .add(principalPastDue)
+                                .add(lateFee)
+                                .add(yieldNextDue)
+                                .add(principalNextDue);
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to payoff the bill", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [unbilledPrincipal, principalPastDue, principalNextDue] =
+                                await calcPrincipalDueNew(
+                                    calendarContract,
+                                    cc,
+                                    cr,
+                                    dd,
+                                    makePaymentDate,
+                                    moment.utc(maturityDate.toNumber() * 1000),
+                                    latePaymentGracePeriodInDays,
+                                    principalRateInBps,
+                                );
+                            const [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            const paymentAmount = yieldPastDue
+                                .add(principalPastDue)
+                                .add(lateFee)
+                                .add(yieldNextDue)
+                                .add(principalNextDue)
+                                .add(unbilledPrincipal);
+                            await testMakePayment(paymentAmount);
+                        });
+                    });
+
+                    describe("When the payment is made outside of the current billing cycle", function () {
+                        async function prepareForMakePaymentAfterLatePaymentGracePeriod() {
+                            makePaymentDate = moment.utc({
+                                year: nextYear,
+                                month: 4,
+                                day: 8,
+                                minute: 21,
+                            });
+                            await setNextBlockTimestamp(makePaymentDate.unix());
+                        }
+
+                        beforeEach(async function () {
+                            await loadFixture(prepareForMakePaymentAfterLatePaymentGracePeriod);
+                        });
+
+                        it("Should allow the borrower to make partial payment that covers part of yield past due", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const paymentAmount = yieldPastDue.sub(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make partial payment that covers all of yield past due and part of principal past due", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const paymentAmount = yieldPastDue.add(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make partial payment that covers all of yield and principal past due and part of late fee", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [, principalPastDue] = await calcPrincipalDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                principalRateInBps,
+                            );
+                            const paymentAmount = yieldPastDue
+                                .add(principalPastDue)
+                                .add(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make partial payment that covers all of past due and part of next due", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [, principalPastDue] = await calcPrincipalDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                principalRateInBps,
+                            );
+                            const [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            const paymentAmount = yieldPastDue
+                                .add(principalPastDue)
+                                .add(lateFee)
+                                .add(toToken(1));
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to make full payment that covers all of past and next due", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [principalPastDue, principalNextDue] = await calcPrincipalDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                principalRateInBps,
+                            );
+                            const [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            const paymentAmount = yieldPastDue
+                                .add(principalPastDue)
+                                .add(lateFee)
+                                .add(yieldNextDue)
+                                .add(principalNextDue);
+                            await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the borrower to payoff the bill", async function () {
+                            const cc = await creditContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await creditContract.maturityDates(creditHash);
+
+                            const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                                membershipFee,
+                            );
+                            const [unbilledPrincipal, principalPastDue, principalNextDue] =
+                                await calcPrincipalDueNew(
+                                    calendarContract,
+                                    cc,
+                                    cr,
+                                    dd,
+                                    makePaymentDate,
+                                    moment.utc(maturityDate.toNumber() * 1000),
+                                    latePaymentGracePeriodInDays,
+                                    principalRateInBps,
+                                );
+                            const [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                latePaymentGracePeriodInDays,
+                            );
+                            const paymentAmount = yieldPastDue
+                                .add(principalPastDue)
+                                .add(lateFee)
+                                .add(yieldNextDue)
+                                .add(principalNextDue)
+                                .add(unbilledPrincipal);
+                            await testMakePayment(paymentAmount);
+                        });
+                    });
+                });
+
+                it("Should not allow payment when the protocol is paused or pool is not on", async function () {
+                    await humaConfigContract.connect(protocolOwner).pause();
+                    await expect(
+                        creditContract.makePayment(borrower.getAddress(), toToken(1)),
+                    ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+                    await humaConfigContract.connect(protocolOwner).unpause();
+
+                    await poolContract.connect(poolOwner).disablePool();
+                    await expect(
+                        creditContract.makePayment(borrower.getAddress(), toToken(1)),
+                    ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+                    await poolContract.connect(poolOwner).enablePool();
+                });
+
+                it("Should not allow non-borrower or non-PDS service account to make payment", async function () {
+                    await expect(
+                        creditContract
+                            .connect(borrower2)
+                            .makePayment(borrower.getAddress(), toToken(1)),
+                    ).to.be.revertedWithCustomError(
+                        creditContract,
+                        "paymentDetectionServiceAccountRequired",
+                    );
+                });
+
+                it("Should not allow the borrower to make payment with 0 amount", async function () {
+                    await expect(
+                        creditContract.connect(borrower).makePayment(borrower.getAddress(), 0),
+                    ).to.be.revertedWithCustomError(creditContract, "zeroAmountProvided");
+                });
+
+                it("Should not allow the borrower to make payment on a closed credit line", async function () {});
+            });
+        });
+    });
 
     // describe("RefreshCredit Tests", function () {
     //     const yieldInBps = 1217;
@@ -2643,7 +5994,7 @@ describe("CreditLine Test", function () {
     describe("Delayed Tests", function () {
         it("Should refresh credit and credit becomes Delayed state", async function () {});
 
-        it("Should not borrower in Delayed state", async function () {});
+        it("Should not allow drawdowner in Delayed state", async function () {});
 
         it("Should make partially payment successfully in Delayed state", async function () {});
 
@@ -2655,7 +6006,7 @@ describe("CreditLine Test", function () {
     describe("Defaulted Tests", function () {
         it("Should refresh credit and credit becomes Defaulted state", async function () {});
 
-        it("Should not borrower in Defaulted state", async function () {});
+        it("Should not allow drawdowner in Defaulted state", async function () {});
 
         it("Should make partially payment successfully in Defaulted state", async function () {});
 

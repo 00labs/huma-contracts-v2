@@ -2,6 +2,7 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { BigNumber as BN } from "ethers";
 import { ethers } from "hardhat";
+import moment from "moment";
 import {
     BaseTranchesPolicy,
     Calendar,
@@ -23,11 +24,14 @@ import {
 import { FirstLossCoverConfigStruct } from "../typechain-types/contracts/PoolConfig.sol/PoolConfig";
 import {
     CreditConfigStruct,
+    CreditConfigStructOutput,
     CreditRecordStruct,
+    CreditRecordStructOutput,
     DueDetailStruct,
+    DueDetailStructOutput,
 } from "../typechain-types/contracts/credit/Credit";
 import { EpochInfoStruct } from "../typechain-types/contracts/interfaces/IEpoch";
-import { minBigNumber, sumBNArray, toToken } from "./TestUtils";
+import { maxBigNumber, minBigNumber, sumBNArray, toToken } from "./TestUtils";
 
 export type CreditContractType = MockPoolCredit | CreditLine;
 export type ProtocolContracts = [EvaluationAgentNFT, HumaConfig, MockToken];
@@ -969,6 +973,9 @@ export function calcYieldDue(
     membershipFee: BN,
     daysPassed: number,
 ): [BN, BN] {
+    if (daysPassed == 0) {
+        return [BN.from(0), BN.from(0)];
+    }
     const accrued = principal
         .mul(BN.from(cc.yieldInBps))
         .mul(daysPassed)
@@ -980,6 +987,77 @@ export function calcYieldDue(
         .div(CONSTANTS.BP_FACTOR.mul(CONSTANTS.DAYS_IN_A_YEAR))
         .add(membershipFee);
     return [accrued, committed];
+}
+
+export async function calcYieldDueNew(
+    calendarContract: Calendar,
+    cc: CreditConfigStructOutput,
+    cr: CreditRecordStructOutput,
+    dd: DueDetailStructOutput,
+    currentDate: moment.Moment,
+    maturityDate: moment.Moment,
+    latePaymentGracePeriodInDays: number,
+    membershipFee: BN,
+): Promise<[BN, BN, [BN, BN]]> {
+    const latePaymentDeadline = getLatePaymentGracePeriodDeadline(
+        cr,
+        latePaymentGracePeriodInDays,
+    );
+    if (currentDate.isSameOrBefore(latePaymentDeadline)) {
+        return [dd.yieldPastDue, cr.yieldDue, [dd.accrued, dd.committed]];
+    }
+
+    const nextDueDate = await getNextDueDate(calendarContract, cc, currentDate, maturityDate);
+    const principal = getPrincipal(cr, dd);
+    if (cr.state === CreditState.Approved) {
+        const daysUntilNextDue = await calendarContract.getDaysDiff(
+            currentDate.unix(),
+            nextDueDate,
+        );
+        const [accruedYieldNextDue, committedYieldNextDue] = calcYieldDue(
+            cc,
+            principal,
+            membershipFee,
+            daysUntilNextDue.toNumber(),
+        );
+        return [
+            BN.from(0),
+            maxBigNumber(accruedYieldNextDue, committedYieldNextDue),
+            [accruedYieldNextDue, committedYieldNextDue],
+        ];
+    }
+    let daysOverdue, daysUntilNextDue;
+    if (currentDate.isAfter(maturityDate)) {
+        daysOverdue = await calendarContract.getDaysDiff(cr.nextDueDate, nextDueDate);
+        daysUntilNextDue = BN.from(0);
+    } else {
+        const periodStartDate = await calendarContract.getStartDateOfPeriod(
+            cc.periodDuration,
+            currentDate.unix(),
+        );
+        daysOverdue = await calendarContract.getDaysDiff(cr.nextDueDate, periodStartDate);
+        daysUntilNextDue = await calendarContract.getDaysDiff(periodStartDate, nextDueDate);
+    }
+
+    const [accruedYieldPastDue, committedYieldPastDue] = calcYieldDue(
+        cc,
+        principal,
+        membershipFee,
+        daysOverdue.toNumber(),
+    );
+    const yieldPastDue = maxBigNumber(accruedYieldPastDue, committedYieldPastDue);
+    const [accruedYieldNextDue, committedYieldNextDue] = calcYieldDue(
+        cc,
+        principal,
+        membershipFee,
+        daysUntilNextDue.toNumber(),
+    );
+    const yieldNextDue = maxBigNumber(accruedYieldNextDue, committedYieldNextDue);
+    return [
+        yieldPastDue.add(dd.yieldPastDue).add(cr.yieldDue),
+        yieldNextDue,
+        [accruedYieldNextDue, committedYieldNextDue],
+    ];
 }
 
 // Returns three values in the following order:
@@ -1038,18 +1116,84 @@ export async function calcPrincipalDue(
     ];
 }
 
+export async function calcPrincipalDueNew(
+    calendarContract: Calendar,
+    cc: CreditConfigStructOutput,
+    cr: CreditRecordStructOutput,
+    dd: DueDetailStructOutput,
+    currentDate: moment.Moment,
+    maturityDate: moment.Moment,
+    latePaymentGracePeriodInDays: number,
+    principalRateInBps: number,
+): Promise<[BN, BN, BN]> {
+    const principal = getPrincipal(cr, dd);
+    if (
+        currentDate.isSameOrBefore(
+            getLatePaymentGracePeriodDeadline(cr, latePaymentGracePeriodInDays),
+        )
+    ) {
+        // Return the current due info as-is if the current date is within the current billing cycle,
+        // or within the late payment grace period.
+        return [cr.unbilledPrincipal, dd.principalPastDue, cr.nextDue.sub(cr.yieldDue)];
+    }
+    if (currentDate.isAfter(maturityDate)) {
+        // All principal is past due if the current date has passed the maturity date.
+        return [BN.from(0), principal, BN.from(0)];
+    }
+    const totalDaysInFullPeriod = await calendarContract.getTotalDaysInFullPeriod(
+        cc.periodDuration,
+    );
+    if (cr.state === CreditState.Approved) {
+        // During first drawdown, there is no principal past due, only next due.
+        const daysUntilNextDue = await calendarContract.getDaysDiff(
+            currentDate.unix(),
+            cr.nextDueDate,
+        );
+        const principalNextDue = principal
+            .mul(principalRateInBps)
+            .mul(daysUntilNextDue)
+            .div(totalDaysInFullPeriod.mul(CONSTANTS.BP_FACTOR));
+        return [cr.unbilledPrincipal.sub(principalNextDue), BN.from(0), principalNextDue];
+    }
+    // Otherwise, there is both principal past due and next due.
+    const periodStartDate = await calendarContract.getStartDateOfPeriod(
+        cc.periodDuration,
+        currentDate.unix(),
+    );
+    const numPeriodsPassed = await calendarContract.getNumPeriodsPassed(
+        cc.periodDuration,
+        cr.nextDueDate,
+        periodStartDate,
+    );
+    const principalPastDue = CONSTANTS.BP_FACTOR.pow(numPeriodsPassed)
+        .sub(CONSTANTS.BP_FACTOR.sub(principalRateInBps).pow(numPeriodsPassed))
+        .mul(cr.unbilledPrincipal)
+        .div(CONSTANTS.BP_FACTOR.pow(numPeriodsPassed));
+    const remainingPrincipal = cr.unbilledPrincipal.sub(principalPastDue);
+    const nextDueDate = await getNextDueDate(calendarContract, cc, currentDate, maturityDate);
+    const daysUntilNextDue = await calendarContract.getDaysDiff(periodStartDate, nextDueDate);
+    const principalNextDue = remainingPrincipal
+        .mul(principalRateInBps)
+        .mul(daysUntilNextDue)
+        .div(totalDaysInFullPeriod.mul(CONSTANTS.BP_FACTOR));
+    return [
+        remainingPrincipal.sub(principalNextDue),
+        principalPastDue.add(dd.principalPastDue).add(cr.nextDue.sub(cr.yieldDue)),
+        principalNextDue,
+    ];
+}
+
 export async function calcLateFee(
     poolConfigContract: PoolConfig,
     calendarContract: Calendar,
     cr: CreditRecordStruct,
     dd: DueDetailStruct,
-) {
+): Promise<[BN, BN]> {
     const [, lateFeeInBps] = await poolConfigContract.getFees();
-    const lateFeeStartDate = BN.from(dd.lateFeeUpdatedDate).isZero()
-        ? cr.nextDueDate
-        : dd.lateFeeUpdatedDate;
+    const lateFeeStartDate =
+        cr.state === CreditState.GoodStanding ? cr.nextDueDate : dd.lateFeeUpdatedDate;
     const lateFeeUpdatedDate = await calendarContract.getStartOfTomorrow();
-    const principal = getPrincipal(cr);
+    const principal = getPrincipal(cr, dd);
     const lateFeeDays = await calendarContract.getDaysDiff(lateFeeStartDate, lateFeeUpdatedDate);
     return [
         lateFeeUpdatedDate,
@@ -1062,8 +1206,69 @@ export async function calcLateFee(
     ];
 }
 
-export function getPrincipal(cr: CreditRecordStruct): BN {
-    return BN.from(cr.unbilledPrincipal).add(BN.from(cr.nextDue).sub(BN.from(cr.yieldDue)));
+export async function calcLateFeeNew(
+    poolConfigContract: PoolConfig,
+    calendarContract: Calendar,
+    cr: CreditRecordStructOutput,
+    dd: DueDetailStructOutput,
+    currentDate: moment.Moment,
+    latePaymentGracePeriodInDays: number,
+): Promise<[BN, BN]> {
+    if (
+        (currentDate.isBefore(
+            getLatePaymentGracePeriodDeadline(cr, latePaymentGracePeriodInDays),
+        ) &&
+            cr.state === CreditState.GoodStanding) ||
+        (cr.nextDue.isZero() && cr.totalPastDue.isZero())
+    ) {
+        return [dd.lateFeeUpdatedDate, dd.lateFee];
+    }
+    const [, lateFeeInBps] = await poolConfigContract.getFees();
+    const lateFeeStartDate =
+        cr.state === CreditState.GoodStanding ? cr.nextDueDate : dd.lateFeeUpdatedDate;
+    const lateFeeUpdatedDate = currentDate.clone().add(1, "day").startOf("day");
+    const principal = getPrincipal(cr, dd);
+    const lateFeeDays = await calendarContract.getDaysDiff(
+        lateFeeStartDate,
+        lateFeeUpdatedDate.unix(),
+    );
+    return [
+        BN.from(lateFeeUpdatedDate.unix()),
+        BN.from(dd.lateFee).add(
+            principal
+                .mul(lateFeeInBps)
+                .mul(lateFeeDays)
+                .div(CONSTANTS.BP_FACTOR.mul(CONSTANTS.DAYS_IN_A_YEAR)),
+        ),
+    ];
+}
+
+export function getPrincipal(cr: CreditRecordStruct, dd: DueDetailStruct): BN {
+    return BN.from(cr.unbilledPrincipal)
+        .add(BN.from(cr.nextDue).sub(BN.from(cr.yieldDue)))
+        .add(BN.from(dd.principalPastDue));
+}
+
+export async function getNextDueDate(
+    calendarContract: Calendar,
+    cc: CreditConfigStructOutput,
+    currentDate: moment.Moment,
+    maturityDate: moment.Moment,
+) {
+    const startDateOfNextPeriod = await calendarContract.getStartDateOfNextPeriod(
+        cc.periodDuration,
+        currentDate.unix(),
+    );
+    return startDateOfNextPeriod.toNumber() < maturityDate.unix()
+        ? startDateOfNextPeriod.toNumber()
+        : maturityDate.unix();
+}
+
+export function getLatePaymentGracePeriodDeadline(
+    cr: CreditRecordStructOutput,
+    latePaymentGracePeriodInDays: number,
+) {
+    return moment.utc(cr.nextDueDate.toNumber() * 1000).add(latePaymentGracePeriodInDays, "days");
 }
 
 export function getTotalDaysInPeriod(periodDuration: number) {
@@ -1093,6 +1298,7 @@ export function printCreditRecord(name: string, creditRecord: CreditRecordStruct
             nextDueDate: ${creditRecord.nextDueDate},
             nextDue: ${creditRecord.nextDue},
             yieldDue: ${creditRecord.yieldDue},
+            totalPastDue: ${creditRecord.totalPastDue},
             missedPeriods: ${creditRecord.missedPeriods},
             remainingPeriods: ${creditRecord.remainingPeriods},
             state: ${creditRecord.state}]`,
