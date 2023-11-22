@@ -40,9 +40,9 @@ contract TrancheVault is
 
     event RedemptionRequestRemoved(address indexed account, uint256 shareAmount, uint256 epochId);
 
-    event YieldPaidout(address indexed account, uint256 yield, uint256 shares);
+    event YieldPaidout(address indexed account, uint256 yields, uint256 shares);
 
-    event YieldReinvested(address indexed account, uint256 yield);
+    event YieldReinvested(address indexed account, uint256 yields);
 
     event ReinvestYieldConfigSet(address indexed account, bool reinvestYield, address by);
 

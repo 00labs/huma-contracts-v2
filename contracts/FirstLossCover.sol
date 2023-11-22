@@ -14,6 +14,8 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20MetadataUpgradeable, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 
+import "hardhat/console.sol";
+
 /**
  * @title FirstLossCover
  */
@@ -46,7 +48,7 @@ contract FirstLossCover is
     );
     event AssetsAdded(uint256 assets);
 
-    event YieldPaidout(address indexed account, uint256 yield);
+    event YieldPaidout(address indexed account, uint256 yields);
 
     constructor() {
         // _disableInitializers();
@@ -196,6 +198,10 @@ contract FirstLossCover is
         uint256 currTotalAssets = totalAssets();
 
         return currTotalSupply == 0 ? shares : (shares * currTotalAssets) / currTotalSupply;
+    }
+
+    function totalAssetsOf(address account) external view returns (uint256 assets) {
+        return convertToAssets(ERC20Upgradeable.balanceOf(account));
     }
 
     /**
