@@ -58,6 +58,7 @@ contract TrancheVault is
     ) external initializer {
         __ERC20_init(name, symbol);
         __AccessControl_init();
+        __UUPSUpgradeable_init();
         _initialize(_poolConfig);
 
         if (seniorTrancheOrJuniorTranche > 1) revert Errors.invalidTrancheIndex();
@@ -507,5 +508,5 @@ contract TrancheVault is
         if (!hasRole(LENDER_ROLE, account)) revert Errors.permissionDeniedNotLender();
     }
 
-    function _authorizeUpgrade(address) internal override {}
+    function _authorizeUpgrade(address) internal override {} //todo: access control for who is authorized to operate an upgrade
 }

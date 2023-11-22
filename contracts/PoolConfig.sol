@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -105,7 +106,7 @@ interface ITrancheVaultLike {
     function totalAssetsOf(address account) external view returns (uint256 assets);
 }
 
-contract PoolConfig is AccessControl, Initializable {
+contract PoolConfig is AccessControl, Initializable, UUPSUpgradeable {
     bytes32 public constant POOL_OPERATOR_ROLE = keccak256("POOL_OPERATOR");
 
     //using SafeERC20 for IERC20;
@@ -889,4 +890,6 @@ contract PoolConfig is AccessControl, Initializable {
         return
             (_lpConfig.liquidityCap * _adminRnR.liquidityRateInBpsByEA) / HUNDRED_PERCENT_IN_BPS;
     }
+
+    function _authorizeUpgrade(address) internal override {} //todo: access control for who is authorized to operate an upgrade
 }
