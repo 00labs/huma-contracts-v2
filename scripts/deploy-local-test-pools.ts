@@ -1,4 +1,5 @@
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { BigNumber as BN } from "ethers";
 import { ethers, network } from "hardhat";
 import { deployAndSetupPoolContracts, deployProtocolContracts } from "../test/BaseTest";
 import { getMinFirstLossCoverRequirement, toToken } from "../test/TestUtils";
@@ -15,7 +16,6 @@ import {
     PoolConfig,
     PoolFeeManager,
     PoolSafe,
-    ProfitEscrow,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
 } from "../typechain-types";
@@ -49,7 +49,6 @@ let poolConfigContract: PoolConfig,
     calendarContract: Calendar,
     borrowerFirstLossCoverContract: FirstLossCover,
     affiliateFirstLossCoverContract: FirstLossCover,
-    affiliateFirstLossCoverProfitEscrowContract: ProfitEscrow,
     tranchesPolicyContract: RiskAdjustedTranchesPolicy,
     poolContract: Pool,
     epochManagerContract: EpochManager,
@@ -77,12 +76,14 @@ async function depositFirstLossCover(
     await coverContract
         .connect(account)
         .depositCover(
-            await getMinFirstLossCoverRequirement(
-                coverContract,
-                fetchPoolConfigContract,
-                poolContract,
-                account.address,
-            ),
+            (
+                await getMinFirstLossCoverRequirement(
+                    coverContract,
+                    fetchPoolConfigContract,
+                    poolContract,
+                    account.address,
+                )
+            ).mul(2),
         );
 }
 
@@ -124,7 +125,6 @@ async function main() {
         calendarContract,
         borrowerFirstLossCoverContract,
         affiliateFirstLossCoverContract,
-        affiliateFirstLossCoverProfitEscrowContract,
         tranchesPolicyContract,
         poolContract,
         epochManagerContract,
@@ -157,6 +157,29 @@ async function main() {
         .connect(seniorLender)
         .deposit(toToken(200_000), seniorLender.address);
 
+    // Drawdown
+    const frontLoadingFeeFlat = toToken(100);
+    const frontLoadingFeeBps = BN.from(100);
+    await poolConfigContract.connect(poolOwner).setFrontLoadingFees({
+        frontLoadingFeeFlat: frontLoadingFeeFlat,
+        frontLoadingFeeBps: frontLoadingFeeBps,
+    });
+    const numOfPeriods = 5;
+    const yieldInBps = 1217;
+    await creditContract
+        .connect(eaServiceAccount)
+        .approveBorrower(
+            borrowerActive.address,
+            toToken(100_000),
+            numOfPeriods,
+            yieldInBps,
+            toToken(0),
+            true,
+        );
+    const borrowAmount = toToken(50_000);
+    console.log("Drawing down credit line");
+    await creditContract.connect(borrowerActive).drawdown(borrowerActive.address, borrowAmount);
+
     console.log("Submitting junior redemption request");
     await juniorTrancheVaultContract.connect(juniorLender).addRedemptionRequest(toToken(10_000));
 
@@ -169,11 +192,14 @@ async function main() {
     console.log("Accounts:");
     console.log(`Junior lender: ${juniorLender.address}`);
     console.log(`Senior lender: ${seniorLender.address}`);
+    console.log(`Borrower:      ${borrowerActive.address}`);
 
     console.log("=====================================");
     console.log("Addresses:");
-    console.log(`Default pool:    ${poolContract.address}`);
+    console.log(`Pool:            ${poolContract.address}`);
+    console.log("     (note: pool is ready for junior redemption epoch processing)");
     console.log(`Pool config:     ${poolConfigContract.address}`);
+    console.log(`Pool credit:     ${creditContract.address}`);
     console.log(`Junior tranche:  ${juniorTrancheVaultContract.address}`);
     console.log(`Senior tranche:  ${seniorTrancheVaultContract.address}`);
     console.log(`Pool safe:       ${poolSafeContract.address}`);
