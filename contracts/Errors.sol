@@ -66,6 +66,7 @@ contract Errors {
     error creditExpiredDueToMaturity(); // 0xa52f3c3f
     error creditLineNotInGoodStandingState(); // 0x96e79474
     error creditLineNotInStateForMakingPayment(); // 0xf023e48b
+    error creditLineNotInStateForMakingPrincipalPayment();
     error creditNotInStateForDrawdown();
     error creditLineExceeded(); // 0xef7d66ff
     error creditLineAlreadyExists(); // 0x6c5805f2

@@ -5115,7 +5115,7 @@ describe("CreditLine Test", function () {
         }
 
         describe("If the borrower does not have a credit line approved", function () {
-            it("Should not allow a borrower to make payment", async function () {
+            it("Should not allow a borrower to make principal payment", async function () {
                 await expect(
                     creditContract
                         .connect(borrower)
@@ -5129,14 +5129,14 @@ describe("CreditLine Test", function () {
                 await loadFixture(approveCredit);
             });
 
-            it("Should not allow the borrower to make payment", async function () {
+            it("Should not allow the borrower to make principal payment", async function () {
                 await expect(
                     creditContract
                         .connect(borrower)
                         .makePrincipalPayment(borrower.getAddress(), toToken(1)),
                 ).to.be.revertedWithCustomError(
                     creditContract,
-                    "creditLineNotInStateForMakingPayment",
+                    "creditLineNotInStateForMakingPrincipalPayment",
                 );
             });
         });
@@ -5148,7 +5148,6 @@ describe("CreditLine Test", function () {
                 paymentAmountCollected: BN,
                 nextDueDate: moment.Moment,
                 principalDuePaid: BN,
-                principalPastDuePaid: BN,
                 unbilledPrincipalPaid: BN,
                 expectedNewCR: CreditRecordStruct,
                 expectedNewDD: DueDetailStruct,
@@ -5173,10 +5172,8 @@ describe("CreditLine Test", function () {
                             paymentAmountCollected,
                             nextDueDate.unix(),
                             BN.from(expectedNewCR.nextDue).sub(BN.from(expectedNewCR.yieldDue)),
-                            expectedNewDD.principalPastDue,
                             expectedNewCR.unbilledPrincipal,
                             principalDuePaid,
-                            principalPastDuePaid,
                             unbilledPrincipalPaid,
                             await borrower.getAddress(),
                         );
@@ -5245,7 +5242,7 @@ describe("CreditLine Test", function () {
                         yieldDue: cr.yieldDue,
                         totalPastDue: BN.from(0),
                         missedPeriods: 0,
-                        remainingPeriods: cr.remainingPeriods - 1,
+                        remainingPeriods: cr.remainingPeriods,
                         state: CreditState.GoodStanding,
                     };
                     const expectedNewDD = {
@@ -5263,17 +5260,16 @@ describe("CreditLine Test", function () {
                         borrowAmount,
                         nextDueDate,
                         BN.from(0),
-                        BN.from(0),
                         borrowAmount,
                         expectedNewCR,
                         expectedNewDD,
                     );
                 });
 
-                it("Should allow the borrower to make multiple payments for the unbilled principal over multiple periods", async function () {
+                it("Should allow the borrower to make multiple payments for the unbilled principal within the same period", async function () {
                     const cc = await creditContract.getCreditConfig(creditHash);
-                    let cr = await creditContract.getCreditRecord(creditHash);
-                    let dd = await creditContract.getDueDetail(creditHash);
+                    const cr = await creditContract.getCreditRecord(creditHash);
+                    const dd = await creditContract.getDueDetail(creditHash);
                     const maturityDate = moment.utc(
                         (await creditContract.maturityDates(creditHash)).toNumber() * 1000,
                     );
@@ -5286,27 +5282,17 @@ describe("CreditLine Test", function () {
                         minute: 33,
                         second: 26,
                     });
-                    let nextDueDate = firstDueDate;
+                    const nextDueDate = firstDueDate;
                     const firstPaymentAmount = toToken(20_000);
-                    let remainingUnbilledPrincipal = borrowAmount.sub(firstPaymentAmount);
                     let expectedNewCR = {
-                        unbilledPrincipal: remainingUnbilledPrincipal,
+                        unbilledPrincipal: borrowAmount.sub(firstPaymentAmount),
                         nextDueDate: nextDueDate.unix(),
                         nextDue: cr.nextDue,
                         yieldDue: cr.yieldDue,
                         totalPastDue: BN.from(0),
                         missedPeriods: 0,
-                        remainingPeriods: cr.remainingPeriods - 1,
+                        remainingPeriods: cr.remainingPeriods,
                         state: CreditState.GoodStanding,
-                    };
-                    let expectedNewDD = {
-                        lateFeeUpdatedDate: BN.from(0),
-                        lateFee: BN.from(0),
-                        principalPastDue: BN.from(0),
-                        yieldPastDue: BN.from(0),
-                        committed: dd.committed,
-                        accrued: dd.accrued,
-                        paid: BN.from(0),
                     };
                     await testMakePrincipalPayment(
                         makePaymentDate,
@@ -5314,71 +5300,30 @@ describe("CreditLine Test", function () {
                         firstPaymentAmount,
                         firstDueDate,
                         BN.from(0),
-                        BN.from(0),
                         firstPaymentAmount,
                         expectedNewCR,
-                        expectedNewDD,
+                        dd,
                     );
 
                     // Second payment pays off the unbilled principal.
                     const secondPaymentDate = moment.utc({
                         year: nextYear,
                         month: 2,
-                        day: 19,
+                        day: 4,
                         hour: 7,
                         minute: 5,
                         second: 56,
                     });
-                    nextDueDate = moment.utc({
-                        year: nextYear,
-                        month: 3,
-                        day: 1,
-                    });
                     const secondPaymentAmount = borrowAmount.sub(toToken(20_000));
-                    remainingUnbilledPrincipal =
-                        remainingUnbilledPrincipal.sub(secondPaymentAmount);
-                    cr = await creditContract.getCreditRecord(creditHash);
-                    dd = await creditContract.getDueDetail(creditHash);
-                    const [
-                        yieldPastDue,
-                        yieldNextDue,
-                        [accruedYieldNextDue, committedYieldNextDue],
-                    ] = await calcYieldDueNew(
-                        calendarContract,
-                        cc,
-                        cr,
-                        dd,
-                        secondPaymentDate,
-                        maturityDate,
-                        latePaymentGracePeriodInDays,
-                        membershipFee,
-                    );
-                    let [lateFeeUpdatedDate, lateFee] = await calcLateFeeNew(
-                        poolConfigContract,
-                        calendarContract,
-                        cr,
-                        dd,
-                        secondPaymentDate,
-                        latePaymentGracePeriodInDays,
-                    );
                     expectedNewCR = {
-                        unbilledPrincipal: remainingUnbilledPrincipal,
+                        unbilledPrincipal: BN.from(0),
                         nextDueDate: nextDueDate.unix(),
-                        nextDue: yieldNextDue,
-                        yieldDue: yieldNextDue,
-                        totalPastDue: yieldPastDue.add(lateFee),
-                        missedPeriods: 1,
-                        remainingPeriods: cr.remainingPeriods - 1,
-                        state: CreditState.Delayed,
-                    };
-                    expectedNewDD = {
-                        lateFeeUpdatedDate: lateFeeUpdatedDate,
-                        lateFee: lateFee,
-                        principalPastDue: BN.from(0),
-                        yieldPastDue: yieldPastDue,
-                        committed: committedYieldNextDue,
-                        accrued: accruedYieldNextDue,
-                        paid: BN.from(0),
+                        nextDue: cr.nextDue,
+                        yieldDue: cr.yieldDue,
+                        totalPastDue: BN.from(0),
+                        missedPeriods: 0,
+                        remainingPeriods: cr.remainingPeriods,
+                        state: CreditState.GoodStanding,
                     };
                     await testMakePrincipalPayment(
                         secondPaymentDate,
@@ -5386,41 +5331,20 @@ describe("CreditLine Test", function () {
                         secondPaymentAmount,
                         nextDueDate,
                         BN.from(0),
-                        BN.from(0),
                         secondPaymentAmount,
                         expectedNewCR,
-                        expectedNewDD,
+                        dd,
                     );
 
                     // Third payment is a no-op since the principal has already been paid off.
                     const thirdPaymentDate = moment.utc({
                         year: nextYear,
                         month: 2,
-                        day: 28,
+                        day: 4,
                         hour: 20,
                         minute: 8,
                     });
                     const thirdPaymentAmount = toToken(10_000);
-                    cr = await creditContract.getCreditRecord(creditHash);
-                    dd = await creditContract.getDueDetail(creditHash);
-                    // Additional late fee is assessed since additional time has passed.
-                    [lateFeeUpdatedDate, lateFee] = await calcLateFeeNew(
-                        poolConfigContract,
-                        calendarContract,
-                        cr,
-                        dd,
-                        thirdPaymentDate,
-                        latePaymentGracePeriodInDays,
-                    );
-                    expectedNewDD = {
-                        lateFeeUpdatedDate: lateFeeUpdatedDate,
-                        lateFee: lateFee,
-                        principalPastDue: BN.from(0),
-                        yieldPastDue: yieldPastDue,
-                        committed: committedYieldNextDue,
-                        accrued: accruedYieldNextDue,
-                        paid: BN.from(0),
-                    };
                     await testMakePrincipalPayment(
                         thirdPaymentDate,
                         thirdPaymentAmount,
@@ -5428,9 +5352,8 @@ describe("CreditLine Test", function () {
                         nextDueDate,
                         BN.from(0),
                         BN.from(0),
-                        BN.from(0),
                         expectedNewCR,
-                        expectedNewDD,
+                        dd,
                     );
                 });
 
@@ -5515,7 +5438,6 @@ describe("CreditLine Test", function () {
                         borrowAmount,
                         nextDueDate,
                         BN.from(0),
-                        BN.from(0),
                         borrowAmount,
                         expectedNewCR,
                         expectedNewDD,
@@ -5529,82 +5451,7 @@ describe("CreditLine Test", function () {
                             .makePrincipalPayment(borrower.getAddress(), toToken(1)),
                     ).to.be.revertedWithCustomError(
                         creditContract,
-                        "creditLineNotInStateForMakingPayment",
-                    );
-                });
-
-                it("Should allow the borrower to pay for the unbilled principal once post maturity", async function () {
-                    const cc = await creditContract.getCreditConfig(creditHash);
-                    let cr = await creditContract.getCreditRecord(creditHash);
-                    let dd = await creditContract.getDueDetail(creditHash);
-                    const maturityDate = moment.utc(
-                        (await creditContract.maturityDates(creditHash)).toNumber() * 1000,
-                    );
-
-                    // First payment pays off yield due.
-                    makePaymentDate = maturityDate.clone().add(1, "second");
-                    const [
-                        yieldPastDue,
-                        yieldNextDue,
-                        [accruedYieldNextDue, committedYieldNextDue],
-                    ] = await calcYieldDueNew(
-                        calendarContract,
-                        cc,
-                        cr,
-                        dd,
-                        makePaymentDate,
-                        maturityDate,
-                        latePaymentGracePeriodInDays,
-                        membershipFee,
-                    );
-                    await setNextBlockTimestamp(makePaymentDate.unix());
-                    await creditContract
-                        .connect(borrower)
-                        .makePayment(borrower.getAddress(), yieldPastDue.add(yieldNextDue));
-
-                    // Second payment pays off the principal.
-                    const secondPaymentDate = makePaymentDate.clone().add(10, "minute");
-                    const nextDueDate = maturityDate;
-                    cr = await creditContract.getCreditRecord(creditHash);
-                    dd = await creditContract.getDueDetail(creditHash);
-                    const [lateFeeUpdatedDate, lateFee] = await calcLateFeeNew(
-                        poolConfigContract,
-                        calendarContract,
-                        cr,
-                        dd,
-                        makePaymentDate,
-                        latePaymentGracePeriodInDays,
-                    );
-                    const expectedNewCR = {
-                        unbilledPrincipal: BN.from(0),
-                        nextDueDate: nextDueDate.unix(),
-                        nextDue: BN.from(0),
-                        yieldDue: BN.from(0),
-                        totalPastDue: lateFee,
-                        // TODO(jiatu): this is wrong. See the `periodsPassed` calculation in `Credit.sol` for the reason.
-                        missedPeriods: cr.missedPeriods + 1,
-                        remainingPeriods: cr.remainingPeriods,
-                        state: CreditState.Delayed,
-                    };
-                    const expectedNewDD = {
-                        lateFeeUpdatedDate: lateFeeUpdatedDate,
-                        lateFee: lateFee,
-                        principalPastDue: BN.from(0),
-                        yieldPastDue: BN.from(0),
-                        committed: committedYieldNextDue,
-                        accrued: accruedYieldNextDue,
-                        paid: yieldNextDue,
-                    };
-                    await testMakePrincipalPayment(
-                        secondPaymentDate,
-                        borrowAmount,
-                        borrowAmount,
-                        nextDueDate,
-                        BN.from(0),
-                        borrowAmount,
-                        BN.from(0),
-                        expectedNewCR,
-                        expectedNewDD,
+                        "creditLineNotInStateForMakingPrincipalPayment",
                     );
                 });
 
@@ -5622,7 +5469,7 @@ describe("CreditLine Test", function () {
                     await poolContract.connect(poolOwner).enablePool();
                 });
 
-                it("Should not allow non-borrower or non-PDS service account to make payment", async function () {
+                it("Should not allow non-borrower or non-PDS service account to make principal payment", async function () {
                     await expect(
                         creditContract
                             .connect(borrower2)
@@ -5633,12 +5480,32 @@ describe("CreditLine Test", function () {
                     );
                 });
 
-                it("Should not allow the borrower to make payment with 0 amount", async function () {
+                it("Should not allow the borrower to make principal payment with 0 amount", async function () {
                     await expect(
                         creditContract
                             .connect(borrower)
                             .makePrincipalPayment(borrower.getAddress(), 0),
                     ).to.be.revertedWithCustomError(creditContract, "zeroAmountProvided");
+                });
+
+                it("Should not allow the borrower to pay for the principal if the bill is not in good standing state", async function () {
+                    makePaymentDate = moment.utc({
+                        year: nextYear,
+                        month: 2,
+                        day: 28,
+                        hour: 4,
+                        minute: 48,
+                        second: 31,
+                    });
+                    await setNextBlockTimestamp(makePaymentDate.unix());
+                    await expect(
+                        creditContract
+                            .connect(borrower)
+                            .makePrincipalPayment(borrower.getAddress(), toToken(1)),
+                    ).to.be.revertedWithCustomError(
+                        creditContract,
+                        "creditLineNotInStateForMakingPrincipalPayment",
+                    );
                 });
             });
 
@@ -5694,17 +5561,8 @@ describe("CreditLine Test", function () {
                         yieldDue: cr.yieldDue,
                         totalPastDue: BN.from(0),
                         missedPeriods: 0,
-                        remainingPeriods: cr.remainingPeriods - 1,
+                        remainingPeriods: cr.remainingPeriods,
                         state: CreditState.GoodStanding,
-                    };
-                    const expectedNewDD = {
-                        lateFeeUpdatedDate: BN.from(0),
-                        lateFee: BN.from(0),
-                        principalPastDue: BN.from(0),
-                        yieldPastDue: BN.from(0),
-                        committed: dd.committed,
-                        accrued: dd.accrued,
-                        paid: BN.from(0),
                     };
                     await testMakePrincipalPayment(
                         makePaymentDate,
@@ -5712,17 +5570,16 @@ describe("CreditLine Test", function () {
                         borrowAmount,
                         nextDueDate,
                         principalNextDue,
-                        BN.from(0),
                         borrowAmount.sub(principalNextDue),
                         expectedNewCR,
-                        expectedNewDD,
+                        dd,
                     );
                 });
 
-                it("Should allow the borrower to make multiple principal payments over multiple periods", async function () {
+                it("Should allow the borrower to make multiple principal payments within the same period", async function () {
                     const cc = await creditContract.getCreditConfig(creditHash);
-                    let cr = await creditContract.getCreditRecord(creditHash);
-                    let dd = await creditContract.getDueDetail(creditHash);
+                    const cr = await creditContract.getCreditRecord(creditHash);
+                    const dd = await creditContract.getDueDetail(creditHash);
                     const maturityDate = moment.utc(
                         (await creditContract.maturityDates(creditHash)).toNumber() * 1000,
                     );
@@ -5736,8 +5593,8 @@ describe("CreditLine Test", function () {
                         minute: 33,
                         second: 26,
                     });
-                    let nextDueDate = firstDueDate;
-                    let [, , principalNextDue] = await calcPrincipalDueNew(
+                    const nextDueDate = firstDueDate;
+                    const [unbilledPrincipal, , principalNextDue] = await calcPrincipalDueNew(
                         calendarContract,
                         cc,
                         cr,
@@ -5755,17 +5612,8 @@ describe("CreditLine Test", function () {
                         yieldDue: cr.yieldDue,
                         totalPastDue: BN.from(0),
                         missedPeriods: 0,
-                        remainingPeriods: cr.remainingPeriods - 1,
+                        remainingPeriods: cr.remainingPeriods,
                         state: CreditState.GoodStanding,
-                    };
-                    let expectedNewDD = {
-                        lateFeeUpdatedDate: BN.from(0),
-                        lateFee: BN.from(0),
-                        principalPastDue: BN.from(0),
-                        yieldPastDue: BN.from(0),
-                        committed: dd.committed,
-                        accrued: dd.accrued,
-                        paid: BN.from(0),
                     };
                     await testMakePrincipalPayment(
                         makePaymentDate,
@@ -5774,159 +5622,39 @@ describe("CreditLine Test", function () {
                         firstDueDate,
                         principalNextDue,
                         BN.from(0),
-                        BN.from(0),
                         expectedNewCR,
-                        expectedNewDD,
+                        dd,
                     );
 
-                    // Second payment pays off the principal next due in the second period.
+                    // Second payment pays off the unbilled principal.
                     const secondPaymentDate = moment.utc({
                         year: nextYear,
                         month: 2,
-                        day: 19,
-                        hour: 7,
-                        minute: 5,
-                        second: 56,
-                    });
-                    nextDueDate = moment.utc({
-                        year: nextYear,
-                        month: 3,
-                        day: 1,
-                    });
-                    cr = await creditContract.getCreditRecord(creditHash);
-                    dd = await creditContract.getDueDetail(creditHash);
-                    let unbilledPrincipal;
-                    [unbilledPrincipal, , principalNextDue] = await calcPrincipalDueNew(
-                        calendarContract,
-                        cc,
-                        cr,
-                        dd,
-                        secondPaymentDate,
-                        maturityDate,
-                        latePaymentGracePeriodInDays,
-                        principalRateInBps,
-                    );
-                    const secondPaymentAmount = principalNextDue;
-                    const [
-                        yieldPastDue,
-                        yieldNextDue,
-                        [accruedYieldNextDue, committedYieldNextDue],
-                    ] = await calcYieldDueNew(
-                        calendarContract,
-                        cc,
-                        cr,
-                        dd,
-                        secondPaymentDate,
-                        maturityDate,
-                        latePaymentGracePeriodInDays,
-                        membershipFee,
-                    );
-                    let [lateFeeUpdatedDate, lateFee] = await calcLateFeeNew(
-                        poolConfigContract,
-                        calendarContract,
-                        cr,
-                        dd,
-                        secondPaymentDate,
-                        latePaymentGracePeriodInDays,
-                    );
-                    expectedNewCR = {
-                        unbilledPrincipal: unbilledPrincipal,
-                        nextDueDate: nextDueDate.unix(),
-                        nextDue: yieldNextDue,
-                        yieldDue: yieldNextDue,
-                        totalPastDue: yieldPastDue.add(lateFee),
-                        missedPeriods: 1,
-                        remainingPeriods: cr.remainingPeriods - 1,
-                        state: CreditState.Delayed,
-                    };
-                    expectedNewDD = {
-                        lateFeeUpdatedDate: lateFeeUpdatedDate,
-                        lateFee: lateFee,
-                        principalPastDue: BN.from(0),
-                        yieldPastDue: yieldPastDue,
-                        committed: committedYieldNextDue,
-                        accrued: accruedYieldNextDue,
-                        paid: BN.from(0),
-                    };
-                    await testMakePrincipalPayment(
-                        secondPaymentDate,
-                        secondPaymentAmount,
-                        secondPaymentAmount,
-                        nextDueDate,
-                        principalNextDue,
-                        BN.from(0),
-                        BN.from(0),
-                        expectedNewCR,
-                        expectedNewDD,
-                    );
-
-                    // Third payment pays off the unbilled principal.
-                    const thirdPaymentDate = moment.utc({
-                        year: nextYear,
-                        month: 2,
-                        day: 28,
+                        day: 5,
                         hour: 20,
                         minute: 8,
                     });
-                    nextDueDate = moment.utc({
-                        year: nextYear,
-                        month: 3,
-                        day: 1,
-                    });
-                    cr = await creditContract.getCreditRecord(creditHash);
-                    dd = await creditContract.getDueDetail(creditHash);
-                    [unbilledPrincipal] = await calcPrincipalDueNew(
-                        calendarContract,
-                        cc,
-                        cr,
-                        dd,
-                        thirdPaymentDate,
-                        maturityDate,
-                        latePaymentGracePeriodInDays,
-                        principalRateInBps,
-                    );
                     // Attempt to pay the entire borrow amount, but only unbilled principal should be charged.
-                    const thirdPaymentAmount = borrowAmount;
-                    cr = await creditContract.getCreditRecord(creditHash);
-                    dd = await creditContract.getDueDetail(creditHash);
-                    // Additional late fee is assessed since additional time has passed.
-                    [lateFeeUpdatedDate, lateFee] = await calcLateFeeNew(
-                        poolConfigContract,
-                        calendarContract,
-                        cr,
-                        dd,
-                        thirdPaymentDate,
-                        latePaymentGracePeriodInDays,
-                    );
+                    const secondPaymentAmount = borrowAmount;
                     expectedNewCR = {
                         unbilledPrincipal: BN.from(0),
                         nextDueDate: nextDueDate.unix(),
-                        nextDue: cr.nextDue,
-                        yieldDue: yieldNextDue,
-                        totalPastDue: yieldPastDue.add(lateFee),
-                        missedPeriods: 1,
+                        nextDue: cr.nextDue.sub(principalNextDue),
+                        yieldDue: cr.yieldDue,
+                        totalPastDue: BN.from(0),
+                        missedPeriods: 0,
                         remainingPeriods: cr.remainingPeriods,
-                        state: CreditState.Delayed,
-                    };
-                    expectedNewDD = {
-                        lateFeeUpdatedDate: lateFeeUpdatedDate,
-                        lateFee: lateFee,
-                        principalPastDue: BN.from(0),
-                        yieldPastDue: yieldPastDue,
-                        committed: committedYieldNextDue,
-                        accrued: accruedYieldNextDue,
-                        paid: BN.from(0),
+                        state: CreditState.GoodStanding,
                     };
                     await testMakePrincipalPayment(
-                        thirdPaymentDate,
-                        thirdPaymentAmount,
+                        secondPaymentDate,
+                        secondPaymentAmount,
                         unbilledPrincipal,
                         nextDueDate,
                         BN.from(0),
-                        BN.from(0),
                         unbilledPrincipal,
                         expectedNewCR,
-                        expectedNewDD,
+                        dd,
                     );
                 });
 
@@ -5938,7 +5666,7 @@ describe("CreditLine Test", function () {
                         (await creditContract.maturityDates(creditHash)).toNumber() * 1000,
                     );
 
-                    // First payment pays off the yield past due.
+                    // First payment pays off the all past due and next due.
                     makePaymentDate = moment.utc({
                         year: nextYear,
                         month: 7,
@@ -5968,12 +5696,27 @@ describe("CreditLine Test", function () {
                             latePaymentGracePeriodInDays,
                             principalRateInBps,
                         );
+                    const [, lateFee] = await calcLateFeeNew(
+                        poolConfigContract,
+                        calendarContract,
+                        cr,
+                        dd,
+                        makePaymentDate,
+                        latePaymentGracePeriodInDays,
+                    );
                     await setNextBlockTimestamp(makePaymentDate.unix());
                     await creditContract
                         .connect(borrower)
-                        .makePayment(borrower.getAddress(), yieldPastDue);
+                        .makePayment(
+                            borrower.getAddress(),
+                            yieldPastDue
+                                .add(principalPastDue)
+                                .add(lateFee)
+                                .add(yieldNextDue)
+                                .add(principalNextDue),
+                        );
 
-                    // Second payment pays off the principal due.
+                    // Second payment pays off the principal due and closes the credit line.
                     const secondPaymentDate = moment.utc({
                         year: nextYear,
                         month: 7,
@@ -5982,188 +5725,56 @@ describe("CreditLine Test", function () {
                         minute: 16,
                     });
                     const nextDueDate = maturityDate;
-                    const secondPaymentAmount = principalPastDue.add(principalNextDue);
-                    cr = await creditContract.getCreditRecord(creditHash);
+                    const secondPaymentAmount = unbilledPrincipal;
                     dd = await creditContract.getDueDetail(creditHash);
-                    let [lateFeeUpdatedDate, lateFee] = await calcLateFeeNew(
-                        poolConfigContract,
-                        calendarContract,
-                        cr,
-                        dd,
-                        secondPaymentDate,
-                        latePaymentGracePeriodInDays,
-                    );
                     let expectedNewCR = {
-                        unbilledPrincipal: unbilledPrincipal,
-                        nextDueDate: nextDueDate.unix(),
-                        nextDue: yieldNextDue,
-                        yieldDue: yieldNextDue,
-                        totalPastDue: lateFee,
-                        missedPeriods: cr.missedPeriods,
-                        remainingPeriods: BN.from(0),
-                        state: CreditState.Delayed,
-                    };
-                    let expectedNewDD = {
-                        lateFeeUpdatedDate: lateFeeUpdatedDate,
-                        lateFee: lateFee,
-                        principalPastDue: BN.from(0),
-                        yieldPastDue: BN.from(0),
-                        committed: dd.committed,
-                        accrued: dd.accrued,
-                        paid: dd.paid,
-                    };
-                    await testMakePrincipalPayment(
-                        secondPaymentDate,
-                        secondPaymentAmount,
-                        secondPaymentAmount,
-                        nextDueDate,
-                        principalNextDue,
-                        principalPastDue,
-                        BN.from(0),
-                        expectedNewCR,
-                        expectedNewDD,
-                    );
-
-                    // Third payment pays off the late fee and yield next due.
-                    const thirdPaymentDate = moment.utc({
-                        year: nextYear,
-                        month: 7,
-                        day: 5,
-                        hour: 13,
-                        minute: 32,
-                        second: 45,
-                    });
-                    cr = await creditContract.getCreditRecord(creditHash);
-                    dd = await creditContract.getDueDetail(creditHash);
-                    [, lateFee] = await calcLateFeeNew(
-                        poolConfigContract,
-                        calendarContract,
-                        cr,
-                        dd,
-                        thirdPaymentDate,
-                        latePaymentGracePeriodInDays,
-                    );
-                    await setNextBlockTimestamp(thirdPaymentDate.unix());
-                    await creditContract
-                        .connect(borrower)
-                        .makePayment(borrower.getAddress(), yieldNextDue.add(lateFee));
-
-                    // Fourth payment pays off the unbilled principal and closes the credit line.
-                    const fourthPaymentDate = moment.utc({
-                        year: nextYear,
-                        month: 7,
-                        day: 6,
-                        hour: 23,
-                        minute: 12,
-                        second: 50,
-                    });
-                    const fourthPaymentAmount = unbilledPrincipal;
-                    cr = await creditContract.getCreditRecord(creditHash);
-                    dd = await creditContract.getDueDetail(creditHash);
-                    expectedNewCR = {
                         unbilledPrincipal: BN.from(0),
                         nextDueDate: nextDueDate.unix(),
                         nextDue: BN.from(0),
                         yieldDue: BN.from(0),
                         totalPastDue: BN.from(0),
-                        missedPeriods: cr.missedPeriods,
-                        remainingPeriods: BN.from(0),
+                        missedPeriods: 0,
+                        remainingPeriods: 0,
                         state: CreditState.Deleted,
-                    };
-                    expectedNewDD = {
-                        lateFeeUpdatedDate: BN.from(0),
-                        lateFee: BN.from(0),
-                        principalPastDue: BN.from(0),
-                        yieldPastDue: BN.from(0),
-                        committed: dd.committed,
-                        accrued: dd.accrued,
-                        paid: dd.paid,
-                    };
-                    await testMakePrincipalPayment(
-                        fourthPaymentDate,
-                        fourthPaymentAmount,
-                        fourthPaymentAmount,
-                        nextDueDate,
-                        BN.from(0),
-                        BN.from(0),
-                        unbilledPrincipal,
-                        expectedNewCR,
-                        expectedNewDD,
-                    );
-                });
-
-                it("Should allow the borrower to pay for the principal once post maturity", async function () {
-                    const cc = await creditContract.getCreditConfig(creditHash);
-                    let cr = await creditContract.getCreditRecord(creditHash);
-                    let dd = await creditContract.getDueDetail(creditHash);
-                    const maturityDate = moment.utc(
-                        (await creditContract.maturityDates(creditHash)).toNumber() * 1000,
-                    );
-
-                    // First payment pays off yield due.
-                    makePaymentDate = maturityDate.clone().add(1, "second");
-                    const [
-                        yieldPastDue,
-                        yieldNextDue,
-                        [accruedYieldNextDue, committedYieldNextDue],
-                    ] = await calcYieldDueNew(
-                        calendarContract,
-                        cc,
-                        cr,
-                        dd,
-                        makePaymentDate,
-                        maturityDate,
-                        latePaymentGracePeriodInDays,
-                        membershipFee,
-                    );
-                    await setNextBlockTimestamp(makePaymentDate.unix());
-                    await creditContract
-                        .connect(borrower)
-                        .makePayment(borrower.getAddress(), yieldPastDue.add(yieldNextDue));
-
-                    // Second payment pays off the principal.
-                    const secondPaymentDate = makePaymentDate.clone().add(10, "minute");
-                    const nextDueDate = maturityDate;
-                    cr = await creditContract.getCreditRecord(creditHash);
-                    dd = await creditContract.getDueDetail(creditHash);
-                    const [lateFeeUpdatedDate, lateFee] = await calcLateFeeNew(
-                        poolConfigContract,
-                        calendarContract,
-                        cr,
-                        dd,
-                        makePaymentDate,
-                        latePaymentGracePeriodInDays,
-                    );
-                    const expectedNewCR = {
-                        unbilledPrincipal: BN.from(0),
-                        nextDueDate: nextDueDate.unix(),
-                        nextDue: BN.from(0),
-                        yieldDue: BN.from(0),
-                        totalPastDue: lateFee,
-                        // TODO(jiatu): this is wrong. See the `periodsPassed` calculation in `Credit.sol` for the reason.
-                        missedPeriods: cr.missedPeriods + 1,
-                        remainingPeriods: cr.remainingPeriods,
-                        state: CreditState.Delayed,
-                    };
-                    const expectedNewDD = {
-                        lateFeeUpdatedDate: lateFeeUpdatedDate,
-                        lateFee: lateFee,
-                        principalPastDue: BN.from(0),
-                        yieldPastDue: BN.from(0),
-                        committed: committedYieldNextDue,
-                        accrued: accruedYieldNextDue,
-                        paid: yieldNextDue,
                     };
                     await testMakePrincipalPayment(
                         secondPaymentDate,
-                        borrowAmount,
-                        borrowAmount,
+                        secondPaymentAmount,
+                        secondPaymentAmount,
                         nextDueDate,
                         BN.from(0),
-                        borrowAmount,
-                        BN.from(0),
+                        unbilledPrincipal,
                         expectedNewCR,
-                        expectedNewDD,
+                        dd,
+                    );
+                    // Further payment attempts will be rejected.
+                    await expect(
+                        creditContract
+                            .connect(borrower)
+                            .makePrincipalPayment(borrower.getAddress(), toToken(1)),
+                    ).to.be.revertedWithCustomError(
+                        creditContract,
+                        "creditLineNotInStateForMakingPrincipalPayment",
+                    );
+                });
+
+                it("Should not allow the borrower to pay for the principal if the bill is not in good standing state", async function () {
+                    makePaymentDate = moment.utc({
+                        year: nextYear,
+                        month: 2,
+                        day: 28,
+                        hour: 4,
+                        minute: 48,
+                        second: 31,
+                    });
+                    await setNextBlockTimestamp(makePaymentDate.unix());
+                    await expect(
+                        creditContract
+                            .connect(borrower)
+                            .makePrincipalPayment(borrower.getAddress(), toToken(1)),
+                    ).to.be.revertedWithCustomError(
+                        creditContract,
+                        "creditLineNotInStateForMakingPrincipalPayment",
                     );
                 });
             });
