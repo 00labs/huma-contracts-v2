@@ -1815,7 +1815,23 @@ describe("CreditLine Test", function () {
 
                 const newCR = await creditContract.getCreditRecord(creditHash);
                 let periodsPassed = 0;
-                if (paymentDate > moment.utc(cr.nextDueDate.toNumber() * 1000)) {
+                if (cr.state === CreditState.Approved) {
+                    periodsPassed = 1;
+                } else if (cr.state === CreditState.GoodStanding) {
+                    if (
+                        paymentDate.isAfter(
+                            getLatePaymentGracePeriodDeadline(cr, latePaymentGracePeriodInDays),
+                        )
+                    ) {
+                        periodsPassed = (
+                            await calendarContract.getNumPeriodsPassed(
+                                cc.periodDuration,
+                                cr.nextDueDate,
+                                paymentDate.unix(),
+                            )
+                        ).toNumber();
+                    }
+                } else if (paymentDate.isAfter(moment.utc(cr.nextDueDate.toNumber() * 1000))) {
                     periodsPassed = (
                         await calendarContract.getNumPeriodsPassed(
                             cc.periodDuration,
