@@ -398,8 +398,7 @@ describe("CreditLine Test", function () {
                     1,
                     1217,
                     true,
-                    false,
-                    false,
+                    poolSettings.advanceRateInBps,
                     false,
                 )
                 .to.emit(creditContract, "CreditLineApproved")
@@ -423,8 +422,7 @@ describe("CreditLine Test", function () {
                 1,
                 1217,
                 true,
-                false,
-                false,
+                poolSettings.advanceRateInBps,
                 false,
             );
 
@@ -480,8 +478,7 @@ describe("CreditLine Test", function () {
                     3,
                     1217,
                     true,
-                    false,
-                    false,
+                    poolSettings.advanceRateInBps,
                     false,
                 )
                 .to.emit(creditContract, "CreditLineApproved")
@@ -505,8 +502,7 @@ describe("CreditLine Test", function () {
                 3,
                 1217,
                 true,
-                false,
-                false,
+                poolSettings.advanceRateInBps,
                 false,
             );
 
@@ -566,8 +562,7 @@ describe("CreditLine Test", function () {
                     3,
                     1217,
                     true,
-                    false,
-                    false,
+                    poolSettings.advanceRateInBps,
                     false,
                 )
                 .to.emit(creditContract, "CreditLineApproved")
@@ -591,8 +586,7 @@ describe("CreditLine Test", function () {
                 3,
                 1217,
                 true,
-                false,
-                false,
+                poolSettings.advanceRateInBps,
                 false,
             );
 

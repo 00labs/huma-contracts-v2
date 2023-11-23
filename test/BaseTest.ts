@@ -19,6 +19,7 @@ import {
     PoolFeeManager,
     PoolSafe,
     Receivable,
+    ReceivableBackedCreditLine,
     TrancheVault,
 } from "../typechain-types";
 import { FirstLossCoverConfigStruct } from "../typechain-types/contracts/PoolConfig.sol/PoolConfig";
@@ -33,7 +34,7 @@ import {
 import { EpochInfoStruct } from "../typechain-types/contracts/interfaces/IEpoch";
 import { maxBigNumber, minBigNumber, sumBNArray, toToken } from "./TestUtils";
 
-export type CreditContractType = MockPoolCredit | CreditLine;
+export type CreditContractType = MockPoolCredit | CreditLine | ReceivableBackedCreditLine;
 export type ProtocolContracts = [EvaluationAgentNFT, HumaConfig, MockToken];
 export type PoolContracts = [
     PoolConfig,
@@ -54,7 +55,7 @@ export type PoolContracts = [
 export type TranchesPolicyContractName =
     | "FixedSeniorYieldTranchePolicy"
     | "RiskAdjustedTranchesPolicy";
-export type CreditContractName = "CreditLine" | "MockPoolCredit";
+export type CreditContractName = "CreditLine" | "ReceivableBackedCreditLine" | "MockPoolCredit";
 
 export enum PayPeriodDuration {
     Monthly,
@@ -882,9 +883,8 @@ export function checkCreditConfig(
     numOfPeriods: number,
     yieldInBps: number,
     revolving: boolean,
-    receivableBacked: boolean,
-    borrowerLevelCredit: boolean,
-    exclusive: boolean,
+    advanceRateInBps: number,
+    autoApproval: boolean,
 ) {
     expect(creditConfig.creditLimit).to.equal(creditLimit);
     expect(creditConfig.committedAmount).to.equal(committedAmount);
@@ -892,9 +892,8 @@ export function checkCreditConfig(
     expect(creditConfig.numOfPeriods).to.equal(numOfPeriods);
     expect(creditConfig.yieldInBps).to.equal(yieldInBps);
     expect(creditConfig.revolving).to.equal(revolving);
-    expect(creditConfig.receivableBacked).to.equal(receivableBacked);
-    expect(creditConfig.borrowerLevelCredit).to.equal(borrowerLevelCredit);
-    expect(creditConfig.exclusive).to.equal(exclusive);
+    expect(creditConfig.advanceRateInBps).to.equal(advanceRateInBps);
+    expect(creditConfig.autoApproval).to.equal(autoApproval);
 }
 
 export function checkCreditRecordsMatch(
@@ -1347,9 +1346,11 @@ async function getCreditContractFactory(creditContractName: CreditContractName) 
     switch (creditContractName) {
         case "CreditLine":
             return await ethers.getContractFactory(creditContractName);
+        case "ReceivableBackedCreditLine":
+            return await ethers.getContractFactory(creditContractName);
         case "MockPoolCredit":
             return await ethers.getContractFactory(creditContractName);
         default:
-            throw new Error("Invalid tranchesPolicyContractName");
+            throw new Error("Invalid creditContractName");
     }
 }

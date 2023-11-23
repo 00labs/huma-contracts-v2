@@ -16,9 +16,6 @@ struct CreditConfig {
     // Percentage of receivable nominal amount to be available for drawdown.
     uint16 advanceRateInBps;
     bool revolving; // if repeated borrowing is allowed
-    bool receivableBacked; // if the credit is receivable-backed
-    bool borrowerLevelCredit; // whether the credit line is at the borrower-level vs receivable-level
-    bool exclusive; // if the credit pool is exclusive to a borrower
     bool autoApproval;
 }
 

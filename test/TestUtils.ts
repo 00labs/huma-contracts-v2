@@ -34,6 +34,24 @@ export async function mineNextBlockWithTimestamp(nextTS: BN | number) {
     await network.provider.send("evm_mine", []);
 }
 
+export async function evmSnapshot(): Promise<unknown> {
+    return await network.provider.request({
+        method: "evm_snapshot",
+        params: [],
+    });
+}
+
+export async function evmRevert(sId: unknown) {
+    const res = await network.provider.request({
+        method: "evm_revert",
+        params: [sId],
+    });
+    if (!res) {
+        console.log(`emvRevert failed: ${sId}`);
+    }
+    return res;
+}
+
 export function getNextDate(
     lastDate: number,
     currentDate: number,

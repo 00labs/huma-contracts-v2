@@ -52,9 +52,8 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         uint256 numOfPeriods,
         uint256 yieldInBps,
         bool revolving,
-        bool receivableBacked,
-        bool borrowerLevelCredit,
-        bool exclusive
+        uint256 advanceRateInBps,
+        bool autoApproval
     );
 
     /**
@@ -294,6 +293,8 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         cc.numOfPeriods = remainingPeriods;
         cc.yieldInBps = yieldInBps;
         cc.revolving = revolving;
+        cc.advanceRateInBps = ps.advanceRateInBps;
+        cc.autoApproval = ps.receivableAutoApproval;
         _setCreditConfig(creditHash, cc);
 
         // todo decide if this event emission should be kept or not
@@ -306,9 +307,8 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
             cc.numOfPeriods,
             cc.yieldInBps,
             cc.revolving,
-            cc.receivableBacked,
-            cc.borrowerLevelCredit,
-            cc.exclusive
+            cc.advanceRateInBps,
+            cc.autoApproval
         );
 
         // Note: Special logic. dueDate is normally used to track the next bill due.
