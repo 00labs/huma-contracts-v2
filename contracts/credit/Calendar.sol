@@ -153,6 +153,16 @@ contract Calendar is ICalendar {
             return 0;
         }
         uint256 dueDateAfterStartDate = _getStartDateOfNextPeriod(periodDuration, startDate);
+
+        // TODO It is not a good way, need to refactor this function later
+        (, , uint256 day) = DTL.timestampToDate(endDate);
+        if (day == 1) {
+            return
+                getDaysDiff(dueDateAfterStartDate, endDate) /
+                getTotalDaysInFullPeriod(periodDuration) +
+                1;
+        }
+
         if (endDate <= dueDateAfterStartDate) {
             // `numPeriodsPassed` is 1 if the current block timestamp and the last due date are
             // within the same period.
