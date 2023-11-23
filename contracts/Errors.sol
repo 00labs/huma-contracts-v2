@@ -31,7 +31,7 @@ contract Errors {
     error notCurrentEpoch(); // 0x50c5dd13
     error notCoverProvider(); // 0xed74bd11
     error notAuthorizedCaller(); // 0x06bc68f5
-    error permissionDeniedNotPayer();
+    error permissionDeniedNotPayer(); // 0xf3275b9d
 
     // system config
     error defaultGracePeriodLessThanMinAllowed(); // 0xa733ff9c
@@ -66,7 +66,8 @@ contract Errors {
     error creditExpiredDueToMaturity(); // 0xa52f3c3f
     error creditLineNotInGoodStandingState(); // 0x96e79474
     error creditLineNotInStateForMakingPayment(); // 0xf023e48b
-    error creditNotInStateForDrawdown();
+    error creditLineNotInStateForMakingPrincipalPayment(); // 0xb000239a
+    error creditNotInStateForDrawdown(); // 0x41be5540
     error creditLineExceeded(); // 0xef7d66ff
     error creditLineAlreadyExists(); // 0x6c5805f2
     error creditLineGreatThanUpperLimit(); // 0xd8c27d2f
@@ -86,11 +87,11 @@ contract Errors {
     error defaultTriggeredTooEarly(); // 0x7872424e
     error defaultHasAlreadyBeenTriggered(); // 0xeb8d2ccc
     error committedAmountGreaterThanCreditLimit(); // 0x4ff6cc6f
-    error insufficientBorrowerFirstLossCover();
-    error attemptedDrawdownForNonrevolvingLine();
+    error insufficientBorrowerFirstLossCover(); // 0x6bf498b9
+    error attemptedDrawdownForNonrevolvingLine(); // 0x35dd2354
 
     // first loss cover operation
-    error notAllProvidersPaidOut();
+    error notAllProvidersPaidOut(); // 0xf878b213
 
     // receivable operation
     error receivableAssetMismatch(); // 0x41dbeec1
@@ -98,7 +99,7 @@ contract Errors {
     error unsupportedReceivableAsset(); // 0xe60c383e
     error receivableAssetParamMismatch(); // 0x1400a0b4
     error insufficientReceivableAmount(); // 0xf7f34854
-    error zeroReceivableIdProvided();
+    error zeroReceivableIdProvided(); // 0x7a7c1f4f
 
     // superfluid
     error durationTooLong(); // 0xf1dd53a8
