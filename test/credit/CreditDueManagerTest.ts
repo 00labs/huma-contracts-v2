@@ -267,9 +267,17 @@ describe("CreditDueManager Tests", function () {
     });
 
     describe("getNextBillRefreshDate", function () {
+        let nextYear: number, nextDueDate: moment.Moment, currentBlockTime: moment.Moment;
         const latePaymentGracePeriodInDays = 5;
 
         async function prepare() {
+            nextYear = moment.utc().year() + 1;
+            nextDueDate = moment.utc({
+                year: nextYear,
+                month: 1,
+                day: 1,
+            });
+
             await poolConfigContract
                 .connect(poolOwner)
                 .setLatePaymentGracePeriodInDays(latePaymentGracePeriodInDays);
@@ -280,14 +288,8 @@ describe("CreditDueManager Tests", function () {
         });
 
         describe("If the bill is currently in good standing and is within the current billing cycle", function () {
-            it("Should return the late payment deadline", async function () {
-                const nextYear = moment.utc().year() + 1;
-                const nextDueDate = moment.utc({
-                    year: nextYear,
-                    month: 1,
-                    day: 1,
-                });
-                const currentBlockTime = moment.utc({
+            async function setNextBlockTime() {
+                currentBlockTime = moment.utc({
                     year: nextYear,
                     month: 0,
                     day: 27,
@@ -296,6 +298,13 @@ describe("CreditDueManager Tests", function () {
                     second: 28,
                 });
                 await mineNextBlockWithTimestamp(currentBlockTime.unix());
+            }
+
+            beforeEach(async function () {
+                await loadFixture(setNextBlockTime);
+            });
+
+            it("Should return the late payment deadline", async function () {
                 const creditRecord = {
                     unbilledPrincipal: 0,
                     nextDueDate: nextDueDate.unix(),
@@ -313,14 +322,8 @@ describe("CreditDueManager Tests", function () {
         });
 
         describe("If the bill is currently in good standing and is within the late payment grace period", function () {
-            it("Should return the late payment deadline", async function () {
-                const nextYear = moment.utc().year() + 1;
-                const nextDueDate = moment.utc({
-                    year: nextYear,
-                    month: 1,
-                    day: 1,
-                });
-                const currentBlockTime = moment.utc({
+            async function setNextBlockTime() {
+                currentBlockTime = moment.utc({
                     year: nextYear,
                     month: 1,
                     day: 2,
@@ -329,6 +332,13 @@ describe("CreditDueManager Tests", function () {
                     second: 42,
                 });
                 await mineNextBlockWithTimestamp(currentBlockTime.unix());
+            }
+
+            beforeEach(async function () {
+                await loadFixture(setNextBlockTime);
+            });
+
+            it("Should return the late payment deadline", async function () {
                 const creditRecord = {
                     unbilledPrincipal: 0,
                     nextDueDate: nextDueDate.unix(),
@@ -346,14 +356,8 @@ describe("CreditDueManager Tests", function () {
         });
 
         describe("If the bill is currently in good standing but has surpassed the late payment grace period", function () {
-            it("Should return the previous due date", async function () {
-                const nextYear = moment.utc().year() + 1;
-                const nextDueDate = moment.utc({
-                    year: nextYear,
-                    month: 1,
-                    day: 1,
-                });
-                const currentBlockTime = moment.utc({
+            async function setNextBlockTime() {
+                currentBlockTime = moment.utc({
                     year: nextYear,
                     month: 1,
                     day: 10,
@@ -362,6 +366,13 @@ describe("CreditDueManager Tests", function () {
                     second: 42,
                 });
                 await mineNextBlockWithTimestamp(currentBlockTime.unix());
+            }
+
+            beforeEach(async function () {
+                await loadFixture(setNextBlockTime);
+            });
+
+            it("Should return the previous due date", async function () {
                 const creditRecord = {
                     unbilledPrincipal: 0,
                     nextDueDate: nextDueDate.unix(),
@@ -379,14 +390,8 @@ describe("CreditDueManager Tests", function () {
         });
 
         describe("If the bill is already late", function () {
-            it("Should return the previous due date", async function () {
-                const nextYear = moment.utc().year() + 1;
-                const nextDueDate = moment.utc({
-                    year: nextYear,
-                    month: 1,
-                    day: 1,
-                });
-                const currentBlockTime = moment.utc({
+            async function setNextBlockTime() {
+                currentBlockTime = moment.utc({
                     year: nextYear,
                     month: 2,
                     day: 10,
@@ -395,6 +400,13 @@ describe("CreditDueManager Tests", function () {
                     second: 42,
                 });
                 await mineNextBlockWithTimestamp(currentBlockTime.unix());
+            }
+
+            beforeEach(async function () {
+                await loadFixture(setNextBlockTime);
+            });
+
+            it("Should return the previous due date", async function () {
                 const creditRecord = {
                     unbilledPrincipal: 0,
                     nextDueDate: nextDueDate.unix(),
