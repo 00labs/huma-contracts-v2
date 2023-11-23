@@ -1980,7 +1980,7 @@ describe("CreditLine Test", function () {
                 let principalPastDue = calcPrincipalDueForFullPeriods(
                     creditRecord.unbilledPrincipal,
                     principalRate,
-                    numOfPeriods - 1,
+                    creditRecord.remainingPeriods - 1,
                 );
                 let yieldPastDue = calcYield(
                     borrowAmount,
