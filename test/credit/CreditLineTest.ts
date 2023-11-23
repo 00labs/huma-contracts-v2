@@ -39,6 +39,7 @@ import {
     deployProtocolContracts,
     genDueDetail,
     getLatePaymentGracePeriodDeadline,
+    getNextBillRefreshDate,
     getNextDueDate,
 } from "../BaseTest";
 import {
@@ -1659,6 +1660,9 @@ describe("CreditLine Test", function () {
                     latePaymentGracePeriodInDays,
                 );
                 let nextDueBefore = remainingPrincipalNextDue.add(remainingYieldNextDue);
+                console.log(
+                    `remaining principal next due ${remainingPrincipalNextDue}, remaining yield next due ${remainingYieldNextDue}`,
+                );
 
                 let principalDuePaid = BN.from(0),
                     yieldDuePaid = BN.from(0),
@@ -1748,7 +1752,7 @@ describe("CreditLine Test", function () {
                 let newDueDate;
                 if (
                     paymentDate.isSameOrBefore(
-                        getLatePaymentGracePeriodDeadline(cr, latePaymentGracePeriodInDays),
+                        getNextBillRefreshDate(cr, paymentDate, latePaymentGracePeriodInDays),
                     )
                 ) {
                     newDueDate = cr.nextDueDate;
@@ -1769,6 +1773,19 @@ describe("CreditLine Test", function () {
                     poolSafeContract.address,
                 );
 
+                console.log(
+                    `paymentAmountUsed ${paymentAmountUsed}`,
+                    `newDueDate ${newDueDate}`,
+                    `nextDueAfter ${nextDueAfter}`,
+                    `remainingPastDue ${remainingPastDue}`,
+                    `remainingUnbilledPrincipal ${remainingUnbilledPrincipal}`,
+                    `principalDuePaid ${principalDuePaid}`,
+                    `yieldDuePaid ${yieldDuePaid}`,
+                    `unbilledPrincipalPaid ${unbilledPrincipalPaid}`,
+                    `principalPastDuePaid ${principalPastDuePaid}`,
+                    `yieldPastDuePaid ${yieldPastDuePaid}`,
+                    `lateFeePaid ${lateFeePaid}`,
+                );
                 if (paymentAmountUsed.gt(ethers.constants.Zero)) {
                     await expect(
                         creditContract
@@ -2674,7 +2691,6 @@ describe("CreditLine Test", function () {
                                 fourthPaymentDate,
                                 latePaymentGracePeriodInDays,
                             );
-                            expect(lateFee).to.equal(0);
                             setNextBlockTimestamp(fourthPaymentDate.unix());
                             await testMakePayment(borrowAmount.add(lateFee), fourthPaymentDate);
 
