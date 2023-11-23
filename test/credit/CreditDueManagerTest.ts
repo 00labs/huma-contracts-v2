@@ -271,13 +271,6 @@ describe("CreditDueManager Tests", function () {
         const latePaymentGracePeriodInDays = 5;
 
         async function prepare() {
-            nextYear = moment.utc().year() + 1;
-            nextDueDate = moment.utc({
-                year: nextYear,
-                month: 1,
-                day: 1,
-            });
-
             await poolConfigContract
                 .connect(poolOwner)
                 .setLatePaymentGracePeriodInDays(latePaymentGracePeriodInDays);
@@ -289,14 +282,8 @@ describe("CreditDueManager Tests", function () {
 
         describe("If the bill is currently in good standing and is within the current billing cycle", function () {
             async function setNextBlockTime() {
-                currentBlockTime = moment.utc({
-                    year: nextYear,
-                    month: 0,
-                    day: 27,
-                    hour: 11,
-                    minute: 53,
-                    second: 28,
-                });
+                currentBlockTime = moment.utc((await getFutureBlockTime(2)) * 1000);
+                nextDueDate = currentBlockTime.clone().add(2, "days");
                 await mineNextBlockWithTimestamp(currentBlockTime.unix());
             }
 
@@ -323,14 +310,8 @@ describe("CreditDueManager Tests", function () {
 
         describe("If the bill is currently in good standing and is within the late payment grace period", function () {
             async function setNextBlockTime() {
-                currentBlockTime = moment.utc({
-                    year: nextYear,
-                    month: 1,
-                    day: 2,
-                    hour: 11,
-                    minute: 55,
-                    second: 42,
-                });
+                nextDueDate = moment.utc((await getFutureBlockTime(2)) * 1000);
+                currentBlockTime = nextDueDate.clone().add(latePaymentGracePeriodInDays, "days");
                 await mineNextBlockWithTimestamp(currentBlockTime.unix());
             }
 
@@ -357,14 +338,11 @@ describe("CreditDueManager Tests", function () {
 
         describe("If the bill is currently in good standing but has surpassed the late payment grace period", function () {
             async function setNextBlockTime() {
-                currentBlockTime = moment.utc({
-                    year: nextYear,
-                    month: 1,
-                    day: 10,
-                    hour: 11,
-                    minute: 55,
-                    second: 42,
-                });
+                nextDueDate = moment.utc((await getFutureBlockTime(2)) * 1000);
+                currentBlockTime = nextDueDate
+                    .clone()
+                    .add(latePaymentGracePeriodInDays, "days")
+                    .add(1, "second");
                 await mineNextBlockWithTimestamp(currentBlockTime.unix());
             }
 
@@ -391,14 +369,8 @@ describe("CreditDueManager Tests", function () {
 
         describe("If the bill is already late", function () {
             async function setNextBlockTime() {
-                currentBlockTime = moment.utc({
-                    year: nextYear,
-                    month: 2,
-                    day: 10,
-                    hour: 11,
-                    minute: 55,
-                    second: 42,
-                });
+                nextDueDate = moment.utc((await getFutureBlockTime(2)) * 1000);
+                currentBlockTime = nextDueDate.clone().add(latePaymentGracePeriodInDays, "days");
                 await mineNextBlockWithTimestamp(currentBlockTime.unix());
             }
 
