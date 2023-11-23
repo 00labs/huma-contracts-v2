@@ -267,30 +267,132 @@ describe("CreditDueManager Tests", function () {
     });
 
     describe("getNextBillRefreshDate", function () {
-        it("Should return the correct date", async function () {
-            const latePaymentGracePeriodInDays = 5;
+        let nextYear: number, nextDueDate: moment.Moment, currentBlockTime: moment.Moment;
+        const latePaymentGracePeriodInDays = 5;
+
+        async function prepare() {
             await poolConfigContract
                 .connect(poolOwner)
                 .setLatePaymentGracePeriodInDays(latePaymentGracePeriodInDays);
+        }
 
-            const nextDueDate = moment.utc({
-                year: 2024,
-                month: 1,
-                day: 28,
+        beforeEach(async function () {
+            await loadFixture(prepare);
+        });
+
+        describe("If the bill is currently in good standing and is within the current billing cycle", function () {
+            async function setNextBlockTime() {
+                currentBlockTime = moment.utc((await getFutureBlockTime(2)) * 1000);
+                nextDueDate = currentBlockTime.clone().add(2, "days");
+                await mineNextBlockWithTimestamp(currentBlockTime.unix());
+            }
+
+            beforeEach(async function () {
+                await loadFixture(setNextBlockTime);
             });
-            const creditRecord = {
-                unbilledPrincipal: 0,
-                nextDueDate: nextDueDate.unix(),
-                nextDue: toToken(1_000),
-                yieldDue: 0,
-                totalPastDue: 0,
-                missedPeriods: 0,
-                remainingPeriods: 2,
-                state: CreditState.GoodStanding,
-            };
-            expect(await creditDueManagerContract.getNextBillRefreshDate(creditRecord)).to.equal(
-                nextDueDate.add(latePaymentGracePeriodInDays, "days").unix(),
-            );
+
+            it("Should return the late payment deadline", async function () {
+                const creditRecord = {
+                    unbilledPrincipal: 0,
+                    nextDueDate: nextDueDate.unix(),
+                    nextDue: toToken(1_000),
+                    yieldDue: 0,
+                    totalPastDue: 0,
+                    missedPeriods: 0,
+                    remainingPeriods: 2,
+                    state: CreditState.GoodStanding,
+                };
+                expect(
+                    await creditDueManagerContract.getNextBillRefreshDate(creditRecord),
+                ).to.equal(nextDueDate.add(latePaymentGracePeriodInDays, "days").unix());
+            });
+        });
+
+        describe("If the bill is currently in good standing and is within the late payment grace period", function () {
+            async function setNextBlockTime() {
+                nextDueDate = moment.utc((await getFutureBlockTime(2)) * 1000);
+                currentBlockTime = nextDueDate.clone().add(latePaymentGracePeriodInDays, "days");
+                await mineNextBlockWithTimestamp(currentBlockTime.unix());
+            }
+
+            beforeEach(async function () {
+                await loadFixture(setNextBlockTime);
+            });
+
+            it("Should return the late payment deadline", async function () {
+                const creditRecord = {
+                    unbilledPrincipal: 0,
+                    nextDueDate: nextDueDate.unix(),
+                    nextDue: toToken(1_000),
+                    yieldDue: 0,
+                    totalPastDue: 0,
+                    missedPeriods: 0,
+                    remainingPeriods: 2,
+                    state: CreditState.GoodStanding,
+                };
+                expect(
+                    await creditDueManagerContract.getNextBillRefreshDate(creditRecord),
+                ).to.equal(nextDueDate.add(latePaymentGracePeriodInDays, "days").unix());
+            });
+        });
+
+        describe("If the bill is currently in good standing but has surpassed the late payment grace period", function () {
+            async function setNextBlockTime() {
+                nextDueDate = moment.utc((await getFutureBlockTime(2)) * 1000);
+                currentBlockTime = nextDueDate
+                    .clone()
+                    .add(latePaymentGracePeriodInDays, "days")
+                    .add(1, "second");
+                await mineNextBlockWithTimestamp(currentBlockTime.unix());
+            }
+
+            beforeEach(async function () {
+                await loadFixture(setNextBlockTime);
+            });
+
+            it("Should return the previous due date", async function () {
+                const creditRecord = {
+                    unbilledPrincipal: 0,
+                    nextDueDate: nextDueDate.unix(),
+                    nextDue: toToken(1_000),
+                    yieldDue: 0,
+                    totalPastDue: 0,
+                    missedPeriods: 0,
+                    remainingPeriods: 2,
+                    state: CreditState.GoodStanding,
+                };
+                expect(
+                    await creditDueManagerContract.getNextBillRefreshDate(creditRecord),
+                ).to.equal(nextDueDate.unix());
+            });
+        });
+
+        describe("If the bill is already late", function () {
+            async function setNextBlockTime() {
+                nextDueDate = moment.utc((await getFutureBlockTime(2)) * 1000);
+                currentBlockTime = nextDueDate.clone().add(latePaymentGracePeriodInDays, "days");
+                await mineNextBlockWithTimestamp(currentBlockTime.unix());
+            }
+
+            beforeEach(async function () {
+                await loadFixture(setNextBlockTime);
+            });
+
+            it("Should return the previous due date", async function () {
+                const creditRecord = {
+                    unbilledPrincipal: 0,
+                    nextDueDate: nextDueDate.unix(),
+                    nextDue: toToken(1_000),
+                    yieldDue: toToken(400),
+                    totalPastDue: toToken(2_000),
+                    missedPeriods: 1,
+                    remainingPeriods: 2,
+                    state: CreditState.Delayed,
+                };
+                expect(
+                    await creditDueManagerContract.getNextBillRefreshDate(creditRecord),
+                ).to.equal(nextDueDate.unix());
+            });
         });
     });
 
@@ -423,7 +525,7 @@ describe("CreditDueManager Tests", function () {
             });
 
             describe("If the current block timestamp has surpassed the due date of the last known billing cycle", function () {
-                describe("If the current block timestamp is still within the late payment grace period", function () {
+                describe("If the bill is in good standing and the current block timestamp is still within the late payment grace period", function () {
                     it("Should return the CreditRecord and DueDetail as is", async function () {
                         const nextBlockTime = await getFutureBlockTime(2);
                         await setNextBlockTimestamp(nextBlockTime);
@@ -442,7 +544,7 @@ describe("CreditDueManager Tests", function () {
                             .unix();
                         const [cc, cr, dd] = getInputParams(
                             {},
-                            { nextDueDate: nextDueDate, state: CreditState.Delayed },
+                            { nextDueDate: nextDueDate, state: CreditState.GoodStanding },
                         );
                         const maturityDate = nextBlockTime + 5;
                         const [newCR, newDD, isLate] = await creditDueManagerContract.getDueInfo(

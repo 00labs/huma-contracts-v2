@@ -999,11 +999,12 @@ export async function calcYieldDueNew(
     latePaymentGracePeriodInDays: number,
     membershipFee: BN,
 ): Promise<[BN, BN, [BN, BN]]> {
-    const latePaymentDeadline = getLatePaymentGracePeriodDeadline(
+    const nextBillRefreshDate = getNextBillRefreshDate(
         cr,
+        currentDate,
         latePaymentGracePeriodInDays,
     );
-    if (currentDate.isSameOrBefore(latePaymentDeadline)) {
+    if (currentDate.isSameOrBefore(nextBillRefreshDate)) {
         return [dd.yieldPastDue, cr.yieldDue, [dd.accrued, dd.committed]];
     }
 
@@ -1129,11 +1130,10 @@ export async function calcPrincipalDueNew(
     const principal = getPrincipal(cr, dd);
     if (
         currentDate.isSameOrBefore(
-            getLatePaymentGracePeriodDeadline(cr, latePaymentGracePeriodInDays),
+            getNextBillRefreshDate(cr, currentDate, latePaymentGracePeriodInDays),
         )
     ) {
-        // Return the current due info as-is if the current date is within the current billing cycle,
-        // or within the late payment grace period.
+        // Return the current due info as-is if the current date is within the bill refresh date.
         return [cr.unbilledPrincipal, dd.principalPastDue, cr.nextDue.sub(cr.yieldDue)];
     }
     if (currentDate.isAfter(maturityDate)) {
@@ -1262,6 +1262,23 @@ export async function getNextDueDate(
     return startDateOfNextPeriod.toNumber() < maturityDate.unix()
         ? startDateOfNextPeriod.toNumber()
         : maturityDate.unix();
+}
+
+export function getNextBillRefreshDate(
+    cr: CreditRecordStructOutput,
+    currentDate: moment.Moment,
+    latePaymentGracePeriodInDays: number,
+) {
+    const latePaymentDeadline = getLatePaymentGracePeriodDeadline(
+        cr,
+        latePaymentGracePeriodInDays,
+    );
+    if (cr.state === CreditState.GoodStanding && currentDate.isBefore(latePaymentDeadline)) {
+        // If this is the first time ever that the bill has surpassed the due dat, then we don't want to refresh
+        // the bill since we want the user to focus on paying off the current due.
+        return latePaymentDeadline;
+    }
+    return moment.utc(cr.nextDueDate.toNumber() * 1000);
 }
 
 export function getLatePaymentGracePeriodDeadline(
