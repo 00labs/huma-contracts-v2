@@ -174,15 +174,29 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                 _cr.nextDueDate,
                 periodStartDate
             );
+            // uint256 periodsPassedDue = calendar.getDaysDiff(_cr.nextDueDate, periodStartDate) /
+            //     calendar.getTotalDaysInFullPeriod(_cc.periodDuration);
+            console.log(
+                "periodsPassedDue: %s, _cr.nextDueDate: %s, periodStartDate: %s",
+                periodsPassedDue,
+                _cr.nextDueDate,
+                periodStartDate
+            );
             if (principalRate > 0) {
                 uint256 principalPastDue = ((HUNDRED_PERCENT_IN_BPS ** periodsPassedDue -
                     (HUNDRED_PERCENT_IN_BPS - principalRate) ** periodsPassedDue) *
                     _cr.unbilledPrincipal) / (HUNDRED_PERCENT_IN_BPS ** periodsPassedDue);
                 newDD.principalPastDue += uint96(principalPastDue);
                 newCR.unbilledPrincipal = uint96(_cr.unbilledPrincipal - principalPastDue);
+                console.log(
+                    "principalPastDue: %s, newCR.unbilledPrincipal: %s",
+                    principalPastDue,
+                    newCR.unbilledPrincipal
+                );
                 uint256 totalDaysInFullPeriod = calendar.getTotalDaysInFullPeriod(
                     _cc.periodDuration
                 );
+                console.log("daysUntilNextDue: %s", daysUntilNextDue);
                 principalDue =
                     (newCR.unbilledPrincipal * principalRate * daysUntilNextDue) /
                     (HUNDRED_PERCENT_IN_BPS * totalDaysInFullPeriod);
@@ -196,6 +210,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             _dd.principalPastDue;
         (, , uint256 membershipFee) = poolConfig.getFees();
         console.log("membershipFee: %s, daysOverdue: %s", membershipFee, daysOverdue);
+        // TODO only add membership fee once for multiple past periods?
         (uint256 accruedPastDue, uint256 committedPastDue) = _getYieldDue(
             _cc,
             principal,

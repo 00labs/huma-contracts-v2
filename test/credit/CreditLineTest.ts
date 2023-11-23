@@ -1891,7 +1891,7 @@ describe("CreditLine Test", function () {
                 await loadFixture(prepareForTestsWithSettings);
             });
 
-            it.skip("Should update correctly while credit delayed 1 period", async function () {
+            it("Should update correctly while credit delayed 1 period", async function () {
                 borrowAmount = toToken(5_000);
                 await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
 
@@ -1959,7 +1959,92 @@ describe("CreditLine Test", function () {
                 );
             });
 
-            it("Should update correctly for the first time in the last period", async function () {});
+            it("Should update correctly for the first time in the last period", async function () {
+                borrowAmount = toToken(20_000);
+                await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
+
+                const maturityDate = await creditContract.maturityDates(creditHash);
+                let nextTime = maturityDate.toNumber() - 600;
+                await setNextBlockTimestamp(nextTime);
+
+                let startDateOfLastPeriod = await calendarContract.getStartDateOfPeriod(
+                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    nextTime,
+                );
+                let days = (
+                    await calendarContract.getDaysDiff(startDateOfLastPeriod, maturityDate)
+                ).toNumber();
+                let cc = await creditContract.getCreditConfig(creditHash);
+                const [yieldDue, committed] = calcYieldDue(cc, borrowAmount, membershipFee, days);
+                let creditRecord = await creditContract.getCreditRecord(creditHash);
+                let principalPastDue = calcPrincipalDueForFullPeriods(
+                    creditRecord.unbilledPrincipal,
+                    principalRate,
+                    numOfPeriods - 1,
+                );
+                let yieldPastDue = calcYield(
+                    borrowAmount,
+                    yieldInBps,
+                    (
+                        await calendarContract.getDaysDiff(
+                            creditRecord.nextDueDate,
+                            startDateOfLastPeriod,
+                        )
+                    ).toNumber(),
+                )
+                    .add(creditRecord.yieldDue)
+                    .add(membershipFee); // TODO 2 periods passed, only add one membership fee?
+                let unbilledPrincipal = creditRecord.unbilledPrincipal.sub(principalPastDue);
+                let principalDue = calcPrincipalDueForPartialPeriod(
+                    unbilledPrincipal,
+                    principalRate,
+                    days,
+                    30,
+                );
+                principalPastDue = principalPastDue.add(
+                    creditRecord.nextDue.sub(creditRecord.yieldDue),
+                );
+                let nextDue = yieldDue.add(principalDue);
+
+                await expect(creditContract.refreshCredit(borrower.address))
+                    .to.emit(creditContract, "BillRefreshed")
+                    .withArgs(creditHash, maturityDate, nextDue);
+
+                let tomorrow = await calendarContract.getStartOfTomorrow();
+                let lateFee = calcYield(
+                    borrowAmount,
+                    lateFeeBps,
+                    (
+                        await calendarContract.getDaysDiff(creditRecord.nextDueDate, tomorrow)
+                    ).toNumber(),
+                );
+
+                let newCreditRecord = await creditContract.getCreditRecord(creditHash);
+                checkCreditRecord(
+                    newCreditRecord,
+                    unbilledPrincipal.sub(principalDue),
+                    maturityDate,
+                    nextDue,
+                    yieldDue,
+                    yieldPastDue.add(principalPastDue).add(lateFee),
+                    creditRecord.remainingPeriods,
+                    0,
+                    4,
+                );
+
+                const dueDetail = await creditContract.getDueDetail(creditHash);
+                checkDueDetailsMatch(
+                    dueDetail,
+                    genDueDetail({
+                        lateFeeUpdatedDate: tomorrow,
+                        lateFee: lateFee,
+                        accrued: yieldDue,
+                        committed: committed,
+                        yieldPastDue: yieldPastDue,
+                        principalPastDue: principalPastDue,
+                    }),
+                );
+            });
 
             it("Should update correctly agin in the next period while credit state is Delayed", async function () {});
 
