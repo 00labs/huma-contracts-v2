@@ -33,6 +33,8 @@ struct PoolSettings {
     bool singleBorrower;
     // Whether the dues are combined into one credit if the borrower has multiple receivables
     bool singleCreditPerBorrower;
+    // TODO add comment here
+    bool receivableAutoApproval;
 }
 
 /**
@@ -198,6 +200,7 @@ contract PoolConfig is AccessControl, Initializable {
     event ProtocolRewardsWithdrawn(address receiver, uint256 amount, address by);
     event ReceivableRequiredInBpsChanged(uint256 receivableRequiredInBps, address by);
     event AdvanceRateInBpsChanged(uint256 advanceRateInBps, address by);
+    event ReceivableAutoApproval(bool receivableAutoApproval, address by);
     event WithdrawalLockoutPeriodChanged(uint256 lockoutPeriodInMonths, address by);
 
     event LPConfigChanged(
@@ -618,6 +621,12 @@ contract PoolConfig is AccessControl, Initializable {
         // note: this rate can be over 10000 when it requires more backing than the credit limit
         _poolSettings.advanceRateInBps = uint16(advanceRateInBps);
         emit AdvanceRateInBpsChanged(advanceRateInBps, msg.sender);
+    }
+
+    function setReceivableAutoApproval(bool autoApproval) external {
+        _onlyOwnerOrHumaMasterAdmin();
+        _poolSettings.receivableAutoApproval = autoApproval;
+        emit ReceivableAutoApproval(autoApproval, msg.sender);
     }
 
     /**
