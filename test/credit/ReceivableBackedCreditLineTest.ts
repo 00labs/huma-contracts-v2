@@ -21,6 +21,7 @@ import {
 } from "../../typechain-types";
 import {
     CONSTANTS,
+    calcLateFeeNew,
     deployAndSetupPoolContracts,
     deployProtocolContracts,
     printCreditRecord,
@@ -32,6 +33,7 @@ import {
     getMinFirstLossCoverRequirement,
     mineNextBlockWithTimestamp,
     setNextBlockTimestamp,
+    timestampToMoment,
     toToken,
 } from "../TestUtils";
 
@@ -589,14 +591,27 @@ describe("ReceivableBackedCreditLine Tests", function () {
             await setNextBlockTimestamp(nextTime);
 
             let cr = await creditContract.getCreditRecord(creditHash);
+            let dd = await creditContract.getDueDetail(creditHash);
+            let [lateUpdated, lateFee] = await calcLateFeeNew(
+                poolConfigContract,
+                calendarContract,
+                cr,
+                dd,
+                timestampToMoment(nextTime),
+                5,
+            );
             await creditContract
                 .connect(borrower)
-                .makePaymentWithReceivable(borrower.address, 0, cr.nextDue.add(cr.totalPastDue));
+                .makePaymentWithReceivable(
+                    borrower.address,
+                    0,
+                    cr.nextDue.add(cr.totalPastDue.sub(dd.lateFee)).add(lateFee),
+                );
             cr = await creditContract.getCreditRecord(creditHash);
             printCreditRecord("cr", cr);
         });
 
-        it.skip("Month3 - Day7: make payment and drawdown together", async function () {
+        it("Month3 - Day7: make payment and drawdown together", async function () {
             let tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
             console.log(`tokenId: ${tokenId}`);
 
