@@ -134,8 +134,8 @@ async function verifyContracts() {
     const verifyCalendar = await verifyContract("Calendar");
     console.log(`Verify Calendar result: ${verifyCalendar}`);
 
-    const verifyMockPoolCredit = await verifyContract("MockPoolCredit");
-    console.log(`Verify MockPoolCredit result: ${verifyMockPoolCredit}`);
+    const verifyCreditLine = await verifyContract("CreditLine");
+    console.log(`Verify CreditLine result: ${verifyCreditLine}`);
 
     const verifyCreditDueManager = await verifyContract("CreditDueManager");
     console.log(`Verify CreditDueManager result: ${verifyCreditDueManager}`);

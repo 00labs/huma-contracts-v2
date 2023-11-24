@@ -634,7 +634,7 @@ export async function deployContracts() {
         "FixedSeniorYieldTranchePolicy",
         defaultDeployer,
         poolOwner,
-        "MockPoolCredit",
+        "CreditLine",
         evaluationAgent,
         poolOwnerTreasury,
         poolOperator,
