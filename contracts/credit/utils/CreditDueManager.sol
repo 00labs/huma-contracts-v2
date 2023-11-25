@@ -172,7 +172,6 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                 _cr.nextDueDate,
                 block.timestamp
             );
-            console.log("periods over due %d", periodsOverdue);
             // All principal is also past due in this case.
             newDD.principalPastDue += _cr.unbilledPrincipal;
             newCR.unbilledPrincipal = 0;
@@ -240,7 +239,6 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         newDD.yieldPastDue += uint96(
             accruedPastDue > committedPastDue ? accruedPastDue : committedPastDue
         );
-        console.log("newDD.yieldPastDue %d", newDD.yieldPastDue);
         // Reset the recorded yield due amounts since we are in a new billing cycle now.
         // console.log("membershipFee: %s, daysUntilNextDue: %s", membershipFee, daysUntilNextDue);
         (newDD.accrued, newDD.committed) = _getYieldDue(
