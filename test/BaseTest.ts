@@ -969,8 +969,9 @@ export function checkCreditLoss(
 export function calcYieldDue(
     cc: CreditConfigStruct,
     principal: BN,
-    membershipFee: BN,
     daysPassed: number,
+    periodsPassed: number | BN,
+    membershipFee: BN,
 ): [BN, BN] {
     if (daysPassed == 0) {
         return [BN.from(0), BN.from(0)];
@@ -979,12 +980,12 @@ export function calcYieldDue(
         .mul(BN.from(cc.yieldInBps))
         .mul(daysPassed)
         .div(CONSTANTS.BP_FACTOR.mul(CONSTANTS.DAYS_IN_A_YEAR))
-        .add(membershipFee);
+        .add(membershipFee.mul(periodsPassed));
     const committed = BN.from(cc.committedAmount)
         .mul(BN.from(cc.yieldInBps))
         .mul(daysPassed)
         .div(CONSTANTS.BP_FACTOR.mul(CONSTANTS.DAYS_IN_A_YEAR))
-        .add(membershipFee);
+        .add(membershipFee.mul(periodsPassed));
     return [accrued, committed];
 }
 
@@ -1017,8 +1018,9 @@ export async function calcYieldDueNew(
         const [accruedYieldNextDue, committedYieldNextDue] = calcYieldDue(
             cc,
             principal,
-            membershipFee,
             daysUntilNextDue.toNumber(),
+            1,
+            membershipFee,
         );
         return [
             BN.from(0),
@@ -1039,18 +1041,43 @@ export async function calcYieldDueNew(
         daysUntilNextDue = await calendarContract.getDaysDiff(periodStartDate, nextDueDate);
     }
 
+    let periodsNextDue, periodsOverdue;
+    if (currentDate > maturityDate) {
+        periodsNextDue = 0;
+        periodsOverdue = await calendarContract.getNumPeriodsPassed(
+            cc.periodDuration,
+            cr.nextDueDate,
+            currentDate.unix(),
+        );
+    } else {
+        periodsNextDue = 1;
+        const periodStartDate = await calendarContract.getStartDateOfPeriod(
+            cc.periodDuration,
+            currentDate.unix(),
+        );
+        periodsOverdue = await calendarContract.getNumPeriodsPassed(
+            cc.periodDuration,
+            cr.nextDueDate,
+            periodStartDate,
+        );
+        console.log(
+            `currentDate ${currentDate}, cr.nextDueDate ${cr.nextDueDate}, periodStartDate ${periodStartDate}, periodsOverdue ${periodsOverdue}`,
+        );
+    }
     const [accruedYieldPastDue, committedYieldPastDue] = calcYieldDue(
         cc,
         principal,
-        membershipFee,
         daysOverdue.toNumber(),
+        periodsOverdue,
+        membershipFee,
     );
     const yieldPastDue = maxBigNumber(accruedYieldPastDue, committedYieldPastDue);
     const [accruedYieldNextDue, committedYieldNextDue] = calcYieldDue(
         cc,
         principal,
-        membershipFee,
         daysUntilNextDue.toNumber(),
+        periodsNextDue,
+        membershipFee,
     );
     const yieldNextDue = maxBigNumber(accruedYieldNextDue, committedYieldNextDue);
     return [

@@ -98,11 +98,10 @@ function calcPrincipalDueForFullPeriods(
     principalRateInBps: number,
     numPeriods: number,
 ): BN {
-    const principalDue = CONSTANTS.BP_FACTOR.pow(numPeriods)
+    return CONSTANTS.BP_FACTOR.pow(numPeriods)
         .sub(CONSTANTS.BP_FACTOR.sub(principalRateInBps).pow(numPeriods))
         .mul(unbilledPrincipal)
         .div(CONSTANTS.BP_FACTOR.pow(numPeriods));
-    return principalDue;
 }
 
 function calcPrincipalDueForPartialPeriod(
@@ -111,11 +110,10 @@ function calcPrincipalDueForPartialPeriod(
     daysLeft: number | BN,
     totalDaysInFullPeriod: number | BN,
 ) {
-    const principalDue = unbilledPrincipal
+    return unbilledPrincipal
         .mul(principalRateInBps)
         .mul(daysLeft)
         .div(CONSTANTS.BP_FACTOR.mul(totalDaysInFullPeriod));
-    return principalDue;
 }
 
 function calcYield(principal: BN, yieldInBps: number, days: number): BN {
@@ -529,7 +527,8 @@ describe("CreditLine Test", function () {
 
             let block = await getLatestBlock();
             let nextTime = block.timestamp + 100;
-            let expiredDate = getStartOfDay(nextTime) + expirationInDays * 3600 * 24;
+            let expiredDate =
+                getStartOfDay(nextTime) + expirationInDays * CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(nextTime);
 
             const creditHash = ethers.utils.keccak256(
@@ -682,7 +681,7 @@ describe("CreditLine Test", function () {
                 let settings = await poolConfigContract.getPoolSettings();
                 let nextTime =
                     creditRecord.nextDueDate.toNumber() +
-                    settings.latePaymentGracePeriodInDays * 3600 * 24 +
+                    settings.latePaymentGracePeriodInDays * CONSTANTS.SECONDS_IN_A_DAY +
                     100;
                 await setNextBlockTimestamp(nextTime);
 
@@ -821,7 +820,7 @@ describe("CreditLine Test", function () {
                     await calendarContract.getDaysDiff(startOfDay, nextDueDate)
                 ).toNumber();
                 let cc = await creditContract.getCreditConfig(creditHash);
-                const [yieldDue] = calcYieldDue(cc, borrowAmount, BN.from(0), days);
+                const [yieldDue] = calcYieldDue(cc, borrowAmount, days, 1, BN.from(0));
 
                 const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
                 const poolSafeOldBalance = await mockTokenContract.balanceOf(
@@ -895,7 +894,7 @@ describe("CreditLine Test", function () {
                     await calendarContract.getDaysDiff(startOfDay, nextDueDate)
                 ).toNumber();
                 let cc = await creditContract.getCreditConfig(creditHash);
-                let [yieldDue] = calcYieldDue(cc, borrowAmount, BN.from(0), days);
+                let [yieldDue] = calcYieldDue(cc, borrowAmount, days, 1, BN.from(0));
                 let totalYieldDue = yieldDue;
 
                 let borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
@@ -947,7 +946,7 @@ describe("CreditLine Test", function () {
 
                 startOfDay = getStartOfDay(nextTime);
                 days = (await calendarContract.getDaysDiff(startOfDay, nextDueDate)).toNumber();
-                [yieldDue] = calcYieldDue(cc, borrowAmount, BN.from(0), days);
+                [yieldDue] = calcYieldDue(cc, borrowAmount, days, 1, BN.from(0));
                 totalYieldDue = totalYieldDue.add(yieldDue);
                 // console.log(
                 //     `startOfDay: ${startOfDay}, nextDueDate: ${nextDueDate}, days: ${days}, yieldDue: ${yieldDue}, totalYieldDue: ${totalYieldDue}`,
@@ -991,7 +990,7 @@ describe("CreditLine Test", function () {
                 );
 
                 let borrowAmount = toToken(25000);
-                let totalBorroweAmount = borrowAmount;
+                let totalBorrowAmount = borrowAmount;
                 await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
 
                 let creditRecord = await creditContract.getCreditRecord(creditHash);
@@ -999,7 +998,8 @@ describe("CreditLine Test", function () {
                     .connect(borrower)
                     .makePayment(borrower.address, creditRecord.nextDue);
 
-                const nextTime = creditRecord.nextDueDate.toNumber() + 3600 * 24 * 10;
+                const nextTime =
+                    creditRecord.nextDueDate.toNumber() + CONSTANTS.SECONDS_IN_A_DAY * 10;
                 await setNextBlockTimestamp(nextTime);
 
                 const frontLoadingFeeFlat = toToken(200);
@@ -1010,10 +1010,10 @@ describe("CreditLine Test", function () {
                 });
 
                 let cc = await creditContract.getCreditConfig(creditHash);
-                let [yieldDue] = calcYieldDue(cc, borrowAmount, BN.from(0), 30);
-                let totallYieldDue = yieldDue;
+                let [yieldDue] = calcYieldDue(cc, borrowAmount, 30, 1, BN.from(0));
+                let totalYieldDue = yieldDue;
                 borrowAmount = toToken(35000);
-                totalBorroweAmount = totalBorroweAmount.add(borrowAmount);
+                totalBorrowAmount = totalBorrowAmount.add(borrowAmount);
                 const netBorrowAmount = borrowAmount
                     .mul(CONSTANTS.BP_FACTOR.sub(frontLoadingFeeBps))
                     .div(CONSTANTS.BP_FACTOR)
@@ -1027,7 +1027,7 @@ describe("CreditLine Test", function () {
                 let days = (
                     await calendarContract.getDaysDiff(startOfDay, nextDueDate)
                 ).toNumber();
-                [yieldDue] = calcYieldDue(cc, borrowAmount, BN.from(0), days);
+                [yieldDue] = calcYieldDue(cc, borrowAmount, days, 1, BN.from(0));
 
                 const maturityDate = await creditContract.maturityDates(creditHash);
                 const remainingPeriods = creditRecord.remainingPeriods;
@@ -1041,7 +1041,7 @@ describe("CreditLine Test", function () {
                     .to.emit(creditContract, "DrawdownMade")
                     .withArgs(borrower.address, borrowAmount, netBorrowAmount)
                     .to.emit(creditContract, "BillRefreshed")
-                    .withArgs(creditHash, nextDueDate, totallYieldDue);
+                    .withArgs(creditHash, nextDueDate, totalYieldDue);
                 const borrowerNewBalance = await mockTokenContract.balanceOf(borrower.address);
                 const poolSafeNewBalance = await mockTokenContract.balanceOf(
                     poolSafeContract.address,
@@ -1049,15 +1049,15 @@ describe("CreditLine Test", function () {
                 expect(borrowerNewBalance.sub(borrowerOldBalance)).to.equal(netBorrowAmount);
                 expect(poolSafeOldBalance.sub(poolSafeNewBalance)).to.equal(netBorrowAmount);
 
-                totallYieldDue = totallYieldDue.add(yieldDue);
+                totalYieldDue = totalYieldDue.add(yieldDue);
 
                 creditRecord = await creditContract.getCreditRecord(creditHash);
                 checkCreditRecord(
                     creditRecord,
-                    totalBorroweAmount,
+                    totalBorrowAmount,
                     nextDueDate,
-                    totallYieldDue,
-                    totallYieldDue,
+                    totalYieldDue,
+                    totalYieldDue,
                     BN.from(0),
                     0,
                     remainingPeriods - 1,
@@ -1065,13 +1065,13 @@ describe("CreditLine Test", function () {
                 );
 
                 const dueDetail = await creditContract.getDueDetail(creditHash);
-                checkDueDetailsMatch(dueDetail, genDueDetail({ accrued: totallYieldDue }));
+                checkDueDetailsMatch(dueDetail, genDueDetail({ accrued: totalYieldDue }));
 
                 expect(await creditContract.maturityDates(creditHash)).to.equal(maturityDate);
             });
         });
 
-        describe("With committment", function () {
+        describe("With commitment", function () {
             async function prepareForDrawdown() {
                 await creditContract
                     .connect(eaServiceAccount)
@@ -1111,7 +1111,7 @@ describe("CreditLine Test", function () {
                     await calendarContract.getDaysDiff(startOfDay, nextDueDate)
                 ).toNumber();
                 let cc = await creditContract.getCreditConfig(creditHash);
-                const [yieldDue, committed] = calcYieldDue(cc, borrowAmount, BN.from(0), days);
+                const [yieldDue, committed] = calcYieldDue(cc, borrowAmount, days, 1, BN.from(0));
 
                 const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
                 const poolSafeOldBalance = await mockTokenContract.balanceOf(
@@ -1177,7 +1177,7 @@ describe("CreditLine Test", function () {
                     await calendarContract.getDaysDiff(startOfDay, nextDueDate)
                 ).toNumber();
                 let cc = await creditContract.getCreditConfig(creditHash);
-                const [yieldDue, committed] = calcYieldDue(cc, borrowAmount, BN.from(0), days);
+                const [yieldDue, committed] = calcYieldDue(cc, borrowAmount, days, 1, BN.from(0));
 
                 const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
                 const poolSafeOldBalance = await mockTokenContract.balanceOf(
@@ -1254,7 +1254,7 @@ describe("CreditLine Test", function () {
                     await calendarContract.getDaysDiff(startOfDay, nextDueDate)
                 ).toNumber();
                 const cc = await creditContract.getCreditConfig(creditHash);
-                let [yieldDue, committed] = calcYieldDue(cc, borrowAmount, BN.from(0), days);
+                let [yieldDue, committed] = calcYieldDue(cc, borrowAmount, days, 1, BN.from(0));
                 let totalYieldDue = yieldDue;
 
                 await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
@@ -1294,7 +1294,7 @@ describe("CreditLine Test", function () {
 
                 startOfDay = getStartOfDay(nextTime);
                 days = (await calendarContract.getDaysDiff(startOfDay, nextDueDate)).toNumber();
-                [yieldDue] = calcYieldDue(cc, borrowAmount, BN.from(0), days);
+                [yieldDue] = calcYieldDue(cc, borrowAmount, days, 1, BN.from(0));
                 totalYieldDue = totalYieldDue.add(yieldDue);
 
                 let borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
@@ -1366,7 +1366,7 @@ describe("CreditLine Test", function () {
                     await calendarContract.getDaysDiff(startOfDay, nextDueDate)
                 ).toNumber();
                 const cc = await creditContract.getCreditConfig(creditHash);
-                let [yieldDue, committed] = calcYieldDue(cc, borrowAmount, BN.from(0), days);
+                let [yieldDue, committed] = calcYieldDue(cc, borrowAmount, days, 1, BN.from(0));
                 let totalYieldDue = yieldDue;
 
                 await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
@@ -1406,7 +1406,7 @@ describe("CreditLine Test", function () {
 
                 startOfDay = getStartOfDay(nextTime);
                 days = (await calendarContract.getDaysDiff(startOfDay, nextDueDate)).toNumber();
-                [yieldDue] = calcYieldDue(cc, borrowAmount, BN.from(0), days);
+                [yieldDue] = calcYieldDue(cc, borrowAmount, days, 1, BN.from(0));
                 totalYieldDue = totalYieldDue.add(yieldDue);
 
                 let borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
@@ -1505,7 +1505,7 @@ describe("CreditLine Test", function () {
                     await calendarContract.getDaysDiff(startOfDay, nextDueDate)
                 ).toNumber();
                 let cc = await creditContract.getCreditConfig(creditHash);
-                const [yieldDue] = calcYieldDue(cc, borrowAmount, BN.from(0), days);
+                const [yieldDue] = calcYieldDue(cc, borrowAmount, days, 1, BN.from(0));
                 const principalDue = calcPrincipalDueForPartialPeriod(
                     borrowAmount,
                     principalRateInBps,
@@ -1616,7 +1616,7 @@ describe("CreditLine Test", function () {
             it("Should not update anything while credit state is Defaulted", async function () {});
         });
 
-        describe("Without Settings", function () {
+        describe("Without settings", function () {
             async function prepareForTestsWithoutSettings() {
                 committedAmount = toToken(10_000);
                 await creditContract
@@ -1642,7 +1642,7 @@ describe("CreditLine Test", function () {
                 await loadFixture(prepareForTestsWithoutSettings);
             });
 
-            it("Should update correctly while credit delayed 1 period", async function () {
+            it("Should update correctly when the credit is delayed by 1 period", async function () {
                 borrowAmount = toToken(20_000);
                 await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
 
@@ -1650,7 +1650,7 @@ describe("CreditLine Test", function () {
                 let settings = await poolConfigContract.getPoolSettings();
                 let nextTime =
                     creditRecord.nextDueDate.toNumber() +
-                    settings.latePaymentGracePeriodInDays * 3600 * 24 +
+                    settings.latePaymentGracePeriodInDays * CONSTANTS.SECONDS_IN_A_DAY +
                     100;
                 await setNextBlockTimestamp(nextTime);
 
@@ -1662,7 +1662,7 @@ describe("CreditLine Test", function () {
                     await calendarContract.getDaysDiff(creditRecord.nextDueDate, nextDueDate)
                 ).toNumber();
                 let cc = await creditContract.getCreditConfig(creditHash);
-                const [yieldDue, committed] = calcYieldDue(cc, borrowAmount, BN.from(0), days);
+                const [yieldDue, committed] = calcYieldDue(cc, borrowAmount, days, 1, BN.from(0));
                 let totalPastDue = creditRecord.nextDue;
 
                 const remainingPeriods = creditRecord.remainingPeriods;
@@ -1704,13 +1704,13 @@ describe("CreditLine Test", function () {
                 let settings = await poolConfigContract.getPoolSettings();
                 let nextTime =
                     creditRecord.nextDueDate.toNumber() +
-                    settings.latePaymentGracePeriodInDays * 3600 * 24 +
+                    settings.latePaymentGracePeriodInDays * CONSTANTS.SECONDS_IN_A_DAY +
                     100;
                 await setNextBlockTimestamp(nextTime);
 
                 await creditContract.refreshCredit(borrower.address);
 
-                const days = 1 * 3600 * 24;
+                const days = 1 * CONSTANTS.SECONDS_IN_A_DAY;
                 nextTime = nextTime + days;
                 await setNextBlockTimestamp(nextTime);
 
@@ -1728,7 +1728,7 @@ describe("CreditLine Test", function () {
                 checkDueDetailsMatch(await creditContract.getDueDetail(creditHash), dueDetail);
             });
 
-            it.skip("Should update correctly agin in the next period while credit state is Delayed", async function () {
+            it.skip("Should update correctly again in the next period while credit state is Delayed", async function () {
                 borrowAmount = toToken(20_000);
                 await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
 
@@ -1736,7 +1736,7 @@ describe("CreditLine Test", function () {
                 let settings = await poolConfigContract.getPoolSettings();
                 let nextTime =
                     creditRecord.nextDueDate.toNumber() +
-                    settings.latePaymentGracePeriodInDays * 3600 * 24 +
+                    settings.latePaymentGracePeriodInDays * CONSTANTS.SECONDS_IN_A_DAY +
                     100;
                 await setNextBlockTimestamp(nextTime);
 
@@ -1755,7 +1755,7 @@ describe("CreditLine Test", function () {
                     await calendarContract.getDaysDiff(creditRecord.nextDueDate, nextDueDate)
                 ).toNumber();
                 let cc = await creditContract.getCreditConfig(creditHash);
-                const [yieldDue, committed] = calcYieldDue(cc, borrowAmount, BN.from(0), days);
+                const [yieldDue, committed] = calcYieldDue(cc, borrowAmount, days, 1, BN.from(0));
 
                 totalPastDue = totalPastDue.add(creditRecord.nextDue);
                 await expect(creditContract.refreshCredit(borrower.address))
@@ -1794,7 +1794,7 @@ describe("CreditLine Test", function () {
                     await calendarContract.getDaysDiff(startDateOfLastPeriod, maturityDate)
                 ).toNumber();
                 let cc = await creditContract.getCreditConfig(creditHash);
-                const [yieldDue, committed] = calcYieldDue(cc, borrowAmount, BN.from(0), days);
+                const [yieldDue, committed] = calcYieldDue(cc, borrowAmount, days, 1, BN.from(0));
 
                 let creditRecord = await creditContract.getCreditRecord(creditHash);
                 let totalPastDue = creditRecord.nextDue;
@@ -1802,13 +1802,14 @@ describe("CreditLine Test", function () {
                     calcYieldDue(
                         cc,
                         committedAmount,
-                        BN.from(0),
                         (
                             await calendarContract.getDaysDiff(
                                 creditRecord.nextDueDate,
                                 startDateOfLastPeriod,
                             )
                         ).toNumber(),
+                        1,
+                        BN.from(0),
                     )[0],
                 );
 
@@ -1894,7 +1895,7 @@ describe("CreditLine Test", function () {
                 let settings = await poolConfigContract.getPoolSettings();
                 let nextTime =
                     creditRecord.nextDueDate.toNumber() +
-                    settings.latePaymentGracePeriodInDays * 3600 * 24 +
+                    settings.latePaymentGracePeriodInDays * CONSTANTS.SECONDS_IN_A_DAY +
                     100;
                 await setNextBlockTimestamp(nextTime);
 
@@ -1906,7 +1907,13 @@ describe("CreditLine Test", function () {
                     await calendarContract.getDaysDiff(creditRecord.nextDueDate, nextDueDate)
                 ).toNumber();
                 let cc = await creditContract.getCreditConfig(creditHash);
-                const [yieldDue, committed] = calcYieldDue(cc, borrowAmount, membershipFee, days);
+                const [yieldDue, committed] = calcYieldDue(
+                    cc,
+                    borrowAmount,
+                    days,
+                    1,
+                    membershipFee,
+                );
                 let principalDue = calcPrincipalDueForFullPeriods(
                     creditRecord.unbilledPrincipal,
                     principalRate,
@@ -1970,7 +1977,13 @@ describe("CreditLine Test", function () {
                     await calendarContract.getDaysDiff(startDateOfLastPeriod, maturityDate)
                 ).toNumber();
                 let cc = await creditContract.getCreditConfig(creditHash);
-                const [yieldDue, committed] = calcYieldDue(cc, borrowAmount, membershipFee, days);
+                const [yieldDue, committed] = calcYieldDue(
+                    cc,
+                    borrowAmount,
+                    days,
+                    1,
+                    membershipFee,
+                );
                 let creditRecord = await creditContract.getCreditRecord(creditHash);
                 let principalPastDue = calcPrincipalDueForFullPeriods(
                     creditRecord.unbilledPrincipal,
@@ -1988,7 +2001,7 @@ describe("CreditLine Test", function () {
                     ).toNumber(),
                 )
                     .add(creditRecord.yieldDue)
-                    .add(membershipFee); // TODO 2 periods passed, only add one membership fee?
+                    .add(membershipFee.mul(2));
                 let unbilledPrincipal = creditRecord.unbilledPrincipal.sub(principalPastDue);
                 let principalDue = calcPrincipalDueForPartialPeriod(
                     unbilledPrincipal,
@@ -2041,7 +2054,7 @@ describe("CreditLine Test", function () {
                 );
             });
 
-            it("Should update correctly agin in the next period while credit state is Delayed", async function () {});
+            it("Should update correctly again in the next period while credit state is Delayed", async function () {});
 
             it("Should update correctly for the first time after maturity date", async function () {});
         });
@@ -2213,6 +2226,7 @@ describe("CreditLine Test", function () {
                 let remainingPastDue = remainingPrincipalPastDue
                     .add(remainingYieldPastDue)
                     .add(remainingLateFee);
+                console.log(`Initial remaining yield past due ${remainingYieldPastDue}`);
                 if (remainingPastDue.gt(0)) {
                     if (paymentAmount.gte(remainingPastDue)) {
                         yieldPastDuePaid = remainingYieldPastDue;
@@ -6424,7 +6438,7 @@ describe("CreditLine Test", function () {
     //         let creditRecord = await creditContract.getCreditRecord(creditHash);
     //
     //         // move forward 10 days
-    //         let nextTime = await getFutureBlockTime(3600 * 24 * 10);
+    //         let nextTime = await getFutureBlockTime(CONSTANTS.SECONDS_IN_A_DAY * 10);
     //         await mineNextBlockWithTimestamp(nextTime);
     //
     //         let preCreditRecord = creditRecord;
@@ -6440,7 +6454,7 @@ describe("CreditLine Test", function () {
     //         let poolSettings = await poolConfigContract.getPoolSettings();
     //         let nextTime =
     //             creditRecord.nextDueDate.toNumber() +
-    //             3600 * 24 * (poolSettings.latePaymentGracePeriodInDays - 1);
+    //             CONSTANTS.SECONDS_IN_A_DAY * (poolSettings.latePaymentGracePeriodInDays - 1);
     //         await mineNextBlockWithTimestamp(nextTime);
     //
     //         let preCreditRecord = creditRecord;
@@ -6456,7 +6470,7 @@ describe("CreditLine Test", function () {
     //         let poolSettings = await poolConfigContract.getPoolSettings();
     //         let nextTime =
     //             creditRecord.nextDueDate.toNumber() +
-    //             3600 * 24 * (poolSettings.latePaymentGracePeriodInDays + 1);
+    //             CONSTANTS.SECONDS_IN_A_DAY * (poolSettings.latePaymentGracePeriodInDays + 1);
     //         await mineNextBlockWithTimestamp(nextTime);
     //
     //         let preCreditRecord = creditRecord;
@@ -6519,7 +6533,7 @@ describe("CreditLine Test", function () {
     //         let poolSettings = await poolConfigContract.getPoolSettings();
     //         let nextTime =
     //             creditRecord.nextDueDate.toNumber() +
-    //             3600 * 24 * (poolSettings.latePaymentGracePeriodInDays + 2);
+    //             CONSTANTS.SECONDS_IN_A_DAY * (poolSettings.latePaymentGracePeriodInDays + 2);
     //         await mineNextBlockWithTimestamp(nextTime);
     //
     //         let preCreditRecord = creditRecord;
@@ -6582,7 +6596,7 @@ describe("CreditLine Test", function () {
     //         let poolSettings = await poolConfigContract.getPoolSettings();
     //         let nextTime =
     //             creditRecord.nextDueDate.toNumber() +
-    //             3600 * 24 * (poolSettings.latePaymentGracePeriodInDays + 1);
+    //             CONSTANTS.SECONDS_IN_A_DAY * (poolSettings.latePaymentGracePeriodInDays + 1);
     //         await mineNextBlockWithTimestamp(nextTime);
     //
     //         let preCreditRecord = creditRecord;
@@ -6753,7 +6767,7 @@ describe("CreditLine Test", function () {
     //         // creditRecord = await creditContract.getCreditRecord(creditHash);
     //         // nextTime =
     //         //     creditRecord.nextDueDate.toNumber() +
-    //         //     3600 * 24 * poolSettings.latePaymentGracePeriodInDays +
+    //         //     CONSTANTS.SECONDS_IN_A_DAY * poolSettings.latePaymentGracePeriodInDays +
     //         //     60 * 10;
     //         // // printCreditRecord(`creditRecord`, creditRecord);
     //         // // console.log(`nextTime: ${nextTime}`);
@@ -6820,7 +6834,7 @@ describe("CreditLine Test", function () {
     //         // preTime = nextTime;
     //         // nextTime =
     //         //     creditRecord2.nextDueDate.toNumber() +
-    //         //     3600 * 24 * poolSettings.latePaymentGracePeriodInDays +
+    //         //     CONSTANTS.SECONDS_IN_A_DAY * poolSettings.latePaymentGracePeriodInDays +
     //         //     60 * 5;
     //         // printCreditRecord(`creditRecord2`, creditRecord2);
     //         // console.log(`nextTime: ${nextTime}`);
