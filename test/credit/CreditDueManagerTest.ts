@@ -30,6 +30,7 @@ import {
     CreditState,
     PayPeriodDuration,
     calcLateFee,
+    calcLateFeeNew,
     calcPrincipalDue,
     calcYieldDue,
     checkCreditRecordsMatch,
@@ -396,6 +397,302 @@ describe("CreditDueManager Tests", function () {
         });
     });
 
+    describe("refreshLateFee", function () {
+        let lateFeeFlat: BN, lateFeeBps: number;
+        let nextYear: number, lastDueDate: moment.Moment, refreshDate: moment.Moment;
+
+        async function prepare() {
+            const [, , membershipFee] = await poolConfigContract.getFees();
+            lateFeeFlat = toToken(100);
+            lateFeeBps = 500;
+            await poolConfigContract.connect(poolOwner).setFeeStructure({
+                yieldInBps: 1000,
+                minPrincipalRateInBps: 10,
+                lateFeeFlat,
+                lateFeeBps,
+                membershipFee,
+            });
+
+            nextYear = moment.utc().year() + 1;
+        }
+
+        beforeEach(async function () {
+            await loadFixture(prepare);
+        });
+
+        function getInputParams(
+            creditConfigOverrides: Partial<CreditConfigStruct> = {},
+            creditRecordOverrides: Partial<CreditRecordStruct> = {},
+            dueDetailOverrides: Partial<DueDetailStruct> = {},
+        ): [CreditConfigStruct, CreditRecordStruct, DueDetailStruct] {
+            const cc = {
+                ...{
+                    creditLimit: toToken(5_000),
+                    committedAmount: toToken(5_000),
+                    periodDuration: PayPeriodDuration.Monthly,
+                    numOfPeriods: 2,
+                    yieldInBps: 1000,
+                    advanceRateInBps: 8000,
+                    revolving: true,
+                    autoApproval: true,
+                },
+                ...creditConfigOverrides,
+            };
+            const cr = {
+                ...{
+                    unbilledPrincipal: toToken(5_000),
+                    nextDueDate: moment.utc().unix(),
+                    nextDue: toToken(1_000),
+                    yieldDue: toToken(400),
+                    totalPastDue: 0,
+                    missedPeriods: 0,
+                    remainingPeriods: 2,
+                    state: CreditState.GoodStanding,
+                },
+                ...creditRecordOverrides,
+            };
+            const dd = {
+                ...{
+                    lateFeeUpdatedDate: moment.utc().unix(),
+                    lateFee: 0,
+                    yieldPastDue: 0,
+                    principalPastDue: 0,
+                    committed: toToken(5_000),
+                    accrued: toToken(4_000),
+                    paid: 0,
+                },
+                ...dueDetailOverrides,
+            };
+
+            return [cc, cr, dd];
+        }
+
+        async function testRefreshLateFee(
+            cc: CreditConfigStruct,
+            cr: CreditRecordStruct,
+            dd: DueDetailStruct,
+            expectedLateFee: BN,
+        ) {
+            const [lateFeeUpdatedDate, lateFee] = await creditDueManagerContract.refreshLateFee(
+                cc,
+                cr,
+                dd,
+            );
+            const dayAfterRefresh = refreshDate.clone().add(1, "day").startOf("day");
+            expect(lateFeeUpdatedDate).to.equal(dayAfterRefresh.unix());
+            expect(lateFee).to.equal(expectedLateFee);
+        }
+
+        describe("If the bill is currently in good standing", function () {
+            describe("If the late fee is refreshed in the immediate next billing cycle", function () {
+                async function prepareForRefresh() {
+                    refreshDate = moment.utc({
+                        year: nextYear,
+                        month: 1,
+                        day: 15,
+                    });
+                    await mineNextBlockWithTimestamp(refreshDate.unix());
+                }
+
+                beforeEach(async function () {
+                    await loadFixture(prepareForRefresh);
+                });
+
+                it("Should return the correct late fee", async function () {
+                    lastDueDate = moment.utc({
+                        year: nextYear,
+                        month: 1,
+                        day: 1,
+                    });
+                    const [cc, cr, dd] = getInputParams({}, { nextDueDate: lastDueDate.unix() });
+                    const expectedLateFee = await calcLateFee(
+                        cr,
+                        dd,
+                        lateFeeFlat,
+                        lateFeeBps,
+                        15,
+                        1,
+                    );
+                    await testRefreshLateFee(cc, cr, dd, expectedLateFee);
+                });
+            });
+
+            describe("If the late fee is refreshed many billing cycles later", function () {
+                async function prepareForRefresh() {
+                    refreshDate = moment.utc({
+                        year: nextYear,
+                        month: 2,
+                        day: 15,
+                    });
+                    await mineNextBlockWithTimestamp(refreshDate.unix());
+                }
+
+                beforeEach(async function () {
+                    await loadFixture(prepareForRefresh);
+                });
+
+                it("Should return the correct late fee", async function () {
+                    lastDueDate = moment.utc({
+                        year: nextYear,
+                        month: 1,
+                        day: 1,
+                    });
+                    const [cc, cr, dd] = getInputParams({}, { nextDueDate: lastDueDate.unix() });
+                    const expectedLateFee = await calcLateFee(
+                        cr,
+                        dd,
+                        lateFeeFlat,
+                        lateFeeBps,
+                        45,
+                        2,
+                    );
+                    await testRefreshLateFee(cc, cr, dd, expectedLateFee);
+                });
+            });
+
+            describe("If the late fee is refreshed after the maturity date", function () {
+                // TODO(jiatu): fill this in
+            });
+        });
+
+        describe("If the bill is already late", function () {
+            describe("If the late fee is refreshed within the current billing cycle", function () {
+                async function prepareForRefresh() {
+                    refreshDate = moment.utc({
+                        year: nextYear,
+                        month: 1,
+                        day: 15,
+                    });
+                    await mineNextBlockWithTimestamp(refreshDate.unix());
+                }
+
+                beforeEach(async function () {
+                    await loadFixture(prepareForRefresh);
+                });
+
+                it("Should return the correct late fee", async function () {
+                    lastDueDate = moment.utc({
+                        year: nextYear,
+                        month: 2,
+                        day: 1,
+                    });
+                    const existingLateFee = toToken(400);
+                    const lateFeeUpdatedDate = moment.utc({
+                        year: nextYear,
+                        month: 1,
+                        day: 10,
+                    });
+                    const [cc, cr, dd] = getInputParams(
+                        {},
+                        { nextDueDate: lastDueDate.unix(), state: CreditState.Delayed },
+                        {
+                            lateFeeUpdatedDate: lateFeeUpdatedDate.unix(),
+                            lateFee: existingLateFee,
+                        },
+                    );
+                    const expectedLateFee = (
+                        await calcLateFee(cr, dd, lateFeeFlat, lateFeeBps, 6, 0)
+                    ).add(existingLateFee);
+                    await testRefreshLateFee(cc, cr, dd, expectedLateFee);
+                });
+            });
+
+            describe("If the late fee is refreshed in the immediate next billing cycle", function () {
+                async function prepareForRefresh() {
+                    // TODO(jiatu): add a test case where day = 1. The current implementation of `getNumPeriodsPassed` is buggy,
+                    // which prevents us from creating a test case like that one.
+                    refreshDate = moment.utc({
+                        year: nextYear,
+                        month: 2,
+                        day: 2,
+                        hour: 0,
+                        minute: 38,
+                        second: 5,
+                    });
+                    await mineNextBlockWithTimestamp(refreshDate.unix());
+                }
+
+                beforeEach(async function () {
+                    await loadFixture(prepareForRefresh);
+                });
+
+                it("Should return the correct late fee", async function () {
+                    lastDueDate = moment.utc({
+                        year: nextYear,
+                        month: 2,
+                        day: 1,
+                    });
+                    const existingLateFee = toToken(400);
+                    const lateFeeUpdatedDate = moment.utc({
+                        year: nextYear,
+                        month: 1,
+                        day: 10,
+                    });
+                    const [cc, cr, dd] = getInputParams(
+                        {},
+                        { nextDueDate: lastDueDate.unix(), state: CreditState.Delayed },
+                        {
+                            lateFeeUpdatedDate: lateFeeUpdatedDate.unix(),
+                            lateFee: existingLateFee,
+                        },
+                    );
+                    const expectedLateFee = (
+                        await calcLateFee(cr, dd, lateFeeFlat, lateFeeBps, 23, 1)
+                    ).add(existingLateFee);
+                    await testRefreshLateFee(cc, cr, dd, expectedLateFee);
+                });
+            });
+
+            describe("If the late fee is refreshed many billing cycles later", function () {
+                async function prepareForRefresh() {
+                    refreshDate = moment.utc({
+                        year: nextYear,
+                        month: 3,
+                        day: 15,
+                        hour: 0,
+                        minute: 39,
+                        second: 6,
+                    });
+                    await mineNextBlockWithTimestamp(refreshDate.unix());
+                }
+
+                beforeEach(async function () {
+                    await loadFixture(prepareForRefresh);
+                });
+
+                it("Should return the correct late fee", async function () {
+                    lastDueDate = moment.utc({
+                        year: nextYear,
+                        month: 2,
+                        day: 1,
+                    });
+                    const existingLateFee = toToken(400);
+                    const lateFeeUpdatedDate = moment.utc({
+                        year: nextYear,
+                        month: 1,
+                        day: 10,
+                    });
+                    const [cc, cr, dd] = getInputParams(
+                        {},
+                        { nextDueDate: lastDueDate.unix(), state: CreditState.Delayed },
+                        {
+                            lateFeeUpdatedDate: lateFeeUpdatedDate.unix(),
+                            lateFee: existingLateFee,
+                        },
+                    );
+                    const expectedLateFee = (
+                        await calcLateFee(cr, dd, lateFeeFlat, lateFeeBps, 66, 2)
+                    ).add(existingLateFee);
+                    await testRefreshLateFee(cc, cr, dd, expectedLateFee);
+                });
+            });
+
+            describe("If the late fee is refreshed after the maturity date", function () {
+                // TODO(jiatu): fill this in
+            });
+        });
+    });
+
     describe("getDueInfo", function () {
         function getInputParams(
             creditConfigOverrides: Partial<CreditConfigStruct> = {},
@@ -411,9 +708,6 @@ describe("CreditDueManager Tests", function () {
                     yieldInBps: 1000,
                     advanceRateInBps: 8000,
                     revolving: true,
-                    receivableBacked: true,
-                    borrowerLevelCredit: true,
-                    exclusive: true,
                     autoApproval: true,
                 },
                 ...creditConfigOverrides,
@@ -501,11 +795,15 @@ describe("CreditDueManager Tests", function () {
                             dd,
                             maturityDate,
                         );
-                        const [lateFeeUpdatedDate, lateFee] = await calcLateFee(
+                        const poolSettings = await poolConfigContract.getPoolSettings();
+                        const [lateFeeUpdatedDate, lateFee] = await calcLateFeeNew(
                             poolConfigContract,
                             calendarContract,
+                            cc,
                             cr,
                             dd,
+                            moment.utc(nextBlockTime * 1000),
+                            poolSettings.latePaymentGracePeriodInDays,
                         );
                         const expectedNewCR = {
                             ...cr,
@@ -796,11 +1094,15 @@ describe("CreditDueManager Tests", function () {
                                     accruedYieldPastDue,
                                     committedYieldPastDue,
                                 );
-                                const [lateFeeUpdatedDate, expectedLateFee] = await calcLateFee(
+                                const poolSettings = await poolConfigContract.getPoolSettings();
+                                const [lateFeeUpdatedDate, expectedLateFee] = await calcLateFeeNew(
                                     poolConfigContract,
                                     calendarContract,
+                                    cc,
                                     cr,
                                     dd,
+                                    nextBlockTime,
+                                    poolSettings.latePaymentGracePeriodInDays,
                                 );
                                 const [accruedYieldNextDue, committedYieldNextDue] = calcYieldDue(
                                     cc,
@@ -866,6 +1168,7 @@ describe("CreditDueManager Tests", function () {
                                     lateFeeBps,
                                     membershipFee,
                                 });
+                                const poolSettings = await poolConfigContract.getPoolSettings();
                                 const lastDueDate = moment.utc({
                                     year: nextYear,
                                     month: 1,
@@ -912,11 +1215,14 @@ describe("CreditDueManager Tests", function () {
                                     accruedYieldPastDue,
                                     committedYieldPastDue,
                                 );
-                                const [lateFeeUpdatedDate, expectedLateFee] = await calcLateFee(
+                                const [lateFeeUpdatedDate, expectedLateFee] = await calcLateFeeNew(
                                     poolConfigContract,
                                     calendarContract,
+                                    cc,
                                     cr,
                                     dd,
+                                    nextBlockTime,
+                                    poolSettings.latePaymentGracePeriodInDays,
                                 );
                                 const [accruedYieldNextDue, committedYieldNextDue] = calcYieldDue(
                                     cc,
@@ -1052,11 +1358,15 @@ describe("CreditDueManager Tests", function () {
                                     accruedYieldPastDue,
                                     committedYieldPastDue,
                                 );
-                                const [lateFeeUpdatedDate, expectedLateFee] = await calcLateFee(
+                                const poolSettings = await poolConfigContract.getPoolSettings();
+                                const [lateFeeUpdatedDate, expectedLateFee] = await calcLateFeeNew(
                                     poolConfigContract,
                                     calendarContract,
+                                    cc,
                                     cr,
                                     dd,
+                                    nextBlockTime,
+                                    poolSettings.latePaymentGracePeriodInDays,
                                 );
                                 const [accruedYieldNextDue, committedYieldNextDue] = calcYieldDue(
                                     cc,
@@ -1176,11 +1486,15 @@ describe("CreditDueManager Tests", function () {
                                     accruedYieldPastDue,
                                     committedYieldPastDue,
                                 );
-                                const [lateFeeUpdatedDate, expectedLateFee] = await calcLateFee(
+                                const poolSettings = await poolConfigContract.getPoolSettings();
+                                const [lateFeeUpdatedDate, expectedLateFee] = await calcLateFeeNew(
                                     poolConfigContract,
                                     calendarContract,
+                                    cc,
                                     cr,
                                     dd,
+                                    nextBlockTime,
+                                    poolSettings.latePaymentGracePeriodInDays,
                                 );
                                 const [accruedYieldNextDue, committedYieldNextDue] = calcYieldDue(
                                     cc,
@@ -1306,11 +1620,15 @@ describe("CreditDueManager Tests", function () {
                                 accruedYieldPastDue,
                                 committedYieldPastDue,
                             );
-                            const [lateFeeUpdatedDate, expectedLateFee] = await calcLateFee(
+                            const poolSettings = await poolConfigContract.getPoolSettings();
+                            const [lateFeeUpdatedDate, expectedLateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
+                                nextBlockTime,
+                                poolSettings.latePaymentGracePeriodInDays,
                             );
                             const [accruedYieldNextDue, committedYieldNextDue] = calcYieldDue(
                                 cc,

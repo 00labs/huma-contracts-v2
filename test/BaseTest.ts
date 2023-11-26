@@ -1209,34 +1209,31 @@ export async function calcPrincipalDueNew(
     ];
 }
 
-export async function calcLateFee(
-    poolConfigContract: PoolConfig,
-    calendarContract: Calendar,
+export function calcLateFee(
     cr: CreditRecordStruct,
     dd: DueDetailStruct,
-): Promise<[BN, BN]> {
-    const [, lateFeeInBps] = await poolConfigContract.getFees();
-    const lateFeeStartDate =
-        cr.state === CreditState.GoodStanding ? cr.nextDueDate : dd.lateFeeUpdatedDate;
-    const lateFeeUpdatedDate = await calendarContract.getStartOfTomorrow();
+    lateFeeFlat: BN,
+    lateFeeBps: number | BN,
+    daysPassed: number | BN,
+    periodsPassed: number | BN,
+) {
     const principal = getPrincipal(cr, dd);
-    const lateFeeDays = await calendarContract.getDaysDiff(lateFeeStartDate, lateFeeUpdatedDate);
-    return [
-        lateFeeUpdatedDate,
-        BN.from(dd.lateFee).add(
+    return lateFeeFlat
+        .mul(periodsPassed)
+        .add(
             principal
-                .mul(lateFeeInBps)
-                .mul(lateFeeDays)
+                .mul(lateFeeBps)
+                .mul(daysPassed)
                 .div(CONSTANTS.BP_FACTOR.mul(CONSTANTS.DAYS_IN_A_YEAR)),
-        ),
-    ];
+        );
 }
 
 export async function calcLateFeeNew(
     poolConfigContract: PoolConfig,
     calendarContract: Calendar,
-    cr: CreditRecordStructOutput,
-    dd: DueDetailStructOutput,
+    cc: CreditConfigStruct | CreditConfigStructOutput,
+    cr: CreditRecordStruct | CreditRecordStructOutput,
+    dd: DueDetailStruct | DueDetailStructOutput,
     currentDate: moment.Moment,
     latePaymentGracePeriodInDays: number,
 ): Promise<[BN, BN]> {
@@ -1245,11 +1242,11 @@ export async function calcLateFeeNew(
             getLatePaymentGracePeriodDeadline(cr, latePaymentGracePeriodInDays),
         ) &&
             cr.state === CreditState.GoodStanding) ||
-        (cr.nextDue.isZero() && cr.totalPastDue.isZero())
+        (BN.from(cr.nextDue).isZero() && BN.from(cr.totalPastDue).isZero())
     ) {
-        return [dd.lateFeeUpdatedDate, dd.lateFee];
+        return [BN.from(dd.lateFeeUpdatedDate), BN.from(dd.lateFee)];
     }
-    const [, lateFeeInBps] = await poolConfigContract.getFees();
+    const [lateFeeFlat, lateFeeInBps] = await poolConfigContract.getFees();
     const lateFeeStartDate =
         cr.state === CreditState.GoodStanding ? cr.nextDueDate : dd.lateFeeUpdatedDate;
     const lateFeeUpdatedDate = currentDate.clone().add(1, "day").startOf("day");
@@ -1258,14 +1255,34 @@ export async function calcLateFeeNew(
         lateFeeStartDate,
         lateFeeUpdatedDate.unix(),
     );
+    let numPeriodsPassed = BN.from(0);
+    if (cr.state === CreditState.GoodStanding) {
+        numPeriodsPassed = await calendarContract.getNumPeriodsPassed(
+            cc.periodDuration,
+            lateFeeStartDate,
+            currentDate.unix(),
+        );
+    } else if (currentDate.unix() >= BN.from(cr.nextDueDate).toNumber()) {
+        const startOfNextBillingCycle = await calendarContract.getStartDateOfNextPeriod(
+            cc.periodDuration,
+            lateFeeStartDate,
+        );
+        numPeriodsPassed = await calendarContract.getNumPeriodsPassed(
+            cc.periodDuration,
+            startOfNextBillingCycle,
+            currentDate.unix(),
+        );
+    }
     return [
         BN.from(lateFeeUpdatedDate.unix()),
-        BN.from(dd.lateFee).add(
-            principal
-                .mul(lateFeeInBps)
-                .mul(lateFeeDays)
-                .div(CONSTANTS.BP_FACTOR.mul(CONSTANTS.DAYS_IN_A_YEAR)),
-        ),
+        BN.from(dd.lateFee)
+            .add(lateFeeFlat.mul(numPeriodsPassed))
+            .add(
+                principal
+                    .mul(lateFeeInBps)
+                    .mul(lateFeeDays)
+                    .div(CONSTANTS.BP_FACTOR.mul(CONSTANTS.DAYS_IN_A_YEAR)),
+            ),
     ];
 }
 
@@ -1308,10 +1325,12 @@ export function getNextBillRefreshDate(
 }
 
 export function getLatePaymentGracePeriodDeadline(
-    cr: CreditRecordStructOutput,
+    cr: CreditRecordStruct | CreditRecordStructOutput,
     latePaymentGracePeriodInDays: number,
 ) {
-    return moment.utc(cr.nextDueDate.toNumber() * 1000).add(latePaymentGracePeriodInDays, "days");
+    return moment
+        .utc(BN.from(cr.nextDueDate).toNumber() * 1000)
+        .add(latePaymentGracePeriodInDays, "days");
 }
 
 export function getTotalDaysInPeriod(periodDuration: number) {

@@ -53,6 +53,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             _cr.nextDueDate + poolSettings.latePaymentGracePeriodInDays * SECONDS_IN_A_DAY;
     }
 
+    /// @inheritdoc ICreditDueManager
     function getNextBillRefreshDate(
         CreditRecord memory cr
     ) public view returns (uint256 refreshDate) {
@@ -68,21 +69,49 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         return cr.nextDueDate;
     }
 
+    /// @inheritdoc ICreditDueManager
     function refreshLateFee(
+        CreditConfig memory _cc,
         CreditRecord memory _cr,
         DueDetail memory _dd
     ) public view override returns (uint64 lateFeeUpdatedDate, uint96 lateFee) {
         lateFeeUpdatedDate = uint64(calendar.getStartOfTomorrow());
-        (, uint256 lateFeeInBps, ) = poolConfig.getFees();
+        (uint256 lateFeeFlat, uint256 lateFeeInBps, ) = poolConfig.getFees();
         // If the credit state is good-standing, then the bill is late for the first time.
         // We need to charge the late fee from the last due date onwards.
         uint256 lateFeeStartDate = _cr.state == CreditState.GoodStanding
             ? _cr.nextDueDate
             : _dd.lateFeeUpdatedDate;
+        uint256 numPeriodsPassed;
+        if (_cr.state == CreditState.GoodStanding) {
+            assert(block.timestamp >= _cr.nextDueDate);
+            numPeriodsPassed = calendar.getNumPeriodsPassed(
+                _cc.periodDuration,
+                lateFeeStartDate,
+                block.timestamp
+            );
+        } else if (block.timestamp >= _cr.nextDueDate) {
+            // TODO(jiatu): handle post-maturity correctly once we fix the `getNumPeriodsPassed` function.
+            // Since the bill is delayed, a flat late fee must have been charged during the previous billing cycle that
+            // `_cr` was in. Therefore, we should start counting the number of elapsed periods from the billing cycle
+            // immediately following the one associated with `_cr`.
+            assert(lateFeeStartDate < _cr.nextDueDate);
+            uint256 startOfNextBillingCycle = calendar.getStartDateOfNextPeriod(
+                _cc.periodDuration,
+                lateFeeStartDate
+            );
+            numPeriodsPassed = calendar.getNumPeriodsPassed(
+                _cc.periodDuration,
+                startOfNextBillingCycle,
+                block.timestamp
+            );
+        }
 
         // TODO(jiatu): gas-golf dd reading
         lateFee = uint96(
             _dd.lateFee +
+                lateFeeFlat *
+                numPeriodsPassed +
                 (lateFeeInBps *
                     (_cr.unbilledPrincipal + _cr.nextDue - _cr.yieldDue + _dd.principalPastDue) *
                     calendar.getDaysDiff(lateFeeStartDate, lateFeeUpdatedDate)) /
@@ -115,7 +144,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             if (_cr.missedPeriods == 0) return (_cr, _dd, false);
             else {
                 newCR.totalPastDue -= _dd.lateFee;
-                (newDD.lateFeeUpdatedDate, newDD.lateFee) = refreshLateFee(_cr, _dd);
+                (newDD.lateFeeUpdatedDate, newDD.lateFee) = refreshLateFee(_cc, _cr, _dd);
                 newCR.totalPastDue += newDD.lateFee;
                 return (newCR, newDD, true);
             }
@@ -129,7 +158,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             // at this point. Move all current next due to past due and calculate late fees.
             newDD.yieldPastDue += _cr.yieldDue;
             newDD.principalPastDue += _cr.nextDue - _cr.yieldDue;
-            (newDD.lateFeeUpdatedDate, newDD.lateFee) = refreshLateFee(_cr, _dd);
+            (newDD.lateFeeUpdatedDate, newDD.lateFee) = refreshLateFee(_cc, _cr, _dd);
             isLate = true;
         }
 

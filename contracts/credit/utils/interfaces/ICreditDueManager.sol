@@ -42,7 +42,18 @@ interface ICreditDueManager {
      */
     function calcFrontLoadingFee(uint256 _amount) external view returns (uint256 fees);
 
+    /**
+     * @notice Returns the next refresh date for the bill.
+     */
+    function getNextBillRefreshDate(
+        CreditRecord memory cr
+    ) external view returns (uint256 refreshDate);
+
+    /**
+     * @notice Returns the updated late fee, up to the current date.
+     */
     function refreshLateFee(
+        CreditConfig memory _cc,
         CreditRecord memory _cr,
         DueDetail memory _dd
     ) external view returns (uint64 lateFeeUpdatedDate, uint96 lateFee);
