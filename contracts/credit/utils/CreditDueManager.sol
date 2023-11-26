@@ -69,7 +69,6 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
     }
 
     function refreshLateFee(
-        CreditConfig memory cc,
         CreditRecord memory _cr,
         DueDetail memory _dd
     ) public view override returns (uint64 lateFeeUpdatedDate, uint96 lateFee) {
@@ -80,12 +79,6 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         uint256 lateFeeStartDate = _cr.state == CreditState.GoodStanding
             ? _cr.nextDueDate
             : _dd.lateFeeUpdatedDate;
-        //        uint256 numPeriodsPassed;
-        //        if (block.timestamp < _cr.nextDueDate && _cr.state == CreditState.GoodStanding) {
-        //            numPeriodsPassed = 1;
-        //        } else if (block.timestamp >= _cr.nextDueDate) {
-        //            numPeriodsPassed = calendar.getNumPeriodsPassed(cc.periodDuration, lateFeeStartDate, block.timestamp);
-        //        }
 
         // TODO(jiatu): gas-golf dd reading
         lateFee = uint96(
@@ -122,7 +115,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             if (_cr.missedPeriods == 0) return (_cr, _dd, false);
             else {
                 newCR.totalPastDue -= _dd.lateFee;
-                (newDD.lateFeeUpdatedDate, newDD.lateFee) = refreshLateFee(_cc, _cr, _dd);
+                (newDD.lateFeeUpdatedDate, newDD.lateFee) = refreshLateFee(_cr, _dd);
                 newCR.totalPastDue += newDD.lateFee;
                 return (newCR, newDD, true);
             }
@@ -136,7 +129,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             // at this point. Move all current next due to past due and calculate late fees.
             newDD.yieldPastDue += _cr.yieldDue;
             newDD.principalPastDue += _cr.nextDue - _cr.yieldDue;
-            (newDD.lateFeeUpdatedDate, newDD.lateFee) = refreshLateFee(_cc, _cr, _dd);
+            (newDD.lateFeeUpdatedDate, newDD.lateFee) = refreshLateFee(_cr, _dd);
             isLate = true;
         }
 

@@ -1990,6 +1990,11 @@ describe("CreditLine Test", function () {
                     principalRate,
                     creditRecord.remainingPeriods - 1,
                 );
+                const periodsOverdue = await calendarContract.getNumPeriodsPassed(
+                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    creditRecord.nextDueDate,
+                    startDateOfLastPeriod,
+                );
                 let yieldPastDue = calcYield(
                     borrowAmount,
                     yieldInBps,
@@ -2001,7 +2006,7 @@ describe("CreditLine Test", function () {
                     ).toNumber(),
                 )
                     .add(creditRecord.yieldDue)
-                    .add(membershipFee.mul(2));
+                    .add(membershipFee.mul(periodsOverdue));
                 let unbilledPrincipal = creditRecord.unbilledPrincipal.sub(principalPastDue);
                 let principalDue = calcPrincipalDueForPartialPeriod(
                     unbilledPrincipal,

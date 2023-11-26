@@ -43,7 +43,6 @@ interface ICreditDueManager {
     function calcFrontLoadingFee(uint256 _amount) external view returns (uint256 fees);
 
     function refreshLateFee(
-        CreditConfig memory cc,
         CreditRecord memory _cr,
         DueDetail memory _dd
     ) external view returns (uint64 lateFeeUpdatedDate, uint96 lateFee);
