@@ -1047,7 +1047,7 @@ export async function calcYieldDueNew(
         periodsOverdue = await calendarContract.getNumPeriodsPassed(
             cc.periodDuration,
             cr.nextDueDate,
-            currentDate.unix(),
+            maturityDate.unix(),
         );
     } else {
         periodsNextDue = 1;

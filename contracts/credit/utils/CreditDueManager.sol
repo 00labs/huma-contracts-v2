@@ -73,7 +73,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         DueDetail memory _dd
     ) public view override returns (uint64 lateFeeUpdatedDate, uint96 lateFee) {
         lateFeeUpdatedDate = uint64(calendar.getStartOfTomorrow());
-        (uint256 lateFeeFlat, uint256 lateFeeInBps, ) = poolConfig.getFees();
+        (, uint256 lateFeeInBps, ) = poolConfig.getFees();
         // If the credit state is good-standing, then the bill is late for the first time.
         // We need to charge the late fee from the last due date onwards.
         uint256 lateFeeStartDate = _cr.state == CreditState.GoodStanding
@@ -163,7 +163,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             periodsOverdue = calendar.getNumPeriodsPassed(
                 _cc.periodDuration,
                 _cr.nextDueDate,
-                block.timestamp
+                maturityDate
             );
             // All principal is also past due in this case.
             newDD.principalPastDue += _cr.unbilledPrincipal;
