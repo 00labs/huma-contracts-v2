@@ -605,11 +605,11 @@ describe("CreditLine Test", function () {
         });
     });
 
-    describe("Drawdown Tests", function () {
+    describe("drawdown", function () {
         let yieldInBps = 1217;
         let numOfPeriods = 5;
 
-        describe("Without committment", function () {
+        describe("Without commitment", function () {
             async function prepareForDrawdown() {
                 await creditContract
                     .connect(eaServiceAccount)
@@ -627,7 +627,7 @@ describe("CreditLine Test", function () {
                 await loadFixture(prepareForDrawdown);
             });
 
-            it("Should not approve while protocol is paused or pool is not on", async function () {
+            it("Should not allow drawdown when the protocol is paused or pool is not on", async function () {
                 await humaConfigContract.connect(protocolOwner).pause();
                 await expect(
                     creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
@@ -666,10 +666,37 @@ describe("CreditLine Test", function () {
                 ).to.be.revertedWithCustomError(creditContract, "creditNotInStateForDrawdown");
             });
 
-            // TODO is this test valid?
-            it.skip("Should not allow drawdown during late grace period", async function () {});
+            it("Should not allow drawdown if the bill enters the late payment grace period for the first time while in good standing", async function () {
+                const frontLoadingFeeFlat = toToken(100);
+                const frontLoadingFeeBps = BN.from(100);
+                await poolConfigContract.connect(poolOwner).setFrontLoadingFees({
+                    frontLoadingFeeFlat: frontLoadingFeeFlat,
+                    frontLoadingFeeBps: frontLoadingFeeBps,
+                });
 
-            it("Should not allow drawdown while credit state is Delayed", async function () {
+                const borrowAmount = toToken(50_000);
+                const firstDrawdownDate = await getFutureBlockTime(3);
+                await setNextBlockTimestamp(firstDrawdownDate);
+                await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
+
+                const creditHash = ethers.utils.keccak256(
+                    ethers.utils.defaultAbiCoder.encode(
+                        ["address", "address"],
+                        [creditContract.address, borrower.address],
+                    ),
+                );
+                const cr = await creditContract.getCreditRecord(creditHash);
+                const poolSettings = await poolConfigContract.getPoolSettings();
+                const secondDrawdownDate =
+                    cr.nextDueDate.toNumber() +
+                    (poolSettings.latePaymentGracePeriodInDays - 1) * CONSTANTS.SECONDS_IN_A_DAY;
+                await setNextBlockTimestamp(secondDrawdownDate);
+                await expect(
+                    creditContract.connect(borrower).drawdown(borrower.address, borrowAmount),
+                ).to.be.revertedWithCustomError(creditContract, "creditNotInStateForDrawdown");
+            });
+
+            it("Should not allow drawdown when the credit state is Delayed", async function () {
                 await creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000));
                 const creditHash = ethers.utils.keccak256(
                     ethers.utils.defaultAbiCoder.encode(
@@ -687,15 +714,13 @@ describe("CreditLine Test", function () {
 
                 await expect(
                     creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
-                ).to.be.revertedWithCustomError(
-                    creditContract,
-                    "creditLineNotInGoodStandingState",
-                );
+                ).to.be.revertedWithCustomError(creditContract, "creditNotInStateForDrawdown");
             });
 
-            it("Should not allow drawdown while credit state is Defaulted", async function () {});
+            // tODO(jiatu): fill this in
+            it("Should not allow drawdown when the credit state is Defaulted", async function () {});
 
-            it("Should not allow drawdown while borrowers don't meet first loss cover requirement", async function () {
+            it("Should not allow drawdown when borrowers don't meet the first loss cover requirement", async function () {
                 await borrowerFirstLossCoverContract
                     .connect(poolOwner)
                     .setCoverProvider(borrower.address, {
@@ -761,7 +786,7 @@ describe("CreditLine Test", function () {
                 );
             });
 
-            it("Should not allow drawdown again while credit limit is exceeded after updateDueInfo", async function () {
+            it("Should not allow drawdown again if the credit limit is exceeded after bill refresh", async function () {
                 await creditContract
                     .connect(eaServiceAccount)
                     .approveBorrower(borrower.address, toToken(10_000), 5, 1217, toToken(0), true);
@@ -772,7 +797,7 @@ describe("CreditLine Test", function () {
                 ).to.be.revertedWithCustomError(creditContract, "creditLineExceeded");
             });
 
-            it("Should not allow drawdown if the borrow amount is less than front loading fees after updateDueInfo", async function () {
+            it("Should not allow drawdown if the borrow amount is less than front loading fees after bill refresh", async function () {
                 const frontLoadingFeeFlat = toToken(1000);
                 const frontLoadingFeeBps = BN.from(0);
                 await poolConfigContract.connect(poolOwner).setFrontLoadingFees({
@@ -850,7 +875,7 @@ describe("CreditLine Test", function () {
                     BN.from(0),
                     0,
                     getDate(nextTime) == 1 ? numOfPeriods - 1 : numOfPeriods,
-                    3,
+                    CreditState.GoodStanding,
                 );
 
                 const dueDetail = await creditContract.getDueDetail(creditHash);
@@ -907,7 +932,8 @@ describe("CreditLine Test", function () {
                     .to.emit(creditContract, "DrawdownMade")
                     .withArgs(borrower.address, borrowAmount, netBorrowAmount)
                     .to.emit(creditContract, "BillRefreshed")
-                    .withArgs(creditHash, nextDueDate, yieldDue);
+                    .withArgs(creditHash, nextDueDate, yieldDue)
+                    .to.emit(poolContract, "ProfitDistributed");
                 let borrowerNewBalance = await mockTokenContract.balanceOf(borrower.address);
                 let poolSafeNewBalance = await mockTokenContract.balanceOf(
                     poolSafeContract.address,
@@ -925,7 +951,7 @@ describe("CreditLine Test", function () {
                     BN.from(0),
                     0,
                     getDate(nextTime) == 1 ? numOfPeriods - 1 : numOfPeriods,
-                    3,
+                    CreditState.GoodStanding,
                 );
                 const remainingPeriods = creditRecord.remainingPeriods;
                 let dueDetail = await creditContract.getDueDetail(creditHash);
@@ -948,9 +974,6 @@ describe("CreditLine Test", function () {
                 days = (await calendarContract.getDaysDiff(startOfDay, nextDueDate)).toNumber();
                 [yieldDue] = calcYieldDue(cc, borrowAmount, days, 1, BN.from(0));
                 totalYieldDue = totalYieldDue.add(yieldDue);
-                // console.log(
-                //     `startOfDay: ${startOfDay}, nextDueDate: ${nextDueDate}, days: ${days}, yieldDue: ${yieldDue}, totalYieldDue: ${totalYieldDue}`,
-                // );
 
                 borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
                 poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
@@ -958,7 +981,8 @@ describe("CreditLine Test", function () {
                     creditContract.connect(borrower).drawdown(borrower.address, borrowAmount),
                 )
                     .to.emit(creditContract, "DrawdownMade")
-                    .withArgs(borrower.address, borrowAmount, netBorrowAmount);
+                    .withArgs(borrower.address, borrowAmount, netBorrowAmount)
+                    .to.emit(poolContract, "ProfitDistributed");
                 borrowerNewBalance = await mockTokenContract.balanceOf(borrower.address);
                 poolSafeNewBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
                 expect(borrowerNewBalance.sub(borrowerOldBalance)).to.equal(netBorrowAmount);
@@ -1041,7 +1065,8 @@ describe("CreditLine Test", function () {
                     .to.emit(creditContract, "DrawdownMade")
                     .withArgs(borrower.address, borrowAmount, netBorrowAmount)
                     .to.emit(creditContract, "BillRefreshed")
-                    .withArgs(creditHash, nextDueDate, totalYieldDue);
+                    .withArgs(creditHash, nextDueDate, totalYieldDue)
+                    .to.emit(poolContract, "ProfitDistributed");
                 const borrowerNewBalance = await mockTokenContract.balanceOf(borrower.address);
                 const poolSafeNewBalance = await mockTokenContract.balanceOf(
                     poolSafeContract.address,
@@ -1061,7 +1086,7 @@ describe("CreditLine Test", function () {
                     BN.from(0),
                     0,
                     remainingPeriods - 1,
-                    3,
+                    CreditState.GoodStanding,
                 );
 
                 const dueDetail = await creditContract.getDueDetail(creditHash);
@@ -1141,7 +1166,7 @@ describe("CreditLine Test", function () {
                     BN.from(0),
                     0,
                     getDate(nextTime) == 1 ? numOfPeriods - 1 : numOfPeriods,
-                    3,
+                    CreditState.GoodStanding,
                 );
 
                 const dueDetail = await creditContract.getDueDetail(creditHash);
@@ -1207,7 +1232,7 @@ describe("CreditLine Test", function () {
                     BN.from(0),
                     0,
                     getDate(nextTime) == 1 ? numOfPeriods - 1 : numOfPeriods,
-                    3,
+                    CreditState.GoodStanding,
                 );
 
                 const dueDetail = await creditContract.getDueDetail(creditHash);
@@ -1269,7 +1294,7 @@ describe("CreditLine Test", function () {
                     BN.from(0),
                     0,
                     getDate(nextTime) == 1 ? numOfPeriods - 1 : numOfPeriods,
-                    3,
+                    CreditState.GoodStanding,
                 );
                 const remainingPeriods = creditRecord.remainingPeriods;
 
@@ -1305,7 +1330,8 @@ describe("CreditLine Test", function () {
                     creditContract.connect(borrower).drawdown(borrower.address, borrowAmount),
                 )
                     .to.emit(creditContract, "DrawdownMade")
-                    .withArgs(borrower.address, borrowAmount, netBorrowAmount);
+                    .withArgs(borrower.address, borrowAmount, netBorrowAmount)
+                    .to.emit(poolContract, "ProfitDistributed");
                 let borrowerNewBalance = await mockTokenContract.balanceOf(borrower.address);
                 let poolSafeNewBalance = await mockTokenContract.balanceOf(
                     poolSafeContract.address,
@@ -1381,7 +1407,7 @@ describe("CreditLine Test", function () {
                     BN.from(0),
                     0,
                     getDate(nextTime) == 1 ? numOfPeriods - 1 : numOfPeriods,
-                    3,
+                    CreditState.GoodStanding,
                 );
                 const remainingPeriods = creditRecord.remainingPeriods;
 
@@ -1417,7 +1443,8 @@ describe("CreditLine Test", function () {
                     creditContract.connect(borrower).drawdown(borrower.address, borrowAmount),
                 )
                     .to.emit(creditContract, "DrawdownMade")
-                    .withArgs(borrower.address, borrowAmount, netBorrowAmount);
+                    .withArgs(borrower.address, borrowAmount, netBorrowAmount)
+                    .to.emit(poolContract, "ProfitDistributed");
                 let borrowerNewBalance = await mockTokenContract.balanceOf(borrower.address);
                 let poolSafeNewBalance = await mockTokenContract.balanceOf(
                     poolSafeContract.address,
@@ -1435,7 +1462,7 @@ describe("CreditLine Test", function () {
                     BN.from(0),
                     0,
                     remainingPeriods,
-                    3,
+                    CreditState.GoodStanding,
                 );
                 dueDetail = await creditContract.getDueDetail(creditHash);
                 checkDueDetailsMatch(
@@ -1448,6 +1475,7 @@ describe("CreditLine Test", function () {
 
         describe("With principalRate", function () {
             const principalRateInBps = 100;
+
             async function prepareForDrawdown() {
                 await poolConfigContract.connect(poolOwner).setFeeStructure({
                     yieldInBps: 0,
@@ -1473,7 +1501,7 @@ describe("CreditLine Test", function () {
                 await loadFixture(prepareForDrawdown);
             });
 
-            it("Should allow the borrower to borrow for the first time while principalRate > 0", async function () {
+            it("Should allow the borrower to borrow for the first time", async function () {
                 const frontLoadingFeeFlat = toToken(100);
                 const frontLoadingFeeBps = BN.from(100);
                 await poolConfigContract.connect(poolOwner).setFrontLoadingFees({
@@ -1524,7 +1552,8 @@ describe("CreditLine Test", function () {
                     .to.emit(creditContract, "DrawdownMade")
                     .withArgs(borrower.address, borrowAmount, netBorrowAmount)
                     .to.emit(creditContract, "BillRefreshed")
-                    .withArgs(creditHash, nextDueDate, totalDue);
+                    .withArgs(creditHash, nextDueDate, totalDue)
+                    .to.emit(poolContract, "ProfitDistributed");
                 const borrowerNewBalance = await mockTokenContract.balanceOf(borrower.address);
                 const poolSafeNewBalance = await mockTokenContract.balanceOf(
                     poolSafeContract.address,
@@ -1553,7 +1582,106 @@ describe("CreditLine Test", function () {
                 );
             });
 
-            it("Should allow the borrower to borrow again in the same period while principalRate > 0", async function () {});
+            it("Should allow the borrower to borrow again in the same period", async function () {
+                const frontLoadingFeeFlat = toToken(100);
+                const frontLoadingFeeBps = BN.from(100);
+                await poolConfigContract.connect(poolOwner).setFrontLoadingFees({
+                    frontLoadingFeeFlat: frontLoadingFeeFlat,
+                    frontLoadingFeeBps: frontLoadingFeeBps,
+                });
+
+                const creditHash = ethers.utils.keccak256(
+                    ethers.utils.defaultAbiCoder.encode(
+                        ["address", "address"],
+                        [creditContract.address, borrower.address],
+                    ),
+                );
+
+                const firstBorrowAmount = toToken(50_000);
+                const firstDrawdownDate = await getFutureBlockTime(3);
+                await setNextBlockTimestamp(firstDrawdownDate);
+
+                await creditContract
+                    .connect(borrower)
+                    .drawdown(borrower.address, firstBorrowAmount);
+
+                const secondBorrowAmount = toToken(50_000);
+                const netBorrowAmount = secondBorrowAmount
+                    .mul(CONSTANTS.BP_FACTOR.sub(frontLoadingFeeBps))
+                    .div(CONSTANTS.BP_FACTOR)
+                    .sub(frontLoadingFeeFlat);
+                const secondDrawdownDate = await getFutureBlockTime(3);
+                await setNextBlockTimestamp(secondDrawdownDate);
+
+                const startOfDay = getStartOfDay(secondDrawdownDate);
+                const nextDueDate = await calendarContract.getStartDateOfNextPeriod(
+                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    secondDrawdownDate,
+                );
+                const days = (
+                    await calendarContract.getDaysDiff(startOfDay, nextDueDate)
+                ).toNumber();
+                const cc = await creditContract.getCreditConfig(creditHash);
+                const [additionalYieldDue] = calcYieldDue(
+                    cc,
+                    secondBorrowAmount,
+                    days,
+                    1,
+                    BN.from(0),
+                );
+                expect(additionalYieldDue).to.be.gt(0);
+                const additionalPrincipalDue = calcPrincipalDueForPartialPeriod(
+                    secondBorrowAmount,
+                    principalRateInBps,
+                    days,
+                    CONSTANTS.DAYS_IN_A_MONTH,
+                );
+                expect(additionalPrincipalDue).to.be.gt(0);
+                const additionalNextDue = additionalYieldDue.add(additionalPrincipalDue);
+
+                const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
+                const poolSafeOldBalance = await mockTokenContract.balanceOf(
+                    poolSafeContract.address,
+                );
+                const oldCR = await creditContract.getCreditRecord(creditHash);
+                const oldDD = await creditContract.getDueDetail(creditHash);
+                await expect(
+                    creditContract
+                        .connect(borrower)
+                        .drawdown(borrower.address, secondBorrowAmount),
+                )
+                    .to.emit(creditContract, "DrawdownMade")
+                    .withArgs(borrower.address, secondBorrowAmount, netBorrowAmount)
+                    .to.emit(poolContract, "ProfitDistributed");
+                const borrowerNewBalance = await mockTokenContract.balanceOf(borrower.address);
+                const poolSafeNewBalance = await mockTokenContract.balanceOf(
+                    poolSafeContract.address,
+                );
+                expect(borrowerNewBalance.sub(borrowerOldBalance)).to.equal(netBorrowAmount);
+                expect(poolSafeOldBalance.sub(poolSafeNewBalance)).to.equal(netBorrowAmount);
+
+                const actualCR = await creditContract.getCreditRecord(creditHash);
+                const expectedCR = {
+                    ...oldCR,
+                    ...{
+                        unbilledPrincipal: oldCR.unbilledPrincipal
+                            .add(secondBorrowAmount)
+                            .sub(additionalPrincipalDue),
+                        nextDue: oldCR.nextDue.add(additionalNextDue),
+                        yieldDue: oldCR.yieldDue.add(additionalYieldDue),
+                    },
+                };
+                checkCreditRecordsMatch(actualCR, expectedCR);
+
+                const actualDD = await creditContract.getDueDetail(creditHash);
+                const expectedDD = {
+                    ...oldDD,
+                    ...{
+                        accrued: oldDD.accrued.add(additionalYieldDue),
+                    },
+                };
+                checkDueDetailsMatch(actualDD, expectedDD);
+            });
         });
     });
 
@@ -2012,7 +2140,7 @@ describe("CreditLine Test", function () {
                     unbilledPrincipal,
                     principalRate,
                     days,
-                    30,
+                    CONSTANTS.DAYS_IN_A_MONTH,
                 );
                 principalPastDue = principalPastDue.add(
                     creditRecord.nextDue.sub(creditRecord.yieldDue),
@@ -6727,7 +6855,7 @@ describe("CreditLine Test", function () {
     describe("Delayed Tests", function () {
         it("Should refresh credit and credit becomes Delayed state", async function () {});
 
-        it("Should not allow drawdowne in Delayed state", async function () {});
+        it("Should not allow drawdown in Delayed state", async function () {});
 
         it("Should make partial payment successfully in Delayed state", async function () {});
 
@@ -6739,7 +6867,7 @@ describe("CreditLine Test", function () {
     describe("Defaulted Tests", function () {
         it("Should refresh credit and credit becomes Defaulted state", async function () {});
 
-        it("Should not allow drawdowne in Defaulted state", async function () {});
+        it("Should not allow drawdown in Defaulted state", async function () {});
 
         it("Should make partial payment successfully in Defaulted state", async function () {});
 
