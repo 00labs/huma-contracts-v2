@@ -140,6 +140,8 @@ contract Calendar is ICalendar {
     }
 
     /// @inheritdoc ICalendar
+    // TODO(jiatu): there is likely an off-by-one error here when calculating num periods passed when endDate > maturity
+    // date.
     function getNumPeriodsPassed(
         PayPeriodDuration periodDuration,
         uint256 startDate,

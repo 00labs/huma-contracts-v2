@@ -610,8 +610,9 @@ describe("CreditDueManager Tests", function () {
                             const [accruedYield, committedYield] = calcYieldDue(
                                 cc,
                                 principal,
-                                membershipFee,
                                 17,
+                                1,
+                                membershipFee,
                             );
                             const expectedYieldDue = maxBigNumber(accruedYield, committedYield);
                             // Since the principal rate is 0, no principal is due. Only yield is due in the first
@@ -688,8 +689,9 @@ describe("CreditDueManager Tests", function () {
                             const [accruedYield, committedYield] = calcYieldDue(
                                 cc,
                                 principal,
-                                membershipFee,
                                 17,
+                                1,
+                                membershipFee,
                             );
                             const expectedYieldDue = maxBigNumber(accruedYield, committedYield);
                             // Since the principal rate is 0, no principal is due. Only yield is due in the first
@@ -786,8 +788,9 @@ describe("CreditDueManager Tests", function () {
                                 const [accruedYieldPastDue, committedYieldPastDue] = calcYieldDue(
                                     cc,
                                     principal,
-                                    membershipFee,
                                     60,
+                                    3,
+                                    membershipFee,
                                 );
                                 const expectedYieldPastDue = maxBigNumber(
                                     accruedYieldPastDue,
@@ -802,8 +805,9 @@ describe("CreditDueManager Tests", function () {
                                 const [accruedYieldNextDue, committedYieldNextDue] = calcYieldDue(
                                     cc,
                                     principal,
-                                    membershipFee,
                                     30,
+                                    1,
+                                    membershipFee,
                                 );
                                 const expectedYieldNextDue = maxBigNumber(
                                     accruedYieldNextDue,
@@ -900,8 +904,9 @@ describe("CreditDueManager Tests", function () {
                                 const [accruedYieldPastDue, committedYieldPastDue] = calcYieldDue(
                                     cc,
                                     principal,
-                                    membershipFee,
                                     60,
+                                    3,
+                                    membershipFee,
                                 );
                                 const expectedYieldPastDue = maxBigNumber(
                                     accruedYieldPastDue,
@@ -916,8 +921,9 @@ describe("CreditDueManager Tests", function () {
                                 const [accruedYieldNextDue, committedYieldNextDue] = calcYieldDue(
                                     cc,
                                     principal,
-                                    membershipFee,
                                     30,
+                                    1,
+                                    membershipFee,
                                 );
                                 const expectedYieldNextDue = maxBigNumber(
                                     accruedYieldNextDue,
@@ -1038,8 +1044,9 @@ describe("CreditDueManager Tests", function () {
                                 const [accruedYieldPastDue, committedYieldPastDue] = calcYieldDue(
                                     cc,
                                     principal,
-                                    membershipFee,
                                     60,
+                                    3,
+                                    membershipFee,
                                 );
                                 const expectedYieldPastDue = maxBigNumber(
                                     accruedYieldPastDue,
@@ -1054,8 +1061,9 @@ describe("CreditDueManager Tests", function () {
                                 const [accruedYieldNextDue, committedYieldNextDue] = calcYieldDue(
                                     cc,
                                     principal,
-                                    membershipFee,
                                     30,
+                                    1,
+                                    membershipFee,
                                 );
                                 const expectedYieldNextDue = maxBigNumber(
                                     accruedYieldNextDue,
@@ -1160,8 +1168,9 @@ describe("CreditDueManager Tests", function () {
                                 const [accruedYieldPastDue, committedYieldPastDue] = calcYieldDue(
                                     cc,
                                     principal,
-                                    membershipFee,
                                     60,
+                                    3,
+                                    membershipFee,
                                 );
                                 const expectedYieldPastDue = maxBigNumber(
                                     accruedYieldPastDue,
@@ -1176,8 +1185,9 @@ describe("CreditDueManager Tests", function () {
                                 const [accruedYieldNextDue, committedYieldNextDue] = calcYieldDue(
                                     cc,
                                     principal,
-                                    membershipFee,
                                     30,
+                                    1,
+                                    membershipFee,
                                 );
                                 const expectedYieldNextDue = maxBigNumber(
                                     accruedYieldNextDue,
@@ -1288,8 +1298,9 @@ describe("CreditDueManager Tests", function () {
                             const [accruedYieldPastDue, committedYieldPastDue] = calcYieldDue(
                                 cc,
                                 principal,
-                                membershipFee,
                                 133,
+                                5,
+                                membershipFee,
                             );
                             const expectedYieldPastDue = maxBigNumber(
                                 accruedYieldPastDue,
@@ -1304,8 +1315,9 @@ describe("CreditDueManager Tests", function () {
                             const [accruedYieldNextDue, committedYieldNextDue] = calcYieldDue(
                                 cc,
                                 principal,
-                                membershipFee,
                                 0,
+                                1,
+                                membershipFee,
                             );
                             const expectedYieldNextDue = maxBigNumber(
                                 accruedYieldNextDue,
