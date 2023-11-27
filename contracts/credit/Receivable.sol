@@ -13,6 +13,7 @@ import {Errors} from "../Errors.sol";
 import {ReceivableStorage} from "./ReceivableStorage.sol";
 import {IReceivable} from "./interfaces/IReceivable.sol";
 import {ReceivableInfo, ReceivableState} from "./CreditStructs.sol";
+import {HumaConfig} from "../HumaConfig.sol";
 import "hardhat/console.sol";
 
 /**
@@ -31,6 +32,7 @@ contract Receivable is
     UUPSUpgradeable
 {
     using CountersUpgradeable for CountersUpgradeable.Counter;
+    HumaConfig public humaConfig;
 
     /**
      * @dev Emitted when the owner of a receivable calls the declarePayment function
@@ -70,7 +72,9 @@ contract Receivable is
     /**
      * @dev Initializer that sets the default admin and minter roles
      */
-    function initialize() public initializer {
+    function initialize(address humaConfigAddress) public initializer {
+        if (humaConfigAddress == address(0)) revert Errors.zeroAddressProvided();
+        humaConfig = HumaConfig(humaConfigAddress);
         // todo change the upgradability to be consistent with what we will use in v2
         __ERC721_init("Receivable", "REC");
         __ERC721Enumerable_init();
@@ -79,9 +83,7 @@ contract Receivable is
         __AccessControl_init();
         __UUPSUpgradeable_init();
 
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _grantRole(MINTER_ROLE, msg.sender);
-        _grantRole(UPGRADER_ROLE, msg.sender);
+        _grantRole(DEFAULT_ADMIN_ROLE, humaConfig.owner());
     }
 
     /**
@@ -172,7 +174,7 @@ contract Receivable is
 
     function _authorizeUpgrade(
         address newImplementation
-    ) internal override onlyRole(UPGRADER_ROLE) {}
+    ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
 
     // The following functions are overrides required by Solidity.
     // super calls functions from right-to-left in the inheritance hierarchy: https://solidity-by-example.org/inheritance/#multiple-inheritance-order
