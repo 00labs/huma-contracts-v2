@@ -508,5 +508,7 @@ contract TrancheVault is
         if (!hasRole(LENDER_ROLE, account)) revert Errors.permissionDeniedNotLender();
     }
 
-    function _authorizeUpgrade(address) internal override {} //todo: access control for who is authorized to operate an upgrade
+    function _authorizeUpgrade(address) internal view override {
+        poolConfig.onlyHumaMasterAdmin(msg.sender);
+    }
 }

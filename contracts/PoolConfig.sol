@@ -324,6 +324,8 @@ contract PoolConfig is AccessControl, Initializable, UUPSUpgradeable {
         LPConfig memory config = _lpConfig;
         config.maxSeniorJuniorRatio = 4; // senior : junior = 4:1
         _lpConfig = config;
+
+        __UUPSUpgradeable_init();
     }
 
     function getTrancheLiquidityCap(uint256 index) external view returns (uint256 cap) {
@@ -860,6 +862,12 @@ contract PoolConfig is AccessControl, Initializable, UUPSUpgradeable {
         }
     }
 
+    function onlyHumaMasterAdmin(address account) public view {
+        if (account != humaConfig.owner()) {
+            revert Errors.permissionDeniedNotAdmin();
+        }
+    }
+
     function onlyPool(address account) external view {
         if (account != pool) revert Errors.notPool();
     }
@@ -891,5 +899,7 @@ contract PoolConfig is AccessControl, Initializable, UUPSUpgradeable {
             (_lpConfig.liquidityCap * _adminRnR.liquidityRateInBpsByEA) / HUNDRED_PERCENT_IN_BPS;
     }
 
-    function _authorizeUpgrade(address) internal override {} //todo: access control for who is authorized to operate an upgrade
+    function _authorizeUpgrade(address) internal view override {
+        onlyHumaMasterAdmin(msg.sender);
+    }
 }

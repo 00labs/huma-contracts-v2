@@ -348,5 +348,7 @@ contract FirstLossCover is
         if (account != poolConfig.poolFeeManager()) revert Errors.notAuthorizedCaller();
     }
 
-    function _authorizeUpgrade(address) internal override {} //todo: access control for who is authorized to operate an upgrade
+    function _authorizeUpgrade(address) internal view override {
+        poolConfig.onlyHumaMasterAdmin(msg.sender);
+    }
 }
