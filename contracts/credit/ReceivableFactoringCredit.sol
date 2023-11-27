@@ -24,6 +24,7 @@ contract ReceivableFactoringCredit is
     function initialize(PoolConfig _poolConfig) public virtual override initializer {
         __AccessControl_init();
         _initialize(_poolConfig);
+        __UUPSUpgradeable_init();
     }
 
     function addPayer(address payer) external virtual {

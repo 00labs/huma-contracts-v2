@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {Errors} from "./Errors.sol";
 import {PoolConfig, LPConfig} from "./PoolConfig.sol";
 import {PoolConfigCache} from "./PoolConfigCache.sol";
@@ -19,7 +18,6 @@ contract TrancheVault is
     ERC20Upgradeable,
     PoolConfigCache,
     TrancheVaultStorage,
-    UUPSUpgradeable,
     IEpoch
 {
     bytes32 public constant LENDER_ROLE = keccak256("LENDER");
@@ -506,9 +504,5 @@ contract TrancheVault is
 
     function _onlyLender(address account) internal view {
         if (!hasRole(LENDER_ROLE, account)) revert Errors.permissionDeniedNotLender();
-    }
-
-    function _authorizeUpgrade(address) internal view override {
-        poolConfig.onlyHumaMasterAdmin(msg.sender);
     }
 }

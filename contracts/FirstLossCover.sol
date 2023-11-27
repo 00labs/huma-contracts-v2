@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {Errors} from "./Errors.sol";
 import {FirstLossCoverStorage} from "./FirstLossCoverStorage.sol";
 import {PoolConfig, LPConfig, FirstLossCoverConfig} from "./PoolConfig.sol";
@@ -23,7 +22,6 @@ contract FirstLossCover is
     ERC20Upgradeable,
     PoolConfigCache,
     FirstLossCoverStorage,
-    UUPSUpgradeable,
     IFirstLossCover
 {
     uint256 private constant MAX_ALLOWED_NUM_PROVIDERS = 100;
@@ -346,9 +344,5 @@ contract FirstLossCover is
 
     function _onlyPoolFeeManager(address account) internal view {
         if (account != poolConfig.poolFeeManager()) revert Errors.notAuthorizedCaller();
-    }
-
-    function _authorizeUpgrade(address) internal view override {
-        poolConfig.onlyHumaMasterAdmin(msg.sender);
     }
 }
