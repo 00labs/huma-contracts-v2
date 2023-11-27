@@ -75,7 +75,6 @@ contract Receivable is
     function initialize(address humaConfigAddress) public initializer {
         if (humaConfigAddress == address(0)) revert Errors.zeroAddressProvided();
         humaConfig = HumaConfig(humaConfigAddress);
-        // todo change the upgradability to be consistent with what we will use in v2
         __ERC721_init("Receivable", "REC");
         __ERC721Enumerable_init();
         __ERC721URIStorage_init();
