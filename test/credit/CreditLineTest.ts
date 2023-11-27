@@ -2336,12 +2336,12 @@ describe("CreditLine Test", function () {
                     `nextDueAfter ${nextDueAfter}`,
                     `remainingPastDue ${remainingPastDue}`,
                     `remainingUnbilledPrincipal ${remainingUnbilledPrincipal}`,
-                    `principalDuePaid ${principalDuePaid}`,
                     `yieldDuePaid ${yieldDuePaid}`,
+                    `principalDuePaid ${principalDuePaid}`,
                     `unbilledPrincipalPaid ${unbilledPrincipalPaid}`,
-                    `principalPastDuePaid ${principalPastDuePaid}`,
                     `yieldPastDuePaid ${yieldPastDuePaid}`,
                     `lateFeePaid ${lateFeePaid}`,
+                    `principalPastDuePaid ${principalPastDuePaid}`,
                 );
                 if (paymentAmountUsed.gt(ethers.constants.Zero)) {
                     let poolDistributionEventName = "";
@@ -2361,16 +2361,12 @@ describe("CreditLine Test", function () {
                             .withArgs(
                                 await borrower.getAddress(),
                                 paymentAmountUsed,
-                                newDueDate,
-                                nextDueAfter,
-                                remainingPastDue,
-                                remainingUnbilledPrincipal,
-                                principalDuePaid,
                                 yieldDuePaid,
+                                principalDuePaid,
                                 unbilledPrincipalPaid,
-                                principalPastDuePaid,
                                 yieldPastDuePaid,
                                 lateFeePaid,
+                                principalPastDuePaid,
                                 await borrower.getAddress(),
                             )
                             .to.emit(poolContract, poolDistributionEventName);
@@ -2384,16 +2380,12 @@ describe("CreditLine Test", function () {
                             .withArgs(
                                 await borrower.getAddress(),
                                 paymentAmountUsed,
-                                newDueDate,
-                                nextDueAfter,
-                                remainingPastDue,
-                                remainingUnbilledPrincipal,
-                                principalDuePaid,
                                 yieldDuePaid,
+                                principalDuePaid,
                                 unbilledPrincipalPaid,
-                                principalPastDuePaid,
                                 yieldPastDuePaid,
                                 lateFeePaid,
+                                principalPastDuePaid,
                                 await borrower.getAddress(),
                             );
                     }

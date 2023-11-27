@@ -136,32 +136,24 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
      * @notice A payment has been made against the credit line
      * @param borrower the address of the borrower
      * @param amount the payback amount
-     * @param nextDueDate the due date of the next payment
-     * @param nextDue the amount due on the next payment of the credit line
-     * @param totalPastDue the sum of lateFee + pastDue. See CreditStructs.DueDetail for more info
-     * @param unbilledPrincipal the unbilled principal on the credit line after processing the payment
-     * @param principalDuePaid the amount of this payment applied to principal due in the current billing cycle
      * @param yieldDuePaid the amount of this payment applied to yield due in the current billing cycle
+     * @param principalDuePaid the amount of this payment applied to principal due in the current billing cycle
      * @param unbilledPrincipalPaid the amount of this payment applied to unbilled principal
-     * @param principalPastDuePaid the amount of this payment applied to principal past due
      * @param yieldPastDuePaid the amount of this payment applied to yield past due
      * @param lateFeePaid the amount of this payment applied to late fee
+     * @param principalPastDuePaid the amount of this payment applied to principal past due
      * @param by the address that has triggered the process of marking the payment made.
      * In most cases, it is the borrower. In receivable factoring, it is PDSServiceAccount.
      */
     event PaymentMade(
         address indexed borrower,
         uint256 amount,
-        uint256 nextDueDate,
-        uint256 nextDue,
-        uint256 totalPastDue,
-        uint256 unbilledPrincipal,
-        uint256 principalDuePaid,
         uint256 yieldDuePaid,
+        uint256 principalDuePaid,
         uint256 unbilledPrincipalPaid,
-        uint256 principalPastDuePaid,
         uint256 yieldPastDuePaid,
         uint256 lateFeePaid,
+        uint256 principalPastDuePaid,
         address by
     );
     /**
@@ -187,7 +179,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         address by
     );
 
-    struct AmountPaid {
+    struct PaymentRecord {
         uint256 principalDuePaid;
         uint256 yieldDuePaid;
         uint256 unbilledPrincipalPaid;
@@ -498,15 +490,15 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
 
         uint256 payoffAmount = _feeManager.getPayoffAmount(cr);
         uint256 amountToCollect = amount < payoffAmount ? amount : payoffAmount;
-        AmountPaid memory amountPaid;
+        PaymentRecord memory paymentRecord;
 
         if (amount < payoffAmount) {
             // Apply the payment to past due first.
             if (cr.totalPastDue > 0) {
                 if (amount >= cr.totalPastDue) {
-                    amountPaid.yieldPastDuePaid = dd.yieldPastDue;
-                    amountPaid.principalPastDuePaid = dd.principalPastDue;
-                    amountPaid.lateFeePaid = dd.lateFee;
+                    paymentRecord.yieldPastDuePaid = dd.yieldPastDue;
+                    paymentRecord.principalPastDuePaid = dd.principalPastDue;
+                    paymentRecord.lateFeePaid = dd.lateFee;
                     amount -= cr.totalPastDue;
                     dd.lateFee = 0;
                     dd.yieldPastDue = 0;
@@ -517,20 +509,20 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
                     // apply the payment to the yield past due, followed by principal past due,
                     // then lastly late fees.
                     if (amount > dd.yieldPastDue) {
-                        amountPaid.yieldPastDuePaid = dd.yieldPastDue;
                         amount -= dd.yieldPastDue;
+                        paymentRecord.yieldPastDuePaid = dd.yieldPastDue;
                         dd.yieldPastDue = 0;
                     } else {
-                        amountPaid.yieldPastDuePaid = amount;
+                        paymentRecord.yieldPastDuePaid = amount;
                         dd.yieldPastDue -= uint96(amount);
                         amount = 0;
                     }
                     if (amount > dd.principalPastDue) {
                         amount -= dd.principalPastDue;
-                        amountPaid.principalPastDuePaid = dd.principalPastDue;
+                        paymentRecord.principalPastDuePaid = dd.principalPastDue;
                         dd.principalPastDue = 0;
                     } else if (amount > 0) {
-                        amountPaid.principalPastDuePaid = amount;
+                        paymentRecord.principalPastDuePaid = amount;
                         dd.principalPastDue -= uint96(amount);
                         amount = 0;
                     }
@@ -538,61 +530,56 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
                     // the late fee (unless the late fee is 0, in which case the amount must be 0 as well).
                     if (amount > 0) {
                         dd.lateFee -= uint96(amount);
-                        amountPaid.lateFeePaid = amount;
+                        paymentRecord.lateFeePaid = amount;
                         amount = 0;
                     }
                     cr.totalPastDue -= uint96(
-                        amountPaid.yieldPastDuePaid +
-                            amountPaid.principalPastDuePaid +
-                            amountPaid.lateFeePaid
+                        paymentRecord.yieldPastDuePaid +
+                            paymentRecord.principalPastDuePaid +
+                            paymentRecord.lateFeePaid
                     );
                 }
-                _setDueDetail(creditHash, dd);
-                _setCreditRecord(creditHash, cr);
             }
+
             // Apply the remaining payment amount (if any) to next due.
             if (amount > 0) {
                 if (amount < cr.nextDue) {
                     // Apply the payment to yield due first, then principal due.
-                    amountPaid.yieldDuePaid = amount < cr.yieldDue ? amount : cr.yieldDue;
-                    dd.paid += uint96(amountPaid.yieldDuePaid);
-                    cr.yieldDue -= uint96(amountPaid.yieldDuePaid);
-                    amountPaid.principalDuePaid = amount - amountPaid.yieldDuePaid;
+                    paymentRecord.yieldDuePaid = amount < cr.yieldDue ? amount : cr.yieldDue;
+                    dd.paid += uint96(paymentRecord.yieldDuePaid);
+                    cr.yieldDue -= uint96(paymentRecord.yieldDuePaid);
+                    paymentRecord.principalDuePaid = amount - paymentRecord.yieldDuePaid;
                     cr.nextDue = uint96(cr.nextDue - amount);
                     amount = 0;
-
-                    _setDueDetail(creditHash, dd);
-                    _setCreditRecord(creditHash, cr);
                 } else {
                     // Apply extra payments towards principal, reduce unbilledPrincipal amount.
-                    amountPaid.principalDuePaid = cr.nextDue - cr.yieldDue;
-                    amountPaid.yieldDuePaid = cr.yieldDue;
+                    paymentRecord.principalDuePaid = cr.nextDue - cr.yieldDue;
+                    paymentRecord.yieldDuePaid = cr.yieldDue;
                     dd.paid += uint96(cr.yieldDue);
-                    amountPaid.unbilledPrincipalPaid =
+                    paymentRecord.unbilledPrincipalPaid =
                         amount -
-                        amountPaid.principalDuePaid -
-                        amountPaid.yieldDuePaid;
-                    cr.unbilledPrincipal -= uint96(amountPaid.unbilledPrincipalPaid);
-                    amount -= cr.nextDue;
+                        paymentRecord.principalDuePaid -
+                        paymentRecord.yieldDuePaid;
+                    cr.unbilledPrincipal -= uint96(paymentRecord.unbilledPrincipalPaid);
                     cr.nextDue = 0;
                     cr.yieldDue = 0;
                     cr.missedPeriods = 0;
                     dd.lateFeeUpdatedDate = 0;
                     // Moves account to GoodStanding if it was delayed.
                     if (cr.state == CreditState.Delayed) cr.state = CreditState.GoodStanding;
-
-                    _setDueDetail(creditHash, dd);
-                    _setCreditRecord(creditHash, cr);
                 }
             }
+
+            _setDueDetail(creditHash, dd);
+            _setCreditRecord(creditHash, cr);
         } else {
             // Payoff
-            amountPaid.principalDuePaid = cr.nextDue - cr.yieldDue;
-            amountPaid.yieldDuePaid = cr.yieldDue;
-            amountPaid.unbilledPrincipalPaid = cr.unbilledPrincipal;
-            amountPaid.principalPastDuePaid = dd.principalPastDue;
-            amountPaid.yieldPastDuePaid = dd.yieldPastDue;
-            amountPaid.lateFeePaid = dd.lateFee;
+            paymentRecord.principalDuePaid = cr.nextDue - cr.yieldDue;
+            paymentRecord.yieldDuePaid = cr.yieldDue;
+            paymentRecord.unbilledPrincipalPaid = cr.unbilledPrincipal;
+            paymentRecord.principalPastDuePaid = dd.principalPastDue;
+            paymentRecord.yieldPastDuePaid = dd.yieldPastDue;
+            paymentRecord.lateFeePaid = dd.lateFee;
 
             // All past due is 0.
             dd.lateFee = 0;
@@ -608,6 +595,15 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
             cr.totalPastDue = 0;
             cr.missedPeriods = 0;
 
+            if (cr.state == CreditState.Defaulted) {
+                // Clear `CreditLoss` if recovered from default.
+                // TODO(jiatu): test this when we test default.
+                CreditLoss memory cl = _getCreditLoss(creditHash);
+                cl.principalLoss = 0;
+                cl.yieldLoss = 0;
+                cl.feesLoss = 0;
+                _setCreditLoss(creditHash, cl);
+            }
             // Closes the credit line if it is in the final period
             if (cr.remainingPeriods == 0) {
                 cr.state = CreditState.Deleted;
@@ -623,9 +619,9 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
             if (oldCRState == CreditState.Defaulted) {
                 IPool(poolConfig.pool()).distributeLossRecovery(amountToCollect);
             } else {
-                uint256 profit = amountPaid.yieldPastDuePaid +
-                    amountPaid.yieldDuePaid +
-                    amountPaid.lateFeePaid;
+                uint256 profit = paymentRecord.yieldPastDuePaid +
+                    paymentRecord.yieldDuePaid +
+                    paymentRecord.lateFeePaid;
                 if (profit > 0) {
                     IPool(poolConfig.pool()).distributeProfit(profit);
                 }
@@ -634,16 +630,12 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
             emit PaymentMade(
                 borrower,
                 amountToCollect,
-                cr.nextDueDate,
-                cr.nextDue,
-                cr.totalPastDue,
-                cr.unbilledPrincipal,
-                amountPaid.principalDuePaid,
-                amountPaid.yieldDuePaid,
-                amountPaid.unbilledPrincipalPaid,
-                amountPaid.principalPastDuePaid,
-                amountPaid.yieldPastDuePaid,
-                amountPaid.lateFeePaid,
+                paymentRecord.yieldDuePaid,
+                paymentRecord.principalDuePaid,
+                paymentRecord.unbilledPrincipalPaid,
+                paymentRecord.yieldPastDuePaid,
+                paymentRecord.lateFeePaid,
+                paymentRecord.principalPastDuePaid,
                 msg.sender
             );
         }
@@ -694,7 +686,6 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         }
 
         // Adjust credit record status if needed. This happens when the next due happens to be 0.
-        CreditState oldCRState = cr.state;
         if (cr.nextDue == 0) {
             if (cr.unbilledPrincipal == 0 && cr.remainingPeriods == 0) {
                 cr.state = CreditState.Deleted;
@@ -705,9 +696,6 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         _setCreditRecord(creditHash, cr);
 
         if (amountToCollect > 0) {
-            if (oldCRState == CreditState.Defaulted) {
-                IPool(poolConfig.pool()).distributeLossRecovery(amountToCollect);
-            }
             poolSafe.deposit(msg.sender, amountToCollect);
             emit PrincipalPaymentMade(
                 borrower,
@@ -805,9 +793,9 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         feesLoss = dd.lateFee;
 
         CreditLoss memory cl = _getCreditLoss(creditHash);
-        cl.principalLoss += uint96(principalLoss);
-        cl.yieldLoss += uint96(yieldLoss);
-        cl.feesLoss += uint96(feesLoss);
+        cl.principalLoss = uint96(principalLoss);
+        cl.yieldLoss = uint96(yieldLoss);
+        cl.feesLoss = uint96(feesLoss);
         _setCreditLoss(creditHash, cl);
 
         IPool(poolConfig.pool()).distributeProfit(cl.yieldLoss + cl.feesLoss);
