@@ -19,7 +19,7 @@ import {
     PoolFeeManager,
     PoolSafe,
     Receivable,
-    ReceivableBackedCreditLine,
+    // ReceivableBackedCreditLine,
     TrancheVault,
 } from "../typechain-types";
 import { FirstLossCoverConfigStruct } from "../typechain-types/contracts/PoolConfig.sol/PoolConfig";
@@ -34,7 +34,7 @@ import {
 import { EpochInfoStruct } from "../typechain-types/contracts/interfaces/IEpoch";
 import { maxBigNumber, minBigNumber, sumBNArray, toToken } from "./TestUtils";
 
-export type CreditContractType = MockPoolCredit | CreditLine | ReceivableBackedCreditLine;
+export type CreditContractType = MockPoolCredit | CreditLine;
 export type ProtocolContracts = [EvaluationAgentNFT, HumaConfig, MockToken];
 export type PoolContracts = [
     PoolConfig,
@@ -55,7 +55,7 @@ export type PoolContracts = [
 export type TranchesPolicyContractName =
     | "FixedSeniorYieldTranchePolicy"
     | "RiskAdjustedTranchesPolicy";
-export type CreditContractName = "CreditLine" | "ReceivableBackedCreditLine" | "MockPoolCredit";
+export type CreditContractName = "CreditLine" | "MockPoolCredit";
 
 export enum PayPeriodDuration {
     Monthly,
@@ -1373,8 +1373,8 @@ async function getCreditContractFactory(creditContractName: CreditContractName) 
     switch (creditContractName) {
         case "CreditLine":
             return await ethers.getContractFactory(creditContractName);
-        case "ReceivableBackedCreditLine":
-            return await ethers.getContractFactory(creditContractName);
+        // case "ReceivableBackedCreditLine":
+        //     return await ethers.getContractFactory(creditContractName);
         case "MockPoolCredit":
             return await ethers.getContractFactory(creditContractName);
         default:
