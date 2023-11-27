@@ -19,6 +19,7 @@ import {
     PoolFeeManager,
     PoolSafe,
     Receivable,
+    ReceivableBackedCreditLine,
     TrancheVault,
 } from "../typechain-types";
 import { FirstLossCoverConfigStruct } from "../typechain-types/contracts/PoolConfig.sol/PoolConfig";
@@ -33,7 +34,7 @@ import {
 import { EpochInfoStruct } from "../typechain-types/contracts/interfaces/IEpoch";
 import { maxBigNumber, minBigNumber, sumBNArray, toToken } from "./TestUtils";
 
-export type CreditContractType = MockPoolCredit | CreditLine;
+export type CreditContractType = MockPoolCredit | CreditLine | ReceivableBackedCreditLine;
 export type ProtocolContracts = [EvaluationAgentNFT, HumaConfig, MockToken];
 export type PoolContracts = [
     PoolConfig,
@@ -54,7 +55,7 @@ export type PoolContracts = [
 export type TranchesPolicyContractName =
     | "FixedSeniorYieldTranchePolicy"
     | "RiskAdjustedTranchesPolicy";
-export type CreditContractName = "CreditLine" | "MockPoolCredit";
+export type CreditContractName = "CreditLine" | "ReceivableBackedCreditLine" | "MockPoolCredit";
 
 export enum PayPeriodDuration {
     Monthly,
@@ -882,9 +883,8 @@ export function checkCreditConfig(
     numOfPeriods: number,
     yieldInBps: number,
     revolving: boolean,
-    receivableBacked: boolean,
-    borrowerLevelCredit: boolean,
-    exclusive: boolean,
+    advanceRateInBps: number,
+    autoApproval: boolean,
 ) {
     expect(creditConfig.creditLimit).to.equal(creditLimit);
     expect(creditConfig.committedAmount).to.equal(committedAmount);
@@ -892,9 +892,8 @@ export function checkCreditConfig(
     expect(creditConfig.numOfPeriods).to.equal(numOfPeriods);
     expect(creditConfig.yieldInBps).to.equal(yieldInBps);
     expect(creditConfig.revolving).to.equal(revolving);
-    expect(creditConfig.receivableBacked).to.equal(receivableBacked);
-    expect(creditConfig.borrowerLevelCredit).to.equal(borrowerLevelCredit);
-    expect(creditConfig.exclusive).to.equal(exclusive);
+    expect(creditConfig.advanceRateInBps).to.equal(advanceRateInBps);
+    expect(creditConfig.autoApproval).to.equal(autoApproval);
 }
 
 export function checkCreditRecordsMatch(
@@ -970,8 +969,9 @@ export function checkCreditLoss(
 export function calcYieldDue(
     cc: CreditConfigStruct,
     principal: BN,
-    membershipFee: BN,
     daysPassed: number,
+    periodsPassed: number | BN,
+    membershipFee: BN,
 ): [BN, BN] {
     if (daysPassed == 0) {
         return [BN.from(0), BN.from(0)];
@@ -980,12 +980,12 @@ export function calcYieldDue(
         .mul(BN.from(cc.yieldInBps))
         .mul(daysPassed)
         .div(CONSTANTS.BP_FACTOR.mul(CONSTANTS.DAYS_IN_A_YEAR))
-        .add(membershipFee);
+        .add(membershipFee.mul(periodsPassed));
     const committed = BN.from(cc.committedAmount)
         .mul(BN.from(cc.yieldInBps))
         .mul(daysPassed)
         .div(CONSTANTS.BP_FACTOR.mul(CONSTANTS.DAYS_IN_A_YEAR))
-        .add(membershipFee);
+        .add(membershipFee.mul(periodsPassed));
     return [accrued, committed];
 }
 
@@ -999,11 +999,12 @@ export async function calcYieldDueNew(
     latePaymentGracePeriodInDays: number,
     membershipFee: BN,
 ): Promise<[BN, BN, [BN, BN]]> {
-    const latePaymentDeadline = getLatePaymentGracePeriodDeadline(
+    const nextBillRefreshDate = getNextBillRefreshDate(
         cr,
+        currentDate,
         latePaymentGracePeriodInDays,
     );
-    if (currentDate.isSameOrBefore(latePaymentDeadline)) {
+    if (currentDate.isSameOrBefore(nextBillRefreshDate)) {
         return [dd.yieldPastDue, cr.yieldDue, [dd.accrued, dd.committed]];
     }
 
@@ -1017,8 +1018,9 @@ export async function calcYieldDueNew(
         const [accruedYieldNextDue, committedYieldNextDue] = calcYieldDue(
             cc,
             principal,
-            membershipFee,
             daysUntilNextDue.toNumber(),
+            1,
+            membershipFee,
         );
         return [
             BN.from(0),
@@ -1039,18 +1041,43 @@ export async function calcYieldDueNew(
         daysUntilNextDue = await calendarContract.getDaysDiff(periodStartDate, nextDueDate);
     }
 
+    let periodsNextDue, periodsOverdue;
+    if (currentDate > maturityDate) {
+        periodsNextDue = 0;
+        periodsOverdue = await calendarContract.getNumPeriodsPassed(
+            cc.periodDuration,
+            cr.nextDueDate,
+            maturityDate.unix(),
+        );
+    } else {
+        periodsNextDue = 1;
+        const periodStartDate = await calendarContract.getStartDateOfPeriod(
+            cc.periodDuration,
+            currentDate.unix(),
+        );
+        periodsOverdue = await calendarContract.getNumPeriodsPassed(
+            cc.periodDuration,
+            cr.nextDueDate,
+            periodStartDate,
+        );
+        console.log(
+            `currentDate ${currentDate}, cr.nextDueDate ${cr.nextDueDate}, periodStartDate ${periodStartDate}, periodsOverdue ${periodsOverdue}`,
+        );
+    }
     const [accruedYieldPastDue, committedYieldPastDue] = calcYieldDue(
         cc,
         principal,
-        membershipFee,
         daysOverdue.toNumber(),
+        periodsOverdue,
+        membershipFee,
     );
     const yieldPastDue = maxBigNumber(accruedYieldPastDue, committedYieldPastDue);
     const [accruedYieldNextDue, committedYieldNextDue] = calcYieldDue(
         cc,
         principal,
-        membershipFee,
         daysUntilNextDue.toNumber(),
+        periodsNextDue,
+        membershipFee,
     );
     const yieldNextDue = maxBigNumber(accruedYieldNextDue, committedYieldNextDue);
     return [
@@ -1129,11 +1156,10 @@ export async function calcPrincipalDueNew(
     const principal = getPrincipal(cr, dd);
     if (
         currentDate.isSameOrBefore(
-            getLatePaymentGracePeriodDeadline(cr, latePaymentGracePeriodInDays),
+            getNextBillRefreshDate(cr, currentDate, latePaymentGracePeriodInDays),
         )
     ) {
-        // Return the current due info as-is if the current date is within the current billing cycle,
-        // or within the late payment grace period.
+        // Return the current due info as-is if the current date is within the bill refresh date.
         return [cr.unbilledPrincipal, dd.principalPastDue, cr.nextDue.sub(cr.yieldDue)];
     }
     if (currentDate.isAfter(maturityDate)) {
@@ -1264,6 +1290,23 @@ export async function getNextDueDate(
         : maturityDate.unix();
 }
 
+export function getNextBillRefreshDate(
+    cr: CreditRecordStructOutput,
+    currentDate: moment.Moment,
+    latePaymentGracePeriodInDays: number,
+) {
+    const latePaymentDeadline = getLatePaymentGracePeriodDeadline(
+        cr,
+        latePaymentGracePeriodInDays,
+    );
+    if (cr.state === CreditState.GoodStanding && currentDate.isBefore(latePaymentDeadline)) {
+        // If this is the first time ever that the bill has surpassed the due dat, then we don't want to refresh
+        // the bill since we want the user to focus on paying off the current due.
+        return latePaymentDeadline;
+    }
+    return moment.utc(cr.nextDueDate.toNumber() * 1000);
+}
+
 export function getLatePaymentGracePeriodDeadline(
     cr: CreditRecordStructOutput,
     latePaymentGracePeriodInDays: number,
@@ -1330,9 +1373,11 @@ async function getCreditContractFactory(creditContractName: CreditContractName) 
     switch (creditContractName) {
         case "CreditLine":
             return await ethers.getContractFactory(creditContractName);
+        case "ReceivableBackedCreditLine":
+            return await ethers.getContractFactory(creditContractName);
         case "MockPoolCredit":
             return await ethers.getContractFactory(creditContractName);
         default:
-            throw new Error("Invalid tranchesPolicyContractName");
+            throw new Error("Invalid creditContractName");
     }
 }

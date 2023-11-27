@@ -140,6 +140,8 @@ contract Calendar is ICalendar {
     }
 
     /// @inheritdoc ICalendar
+    // TODO(jiatu): there is likely an off-by-one error here when calculating num periods passed when endDate > maturity
+    // date.
     function getNumPeriodsPassed(
         PayPeriodDuration periodDuration,
         uint256 startDate,
@@ -148,7 +150,21 @@ contract Calendar is ICalendar {
         if (startDate > endDate) {
             revert Errors.startDateLaterThanEndDate();
         }
+        // TODO(jiatu): do we need to align on the beginning of the day?
+        if (startDate == endDate) {
+            return 0;
+        }
         uint256 dueDateAfterStartDate = _getStartDateOfNextPeriod(periodDuration, startDate);
+
+        // TODO It is not a good way, need to refactor this function later
+        (, , uint256 day) = DTL.timestampToDate(endDate);
+        if (day == 1) {
+            return
+                getDaysDiff(dueDateAfterStartDate, endDate) /
+                getTotalDaysInFullPeriod(periodDuration) +
+                1;
+        }
+
         if (endDate <= dueDateAfterStartDate) {
             // `numPeriodsPassed` is 1 if the current block timestamp and the last due date are
             // within the same period.

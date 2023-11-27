@@ -52,9 +52,8 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         uint256 numOfPeriods,
         uint256 yieldInBps,
         bool revolving,
-        bool receivableBacked,
-        bool borrowerLevelCredit,
-        bool exclusive
+        uint256 advanceRateInBps,
+        bool autoApproval
     );
 
     /**
@@ -170,9 +169,10 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
      * @param borrower the address of the borrower
      * @param amount the payback amount
      * @param nextDueDate the due date of the next payment
-     * @param nextDue the amount due on the next payment of the credit line
+     * @param principalDue the principal due on the credit line after processing the payment
      * @param unbilledPrincipal the unbilled principal on the credit line after processing the payment
-     * @param principalPaid the amount of this payment applied to principal
+     * @param principalDuePaid the amount of this payment applied to principal due
+     * @param unbilledPrincipalPaid the amount of this payment applied to unbilled principal
      * @param by the address that has triggered the process of marking the payment made.
      * In most cases, it is the borrower. In receivable factoring, it is PDSServiceAccount.
      */
@@ -180,9 +180,10 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         address indexed borrower,
         uint256 amount,
         uint256 nextDueDate,
-        uint256 nextDue,
+        uint256 principalDue,
         uint256 unbilledPrincipal,
-        uint256 principalPaid,
+        uint256 principalDuePaid,
+        uint256 unbilledPrincipalPaid,
         address by
     );
 
@@ -292,6 +293,8 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         cc.numOfPeriods = remainingPeriods;
         cc.yieldInBps = yieldInBps;
         cc.revolving = revolving;
+        cc.advanceRateInBps = ps.advanceRateInBps;
+        cc.autoApproval = ps.receivableAutoApproval;
         _setCreditConfig(creditHash, cc);
 
         // todo decide if this event emission should be kept or not
@@ -304,9 +307,8 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
             cc.numOfPeriods,
             cc.yieldInBps,
             cc.revolving,
-            cc.receivableBacked,
-            cc.borrowerLevelCredit,
-            cc.exclusive
+            cc.advanceRateInBps,
+            cc.autoApproval
         );
 
         // Note: Special logic. dueDate is normally used to track the next bill due.
@@ -402,6 +404,8 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
 
             // Bring the credit current and check if it is still in good standing.
             DueDetail memory dd;
+            // TODO(jiatu): check cr.state here so that we don't allow drawdown before _updateDueInfo?
+            // Otherwise we'd be preventing late fee to be refreshed with this check.
             if (block.timestamp > cr.nextDueDate) {
                 (cr, dd) = _updateDueInfo(creditHash);
                 if (cr.state != CreditState.GoodStanding)
@@ -625,7 +629,7 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
             );
         }
 
-        // amountToCollect == payoffAmount indicates payoff or not. >= is a safe practice
+        // amountToCollect == payoffAmount indicates paidoff or not. >= is a safe practice
         return (amountToCollect, amountToCollect >= payoffAmount, false);
     }
 
@@ -645,32 +649,33 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         if (amount == 0) revert Errors.zeroAmountProvided();
 
         CreditRecord memory cr = getCreditRecord(creditHash);
-        if (
-            cr.state == CreditState.Requested ||
-            cr.state == CreditState.Approved ||
-            cr.state == CreditState.Deleted
-        ) {
-            revert Errors.creditLineNotInStateForMakingPayment();
-        }
 
-        if (block.timestamp > cr.nextDueDate) {
-            (cr, ) = _updateDueInfo(creditHash);
+        (cr, ) = _updateDueInfo(creditHash);
+        if (cr.state != CreditState.GoodStanding) {
+            revert Errors.creditLineNotInStateForMakingPrincipalPayment();
         }
 
         uint256 principalDue = cr.nextDue - cr.yieldDue;
+        // Principal past due must be 0 here since we do not allow principal payment
+        // if the bill is late, hence `totalPrincipal` is just principal next due and
+        // unbilled principal.
         uint256 totalPrincipal = principalDue + cr.unbilledPrincipal;
-
         uint256 amountToCollect = amount < totalPrincipal ? amount : totalPrincipal;
 
+        // Pay principal due first, then unbilled principal.
+        uint256 principalDuePaid;
+        uint256 unbilledPrincipalPaid;
         if (amount < principalDue) {
             cr.nextDue = uint96(cr.nextDue - amount);
+            principalDuePaid = amount;
         } else {
-            // Pay all the principal due, then apply the remainder of the payment to reduce unbilled principal.
-            cr.nextDue = uint96(cr.nextDue - principalDue);
-            cr.unbilledPrincipal = uint96(cr.unbilledPrincipal - (amountToCollect - principalDue));
+            principalDuePaid = principalDue;
+            unbilledPrincipalPaid = amountToCollect - principalDuePaid;
+            cr.nextDue = uint96(cr.nextDue - principalDuePaid);
+            cr.unbilledPrincipal = uint96(cr.unbilledPrincipal - unbilledPrincipalPaid);
         }
 
-        // Adjust credit record status if needed. This happens when the yieldDue happens to be 0.
+        // Adjust credit record status if needed. This happens when the next due happens to be 0.
         if (cr.nextDue == 0) {
             if (cr.unbilledPrincipal == 0 && cr.remainingPeriods == 0) {
                 cr.state = CreditState.Deleted;
@@ -678,20 +683,25 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
             } else cr.state = CreditState.GoodStanding;
         }
 
-        assert(amountToCollect > 0);
-        poolSafe.deposit(msg.sender, amountToCollect);
-        emit PrincipalPaymentMade(
-            borrower,
-            amountToCollect,
-            cr.nextDueDate,
-            cr.nextDue,
-            cr.unbilledPrincipal,
-            amountToCollect,
-            msg.sender
-        );
+        _setCreditRecord(creditHash, cr);
 
-        // The credit is paid off if there no next due or past due.
-        return (amountToCollect, cr.nextDue == 0 && cr.totalPastDue == 0);
+        if (amountToCollect > 0) {
+            poolSafe.deposit(msg.sender, amountToCollect);
+            // TODO(jiatu): distribute loss recovery here.
+            emit PrincipalPaymentMade(
+                borrower,
+                amountToCollect,
+                cr.nextDueDate,
+                cr.nextDue - cr.yieldDue,
+                cr.unbilledPrincipal,
+                principalDuePaid,
+                unbilledPrincipalPaid,
+                msg.sender
+            );
+        }
+
+        // The credit is paid off if there is no next due or unbilled principal.
+        return (amountToCollect, cr.nextDue == 0 && cr.unbilledPrincipal == 0);
     }
 
     function _pauseCredit(bytes32 creditHash) internal {
@@ -824,21 +834,38 @@ abstract contract Credit is Initializable, PoolConfigCache, CreditStorage {
         CreditConfig memory cc = getCreditConfig(creditHash);
         uint256 maturityDate = maturityDates[creditHash];
 
+        // Do not update due info if the credit is approved but the drawdown hasn't happened yet.
+        if (cr.state == CreditState.Approved && maturityDate == 0) return (cr, dd);
+
         uint256 periodsPassed;
-        console.log("block.timestamp: %s, cr.nextDueDate: %s", block.timestamp, cr.nextDueDate);
+        // console.log("block.timestamp: %s, cr.nextDueDate: %s", block.timestamp, cr.nextDueDate);
         if (cr.nextDueDate == 0) {
             periodsPassed = 1;
         } else if (block.timestamp > cr.nextDueDate) {
-            periodsPassed = calendar.getNumPeriodsPassed(
-                cc.periodDuration,
-                cr.nextDueDate,
-                block.timestamp
-            );
+            if (cr.state == CreditState.GoodStanding) {
+                PoolSettings memory poolSettings = poolConfig.getPoolSettings();
+                if (
+                    block.timestamp >
+                    cr.nextDueDate + poolSettings.latePaymentGracePeriodInDays * SECONDS_IN_A_DAY
+                ) {
+                    periodsPassed = calendar.getNumPeriodsPassed(
+                        cc.periodDuration,
+                        cr.nextDueDate,
+                        block.timestamp
+                    );
+                }
+            } else {
+                periodsPassed = calendar.getNumPeriodsPassed(
+                    cc.periodDuration,
+                    cr.nextDueDate,
+                    block.timestamp
+                );
+            }
         }
 
         bool late;
         (cr, dd, late) = _feeManager.getDueInfo(cr, cc, dd, maturityDate);
-        console.log("periodsPassed: %s", periodsPassed);
+        // console.log("periodsPassed: %s", periodsPassed);
         if (periodsPassed > 0) {
             // Adjusts remainingPeriods. Sets remainingPeriods to 0 if the credit line has reached maturity.
             cr.remainingPeriods = cr.remainingPeriods > periodsPassed
