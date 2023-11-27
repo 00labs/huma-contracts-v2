@@ -2226,6 +2226,7 @@ describe("CreditLine Test", function () {
                 let remainingPastDue = remainingPrincipalPastDue
                     .add(remainingYieldPastDue)
                     .add(remainingLateFee);
+                console.log(`Initial remaining yield past due ${remainingYieldPastDue}`);
                 if (remainingPastDue.gt(0)) {
                     if (paymentAmount.gte(remainingPastDue)) {
                         yieldPastDuePaid = remainingYieldPastDue;
