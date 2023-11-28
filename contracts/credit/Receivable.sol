@@ -83,6 +83,17 @@ contract Receivable is
         __UUPSUpgradeable_init();
 
         _grantRole(DEFAULT_ADMIN_ROLE, humaConfig.owner());
+        _grantRole(ADMIN_ROLE, humaConfig.owner());
+    }
+
+    function addMinter(address minterAddress) external onlyRole(ADMIN_ROLE) {
+        if (minterAddress == address(0)) revert Errors.zeroAddressProvided();
+        _grantRole(MINTER_ROLE, minterAddress);
+    }
+
+    function addAdmin(address adminAddress) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (adminAddress == address(0)) revert Errors.zeroAddressProvided();
+        _grantRole(ADMIN_ROLE, adminAddress);
     }
 
     /**
