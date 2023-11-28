@@ -1,272 +1,224 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-// import {IERC721, IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-// import {BorrowerLevelCreditConfig} from "./BorrowerLevelCreditConfig.sol";
-// import {ReceivableInput} from "./CreditStructs.sol";
-// import {ReceivableBackedCreditLineStorage} from "./ReceivableBackedCreditLineStorage.sol";
-// import {CreditConfig, CreditRecord, CreditLimit, PayPeriodDuration, CreditState} from "./CreditStructs.sol";
-// import {Errors} from "../Errors.sol";
+import {IERC721, IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import {Credit} from "./Credit.sol";
+import {ReceivableInput} from "./CreditStructs.sol";
+import {CreditConfig, CreditRecord, CreditLimit, PayPeriodDuration, CreditState} from "./CreditStructs.sol";
+import {Errors} from "../Errors.sol";
+import {IReceivableBackedCreditLineManager} from "./interfaces/IReceivableBackedCreditLineManager.sol";
 
-// contract ReceivableBackedCreditLine is
-//     BorrowerLevelCreditConfig,
-//     ReceivableBackedCreditLineStorage,
-//     IERC721Receiver
-// {
-//     event ReceivableApproved(
-//         address borrower,
-//         uint256 receivableId,
-//         uint256 receivableAmount,
-//         uint256 incrementalCredit,
-//         uint256 availableCredit
-//     );
+contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
+    event PrincipalPaymentWithReceivableMade(
+        address indexed borrower,
+        uint256 indexed receivableId,
+        uint256 amount,
+        address by
+    );
 
-//     event PrincipalPaymentWithReceivableMade(
-//         address indexed borrower,
-//         uint256 indexed receivableId,
-//         uint256 amount,
-//         address by
-//     );
+    event PaymentWithReceivableMade(
+        address indexed borrower,
+        uint256 indexed receivableId,
+        uint256 amount,
+        address by
+    );
 
-//     event PaymentWithReceivableMade(
-//         address indexed borrower,
-//         uint256 indexed receivableId,
-//         uint256 amount,
-//         address by
-//     );
+    event DrawdownWithReceivableMade(
+        address indexed borrower,
+        uint256 indexed receivableId,
+        uint256 receivableAmount,
+        uint256 amount,
+        address by
+    );
 
-//     event DrawdownWithReceivableMade(
-//         address indexed borrower,
-//         uint256 indexed receivableId,
-//         uint256 receivableAmount,
-//         uint256 amount,
-//         address by
-//     );
+    /**
+     * @notice Allows the borrower to drawdown using a receivable.
+     */
+    function drawdownWithReceivable(
+        address borrower,
+        ReceivableInput memory receivableInput,
+        uint256 amount
+    ) public virtual {
+        poolConfig.onlyProtocolAndPoolOn();
+        if (msg.sender != borrower) revert Errors.notBorrower();
 
-//     /**
-//      * @notice Approves a receivable, adjusts availableCredit by applying advantce ratio
-//      * @dev Only when the protocol and pool are live.
-//      * @dev only EA service account can call this function
-//      */
-//     function approveReceivable(address borrower, ReceivableInput memory receivableInput) external {
-//         poolConfig.onlyProtocolAndPoolOn();
-//         _onlyEAServiceAccount();
+        bytes32 creditHash = getCreditHash(borrower);
+        creditManager.onlyCreditBorrower(creditHash, borrower);
 
-//         if (receivableInput.receivableAmount == 0) revert Errors.zeroAmountProvided();
-//         if (receivableInput.receivableId == 0) revert Errors.zeroReceivableIdProvided();
+        _prepareForDrawdown(
+            borrower,
+            creditHash,
+            IERC721(poolConfig.receivableAsset()),
+            receivableInput,
+            amount
+        );
+        _drawdown(borrower, creditHash, amount);
 
-//         bytes32 creditHash = getCreditHash(borrower);
-//         if (borrower != creditBorrowerMap[creditHash]) revert Errors.notBorrower();
+        emit DrawdownWithReceivableMade(
+            borrower,
+            receivableInput.receivableId,
+            receivableInput.receivableAmount,
+            amount,
+            msg.sender
+        );
+    }
 
-//         _approveReceivable(borrower, creditHash, receivableInput);
-//     }
+    /**
+     * @notice Allows the borrower to payback and label it with a receivable
+     */
+    function makePaymentWithReceivable(
+        address borrower,
+        uint256 receivableId,
+        uint256 amount
+    ) public virtual returns (uint256 amountPaid, bool paidoff) {
+        poolConfig.onlyProtocolAndPoolOn();
+        if (msg.sender != borrower) _onlyPDSServiceAccount();
 
-//     function _approveReceivable(
-//         address borrower,
-//         bytes32 creditHash,
-//         ReceivableInput memory receivableInput
-//     ) internal {
-//         uint256 incrementalCredit = getCreditConfig(creditHash).advanceRateInBps *
-//             receivableInput.receivableAmount;
-//         CreditLimit memory cl = getCreditLimit(creditHash);
-//         cl.availableCredit += uint96(incrementalCredit);
-//         _setCreditLimit(creditHash, cl);
+        bytes32 creditHash = getCreditHash(borrower);
+        creditManager.onlyCreditBorrower(creditHash, borrower);
 
-//         receivableBorrowerMap[receivableInput.receivableId] = borrower;
+        if (receivableId > 0) {
+            _prepareForPayment(borrower, IERC721(poolConfig.receivableAsset()), receivableId);
+            // todo update the receivable to indicate it is paid.
+        }
 
-//         emit ReceivableApproved(
-//             borrower,
-//             receivableInput.receivableId,
-//             receivableInput.receivableAmount,
-//             incrementalCredit,
-//             cl.availableCredit
-//         );
-//     }
+        (amountPaid, paidoff, ) = _makePayment(borrower, creditHash, amount);
 
-//     /**
-//      * @notice Allows the borrower to drawdown using a receivable.
-//      */
-//     function drawdownWithReceivable(
-//         address borrower,
-//         ReceivableInput memory receivableInput,
-//         uint256 amount
-//     ) public virtual {
-//         poolConfig.onlyProtocolAndPoolOn();
-//         if (msg.sender != borrower) revert Errors.notBorrower();
+        emit PaymentWithReceivableMade(borrower, receivableId, amount, msg.sender);
+    }
 
-//         bytes32 creditHash = getCreditHash(borrower);
-//         if (borrower != creditBorrowerMap[creditHash]) revert Errors.notBorrower();
+    /**
+     * @notice Allows the borrower to payback and label it with a receivable
+     */
+    function makePrincipalPaymentWithReceivable(
+        address borrower,
+        uint256 receivableId,
+        uint256 amount
+    ) public virtual returns (uint256 amountPaid, bool paidoff) {
+        poolConfig.onlyProtocolAndPoolOn();
+        if (msg.sender != borrower) revert Errors.notBorrower();
 
-//         _prepareForDrawdown(
-//             borrower,
-//             creditHash,
-//             IERC721(poolConfig.receivableAsset()),
-//             receivableInput,
-//             amount
-//         );
-//         _drawdown(borrower, creditHash, amount);
+        bytes32 creditHash = getCreditHash(borrower);
+        creditManager.onlyCreditBorrower(creditHash, borrower);
 
-//         emit DrawdownWithReceivableMade(
-//             borrower,
-//             receivableInput.receivableId,
-//             receivableInput.receivableAmount,
-//             amount,
-//             msg.sender
-//         );
-//     }
+        IERC721 receivableAsset = IERC721(poolConfig.receivableAsset());
+        _prepareForPayment(borrower, receivableAsset, receivableId);
 
-//     /**
-//      * @notice Allows the borrower to payback and label it with a receivable
-//      */
-//     function makePaymentWithReceivable(
-//         address borrower,
-//         uint256 receivableId,
-//         uint256 amount
-//     ) public virtual returns (uint256 amountPaid, bool paidoff) {
-//         poolConfig.onlyProtocolAndPoolOn();
-//         if (msg.sender != borrower) _onlyPDSServiceAccount();
+        (amountPaid, paidoff) = _makePrincipalPayment(borrower, creditHash, amount);
 
-//         bytes32 creditHash = getCreditHash(borrower);
-//         if (borrower != creditBorrowerMap[creditHash]) revert Errors.notBorrower();
+        emit PrincipalPaymentWithReceivableMade(borrower, receivableId, amount, msg.sender);
+    }
 
-//         if (receivableId > 0) {
-//             _prepareForPayment(borrower, IERC721(poolConfig.receivableAsset()), receivableId);
-//             // todo update the receivable to indicate it is paid.
-//         }
+    /**
+     * @notice Allows the borrower to payback and label it with a receivable
+     */
+    function makePrincipalPaymentAndDrawdownWithReceivable(
+        address borrower,
+        uint256 paymentReceivableId,
+        uint256 paymentAmount,
+        ReceivableInput memory drawdownReceivableInput,
+        uint256 drawdownAmount
+    ) public virtual returns (uint256 amountPaid, bool paidoff) {
+        poolConfig.onlyProtocolAndPoolOn();
+        if (msg.sender != borrower) revert Errors.notBorrower();
 
-//         (amountPaid, paidoff, ) = _makePayment(borrower, creditHash, amount);
+        bytes32 creditHash = getCreditHash(borrower);
+        creditManager.onlyCreditBorrower(creditHash, borrower);
+        if (getCreditRecord(creditHash).state != CreditState.GoodStanding)
+            revert Errors.creditNotInStateForDrawdown();
 
-//         emit PaymentWithReceivableMade(borrower, receivableId, amount, msg.sender);
-//     }
+        IERC721 receivableAsset = IERC721(poolConfig.receivableAsset());
+        _prepareForPayment(borrower, receivableAsset, paymentReceivableId);
+        _prepareForDrawdown(
+            borrower,
+            creditHash,
+            receivableAsset,
+            drawdownReceivableInput,
+            drawdownAmount
+        );
 
-//     /**
-//      * @notice Allows the borrower to payback and label it with a receivable
-//      */
-//     function makePrincipalPaymentWithReceivable(
-//         address borrower,
-//         uint256 receivableId,
-//         uint256 amount
-//     ) public virtual returns (uint256 amountPaid, bool paidoff) {
-//         poolConfig.onlyProtocolAndPoolOn();
-//         if (msg.sender != borrower) revert Errors.notBorrower();
+        if (paymentAmount == drawdownAmount) {
+            poolSafe.deposit(msg.sender, paymentAmount);
+            poolSafe.withdraw(borrower, paymentAmount);
+        } else if (paymentAmount > drawdownAmount) {
+            poolSafe.deposit(msg.sender, drawdownAmount);
+            poolSafe.withdraw(borrower, drawdownAmount);
 
-//         bytes32 creditHash = getCreditHash(borrower);
-//         if (borrower != creditBorrowerMap[creditHash]) revert Errors.notBorrower();
+            uint256 amount = paymentAmount - drawdownAmount;
+            (amountPaid, paidoff) = _makePrincipalPayment(borrower, creditHash, amount);
+        } else {
+            // paymentAmount < drawdownAmount
+            poolSafe.deposit(msg.sender, paymentAmount);
+            poolSafe.withdraw(borrower, paymentAmount);
+            uint256 amount = drawdownAmount - paymentAmount;
+            _drawdown(borrower, creditHash, amount);
+        }
 
-//         IERC721 receivableAsset = IERC721(poolConfig.receivableAsset());
-//         _prepareForPayment(borrower, receivableAsset, receivableId);
+        emit PrincipalPaymentWithReceivableMade(
+            borrower,
+            paymentReceivableId,
+            paymentAmount,
+            msg.sender
+        );
 
-//         (amountPaid, paidoff) = _makePrincipalPayment(borrower, creditHash, amount);
+        emit DrawdownWithReceivableMade(
+            borrower,
+            drawdownReceivableInput.receivableId,
+            drawdownReceivableInput.receivableAmount,
+            drawdownAmount,
+            msg.sender
+        );
+    }
 
-//         emit PrincipalPaymentWithReceivableMade(borrower, receivableId, amount, msg.sender);
-//     }
+    function onERC721Received(
+        address /*operator*/,
+        address /*from*/,
+        uint256 /*tokenId*/,
+        bytes calldata /*data*/
+    ) external virtual returns (bytes4) {
+        return this.onERC721Received.selector;
+    }
 
-//     /**
-//      * @notice Allows the borrower to payback and label it with a receivable
-//      */
-//     function makePrincipalPaymentAndDrawdownWithReceivable(
-//         address borrower,
-//         uint256 paymentReceivableId,
-//         uint256 paymentAmount,
-//         ReceivableInput memory drawdownReceivableInput,
-//         uint256 drawdownAmount
-//     ) public virtual returns (uint256 amountPaid, bool paidoff) {
-//         poolConfig.onlyProtocolAndPoolOn();
-//         if (msg.sender != borrower) revert Errors.notBorrower();
+    function _prepareForPayment(
+        address borrower,
+        IERC721 receivableAsset,
+        uint256 receivableId
+    ) internal view {
+        if (receivableId == 0) revert Errors.zeroReceivableIdProvided();
+        IReceivableBackedCreditLineManager(address(creditManager)).validateReceivable(
+            borrower,
+            receivableId
+        );
+        if (receivableAsset.ownerOf(receivableId) != address(this)) revert Errors.todo();
+    }
 
-//         bytes32 creditHash = getCreditHash(borrower);
-//         if (borrower != creditBorrowerMap[creditHash]) revert Errors.notBorrower();
-//         if (getCreditRecord(creditHash).state != CreditState.GoodStanding)
-//             revert Errors.creditNotInStateForDrawdown();
+    function _prepareForDrawdown(
+        address borrower,
+        bytes32 creditHash,
+        IERC721 receivableAsset,
+        ReceivableInput memory receivableInput,
+        uint256 amount
+    ) internal {
+        if (receivableInput.receivableAmount == 0) revert Errors.zeroAmountProvided();
+        if (receivableInput.receivableId == 0) revert Errors.zeroReceivableIdProvided();
+        if (amount == 0) revert Errors.zeroAmountProvided();
+        if (receivableAsset.ownerOf(receivableInput.receivableId) != borrower)
+            revert Errors.todo();
 
-//         IERC721 receivableAsset = IERC721(poolConfig.receivableAsset());
-//         _prepareForPayment(borrower, receivableAsset, paymentReceivableId);
-//         _prepareForDrawdown(
-//             borrower,
-//             creditHash,
-//             receivableAsset,
-//             drawdownReceivableInput,
-//             drawdownAmount
-//         );
+        IReceivableBackedCreditLineManager rbclManager = IReceivableBackedCreditLineManager(
+            address(creditManager)
+        );
+        if (_getCreditConfig(creditHash).autoApproval) {
+            rbclManager.approveReceivable(borrower, receivableInput);
+        } else {
+            rbclManager.validateReceivable(borrower, receivableInput.receivableId);
+        }
+        rbclManager.decreaseCreditLimit(creditHash, amount);
 
-//         if (paymentAmount == drawdownAmount) {
-//             poolSafe.deposit(msg.sender, paymentAmount);
-//             poolSafe.withdraw(borrower, paymentAmount);
-//         } else if (paymentAmount > drawdownAmount) {
-//             poolSafe.deposit(msg.sender, drawdownAmount);
-//             poolSafe.withdraw(borrower, drawdownAmount);
+        receivableAsset.safeTransferFrom(borrower, address(this), receivableInput.receivableId);
+    }
 
-//             uint256 amount = paymentAmount - drawdownAmount;
-//             (amountPaid, paidoff) = _makePrincipalPayment(borrower, creditHash, amount);
-//         } else {
-//             // paymentAmount < drawdownAmount
-//             poolSafe.deposit(msg.sender, paymentAmount);
-//             poolSafe.withdraw(borrower, paymentAmount);
-//             uint256 amount = drawdownAmount - paymentAmount;
-//             _drawdown(borrower, creditHash, amount);
-//         }
-
-//         emit PrincipalPaymentWithReceivableMade(
-//             borrower,
-//             paymentReceivableId,
-//             paymentAmount,
-//             msg.sender
-//         );
-
-//         emit DrawdownWithReceivableMade(
-//             borrower,
-//             drawdownReceivableInput.receivableId,
-//             drawdownReceivableInput.receivableAmount,
-//             drawdownAmount,
-//             msg.sender
-//         );
-//     }
-
-//     function onERC721Received(
-//         address /*operator*/,
-//         address /*from*/,
-//         uint256 /*tokenId*/,
-//         bytes calldata /*data*/
-//     ) external virtual returns (bytes4) {
-//         return this.onERC721Received.selector;
-//     }
-
-//     function _prepareForPayment(
-//         address borrower,
-//         IERC721 receivableAsset,
-//         uint256 receivableId
-//     ) internal view {
-//         if (receivableId == 0) revert Errors.zeroReceivableIdProvided();
-//         if (receivableBorrowerMap[receivableId] != borrower) revert Errors.receivableIdMismatch();
-//         if (receivableAsset.ownerOf(receivableId) != address(this)) revert Errors.todo();
-//     }
-
-//     function _prepareForDrawdown(
-//         address borrower,
-//         bytes32 creditHash,
-//         IERC721 receivableAsset,
-//         ReceivableInput memory receivableInput,
-//         uint256 amount
-//     ) internal {
-//         if (receivableInput.receivableAmount == 0) revert Errors.zeroAmountProvided();
-//         if (receivableInput.receivableId == 0) revert Errors.zeroReceivableIdProvided();
-//         if (amount == 0) revert Errors.zeroAmountProvided();
-//         if (receivableAsset.ownerOf(receivableInput.receivableId) != borrower)
-//             revert Errors.todo();
-
-//         if (getCreditConfig(creditHash).autoApproval) {
-//             _approveReceivable(borrower, creditHash, receivableInput);
-//         } else {
-//             if (receivableBorrowerMap[receivableInput.receivableId] != borrower)
-//                 revert Errors.receivableIdMismatch();
-//         }
-
-//         CreditLimit memory cl = getCreditLimit(creditHash);
-//         if (amount > cl.availableCredit) revert Errors.todo();
-
-//         cl.availableCredit -= uint96(amount);
-//         _setCreditLimit(creditHash, cl);
-
-//         receivableAsset.safeTransferFrom(borrower, address(this), receivableInput.receivableId);
-//     }
-// }
+    function getCreditHash(address borrower) internal view virtual returns (bytes32 creditHash) {
+        return keccak256(abi.encode(address(this), borrower));
+    }
+}

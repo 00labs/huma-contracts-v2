@@ -5,6 +5,7 @@ import { ethers } from "hardhat";
 import moment from "moment";
 import {
     BaseTranchesPolicy,
+    BorrowerLevelCreditManager,
     Calendar,
     CreditDueManager,
     CreditLine,
@@ -19,22 +20,30 @@ import {
     PoolFeeManager,
     PoolSafe,
     Receivable,
-    // ReceivableBackedCreditLine,
+    ReceivableBackedCreditLine,
+    ReceivableBackedCreditLineManager,
+    ReceivableLevelCreditManager,
     TrancheVault,
 } from "../typechain-types";
 import { FirstLossCoverConfigStruct } from "../typechain-types/contracts/PoolConfig.sol/PoolConfig";
 import {
-    CreditConfigStruct,
-    CreditConfigStructOutput,
     CreditRecordStruct,
     CreditRecordStructOutput,
     DueDetailStruct,
     DueDetailStructOutput,
 } from "../typechain-types/contracts/credit/Credit";
+import {
+    CreditConfigStruct,
+    CreditConfigStructOutput,
+} from "../typechain-types/contracts/credit/CreditManager";
 import { EpochInfoStruct } from "../typechain-types/contracts/interfaces/IEpoch";
 import { maxBigNumber, minBigNumber, sumBNArray, toToken } from "./TestUtils";
 
-export type CreditContractType = MockPoolCredit | CreditLine;
+export type CreditContractType = MockPoolCredit | CreditLine | ReceivableBackedCreditLine;
+export type CreditManagerContractType =
+    | BorrowerLevelCreditManager
+    | ReceivableBackedCreditLineManager
+    | ReceivableLevelCreditManager;
 export type ProtocolContracts = [EvaluationAgentNFT, HumaConfig, MockToken];
 export type PoolContracts = [
     PoolConfig,
@@ -50,12 +59,17 @@ export type PoolContracts = [
     TrancheVault,
     CreditContractType,
     CreditDueManager,
+    CreditManagerContractType,
     Receivable,
 ];
 export type TranchesPolicyContractName =
     | "FixedSeniorYieldTranchePolicy"
     | "RiskAdjustedTranchesPolicy";
-export type CreditContractName = "CreditLine" | "MockPoolCredit";
+export type CreditContractName = "CreditLine" | "ReceivableBackedCreditLine" | "MockPoolCredit";
+export type CreditManagerContractName =
+    | "BorrowerLevelCreditManager"
+    | "ReceivableBackedCreditLineManager"
+    | "ReceivableLevelCreditManager";
 
 export enum PayPeriodDuration {
     Monthly,
@@ -167,6 +181,7 @@ export async function deployPoolContracts(
     deployer: SignerWithAddress,
     poolOwner: SignerWithAddress,
     creditContractName: CreditContractName,
+    creditManagerContractName: CreditManagerContractName,
 ): Promise<PoolContracts> {
     const PoolConfig = await ethers.getContractFactory("PoolConfig");
     const poolConfigContract = await PoolConfig.deploy();
@@ -216,6 +231,10 @@ export async function deployPoolContracts(
     const creditDueManagerContract = await CreditDueManager.deploy();
     await creditDueManagerContract.deployed();
 
+    const CreditManager = await getCreditManagerContractFactory(creditManagerContractName);
+    const creditManagerContract = await CreditManager.deploy();
+    await creditManagerContract.deployed();
+
     const Receivable = await ethers.getContractFactory("Receivable");
     const receivableContract = await Receivable.deploy();
     await receivableContract.deployed();
@@ -242,6 +261,7 @@ export async function deployPoolContracts(
         juniorTrancheVaultContract.address,
         creditContract.address,
         creditDueManagerContract.address,
+        creditManagerContract.address,
     ]);
     await poolConfigContract.setFirstLossCover(
         BORROWER_FIRST_LOSS_COVER_INDEX,
@@ -304,6 +324,7 @@ export async function deployPoolContracts(
     );
     await creditContract.connect(poolOwner).initialize(poolConfigContract.address);
     await creditDueManagerContract.initialize(poolConfigContract.address);
+    await creditManagerContract.initialize(poolConfigContract.address);
 
     return [
         poolConfigContract,
@@ -319,6 +340,7 @@ export async function deployPoolContracts(
         juniorTrancheVaultContract,
         creditContract,
         creditDueManagerContract,
+        creditManagerContract,
         receivableContract,
     ];
 }
@@ -456,6 +478,7 @@ export async function deployAndSetupPoolContracts(
     deployer: SignerWithAddress,
     poolOwner: SignerWithAddress,
     creditContractName: CreditContractName,
+    creditManagerContractName: CreditManagerContractName,
     evaluationAgent: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
     poolOperator: SignerWithAddress,
@@ -475,6 +498,7 @@ export async function deployAndSetupPoolContracts(
         juniorTrancheVaultContract,
         creditContract,
         creditDueManagerContract,
+        creditManagerContract,
         receivableContract,
     ] = await deployPoolContracts(
         humaConfigContract,
@@ -483,6 +507,7 @@ export async function deployAndSetupPoolContracts(
         deployer,
         poolOwner,
         creditContractName,
+        creditManagerContractName,
     );
 
     await setupPoolContracts(
@@ -517,6 +542,7 @@ export async function deployAndSetupPoolContracts(
         juniorTrancheVaultContract,
         creditContract,
         creditDueManagerContract,
+        creditManagerContract,
         receivableContract,
     ];
 }
@@ -1373,11 +1399,30 @@ async function getCreditContractFactory(creditContractName: CreditContractName) 
     switch (creditContractName) {
         case "CreditLine":
             return await ethers.getContractFactory(creditContractName);
-        // case "ReceivableBackedCreditLine":
-        //     return await ethers.getContractFactory(creditContractName);
+        case "ReceivableBackedCreditLine":
+            return await ethers.getContractFactory(creditContractName);
         case "MockPoolCredit":
             return await ethers.getContractFactory(creditContractName);
         default:
             throw new Error("Invalid creditContractName");
+    }
+}
+
+async function getCreditManagerContractFactory(
+    creditManagerContractName: CreditManagerContractName,
+) {
+    // Note: All branches contain identical logic, which might seem unusual at first glance.
+    // This structure is intentional and solely to satisfy TypeScript's type inference.
+    // The TypeScript compiler cannot deduce the specific return types based solely on the input values,
+    // so this approach ensures correct type association for each possible input.
+    switch (creditManagerContractName) {
+        case "BorrowerLevelCreditManager":
+            return await ethers.getContractFactory(creditManagerContractName);
+        case "ReceivableBackedCreditLineManager":
+            return await ethers.getContractFactory(creditManagerContractName);
+        case "ReceivableLevelCreditManager":
+            return await ethers.getContractFactory(creditManagerContractName);
+        default:
+            throw new Error("Invalid creditManagerContractName");
     }
 }

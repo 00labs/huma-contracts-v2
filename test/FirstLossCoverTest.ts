@@ -4,6 +4,7 @@ import { expect } from "chai";
 import { BigNumber as BN } from "ethers";
 import { ethers } from "hardhat";
 import {
+    BorrowerLevelCreditManager,
     Calendar,
     CreditDueManager,
     EpochManager,
@@ -54,7 +55,8 @@ let poolConfigContract: PoolConfig,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: MockPoolCredit,
-    creditDueManagerContract: CreditDueManager;
+    creditDueManagerContract: CreditDueManager,
+    creditManagerContract: BorrowerLevelCreditManager;
 
 describe("FirstLossCover Tests", function () {
     before(async function () {
@@ -95,6 +97,7 @@ describe("FirstLossCover Tests", function () {
             juniorTrancheVaultContract,
             creditContract as unknown,
             creditDueManagerContract,
+            creditManagerContract as unknown,
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
@@ -103,6 +106,7 @@ describe("FirstLossCover Tests", function () {
             defaultDeployer,
             poolOwner,
             "MockPoolCredit",
+            "BorrowerLevelCreditManager",
             evaluationAgent,
             poolOwnerTreasury,
             poolOperator,
@@ -167,6 +171,7 @@ describe("FirstLossCover Tests", function () {
                 juniorTrancheVaultContract.address,
                 creditContract.address,
                 creditDueManagerContract.address,
+                creditManagerContract.address,
             ]);
             await newPoolConfigContract.setFirstLossCover(
                 CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,

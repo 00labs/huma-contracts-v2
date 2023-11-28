@@ -120,6 +120,7 @@ describe("Pool Test", function () {
                 defaultDeployer,
                 poolOwner,
                 "MockPoolCredit",
+                "BorrowerLevelCreditManager",
             );
 
             // Set up first loss cover requirements.
@@ -303,6 +304,7 @@ describe("Pool Test", function () {
                 defaultDeployer,
                 poolOwner,
                 "MockPoolCredit",
+                "BorrowerLevelCreditManager",
                 evaluationAgent,
                 poolOwnerTreasury,
                 poolOperator,
