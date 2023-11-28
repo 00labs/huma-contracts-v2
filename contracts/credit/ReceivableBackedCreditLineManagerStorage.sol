@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-contract ReceivableBackedCreditLineStorage {
+import {CreditLimit} from "./CreditStructs.sol";
+
+contract ReceivableBackedCreditLineManagerStorage {
+    /// mapping from credit hash to the CreditLimit
+    mapping(bytes32 => CreditLimit) internal _creditLimitMap;
+
     // Map tokenId to borrower
     mapping(uint256 => address) public receivableBorrowerMap;
 

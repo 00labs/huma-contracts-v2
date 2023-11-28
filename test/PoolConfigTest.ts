@@ -4,6 +4,7 @@ import { expect } from "chai";
 import { BigNumber as BN } from "ethers";
 import { ethers } from "hardhat";
 import {
+    BorrowerLevelCreditManager,
     Calendar,
     CreditDueManager,
     EpochManager,
@@ -65,7 +66,8 @@ let poolConfigContract: PoolConfig,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: MockPoolCredit,
-    creditDueManagerContract: CreditDueManager;
+    creditDueManagerContract: CreditDueManager,
+    creditManagerContract: BorrowerLevelCreditManager;
 
 describe("PoolConfig Tests", function () {
     before(async function () {
@@ -144,6 +146,10 @@ describe("PoolConfig Tests", function () {
             const CreditDueManager = await ethers.getContractFactory("CreditDueManager");
             creditDueManagerContract = await CreditDueManager.deploy();
             await creditDueManagerContract.deployed();
+
+            const CreditManager = await ethers.getContractFactory("BorrowerLevelCreditManager");
+            creditManagerContract = await CreditManager.deploy();
+            await creditManagerContract.deployed();
         }
 
         beforeEach(async function () {
@@ -166,6 +172,7 @@ describe("PoolConfig Tests", function () {
                     juniorTrancheVaultContract.address,
                     creditContract.address,
                     creditDueManagerContract.address,
+                    creditManagerContract.address,
                 ]);
 
             const poolSettings = await poolConfigContract.getPoolSettings();
@@ -202,6 +209,7 @@ describe("PoolConfig Tests", function () {
                         juniorTrancheVaultContract.address,
                         creditContract.address,
                         creditDueManagerContract.address,
+                        creditManagerContract.address,
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "notPoolOwner");
         });
@@ -223,6 +231,7 @@ describe("PoolConfig Tests", function () {
                         juniorTrancheVaultContract.address,
                         creditContract.address,
                         creditDueManagerContract.address,
+                        creditManagerContract.address,
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
@@ -247,6 +256,7 @@ describe("PoolConfig Tests", function () {
                         juniorTrancheVaultContract.address,
                         creditContract.address,
                         creditDueManagerContract.address,
+                        creditManagerContract.address,
                     ]),
             ).to.be.revertedWithCustomError(
                 poolConfigContract,
@@ -271,6 +281,7 @@ describe("PoolConfig Tests", function () {
                         juniorTrancheVaultContract.address,
                         creditContract.address,
                         creditDueManagerContract.address,
+                        creditManagerContract.address,
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
@@ -292,6 +303,7 @@ describe("PoolConfig Tests", function () {
                         juniorTrancheVaultContract.address,
                         creditContract.address,
                         creditDueManagerContract.address,
+                        creditManagerContract.address,
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
@@ -313,6 +325,7 @@ describe("PoolConfig Tests", function () {
                         juniorTrancheVaultContract.address,
                         creditContract.address,
                         creditDueManagerContract.address,
+                        creditManagerContract.address,
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
@@ -335,6 +348,7 @@ describe("PoolConfig Tests", function () {
                         juniorTrancheVaultContract.address,
                         creditContract.address,
                         creditDueManagerContract.address,
+                        creditManagerContract.address,
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
@@ -356,6 +370,7 @@ describe("PoolConfig Tests", function () {
                         juniorTrancheVaultContract.address,
                         creditContract.address,
                         creditDueManagerContract.address,
+                        creditManagerContract.address,
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
@@ -377,6 +392,7 @@ describe("PoolConfig Tests", function () {
                         juniorTrancheVaultContract.address,
                         creditContract.address,
                         creditDueManagerContract.address,
+                        creditManagerContract.address,
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
@@ -398,6 +414,7 @@ describe("PoolConfig Tests", function () {
                         juniorTrancheVaultContract.address,
                         creditContract.address,
                         creditDueManagerContract.address,
+                        creditManagerContract.address,
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
@@ -419,6 +436,7 @@ describe("PoolConfig Tests", function () {
                         juniorTrancheVaultContract.address,
                         creditContract.address,
                         creditDueManagerContract.address,
+                        creditManagerContract.address,
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
@@ -440,6 +458,7 @@ describe("PoolConfig Tests", function () {
                         ethers.constants.AddressZero,
                         creditContract.address,
                         creditDueManagerContract.address,
+                        creditManagerContract.address,
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
@@ -461,6 +480,7 @@ describe("PoolConfig Tests", function () {
                         juniorTrancheVaultContract.address,
                         ethers.constants.AddressZero,
                         creditDueManagerContract.address,
+                        creditManagerContract.address,
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
@@ -482,6 +502,29 @@ describe("PoolConfig Tests", function () {
                         juniorTrancheVaultContract.address,
                         creditContract.address,
                         ethers.constants.AddressZero,
+                        creditManagerContract.address,
+                    ]),
+            ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
+        });
+
+        it("Should reject zero address for creditManager", async function () {
+            await expect(
+                poolConfigContract
+                    .connect(poolOwner)
+                    .initialize("Base Credit Pool", [
+                        humaConfigContract.address,
+                        mockTokenContract.address,
+                        poolFeeManagerContract.address,
+                        poolSafeContract.address,
+                        calendarContract.address,
+                        tranchesPolicyContract.address,
+                        poolContract.address,
+                        epochManagerContract.address,
+                        seniorTrancheVaultContract.address,
+                        juniorTrancheVaultContract.address,
+                        creditContract.address,
+                        creditManagerContract.address,
+                        ethers.constants.AddressZero,
                     ]),
             ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
         });
@@ -502,6 +545,7 @@ describe("PoolConfig Tests", function () {
                     juniorTrancheVaultContract.address,
                     creditContract.address,
                     creditDueManagerContract.address,
+                    creditManagerContract.address,
                 ]);
             await expect(
                 poolConfigContract
@@ -555,6 +599,7 @@ describe("PoolConfig Tests", function () {
                 defaultDeployer,
                 poolOwner,
                 "MockPoolCredit",
+                "BorrowerLevelCreditManager",
                 evaluationAgent,
                 poolOwnerTreasury,
                 poolOperator,
