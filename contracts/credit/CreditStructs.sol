@@ -126,3 +126,10 @@ struct ReceivableInput {
     uint96 receivableAmount;
     uint64 receivableId;
 }
+
+enum CreditLineClosureReason {
+    Paidoff,
+    CreditLimitChangedToBeZero,
+    OverwrittenByNewLine,
+    AdminClosure
+}

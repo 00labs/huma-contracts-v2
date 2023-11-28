@@ -122,6 +122,7 @@ describe("CreditDueManager Tests", function () {
             defaultDeployer,
             poolOwner,
             "MockPoolCredit",
+            "BorrowerLevelCreditManager",
             evaluationAgent,
             poolOwnerTreasury,
             poolOperator,
