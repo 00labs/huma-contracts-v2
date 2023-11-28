@@ -9,6 +9,7 @@ import "forge-std/console.sol";
 import "forge-std/Vm.sol";
 
 contract ReceivableHandler is Test {
+    HumaConfig public humaConfig;
     Receivable public receivable;
     uint256 public receivableCount = 0;
 
