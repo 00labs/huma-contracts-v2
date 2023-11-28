@@ -59,6 +59,7 @@ contract SuperfluidProcessor is PoolConfigCache, SuperAppBase, SuperfluidProcess
         uint16 remainingPeriods,
         uint16 yieldInBps,
         uint96 committedAmount,
+        uint64 designatedStartDate,
         SFReceivableInfo memory sfReceivableInfo
     ) external {
         _onlyEAServiceAccount();
@@ -84,7 +85,8 @@ contract SuperfluidProcessor is PoolConfigCache, SuperAppBase, SuperfluidProcess
             creditLimit,
             remainingPeriods,
             yieldInBps,
-            committedAmount
+            committedAmount,
+            designatedStartDate
         );
 
         bytes32 key = keccak256(

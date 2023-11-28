@@ -62,7 +62,10 @@ contract Errors {
     error closeTooSoon(); // 0xa38d0553
 
     // credit operation
-    error creditExpiredDueToFirstDrawdownTooLate(); // 0x9fac7390
+    error creditHasNoCommitment(); // 0xca0cc99a
+    error creditWithoutCommitmentShouldHaveNoDesignatedStartDate(); // 0x92b2c29f
+    error designatedStartDateInThePast(); // 0xf77f5ddf
+    error committedCreditCannotBeStarted(); // 0x71a215ed
     error creditExpiredDueToMaturity(); // 0xa52f3c3f
     error creditLineNotInGoodStandingState(); // 0x96e79474
     error creditLineNotInStateForMakingPayment(); // 0xf023e48b
@@ -71,8 +74,8 @@ contract Errors {
     error creditLineExceeded(); // 0xef7d66ff
     error creditLineAlreadyExists(); // 0x6c5805f2
     error creditLineGreatThanUpperLimit(); // 0xd8c27d2f
+    error firstDrawdownTooSoon(); // 0x313ba6e8
     error greaterThanMaxCreditLine(); // 0x8a754ae8
-    error requestedCreditWithZeroDuration(); // 0xb16dd34d
     error onlyBorrowerOrEACanReduceCreditLine(); // 0xd61dbe31
     error creditLineNotInApprovedState(); // 0xfc91a989
     error paymentIdNotUnderReview(); // 0xd1696aaa

@@ -227,8 +227,8 @@ describe("CreditLine Test", function () {
         await loadFixture(prepare);
     });
 
-    describe("Approve Tests", function () {
-        it("Should not approve while protocol is paused or pool is not on", async function () {
+    describe("approveBorrower", function () {
+        it("Should not approve when the protocol is paused or pool is not on", async function () {
             await humaConfigContract.connect(protocolOwner).pause();
             await expect(
                 creditContract
@@ -239,6 +239,7 @@ describe("CreditLine Test", function () {
                         1,
                         1217,
                         toToken(10_000),
+                        0,
                         true,
                     ),
             ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
@@ -254,6 +255,7 @@ describe("CreditLine Test", function () {
                         1,
                         1217,
                         toToken(10_000),
+                        0,
                         true,
                     ),
             ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
@@ -267,6 +269,7 @@ describe("CreditLine Test", function () {
                     1,
                     1217,
                     toToken(10_000),
+                    0,
                     true,
                 ),
             ).to.be.revertedWithCustomError(
@@ -285,6 +288,7 @@ describe("CreditLine Test", function () {
                         1,
                         1217,
                         toToken(10_000),
+                        0,
                         true,
                     ),
             ).to.be.revertedWithCustomError(creditContract, "zeroAddressProvided");
@@ -292,7 +296,15 @@ describe("CreditLine Test", function () {
             await expect(
                 creditContract
                     .connect(eaServiceAccount)
-                    .approveBorrower(borrower.address, toToken(0), 1, 1217, toToken(10_000), true),
+                    .approveBorrower(
+                        borrower.address,
+                        toToken(0),
+                        1,
+                        1217,
+                        toToken(10_000),
+                        0,
+                        true,
+                    ),
             ).to.be.revertedWithCustomError(creditContract, "zeroAmountProvided");
 
             await expect(
@@ -304,6 +316,7 @@ describe("CreditLine Test", function () {
                         0,
                         1217,
                         toToken(10_000),
+                        0,
                         true,
                     ),
             ).to.be.revertedWithCustomError(creditContract, "zeroPayPeriods");
@@ -317,6 +330,7 @@ describe("CreditLine Test", function () {
                         1,
                         1217,
                         toToken(10_001),
+                        0,
                         true,
                     ),
             ).to.be.revertedWithCustomError(
@@ -336,6 +350,7 @@ describe("CreditLine Test", function () {
                         1,
                         1217,
                         toToken(10_000),
+                        0,
                         true,
                     ),
             ).to.be.revertedWithCustomError(creditContract, "greaterThanMaxCreditLine");
@@ -348,6 +363,7 @@ describe("CreditLine Test", function () {
                     1,
                     1217,
                     toToken(10_000),
+                    0,
                     true,
                 );
             await creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000));
@@ -360,9 +376,55 @@ describe("CreditLine Test", function () {
                         1,
                         1217,
                         toToken(10_000),
+                        0,
                         true,
                     ),
             ).to.be.revertedWithCustomError(creditContract, "creditLineNotInStateForUpdate");
+        });
+
+        it("Should not approve if the credit has no commitment but a designated start date", async function () {
+            await expect(
+                creditContract
+                    .connect(eaServiceAccount)
+                    .approveBorrower(
+                        borrower.getAddress(),
+                        toToken(10_000),
+                        1,
+                        1217,
+                        0,
+                        moment.utc().unix(),
+                        true,
+                    ),
+            ).to.be.revertedWithCustomError(
+                creditContract,
+                "creditWithoutCommitmentShouldHaveNoDesignatedStartDate",
+            );
+        });
+
+        it("Should not approve if the designated start date is in the past", async function () {
+            const nextBlockTime = await getFutureBlockTime(2);
+            await setNextBlockTimestamp(nextBlockTime);
+            const designatedStartDate = moment
+                .utc(nextBlockTime * 1000)
+                .subtract(1, "day")
+                .startOf("day");
+
+            await expect(
+                creditContract
+                    .connect(eaServiceAccount)
+                    .approveBorrower(
+                        borrower.getAddress(),
+                        toToken(10_000),
+                        1,
+                        1217,
+                        0,
+                        designatedStartDate.unix(),
+                        true,
+                    ),
+            ).to.be.revertedWithCustomError(
+                creditContract,
+                "creditWithoutCommitmentShouldHaveNoDesignatedStartDate",
+            );
         });
 
         it("Should approve a borrower correctly", async function () {
@@ -384,6 +446,7 @@ describe("CreditLine Test", function () {
                         1,
                         1217,
                         toToken(10_000),
+                        0,
                         true,
                     ),
             )
@@ -442,7 +505,7 @@ describe("CreditLine Test", function () {
         it("Should approve again after a credit is closed", async function () {
             await creditContract
                 .connect(eaServiceAccount)
-                .approveBorrower(borrower.address, toToken(10_000), 1, 1217, toToken(0), true);
+                .approveBorrower(borrower.address, toToken(10_000), 1, 1217, toToken(0), 0, true);
 
             await creditContract.connect(borrower).closeCredit(borrower.address);
 
@@ -464,6 +527,7 @@ describe("CreditLine Test", function () {
                         3,
                         1217,
                         toToken(20_000),
+                        0,
                         true,
                     ),
             )
@@ -519,17 +583,14 @@ describe("CreditLine Test", function () {
             expect(await creditContract.creditBorrowerMap(creditHash)).to.equal(borrower.address);
         });
 
-        it("Should approve with creditApprovalExpirationInDays setting", async function () {
-            const expirationInDays = 1;
-            await poolConfigContract
-                .connect(poolOwner)
-                .setCreditApprovalExpiration(expirationInDays);
-
-            let block = await getLatestBlock();
-            let nextTime = block.timestamp + 100;
-            let expiredDate =
-                getStartOfDay(nextTime) + expirationInDays * CONSTANTS.SECONDS_IN_A_DAY;
+        it("Should approve with a designated start date", async function () {
+            const block = await getLatestBlock();
+            const nextTime = block.timestamp + 100;
             await setNextBlockTimestamp(nextTime);
+            const designatedStartDate = moment
+                .utc(nextTime * 1000)
+                .add(5, "days")
+                .startOf("day");
 
             const creditHash = ethers.utils.keccak256(
                 ethers.utils.defaultAbiCoder.encode(
@@ -538,7 +599,7 @@ describe("CreditLine Test", function () {
                 ),
             );
 
-            let poolSettings = await poolConfigContract.getPoolSettings();
+            const poolSettings = await poolConfigContract.getPoolSettings();
 
             await expect(
                 creditContract
@@ -549,6 +610,7 @@ describe("CreditLine Test", function () {
                         3,
                         1217,
                         toToken(10_000),
+                        designatedStartDate.unix(),
                         true,
                     ),
             )
@@ -576,7 +638,7 @@ describe("CreditLine Test", function () {
                     true,
                 );
 
-            let creditConfig = await creditContract.getCreditConfig(creditHash);
+            const creditConfig = await creditContract.getCreditConfig(creditHash);
             checkCreditConfig(
                 creditConfig,
                 toToken(10_000),
@@ -589,11 +651,11 @@ describe("CreditLine Test", function () {
                 false,
             );
 
-            let creditRecord = await creditContract.getCreditRecord(creditHash);
+            const creditRecord = await creditContract.getCreditRecord(creditHash);
             checkCreditRecord(
                 creditRecord,
                 BN.from(0),
-                expiredDate,
+                designatedStartDate.unix(),
                 BN.from(0),
                 BN.from(0),
                 BN.from(0),
@@ -605,7 +667,264 @@ describe("CreditLine Test", function () {
         });
     });
 
-    describe("Drawdown Tests", function () {
+    describe("startCommittedCredit", function () {
+        const yieldInBps = 1317,
+            remainingPeriods = 6;
+        let committedAmount: BN;
+        let creditHash: string;
+        let nextYear: number, startDate: moment.Moment;
+
+        before(function () {
+            nextYear = moment.utc().year() + 1;
+        });
+
+        describe("If the designated start date is at the beginning of a period", function () {
+            async function prepare() {
+                committedAmount = toToken(50_000);
+                creditHash = ethers.utils.keccak256(
+                    ethers.utils.defaultAbiCoder.encode(
+                        ["address", "address"],
+                        [creditContract.address, borrower.address],
+                    ),
+                );
+
+                startDate = moment.utc({
+                    year: nextYear,
+                    month: 1,
+                    day: 1,
+                });
+                await creditContract
+                    .connect(eaServiceAccount)
+                    .approveBorrower(
+                        borrower.getAddress(),
+                        toToken(100_000),
+                        remainingPeriods,
+                        yieldInBps,
+                        committedAmount,
+                        startDate.unix(),
+                        true,
+                    );
+                await setNextBlockTimestamp(startDate.unix());
+            }
+
+            beforeEach(async function () {
+                await loadFixture(prepare);
+            });
+
+            it("Should start a credit with commitment", async function () {
+                await expect(
+                    creditContract
+                        .connect(pdsServiceAccount)
+                        .startCommittedCredit(borrower.getAddress()),
+                )
+                    .to.emit(creditContract, "CreditStarted")
+                    .withArgs(await borrower.getAddress());
+
+                const actualCR = await creditContract.getCreditRecord(creditHash);
+                const expectedYieldDue = calcYield(
+                    committedAmount,
+                    yieldInBps,
+                    CONSTANTS.DAYS_IN_A_MONTH,
+                );
+                const expectedNextDueDate = startDate.clone().add(1, "month").startOf("day");
+                const expectedCR = {
+                    unbilledPrincipal: BN.from(0),
+                    nextDueDate: expectedNextDueDate.unix(),
+                    nextDue: expectedYieldDue,
+                    yieldDue: expectedYieldDue,
+                    totalPastDue: BN.from(0),
+                    missedPeriods: 0,
+                    remainingPeriods: remainingPeriods - 1,
+                    state: CreditState.GoodStanding,
+                };
+                checkCreditRecordsMatch(actualCR, expectedCR);
+                const actualDD = await creditContract.getDueDetail(creditHash);
+                const expectedDD = genDueDetail({
+                    committed: expectedYieldDue,
+                });
+                checkDueDetailsMatch(actualDD, expectedDD);
+            });
+        });
+
+        describe("If the designated start date is in the middle of a period", function () {
+            async function prepare() {
+                committedAmount = toToken(50_000);
+                creditHash = ethers.utils.keccak256(
+                    ethers.utils.defaultAbiCoder.encode(
+                        ["address", "address"],
+                        [creditContract.address, borrower.address],
+                    ),
+                );
+
+                startDate = moment.utc({
+                    year: nextYear,
+                    month: 1,
+                    day: 12,
+                });
+                await creditContract
+                    .connect(eaServiceAccount)
+                    .approveBorrower(
+                        borrower.getAddress(),
+                        toToken(100_000),
+                        remainingPeriods,
+                        yieldInBps,
+                        committedAmount,
+                        startDate.unix(),
+                        true,
+                    );
+                await setNextBlockTimestamp(startDate.unix());
+            }
+
+            beforeEach(async function () {
+                await loadFixture(prepare);
+            });
+
+            it("Should start a credit with commitment", async function () {
+                await expect(
+                    creditContract
+                        .connect(pdsServiceAccount)
+                        .startCommittedCredit(borrower.getAddress()),
+                )
+                    .to.emit(creditContract, "CreditStarted")
+                    .withArgs(await borrower.getAddress());
+
+                const actualCR = await creditContract.getCreditRecord(creditHash);
+                const expectedYieldDue = calcYield(committedAmount, yieldInBps, 19);
+                const expectedNextDueDate = moment.utc({
+                    year: nextYear,
+                    month: 2,
+                    day: 1,
+                });
+                const expectedCR = {
+                    unbilledPrincipal: BN.from(0),
+                    nextDueDate: expectedNextDueDate.unix(),
+                    nextDue: expectedYieldDue,
+                    yieldDue: expectedYieldDue,
+                    totalPastDue: BN.from(0),
+                    missedPeriods: 0,
+                    remainingPeriods: remainingPeriods - 1,
+                    state: CreditState.GoodStanding,
+                };
+                checkCreditRecordsMatch(actualCR, expectedCR);
+                const actualDD = await creditContract.getDueDetail(creditHash);
+                const expectedDD = genDueDetail({
+                    committed: expectedYieldDue,
+                });
+                checkDueDetailsMatch(actualDD, expectedDD);
+            });
+        });
+
+        it("Should not start a credit if the protocol or pool is not on", async function () {
+            await humaConfigContract.connect(protocolOwner).pause();
+            await expect(
+                creditContract.connect(borrower).startCommittedCredit(borrower.getAddress()),
+            ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+            await humaConfigContract.connect(protocolOwner).unpause();
+
+            await poolContract.connect(poolOwner).disablePool();
+            await expect(
+                creditContract.connect(borrower).startCommittedCredit(borrower.getAddress()),
+            ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+        });
+
+        it("Should not allow non-pds service accounts to start a credit", async function () {
+            await expect(
+                creditContract.connect(borrower).startCommittedCredit(borrower.getAddress()),
+            ).to.be.revertedWithCustomError(
+                creditContract,
+                "paymentDetectionServiceAccountRequired",
+            );
+        });
+
+        it("Should not start a credit for a borrower without an approved credit", async function () {
+            await expect(
+                creditContract
+                    .connect(pdsServiceAccount)
+                    .startCommittedCredit(borrower.getAddress()),
+            ).to.be.revertedWithCustomError(creditContract, "notBorrower");
+        });
+
+        it("Should not start a credit that's in the wrong state", async function () {
+            committedAmount = toToken(50_000);
+
+            startDate = moment.utc({
+                year: nextYear,
+                month: 1,
+                day: 1,
+            });
+            await creditContract
+                .connect(eaServiceAccount)
+                .approveBorrower(
+                    borrower.getAddress(),
+                    toToken(100_000),
+                    remainingPeriods,
+                    yieldInBps,
+                    committedAmount,
+                    startDate.unix(),
+                    true,
+                );
+            const nextBlockTimestamp = startDate.clone().add(1, "day");
+            await setNextBlockTimestamp(nextBlockTimestamp.unix());
+            await creditContract
+                .connect(borrower)
+                .drawdown(borrower.getAddress(), toToken(20_000));
+            await expect(
+                creditContract
+                    .connect(pdsServiceAccount)
+                    .startCommittedCredit(borrower.getAddress()),
+            ).to.be.revertedWithCustomError(creditContract, "committedCreditCannotBeStarted");
+        });
+
+        it("Should not start a credit that does not have a designated start date", async function () {
+            committedAmount = toToken(50_000);
+            await creditContract
+                .connect(eaServiceAccount)
+                .approveBorrower(
+                    borrower.getAddress(),
+                    toToken(100_000),
+                    remainingPeriods,
+                    yieldInBps,
+                    committedAmount,
+                    0,
+                    true,
+                );
+            await expect(
+                creditContract
+                    .connect(pdsServiceAccount)
+                    .startCommittedCredit(borrower.getAddress()),
+            ).to.be.revertedWithCustomError(creditContract, "committedCreditCannotBeStarted");
+        });
+
+        it("Should not start a credit before the designated date", async function () {
+            committedAmount = toToken(50_000);
+
+            startDate = moment.utc({
+                year: nextYear,
+                month: 1,
+                day: 1,
+            });
+            await creditContract
+                .connect(eaServiceAccount)
+                .approveBorrower(
+                    borrower.getAddress(),
+                    toToken(100_000),
+                    remainingPeriods,
+                    yieldInBps,
+                    committedAmount,
+                    startDate.unix(),
+                    true,
+                );
+            const nextBlockTimestamp = startDate.clone().subtract(1, "second");
+            await setNextBlockTimestamp(nextBlockTimestamp.unix());
+            await expect(
+                creditContract
+                    .connect(pdsServiceAccount)
+                    .startCommittedCredit(borrower.getAddress()),
+            ).to.be.revertedWithCustomError(creditContract, "committedCreditCannotBeStarted");
+        });
+    });
+
+    describe("drawdown", function () {
         let yieldInBps = 1217;
         let numOfPeriods = 5;
 
@@ -619,6 +938,7 @@ describe("CreditLine Test", function () {
                         numOfPeriods,
                         yieldInBps,
                         toToken(0),
+                        0,
                         true,
                     );
             }
@@ -695,7 +1015,7 @@ describe("CreditLine Test", function () {
 
             it("Should not allow drawdown while credit state is Defaulted", async function () {});
 
-            it("Should not allow drawdown while borrowers don't meet first loss cover requirement", async function () {
+            it("Should not allow drawdown when the borrower doesn't meet the first loss cover requirement", async function () {
                 await borrowerFirstLossCoverContract
                     .connect(poolOwner)
                     .setCoverProvider(borrower.address, {
@@ -711,7 +1031,14 @@ describe("CreditLine Test", function () {
                 );
             });
 
-            it("Should not allow drawdown after credit approval expiration", async function () {
+            it("Should not allow drawdown before the designated start date", async function () {
+                const nextBlockTime = await getFutureBlockTime(2);
+                await setNextBlockTimestamp(nextBlockTime);
+                const designatedStartDate = moment
+                    .utc(nextBlockTime * 1000)
+                    .add(5, "days")
+                    .startOf("day");
+
                 await poolConfigContract.connect(poolOwner).setCreditApprovalExpiration(1);
                 await creditContract
                     .connect(eaServiceAccount)
@@ -720,24 +1047,14 @@ describe("CreditLine Test", function () {
                         toToken(100_000),
                         1,
                         1217,
-                        toToken(0),
+                        toToken(10_000),
+                        designatedStartDate.unix(),
                         true,
                     );
-                const creditHash = ethers.utils.keccak256(
-                    ethers.utils.defaultAbiCoder.encode(
-                        ["address", "address"],
-                        [creditContract.address, borrower.address],
-                    ),
-                );
-                let cr = await creditContract.getCreditRecord(creditHash);
-                await setNextBlockTimestamp(cr.nextDueDate.toNumber() + 100);
 
                 await expect(
                     creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
-                ).to.be.revertedWithCustomError(
-                    creditContract,
-                    "creditExpiredDueToFirstDrawdownTooLate",
-                );
+                ).to.be.revertedWithCustomError(creditContract, "firstDrawdownTooSoon");
             });
 
             it("Should not allow drawdown again if the credit line is non-revolving", async function () {
@@ -749,6 +1066,7 @@ describe("CreditLine Test", function () {
                         1,
                         1217,
                         toToken(0),
+                        0,
                         false,
                     );
                 await creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000));
@@ -764,7 +1082,15 @@ describe("CreditLine Test", function () {
             it("Should not allow drawdown again while credit limit is exceeded after updateDueInfo", async function () {
                 await creditContract
                     .connect(eaServiceAccount)
-                    .approveBorrower(borrower.address, toToken(10_000), 5, 1217, toToken(0), true);
+                    .approveBorrower(
+                        borrower.address,
+                        toToken(10_000),
+                        5,
+                        1217,
+                        toToken(0),
+                        0,
+                        true,
+                    );
                 await creditContract.connect(borrower).drawdown(borrower.address, toToken(9_000));
 
                 await expect(
@@ -1081,6 +1407,7 @@ describe("CreditLine Test", function () {
                         numOfPeriods,
                         yieldInBps,
                         toToken(20_000),
+                        0,
                         true,
                     );
             }
@@ -1465,6 +1792,7 @@ describe("CreditLine Test", function () {
                         numOfPeriods,
                         yieldInBps,
                         toToken(0),
+                        0,
                         true,
                     );
             }
@@ -1574,6 +1902,7 @@ describe("CreditLine Test", function () {
                         numOfPeriods,
                         yieldInBps,
                         toToken(10_000),
+                        0,
                         true,
                     );
 
@@ -1627,6 +1956,7 @@ describe("CreditLine Test", function () {
                         numOfPeriods,
                         yieldInBps,
                         committedAmount,
+                        0,
                         true,
                     );
 
@@ -1710,7 +2040,7 @@ describe("CreditLine Test", function () {
 
                 await creditContract.refreshCredit(borrower.address);
 
-                const days = 1 * CONSTANTS.SECONDS_IN_A_DAY;
+                const days = CONSTANTS.SECONDS_IN_A_DAY;
                 nextTime = nextTime + days;
                 await setNextBlockTimestamp(nextTime);
 
@@ -1872,6 +2202,7 @@ describe("CreditLine Test", function () {
                         numOfPeriods,
                         yieldInBps,
                         committedAmount,
+                        0,
                         true,
                     );
 
@@ -2098,6 +2429,7 @@ describe("CreditLine Test", function () {
                     6,
                     yieldInBps,
                     toToken(100_000),
+                    0,
                     true,
                 );
         }
@@ -5689,6 +6021,7 @@ describe("CreditLine Test", function () {
                     6,
                     yieldInBps,
                     toToken(100_000),
+                    0,
                     true,
                 );
         }
@@ -6684,6 +7017,7 @@ describe("CreditLine Test", function () {
                         1,
                         1_000,
                         toToken(0),
+                        0,
                         true,
                     );
             }
@@ -6710,6 +7044,7 @@ describe("CreditLine Test", function () {
                         1,
                         1_000,
                         toToken(0),
+                        0,
                         true,
                     );
             }

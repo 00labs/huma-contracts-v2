@@ -11,6 +11,7 @@ interface IBorrowerLevelCreditConfig {
      * @param yieldInBps expected yield expressed in basis points, 1% is 100, 100% is 10000
      * @param committedAmount the credit that the borrower has committed to use. If the used credit
      * is less than this amount, the borrower will charged yield using this amount.
+     * @param designatedStartDate The date on which the credit should be initiated, if the credit has commitment.
      * @param revolving indicates if the underlying credit line is revolving or not
      * @dev only Evaluation Agent can call
      */
@@ -20,6 +21,7 @@ interface IBorrowerLevelCreditConfig {
         uint16 remainingPeriods,
         uint16 yieldInBps,
         uint96 committedAmount,
+        uint64 designatedStartDate,
         bool revolving
     ) external;
 

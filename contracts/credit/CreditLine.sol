@@ -15,6 +15,16 @@ import "hardhat/console.sol";
  */
 contract CreditLine is BorrowerLevelCreditConfig, ICreditLine {
     /// @inheritdoc ICreditLine
+    function startCommittedCredit(address borrower) external virtual override {
+        poolConfig.onlyProtocolAndPoolOn();
+        _onlyPDSServiceAccount();
+
+        bytes32 creditHash = getCreditHash(borrower);
+        if (borrower != creditBorrowerMap[creditHash]) revert Errors.notBorrower();
+        _startCommittedCredit(borrower, creditHash);
+    }
+
+    /// @inheritdoc ICreditLine
     function drawdown(address borrower, uint256 borrowAmount) external virtual override {
         poolConfig.onlyProtocolAndPoolOn();
         if (borrower != msg.sender) revert Errors.notBorrower();

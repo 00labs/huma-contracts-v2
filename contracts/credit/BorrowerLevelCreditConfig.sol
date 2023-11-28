@@ -36,6 +36,7 @@ abstract contract BorrowerLevelCreditConfig is Credit, IBorrowerLevelCreditConfi
         uint16 remainingPeriods,
         uint16 yieldInBps,
         uint96 committedAmount,
+        uint64 designatedStartDate,
         bool revolving
     ) external virtual override {
         poolConfig.onlyProtocolAndPoolOn();
@@ -49,6 +50,7 @@ abstract contract BorrowerLevelCreditConfig is Credit, IBorrowerLevelCreditConfi
             remainingPeriods,
             yieldInBps,
             committedAmount,
+            designatedStartDate,
             revolving
         );
 
