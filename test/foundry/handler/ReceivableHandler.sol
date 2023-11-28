@@ -19,7 +19,7 @@ contract ReceivableHandler is Test {
     constructor() {
         humaConfig = new HumaConfig();
         receivable = new Receivable();
-        receivable.initialize(humaConfig.address);
+        receivable.initialize(address(humaConfig));
 
         // Minter user
         Vm.Wallet memory minter = vm.createWallet("Minter");
