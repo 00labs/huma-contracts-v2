@@ -120,11 +120,12 @@ contract PoolConfig is AccessControl, Initializable {
     address public juniorTranche;
     address public tranchesPolicy;
     address public epochManager;
-    address public credit;
     address public poolFeeManager;
     address public calendar;
 
     address public creditDueManager;
+    address public credit;
+    address public creditManager;
 
     HumaConfig public humaConfig;
 
@@ -246,6 +247,7 @@ contract PoolConfig is AccessControl, Initializable {
      *   _contracts[9]: address of juniorTranche
      *   _contracts[10]: address of credit
      *   _contracts[11]: address of creditDueManager
+     *   _contracts[12]: address of creditManager
      */
 
     function initialize(
@@ -304,6 +306,10 @@ contract PoolConfig is AccessControl, Initializable {
         addr = _contracts[11];
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         creditDueManager = addr;
+
+        addr = _contracts[12];
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        creditManager = addr;
 
         // Default values for the pool configurations. The pool owners are expected to reset
         // these values when setting up the pools. Setting these default values to avoid

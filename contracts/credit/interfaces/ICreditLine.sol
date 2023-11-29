@@ -4,15 +4,6 @@ import {CreditRecord} from "../CreditStructs.sol";
 
 interface ICreditLine {
     /**
-     * @notice Initiates a credit line with a committed amount on the designated start date.
-     * This function is intended to be used for credit lines where there is a minimum borrowing
-     * commitment. If the borrower fails to drawdown the committed amount within the set timeframe,
-     * this function activates the credit line and applies yield based on the committed amount.
-     * @param borrower Address of the borrower
-     */
-    function startCommittedCredit(address borrower) external;
-
-    /**
      * @notice allows the borrower to borrow against an approved credit line.
      * @param borrower Address of the borrower
      * @param borrowAmount the amount to borrow

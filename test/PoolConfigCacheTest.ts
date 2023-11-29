@@ -3,6 +3,7 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import {
+    BorrowerLevelCreditManager,
     Calendar,
     CreditDueManager,
     EpochManager,
@@ -46,7 +47,8 @@ let poolConfigContract: PoolConfig,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: MockPoolCredit,
-    creditDueManagerContract: CreditDueManager;
+    creditDueManagerContract: CreditDueManager,
+    creditManagerContract: BorrowerLevelCreditManager;
 
 describe("PoolConfigCache Test", function () {
     before(async function () {
@@ -87,6 +89,7 @@ describe("PoolConfigCache Test", function () {
             juniorTrancheVaultContract,
             creditContract as unknown,
             creditDueManagerContract,
+            creditManagerContract as unknown,
         ] = await deployPoolContracts(
             humaConfigContract,
             mockTokenContract,
@@ -94,6 +97,7 @@ describe("PoolConfigCache Test", function () {
             defaultDeployer,
             poolOwner,
             "MockPoolCredit",
+            "BorrowerLevelCreditManager",
         );
     }
 
@@ -147,6 +151,7 @@ describe("PoolConfigCache Test", function () {
             juniorTrancheVaultContract.address,
             creditContract.address,
             creditDueManagerContract.address,
+            creditManagerContract.address,
         ]);
 
         await expect(

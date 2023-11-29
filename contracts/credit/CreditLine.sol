@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {ICreditLine} from "./interfaces/ICreditLine.sol";
-import {BorrowerLevelCreditConfig} from "./BorrowerLevelCreditConfig.sol";
+import {Credit} from "./Credit.sol";
 import {CreditConfig, CreditRecord} from "./CreditStructs.sol";
 import {Errors} from "../Errors.sol";
 
@@ -13,17 +13,7 @@ import "hardhat/console.sol";
  * The borrower can drawdown and payback repeatedly against a pre-approved
  * credit line as long as they stay under the approved credit limit.
  */
-contract CreditLine is BorrowerLevelCreditConfig, ICreditLine {
-    /// @inheritdoc ICreditLine
-    function startCommittedCredit(address borrower) external virtual override {
-        poolConfig.onlyProtocolAndPoolOn();
-        _onlyPDSServiceAccount();
-
-        bytes32 creditHash = getCreditHash(borrower);
-        if (borrower != creditBorrowerMap[creditHash]) revert Errors.notBorrower();
-        _startCommittedCredit(borrower, creditHash);
-    }
-
+contract CreditLine is Credit, ICreditLine {
     /// @inheritdoc ICreditLine
     function drawdown(address borrower, uint256 borrowAmount) external virtual override {
         poolConfig.onlyProtocolAndPoolOn();
@@ -31,7 +21,7 @@ contract CreditLine is BorrowerLevelCreditConfig, ICreditLine {
         if (borrowAmount == 0) revert Errors.zeroAmountProvided();
 
         bytes32 creditHash = getCreditHash(borrower);
-        if (borrower != creditBorrowerMap[creditHash]) revert Errors.notBorrower();
+        creditManager.onlyCreditBorrower(creditHash, borrower);
         _drawdown(borrower, creditHash, borrowAmount);
     }
 
@@ -45,7 +35,7 @@ contract CreditLine is BorrowerLevelCreditConfig, ICreditLine {
         if (msg.sender != borrower) _onlyPDSServiceAccount();
 
         bytes32 creditHash = getCreditHash(borrower);
-        if (borrower != creditBorrowerMap[creditHash]) revert Errors.notBorrower();
+        creditManager.onlyCreditBorrower(creditHash, borrower);
 
         (amountPaid, paidoff, ) = _makePayment(borrower, creditHash, amount);
         return (amountPaid, paidoff);
@@ -62,9 +52,13 @@ contract CreditLine is BorrowerLevelCreditConfig, ICreditLine {
         if (msg.sender != borrower) _onlyPDSServiceAccount();
 
         bytes32 creditHash = getCreditHash(borrower);
-        if (borrower != creditBorrowerMap[creditHash]) revert Errors.notBorrower();
+        creditManager.onlyCreditBorrower(creditHash, borrower);
 
         (amountPaid, paidoff) = _makePrincipalPayment(borrower, creditHash, amount);
         return (amountPaid, paidoff);
+    }
+
+    function getCreditHash(address borrower) internal view virtual returns (bytes32 creditHash) {
+        return keccak256(abi.encode(address(this), borrower));
     }
 }
