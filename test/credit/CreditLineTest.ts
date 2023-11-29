@@ -770,10 +770,12 @@ describe("CreditLine Test", function () {
                 );
 
                 const nextBlockTimestamp = await getFutureBlockTime(1);
-                startDate = await calendarContract.getStartDateOfNextPeriod(
-                    PayPeriodDuration.Monthly,
-                    nextBlockTimestamp,
-                );
+                startDate = (
+                    await calendarContract.getStartDateOfNextPeriod(
+                        PayPeriodDuration.Monthly,
+                        nextBlockTimestamp,
+                    )
+                ).add(CONSTANTS.SECONDS_IN_A_DAY * 13);
                 await creditManagerContract
                     .connect(eaServiceAccount)
                     .approveBorrower(
@@ -810,6 +812,7 @@ describe("CreditLine Test", function () {
                     startDate,
                     expectedNextDueDate,
                 );
+                expect(daysPassed).to.be.lt(CONSTANTS.DAYS_IN_A_MONTH);
                 const expectedYieldDue = calcYield(
                     committedAmount,
                     yieldInBps,
