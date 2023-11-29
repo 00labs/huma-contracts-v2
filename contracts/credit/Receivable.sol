@@ -13,8 +13,6 @@ import {Errors} from "../Errors.sol";
 import {ReceivableStorage} from "./ReceivableStorage.sol";
 import {IReceivable} from "./interfaces/IReceivable.sol";
 import {ReceivableInfo, ReceivableState} from "./CreditStructs.sol";
-import {HumaConfig} from "../HumaConfig.sol";
-import "hardhat/console.sol";
 
 /**
  * @title RealWorldReceivable
@@ -32,7 +30,6 @@ contract Receivable is
     UUPSUpgradeable
 {
     using CountersUpgradeable for CountersUpgradeable.Counter;
-    HumaConfig public humaConfig;
 
     /**
      * @dev Emitted when the owner of a receivable calls the declarePayment function
@@ -72,9 +69,7 @@ contract Receivable is
     /**
      * @dev Initializer that sets the default admin and minter roles
      */
-    function initialize(address humaConfigAddress) public initializer {
-        if (humaConfigAddress == address(0)) revert Errors.zeroAddressProvided();
-        humaConfig = HumaConfig(humaConfigAddress);
+    function initialize() public initializer {
         __ERC721_init("Receivable", "REC");
         __ERC721Enumerable_init();
         __ERC721URIStorage_init();
@@ -82,8 +77,7 @@ contract Receivable is
         __AccessControl_init();
         __UUPSUpgradeable_init();
 
-        _grantRole(DEFAULT_ADMIN_ROLE, humaConfig.owner());
-        _grantRole(ADMIN_ROLE, humaConfig.owner());
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
     function addMinter(address minterAddress) external onlyRole(ADMIN_ROLE) {
