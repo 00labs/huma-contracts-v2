@@ -706,7 +706,7 @@ describe("CreditLine Test", function () {
                 await setNextBlockTimestamp(secondDrawdownDate);
                 await expect(
                     creditContract.connect(borrower).drawdown(borrower.address, borrowAmount),
-                ).to.be.revertedWithCustomError(creditContract, "creditNotInStateForDrawdown");
+                ).to.be.revertedWithCustomError(creditContract, "drawdownNotAllowedInLatePaymentGracePeriod");
             });
 
             it("Should not allow drawdown when the credit state is Delayed", async function () {
@@ -727,7 +727,7 @@ describe("CreditLine Test", function () {
 
                 await expect(
                     creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
-                ).to.be.revertedWithCustomError(creditContract, "creditNotInStateForDrawdown");
+                ).to.be.revertedWithCustomError(creditContract, "drawdownNotAllowedInLatePaymentGracePeriod");
             });
 
             // tODO(jiatu): fill this in
