@@ -202,6 +202,7 @@ async function main() {
     console.log("Addresses:");
     console.log(`Pool:            ${poolContract.address}`);
     console.log("     (note: pool is ready for junior redemption epoch processing)");
+    console.log(`Epoch manager:   ${epochManagerContract.address}`);
     console.log(`Pool config:     ${poolConfigContract.address}`);
     console.log(`Pool credit:     ${creditContract.address}`);
     console.log(`Junior tranche:  ${juniorTrancheVaultContract.address}`);
