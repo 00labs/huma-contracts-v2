@@ -4,6 +4,7 @@ import { ethers, network } from "hardhat";
 import { deployAndSetupPoolContracts, deployProtocolContracts } from "../test/BaseTest";
 import { getMinFirstLossCoverRequirement, toToken } from "../test/TestUtils";
 import {
+    BorrowerLevelCreditManager,
     Calendar,
     CreditDueManager,
     CreditLine,
@@ -55,7 +56,8 @@ let poolConfigContract: PoolConfig,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: CreditLine,
-    creditDueManagerContract: CreditDueManager;
+    creditDueManagerContract: CreditDueManager,
+    creditManagerContract: BorrowerLevelCreditManager;
 
 async function depositFirstLossCover(
     poolContract: Pool,
@@ -132,6 +134,7 @@ async function main() {
         juniorTrancheVaultContract,
         creditContract as unknown,
         creditDueManagerContract,
+        creditManagerContract as unknown,
     ] = await deployAndSetupPoolContracts(
         humaConfigContract,
         mockTokenContract,
@@ -140,6 +143,7 @@ async function main() {
         defaultDeployer,
         poolOwner,
         "CreditLine",
+        "BorrowerLevelCreditManager",
         evaluationAgent,
         poolOwnerTreasury,
         poolOperator,
@@ -166,7 +170,7 @@ async function main() {
     });
     const numOfPeriods = 5;
     const yieldInBps = 1217;
-    await creditContract
+    await creditManagerContract
         .connect(eaServiceAccount)
         .approveBorrower(
             borrowerActive.address,
