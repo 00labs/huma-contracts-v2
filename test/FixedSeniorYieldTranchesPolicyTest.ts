@@ -101,6 +101,7 @@ describe("FixedSeniorYieldTranchePolicy Test", function () {
             defaultDeployer,
             poolOwner,
             "MockPoolCredit",
+            "BorrowerLevelCreditManager",
             evaluationAgent,
             poolOwnerTreasury,
             poolOperator,

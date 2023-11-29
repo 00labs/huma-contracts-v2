@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 import {CreditRecord} from "../CreditStructs.sol";
 
-interface IBorrowerLevelCreditConfig {
+interface IBorrowerLevelCreditManager {
     /**
      * @notice Approves the credit with the terms provided.
      * @param borrower the borrower address

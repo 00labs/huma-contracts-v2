@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {IBorrowerLevelCreditConfig} from "./interfaces/IBorrowerLevelCreditConfig.sol";
-import {Credit} from "./Credit.sol";
-import {CreditConfig, CreditRecord, DueDetail, PayPeriodDuration} from "./CreditStructs.sol";
+import {IBorrowerLevelCreditManager} from "./interfaces/IBorrowerLevelCreditManager.sol";
+import {CreditManager} from "./CreditManager.sol";
+import {CreditConfig, CreditRecord, DueDetail, PayPeriodDuration, CreditLineClosureReason} from "./CreditStructs.sol";
 import {Errors} from "../Errors.sol";
 
 /**
@@ -12,9 +12,19 @@ import {Errors} from "../Errors.sol";
  * with or without backing of a collateral or receivable, but the balance is all aggregated
  * at the borrower-level. A classic example of borrower-level credit is credit line.
  */
-abstract contract BorrowerLevelCreditConfig is Credit, IBorrowerLevelCreditConfig {
+contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManager {
     //* todo standardize whether to emit events at Credit contract or this contract.
     //* todo standardize where to place access control, at Credit contract or this contract
+
+    /**
+     * @notice An existing credit line has been closed
+     * @param reasonCode the reason for the credit line closure
+     */
+    event CreditLineClosed(
+        address indexed borrower,
+        address by,
+        CreditLineClosureReason reasonCode
+    );
 
     event LateFeeWaived(address borrower, uint256 amountWaived);
 
@@ -29,7 +39,7 @@ abstract contract BorrowerLevelCreditConfig is Credit, IBorrowerLevelCreditConfi
         bool revolving
     );
 
-    /// @inheritdoc IBorrowerLevelCreditConfig
+    /// @inheritdoc IBorrowerLevelCreditManager
     function approveBorrower(
         address borrower,
         uint96 creditLimit,
@@ -64,13 +74,13 @@ abstract contract BorrowerLevelCreditConfig is Credit, IBorrowerLevelCreditConfi
         );
     }
 
-    /// @inheritdoc IBorrowerLevelCreditConfig
+    /// @inheritdoc IBorrowerLevelCreditManager
     function refreshCredit(address borrower) external virtual override {
         bytes32 creditHash = getCreditHash(borrower);
         _refreshCredit(creditHash);
     }
 
-    /// @inheritdoc IBorrowerLevelCreditConfig
+    /// @inheritdoc IBorrowerLevelCreditManager
     function triggerDefault(
         address borrower
     )
@@ -83,38 +93,40 @@ abstract contract BorrowerLevelCreditConfig is Credit, IBorrowerLevelCreditConfi
         return _triggerDefault(creditHash);
     }
 
-    /// @inheritdoc IBorrowerLevelCreditConfig
+    /// @inheritdoc IBorrowerLevelCreditManager
     /// @dev Only the borrower or EA Service account can call this function
     function closeCredit(address borrower) external virtual override {
+        if (msg.sender != borrower && msg.sender != humaConfig.eaServiceAccount())
+            revert Errors.notBorrowerOrEA();
         bytes32 creditHash = getCreditHash(borrower);
-        _onlyBorrowerOrEAServiceAccount(creditBorrowerMap[creditHash]);
+        onlyCreditBorrower(creditHash, borrower);
         _closeCredit(creditHash);
         emit CreditLineClosed(borrower, msg.sender, CreditLineClosureReason.AdminClosure);
     }
 
-    /// @inheritdoc IBorrowerLevelCreditConfig
+    /// @inheritdoc IBorrowerLevelCreditManager
     function pauseCredit(address borrower) external virtual override {
         bytes32 creditHash = getCreditHash(borrower);
         _pauseCredit(creditHash);
     }
 
-    /// @inheritdoc IBorrowerLevelCreditConfig
+    /// @inheritdoc IBorrowerLevelCreditManager
     function unpauseCredit(address borrower) external virtual override {
         bytes32 creditHash = getCreditHash(borrower);
         _unpauseCredit(creditHash);
     }
 
-    /// @inheritdoc IBorrowerLevelCreditConfig
+    /// @inheritdoc IBorrowerLevelCreditManager
     function updateYield(address borrower, uint256 yieldInBps) external virtual override {
         bytes32 creditHash = getCreditHash(borrower);
         _updateYield(creditHash, yieldInBps);
     }
 
     function getCreditHash(address borrower) internal view virtual returns (bytes32 creditHash) {
-        return keccak256(abi.encode(address(this), borrower));
+        return keccak256(abi.encode(address(credit), borrower));
     }
 
-    /// @inheritdoc IBorrowerLevelCreditConfig
+    /// @inheritdoc IBorrowerLevelCreditManager
     function extendRemainingPeriod(
         address borrower,
         uint256 numOfPeriods
@@ -124,7 +136,7 @@ abstract contract BorrowerLevelCreditConfig is Credit, IBorrowerLevelCreditConfi
         _extendRemainingPeriod(creditHash, numOfPeriods);
     }
 
-    /// @inheritdoc IBorrowerLevelCreditConfig
+    /// @inheritdoc IBorrowerLevelCreditManager
     function updateLimitAndCommitment(
         address borrower,
         uint256 creditLimit,
@@ -136,7 +148,7 @@ abstract contract BorrowerLevelCreditConfig is Credit, IBorrowerLevelCreditConfi
         _updateLimitAndCommitment(getCreditHash(borrower), creditLimit, committedAmount);
     }
 
-    /// @inheritdoc IBorrowerLevelCreditConfig
+    /// @inheritdoc IBorrowerLevelCreditManager
     function waiveLateFee(address borrower, uint256 amount) external {
         _onlyEAServiceAccount();
         uint256 amountWaived = _waiveLateFee(getCreditHash(borrower), amount);
