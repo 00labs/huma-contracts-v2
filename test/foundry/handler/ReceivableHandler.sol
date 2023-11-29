@@ -2,14 +2,12 @@
 pragma solidity ^0.8.0;
 
 import {Receivable} from "../../../contracts/credit/Receivable.sol";
-import {HumaConfig} from "../../../contracts/HumaConfig.sol";
 import {Test} from "forge-std/Test.sol";
 import {StdInvariant} from "forge-std/StdInvariant.sol";
 import "forge-std/console.sol";
 import "forge-std/Vm.sol";
 
 contract ReceivableHandler is Test {
-    HumaConfig public humaConfig;
     Receivable public receivable;
     uint256 public receivableCount = 0;
 
@@ -17,9 +15,8 @@ contract ReceivableHandler is Test {
     address internal currentActor;
 
     constructor() {
-        humaConfig = new HumaConfig();
         receivable = new Receivable();
-        receivable.initialize(address(humaConfig));
+        receivable.initialize();
 
         // Minter user
         Vm.Wallet memory minter = vm.createWallet("Minter");
