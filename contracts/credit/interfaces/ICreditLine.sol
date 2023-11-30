@@ -5,9 +5,8 @@ import {CreditRecord} from "../CreditStructs.sol";
 interface ICreditLine {
     /**
      * @notice allows the borrower to borrow against an approved credit line.
-     * @param borrower hash of the credit record
+     * @param borrower Address of the borrower
      * @param borrowAmount the amount to borrow
-     * @dev only when the protocol and pool can call this function
      * @dev Only the owner of the credit line can drawdown.
      */
     function drawdown(address borrower, uint256 borrowAmount) external;

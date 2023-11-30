@@ -46,6 +46,7 @@ contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManage
         uint16 remainingPeriods,
         uint16 yieldInBps,
         uint96 committedAmount,
+        uint64 designatedStartDate,
         bool revolving
     ) external virtual override {
         poolConfig.onlyProtocolAndPoolOn();
@@ -59,6 +60,7 @@ contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManage
             remainingPeriods,
             yieldInBps,
             committedAmount,
+            designatedStartDate,
             revolving
         );
 
@@ -72,6 +74,16 @@ contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManage
             committedAmount,
             revolving
         );
+    }
+
+    /// @inheritdoc IBorrowerLevelCreditManager
+    function startCommittedCredit(address borrower) external virtual override {
+        poolConfig.onlyProtocolAndPoolOn();
+        _onlyPDSServiceAccount();
+
+        bytes32 creditHash = getCreditHash(borrower);
+        onlyCreditBorrower(creditHash, borrower);
+        _startCommittedCredit(borrower, creditHash);
     }
 
     /// @inheritdoc IBorrowerLevelCreditManager
