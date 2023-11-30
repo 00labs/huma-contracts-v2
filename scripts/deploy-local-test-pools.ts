@@ -178,6 +178,7 @@ async function main() {
             numOfPeriods,
             yieldInBps,
             toToken(0),
+            0,
             true,
         );
     const borrowAmount = toToken(50_000);
