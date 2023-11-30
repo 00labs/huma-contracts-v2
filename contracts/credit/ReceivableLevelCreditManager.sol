@@ -34,7 +34,8 @@ contract ReceivableLevelCreditManager is CreditManager, AccessControlUpgradeable
         uint96 creditLimit,
         uint16 remainingPeriods,
         uint16 yieldInBps,
-        uint96 committedAmount
+        uint96 committedAmount,
+        uint64 designatedStartDate
     ) external virtual {
         poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
@@ -47,6 +48,7 @@ contract ReceivableLevelCreditManager is CreditManager, AccessControlUpgradeable
             remainingPeriods,
             yieldInBps,
             committedAmount,
+            designatedStartDate,
             false
         );
     }

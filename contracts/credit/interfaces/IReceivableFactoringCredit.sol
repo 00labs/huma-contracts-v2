@@ -14,7 +14,8 @@ interface IReceivableFactoringCredit {
      * @param creditLimit the credit limit of the credit line
      * @param remainingPeriods the number of periods before the credit line expires
      * @param yieldInBps expected yield expressed in basis points, 1% is 100, 100% is 10000
-     * @param committedAmount the credit that the borrower has committed to use. If the used credit
+     * @param committedAmount the credit that the borrower has committed to use. If the used credit.
+     * @param designatedStartDate The date on which the credit should be initiated, if the credit has commitment
      * is less than this amount, the borrower will charged yield using this amount.
      * @dev only Evaluation Agent can call
      */
@@ -24,7 +25,8 @@ interface IReceivableFactoringCredit {
         uint96 creditLimit,
         uint16 remainingPeriods,
         uint16 yieldInBps,
-        uint96 committedAmount
+        uint96 committedAmount,
+        uint64 designatedStartDate
     ) external;
 
     /**

@@ -4,6 +4,7 @@ import { ethers, network } from "hardhat";
 import { deployAndSetupPoolContracts, deployProtocolContracts } from "../test/BaseTest";
 import { getMinFirstLossCoverRequirement, toToken } from "../test/TestUtils";
 import {
+    BorrowerLevelCreditManager,
     Calendar,
     CreditDueManager,
     CreditLine,
@@ -55,7 +56,8 @@ let poolConfigContract: PoolConfig,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: CreditLine,
-    creditDueManagerContract: CreditDueManager;
+    creditDueManagerContract: CreditDueManager,
+    creditManagerContract: BorrowerLevelCreditManager;
 
 async function depositFirstLossCover(
     poolContract: Pool,
@@ -132,6 +134,7 @@ async function main() {
         juniorTrancheVaultContract,
         creditContract as unknown,
         creditDueManagerContract,
+        creditManagerContract as unknown,
     ] = await deployAndSetupPoolContracts(
         humaConfigContract,
         mockTokenContract,
@@ -140,6 +143,7 @@ async function main() {
         defaultDeployer,
         poolOwner,
         "CreditLine",
+        "BorrowerLevelCreditManager",
         evaluationAgent,
         poolOwnerTreasury,
         poolOperator,
@@ -166,7 +170,7 @@ async function main() {
     });
     const numOfPeriods = 5;
     const yieldInBps = 1217;
-    await creditContract
+    await creditManagerContract
         .connect(eaServiceAccount)
         .approveBorrower(
             borrowerActive.address,
@@ -174,6 +178,7 @@ async function main() {
             numOfPeriods,
             yieldInBps,
             toToken(0),
+            0,
             true,
         );
     const borrowAmount = toToken(50_000);
@@ -193,11 +198,13 @@ async function main() {
     console.log(`Junior lender: ${juniorLender.address}`);
     console.log(`Senior lender: ${seniorLender.address}`);
     console.log(`Borrower:      ${borrowerActive.address}`);
+    console.log(`PDS service:   ${pdsServiceAccount.address}`);
 
     console.log("=====================================");
     console.log("Addresses:");
     console.log(`Pool:            ${poolContract.address}`);
     console.log("     (note: pool is ready for junior redemption epoch processing)");
+    console.log(`Epoch manager:   ${epochManagerContract.address}`);
     console.log(`Pool config:     ${poolConfigContract.address}`);
     console.log(`Pool credit:     ${creditContract.address}`);
     console.log(`Junior tranche:  ${juniorTrancheVaultContract.address}`);

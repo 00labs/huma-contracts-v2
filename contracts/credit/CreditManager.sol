@@ -26,6 +26,8 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         bool autoApproval
     );
 
+    event CommittedCreditStarted(bytes32 indexed creditHash);
+
     event CreditPaused(bytes32 indexed creditHash);
 
     /**
@@ -105,6 +107,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         uint16 remainingPeriods,
         uint16 yieldInBps,
         uint96 committedAmount,
+        uint64 designatedStartDate,
         bool revolving
     ) internal virtual {
         if (borrower == address(0)) revert Errors.zeroAddressProvided();
@@ -112,6 +115,11 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         if (creditLimit == 0) revert Errors.zeroAmountProvided();
         if (remainingPeriods == 0) revert Errors.zeroPayPeriods();
         if (committedAmount > creditLimit) revert Errors.committedAmountGreaterThanCreditLimit();
+        // It doesn't make sense for a credit to have no commitment but a non-zero designated startt date.
+        if (committedAmount == 0 && designatedStartDate != 0)
+            revert Errors.creditWithoutCommitmentShouldHaveNoDesignatedStartDate();
+        if (designatedStartDate > 0 && block.timestamp > designatedStartDate)
+            revert Errors.designatedStartDateInThePast();
 
         PoolSettings memory ps = poolConfig.getPoolSettings();
         if (creditLimit > ps.maxCreditLine) {
@@ -151,18 +159,45 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         );
 
         // Note: Special logic. dueDate is normally used to track the next bill due.
-        // Before the first drawdown, it is also used to set the deadline for the first
-        // drawdown to happen, otherwise, the credit line expires.
-        if (ps.creditApprovalExpirationInDays > 0) {
-            cr.nextDueDate = uint64(
-                calendar.getStartOfToday() + ps.creditApprovalExpirationInDays * SECONDS_IN_A_DAY
-            );
-        }
+        // Before the first drawdown, it is also used to set the designated start date
+        // when the drawdown should happen.
+        // Note that a zero designated start date means the credit start date will be determined
+        // solely on first drawdown, in which case `cr.nextDueDate` should also be 0, hence
+        // the following assignment always work.
+        cr.nextDueDate = designatedStartDate;
         cr.remainingPeriods = remainingPeriods;
         cr.state = CreditState.Approved;
         credit.setCreditRecord(creditHash, cr);
 
         creditBorrowerMap[creditHash] = borrower;
+    }
+
+    /**
+     * @notice startCommittedCredit helper function.
+     * @dev Access control is done outside of this function.
+     */
+    function _startCommittedCredit(address borrower, bytes32 creditHash) internal virtual {
+        CreditConfig memory cc = getCreditConfig(creditHash);
+        CreditRecord memory cr = credit.getCreditRecord(creditHash);
+        if (
+            cr.state != CreditState.Approved ||
+            cr.nextDueDate == 0 ||
+            block.timestamp < cr.nextDueDate
+        ) {
+            // A credit with commitment cannot be started if any of the following conditions are true:
+            // 1. A credit is not yet approved, or has already begun.
+            // 2. The due date is 0, meaning the credit has no designated start date.
+            // 3. We have not yet reached the designated start date.
+            revert Errors.committedCreditCannotBeStarted();
+        }
+        credit.setMaturityDate(
+            creditHash,
+            calendar.getMaturityDate(cc.periodDuration, cc.numOfPeriods, block.timestamp)
+        );
+        DueDetail memory dd;
+        credit.updateDueInfo(creditHash);
+
+        emit CommittedCreditStarted(creditHash);
     }
 
     /**
@@ -422,5 +457,10 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
     function _onlyEAServiceAccount() internal view {
         if (msg.sender != humaConfig.eaServiceAccount())
             revert Errors.evaluationAgentServiceAccountRequired();
+    }
+
+    function _onlyPDSServiceAccount() internal view {
+        if (msg.sender != HumaConfig(humaConfig).pdsServiceAccount())
+            revert Errors.paymentDetectionServiceAccountRequired();
     }
 }
