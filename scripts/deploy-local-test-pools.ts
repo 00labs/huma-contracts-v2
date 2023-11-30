@@ -197,6 +197,7 @@ async function main() {
     console.log(`Junior lender: ${juniorLender.address}`);
     console.log(`Senior lender: ${seniorLender.address}`);
     console.log(`Borrower:      ${borrowerActive.address}`);
+    console.log(`PDS service:   ${pdsServiceAccount.address}`);
 
     console.log("=====================================");
     console.log("Addresses:");
