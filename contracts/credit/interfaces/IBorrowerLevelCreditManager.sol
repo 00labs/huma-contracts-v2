@@ -11,6 +11,7 @@ interface IBorrowerLevelCreditManager {
      * @param yieldInBps expected yield expressed in basis points, 1% is 100, 100% is 10000
      * @param committedAmount the credit that the borrower has committed to use. If the used credit
      * is less than this amount, the borrower will charged yield using this amount.
+     * @param designatedStartDate The date on which the credit should be initiated, if the credit has commitment.
      * @param revolving indicates if the underlying credit line is revolving or not
      * @dev only Evaluation Agent can call
      */
@@ -20,8 +21,18 @@ interface IBorrowerLevelCreditManager {
         uint16 remainingPeriods,
         uint16 yieldInBps,
         uint96 committedAmount,
+        uint64 designatedStartDate,
         bool revolving
     ) external;
+
+    /**
+     * @notice Initiates a credit line with a committed amount on the designated start date.
+     * This function is intended to be used for credit lines where there is a minimum borrowing
+     * commitment. If the borrower fails to drawdown the committed amount within the set timeframe,
+     * this function activates the credit line and applies yield based on the committed amount.
+     * @param borrower Address of the borrower
+     */
+    function startCommittedCredit(address borrower) external;
 
     /**
      * @notice Updates the account and brings its billing status current

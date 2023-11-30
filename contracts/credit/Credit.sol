@@ -44,6 +44,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         uint256 remainingPeriods,
         bool approved
     );
+
     /// Credit limit for an existing credit line has been changed
     event CreditLineChanged(
         address indexed borrower,
@@ -688,13 +689,13 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             revert Errors.insufficientBorrowerFirstLossCover();
 
         if (cr.state == CreditState.Approved) {
-            // After the credit approval, if the pool has credit expiration for the 1st drawdown,
-            // the borrower must complete the first drawdown before the expiration date, which
-            // is set in cr.nextDueDate in approveCredit().
-            // Note: for pools without credit expiration for first drawdown, cr.nextDueDate is 0
-            // before the first drawdown, thus the cr.nextDueDate > 0 condition in the check
-            if (cr.nextDueDate > 0 && block.timestamp > cr.nextDueDate)
-                revert Errors.creditExpiredDueToFirstDrawdownTooLate();
+            // After the credit approval, if the credit has commitment and a designated start date, then the
+            // credit will kick start on that whether the borrower has initiated the drawdown or not.
+            // The date is set in `cr.nextDueDate` in `approveCredit()`.
+            // Note: for pools designated start dates, `cr.nextDueDate` is 0
+            // before the first drawdown, thus the `cr.nextDueDate > 0` condition in the check.
+            if (cr.nextDueDate > 0 && block.timestamp < cr.nextDueDate)
+                revert Errors.firstDrawdownTooSoon();
 
             if (borrowAmount > creditLimit) revert Errors.creditLineExceeded();
         } else if (

@@ -171,6 +171,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
         const membershipFee = 0;
         const lateGracePeriodInDays = 5;
         let advanceRate: BN;
+
         async function prepareForArfTests() {
             creditHash = ethers.utils.keccak256(
                 ethers.utils.defaultAbiCoder.encode(
@@ -231,6 +232,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                     24,
                     yieldInBps,
                     borrowAmount,
+                    0,
                     true,
                 );
 

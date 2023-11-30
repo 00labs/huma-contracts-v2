@@ -4,7 +4,13 @@ import { ethers } from "hardhat";
 import moment from "moment";
 import { Calendar } from "../typechain-types";
 import { CONSTANTS, PayPeriodDuration } from "./BaseTest";
-import { getFutureBlockTime, mineNextBlockWithTimestamp, timestampToMoment } from "./TestUtils";
+import {
+    evmRevert,
+    evmSnapshot,
+    getFutureBlockTime,
+    mineNextBlockWithTimestamp,
+    timestampToMoment,
+} from "./TestUtils";
 
 let calendarContract: Calendar;
 
@@ -16,6 +22,18 @@ let calendarContract: Calendar;
 // desired date within that year.
 
 describe("Calendar Test", function () {
+    let sId: unknown;
+
+    before(async function () {
+        sId = await evmSnapshot();
+    });
+
+    after(async function () {
+        if (sId) {
+            await evmRevert(sId);
+        }
+    });
+
     async function prepare() {
         const Calendar = await ethers.getContractFactory("Calendar");
         calendarContract = await Calendar.deploy();
