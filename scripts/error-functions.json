@@ -53,6 +53,7 @@
   "creditLineNotInStateForMakingPayment()": "0xf023e48b",
   "creditLineNotInStateForMakingPrincipalPayment()": "0xb000239a",
   "creditNotInStateForDrawdown()": "0x41be5540",
+  "drawdownNotAllowedInLatePaymentGracePeriod()": "0xf1020d3b",
   "creditLineExceeded()": "0xef7d66ff",
   "creditLineAlreadyExists()": "0x6c5805f2",
   "creditLineGreatThanUpperLimit()": "0xd8c27d2f",

@@ -71,6 +71,7 @@ contract Errors {
     error creditLineNotInStateForMakingPayment(); // 0xf023e48b
     error creditLineNotInStateForMakingPrincipalPayment(); // 0xb000239a
     error creditNotInStateForDrawdown(); // 0x41be5540
+    error drawdownNotAllowedInLatePaymentGracePeriod(); // 0xf1020d3b
     error creditLineExceeded(); // 0xef7d66ff
     error creditLineAlreadyExists(); // 0x6c5805f2
     error creditLineGreatThanUpperLimit(); // 0xd8c27d2f
