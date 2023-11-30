@@ -195,9 +195,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
             calendar.getMaturityDate(cc.periodDuration, cc.numOfPeriods, block.timestamp)
         );
         DueDetail memory dd;
-        (cr, dd) = credit.updateDueInfo(creditHash);
-        credit.setCreditRecord(creditHash, cr);
-        credit.setDueDetail(creditHash, dd);
+        credit.updateDueInfo(creditHash);
 
         emit CommittedCreditStarted(creditHash);
     }
