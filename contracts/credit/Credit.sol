@@ -349,11 +349,9 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             // Disallow repeated drawdown for non-revolving credit
             if (!cc.revolving) revert Errors.attemptedDrawdownForNonrevolvingLine();
 
-            // Bring the credit current and check if it is still in good standing.
             DueDetail memory dd;
-            // TODO(jiatu): check cr.state here so that we don't allow drawdown before updateDueInfo?
-            // Otherwise we'd be preventing late fee to be refreshed with this check.
             if (block.timestamp > cr.nextDueDate) {
+                // Bring the credit current and check if it is still in good standing.
                 (cr, dd) = _updateDueInfo(creditHash);
                 if (cr.state != CreditState.GoodStanding)
                     revert Errors.creditLineNotInGoodStandingState();
@@ -365,12 +363,12 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
                 borrowAmount > (cc.creditLimit - cr.unbilledPrincipal - (cr.nextDue - cr.yieldDue))
             ) revert Errors.creditLineExceeded();
 
+            // TODO(jiatu): put additional yield and principal due calculation into CreditDueManager
             // Add the yield of new borrowAmount for the remainder of the period
             (uint256 daysPassed, uint256 totalDays) = calendar.getDaysPassedInPeriod(
                 cc.periodDuration,
                 cr.nextDueDate
             );
-
             // It's important to note that the yield calculation includes the day of the drawdown. For instance,
             // if the borrower draws down at 11:59 PM on October 30th, the yield for October 30th must be paid.
             uint256 additionalYieldAccrued = (borrowAmount *
@@ -387,9 +385,21 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
                 cr.nextDue = cr.nextDue - cr.yieldDue + dd.accrued - dd.paid;
                 cr.yieldDue = dd.accrued - dd.paid;
             }
-            // TODO process the case of principalRate > 0 ?
             cr.unbilledPrincipal = uint96(cr.unbilledPrincipal + borrowAmount);
             _setDueDetail(creditHash, dd);
+
+            uint256 principalRate = poolConfig.getMinPrincipalRateInBps();
+            if (principalRate > 0) {
+                // Record the additional principal due generated from the drawdown.
+                uint256 totalDaysInFullPeriod = calendar.getTotalDaysInFullPeriod(
+                    cc.periodDuration
+                );
+                uint256 additionalPrincipalDue = (borrowAmount *
+                    principalRate *
+                    (totalDays - daysPassed)) / (HUNDRED_PERCENT_IN_BPS * totalDays);
+                cr.unbilledPrincipal -= uint96(additionalPrincipalDue);
+                cr.nextDue += uint96(additionalPrincipalDue);
+            }
         }
         _setCreditRecord(creditHash, cr);
 
@@ -606,7 +616,6 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         if (amount == 0) revert Errors.zeroAmountProvided();
 
         CreditRecord memory cr = getCreditRecord(creditHash);
-
         (cr, ) = _updateDueInfo(creditHash);
         if (cr.state != CreditState.GoodStanding) {
             revert Errors.creditLineNotInStateForMakingPrincipalPayment();
@@ -688,8 +697,15 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
                 revert Errors.creditExpiredDueToFirstDrawdownTooLate();
 
             if (borrowAmount > creditLimit) revert Errors.creditLineExceeded();
-        } else if (cr.state != CreditState.GoodStanding) {
+        } else if (
+            cr.state != CreditState.GoodStanding
+        ) {
             revert Errors.creditNotInStateForDrawdown();
+        } else if (cr.nextDue != 0 && block.timestamp > cr.nextDueDate) {
+            // Prevent drawdown if the credit is in good standing, but has due outstanding and is currently in the
+            // late payment grace period or later. In this case, we want the borrower to pay off the due before being
+            // able to make further drawdown.
+            revert Errors.drawdownNotAllowedInLatePaymentGracePeriod();
         }
     }
 
