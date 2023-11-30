@@ -95,16 +95,6 @@ interface ICalendar {
     ) external view returns (uint256 startOfNextPeriod);
 
     /**
-     * @notice Returns the next due date relative to the current block timestamp. If the current block
-     * is within the last pay period or has surpassed the maturity date, then returns the maturity date
-     * as the next due date.
-     */
-    function getNextDueDate(
-        PayPeriodDuration periodDuration,
-        uint256 maturityDate
-    ) external view returns (uint256 nextDueDate);
-
-    /**
      * @notice Returns the maturity date, which is `numPeriods` number of periods after the given `timestamp`.
      * E.g. if the current block timestamp is 3/15, `periodDuration` is monthly and `numPeriods` is 3,
      * then this function should return the beginning of the day of 5/15. The three periods are 3/15 - 4/1, 4/1 - 5/1,

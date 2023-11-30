@@ -47,7 +47,6 @@ import {
 import {
     borrowerLevelCreditHash,
     getDate,
-    getDateAfterMonths,
     getFutureBlockTime,
     getLatestBlock,
     getMinFirstLossCoverRequirement,
@@ -1051,7 +1050,10 @@ describe("CreditLine Test", function () {
                 await setNextBlockTimestamp(secondDrawdownDate);
                 await expect(
                     creditContract.connect(borrower).drawdown(borrower.address, borrowAmount),
-                ).to.be.revertedWithCustomError(creditContract, "drawdownNotAllowedInLatePaymentGracePeriod");
+                ).to.be.revertedWithCustomError(
+                    creditContract,
+                    "drawdownNotAllowedInLatePaymentGracePeriod",
+                );
             });
 
             it("Should not allow drawdown when the credit state is Delayed", async function () {
@@ -1072,7 +1074,10 @@ describe("CreditLine Test", function () {
 
                 await expect(
                     creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
-                ).to.be.revertedWithCustomError(creditContract, "drawdownNotAllowedInLatePaymentGracePeriod");
+                ).to.be.revertedWithCustomError(
+                    creditContract,
+                    "drawdownNotAllowedInLatePaymentGracePeriod",
+                );
             });
 
             // tODO(jiatu): fill this in
@@ -1244,10 +1249,6 @@ describe("CreditLine Test", function () {
 
                 const dueDetail = await creditContract.getDueDetail(creditHash);
                 checkDueDetailsMatch(dueDetail, genDueDetail({ accrued: yieldDue }));
-
-                expect(await creditContract.getMaturityDate(creditHash)).to.equal(
-                    getDateAfterMonths(startOfDay, numOfPeriods),
-                );
             });
 
             it("Should allow the borrower to borrow again in the same period", async function () {
@@ -1320,8 +1321,6 @@ describe("CreditLine Test", function () {
                 const remainingPeriods = creditRecord.remainingPeriods;
                 let dueDetail = await creditContract.getDueDetail(creditHash);
                 checkDueDetailsMatch(dueDetail, genDueDetail({ accrued: yieldDue }));
-                let maturityDate = await creditContract.getMaturityDate(creditHash);
-                expect(maturityDate).to.equal(getDateAfterMonths(startOfDay, numOfPeriods));
 
                 // move forward to the middle of the remaining time of the period
                 nextTime = nextTime + Math.floor((nextDueDate.toNumber() - nextTime) / 2);
@@ -1366,7 +1365,6 @@ describe("CreditLine Test", function () {
                 );
                 dueDetail = await creditContract.getDueDetail(creditHash);
                 checkDueDetailsMatch(dueDetail, genDueDetail({ accrued: totalYieldDue }));
-                expect(await creditContract.getMaturityDate(creditHash)).to.equal(maturityDate);
             });
 
             it("Should allow the borrower to borrow again in the next period", async function () {
@@ -1455,8 +1453,6 @@ describe("CreditLine Test", function () {
 
                 const dueDetail = await creditContract.getDueDetail(creditHash);
                 checkDueDetailsMatch(dueDetail, genDueDetail({ accrued: totalYieldDue }));
-
-                expect(await creditContract.getMaturityDate(creditHash)).to.equal(maturityDate);
             });
         });
 
@@ -1539,10 +1535,6 @@ describe("CreditLine Test", function () {
                     dueDetail,
                     genDueDetail({ accrued: yieldDue, committed: committed }),
                 );
-
-                expect(await creditContract.getMaturityDate(creditHash)).to.equal(
-                    getDateAfterMonths(startOfDay, numOfPeriods),
-                );
             });
 
             it("Should allow the borrower to borrow if the committed yield is greater than the accrued yield", async function () {
@@ -1605,10 +1597,6 @@ describe("CreditLine Test", function () {
                     dueDetail,
                     genDueDetail({ accrued: yieldDue, committed: committed }),
                 );
-
-                expect(await creditContract.getMaturityDate(creditHash)).to.equal(
-                    getDateAfterMonths(startOfDay, numOfPeriods),
-                );
             });
 
             it("Should allow the borrower to borrow if the committed yield is greater than the accrued yield first, but becomes less than accrued yield after drawdown", async function () {
@@ -1668,8 +1656,6 @@ describe("CreditLine Test", function () {
                     dueDetail,
                     genDueDetail({ accrued: yieldDue, committed: committed }),
                 );
-                let maturityDate = await creditContract.getMaturityDate(creditHash);
-                expect(maturityDate).to.equal(getDateAfterMonths(startOfDay, numOfPeriods));
 
                 // move forward to the middle of the remaining time of the period
                 nextTime = nextTime + Math.floor((nextDueDate.toNumber() - nextTime) / 2);
@@ -1721,7 +1707,6 @@ describe("CreditLine Test", function () {
                     dueDetail,
                     genDueDetail({ accrued: totalYieldDue, committed: committed }),
                 );
-                expect(await creditContract.getMaturityDate(creditHash)).to.equal(maturityDate);
             });
 
             it("Should allow the borrower to borrow twice if the committed yield is greater than the accrued yield", async function () {
@@ -1781,8 +1766,6 @@ describe("CreditLine Test", function () {
                     dueDetail,
                     genDueDetail({ accrued: totalYieldDue, committed: committed }),
                 );
-                let maturityDate = await creditContract.getMaturityDate(creditHash);
-                expect(maturityDate).to.equal(getDateAfterMonths(startOfDay, numOfPeriods));
 
                 // move forward to the middle of the remaining time of the period
                 nextTime = nextTime + Math.floor((nextDueDate.toNumber() - nextTime) / 2);
@@ -1834,7 +1817,6 @@ describe("CreditLine Test", function () {
                     dueDetail,
                     genDueDetail({ accrued: totalYieldDue, committed: committed }),
                 );
-                expect(await creditContract.getMaturityDate(creditHash)).to.equal(maturityDate);
             });
         });
 
@@ -1942,10 +1924,6 @@ describe("CreditLine Test", function () {
 
                 const dueDetail = await creditContract.getDueDetail(creditHash);
                 checkDueDetailsMatch(dueDetail, genDueDetail({ accrued: yieldDue }));
-
-                expect(await creditContract.getMaturityDate(creditHash)).to.equal(
-                    getDateAfterMonths(startOfDay, numOfPeriods),
-                );
             });
 
             it("Should allow the borrower to borrow again in the same period", async function () {

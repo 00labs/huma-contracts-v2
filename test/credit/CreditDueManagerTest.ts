@@ -1343,7 +1343,13 @@ describe("CreditDueManager Tests", function () {
                                 ...cr,
                                 ...{
                                     unbilledPrincipal: unbilledPrincipal,
-                                    nextDueDate: maturityDate.unix(),
+                                    nextDueDate: moment
+                                        .utc({
+                                            year: nextYear,
+                                            month: 6,
+                                            day: 1,
+                                        })
+                                        .unix(),
                                     nextDue: expectedYieldNextDue.add(expectedPrincipalNextDue),
                                     yieldDue: expectedYieldNextDue,
                                     totalPastDue: BN.from(cr.nextDue)
