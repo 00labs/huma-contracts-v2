@@ -140,6 +140,9 @@ async function verifyContracts() {
     const verifyCreditDueManager = await verifyContract("CreditDueManager");
     console.log(`Verify CreditDueManager result: ${verifyCreditDueManager}`);
 
+    const verifyBorrowerLevelCreditManager = await verifyContract("BorrowerLevelCreditManager");
+    console.log(`Verify BorrowerLevelCreditManager result: ${verifyBorrowerLevelCreditManager}`);
+
     const verifyReceivable = await verifyContract("Receivable");
     console.log(`Verify Receivable result: ${verifyReceivable}`);
 }

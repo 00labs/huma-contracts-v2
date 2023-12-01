@@ -1,7 +1,6 @@
-import { BigNumber as BN } from "ethers";
+import { BigNumber as BN, ContractTransaction } from "ethers";
 import { ethers, network } from "hardhat";
 import moment from "moment";
-import { LPConfigStructOutput } from "../typechain-types/contracts/PoolConfig";
 
 export function toBN(number: string | number, decimals: number): BN {
     return BN.from(number).mul(BN.from(10).pow(BN.from(decimals)));
@@ -80,19 +79,7 @@ export async function getLatestBlock() {
     return await ethers.provider.getBlock("latest");
 }
 
-export function copyLPConfigWithOverrides(
-    lpConfig: LPConfigStructOutput,
-    overrides: Partial<LPConfigStructOutput>,
-) {
-    return {
-        ...{
-            permissioned: lpConfig.permissioned,
-            liquidityCap: lpConfig.liquidityCap,
-            withdrawalLockoutInCalendarUnit: lpConfig.withdrawalLockoutInCalendarUnit,
-            maxSeniorJuniorRatio: lpConfig.maxSeniorJuniorRatio,
-            fixedSeniorYieldInBps: lpConfig.fixedSeniorYieldInBps,
-            tranchesRiskAdjustmentInBps: lpConfig.tranchesRiskAdjustmentInBps,
-        },
-        ...overrides,
-    };
+export async function awaitTx(tx: ContractTransaction, message: string) {
+    await tx.wait();
+    console.log(message);
 }

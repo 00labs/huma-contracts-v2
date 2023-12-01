@@ -15,5 +15,6 @@
   "Calendar": "Done",
   "CreditLine": "Done",
   "CreditDueManager": "Done",
+  "BorrowerLevelCreditManager": "Done",
   "Receivable": "Done"
 }
