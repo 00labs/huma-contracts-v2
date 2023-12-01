@@ -7,8 +7,6 @@ import {BokkyPooBahsDateTimeLibrary as DTL} from "./utils/BokkyPooBahsDateTimeLi
 import {PayPeriodDuration} from "./CreditStructs.sol";
 import {Errors} from "../Errors.sol";
 
-import "hardhat/console.sol";
-
 /**
  * @notice We use the 30/360 day count convention in this implementation, which treats every month as having 30 days
  * and every year as having 360 days, regardless of the actual number of days in a month/year. This is a common
@@ -145,12 +143,6 @@ contract Calendar is ICalendar {
         // a partial period or not, so push the start date to the beginning of the period
         // to simplify the calculation.
         startDate = getStartDateOfPeriod(periodDuration, startDate);
-        console.log(
-            "startDate %d, endDate %d, daysDiff %d",
-            startDate,
-            endDate,
-            getDaysDiff(startDate, endDate)
-        );
         numPeriodsPassed =
             getDaysDiff(startDate, endDate) /
             getTotalDaysInFullPeriod(periodDuration);
