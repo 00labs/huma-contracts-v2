@@ -270,7 +270,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         }
 
         bool late;
-        (cr, dd, late) = feeManager.getDueInfo(cr, cc, dd, maturityDate);
+        (cr, dd, late) = feeManager.getDueInfo(cr, cc, dd);
         // console.log("periodsPassed: %s", periodsPassed);
         if (periodsPassed > 0) {
             // Adjusts remainingPeriods. Sets remainingPeriods to 0 if the credit line has reached maturity.
@@ -324,24 +324,9 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             // Note that we need to write to _creditRecordMap here directly rather than its copy `cr`
             // because `updateDueInfo()` needs to access the updated `unbilledPrincipal` in storage.
             _creditRecordMap[creditHash].unbilledPrincipal = uint96(borrowAmount);
-            uint256 startOfToday = calendar.getStartOfToday();
-            uint256 startOfPeriod = calendar.getStartDateOfPeriod(
-                cc.periodDuration,
-                block.timestamp
-            );
-            uint256 numOfPeriods = cc.numOfPeriods;
-            if (startOfToday != startOfPeriod) {
-                // If the first drawdown happens mid-period, then we have two partial periods at both ends.
-                // So add 1 to the number of periods to account for the two partial periods.
-                // We also need to store the updated values since `updateDueInfo()` needs to access them.
-                ++numOfPeriods;
-                // TODO really need this?
-                // _creditConfigMap[creditHash].numOfPeriods = uint16(numOfPeriods);
-                _creditRecordMap[creditHash].remainingPeriods = uint16(numOfPeriods);
-            }
             maturityDateMap[creditHash] = calendar.getMaturityDate(
                 cc.periodDuration,
-                numOfPeriods,
+                cc.numOfPeriods,
                 block.timestamp
             );
             (cr, ) = _updateDueInfo(creditHash);
@@ -698,9 +683,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
                 revert Errors.firstDrawdownTooSoon();
 
             if (borrowAmount > creditLimit) revert Errors.creditLineExceeded();
-        } else if (
-            cr.state != CreditState.GoodStanding
-        ) {
+        } else if (cr.state != CreditState.GoodStanding) {
             revert Errors.creditNotInStateForDrawdown();
         } else if (cr.nextDue != 0 && block.timestamp > cr.nextDueDate) {
             // Prevent drawdown if the credit is in good standing, but has due outstanding and is currently in the

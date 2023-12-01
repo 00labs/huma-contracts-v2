@@ -1034,7 +1034,10 @@ export async function calcYieldDueNew(
         return [dd.yieldPastDue, cr.yieldDue, [dd.accrued, dd.committed]];
     }
 
-    const nextDueDate = await getNextDueDate(calendarContract, cc, currentDate, maturityDate);
+    const nextDueDate = await calendarContract.getStartDateOfNextPeriod(
+        cc.periodDuration,
+        currentDate.unix(),
+    );
     const principal = getPrincipal(cr, dd);
     if (cr.state === CreditState.Approved) {
         const daysUntilNextDue = await calendarContract.getDaysDiff(
@@ -1056,7 +1059,7 @@ export async function calcYieldDueNew(
     }
     let daysOverdue, daysUntilNextDue;
     if (currentDate.isAfter(maturityDate)) {
-        daysOverdue = await calendarContract.getDaysDiff(cr.nextDueDate, nextDueDate);
+        daysOverdue = await calendarContract.getDaysDiff(cr.nextDueDate, maturityDate.unix());
         daysUntilNextDue = BN.from(0);
     } else {
         const periodStartDate = await calendarContract.getStartDateOfPeriod(
@@ -1064,7 +1067,10 @@ export async function calcYieldDueNew(
             currentDate.unix(),
         );
         daysOverdue = await calendarContract.getDaysDiff(cr.nextDueDate, periodStartDate);
-        daysUntilNextDue = await calendarContract.getDaysDiff(periodStartDate, nextDueDate);
+        daysUntilNextDue = await calendarContract.getDaysDiff(
+            periodStartDate,
+            minBigNumber(BN.from(maturityDate.unix()), nextDueDate),
+        );
     }
 
     let periodsNextDue, periodsOverdue;
@@ -1222,7 +1228,10 @@ export async function calcPrincipalDueNew(
         .mul(cr.unbilledPrincipal)
         .div(CONSTANTS.BP_FACTOR.pow(numPeriodsPassed));
     const remainingPrincipal = cr.unbilledPrincipal.sub(principalPastDue);
-    const nextDueDate = await getNextDueDate(calendarContract, cc, currentDate, maturityDate);
+    const nextDueDate = await calendarContract.getStartDateOfNextPeriod(
+        cc.periodDuration,
+        currentDate.unix(),
+    );
     const daysUntilNextDue = await calendarContract.getDaysDiff(periodStartDate, nextDueDate);
     const principalNextDue = remainingPrincipal
         .mul(principalRateInBps)
@@ -1299,21 +1308,6 @@ export function getPrincipal(cr: CreditRecordStruct, dd: DueDetailStruct): BN {
     return BN.from(cr.unbilledPrincipal)
         .add(BN.from(cr.nextDue).sub(BN.from(cr.yieldDue)))
         .add(BN.from(dd.principalPastDue));
-}
-
-export async function getNextDueDate(
-    calendarContract: Calendar,
-    cc: CreditConfigStructOutput,
-    currentDate: moment.Moment,
-    maturityDate: moment.Moment,
-) {
-    const startDateOfNextPeriod = await calendarContract.getStartDateOfNextPeriod(
-        cc.periodDuration,
-        currentDate.unix(),
-    );
-    return startDateOfNextPeriod.toNumber() < maturityDate.unix()
-        ? startDateOfNextPeriod.toNumber()
-        : maturityDate.unix();
 }
 
 export function getNextBillRefreshDate(
