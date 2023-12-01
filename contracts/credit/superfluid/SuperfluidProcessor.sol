@@ -79,15 +79,15 @@ contract SuperfluidProcessor is PoolConfigCache, SuperAppBase, SuperfluidProcess
             ""
         );
 
-        receivableFactoringCredit.approveReceivable(
-            borrower,
-            ReceivableInput(sfReceivableInfo.receivableAmount, uint64(tokenId)),
-            creditLimit,
-            remainingPeriods,
-            yieldInBps,
-            committedAmount,
-            designatedStartDate
-        );
+        // receivableFactoringCredit.approveReceivable(
+        //     borrower,
+        //     ReceivableInput(sfReceivableInfo.receivableAmount, uint64(tokenId)),
+        //     creditLimit,
+        //     remainingPeriods,
+        //     yieldInBps,
+        //     committedAmount,
+        //     designatedStartDate
+        // );
 
         bytes32 key = keccak256(
             abi.encodePacked(sfReceivableInfo.receivableAsset, sfReceivableInfo.receivableParam)

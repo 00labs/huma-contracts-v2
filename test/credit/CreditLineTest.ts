@@ -494,7 +494,7 @@ describe("CreditLine Test", function () {
                 1,
                 2,
             );
-            expect(await creditManagerContract.creditBorrowerMap(creditHash)).to.equal(
+            expect(await creditManagerContract.getCreditBorrower(creditHash)).to.equal(
                 borrower.address,
             );
         });
@@ -577,7 +577,7 @@ describe("CreditLine Test", function () {
                 3,
                 2,
             );
-            expect(await creditManagerContract.creditBorrowerMap(creditHash)).to.equal(
+            expect(await creditManagerContract.getCreditBorrower(creditHash)).to.equal(
                 borrower.address,
             );
         });
@@ -662,7 +662,7 @@ describe("CreditLine Test", function () {
                 3,
                 2,
             );
-            expect(await creditManagerContract.creditBorrowerMap(creditHash)).to.equal(
+            expect(await creditManagerContract.getCreditBorrower(creditHash)).to.equal(
                 borrower.address,
             );
         });

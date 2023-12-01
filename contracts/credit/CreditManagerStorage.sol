@@ -15,7 +15,7 @@ contract CreditManagerStorage {
     mapping(bytes32 => CreditConfig) internal _creditConfigMap;
 
     // This mapping is used to maintain the relationship between credit and borrower
-    mapping(bytes32 => address) public creditBorrowerMap;
+    mapping(bytes32 => address) internal _creditBorrowerMap;
 
     /**
      * @dev This empty reserved space is put in place to allow future versions to add new
