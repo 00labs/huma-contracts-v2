@@ -122,7 +122,9 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         }
 
         // Update the due date.
-        newCR.nextDueDate = uint64(calendar.getNextDueDate(_cc.periodDuration, maturityDate));
+        newCR.nextDueDate = uint64(
+            calendar.getStartDateOfNextPeriod(_cc.periodDuration, block.timestamp)
+        );
 
         if (_cr.nextDue > 0 || _cr.totalPastDue > 0) {
             // If this is not the first drawdown, and there is amount due unpaid, then the bill must be late
