@@ -95,8 +95,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
     function getDueInfo(
         CreditRecord memory _cr,
         CreditConfig memory _cc,
-        DueDetail memory _dd,
-        uint256 maturityDate
+        DueDetail memory _dd
     )
         public
         view
@@ -122,7 +121,9 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         }
 
         // Update the due date.
-        newCR.nextDueDate = uint64(calendar.getNextDueDate(_cc.periodDuration, maturityDate));
+        newCR.nextDueDate = uint64(
+            calendar.getStartDateOfNextPeriod(_cc.periodDuration, block.timestamp)
+        );
 
         if (_cr.nextDue > 0 || _cr.totalPastDue > 0) {
             // If this is not the first drawdown, and there is amount due unpaid, then the bill must be late
@@ -133,11 +134,31 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             isLate = true;
         }
 
+        if (_cr.remainingPeriods == 0) {
+            // The bill has gone past the maturity date in this case, and has been refreshed in the last period
+            // previously, so we need to move all next due to past due. Then we can early return safely.
+            newDD.principalPastDue += _cr.unbilledPrincipal;
+            newDD.accrued = 0;
+            newDD.committed = 0;
+            newDD.paid = 0;
+
+            newCR.yieldDue = 0;
+            newCR.nextDue = 0;
+            newCR.unbilledPrincipal = 0;
+            newCR.totalPastDue = newDD.lateFee + newDD.yieldPastDue + newDD.principalPastDue;
+            return (newCR, newDD, isLate);
+        }
+
         uint256 principalDue;
         // Calculate days overdue and days remaining until next due date to determine respective yields.
         uint256 daysOverdue;
         uint256 daysUntilNextDue;
         uint256 periodsOverdue;
+        uint256 maturityDate = calendar.getMaturityDate(
+            _cc.periodDuration,
+            _cr.remainingPeriods,
+            _cr.nextDueDate
+        );
         if (_cr.nextDueDate == 0) {
             // If this is the first drawdown, then there is no past due. The number of days until next due
             // is the number of days in the first period.
@@ -177,7 +198,13 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                 block.timestamp
             );
             daysOverdue = calendar.getDaysDiff(_cr.nextDueDate, periodStartDate);
-            daysUntilNextDue = calendar.getDaysDiff(periodStartDate, newCR.nextDueDate);
+            {
+                // The new due date may exceed the maturity date, but the yield is only charged up until the maturity date.
+                uint256 yieldEndDate = newCR.nextDueDate < maturityDate
+                    ? newCR.nextDueDate
+                    : maturityDate;
+                daysUntilNextDue = calendar.getDaysDiff(periodStartDate, yieldEndDate);
+            }
             // Assuming the `principalRate` is represented by R, the remaining principal rate after one period is (1 - R).
             // When P full periods have elapsed, the remaining principal rate is calculated as (1 - R)^P.
             // Therefore, the principal due rate for these periods is computed as 1 minus the remaining principal,

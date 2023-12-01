@@ -275,16 +275,17 @@ describe("ReceivableBackedCreditLine Tests", function () {
                         block.timestamp,
                     )
                 ).toNumber() -
-                3600 * 24 +
+                CONSTANTS.SECONDS_IN_A_DAY +
                 100;
 
             // Day1 - Day5 loop
             for (let i = 0; i < 5; i++) {
                 // move forward 1 day
-                nextTime += 3600 * 24;
+                nextTime += CONSTANTS.SECONDS_IN_A_DAY;
                 await setNextBlockTimestamp(nextTime);
 
-                let maturityDate = nextTime + 3600 * 24 * 30;
+                let maturityDate =
+                    nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
                 await receivableContract
                     .connect(borrower)
                     .createReceivable(1, borrowAmount, maturityDate, "");
@@ -305,7 +306,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
 
         it("Month1 - Day6 ~ Day7: adjust committed to borrowAmount * 5", async function () {
             // Day6
-            nextTime += 3600 * 24;
+            nextTime += CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(nextTime);
 
             await creditManagerContract
@@ -313,7 +314,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                 .updateLimitAndCommitment(borrower.address, creditLimit, borrowAmount.mul(5));
 
             // Day7
-            nextTime += 3600 * 24;
+            nextTime += CONSTANTS.SECONDS_IN_A_DAY;
             await mineNextBlockWithTimestamp(nextTime);
         });
 
@@ -321,10 +322,11 @@ describe("ReceivableBackedCreditLine Tests", function () {
             // Day8 - Day12 loop
             for (let i = 0; i < 5; i++) {
                 // move forward 1 day
-                nextTime += 3600 * 24;
+                nextTime += CONSTANTS.SECONDS_IN_A_DAY;
                 await setNextBlockTimestamp(nextTime);
 
-                let maturityDate = nextTime + 3600 * 24 * 30;
+                let maturityDate =
+                    nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
                 await receivableContract
                     .connect(borrower)
                     .createReceivable(1, borrowAmount, maturityDate, "");
@@ -346,7 +348,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
             }
 
             // Day13, Day14
-            nextTime += 3600 * 24 * 2;
+            nextTime += CONSTANTS.SECONDS_IN_A_DAY * 2;
             await mineNextBlockWithTimestamp(nextTime);
         });
 
@@ -354,10 +356,11 @@ describe("ReceivableBackedCreditLine Tests", function () {
             // Day15 - Day20 loop
             for (let i = 0; i < 5; i++) {
                 // move forward 1 day
-                nextTime += 3600 * 24;
+                nextTime += CONSTANTS.SECONDS_IN_A_DAY;
                 await setNextBlockTimestamp(nextTime);
 
-                let maturityDate = nextTime + 3600 * 24 * 30;
+                let maturityDate =
+                    nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
                 await receivableContract
                     .connect(borrower)
                     .createReceivable(1, borrowAmount, maturityDate, "");
@@ -379,7 +382,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
             }
 
             // Day21, Day22
-            nextTime += 3600 * 24 * 2;
+            nextTime += CONSTANTS.SECONDS_IN_A_DAY * 2;
             await mineNextBlockWithTimestamp(nextTime);
         });
 
@@ -387,10 +390,11 @@ describe("ReceivableBackedCreditLine Tests", function () {
             // Day22 - Day26 loop
             for (let i = 0; i < 5; i++) {
                 // move forward 1 day
-                nextTime += 3600 * 24;
+                nextTime += CONSTANTS.SECONDS_IN_A_DAY;
                 await setNextBlockTimestamp(nextTime);
 
-                let maturityDate = nextTime + 3600 * 24 * 30;
+                let maturityDate =
+                    nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
                 await receivableContract
                     .connect(borrower)
                     .createReceivable(1, borrowAmount, maturityDate, "");
@@ -412,7 +416,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
             }
 
             // Day27, Day28
-            nextTime += 3600 * 24 * 2;
+            nextTime += CONSTANTS.SECONDS_IN_A_DAY * 2;
             await mineNextBlockWithTimestamp(nextTime);
         });
 
@@ -435,15 +439,16 @@ describe("ReceivableBackedCreditLine Tests", function () {
 
         it("Month2 - Day1 ~ Day7: make payment and drawdown together", async function () {
             let block = await getLatestBlock();
-            nextTime = block.timestamp - 3600 * 24 + 100;
+            nextTime = block.timestamp - CONSTANTS.SECONDS_IN_A_DAY + 100;
 
             // Day1 - Day5 loop
             for (let i = 0; i < 5; i++) {
                 // move forward 1 day
-                nextTime += 3600 * 24;
+                nextTime += CONSTANTS.SECONDS_IN_A_DAY;
                 await setNextBlockTimestamp(nextTime);
 
-                let maturityDate = nextTime + 3600 * 24 * 30;
+                let maturityDate =
+                    nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
                 await receivableContract
                     .connect(borrower)
                     .createReceivable(1, borrowAmount, maturityDate, "");
@@ -465,7 +470,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
             }
 
             // Day6, Day7
-            nextTime += 3600 * 24 * 2;
+            nextTime += CONSTANTS.SECONDS_IN_A_DAY * 2;
             await mineNextBlockWithTimestamp(nextTime);
         });
 
@@ -473,10 +478,11 @@ describe("ReceivableBackedCreditLine Tests", function () {
             // Day8 - Day12 loop
             for (let i = 0; i < 5; i++) {
                 // move forward 1 day
-                nextTime += 3600 * 24;
+                nextTime += CONSTANTS.SECONDS_IN_A_DAY;
                 await setNextBlockTimestamp(nextTime);
 
-                let maturityDate = nextTime + 3600 * 24 * 30;
+                let maturityDate =
+                    nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
                 await receivableContract
                     .connect(borrower)
                     .createReceivable(1, borrowAmount, maturityDate, "");
@@ -500,7 +506,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
 
         it("Month2 - Day13 ~ Day14: adjust committed to borrowAmount * 10", async function () {
             // Day6
-            nextTime += 3600 * 24;
+            nextTime += CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(nextTime);
 
             borrowAmount = borrowAmount.mul(2);
@@ -513,7 +519,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                 .updateLimitAndCommitment(borrower.address, creditLimit, borrowAmount.mul(5));
 
             // Day7
-            nextTime += 3600 * 24;
+            nextTime += CONSTANTS.SECONDS_IN_A_DAY;
             await mineNextBlockWithTimestamp(nextTime);
         });
 
@@ -521,10 +527,11 @@ describe("ReceivableBackedCreditLine Tests", function () {
             // Day15 - Day20 loop
             for (let i = 0; i < 5; i++) {
                 // move forward 1 day
-                nextTime += 3600 * 24;
+                nextTime += CONSTANTS.SECONDS_IN_A_DAY;
                 await setNextBlockTimestamp(nextTime);
 
-                let maturityDate = nextTime + 3600 * 24 * 30;
+                let maturityDate =
+                    nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
                 await receivableContract
                     .connect(borrower)
                     .createReceivable(1, borrowAmount, maturityDate, "");
@@ -546,7 +553,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
             }
 
             // Day21, Day22
-            nextTime += 3600 * 24 * 2;
+            nextTime += CONSTANTS.SECONDS_IN_A_DAY * 2;
             await mineNextBlockWithTimestamp(nextTime);
 
             paymentAmount = borrowAmount;
@@ -561,7 +568,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                         nextTime,
                     )
                 ).toNumber() +
-                3600 * 24 * 6 +
+                CONSTANTS.SECONDS_IN_A_DAY * 6 +
                 100;
             await setNextBlockTimestamp(nextTime);
 
@@ -570,7 +577,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
             printCreditRecord("cr", cr);
 
             // Calling makePrincipalPaymentAndDrawdownWithReceivable fails
-            let maturityDate = nextTime + 3600 * 24 * 30;
+            let maturityDate = nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
             await receivableContract
                 .connect(borrower)
                 .createReceivable(1, borrowAmount, maturityDate, "");
@@ -593,7 +600,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
 
         it("Month3 - Day7: pay yield including late fee", async function () {
             // Day7
-            nextTime += 3600 * 24;
+            nextTime += CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(nextTime);
 
             let cr = await creditContract.getCreditRecord(creditHash);

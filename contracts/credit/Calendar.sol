@@ -7,7 +7,8 @@ import {BokkyPooBahsDateTimeLibrary as DTL} from "./utils/BokkyPooBahsDateTimeLi
 import {PayPeriodDuration} from "./CreditStructs.sol";
 import {Errors} from "../Errors.sol";
 
-//* todo change periodDuration to an enum {Monthly, Quarterly, SemiAnnually}
+import "hardhat/console.sol";
+
 /**
  * @notice We use the 30/360 day count convention in this implementation, which treats every month as having 30 days
  * and every year as having 360 days, regardless of the actual number of days in a month/year. This is a common
@@ -84,11 +85,11 @@ contract Calendar is ICalendar {
             startDate = block.timestamp;
         }
 
-        (, uint256 startMonth, uint256 startDay) = DTL.timestampToDate(startDate);
-        (, uint256 endMonth, uint256 endDay) = DTL.timestampToDate(endDate);
+        (uint256 startYear, uint256 startMonth, uint256 startDay) = DTL.timestampToDate(startDate);
+        (uint256 endYear, uint256 endMonth, uint256 endDay) = DTL.timestampToDate(endDate);
         startDay = startDay > DAYS_IN_A_MONTH ? DAYS_IN_A_MONTH : startDay;
         endDay = endDay > DAYS_IN_A_MONTH ? DAYS_IN_A_MONTH : endDay;
-        if (startMonth == endMonth) {
+        if (startYear == endYear && startMonth == endMonth) {
             return endDay - startDay;
         }
 
@@ -104,7 +105,7 @@ contract Calendar is ICalendar {
     function getStartDateOfPeriod(
         PayPeriodDuration periodDuration,
         uint256 timestamp
-    ) public view returns (uint256 startOfPeriod) {
+    ) public pure returns (uint256 startOfPeriod) {
         if (periodDuration == PayPeriodDuration.Monthly) {
             return _getStartOfMonth(timestamp);
         }
@@ -129,19 +130,6 @@ contract Calendar is ICalendar {
     }
 
     /// @inheritdoc ICalendar
-    function getNextDueDate(
-        PayPeriodDuration periodDuration,
-        uint256 maturityDate
-    ) public view returns (uint256 nextDueDate) {
-        nextDueDate = _getStartDateOfNextPeriod(periodDuration, block.timestamp);
-        // The maturityDate is set as the upcoming due date when the current block timestamp
-        // exceeds the most recent due date prior to the maturity date.
-        return nextDueDate < maturityDate ? nextDueDate : maturityDate;
-    }
-
-    /// @inheritdoc ICalendar
-    // TODO(jiatu): there is likely an off-by-one error here when calculating num periods passed when endDate > maturity
-    // date.
     function getNumPeriodsPassed(
         PayPeriodDuration periodDuration,
         uint256 startDate,
@@ -150,39 +138,28 @@ contract Calendar is ICalendar {
         if (startDate > endDate) {
             revert Errors.startDateLaterThanEndDate();
         }
-        // TODO(jiatu): do we need to align on the beginning of the day?
         if (startDate == endDate) {
             return 0;
         }
-        uint256 dueDateAfterStartDate = _getStartDateOfNextPeriod(periodDuration, startDate);
-
-        // TODO It is not a good way, need to refactor this function later
-        (, , uint256 day) = DTL.timestampToDate(endDate);
-        if (day == 1) {
-            return
-                getDaysDiff(dueDateAfterStartDate, endDate) /
-                getTotalDaysInFullPeriod(periodDuration) +
-                1;
+        // There is one period at the beginning no matter whether the first period is
+        // a partial period or not, so push the start date to the beginning of the period
+        // to simplify the calculation.
+        startDate = getStartDateOfPeriod(periodDuration, startDate);
+        console.log(
+            "startDate %d, endDate %d, daysDiff %d",
+            startDate,
+            endDate,
+            getDaysDiff(startDate, endDate)
+        );
+        numPeriodsPassed =
+            getDaysDiff(startDate, endDate) /
+            getTotalDaysInFullPeriod(periodDuration);
+        if (endDate != getStartDateOfPeriod(periodDuration, endDate)) {
+            // If the end date is in the middle of a period, then we need to account for the
+            // last partial period.
+            ++numPeriodsPassed;
         }
-
-        if (endDate <= dueDateAfterStartDate) {
-            // `numPeriodsPassed` is 1 if the current block timestamp and the last due date are
-            // within the same period.
-            return 1;
-        }
-        // Otherwise, calculating `numPeriodsPassed` involves:
-        // 1. Adding 1 to account for the time from the start date date to the next due date immediately after.
-        // 2. Adding the number of complete periods that have elapsed since the previous due date.
-        // 3. Adding 1 for the period that ends on `endDate`.
-        // Example scenarios:
-        // - If start date is 3/15 and end date is 4/15, `numPeriodsPassed` would be 2
-        //   (one period for the the second half of March, one for the first half of April).
-        // - For an end date of 6/2 with the same start date, `numPeriodsPassed` would be 4
-        //   (second half of March, the entire April and May, and the partial period of June).
-        return
-            getDaysDiff(dueDateAfterStartDate, endDate) /
-            getTotalDaysInFullPeriod(periodDuration) +
-            2;
+        return numPeriodsPassed;
     }
 
     /// @inheritdoc ICalendar
@@ -191,17 +168,10 @@ contract Calendar is ICalendar {
         uint256 numPeriods,
         uint256 timestamp
     ) external view returns (uint256 maturityDate) {
-        (uint256 year, uint256 month, uint256 day) = DTL.timestampToDate(timestamp);
-        day = day > DAYS_IN_A_MONTH ? DAYS_IN_A_MONTH : day;
-        uint256 startDate = DTL.timestampFromDate(year, month, day);
-
-        uint256 monthCount = numPeriods;
-        if (startDate != getStartDateOfPeriod(periodDuration, startDate)) {
-            // Adjust `monthCount` by subtracting 1 if the bill cycle doesn't begin at the start of the period.
-            // This accounts for the scenario where both the start and end of the billing periods are partial periods,
-            // combining to make one full period.
-            --monthCount;
-        }
+        // The first period may be a partial period, so advance to the next period and only count full
+        // periods.
+        uint256 startDate = _getStartDateOfNextPeriod(periodDuration, timestamp);
+        uint256 monthCount = numPeriods - 1;
         if (periodDuration == PayPeriodDuration.Quarterly) {
             monthCount *= 3;
         } else if (periodDuration == PayPeriodDuration.SemiAnnually) {
@@ -213,7 +183,7 @@ contract Calendar is ICalendar {
     function _getStartDateOfNextPeriod(
         PayPeriodDuration periodDuration,
         uint256 timestamp
-    ) internal view returns (uint256 startOfNextPeriod) {
+    ) internal pure returns (uint256 startOfNextPeriod) {
         if (periodDuration == PayPeriodDuration.Monthly) {
             return _getStartOfNextMonth(timestamp);
         }

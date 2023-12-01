@@ -39,6 +39,8 @@ import {
     getPrincipal,
 } from "../BaseTest";
 import {
+    evmRevert,
+    evmSnapshot,
     getFutureBlockTime,
     maxBigNumber,
     mineNextBlockWithTimestamp,
@@ -76,6 +78,8 @@ let poolConfigContract: PoolConfig,
     creditDueManagerContract: CreditDueManager;
 
 describe("CreditDueManager Tests", function () {
+    let sId: unknown;
+
     before(async function () {
         [
             defaultDeployer,
@@ -89,6 +93,13 @@ describe("CreditDueManager Tests", function () {
             poolOperator,
             lender,
         ] = await ethers.getSigners();
+        sId = await evmSnapshot();
+    });
+
+    after(async function () {
+        if (sId) {
+            await evmRevert(sId);
+        }
     });
 
     async function prepare() {
@@ -268,7 +279,7 @@ describe("CreditDueManager Tests", function () {
     });
 
     describe("getNextBillRefreshDate", function () {
-        let nextYear: number, nextDueDate: moment.Moment, currentBlockTime: moment.Moment;
+        let nextDueDate: moment.Moment, currentBlockTime: moment.Moment;
         const latePaymentGracePeriodInDays = 5;
 
         async function prepare() {
@@ -408,7 +419,7 @@ describe("CreditDueManager Tests", function () {
                     creditLimit: toToken(5_000),
                     committedAmount: toToken(5_000),
                     periodDuration: PayPeriodDuration.Monthly,
-                    numOfPeriods: 2,
+                    numOfPeriods: 3,
                     yieldInBps: 1000,
                     advanceRateInBps: 8000,
                     revolving: true,
@@ -427,7 +438,7 @@ describe("CreditDueManager Tests", function () {
                     yieldDue: toToken(400),
                     totalPastDue: 0,
                     missedPeriods: 0,
-                    remainingPeriods: 2,
+                    remainingPeriods: 3,
                     state: CreditState.GoodStanding,
                 },
                 ...creditRecordOverrides,
@@ -448,125 +459,270 @@ describe("CreditDueManager Tests", function () {
             return [cc, cr, dd];
         }
 
-        describe("When the current block timestamp is within the current billing cycle", function () {
-            describe("If the current block timestamp is within the current billing cycle", function () {
-                describe("If the bill is not late", function () {
-                    it("Should return the CreditRecord and DueDetail as is", async function () {
-                        const nextBlockTime = await getFutureBlockTime(2);
-                        await setNextBlockTimestamp(nextBlockTime);
+        describe("If the current block timestamp is within the current billing cycle", function () {
+            describe("If the bill is not late", function () {
+                it("Should return the CreditRecord and DueDetail as is", async function () {
+                    const nextBlockTime = await getFutureBlockTime(2);
+                    await setNextBlockTimestamp(nextBlockTime);
 
-                        const [cc, cr, dd] = getInputParams(
-                            {},
-                            { nextDueDate: nextBlockTime + 1 },
-                        );
-                        const maturityDate = nextBlockTime + 5;
-                        const [newCR, newDD, isLate] = await creditDueManagerContract.getDueInfo(
-                            cr,
-                            cc,
-                            dd,
-                            maturityDate,
-                        );
-                        checkCreditRecordsMatch(newCR, cr);
-                        checkDueDetailsMatch(newDD, dd);
-                        expect(isLate).to.be.false;
-                    });
+                    const [cc, cr, dd] = getInputParams({}, { nextDueDate: nextBlockTime + 1 });
+                    const [newCR, newDD, isLate] = await creditDueManagerContract.getDueInfo(
+                        cr,
+                        cc,
+                        dd,
+                    );
+                    checkCreditRecordsMatch(newCR, cr);
+                    checkDueDetailsMatch(newDD, dd);
+                    expect(isLate).to.be.false;
                 });
+            });
 
-                describe("If the bill is late", function () {
-                    it("Should return updated CreditRecord and DueDetail with refreshed late fees", async function () {
-                        const nextBlockTime = await getFutureBlockTime(2);
-                        await setNextBlockTimestamp(nextBlockTime);
+            describe("If the bill is late", function () {
+                it("Should return updated CreditRecord and DueDetail with refreshed late fees", async function () {
+                    const nextBlockTime = await getFutureBlockTime(2);
+                    await setNextBlockTimestamp(nextBlockTime);
+
+                    const [lateFeeFlat, , membershipFee] = await poolConfigContract.getFees();
+                    const lateFeeBps = 500;
+                    await poolConfigContract.connect(poolOwner).setFeeStructure({
+                        yieldInBps: 1000,
+                        minPrincipalRateInBps: 10,
+                        lateFeeFlat,
+                        lateFeeBps,
+                        membershipFee,
+                    });
+
+                    const [cc, cr, dd] = getInputParams(
+                        {},
+                        {
+                            nextDueDate: nextBlockTime + 1,
+                            missedPeriods: 1,
+                            state: CreditState.Delayed,
+                        },
+                    );
+                    const [newCR, newDD, isLate] = await creditDueManagerContract.getDueInfo(
+                        cr,
+                        cc,
+                        dd,
+                    );
+                    const [lateFeeUpdatedDate, lateFee] = await calcLateFee(
+                        poolConfigContract,
+                        calendarContract,
+                        cr,
+                        dd,
+                    );
+                    const expectedNewCR = {
+                        ...cr,
+                        ...{
+                            totalPastDue: BN.from(cr.totalPastDue).add(lateFee),
+                        },
+                    };
+                    const expectedNewDD = {
+                        ...dd,
+                        ...{ lateFeeUpdatedDate: lateFeeUpdatedDate, lateFee: lateFee },
+                    };
+                    checkCreditRecordsMatch(newCR, expectedNewCR);
+                    checkDueDetailsMatch(newDD, expectedNewDD);
+                    expect(isLate).to.be.true;
+                });
+            });
+        });
+
+        describe("If the current block timestamp has surpassed the due date of the last known billing cycle", function () {
+            describe("If the bill is in good standing and the current block timestamp is still within the late payment grace period", function () {
+                it("Should return the CreditRecord and DueDetail as is", async function () {
+                    const nextBlockTime = await getFutureBlockTime(2);
+                    await setNextBlockTimestamp(nextBlockTime);
+
+                    const latePaymentGracePeriodInDays = 5;
+                    await poolConfigContract
+                        .connect(poolOwner)
+                        .setLatePaymentGracePeriodInDays(latePaymentGracePeriodInDays);
+
+                    // Set the due date so that the current block timestamp falls within the late payment
+                    // grace period.
+                    const nextDueDate = moment(nextBlockTime * 1000)
+                        .utc()
+                        .subtract(latePaymentGracePeriodInDays, "days")
+                        .add(1, "second")
+                        .unix();
+                    const [cc, cr, dd] = getInputParams(
+                        {},
+                        { nextDueDate: nextDueDate, state: CreditState.GoodStanding },
+                    );
+                    const [newCR, newDD, isLate] = await creditDueManagerContract.getDueInfo(
+                        cr,
+                        cc,
+                        dd,
+                    );
+                    checkCreditRecordsMatch(newCR, cr);
+                    checkDueDetailsMatch(newDD, dd);
+                    expect(isLate).to.be.false;
+                });
+            });
+
+            describe("If this is the first drawdown", function () {
+                describe("If the principal rate is 0", function () {
+                    it("Should return the correct due date and amounts", async function () {
+                        const nextBlockTime = await getFutureBlockTime(1);
+                        const drawdownDate = (
+                            await calendarContract.getStartDateOfNextPeriod(
+                                PayPeriodDuration.Monthly,
+                                nextBlockTime,
+                            )
+                        ).add(14 * CONSTANTS.SECONDS_IN_A_DAY);
+                        await setNextBlockTimestamp(drawdownDate);
 
                         const [lateFeeFlat, , membershipFee] = await poolConfigContract.getFees();
                         const lateFeeBps = 500;
                         await poolConfigContract.connect(poolOwner).setFeeStructure({
                             yieldInBps: 1000,
-                            minPrincipalRateInBps: 10,
+                            minPrincipalRateInBps: 0,
                             lateFeeFlat,
                             lateFeeBps,
                             membershipFee,
                         });
-
                         const [cc, cr, dd] = getInputParams(
                             {},
                             {
-                                nextDueDate: nextBlockTime + 1,
-                                missedPeriods: 1,
-                                state: CreditState.Delayed,
+                                nextDue: 0,
+                                yieldDue: 0,
+                                nextDueDate: 0,
+                                state: CreditState.Approved,
                             },
                         );
-                        const maturityDate = nextBlockTime + 5;
+
                         const [newCR, newDD, isLate] = await creditDueManagerContract.getDueInfo(
                             cr,
                             cc,
                             dd,
-                            maturityDate,
                         );
-                        const [lateFeeUpdatedDate, lateFee] = await calcLateFee(
-                            poolConfigContract,
-                            calendarContract,
-                            cr,
-                            dd,
+                        const nextDueDate = await calendarContract.getStartDateOfNextPeriod(
+                            cc.periodDuration,
+                            drawdownDate,
                         );
+                        const principal = getPrincipal(cr, dd);
+                        const [accruedYield, committedYield] = calcYieldDue(
+                            cc,
+                            principal,
+                            (
+                                await calendarContract.getDaysDiff(drawdownDate, nextDueDate)
+                            ).toNumber(),
+                            1,
+                            membershipFee,
+                        );
+                        const expectedYieldDue = maxBigNumber(accruedYield, committedYield);
+                        // Since the principal rate is 0, no principal is due. Only yield is due in the first
+                        // partial period.
                         const expectedNewCR = {
                             ...cr,
                             ...{
-                                totalPastDue: BN.from(cr.totalPastDue).add(lateFee),
+                                nextDueDate: nextDueDate,
+                                nextDue: expectedYieldDue,
+                                yieldDue: expectedYieldDue,
                             },
                         };
                         const expectedNewDD = {
                             ...dd,
-                            ...{ lateFeeUpdatedDate: lateFeeUpdatedDate, lateFee: lateFee },
+                            ...{
+                                committed: committedYield,
+                                accrued: accruedYield,
+                            },
                         };
                         checkCreditRecordsMatch(newCR, expectedNewCR);
                         checkDueDetailsMatch(newDD, expectedNewDD);
-                        expect(isLate).to.be.true;
-                    });
-                });
-            });
-
-            describe("If the current block timestamp has surpassed the due date of the last known billing cycle", function () {
-                describe("If the bill is in good standing and the current block timestamp is still within the late payment grace period", function () {
-                    it("Should return the CreditRecord and DueDetail as is", async function () {
-                        const nextBlockTime = await getFutureBlockTime(2);
-                        await setNextBlockTimestamp(nextBlockTime);
-
-                        const latePaymentGracePeriodInDays = 5;
-                        await poolConfigContract
-                            .connect(poolOwner)
-                            .setLatePaymentGracePeriodInDays(latePaymentGracePeriodInDays);
-
-                        // Set the due date so that the current block timestamp falls within the late payment
-                        // grace period.
-                        const nextDueDate = moment(nextBlockTime * 1000)
-                            .utc()
-                            .subtract(latePaymentGracePeriodInDays, "days")
-                            .add(1, "second")
-                            .unix();
-                        const [cc, cr, dd] = getInputParams(
-                            {},
-                            { nextDueDate: nextDueDate, state: CreditState.GoodStanding },
-                        );
-                        const maturityDate = nextBlockTime + 5;
-                        const [newCR, newDD, isLate] = await creditDueManagerContract.getDueInfo(
-                            cr,
-                            cc,
-                            dd,
-                            maturityDate,
-                        );
-                        checkCreditRecordsMatch(newCR, cr);
-                        checkDueDetailsMatch(newDD, dd);
                         expect(isLate).to.be.false;
                     });
                 });
 
-                describe("If this is the first drawdown", function () {
+                describe("If the principal rate is not 0", function () {
+                    it("Should return the correct due date and amounts", async function () {
+                        const nextBlockTime = await getFutureBlockTime(1);
+                        const drawdownDate = (
+                            await calendarContract.getStartDateOfNextPeriod(
+                                PayPeriodDuration.Monthly,
+                                nextBlockTime,
+                            )
+                        ).add(14 * CONSTANTS.SECONDS_IN_A_DAY);
+                        await setNextBlockTimestamp(drawdownDate);
+
+                        const [lateFeeFlat, , membershipFee] = await poolConfigContract.getFees();
+                        const lateFeeBps = 500;
+                        const principalRateInBps = 100;
+                        await poolConfigContract.connect(poolOwner).setFeeStructure({
+                            yieldInBps: 1000,
+                            minPrincipalRateInBps: principalRateInBps,
+                            lateFeeFlat,
+                            lateFeeBps,
+                            membershipFee,
+                        });
+                        const [cc, cr, dd] = getInputParams(
+                            {},
+                            {
+                                nextDue: 0,
+                                yieldDue: 0,
+                                nextDueDate: 0,
+                                state: CreditState.Approved,
+                            },
+                        );
+                        const [newCR, newDD, isLate] = await creditDueManagerContract.getDueInfo(
+                            cr,
+                            cc,
+                            dd,
+                        );
+                        const nextDueDate = await calendarContract.getStartDateOfNextPeriod(
+                            cc.periodDuration,
+                            drawdownDate,
+                        );
+                        const principal = getPrincipal(cr, dd);
+                        const [accruedYield, committedYield] = calcYieldDue(
+                            cc,
+                            principal,
+                            16,
+                            1,
+                            membershipFee,
+                        );
+                        const expectedYieldDue = maxBigNumber(accruedYield, committedYield);
+                        const [unbilledPrincipal, , expectedPrincipalDue] = await calcPrincipalDue(
+                            calendarContract,
+                            BN.from(cr.unbilledPrincipal),
+                            drawdownDate.toNumber(),
+                            Number(cr.nextDueDate),
+                            nextDueDate.toNumber(),
+                            PayPeriodDuration.Monthly,
+                            principalRateInBps,
+                        );
+                        const expectedNewCR = {
+                            ...cr,
+                            ...{
+                                unbilledPrincipal: unbilledPrincipal,
+                                nextDueDate: nextDueDate,
+                                nextDue: expectedPrincipalDue.add(expectedYieldDue),
+                                yieldDue: expectedYieldDue,
+                            },
+                        };
+                        const expectedNewDD = {
+                            ...dd,
+                            ...{
+                                committed: committedYield,
+                                accrued: accruedYield,
+                            },
+                        };
+                        checkCreditRecordsMatch(newCR, expectedNewCR);
+                        checkDueDetailsMatch(newDD, expectedNewDD);
+                        expect(isLate).to.be.false;
+                    });
+                });
+            });
+
+            describe("If the bill is late", function () {
+                describe("If this is the first time the bill is late", function () {
                     describe("If the principal rate is 0", function () {
                         it("Should return the correct due date and amounts", async function () {
                             const nextYear = moment.utc().year() + 1;
                             const nextBlockTime = moment.utc({
                                 year: nextYear,
-                                month: 1,
+                                month: 3,
                                 day: 14,
                             });
                             await setNextBlockTimestamp(nextBlockTime.unix());
@@ -581,61 +737,85 @@ describe("CreditDueManager Tests", function () {
                                 lateFeeBps,
                                 membershipFee,
                             });
+                            const lastDueDate = moment.utc({
+                                year: nextYear,
+                                month: 1,
+                                day: 1,
+                            });
                             const [cc, cr, dd] = getInputParams(
                                 {},
                                 {
-                                    nextDue: 0,
-                                    yieldDue: 0,
-                                    nextDueDate: 0,
-                                    state: CreditState.Approved,
+                                    nextDueDate: lastDueDate.unix(),
+                                    state: CreditState.GoodStanding,
+                                },
+                                {
+                                    lateFeeUpdatedDate: 0,
                                 },
                             );
-                            const maturityDate = moment.utc({
-                                year: nextYear,
-                                month: 2,
-                                day: 14,
-                            });
                             const [newCR, newDD, isLate] =
-                                await creditDueManagerContract.getDueInfo(
-                                    cr,
-                                    cc,
-                                    dd,
-                                    maturityDate.unix(),
-                                );
+                                await creditDueManagerContract.getDueInfo(cr, cc, dd);
                             const nextDueDate = moment.utc({
                                 year: nextYear,
-                                month: 2,
+                                month: 4,
                                 day: 1,
                             });
                             const principal = getPrincipal(cr, dd);
-                            const [accruedYield, committedYield] = calcYieldDue(
+                            // All yield prior to 4/1 are now past due.
+                            const [accruedYieldPastDue, committedYieldPastDue] = calcYieldDue(
                                 cc,
                                 principal,
-                                17,
+                                60,
+                                3,
+                                membershipFee,
+                            );
+                            const expectedYieldPastDue = maxBigNumber(
+                                accruedYieldPastDue,
+                                committedYieldPastDue,
+                            );
+                            const [lateFeeUpdatedDate, expectedLateFee] = await calcLateFee(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                            );
+                            const [accruedYieldNextDue, committedYieldNextDue] = calcYieldDue(
+                                cc,
+                                principal,
+                                30,
                                 1,
                                 membershipFee,
                             );
-                            const expectedYieldDue = maxBigNumber(accruedYield, committedYield);
-                            // Since the principal rate is 0, no principal is due. Only yield is due in the first
-                            // partial period.
+                            const expectedYieldNextDue = maxBigNumber(
+                                accruedYieldNextDue,
+                                committedYieldNextDue,
+                            );
                             const expectedNewCR = {
                                 ...cr,
                                 ...{
                                     nextDueDate: nextDueDate.unix(),
-                                    nextDue: expectedYieldDue,
-                                    yieldDue: expectedYieldDue,
+                                    nextDue: expectedYieldNextDue,
+                                    yieldDue: expectedYieldNextDue,
+                                    totalPastDue: BN.from(cr.nextDue)
+                                        .add(expectedYieldPastDue)
+                                        .add(expectedLateFee),
                                 },
                             };
                             const expectedNewDD = {
                                 ...dd,
                                 ...{
-                                    committed: committedYield,
-                                    accrued: accruedYield,
+                                    lateFeeUpdatedDate: lateFeeUpdatedDate,
+                                    lateFee: expectedLateFee,
+                                    yieldPastDue: BN.from(cr.yieldDue).add(expectedYieldPastDue),
+                                    principalPastDue: BN.from(cr.nextDue).sub(
+                                        BN.from(cr.yieldDue),
+                                    ),
+                                    committed: committedYieldNextDue,
+                                    accrued: accruedYieldNextDue,
                                 },
                             };
                             checkCreditRecordsMatch(newCR, expectedNewCR);
                             checkDueDetailsMatch(newDD, expectedNewDD);
-                            expect(isLate).to.be.false;
+                            expect(isLate).to.be.true;
                         });
                     });
 
@@ -644,7 +824,7 @@ describe("CreditDueManager Tests", function () {
                             const nextYear = moment.utc().year() + 1;
                             const nextBlockTime = moment.utc({
                                 year: nextYear,
-                                month: 1,
+                                month: 3,
                                 day: 14,
                             });
                             await setNextBlockTimestamp(nextBlockTime.unix());
@@ -653,615 +833,6 @@ describe("CreditDueManager Tests", function () {
                                 await poolConfigContract.getFees();
                             const lateFeeBps = 500;
                             const principalRateInBps = 100;
-                            await poolConfigContract.connect(poolOwner).setFeeStructure({
-                                yieldInBps: 1000,
-                                minPrincipalRateInBps: principalRateInBps,
-                                lateFeeFlat,
-                                lateFeeBps,
-                                membershipFee,
-                            });
-                            const [cc, cr, dd] = getInputParams(
-                                {},
-                                {
-                                    nextDue: 0,
-                                    yieldDue: 0,
-                                    nextDueDate: 0,
-                                    state: CreditState.Approved,
-                                },
-                            );
-                            const maturityDate = moment.utc({
-                                year: nextYear,
-                                month: 2,
-                                day: 14,
-                            });
-                            const [newCR, newDD, isLate] =
-                                await creditDueManagerContract.getDueInfo(
-                                    cr,
-                                    cc,
-                                    dd,
-                                    maturityDate.unix(),
-                                );
-                            const nextDueDate = moment.utc({
-                                year: nextYear,
-                                month: 2,
-                                day: 1,
-                            });
-                            const principal = getPrincipal(cr, dd);
-                            const [accruedYield, committedYield] = calcYieldDue(
-                                cc,
-                                principal,
-                                17,
-                                1,
-                                membershipFee,
-                            );
-                            const expectedYieldDue = maxBigNumber(accruedYield, committedYield);
-                            // Since the principal rate is 0, no principal is due. Only yield is due in the first
-                            // partial period.
-                            const [unbilledPrincipal, , expectedPrincipalDue] =
-                                await calcPrincipalDue(
-                                    calendarContract,
-                                    BN.from(cr.unbilledPrincipal),
-                                    nextBlockTime.unix(),
-                                    Number(cr.nextDueDate),
-                                    nextDueDate.unix(),
-                                    PayPeriodDuration.Monthly,
-                                    principalRateInBps,
-                                );
-                            const expectedNewCR = {
-                                ...cr,
-                                ...{
-                                    unbilledPrincipal: unbilledPrincipal,
-                                    nextDueDate: nextDueDate.unix(),
-                                    nextDue: expectedPrincipalDue.add(expectedYieldDue),
-                                    yieldDue: expectedYieldDue,
-                                },
-                            };
-                            const expectedNewDD = {
-                                ...dd,
-                                ...{
-                                    committed: committedYield,
-                                    accrued: accruedYield,
-                                },
-                            };
-                            checkCreditRecordsMatch(newCR, expectedNewCR);
-                            checkDueDetailsMatch(newDD, expectedNewDD);
-                            expect(isLate).to.be.false;
-                        });
-                    });
-                });
-
-                describe("If the bill is late", function () {
-                    describe("If this is the first time the bill is late", function () {
-                        describe("If the principal rate is 0", function () {
-                            it("Should return the correct due date and amounts", async function () {
-                                const nextYear = moment.utc().year() + 1;
-                                const nextBlockTime = moment.utc({
-                                    year: nextYear,
-                                    month: 3,
-                                    day: 14,
-                                });
-                                await setNextBlockTimestamp(nextBlockTime.unix());
-
-                                const [lateFeeFlat, , membershipFee] =
-                                    await poolConfigContract.getFees();
-                                const lateFeeBps = 500;
-                                await poolConfigContract.connect(poolOwner).setFeeStructure({
-                                    yieldInBps: 1000,
-                                    minPrincipalRateInBps: 0,
-                                    lateFeeFlat,
-                                    lateFeeBps,
-                                    membershipFee,
-                                });
-                                const lastDueDate = moment.utc({
-                                    year: nextYear,
-                                    month: 1,
-                                    day: 1,
-                                });
-                                const [cc, cr, dd] = getInputParams(
-                                    {},
-                                    {
-                                        nextDueDate: lastDueDate.unix(),
-                                        state: CreditState.GoodStanding,
-                                    },
-                                    {
-                                        lateFeeUpdatedDate: 0,
-                                    },
-                                );
-                                const maturityDate = moment.utc({
-                                    year: nextYear,
-                                    month: 5,
-                                    day: 14,
-                                });
-                                const [newCR, newDD, isLate] =
-                                    await creditDueManagerContract.getDueInfo(
-                                        cr,
-                                        cc,
-                                        dd,
-                                        maturityDate.unix(),
-                                    );
-                                const nextDueDate = moment.utc({
-                                    year: nextYear,
-                                    month: 4,
-                                    day: 1,
-                                });
-                                const principal = getPrincipal(cr, dd);
-                                // All yield prior to 4/1 are now past due.
-                                const [accruedYieldPastDue, committedYieldPastDue] = calcYieldDue(
-                                    cc,
-                                    principal,
-                                    60,
-                                    3,
-                                    membershipFee,
-                                );
-                                const expectedYieldPastDue = maxBigNumber(
-                                    accruedYieldPastDue,
-                                    committedYieldPastDue,
-                                );
-                                const [lateFeeUpdatedDate, expectedLateFee] = await calcLateFee(
-                                    poolConfigContract,
-                                    calendarContract,
-                                    cr,
-                                    dd,
-                                );
-                                const [accruedYieldNextDue, committedYieldNextDue] = calcYieldDue(
-                                    cc,
-                                    principal,
-                                    30,
-                                    1,
-                                    membershipFee,
-                                );
-                                const expectedYieldNextDue = maxBigNumber(
-                                    accruedYieldNextDue,
-                                    committedYieldNextDue,
-                                );
-                                const expectedNewCR = {
-                                    ...cr,
-                                    ...{
-                                        nextDueDate: nextDueDate.unix(),
-                                        nextDue: expectedYieldNextDue,
-                                        yieldDue: expectedYieldNextDue,
-                                        totalPastDue: BN.from(cr.nextDue)
-                                            .add(expectedYieldPastDue)
-                                            .add(expectedLateFee),
-                                    },
-                                };
-                                const expectedNewDD = {
-                                    ...dd,
-                                    ...{
-                                        lateFeeUpdatedDate: lateFeeUpdatedDate,
-                                        lateFee: expectedLateFee,
-                                        yieldPastDue: BN.from(cr.yieldDue).add(
-                                            expectedYieldPastDue,
-                                        ),
-                                        principalPastDue: BN.from(cr.nextDue).sub(
-                                            BN.from(cr.yieldDue),
-                                        ),
-                                        committed: committedYieldNextDue,
-                                        accrued: accruedYieldNextDue,
-                                    },
-                                };
-                                checkCreditRecordsMatch(newCR, expectedNewCR);
-                                checkDueDetailsMatch(newDD, expectedNewDD);
-                                expect(isLate).to.be.true;
-                            });
-                        });
-
-                        describe("If the principal rate is not 0", function () {
-                            it("Should return the correct due date and amounts", async function () {
-                                const nextYear = moment.utc().year() + 1;
-                                const nextBlockTime = moment.utc({
-                                    year: nextYear,
-                                    month: 3,
-                                    day: 14,
-                                });
-                                await setNextBlockTimestamp(nextBlockTime.unix());
-
-                                const [lateFeeFlat, , membershipFee] =
-                                    await poolConfigContract.getFees();
-                                const lateFeeBps = 500;
-                                const principalRateInBps = 100;
-                                await poolConfigContract.connect(poolOwner).setFeeStructure({
-                                    yieldInBps: 1000,
-                                    minPrincipalRateInBps: principalRateInBps,
-                                    lateFeeFlat,
-                                    lateFeeBps,
-                                    membershipFee,
-                                });
-                                const lastDueDate = moment.utc({
-                                    year: nextYear,
-                                    month: 1,
-                                    day: 1,
-                                });
-                                const [cc, cr, dd] = getInputParams(
-                                    {},
-                                    {
-                                        nextDueDate: lastDueDate.unix(),
-                                        state: CreditState.GoodStanding,
-                                    },
-                                    {
-                                        lateFeeUpdatedDate: 0,
-                                    },
-                                );
-                                const maturityDate = moment.utc({
-                                    year: nextYear,
-                                    month: 5,
-                                    day: 14,
-                                });
-                                const [newCR, newDD, isLate] =
-                                    await creditDueManagerContract.getDueInfo(
-                                        cr,
-                                        cc,
-                                        dd,
-                                        maturityDate.unix(),
-                                    );
-                                const nextDueDate = moment.utc({
-                                    year: nextYear,
-                                    month: 4,
-                                    day: 1,
-                                });
-                                const principal = getPrincipal(cr, dd);
-
-                                // Calculate yield due.
-                                const [accruedYieldPastDue, committedYieldPastDue] = calcYieldDue(
-                                    cc,
-                                    principal,
-                                    60,
-                                    3,
-                                    membershipFee,
-                                );
-                                const expectedYieldPastDue = maxBigNumber(
-                                    accruedYieldPastDue,
-                                    committedYieldPastDue,
-                                );
-                                const [lateFeeUpdatedDate, expectedLateFee] = await calcLateFee(
-                                    poolConfigContract,
-                                    calendarContract,
-                                    cr,
-                                    dd,
-                                );
-                                const [accruedYieldNextDue, committedYieldNextDue] = calcYieldDue(
-                                    cc,
-                                    principal,
-                                    30,
-                                    1,
-                                    membershipFee,
-                                );
-                                const expectedYieldNextDue = maxBigNumber(
-                                    accruedYieldNextDue,
-                                    committedYieldNextDue,
-                                );
-
-                                // Calculate principal due.
-                                const [
-                                    unbilledPrincipal,
-                                    expectedPrincipalPastDue,
-                                    expectedPrincipalNextDue,
-                                ] = await calcPrincipalDue(
-                                    calendarContract,
-                                    BN.from(cr.unbilledPrincipal),
-                                    nextBlockTime.unix(),
-                                    Number(cr.nextDueDate),
-                                    nextDueDate.unix(),
-                                    PayPeriodDuration.Monthly,
-                                    principalRateInBps,
-                                );
-                                const expectedNewCR = {
-                                    ...cr,
-                                    ...{
-                                        unbilledPrincipal: unbilledPrincipal,
-                                        nextDueDate: nextDueDate.unix(),
-                                        nextDue:
-                                            expectedYieldNextDue.add(expectedPrincipalNextDue),
-                                        yieldDue: expectedYieldNextDue,
-                                        totalPastDue: BN.from(cr.nextDue)
-                                            .add(expectedPrincipalPastDue)
-                                            .add(expectedYieldPastDue)
-                                            .add(expectedLateFee),
-                                    },
-                                };
-                                const expectedNewDD = {
-                                    ...dd,
-                                    ...{
-                                        lateFeeUpdatedDate: lateFeeUpdatedDate,
-                                        lateFee: expectedLateFee,
-                                        yieldPastDue: BN.from(cr.yieldDue).add(
-                                            expectedYieldPastDue,
-                                        ),
-                                        principalPastDue: BN.from(cr.nextDue)
-                                            .sub(BN.from(cr.yieldDue))
-                                            .add(expectedPrincipalPastDue),
-                                        committed: committedYieldNextDue,
-                                        accrued: accruedYieldNextDue,
-                                    },
-                                };
-                                checkCreditRecordsMatch(newCR, expectedNewCR);
-                                checkDueDetailsMatch(newDD, expectedNewDD);
-                                expect(isLate).to.be.true;
-                            });
-                        });
-                    });
-
-                    describe("If the bill has been late in the past", function () {
-                        describe("If the principal rate is 0", function () {
-                            it("Should return the correct due date and amounts", async function () {
-                                const nextYear = moment.utc().year() + 1;
-                                const nextBlockTime = moment.utc({
-                                    year: nextYear,
-                                    month: 3,
-                                    day: 14,
-                                });
-                                await setNextBlockTimestamp(nextBlockTime.unix());
-
-                                const [lateFeeFlat, , membershipFee] =
-                                    await poolConfigContract.getFees();
-                                const lateFeeBps = 500;
-                                await poolConfigContract.connect(poolOwner).setFeeStructure({
-                                    yieldInBps: 1000,
-                                    minPrincipalRateInBps: 0,
-                                    lateFeeFlat,
-                                    lateFeeBps,
-                                    membershipFee,
-                                });
-                                const lastDueDate = moment.utc({
-                                    year: nextYear,
-                                    month: 1,
-                                    day: 1,
-                                });
-                                const [cc, cr, dd] = getInputParams(
-                                    {},
-                                    {
-                                        nextDueDate: lastDueDate.unix(),
-                                        totalPastDue: toToken(300),
-                                        missedPeriods: 1,
-                                        remainingPeriods: 1,
-                                        state: CreditState.Delayed,
-                                    },
-                                    {
-                                        lateFee: toToken(50),
-                                        yieldPastDue: toToken(100),
-                                        principalPastDue: toToken(200),
-                                        paid: toToken(50),
-                                    },
-                                );
-                                const maturityDate = moment.utc({
-                                    year: nextYear,
-                                    month: 5,
-                                    day: 14,
-                                });
-                                const [newCR, newDD, isLate] =
-                                    await creditDueManagerContract.getDueInfo(
-                                        cr,
-                                        cc,
-                                        dd,
-                                        maturityDate.unix(),
-                                    );
-                                const nextDueDate = moment.utc({
-                                    year: nextYear,
-                                    month: 4,
-                                    day: 1,
-                                });
-                                const principal = getPrincipal(cr, dd);
-                                // All yield prior to 4/1 are now past due.
-                                const [accruedYieldPastDue, committedYieldPastDue] = calcYieldDue(
-                                    cc,
-                                    principal,
-                                    60,
-                                    3,
-                                    membershipFee,
-                                );
-                                const expectedYieldPastDue = maxBigNumber(
-                                    accruedYieldPastDue,
-                                    committedYieldPastDue,
-                                );
-                                const [lateFeeUpdatedDate, expectedLateFee] = await calcLateFee(
-                                    poolConfigContract,
-                                    calendarContract,
-                                    cr,
-                                    dd,
-                                );
-                                const [accruedYieldNextDue, committedYieldNextDue] = calcYieldDue(
-                                    cc,
-                                    principal,
-                                    30,
-                                    1,
-                                    membershipFee,
-                                );
-                                const expectedYieldNextDue = maxBigNumber(
-                                    accruedYieldNextDue,
-                                    committedYieldNextDue,
-                                );
-                                const expectedNewCR = {
-                                    ...cr,
-                                    ...{
-                                        nextDueDate: nextDueDate.unix(),
-                                        nextDue: expectedYieldNextDue,
-                                        yieldDue: expectedYieldNextDue,
-                                        totalPastDue: BN.from(cr.totalPastDue)
-                                            .add(BN.from(cr.nextDue))
-                                            .add(expectedYieldPastDue)
-                                            .add(expectedLateFee),
-                                    },
-                                };
-                                const expectedNewDD = {
-                                    ...dd,
-                                    ...{
-                                        lateFeeUpdatedDate: lateFeeUpdatedDate,
-                                        lateFee: expectedLateFee,
-                                        yieldPastDue: BN.from(dd.yieldPastDue)
-                                            .add(BN.from(cr.yieldDue))
-                                            .add(expectedYieldPastDue),
-                                        principalPastDue: BN.from(dd.principalPastDue)
-                                            .add(BN.from(cr.nextDue))
-                                            .sub(BN.from(cr.yieldDue)),
-                                        committed: committedYieldNextDue,
-                                        accrued: accruedYieldNextDue,
-                                        paid: 0,
-                                    },
-                                };
-                                checkCreditRecordsMatch(newCR, expectedNewCR);
-                                checkDueDetailsMatch(newDD, expectedNewDD);
-                                expect(isLate).to.be.true;
-                            });
-                        });
-
-                        describe("If the principal rate is not 0", function () {
-                            it("Should return the correct due date and amounts", async function () {
-                                const nextYear = moment.utc().year() + 1;
-                                const nextBlockTime = moment.utc({
-                                    year: nextYear,
-                                    month: 3,
-                                    day: 14,
-                                });
-                                await setNextBlockTimestamp(nextBlockTime.unix());
-
-                                const [lateFeeFlat, , membershipFee] =
-                                    await poolConfigContract.getFees();
-                                const lateFeeBps = 500;
-                                const principalRateInBps = 100;
-                                await poolConfigContract.connect(poolOwner).setFeeStructure({
-                                    yieldInBps: 1000,
-                                    minPrincipalRateInBps: principalRateInBps,
-                                    lateFeeFlat,
-                                    lateFeeBps,
-                                    membershipFee,
-                                });
-                                const lastDueDate = moment.utc({
-                                    year: nextYear,
-                                    month: 1,
-                                    day: 1,
-                                });
-                                const [cc, cr, dd] = getInputParams(
-                                    {},
-                                    {
-                                        nextDueDate: lastDueDate.unix(),
-                                        totalPastDue: toToken(300),
-                                        missedPeriods: 1,
-                                        remainingPeriods: 1,
-                                        state: CreditState.Delayed,
-                                    },
-                                    {
-                                        lateFee: toToken(50),
-                                        yieldPastDue: toToken(100),
-                                        principalPastDue: toToken(200),
-                                        paid: toToken(50),
-                                    },
-                                );
-                                const maturityDate = moment.utc({
-                                    year: nextYear,
-                                    month: 5,
-                                    day: 14,
-                                });
-                                const [newCR, newDD, isLate] =
-                                    await creditDueManagerContract.getDueInfo(
-                                        cr,
-                                        cc,
-                                        dd,
-                                        maturityDate.unix(),
-                                    );
-                                const nextDueDate = moment.utc({
-                                    year: nextYear,
-                                    month: 4,
-                                    day: 1,
-                                });
-                                const principal = getPrincipal(cr, dd);
-
-                                // Calculate yield due.
-                                const [accruedYieldPastDue, committedYieldPastDue] = calcYieldDue(
-                                    cc,
-                                    principal,
-                                    60,
-                                    3,
-                                    membershipFee,
-                                );
-                                const expectedYieldPastDue = maxBigNumber(
-                                    accruedYieldPastDue,
-                                    committedYieldPastDue,
-                                );
-                                const [lateFeeUpdatedDate, expectedLateFee] = await calcLateFee(
-                                    poolConfigContract,
-                                    calendarContract,
-                                    cr,
-                                    dd,
-                                );
-                                const [accruedYieldNextDue, committedYieldNextDue] = calcYieldDue(
-                                    cc,
-                                    principal,
-                                    30,
-                                    1,
-                                    membershipFee,
-                                );
-                                const expectedYieldNextDue = maxBigNumber(
-                                    accruedYieldNextDue,
-                                    committedYieldNextDue,
-                                );
-
-                                // Calculate principal due.
-                                const [
-                                    unbilledPrincipal,
-                                    expectedPrincipalPastDue,
-                                    expectedPrincipalNextDue,
-                                ] = await calcPrincipalDue(
-                                    calendarContract,
-                                    BN.from(cr.unbilledPrincipal),
-                                    nextBlockTime.unix(),
-                                    Number(cr.nextDueDate),
-                                    nextDueDate.unix(),
-                                    PayPeriodDuration.Monthly,
-                                    principalRateInBps,
-                                );
-                                const expectedNewCR = {
-                                    ...cr,
-                                    ...{
-                                        unbilledPrincipal: unbilledPrincipal,
-                                        nextDueDate: nextDueDate.unix(),
-                                        nextDue:
-                                            expectedYieldNextDue.add(expectedPrincipalNextDue),
-                                        yieldDue: expectedYieldNextDue,
-                                        totalPastDue: BN.from(cr.totalPastDue)
-                                            .add(BN.from(cr.nextDue))
-                                            .add(expectedPrincipalPastDue)
-                                            .add(expectedYieldPastDue)
-                                            .add(expectedLateFee),
-                                    },
-                                };
-                                const expectedNewDD = {
-                                    ...dd,
-                                    ...{
-                                        lateFeeUpdatedDate: lateFeeUpdatedDate,
-                                        lateFee: expectedLateFee,
-                                        yieldPastDue: BN.from(dd.yieldPastDue)
-                                            .add(BN.from(cr.yieldDue))
-                                            .add(expectedYieldPastDue),
-                                        principalPastDue: BN.from(dd.principalPastDue)
-                                            .add(BN.from(cr.nextDue))
-                                            .sub(BN.from(cr.yieldDue))
-                                            .add(expectedPrincipalPastDue),
-                                        committed: committedYieldNextDue,
-                                        accrued: accruedYieldNextDue,
-                                        paid: 0,
-                                    },
-                                };
-                                checkCreditRecordsMatch(newCR, expectedNewCR);
-                                checkDueDetailsMatch(newDD, expectedNewDD);
-                                expect(isLate).to.be.true;
-                            });
-                        });
-                    });
-
-                    describe("If the current block timestamp has surpassed the maturity date", function () {
-                        it("Should return the correct due date and amounts", async function () {
-                            const nextYear = moment.utc().year() + 1;
-                            const nextBlockTime = moment.utc({
-                                year: nextYear,
-                                month: 5,
-                                day: 20,
-                            });
-                            await setNextBlockTimestamp(nextBlockTime.unix());
-
-                            const [lateFeeFlat, , membershipFee] =
-                                await poolConfigContract.getFees();
-                            const lateFeeBps = 500;
-                            const principalRateInBps = 0;
                             await poolConfigContract.connect(poolOwner).setFeeStructure({
                                 yieldInBps: 1000,
                                 minPrincipalRateInBps: principalRateInBps,
@@ -1278,29 +849,27 @@ describe("CreditDueManager Tests", function () {
                                 {},
                                 {
                                     nextDueDate: lastDueDate.unix(),
-                                    state: CreditState.Delayed,
+                                    state: CreditState.GoodStanding,
+                                },
+                                {
+                                    lateFeeUpdatedDate: 0,
                                 },
                             );
-                            const maturityDate = moment.utc({
-                                year: nextYear,
-                                month: 5,
-                                day: 14,
-                            });
                             const [newCR, newDD, isLate] =
-                                await creditDueManagerContract.getDueInfo(
-                                    cr,
-                                    cc,
-                                    dd,
-                                    maturityDate.unix(),
-                                );
+                                await creditDueManagerContract.getDueInfo(cr, cc, dd);
+                            const nextDueDate = moment.utc({
+                                year: nextYear,
+                                month: 4,
+                                day: 1,
+                            });
                             const principal = getPrincipal(cr, dd);
 
                             // Calculate yield due.
                             const [accruedYieldPastDue, committedYieldPastDue] = calcYieldDue(
                                 cc,
                                 principal,
-                                133,
-                                5,
+                                60,
+                                3,
                                 membershipFee,
                             );
                             const expectedYieldPastDue = maxBigNumber(
@@ -1316,7 +885,7 @@ describe("CreditDueManager Tests", function () {
                             const [accruedYieldNextDue, committedYieldNextDue] = calcYieldDue(
                                 cc,
                                 principal,
-                                0,
+                                30,
                                 1,
                                 membershipFee,
                             );
@@ -1335,7 +904,7 @@ describe("CreditDueManager Tests", function () {
                                 BN.from(cr.unbilledPrincipal),
                                 nextBlockTime.unix(),
                                 Number(cr.nextDueDate),
-                                maturityDate.unix(),
+                                nextDueDate.unix(),
                                 PayPeriodDuration.Monthly,
                                 principalRateInBps,
                             );
@@ -1343,7 +912,7 @@ describe("CreditDueManager Tests", function () {
                                 ...cr,
                                 ...{
                                     unbilledPrincipal: unbilledPrincipal,
-                                    nextDueDate: maturityDate.unix(),
+                                    nextDueDate: nextDueDate.unix(),
                                     nextDue: expectedYieldNextDue.add(expectedPrincipalNextDue),
                                     yieldDue: expectedYieldNextDue,
                                     totalPastDue: BN.from(cr.nextDue)
@@ -1369,6 +938,370 @@ describe("CreditDueManager Tests", function () {
                             checkDueDetailsMatch(newDD, expectedNewDD);
                             expect(isLate).to.be.true;
                         });
+                    });
+                });
+
+                describe("If the bill has been late in the past", function () {
+                    describe("If the principal rate is 0", function () {
+                        it("Should return the correct due date and amounts", async function () {
+                            const nextYear = moment.utc().year() + 1;
+                            const nextBlockTime = moment.utc({
+                                year: nextYear,
+                                month: 3,
+                                day: 14,
+                            });
+                            await setNextBlockTimestamp(nextBlockTime.unix());
+
+                            const [lateFeeFlat, , membershipFee] =
+                                await poolConfigContract.getFees();
+                            const lateFeeBps = 500;
+                            await poolConfigContract.connect(poolOwner).setFeeStructure({
+                                yieldInBps: 1000,
+                                minPrincipalRateInBps: 0,
+                                lateFeeFlat,
+                                lateFeeBps,
+                                membershipFee,
+                            });
+                            const lastDueDate = moment.utc({
+                                year: nextYear,
+                                month: 2,
+                                day: 1,
+                            });
+                            const [cc, cr, dd] = getInputParams(
+                                {},
+                                {
+                                    nextDueDate: lastDueDate.unix(),
+                                    totalPastDue: toToken(300),
+                                    missedPeriods: 1,
+                                    remainingPeriods: 2,
+                                    state: CreditState.Delayed,
+                                },
+                                {
+                                    lateFee: toToken(50),
+                                    yieldPastDue: toToken(100),
+                                    principalPastDue: toToken(200),
+                                    paid: toToken(50),
+                                },
+                            );
+                            const [newCR, newDD, isLate] =
+                                await creditDueManagerContract.getDueInfo(cr, cc, dd);
+                            const nextDueDate = moment.utc({
+                                year: nextYear,
+                                month: 4,
+                                day: 1,
+                            });
+                            const principal = getPrincipal(cr, dd);
+                            // All yield prior to 4/1 are now past due.
+                            const [accruedYieldPastDue, committedYieldPastDue] = calcYieldDue(
+                                cc,
+                                principal,
+                                30,
+                                2,
+                                membershipFee,
+                            );
+                            const expectedYieldPastDue = maxBigNumber(
+                                accruedYieldPastDue,
+                                committedYieldPastDue,
+                            );
+                            const [lateFeeUpdatedDate, expectedLateFee] = await calcLateFee(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                            );
+                            const [accruedYieldNextDue, committedYieldNextDue] = calcYieldDue(
+                                cc,
+                                principal,
+                                30,
+                                1,
+                                membershipFee,
+                            );
+                            const expectedYieldNextDue = maxBigNumber(
+                                accruedYieldNextDue,
+                                committedYieldNextDue,
+                            );
+                            const expectedNewCR = {
+                                ...cr,
+                                ...{
+                                    nextDueDate: nextDueDate.unix(),
+                                    nextDue: expectedYieldNextDue,
+                                    yieldDue: expectedYieldNextDue,
+                                    totalPastDue: BN.from(cr.totalPastDue)
+                                        .add(BN.from(cr.nextDue))
+                                        .add(expectedYieldPastDue)
+                                        .add(expectedLateFee),
+                                },
+                            };
+                            const expectedNewDD = {
+                                ...dd,
+                                ...{
+                                    lateFeeUpdatedDate: lateFeeUpdatedDate,
+                                    lateFee: expectedLateFee,
+                                    yieldPastDue: BN.from(dd.yieldPastDue)
+                                        .add(BN.from(cr.yieldDue))
+                                        .add(expectedYieldPastDue),
+                                    principalPastDue: BN.from(dd.principalPastDue)
+                                        .add(BN.from(cr.nextDue))
+                                        .sub(BN.from(cr.yieldDue)),
+                                    committed: committedYieldNextDue,
+                                    accrued: accruedYieldNextDue,
+                                    paid: 0,
+                                },
+                            };
+                            checkCreditRecordsMatch(newCR, expectedNewCR);
+                            checkDueDetailsMatch(newDD, expectedNewDD);
+                            expect(isLate).to.be.true;
+                        });
+                    });
+
+                    describe("If the principal rate is not 0", function () {
+                        it("Should return the correct due date and amounts", async function () {
+                            const nextYear = moment.utc().year() + 1;
+                            const nextBlockTime = moment.utc({
+                                year: nextYear,
+                                month: 3,
+                                day: 14,
+                            });
+                            await setNextBlockTimestamp(nextBlockTime.unix());
+
+                            const [lateFeeFlat, , membershipFee] =
+                                await poolConfigContract.getFees();
+                            const lateFeeBps = 500;
+                            const principalRateInBps = 100;
+                            await poolConfigContract.connect(poolOwner).setFeeStructure({
+                                yieldInBps: 1000,
+                                minPrincipalRateInBps: principalRateInBps,
+                                lateFeeFlat,
+                                lateFeeBps,
+                                membershipFee,
+                            });
+                            const lastDueDate = moment.utc({
+                                year: nextYear,
+                                month: 2,
+                                day: 1,
+                            });
+                            const [cc, cr, dd] = getInputParams(
+                                {},
+                                {
+                                    nextDueDate: lastDueDate.unix(),
+                                    totalPastDue: toToken(300),
+                                    missedPeriods: 1,
+                                    remainingPeriods: 2,
+                                    state: CreditState.Delayed,
+                                },
+                                {
+                                    lateFee: toToken(50),
+                                    yieldPastDue: toToken(100),
+                                    principalPastDue: toToken(200),
+                                    paid: toToken(50),
+                                },
+                            );
+                            const [newCR, newDD, isLate] =
+                                await creditDueManagerContract.getDueInfo(cr, cc, dd);
+                            const nextDueDate = moment.utc({
+                                year: nextYear,
+                                month: 4,
+                                day: 1,
+                            });
+                            const principal = getPrincipal(cr, dd);
+
+                            // Calculate yield due.
+                            const [accruedYieldPastDue, committedYieldPastDue] = calcYieldDue(
+                                cc,
+                                principal,
+                                30,
+                                1,
+                                membershipFee,
+                            );
+                            const expectedYieldPastDue = maxBigNumber(
+                                accruedYieldPastDue,
+                                committedYieldPastDue,
+                            );
+                            const [lateFeeUpdatedDate, expectedLateFee] = await calcLateFee(
+                                poolConfigContract,
+                                calendarContract,
+                                cr,
+                                dd,
+                            );
+                            const [accruedYieldNextDue, committedYieldNextDue] = calcYieldDue(
+                                cc,
+                                principal,
+                                30,
+                                1,
+                                membershipFee,
+                            );
+                            const expectedYieldNextDue = maxBigNumber(
+                                accruedYieldNextDue,
+                                committedYieldNextDue,
+                            );
+
+                            // Calculate principal due.
+                            const [
+                                unbilledPrincipal,
+                                expectedPrincipalPastDue,
+                                expectedPrincipalNextDue,
+                            ] = await calcPrincipalDue(
+                                calendarContract,
+                                BN.from(cr.unbilledPrincipal),
+                                nextBlockTime.unix(),
+                                Number(cr.nextDueDate),
+                                nextDueDate.unix(),
+                                PayPeriodDuration.Monthly,
+                                principalRateInBps,
+                            );
+                            const expectedNewCR = {
+                                ...cr,
+                                ...{
+                                    unbilledPrincipal: unbilledPrincipal,
+                                    nextDueDate: nextDueDate.unix(),
+                                    nextDue: expectedYieldNextDue.add(expectedPrincipalNextDue),
+                                    yieldDue: expectedYieldNextDue,
+                                    totalPastDue: BN.from(cr.totalPastDue)
+                                        .add(BN.from(cr.nextDue))
+                                        .add(expectedPrincipalPastDue)
+                                        .add(expectedYieldPastDue)
+                                        .add(expectedLateFee),
+                                },
+                            };
+                            const expectedNewDD = {
+                                ...dd,
+                                ...{
+                                    lateFeeUpdatedDate: lateFeeUpdatedDate,
+                                    lateFee: expectedLateFee,
+                                    yieldPastDue: BN.from(dd.yieldPastDue)
+                                        .add(BN.from(cr.yieldDue))
+                                        .add(expectedYieldPastDue),
+                                    principalPastDue: BN.from(dd.principalPastDue)
+                                        .add(BN.from(cr.nextDue))
+                                        .sub(BN.from(cr.yieldDue))
+                                        .add(expectedPrincipalPastDue),
+                                    committed: committedYieldNextDue,
+                                    accrued: accruedYieldNextDue,
+                                    paid: 0,
+                                },
+                            };
+                            checkCreditRecordsMatch(newCR, expectedNewCR);
+                            checkDueDetailsMatch(newDD, expectedNewDD);
+                            expect(isLate).to.be.true;
+                        });
+                    });
+                });
+
+                describe("If the current block timestamp has surpassed the maturity date", function () {
+                    it("Should return the correct due date and amounts", async function () {
+                        const nextYear = moment.utc().year() + 1;
+                        const nextBlockTime = moment.utc({
+                            year: nextYear,
+                            month: 5,
+                            day: 20,
+                        });
+                        await setNextBlockTimestamp(nextBlockTime.unix());
+
+                        const [lateFeeFlat, , membershipFee] = await poolConfigContract.getFees();
+                        const lateFeeBps = 500;
+                        const principalRateInBps = 0;
+                        await poolConfigContract.connect(poolOwner).setFeeStructure({
+                            yieldInBps: 1000,
+                            minPrincipalRateInBps: principalRateInBps,
+                            lateFeeFlat,
+                            lateFeeBps,
+                            membershipFee,
+                        });
+                        const lastDueDate = moment.utc({
+                            year: nextYear,
+                            month: 2,
+                            day: 1,
+                        });
+                        const [cc, cr, dd] = getInputParams(
+                            {},
+                            {
+                                nextDueDate: lastDueDate.unix(),
+                                nextDue: toToken(1_000),
+                                yieldDue: toToken(400),
+                                totalPastDue: toToken(500),
+                                missedPeriods: 1,
+                                remainingPeriods: 2,
+                                state: CreditState.Delayed,
+                            },
+                        );
+                        const [newCR, newDD, isLate] = await creditDueManagerContract.getDueInfo(
+                            cr,
+                            cc,
+                            dd,
+                        );
+                        const principal = getPrincipal(cr, dd);
+
+                        // Calculate yield due.
+                        const [accruedYieldPastDue, committedYieldPastDue] = calcYieldDue(
+                            cc,
+                            principal,
+                            60,
+                            2,
+                            membershipFee,
+                        );
+                        const expectedYieldPastDue = maxBigNumber(
+                            accruedYieldPastDue,
+                            committedYieldPastDue,
+                        );
+                        const [lateFeeUpdatedDate, expectedLateFee] = await calcLateFee(
+                            poolConfigContract,
+                            calendarContract,
+                            cr,
+                            dd,
+                        );
+
+                        // Calculate principal due.
+                        const [unbilledPrincipal, expectedPrincipalPastDue] =
+                            await calcPrincipalDue(
+                                calendarContract,
+                                BN.from(cr.unbilledPrincipal),
+                                nextBlockTime.unix(),
+                                Number(cr.nextDueDate),
+                                moment
+                                    .utc({
+                                        year: nextYear,
+                                        month: 5,
+                                        day: 1,
+                                    })
+                                    .unix(),
+                                PayPeriodDuration.Monthly,
+                                principalRateInBps,
+                            );
+                        const expectedNewCR = {
+                            ...cr,
+                            ...{
+                                unbilledPrincipal: unbilledPrincipal,
+                                nextDueDate: moment
+                                    .utc({
+                                        year: nextYear,
+                                        month: 6,
+                                        day: 1,
+                                    })
+                                    .unix(),
+                                nextDue: 0,
+                                yieldDue: 0,
+                                totalPastDue: BN.from(cr.nextDue)
+                                    .add(expectedPrincipalPastDue)
+                                    .add(expectedYieldPastDue)
+                                    .add(expectedLateFee),
+                            },
+                        };
+                        const expectedNewDD = {
+                            ...dd,
+                            ...{
+                                lateFeeUpdatedDate: lateFeeUpdatedDate,
+                                lateFee: expectedLateFee,
+                                yieldPastDue: BN.from(cr.yieldDue).add(expectedYieldPastDue),
+                                principalPastDue: BN.from(cr.nextDue)
+                                    .sub(BN.from(cr.yieldDue))
+                                    .add(expectedPrincipalPastDue),
+                                committed: 0,
+                                accrued: 0,
+                            },
+                        };
+                        checkCreditRecordsMatch(newCR, expectedNewCR);
+                        checkDueDetailsMatch(newDD, expectedNewDD);
+                        expect(isLate).to.be.true;
                     });
                 });
             });
