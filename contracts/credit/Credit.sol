@@ -129,11 +129,6 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         uint256 lateFeePaid;
     }
 
-    function setMaturityDate(bytes32 creditHash, uint256 maturityDate) external {
-        _onlyCreditManager();
-        maturityDateMap[creditHash] = maturityDate;
-    }
-
     /// Shared setter to the credit record mapping for contract size consideration
     function setCreditRecord(bytes32 creditHash, CreditRecord memory cr) external {
         _onlyCreditManager();
@@ -150,10 +145,6 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
     function setCreditLoss(bytes32 creditHash, CreditLoss memory cl) external {
         _onlyCreditManager();
         _setCreditLoss(creditHash, cl);
-    }
-
-    function getMaturityDate(bytes32 creditHash) external view returns (uint256 maturitydate) {
-        return maturityDateMap[creditHash];
     }
 
     /**
@@ -320,11 +311,6 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             // Note that we need to write to _creditRecordMap here directly rather than its copy `cr`
             // because `updateDueInfo()` needs to access the updated `unbilledPrincipal` in storage.
             _creditRecordMap[creditHash].unbilledPrincipal = uint96(borrowAmount);
-            maturityDateMap[creditHash] = calendar.getMaturityDate(
-                cc.periodDuration,
-                cc.numOfPeriods,
-                block.timestamp
-            );
             (cr, ) = _updateDueInfo(creditHash);
             cr.state = CreditState.GoodStanding;
         } else {

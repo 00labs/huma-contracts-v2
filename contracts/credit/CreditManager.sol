@@ -186,10 +186,6 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
             // 3. We have not yet reached the designated start date.
             revert Errors.committedCreditCannotBeStarted();
         }
-        credit.setMaturityDate(
-            creditHash,
-            calendar.getMaturityDate(cc.periodDuration, cc.numOfPeriods, block.timestamp)
-        );
         DueDetail memory dd;
         credit.updateDueInfo(creditHash);
 
