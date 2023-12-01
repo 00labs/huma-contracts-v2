@@ -6,8 +6,13 @@ import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/acce
 import {PoolConfig} from "../PoolConfig.sol";
 import {Errors} from "../Errors.sol";
 import {ReceivableInput} from "./CreditStructs.sol";
+import {IReceivableLevelCreditManager} from "./interfaces/IReceivableLevelCreditManager.sol";
 
-contract ReceivableLevelCreditManager is CreditManager, AccessControlUpgradeable {
+contract ReceivableLevelCreditManager is
+    CreditManager,
+    AccessControlUpgradeable,
+    IReceivableLevelCreditManager
+{
     bytes32 public constant PAYER_ROLE = keccak256("PAYER");
 
     function initialize(PoolConfig _poolConfig) public virtual override initializer {
@@ -104,8 +109,9 @@ contract ReceivableLevelCreditManager is CreditManager, AccessControlUpgradeable
         _waiveLateFee(creditHash, waivedAmount);
     }
 
-    function onlyPayer(address account) external view {
+    function onlyPayer(address account, bytes32 creditHash) external view returns (address) {
         if (!hasRole(PAYER_ROLE, account)) revert Errors.permissionDeniedNotPayer();
+        return _creditBorrowerMap[creditHash];
     }
 
     function _getCreditHash(

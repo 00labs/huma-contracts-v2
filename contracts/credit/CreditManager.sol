@@ -73,8 +73,12 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         return _creditConfigMap[creditHash];
     }
 
+    function getCreditBorrower(bytes32 creditHash) external view returns (address) {
+        return _creditBorrowerMap[creditHash];
+    }
+
     function onlyCreditBorrower(bytes32 creditHash, address borrower) public view {
-        if (borrower != creditBorrowerMap[creditHash]) revert Errors.notBorrower();
+        if (borrower != _creditBorrowerMap[creditHash]) revert Errors.notBorrower();
     }
 
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
@@ -169,7 +173,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         cr.state = CreditState.Approved;
         credit.setCreditRecord(creditHash, cr);
 
-        creditBorrowerMap[creditHash] = borrower;
+        _creditBorrowerMap[creditHash] = borrower;
     }
 
     /**
