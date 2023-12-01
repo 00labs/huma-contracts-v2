@@ -6,4 +6,6 @@ interface ICreditManager {
     function getCreditConfig(bytes32 creditHash) external view returns (CreditConfig memory);
 
     function onlyCreditBorrower(bytes32 creditHash, address borrower) external view;
+
+    function getCreditBorrower(bytes32 creditHash) external view returns (address);
 }

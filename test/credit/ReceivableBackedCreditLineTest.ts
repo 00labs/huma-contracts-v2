@@ -262,7 +262,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
             //     1,
             //     2,
             // );
-            // expect(await creditContract.creditBorrowerMap(creditHash)).to.equal(borrower.address);
+            // expect(await creditContract.getCreditBorrower(creditHash)).to.equal(borrower.address);
         });
 
         it("Month1 - Day1 ~ Day5: drawdown in the first week", async function () {

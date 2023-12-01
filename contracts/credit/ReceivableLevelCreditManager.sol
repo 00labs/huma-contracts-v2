@@ -5,10 +5,26 @@ import {CreditManager} from "./CreditManager.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {PoolConfig} from "../PoolConfig.sol";
 import {Errors} from "../Errors.sol";
-import {ReceivableInput} from "./CreditStructs.sol";
+import {ReceivableInput, PayPeriodDuration} from "./CreditStructs.sol";
+import {IReceivableLevelCreditManager} from "./interfaces/IReceivableLevelCreditManager.sol";
 
-contract ReceivableLevelCreditManager is CreditManager, AccessControlUpgradeable {
+contract ReceivableLevelCreditManager is
+    CreditManager,
+    AccessControlUpgradeable,
+    IReceivableLevelCreditManager
+{
     bytes32 public constant PAYER_ROLE = keccak256("PAYER");
+
+    event ReceivableFactoringCreditApproved(
+        address indexed borrower,
+        bytes32 indexed creditHash,
+        uint256 receivableId,
+        uint256 receivableAmount,
+        uint256 creditLimit,
+        PayPeriodDuration periodDuration,
+        uint256 remainingPeriods,
+        uint256 yieldInBps
+    );
 
     function initialize(PoolConfig _poolConfig) public virtual override initializer {
         __AccessControl_init();
@@ -33,12 +49,12 @@ contract ReceivableLevelCreditManager is CreditManager, AccessControlUpgradeable
         ReceivableInput memory receivableInput,
         uint96 creditLimit,
         uint16 remainingPeriods,
-        uint16 yieldInBps,
-        uint96 committedAmount,
-        uint64 designatedStartDate
+        uint16 yieldInBps
     ) external virtual {
         poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
+        if (creditLimit > receivableInput.receivableAmount)
+            revert Errors.insufficientReceivableAmount();
 
         bytes32 creditHash = _getCreditHash(receivableInput.receivableId);
         _approveCredit(
@@ -47,9 +63,20 @@ contract ReceivableLevelCreditManager is CreditManager, AccessControlUpgradeable
             creditLimit,
             remainingPeriods,
             yieldInBps,
-            committedAmount,
-            designatedStartDate,
+            0,
+            0,
             false
+        );
+
+        emit ReceivableFactoringCreditApproved(
+            borrower,
+            creditHash,
+            receivableInput.receivableId,
+            receivableInput.receivableAmount,
+            creditLimit,
+            getCreditConfig(creditHash).periodDuration,
+            remainingPeriods,
+            yieldInBps
         );
     }
 
@@ -105,8 +132,9 @@ contract ReceivableLevelCreditManager is CreditManager, AccessControlUpgradeable
         _waiveLateFee(creditHash, waivedAmount);
     }
 
-    function onlyPayer(address account) external view {
+    function onlyPayer(address account, bytes32 creditHash) external view returns (address) {
         if (!hasRole(PAYER_ROLE, account)) revert Errors.permissionDeniedNotPayer();
+        return _creditBorrowerMap[creditHash];
     }
 
     function _getCreditHash(

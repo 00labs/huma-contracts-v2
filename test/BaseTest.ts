@@ -22,6 +22,7 @@ import {
     Receivable,
     ReceivableBackedCreditLine,
     ReceivableBackedCreditLineManager,
+    ReceivableFactoringCredit,
     ReceivableLevelCreditManager,
     TrancheVault,
 } from "../typechain-types";
@@ -39,7 +40,11 @@ import {
 import { EpochInfoStruct } from "../typechain-types/contracts/interfaces/IEpoch";
 import { maxBigNumber, minBigNumber, sumBNArray, toToken } from "./TestUtils";
 
-export type CreditContractType = MockPoolCredit | CreditLine | ReceivableBackedCreditLine;
+export type CreditContractType =
+    | MockPoolCredit
+    | CreditLine
+    | ReceivableBackedCreditLine
+    | ReceivableFactoringCredit;
 export type CreditManagerContractType =
     | BorrowerLevelCreditManager
     | ReceivableBackedCreditLineManager
@@ -65,7 +70,11 @@ export type PoolContracts = [
 export type TranchesPolicyContractName =
     | "FixedSeniorYieldTranchePolicy"
     | "RiskAdjustedTranchesPolicy";
-export type CreditContractName = "CreditLine" | "ReceivableBackedCreditLine" | "MockPoolCredit";
+export type CreditContractName =
+    | "CreditLine"
+    | "ReceivableBackedCreditLine"
+    | "ReceivableFactoringCredit"
+    | "MockPoolCredit";
 export type CreditManagerContractName =
     | "BorrowerLevelCreditManager"
     | "ReceivableBackedCreditLineManager"
@@ -1394,6 +1403,8 @@ async function getCreditContractFactory(creditContractName: CreditContractName) 
         case "CreditLine":
             return await ethers.getContractFactory(creditContractName);
         case "ReceivableBackedCreditLine":
+            return await ethers.getContractFactory(creditContractName);
+        case "ReceivableFactoringCredit":
             return await ethers.getContractFactory(creditContractName);
         case "MockPoolCredit":
             return await ethers.getContractFactory(creditContractName);
