@@ -49,15 +49,11 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
      * @param creditHash the credit hash
      * @param oldRemainingPeriods the number of remaining pay periods before the extension
      * @param newRemainingPeriods the number of remaining pay periods after the extension
-     * @param oldMaturityDate The maturity date before the extension.
-     * @param newMaturityDate The maturity date after the extension.
      */
     event RemainingPeriodsExtended(
         bytes32 indexed creditHash,
         uint256 oldRemainingPeriods,
         uint256 newRemainingPeriods,
-        uint256 oldMaturityDate,
-        uint256 newMaturityDate,
         address by
     );
 
@@ -194,10 +190,6 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
             // 3. We have not yet reached the designated start date.
             revert Errors.committedCreditCannotBeStarted();
         }
-        credit.setMaturityDate(
-            creditHash,
-            calendar.getMaturityDate(cc.periodDuration, cc.numOfPeriods, block.timestamp)
-        );
         DueDetail memory dd;
         credit.updateDueInfo(creditHash);
 
@@ -217,8 +209,8 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         }
 
         CreditConfig memory cc = getCreditConfig(creditHash);
-        // TODO How to handle the case the borrower never draws down?
-        if (cc.committedAmount > 0 && cr.remainingPeriods > 0)
+        if (cr.state != CreditState.Approved && cc.committedAmount > 0 && cr.remainingPeriods > 0)
+            // If a credit has started and has unfulfilled commitment, then don't allow it to be closed.
             revert Errors.creditLineHasUnfulfilledCommitment();
 
         // Close the credit by removing relevant record.
@@ -261,10 +253,14 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
      * to the LPs. Unfortunately, this special business consideration added more complexity
      * and cognitive load to `updateDueInfo`.
      */
-    function _refreshCredit(
-        bytes32 creditHash
-    ) internal returns (CreditRecord memory cr, DueDetail memory dd) {
-        return credit.updateDueInfo(creditHash);
+    function _refreshCredit(bytes32 creditHash) internal {
+        CreditRecord memory cr = credit.getCreditRecord(creditHash);
+        if (cr.state != CreditState.Approved && cr.state != CreditState.Deleted) {
+            // There is nothing to refresh when:
+            // 1. the credit is approved but hasn't started yet;
+            // 2. the credit has already been closed.
+            credit.updateDueInfo(creditHash);
+        }
     }
 
     /**
@@ -325,20 +321,10 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         cr.remainingPeriods += uint16(newNumOfPeriods);
         credit.setCreditRecord(creditHash, cr);
 
-        uint256 oldMaturityDate = credit.getMaturityDate(creditHash);
-        uint256 newMaturityDate = calendar.getMaturityDate(
-            cc.periodDuration,
-            newNumOfPeriods,
-            oldMaturityDate
-        );
-        credit.setMaturityDate(creditHash, newMaturityDate);
-
         emit RemainingPeriodsExtended(
             creditHash,
             oldRemainingPeriods,
             cr.remainingPeriods,
-            oldMaturityDate,
-            newMaturityDate,
             msg.sender
         );
     }

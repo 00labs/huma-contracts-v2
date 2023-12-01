@@ -7,15 +7,11 @@ interface ICredit {
 
     function getDueDetail(bytes32 creditHash) external view returns (DueDetail memory);
 
-    function getMaturityDate(bytes32 creditHash) external view returns (uint256 maturitydate);
-
     function getCreditLoss(bytes32 creditHash) external view returns (CreditLoss memory);
 
     function setCreditRecord(bytes32 creditHash, CreditRecord memory cr) external;
 
     function setDueDetail(bytes32 creditHash, DueDetail memory dd) external;
-
-    function setMaturityDate(bytes32 creditHash, uint256 maturityDate) external;
 
     function setCreditLoss(bytes32 creditHash, CreditLoss memory loss) external;
 
