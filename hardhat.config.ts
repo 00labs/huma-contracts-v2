@@ -2,7 +2,7 @@ import "@nomicfoundation/hardhat-foundry";
 import "@nomicfoundation/hardhat-toolbox";
 import "hardhat-contract-sizer";
 
-import "@nomiclabs/hardhat-ethers";
+// import "@nomiclabs/hardhat-ethers";
 
 import "dotenv/config";
 

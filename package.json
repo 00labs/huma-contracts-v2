@@ -37,7 +37,6 @@
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^1.0.6",
-    "@nomicfoundation/hardhat-ethers": "^3.0.4",
     "@nomicfoundation/hardhat-foundry": "^1.1.1",
     "@nomicfoundation/hardhat-network-helpers": "^1.0.7",
     "@nomicfoundation/hardhat-toolbox": "^2.0.2",
@@ -76,8 +75,5 @@
     "ts-node": "^10.9.1",
     "typechain": "^8.1.0",
     "typescript": "^5.2.2"
-  },
-  "dependencies": {
-    "@openzeppelin/hardhat-upgrades": "^2.2.1"
   }
 }
