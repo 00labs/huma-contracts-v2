@@ -29,11 +29,6 @@ contract CreditStorage {
     mapping(bytes32 => DueDetail) internal _dueDetailMap;
     /// mapping from credit id to the to the CreditLoss struct
     mapping(bytes32 => CreditLoss) internal _creditLossMap;
-    // Mapping from credit hash to the maturity date of the credit.
-    // We are not putting the maturity date into `CreditConfig` because that would
-    // double the size of the `CreditConfig` struct, and the maturity date is only
-    // used when calculating the next due date.
-    mapping(bytes32 => uint256) internal maturityDateMap;
 
     /**
      * @dev This empty reserved space is put in place to allow future versions to add new

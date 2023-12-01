@@ -8,22 +8,6 @@ import {CreditConfig, CreditRecord, DueDetail} from "../../CreditStructs.sol";
  */
 
 interface ICreditDueManager {
-    // /**
-    //  * @notice Calculates accrued interest and accrued principal from last updated timestamp to current timestamp.
-    //  * @param principal the principal amount
-    //  * @param startTime the loan start timestamp
-    //  * @param lastUpdatedTime the last updated timestamp
-    //  * @param creditRecord the schedule and payment parameters for this loan
-    //  * @return accruedInterest the accrued interest from last updated timestamp to current timestamp,
-    //  * accruedPrincipal the accrued principal from last updated timestamp to current timestamp,
-    //  */
-    // function accruedDebt(
-    //     uint256 principal,
-    //     uint256 startTime,
-    //     uint256 lastUpdatedTime,
-    //     CreditRecord memory creditRecord
-    // ) external view returns (uint256 accruedInterest, uint256 accruedPrincipal);
-
     /**
      * @notice Apply front loading fee, distribute the total amount to borrower, pool, & protocol
      * @param borrowAmount the amount of the borrowing
