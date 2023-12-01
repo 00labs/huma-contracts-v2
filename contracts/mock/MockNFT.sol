@@ -1,33 +1,37 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import {ERC721EnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol";
 import {ERC721URIStorageUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721URIStorageUpgradeable.sol";
 import {ERC721BurnableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721BurnableUpgradeable.sol";
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {CountersUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/CountersUpgradeable.sol";
-import "../Errors.sol";
+import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
+import {IReceivableFactoringCreditForContract} from "../credit/interfaces/IReceivableFactoringCreditForContract.sol";
 
 contract MockNFT is
     ERC721Upgradeable,
     ERC721EnumerableUpgradeable,
     ERC721URIStorageUpgradeable,
-    ERC721BurnableUpgradeable,
-    OwnableUpgradeable
+    ERC721BurnableUpgradeable
 {
     using CountersUpgradeable for CountersUpgradeable.Counter;
+    using ERC165Checker for address;
+    using SafeERC20 for IERC20;
 
+    address public tokenAddress;
     CountersUpgradeable.Counter internal _tokenIdCounter;
 
-    function initialize() public initializer {
-        // todo change the upgradability to be consistent with what we will use in v2
+    function initialize(address _tokenAddress, address humaPoolSafe) public initializer {
         __ERC721_init("MockNFT", "MNFT");
         __ERC721Enumerable_init();
         __ERC721URIStorage_init();
         __ERC721Burnable_init();
-        __Ownable_init();
+
+        tokenAddress = _tokenAddress;
+        IERC20(tokenAddress).safeApprove(humaPoolSafe, type(uint256).max);
     }
 
     function getCurrentTokenId() external view returns (uint256) {
@@ -35,17 +39,26 @@ contract MockNFT is
     }
 
     function payOwner(uint256 tokenId, uint256 amount) external {
-        // IERC20(_tokenAddress).safeTransferFrom(msg.sender, payee, amount);
+        address owner = ownerOf(tokenId);
+        if (owner.supportsInterface(type(IReceivableFactoringCreditForContract).interfaceId)) {
+            IERC20(tokenAddress).safeTransferFrom(msg.sender, address(this), amount);
+            IReceivableFactoringCreditForContract(owner).makePaymentWithReceivableForContract(
+                tokenId,
+                amount
+            );
+        } else {
+            IERC20(tokenAddress).safeTransferFrom(msg.sender, owner, amount);
+        }
     }
 
     function mintNFT(
-        address recipient,
-        string memory tokenURI
+        address _recipient,
+        string memory _tokenURI
     ) external returns (uint256 newItemId) {
         _tokenIdCounter.increment();
         newItemId = _tokenIdCounter.current();
-        _mint(recipient, newItemId);
-        _setTokenURI(newItemId, tokenURI);
+        _mint(_recipient, newItemId);
+        _setTokenURI(newItemId, _tokenURI);
     }
 
     function _beforeTokenTransfer(
