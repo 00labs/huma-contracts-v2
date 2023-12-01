@@ -238,10 +238,6 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         // late or dormant for multiple cycles, getDueInfo() will bring it current and
         // return the most up-to-date due information.
         CreditConfig memory cc = _getCreditConfig(creditHash);
-        uint256 maturityDate = maturityDateMap[creditHash];
-
-        // Do not update due info if the credit is approved but the drawdown hasn't happened yet.
-        if (cr.state == CreditState.Approved && maturityDate == 0) return (cr, dd);
 
         uint256 periodsPassed;
         // console.log("block.timestamp: %s, cr.nextDueDate: %s", block.timestamp, cr.nextDueDate);
@@ -602,9 +598,14 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         if (amount == 0) revert Errors.zeroAmountProvided();
 
         CreditRecord memory cr = getCreditRecord(creditHash);
-        (cr, ) = _updateDueInfo(creditHash);
         if (cr.state != CreditState.GoodStanding) {
             revert Errors.creditLineNotInStateForMakingPrincipalPayment();
+        }
+        if (block.timestamp > cr.nextDueDate) {
+            (cr, ) = _updateDueInfo(creditHash);
+            if (cr.state != CreditState.GoodStanding) {
+                revert Errors.creditLineNotInStateForMakingPrincipalPayment();
+            }
         }
 
         uint256 principalDue = cr.nextDue - cr.yieldDue;
