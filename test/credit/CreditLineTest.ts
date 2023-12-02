@@ -423,12 +423,7 @@ describe("CreditLine Test", function () {
         });
 
         it("Should approve a borrower correctly", async function () {
-            const creditHash = ethers.utils.keccak256(
-                ethers.utils.defaultAbiCoder.encode(
-                    ["address", "address"],
-                    [creditContract.address, borrower.address],
-                ),
-            );
+            const creditHash = await borrowerLevelCreditHash(creditContract, borrower);
 
             let poolSettings = await poolConfigContract.getPoolSettings();
 
@@ -506,12 +501,7 @@ describe("CreditLine Test", function () {
 
             await creditManagerContract.connect(borrower).closeCredit(borrower.address);
 
-            const creditHash = ethers.utils.keccak256(
-                ethers.utils.defaultAbiCoder.encode(
-                    ["address", "address"],
-                    [creditContract.address, borrower.address],
-                ),
-            );
+            const creditHash = await borrowerLevelCreditHash(creditContract, borrower);
 
             let poolSettings = await poolConfigContract.getPoolSettings();
 
@@ -591,12 +581,7 @@ describe("CreditLine Test", function () {
                 .add(5, "days")
                 .startOf("day");
 
-            const creditHash = ethers.utils.keccak256(
-                ethers.utils.defaultAbiCoder.encode(
-                    ["address", "address"],
-                    [creditContract.address, borrower.address],
-                ),
-            );
+            const creditHash = await borrowerLevelCreditHash(creditContract, borrower);
 
             const poolSettings = await poolConfigContract.getPoolSettings();
 
@@ -678,12 +663,7 @@ describe("CreditLine Test", function () {
         describe("If the designated start date is at the beginning of a period", function () {
             async function prepare() {
                 committedAmount = toToken(50_000);
-                creditHash = ethers.utils.keccak256(
-                    ethers.utils.defaultAbiCoder.encode(
-                        ["address", "address"],
-                        [creditContract.address, borrower.address],
-                    ),
-                );
+                creditHash = await borrowerLevelCreditHash(creditContract, borrower);
 
                 const nextBlockTimestamp = await getFutureBlockTime(1);
                 startDate = await calendarContract.getStartDateOfNextPeriod(
@@ -749,12 +729,7 @@ describe("CreditLine Test", function () {
         describe("If the designated start date is in the middle of a period", function () {
             async function prepare() {
                 committedAmount = toToken(50_000);
-                creditHash = ethers.utils.keccak256(
-                    ethers.utils.defaultAbiCoder.encode(
-                        ["address", "address"],
-                        [creditContract.address, borrower.address],
-                    ),
-                );
+                creditHash = await borrowerLevelCreditHash(creditContract, borrower);
 
                 const nextBlockTimestamp = await getFutureBlockTime(1);
                 startDate = (
@@ -1024,12 +999,7 @@ describe("CreditLine Test", function () {
                 await setNextBlockTimestamp(firstDrawdownDate);
                 await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
 
-                const creditHash = ethers.utils.keccak256(
-                    ethers.utils.defaultAbiCoder.encode(
-                        ["address", "address"],
-                        [creditContract.address, borrower.address],
-                    ),
-                );
+                const creditHash = await borrowerLevelCreditHash(creditContract, borrower);
                 const cr = await creditContract.getCreditRecord(creditHash);
                 const poolSettings = await poolConfigContract.getPoolSettings();
                 const secondDrawdownDate =
@@ -1046,12 +1016,7 @@ describe("CreditLine Test", function () {
 
             it("Should not allow drawdown when the credit state is Delayed", async function () {
                 await creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000));
-                const creditHash = ethers.utils.keccak256(
-                    ethers.utils.defaultAbiCoder.encode(
-                        ["address", "address"],
-                        [creditContract.address, borrower.address],
-                    ),
-                );
+                const creditHash = await borrowerLevelCreditHash(creditContract, borrower);
                 let creditRecord = await creditContract.getCreditRecord(creditHash);
                 let settings = await poolConfigContract.getPoolSettings();
                 let nextTime =
@@ -1178,12 +1143,7 @@ describe("CreditLine Test", function () {
                     frontLoadingFeeBps: frontLoadingFeeBps,
                 });
 
-                const creditHash = ethers.utils.keccak256(
-                    ethers.utils.defaultAbiCoder.encode(
-                        ["address", "address"],
-                        [creditContract.address, borrower.address],
-                    ),
-                );
+                const creditHash = await borrowerLevelCreditHash(creditContract, borrower);
 
                 const borrowAmount = toToken(50_000);
                 const netBorrowAmount = borrowAmount
@@ -1247,12 +1207,7 @@ describe("CreditLine Test", function () {
                     frontLoadingFeeBps: frontLoadingFeeBps,
                 });
 
-                const creditHash = ethers.utils.keccak256(
-                    ethers.utils.defaultAbiCoder.encode(
-                        ["address", "address"],
-                        [creditContract.address, borrower.address],
-                    ),
-                );
+                const creditHash = await borrowerLevelCreditHash(creditContract, borrower);
 
                 let borrowAmount = toToken(30_000);
                 let totalBorrowAmount = borrowAmount;
@@ -1356,12 +1311,7 @@ describe("CreditLine Test", function () {
             });
 
             it("Should allow the borrower to borrow again in the next period", async function () {
-                const creditHash = ethers.utils.keccak256(
-                    ethers.utils.defaultAbiCoder.encode(
-                        ["address", "address"],
-                        [creditContract.address, borrower.address],
-                    ),
-                );
+                const creditHash = await borrowerLevelCreditHash(creditContract, borrower);
 
                 let borrowAmount = toToken(25000);
                 let totalBorrowAmount = borrowAmount;
@@ -1463,12 +1413,7 @@ describe("CreditLine Test", function () {
             });
 
             it("Should allow the borrower to borrow if the committed yield is less than the accrued yield", async function () {
-                const creditHash = ethers.utils.keccak256(
-                    ethers.utils.defaultAbiCoder.encode(
-                        ["address", "address"],
-                        [creditContract.address, borrower.address],
-                    ),
-                );
+                const creditHash = await borrowerLevelCreditHash(creditContract, borrower);
 
                 const borrowAmount = toToken(30_000);
                 const netBorrowAmount = borrowAmount;
@@ -1525,12 +1470,7 @@ describe("CreditLine Test", function () {
             });
 
             it("Should allow the borrower to borrow if the committed yield is greater than the accrued yield", async function () {
-                const creditHash = ethers.utils.keccak256(
-                    ethers.utils.defaultAbiCoder.encode(
-                        ["address", "address"],
-                        [creditContract.address, borrower.address],
-                    ),
-                );
+                const creditHash = await borrowerLevelCreditHash(creditContract, borrower);
 
                 const borrowAmount = toToken(10_000);
                 const netBorrowAmount = borrowAmount;
@@ -1594,12 +1534,7 @@ describe("CreditLine Test", function () {
                     frontLoadingFeeBps: frontLoadingFeeBps,
                 });
 
-                const creditHash = ethers.utils.keccak256(
-                    ethers.utils.defaultAbiCoder.encode(
-                        ["address", "address"],
-                        [creditContract.address, borrower.address],
-                    ),
-                );
+                const creditHash = await borrowerLevelCreditHash(creditContract, borrower);
 
                 let borrowAmount = toToken(10_000);
                 let totalBorrowAmount = borrowAmount;
@@ -1704,12 +1639,7 @@ describe("CreditLine Test", function () {
                     frontLoadingFeeBps: frontLoadingFeeBps,
                 });
 
-                const creditHash = ethers.utils.keccak256(
-                    ethers.utils.defaultAbiCoder.encode(
-                        ["address", "address"],
-                        [creditContract.address, borrower.address],
-                    ),
-                );
+                const creditHash = await borrowerLevelCreditHash(creditContract, borrower);
 
                 let borrowAmount = toToken(25_000);
                 let totalBorrowAmount = borrowAmount;
@@ -1844,12 +1774,7 @@ describe("CreditLine Test", function () {
                     frontLoadingFeeBps: frontLoadingFeeBps,
                 });
 
-                const creditHash = ethers.utils.keccak256(
-                    ethers.utils.defaultAbiCoder.encode(
-                        ["address", "address"],
-                        [creditContract.address, borrower.address],
-                    ),
-                );
+                const creditHash = await borrowerLevelCreditHash(creditContract, borrower);
 
                 const borrowAmount = toToken(50_000);
                 const netBorrowAmount = borrowAmount
@@ -1921,12 +1846,7 @@ describe("CreditLine Test", function () {
                     frontLoadingFeeBps: frontLoadingFeeBps,
                 });
 
-                const creditHash = ethers.utils.keccak256(
-                    ethers.utils.defaultAbiCoder.encode(
-                        ["address", "address"],
-                        [creditContract.address, borrower.address],
-                    ),
-                );
+                const creditHash = await borrowerLevelCreditHash(creditContract, borrower);
 
                 const firstBorrowAmount = toToken(50_000);
                 const nextBlockTimestamp = await getFutureBlockTime(3);
@@ -2029,12 +1949,7 @@ describe("CreditLine Test", function () {
                     frontLoadingFeeBps: frontLoadingFeeBps,
                 });
 
-                const creditHash = ethers.utils.keccak256(
-                    ethers.utils.defaultAbiCoder.encode(
-                        ["address", "address"],
-                        [creditContract.address, borrower.address],
-                    ),
-                );
+                const creditHash = await borrowerLevelCreditHash(creditContract, borrower);
 
                 const firstBorrowAmount = toToken(50_000);
                 const nextBlockTimestamp = await getFutureBlockTime(3);
@@ -2169,7 +2084,9 @@ describe("CreditLine Test", function () {
                 it("Should not update anything", async function () {
                     const oldCR = await creditContract.getCreditRecord(creditHash);
                     const oldDD = await creditContract.getDueDetail(creditHash);
-                    await creditManagerContract.refreshCredit(borrower.address);
+                    await creditManagerContract
+                        .connect(pdsServiceAccount)
+                        .refreshCredit(borrower.address);
                     checkCreditRecordsMatch(
                         await creditContract.getCreditRecord(creditHash),
                         oldCR,
@@ -2184,7 +2101,9 @@ describe("CreditLine Test", function () {
 
                     const oldCR = await creditContract.getCreditRecord(creditHash);
                     const oldDD = await creditContract.getDueDetail(creditHash);
-                    await creditManagerContract.refreshCredit(borrower.address);
+                    await creditManagerContract
+                        .connect(pdsServiceAccount)
+                        .refreshCredit(borrower.address);
                     checkCreditRecordsMatch(
                         await creditContract.getCreditRecord(creditHash),
                         oldCR,
@@ -2215,7 +2134,9 @@ describe("CreditLine Test", function () {
                 it("Should not update anything if the bill is in the current billing cycle and is in good standing", async function () {
                     const oldCR = await creditContract.getCreditRecord(creditHash);
                     const oldDD = await creditContract.getDueDetail(creditHash);
-                    await creditManagerContract.refreshCredit(borrower.address);
+                    await creditManagerContract
+                        .connect(pdsServiceAccount)
+                        .refreshCredit(borrower.address);
                     checkCreditRecordsMatch(
                         await creditContract.getCreditRecord(creditHash),
                         oldCR,
@@ -2229,7 +2150,9 @@ describe("CreditLine Test", function () {
                     await setNextBlockTimestamp(refreshDate);
 
                     const oldDD = await creditContract.getDueDetail(creditHash);
-                    await creditManagerContract.refreshCredit(borrower.address);
+                    await creditManagerContract
+                        .connect(pdsServiceAccount)
+                        .refreshCredit(borrower.address);
                     checkCreditRecordsMatch(
                         await creditContract.getCreditRecord(creditHash),
                         oldCR,
@@ -2256,12 +2179,7 @@ describe("CreditLine Test", function () {
                         true,
                     );
 
-                creditHash = ethers.utils.keccak256(
-                    ethers.utils.defaultAbiCoder.encode(
-                        ["address", "address"],
-                        [creditContract.address, borrower.address],
-                    ),
-                );
+                creditHash = await borrowerLevelCreditHash(creditContract, borrower);
             }
 
             beforeEach(async function () {
@@ -2292,7 +2210,11 @@ describe("CreditLine Test", function () {
                 let totalPastDue = creditRecord.nextDue;
 
                 const remainingPeriods = creditRecord.remainingPeriods;
-                await expect(creditManagerContract.refreshCredit(borrower.address))
+                await expect(
+                    creditManagerContract
+                        .connect(pdsServiceAccount)
+                        .refreshCredit(borrower.address),
+                )
                     .to.emit(creditContract, "BillRefreshed")
                     .withArgs(creditHash, nextDueDate, yieldDue);
 
@@ -2334,7 +2256,9 @@ describe("CreditLine Test", function () {
                     100;
                 await setNextBlockTimestamp(nextTime);
 
-                await creditManagerContract.refreshCredit(borrower.address);
+                await creditManagerContract
+                    .connect(pdsServiceAccount)
+                    .refreshCredit(borrower.address);
 
                 const days = CONSTANTS.SECONDS_IN_A_DAY;
                 nextTime = nextTime + days;
@@ -2342,7 +2266,9 @@ describe("CreditLine Test", function () {
 
                 creditRecord = await creditContract.getCreditRecord(creditHash);
                 let dueDetail = await creditContract.getDueDetail(creditHash);
-                await creditManagerContract.refreshCredit(borrower.address);
+                await creditManagerContract
+                    .connect(pdsServiceAccount)
+                    .refreshCredit(borrower.address);
                 checkCreditRecordsMatch(
                     await creditContract.getCreditRecord(creditHash),
                     creditRecord,
@@ -2367,7 +2293,9 @@ describe("CreditLine Test", function () {
                 await setNextBlockTimestamp(nextTime);
 
                 let totalPastDue = creditRecord.nextDue;
-                await creditManagerContract.refreshCredit(borrower.address);
+                await creditManagerContract
+                    .connect(pdsServiceAccount)
+                    .refreshCredit(borrower.address);
 
                 creditRecord = await creditContract.getCreditRecord(creditHash);
                 nextTime = creditRecord.nextDueDate.toNumber() + 100;
@@ -2384,7 +2312,11 @@ describe("CreditLine Test", function () {
                 const [yieldDue, committed] = calcYieldDue(cc, borrowAmount, days, 1, BN.from(0));
 
                 totalPastDue = totalPastDue.add(creditRecord.nextDue);
-                await expect(creditManagerContract.refreshCredit(borrower.address))
+                await expect(
+                    creditManagerContract
+                        .connect(pdsServiceAccount)
+                        .refreshCredit(borrower.address),
+                )
                     .to.emit(creditContract, "BillRefreshed")
                     .withArgs(creditHash, nextDueDate, yieldDue);
 
@@ -2446,7 +2378,11 @@ describe("CreditLine Test", function () {
                 );
 
                 const remainingPeriods = creditRecord.remainingPeriods;
-                await expect(creditManagerContract.refreshCredit(borrower.address))
+                await expect(
+                    creditManagerContract
+                        .connect(pdsServiceAccount)
+                        .refreshCredit(borrower.address),
+                )
                     .to.emit(creditContract, "BillRefreshed")
                     .withArgs(creditHash, maturityDate, committed);
 
@@ -2496,7 +2432,11 @@ describe("CreditLine Test", function () {
                     refreshDate,
                 );
 
-                await expect(creditManagerContract.refreshCredit(borrower.address))
+                await expect(
+                    creditManagerContract
+                        .connect(pdsServiceAccount)
+                        .refreshCredit(borrower.address),
+                )
                     .to.emit(creditContract, "BillRefreshed")
                     .withArgs(creditHash, expectedNextDueDate, 0);
 
@@ -2544,7 +2484,9 @@ describe("CreditLine Test", function () {
                 );
                 const firstRefreshDate = maturityDate.toNumber() - 600;
                 await setNextBlockTimestamp(firstRefreshDate);
-                await creditManagerContract.refreshCredit(borrower.address);
+                await creditManagerContract
+                    .connect(pdsServiceAccount)
+                    .refreshCredit(borrower.address);
 
                 // Second refresh is performed post-maturity.
                 const secondRefreshDate = maturityDate.toNumber() + 600;
@@ -2557,7 +2499,11 @@ describe("CreditLine Test", function () {
                     oldCR.nextDueDate,
                 );
 
-                await expect(creditManagerContract.refreshCredit(borrower.address))
+                await expect(
+                    creditManagerContract
+                        .connect(pdsServiceAccount)
+                        .refreshCredit(borrower.address),
+                )
                     .to.emit(creditContract, "BillRefreshed")
                     .withArgs(creditHash, expectedNextDueDate, 0);
 
@@ -2617,12 +2563,7 @@ describe("CreditLine Test", function () {
                         true,
                     );
 
-                creditHash = ethers.utils.keccak256(
-                    ethers.utils.defaultAbiCoder.encode(
-                        ["address", "address"],
-                        [creditContract.address, borrower.address],
-                    ),
-                );
+                creditHash = await borrowerLevelCreditHash(creditContract, borrower);
             }
 
             beforeEach(async function () {
@@ -2663,7 +2604,11 @@ describe("CreditLine Test", function () {
                 );
                 let nextDue = committed.add(principalDue);
 
-                await expect(creditManagerContract.refreshCredit(borrower.address))
+                await expect(
+                    creditManagerContract
+                        .connect(pdsServiceAccount)
+                        .refreshCredit(borrower.address),
+                )
                     .to.emit(creditContract, "BillRefreshed")
                     .withArgs(creditHash, nextDueDate, nextDue);
 
@@ -2767,7 +2712,11 @@ describe("CreditLine Test", function () {
                 );
                 let nextDue = yieldDue.add(principalDue);
 
-                await expect(creditManagerContract.refreshCredit(borrower.address))
+                await expect(
+                    creditManagerContract
+                        .connect(pdsServiceAccount)
+                        .refreshCredit(borrower.address),
+                )
                     .to.emit(creditContract, "BillRefreshed")
                     .withArgs(creditHash, maturityDate, nextDue);
 
@@ -2819,7 +2768,9 @@ describe("CreditLine Test", function () {
                     settings.latePaymentGracePeriodInDays * CONSTANTS.SECONDS_IN_A_DAY +
                     100;
                 await setNextBlockTimestamp(firstRefreshDate);
-                await creditManagerContract.refreshCredit(borrower.address);
+                await creditManagerContract
+                    .connect(pdsServiceAccount)
+                    .refreshCredit(borrower.address);
 
                 oldCR = await creditContract.getCreditRecord(creditHash);
                 const oldDD = await creditContract.getDueDetail(creditHash);
@@ -2849,7 +2800,11 @@ describe("CreditLine Test", function () {
                 );
                 const nextDue = accruedYieldDue.add(principalDue);
 
-                await expect(creditManagerContract.refreshCredit(borrower.address))
+                await expect(
+                    creditManagerContract
+                        .connect(pdsServiceAccount)
+                        .refreshCredit(borrower.address),
+                )
                     .to.emit(creditContract, "BillRefreshed")
                     .withArgs(creditHash, expectedNextDueDate, nextDue);
 
@@ -2918,7 +2873,11 @@ describe("CreditLine Test", function () {
                     refreshDate,
                 );
 
-                await expect(creditManagerContract.refreshCredit(borrower.address))
+                await expect(
+                    creditManagerContract
+                        .connect(pdsServiceAccount)
+                        .refreshCredit(borrower.address),
+                )
                     .to.emit(creditContract, "BillRefreshed")
                     .withArgs(creditHash, expectedNextDueDate, 0);
 
@@ -2985,7 +2944,9 @@ describe("CreditLine Test", function () {
                 );
                 const firstRefreshDate = maturityDate.toNumber() - 600;
                 await setNextBlockTimestamp(firstRefreshDate);
-                await creditManagerContract.refreshCredit(borrower.address);
+                await creditManagerContract
+                    .connect(pdsServiceAccount)
+                    .refreshCredit(borrower.address);
 
                 // Second refresh is performed post-maturity.
                 const secondRefreshDate = maturityDate.toNumber() + 600;
@@ -2998,7 +2959,11 @@ describe("CreditLine Test", function () {
                     oldCR.nextDueDate,
                 );
 
-                await expect(creditManagerContract.refreshCredit(borrower.address))
+                await expect(
+                    creditManagerContract
+                        .connect(pdsServiceAccount)
+                        .refreshCredit(borrower.address),
+                )
                     .to.emit(creditContract, "BillRefreshed")
                     .withArgs(creditHash, expectedNextDueDate, 0);
 
@@ -3054,14 +3019,9 @@ describe("CreditLine Test", function () {
             makePaymentDate: moment.Moment,
             firstDueDate: moment.Moment;
 
-        beforeEach(function () {
+        beforeEach(async function () {
             membershipFee = toToken(10);
-            creditHash = ethers.utils.keccak256(
-                ethers.utils.defaultAbiCoder.encode(
-                    ["address", "address"],
-                    [creditContract.address, borrower.address],
-                ),
-            );
+            creditHash = await borrowerLevelCreditHash(creditContract, borrower);
         });
 
         async function approveCredit() {
@@ -4602,7 +4562,9 @@ describe("CreditLine Test", function () {
                             .add(2, "days")
                             .add(4, "hours");
                         await setNextBlockTimestamp(billRefreshDate.unix());
-                        await creditManagerContract.refreshCredit(borrower.getAddress());
+                        await creditManagerContract
+                            .connect(pdsServiceAccount)
+                            .refreshCredit(borrower.getAddress());
                         const cr = await creditContract.getCreditRecord(creditHash);
                         expect(cr.state).to.equal(CreditState.Delayed);
                     }
@@ -6403,7 +6365,9 @@ describe("CreditLine Test", function () {
                             .add(2, "days")
                             .add(4, "hours");
                         await setNextBlockTimestamp(billRefreshDate.unix());
-                        await creditManagerContract.refreshCredit(borrower.getAddress());
+                        await creditManagerContract
+                            .connect(pdsServiceAccount)
+                            .refreshCredit(borrower.getAddress());
                         const cr = await creditContract.getCreditRecord(creditHash);
                         expect(cr.state).to.equal(CreditState.Delayed);
                     }
@@ -6927,14 +6891,9 @@ describe("CreditLine Test", function () {
             makePaymentDate: moment.Moment,
             firstDueDate: moment.Moment;
 
-        beforeEach(function () {
+        beforeEach(async function () {
             membershipFee = toToken(10);
-            creditHash = ethers.utils.keccak256(
-                ethers.utils.defaultAbiCoder.encode(
-                    ["address", "address"],
-                    [creditContract.address, borrower.address],
-                ),
-            );
+            creditHash = await borrowerLevelCreditHash(creditContract, borrower);
         });
 
         async function approveCredit() {
@@ -7622,8 +7581,162 @@ describe("CreditLine Test", function () {
         });
     });
 
-    describe("triggerDefault", function () {
-        // TODO(jiatu): fill this in
+    describe("triggerLiquidation", function () {
+        const defaultGracePeriodInMonths = 2;
+        const numOfPeriods = 6,
+            yieldInBps = 1217,
+            lateFeeBps = 100;
+        let creditHash: string;
+        let borrowAmount: BN;
+
+        async function prepare() {
+            borrowAmount = toToken(10_000);
+            creditHash = await borrowerLevelCreditHash(creditContract, borrower);
+
+            await poolConfigContract
+                .connect(poolOwner)
+                .setPoolDefaultGracePeriod(defaultGracePeriodInMonths);
+            await poolConfigContract.connect(poolOwner).setFeeStructure({
+                yieldInBps,
+                minPrincipalRateInBps: 50,
+                lateFeeFlat: 0,
+                lateFeeBps,
+                membershipFee: 0,
+            });
+            await creditManagerContract
+                .connect(eaServiceAccount)
+                .approveBorrower(
+                    borrower.address,
+                    toToken(100_000),
+                    numOfPeriods,
+                    yieldInBps,
+                    toToken(0),
+                    0,
+                    true,
+                );
+        }
+
+        beforeEach(async function () {
+            await loadFixture(prepare);
+        });
+
+        it("Should allow liquidation to be triggered once", async function () {
+            await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
+
+            const drawdownDate = (await getLatestBlock()).timestamp;
+            // Liquidation date is one day after the default grace period has passed.
+            const liquidationDate =
+                drawdownDate +
+                CONSTANTS.SECONDS_IN_A_DAY *
+                    CONSTANTS.DAYS_IN_A_MONTH *
+                    (defaultGracePeriodInMonths + 1) +
+                CONSTANTS.SECONDS_IN_A_DAY;
+            await setNextBlockTimestamp(liquidationDate);
+
+            const cc = await creditManagerContract.getCreditConfig(creditHash);
+            const oldCR = await creditContract.getCreditRecord(creditHash);
+            const expectedPrincipalLoss = borrowAmount;
+            const startOfLiquidationPeriod = await calendarContract.getStartDateOfPeriod(
+                cc.periodDuration,
+                liquidationDate,
+            );
+            const daysPassed = await calendarContract.getDaysDiff(
+                drawdownDate,
+                startOfLiquidationPeriod,
+            );
+            const expectedYieldPastDue = calcYield(
+                borrowAmount,
+                yieldInBps,
+                daysPassed.toNumber(),
+            );
+            const expectedYieldDue = calcYield(
+                borrowAmount,
+                yieldInBps,
+                CONSTANTS.DAYS_IN_A_MONTH,
+            );
+            const expectedYieldLoss = expectedYieldPastDue.add(expectedYieldDue);
+            // Late fee starts to accrue since the beginning of the second billing cycle until the start of tomorrow.
+            const lateFeeDays =
+                (
+                    await calendarContract.getDaysDiff(oldCR.nextDueDate, liquidationDate)
+                ).toNumber() + 1;
+            const expectedFeesLoss = await calcYield(borrowAmount, lateFeeBps, lateFeeDays);
+            await expect(
+                creditManagerContract
+                    .connect(eaServiceAccount)
+                    .triggerDefault(borrower.getAddress()),
+            )
+                .to.emit(creditManagerContract, "DefaultTriggered")
+                .withArgs(
+                    creditHash,
+                    expectedPrincipalLoss,
+                    expectedYieldLoss,
+                    expectedFeesLoss,
+                    await eaServiceAccount.getAddress(),
+                )
+                .to.emit(creditContract, "BillRefreshed")
+                .to.emit(poolContract, "ProfitDistributed")
+                .to.emit(poolContract, "LossDistributed");
+
+            const cl = await creditContract.getCreditLoss(creditHash);
+            expect(cl.principalLoss).to.equal(expectedPrincipalLoss);
+            expect(cl.yieldLoss).to.equal(expectedYieldLoss);
+            expect(cl.feesLoss).to.equal(expectedFeesLoss);
+
+            const cr = await creditContract.getCreditRecord(creditHash);
+            expect(cr.state).to.equal(CreditState.Defaulted);
+
+            // Any further attempt to trigger liquidation is disallowed.
+            await expect(
+                creditManagerContract
+                    .connect(eaServiceAccount)
+                    .triggerDefault(borrower.getAddress()),
+            ).to.be.revertedWithCustomError(
+                creditManagerContract,
+                "defaultHasAlreadyBeenTriggered",
+            );
+        });
+
+        it("Should not allow liquidation to be triggered when the protocol is paused or pool is not on", async function () {
+            await humaConfigContract.connect(protocolOwner).pause();
+            await expect(
+                creditManagerContract.connect(eaServiceAccount).triggerDefault(borrower.address),
+            ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+            await humaConfigContract.connect(protocolOwner).unpause();
+
+            await poolContract.connect(poolOwner).disablePool();
+            await expect(
+                creditManagerContract.connect(eaServiceAccount).triggerDefault(borrower.address),
+            ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+        });
+
+        it("Should not allow non-EA service account to trigger liquidation", async function () {
+            await expect(
+                creditManagerContract.triggerDefault(borrower.address),
+            ).to.be.revertedWithCustomError(
+                creditManagerContract,
+                "evaluationAgentServiceAccountRequired",
+            );
+        });
+
+        it("Should not allow liquidation to be triggered if the default grace period hasn't passed", async function () {
+            await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
+
+            const drawdownDate = (await getLatestBlock()).timestamp;
+            const liquidationDate =
+                drawdownDate +
+                CONSTANTS.SECONDS_IN_A_DAY *
+                    CONSTANTS.DAYS_IN_A_MONTH *
+                    (defaultGracePeriodInMonths + 1) -
+                CONSTANTS.SECONDS_IN_A_DAY;
+            await setNextBlockTimestamp(liquidationDate);
+
+            await expect(
+                creditManagerContract
+                    .connect(eaServiceAccount)
+                    .triggerDefault(borrower.getAddress()),
+            ).to.be.revertedWithCustomError(creditManagerContract, "defaultTriggeredTooEarly");
+        });
     });
 
     describe("Management Tests", function () {
@@ -7949,18 +8062,6 @@ describe("CreditLine Test", function () {
                 // TODO(jiatu): fill this in
             });
         });
-    });
-
-    describe("Delayed Tests", function () {
-        it("Should refresh credit and credit becomes Delayed state", async function () {});
-
-        it("Should not allow drawdown in Delayed state", async function () {});
-
-        it("Should make partial payment successfully in Delayed state", async function () {});
-
-        it("Should pay total due successfully and credit becomes GoodStanding state", async function () {});
-
-        it("Should pay off successfully in Delayed state", async function () {});
     });
 
     describe("Defaulted Tests", function () {

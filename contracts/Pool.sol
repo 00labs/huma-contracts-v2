@@ -146,19 +146,20 @@ contract Pool is PoolConfigCache, IPool {
 
     /// @inheritdoc IPool
     function distributeProfit(uint256 profit) external {
-        if (msg.sender != poolConfig.credit()) revert Errors.todo();
+        // TODO(jiatu): add pool tests for non-authorized callers.
+        _onlyCreditOrCreditManager(msg.sender);
         _distributeProfit(profit);
     }
 
     /// @inheritdoc IPool
     function distributeLoss(uint256 loss) external {
-        if (msg.sender != poolConfig.credit()) revert Errors.todo();
+        _onlyCreditOrCreditManager(msg.sender);
         _distributeLoss(loss);
     }
 
     /// @inheritdoc IPool
     function distributeLossRecovery(uint256 lossRecovery) external {
-        if (msg.sender != poolConfig.credit()) revert Errors.todo();
+        if (msg.sender != poolConfig.credit()) revert Errors.notAuthorizedCaller();
         _distributeLossRecovery(lossRecovery);
     }
 
@@ -449,5 +450,11 @@ contract Pool is PoolConfigCache, IPool {
             account != poolConfig.seniorTranche() &&
             account != poolConfig.epochManager()
         ) revert Errors.notAuthorizedCaller();
+    }
+
+    function _onlyCreditOrCreditManager(address account) internal view {
+        if (account != poolConfig.credit() && account != poolConfig.creditManager()) {
+            revert Errors.notAuthorizedCaller();
+        }
     }
 }

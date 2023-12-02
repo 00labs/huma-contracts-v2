@@ -101,8 +101,10 @@ contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManage
         override
         returns (uint256 principalLoss, uint256 yieldLoss, uint256 feesLoss)
     {
+        poolConfig.onlyProtocolAndPoolOn();
+        _onlyEAServiceAccount();
         bytes32 creditHash = getCreditHash(borrower);
-        return _triggerDefault(creditHash);
+        return _triggerLiquidation(creditHash);
     }
 
     /// @inheritdoc IBorrowerLevelCreditManager

@@ -11,7 +11,9 @@ import {PoolConfigCache} from "../PoolConfigCache.sol";
 import {CreditManagerStorage} from "./CreditManagerStorage.sol";
 import {CreditConfig, CreditLimit, CreditRecord, CreditState, DueDetail, PayPeriodDuration, CreditLoss} from "./CreditStructs.sol";
 import {Errors} from "../Errors.sol";
-import {DAYS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS, SECONDS_IN_A_DAY} from "../SharedDefs.sol";
+import {DAYS_IN_A_MONTH, DAYS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS, SECONDS_IN_A_DAY} from "../SharedDefs.sol";
+
+import "hardhat/console.sol";
 
 abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICreditManager {
     event CreditConfigChanged(
@@ -60,8 +62,9 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
     /**
      * @notice checks if the credit line is ready to be triggered as defaulted
      */
-    function isDefaultReady(bytes32 creditHash) public view virtual returns (bool isDefault) {
-        return _isDefaultReady(credit.getCreditRecord(creditHash));
+    function isLiquidationReady(bytes32 creditHash) public view virtual returns (bool isDefault) {
+        return
+            _isLiquidationReady(getCreditConfig(creditHash), credit.getCreditRecord(creditHash));
     }
 
     /// Shared accessor to the credit config mapping for contract size consideration
@@ -269,34 +272,32 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
      * @dev It is possible for the borrower to payback even after default, especially in
      * receivable factoring cases.
      */
-    function _triggerDefault(
+    function _triggerLiquidation(
         bytes32 creditHash
     ) internal virtual returns (uint256 principalLoss, uint256 yieldLoss, uint256 feesLoss) {
-        poolConfig.onlyProtocolAndPoolOn();
-
         // check to make sure the default grace period has passed.
         CreditRecord memory cr = credit.getCreditRecord(creditHash);
-        DueDetail memory dd = credit.getDueDetail(creditHash);
         if (cr.state == CreditState.Defaulted) revert Errors.defaultHasAlreadyBeenTriggered();
 
-        (cr, ) = credit.updateDueInfo(creditHash);
+        DueDetail memory dd;
+        (cr, dd) = credit.updateDueInfo(creditHash);
 
         // Check if grace period has been exceeded.
-        if (!_isDefaultReady(cr)) revert Errors.defaultTriggeredTooEarly();
+        CreditConfig memory cc = getCreditConfig(creditHash);
+        if (!_isLiquidationReady(cc, cr)) revert Errors.defaultTriggeredTooEarly();
 
         principalLoss = cr.unbilledPrincipal + cr.nextDue - cr.yieldDue + dd.principalPastDue;
         yieldLoss = cr.yieldDue + dd.yieldPastDue;
         feesLoss = dd.lateFee;
 
         CreditLoss memory cl = credit.getCreditLoss(creditHash);
-        cl.principalLoss += uint96(principalLoss);
-        cl.yieldLoss += uint96(yieldLoss);
-        cl.feesLoss += uint96(feesLoss);
+        cl.principalLoss = uint96(principalLoss);
+        cl.yieldLoss = uint96(yieldLoss);
+        cl.feesLoss = uint96(feesLoss);
         credit.setCreditLoss(creditHash, cl);
 
-        IPool(poolConfig.pool()).distributeLoss(
-            uint256(cl.principalLoss + cl.yieldLoss + cl.feesLoss)
-        );
+        IPool(poolConfig.pool()).distributeProfit(cl.yieldLoss + cl.feesLoss);
+        IPool(poolConfig.pool()).distributeLoss(cl.principalLoss + cl.yieldLoss + cl.feesLoss);
 
         cr.state = CreditState.Defaulted;
         credit.setCreditRecord(creditHash, cr);
@@ -435,12 +436,16 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         _creditConfigMap[creditHash] = cc;
     }
 
-    function _isDefaultReady(CreditRecord memory cr) internal view returns (bool isDefault) {
+    function _isLiquidationReady(
+        CreditConfig memory cc,
+        CreditRecord memory cr
+    ) internal view returns (bool isDefault) {
         PoolSettings memory settings = poolConfig.getPoolSettings();
-        // TODO(jiatu): this implementation is utterly incorrect. We need to fix how default is calculated.
+        uint256 totalDaysInFullPeriod = calendar.getTotalDaysInFullPeriod(cc.periodDuration);
         return
             cr.missedPeriods > 1 &&
-            (cr.missedPeriods - 1) * 30 >= settings.defaultGracePeriodInMonths;
+            (cr.missedPeriods - 1) * totalDaysInFullPeriod >=
+            settings.defaultGracePeriodInMonths * DAYS_IN_A_MONTH;
     }
 
     /// "Modifier" function that limits access to eaServiceAccount only

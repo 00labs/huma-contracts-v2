@@ -399,11 +399,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         if (amount == 0) revert Errors.zeroAmountProvided();
 
         CreditRecord memory cr = getCreditRecord(creditHash);
-        if (
-            cr.state == CreditState.Requested ||
-            cr.state == CreditState.Approved ||
-            cr.state == CreditState.Deleted
-        ) {
+        if (cr.state == CreditState.Approved || cr.state == CreditState.Deleted) {
             revert Errors.creditLineNotInStateForMakingPayment();
         }
         DueDetail memory dd;
