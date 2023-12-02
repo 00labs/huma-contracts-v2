@@ -1304,7 +1304,7 @@ describe("CreditLine Test", function () {
                     BN.from(0),
                     0,
                     remainingPeriods,
-                    CreditState.Delayed,
+                    CreditState.GoodStanding,
                 );
                 dueDetail = await creditContract.getDueDetail(creditHash);
                 checkDueDetailsMatch(dueDetail, genDueDetail({ accrued: totalYieldDue }));
@@ -1622,7 +1622,7 @@ describe("CreditLine Test", function () {
                     BN.from(0),
                     0,
                     remainingPeriods,
-                    CreditState.Delayed,
+                    CreditState.GoodStanding,
                 );
                 dueDetail = await creditContract.getDueDetail(creditHash);
                 checkDueDetailsMatch(
@@ -1831,7 +1831,7 @@ describe("CreditLine Test", function () {
                     BN.from(0),
                     0,
                     numOfPeriods - 1,
-                    CreditState.Delayed,
+                    CreditState.GoodStanding,
                 );
 
                 const dueDetail = await creditContract.getDueDetail(creditHash);
