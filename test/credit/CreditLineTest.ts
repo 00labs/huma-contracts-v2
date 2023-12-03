@@ -7620,13 +7620,14 @@ describe("CreditLine Test", function () {
             await loadFixture(prepare);
         });
 
-        it("Should allow liquidation to be triggered once", async function () {
+        async function testTriggerLiquidation(drawdownDate: number) {
+            await setNextBlockTimestamp(drawdownDate);
             await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
 
-            const drawdownDate = (await getLatestBlock()).timestamp;
             // Liquidation date is one day after the default grace period has passed.
+            const oldCR = await creditContract.getCreditRecord(creditHash);
             const liquidationDate =
-                drawdownDate +
+                oldCR.nextDueDate.toNumber() +
                 CONSTANTS.SECONDS_IN_A_DAY *
                     CONSTANTS.DAYS_IN_A_MONTH *
                     (defaultGracePeriodInMonths + 1) +
@@ -7634,7 +7635,6 @@ describe("CreditLine Test", function () {
             await setNextBlockTimestamp(liquidationDate);
 
             const cc = await creditManagerContract.getCreditConfig(creditHash);
-            const oldCR = await creditContract.getCreditRecord(creditHash);
             const expectedPrincipalLoss = borrowAmount;
             const startOfLiquidationPeriod = await calendarContract.getStartDateOfPeriod(
                 cc.periodDuration,
@@ -7695,6 +7695,29 @@ describe("CreditLine Test", function () {
                 creditManagerContract,
                 "defaultHasAlreadyBeenTriggered",
             );
+        }
+
+        describe("If drawdown happens at the beginning of a full period", function () {
+            it("Should allow liquidation to be triggered once", async function () {
+                const currentTS = (await getLatestBlock()).timestamp;
+                const cc = await creditManagerContract.getCreditConfig(creditHash);
+                const drawdownDate = await calendarContract.getStartDateOfNextPeriod(
+                    cc.periodDuration,
+                    currentTS,
+                );
+                await testTriggerLiquidation(drawdownDate.toNumber());
+            });
+        });
+
+        describe("If drawdown happens in the middle of a full period", function () {
+            it("Should allow liquidation to be triggered once", async function () {
+                const currentTS = (await getLatestBlock()).timestamp;
+                const cc = await creditManagerContract.getCreditConfig(creditHash);
+                const drawdownDate = (
+                    await calendarContract.getStartDateOfNextPeriod(cc.periodDuration, currentTS)
+                ).add(CONSTANTS.SECONDS_IN_A_DAY * 5);
+                await testTriggerLiquidation(drawdownDate.toNumber());
+            });
         });
 
         it("Should not allow liquidation to be triggered when the protocol is paused or pool is not on", async function () {
@@ -7724,11 +7747,7 @@ describe("CreditLine Test", function () {
 
             const drawdownDate = (await getLatestBlock()).timestamp;
             const liquidationDate =
-                drawdownDate +
-                CONSTANTS.SECONDS_IN_A_DAY *
-                    CONSTANTS.DAYS_IN_A_MONTH *
-                    (defaultGracePeriodInMonths + 1) -
-                CONSTANTS.SECONDS_IN_A_DAY;
+                drawdownDate + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
             await setNextBlockTimestamp(liquidationDate);
 
             await expect(
