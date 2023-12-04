@@ -7581,7 +7581,7 @@ describe("CreditLine Test", function () {
         });
     });
 
-    describe("triggerLiquidation", function () {
+    describe("triggerDefault", function () {
         const defaultGracePeriodInMonths = 2;
         const numOfPeriods = 6,
             yieldInBps = 1217,
@@ -7620,29 +7620,29 @@ describe("CreditLine Test", function () {
             await loadFixture(prepare);
         });
 
-        async function testTriggerLiquidation(drawdownDate: number) {
+        async function testTriggerDefault(drawdownDate: number) {
             await setNextBlockTimestamp(drawdownDate);
             await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
 
-            // Liquidation date is one day after the default grace period has passed.
+            // Default date is one day after the default grace period has passed.
             const oldCR = await creditContract.getCreditRecord(creditHash);
-            const liquidationDate =
+            const defaultDate =
                 oldCR.nextDueDate.toNumber() +
                 CONSTANTS.SECONDS_IN_A_DAY *
                     CONSTANTS.DAYS_IN_A_MONTH *
                     (defaultGracePeriodInMonths + 1) +
                 CONSTANTS.SECONDS_IN_A_DAY;
-            await setNextBlockTimestamp(liquidationDate);
+            await setNextBlockTimestamp(defaultDate);
 
             const cc = await creditManagerContract.getCreditConfig(creditHash);
             const expectedPrincipalLoss = borrowAmount;
-            const startOfLiquidationPeriod = await calendarContract.getStartDateOfPeriod(
+            const startOfDefaultPeriod = await calendarContract.getStartDateOfPeriod(
                 cc.periodDuration,
-                liquidationDate,
+                defaultDate,
             );
             const daysPassed = await calendarContract.getDaysDiff(
                 oldCR.nextDueDate,
-                startOfLiquidationPeriod,
+                startOfDefaultPeriod,
             );
             const expectedAdditionalYieldPastDue = calcYield(
                 borrowAmount,
@@ -7659,9 +7659,8 @@ describe("CreditLine Test", function () {
                 .add(expectedYieldDue);
             // Late fee starts to accrue since the beginning of the second billing cycle until the start of tomorrow.
             const lateFeeDays =
-                (
-                    await calendarContract.getDaysDiff(oldCR.nextDueDate, liquidationDate)
-                ).toNumber() + 1;
+                (await calendarContract.getDaysDiff(oldCR.nextDueDate, defaultDate)).toNumber() +
+                1;
             const expectedFeesLoss = await calcYield(borrowAmount, lateFeeBps, lateFeeDays);
             await expect(
                 creditManagerContract
@@ -7688,7 +7687,7 @@ describe("CreditLine Test", function () {
             const cr = await creditContract.getCreditRecord(creditHash);
             expect(cr.state).to.equal(CreditState.Defaulted);
 
-            // Any further attempt to trigger liquidation is disallowed.
+            // Any further attempt to trigger default is disallowed.
             await expect(
                 creditManagerContract
                     .connect(eaServiceAccount)
@@ -7700,29 +7699,29 @@ describe("CreditLine Test", function () {
         }
 
         describe("If drawdown happens at the beginning of a full period", function () {
-            it("Should allow liquidation to be triggered once", async function () {
+            it("Should allow default to be triggered once", async function () {
                 const currentTS = (await getLatestBlock()).timestamp;
                 const cc = await creditManagerContract.getCreditConfig(creditHash);
                 const drawdownDate = await calendarContract.getStartDateOfNextPeriod(
                     cc.periodDuration,
                     currentTS,
                 );
-                await testTriggerLiquidation(drawdownDate.toNumber());
+                await testTriggerDefault(drawdownDate.toNumber());
             });
         });
 
         describe("If drawdown happens in the middle of a full period", function () {
-            it("Should allow liquidation to be triggered once", async function () {
+            it("Should allow default to be triggered once", async function () {
                 const currentTS = (await getLatestBlock()).timestamp;
                 const cc = await creditManagerContract.getCreditConfig(creditHash);
                 const drawdownDate = (
                     await calendarContract.getStartDateOfNextPeriod(cc.periodDuration, currentTS)
                 ).add(CONSTANTS.SECONDS_IN_A_DAY * 5);
-                await testTriggerLiquidation(drawdownDate.toNumber());
+                await testTriggerDefault(drawdownDate.toNumber());
             });
         });
 
-        it("Should not allow liquidation to be triggered when the protocol is paused or pool is not on", async function () {
+        it("Should not allow default to be triggered when the protocol is paused or pool is not on", async function () {
             await humaConfigContract.connect(protocolOwner).pause();
             await expect(
                 creditManagerContract.connect(eaServiceAccount).triggerDefault(borrower.address),
@@ -7735,7 +7734,7 @@ describe("CreditLine Test", function () {
             ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
         });
 
-        it("Should not allow non-EA service account to trigger liquidation", async function () {
+        it("Should not allow non-EA service account to trigger default", async function () {
             await expect(
                 creditManagerContract.triggerDefault(borrower.address),
             ).to.be.revertedWithCustomError(
@@ -7744,13 +7743,13 @@ describe("CreditLine Test", function () {
             );
         });
 
-        it("Should not allow liquidation to be triggered if the default grace period hasn't passed", async function () {
+        it("Should not allow default to be triggered if the default grace period hasn't passed", async function () {
             await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
 
             const drawdownDate = (await getLatestBlock()).timestamp;
-            const liquidationDate =
+            const defaultDate =
                 drawdownDate + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
-            await setNextBlockTimestamp(liquidationDate);
+            await setNextBlockTimestamp(defaultDate);
 
             await expect(
                 creditManagerContract

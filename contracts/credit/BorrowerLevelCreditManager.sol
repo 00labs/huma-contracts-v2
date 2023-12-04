@@ -104,7 +104,7 @@ contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManage
         poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
         bytes32 creditHash = getCreditHash(borrower);
-        return _triggerLiquidation(creditHash);
+        return _triggerDefault(creditHash);
     }
 
     /// @inheritdoc IBorrowerLevelCreditManager

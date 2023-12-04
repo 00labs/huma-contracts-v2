@@ -62,9 +62,12 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
     /**
      * @notice checks if the credit line is ready to be triggered as defaulted
      */
-    function isLiquidationReady(bytes32 creditHash) public view virtual returns (bool isDefault) {
+    function isDefaultReady(bytes32 creditHash) public view virtual returns (bool isDefault) {
         return
-            _isLiquidationReady(getCreditConfig(creditHash), credit.getCreditRecord(creditHash));
+            _isDefaultReady(
+                getCreditConfig(creditHash).periodDuration,
+                credit.getCreditRecord(creditHash).missedPeriods
+            );
     }
 
     /// Shared accessor to the credit config mapping for contract size consideration
@@ -272,7 +275,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
      * @dev It is possible for the borrower to payback even after default, especially in
      * receivable factoring cases.
      */
-    function _triggerLiquidation(
+    function _triggerDefault(
         bytes32 creditHash
     ) internal virtual returns (uint256 principalLoss, uint256 yieldLoss, uint256 feesLoss) {
         // check to make sure the default grace period has passed.
@@ -284,7 +287,8 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
 
         // Check if grace period has been exceeded.
         CreditConfig memory cc = getCreditConfig(creditHash);
-        if (!_isLiquidationReady(cc, cr)) revert Errors.defaultTriggeredTooEarly();
+        if (!_isDefaultReady(cc.periodDuration, cr.missedPeriods))
+            revert Errors.defaultTriggeredTooEarly();
 
         principalLoss = cr.unbilledPrincipal + cr.nextDue - cr.yieldDue + dd.principalPastDue;
         yieldLoss = cr.yieldDue + dd.yieldPastDue;
@@ -436,15 +440,15 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         _creditConfigMap[creditHash] = cc;
     }
 
-    function _isLiquidationReady(
-        CreditConfig memory cc,
-        CreditRecord memory cr
+    function _isDefaultReady(
+        PayPeriodDuration periodDuration,
+        uint256 missedPeriods
     ) internal view returns (bool isDefault) {
         PoolSettings memory settings = poolConfig.getPoolSettings();
-        uint256 totalDaysInFullPeriod = calendar.getTotalDaysInFullPeriod(cc.periodDuration);
+        uint256 totalDaysInFullPeriod = calendar.getTotalDaysInFullPeriod(periodDuration);
         return
-            cr.missedPeriods > 1 &&
-            (cr.missedPeriods - 1) * totalDaysInFullPeriod >=
+            missedPeriods > 1 &&
+            (missedPeriods - 1) * totalDaysInFullPeriod >=
             settings.defaultGracePeriodInMonths * DAYS_IN_A_MONTH;
     }
 

@@ -88,7 +88,7 @@ contract ReceivableLevelCreditManager is
         uint256 receivableId
     ) external virtual returns (uint256 principalLoss, uint256 yieldLoss, uint256 feesLoss) {
         bytes32 creditHash = _getCreditHash(receivableId);
-        return _triggerLiquidation(creditHash);
+        return _triggerDefault(creditHash);
     }
 
     function closeCredit(uint256 receivableId) external virtual {
