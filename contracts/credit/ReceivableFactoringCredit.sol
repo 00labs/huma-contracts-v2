@@ -102,7 +102,9 @@ contract ReceivableFactoringCredit is
         // Don't delete paid receivable
     }
 
-    function getCreditRecord(uint256 receivableId) external view returns (CreditRecord memory) {
+    function getReceivableCreditRecord(
+        uint256 receivableId
+    ) external view returns (CreditRecord memory) {
         bytes32 creditHash = _getCreditHash(receivableId);
         return getCreditRecord(creditHash);
     }

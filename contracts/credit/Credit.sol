@@ -653,7 +653,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         uint256 borrowAmount,
         uint256 creditLimit
     ) internal view {
-        if (!firstLossCover.isSufficient(borrower))
+        if (address(firstLossCover) != address(0) && !firstLossCover.isSufficient(borrower))
             revert Errors.insufficientBorrowerFirstLossCover();
 
         if (cr.state == CreditState.Approved) {
@@ -708,7 +708,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         poolSafe = IPoolSafe(addr);
 
         addr = _poolConfig.getFirstLossCover(BORROWER_FIRST_LOSS_COVER_INDEX);
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        // It can be zero for receivable factoring credit
         firstLossCover = IFirstLossCover(addr);
 
         addr = _poolConfig.creditManager();

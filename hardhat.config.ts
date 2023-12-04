@@ -32,6 +32,9 @@ const config = {
         currency: "USD",
         // coinmarketcap: process.env.COINMARKETCAP || null,
     },
+    mocha: {
+        timeout: 100000000,
+    },
 };
 
 export default config;

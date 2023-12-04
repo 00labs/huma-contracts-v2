@@ -115,7 +115,7 @@ describe("Pool Test", function () {
                 creditDueManagerContract,
             ] = await deployPoolContracts(
                 humaConfigContract,
-                mockTokenContract,
+                mockTokenContract.address,
                 "RiskAdjustedTranchesPolicy",
                 defaultDeployer,
                 poolOwner,

@@ -2,9 +2,10 @@
 pragma solidity ^0.8.0;
 
 import {HumaConfig} from "../../HumaConfig.sol";
+import {IReceivableLevelCreditManager} from "../interfaces/IReceivableLevelCreditManager.sol";
 import {IReceivableFactoringCredit} from "../interfaces/IReceivableFactoringCredit.sol";
 import {IReceivable} from "../interfaces/IReceivable.sol";
-import {ReceivableInput} from "../CreditStructs.sol";
+import {ICalendar} from "../interfaces/ICalendar.sol";
 
 //* Reserved for Richard review, to be deleted, please review this contract
 
@@ -16,15 +17,17 @@ contract SuperfluidProcessorStorage {
     }
 
     HumaConfig public humaConfig;
-    IReceivableFactoringCredit public receivableFactoringCredit;
     IReceivable public receivableAsset;
+    IReceivableLevelCreditManager public receivableLevelCreditManager;
+    IReceivableFactoringCredit public receivableFactoringCredit;
+    ICalendar public calendar;
 
     /// mapping from wallet address to the receivable supplied by this wallet
     mapping(address => SFReceivableInfo) internal _sfReceivableInfoMapping;
     // Superfluid receivable parameter -> internal receivable id
-    mapping(bytes32 => uint256) internal _sfReceivableParamInternalReceivableIdMapping;
+    mapping(bytes32 => uint256) public sfReceivableParamInternalReceivableIdMapping;
     // Superfluid receivable id -> internal receivable id
-    mapping(uint256 => uint256) internal _sfReceivableIdInternalReceivableIdMapping;
+    mapping(uint256 => uint256) public sfReceivableIdInternalReceivableIdMapping;
 
     struct StreamInfo {
         address borrower;

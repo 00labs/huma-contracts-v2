@@ -3,29 +3,70 @@ pragma solidity ^0.8.0;
 
 import {IERC20, IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import {IERC721, IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import {SuperfluidProcessorStorage} from "./SuperfluidProcessorStorage.sol";
 import {PoolConfigCache} from "../../PoolConfigCache.sol";
 import {PoolConfig, PoolSettings} from "../../PoolConfig.sol";
 import {HumaConfig} from "../../HumaConfig.sol";
+import {IReceivableLevelCreditManager} from "../interfaces/IReceivableLevelCreditManager.sol";
 import {IReceivableFactoringCredit} from "../interfaces/IReceivableFactoringCredit.sol";
 import {IReceivable} from "../interfaces/IReceivable.sol";
+import {ICalendar} from "../interfaces/ICalendar.sol";
 import {ReceivableInput} from "../CreditStructs.sol";
-import {CreditConfig, CreditRecord, CreditState} from "../CreditStructs.sol";
+import {CreditRecord, CreditState, CreditConfig} from "../CreditStructs.sol";
 import {TradableStream} from "./TradableStream.sol";
 import {Errors} from "../../Errors.sol";
-import "../../SharedDefs.sol";
+import {HUNDRED_PERCENT_IN_BPS} from "../../SharedDefs.sol";
 
 import {ISuperToken} from "@superfluid-finance/ethereum-contracts/contracts/interfaces/superfluid/ISuperfluid.sol";
 import {IConstantFlowAgreementV1} from "@superfluid-finance/ethereum-contracts/contracts/interfaces/agreements/IConstantFlowAgreementV1.sol";
 import {SuperAppBase} from "@superfluid-finance/ethereum-contracts/contracts/apps/SuperAppBase.sol";
 
-//* Reserved for Richard review, to be deleted, please review this contract
-
-contract SuperfluidProcessor is PoolConfigCache, SuperAppBase, SuperfluidProcessorStorage {
+contract SuperfluidProcessor is
+    PoolConfigCache,
+    SuperAppBase,
+    SuperfluidProcessorStorage,
+    IERC721Receiver
+{
     using SafeERC20 for IERC20;
     using ERC165Checker for address;
+
+    event ReadyToSettlement(
+        address credit,
+        address borrower,
+        address receivableAsset,
+        uint256 receivableId,
+        uint256 readyTime
+    );
+    event NotGettingEnoughAllowance(
+        address credit,
+        address borrower,
+        address receivableAsset,
+        uint256 receivableId
+    );
+
+    event FlowIsTerminated(bytes32 flowKey, uint256 endTime);
+    event ReceivableFlowKey(
+        address credit,
+        address borrower,
+        uint256 receivableId,
+        bytes32 flowKey
+    );
+    event ReceivableCleared(
+        address credit,
+        address borrower,
+        bytes32 flowKey,
+        address receivableAsset,
+        uint256 receivableId
+    );
+    event SettlementMade(
+        address credit,
+        address borrower,
+        bytes32 flowKey,
+        address receivableAsset,
+        uint256 receivableId
+    );
 
     function initialize(
         PoolConfig _poolConfig,
@@ -44,30 +85,47 @@ contract SuperfluidProcessor is PoolConfigCache, SuperAppBase, SuperfluidProcess
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         humaConfig = HumaConfig(addr);
 
+        addr = address(_poolConfig.receivableAsset());
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        receivableAsset = IReceivable(addr);
+
+        addr = address(_poolConfig.creditManager());
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        receivableLevelCreditManager = IReceivableLevelCreditManager(addr);
+
         addr = address(_poolConfig.credit());
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         receivableFactoringCredit = IReceivableFactoringCredit(addr);
 
-        addr = address(_poolConfig.receivableAsset());
+        addr = address(_poolConfig.calendar());
         if (addr == address(0)) revert Errors.zeroAddressProvided();
-        receivableAsset = IReceivable(addr);
+        calendar = ICalendar(addr);
     }
 
+    /**
+     * @notice After the EA (EvalutionAgent) has approved a factoring, it calls this function
+     * to record the approval on chain and mark as factoring as approved, which will enable
+     * the borrower to drawdown (borrow) from the approved credit.
+     * @param borrower the borrower address
+     * @param creditLimit the limit of the credit
+     * @param sfReceivableInfo the receivable info of superfluid
+     * - receivableAsset the receivable asset used for this credit
+     * - receivableParam additional parameter of the receivable asset, e.g. NFT tokenid
+     * - receivableAmount amount of the receivable asset
+     * @param remainingPeriods the number of pay periods for this credit
+     * @dev Only Evaluation Agents for this contract can call this function.
+     */
     function approveTradableStream(
         address borrower,
         uint96 creditLimit,
         uint16 remainingPeriods,
         uint16 yieldInBps,
-        uint96 committedAmount,
-        uint64 designatedStartDate,
         SFReceivableInfo memory sfReceivableInfo
     ) external {
         _onlyEAServiceAccount();
-
-        _checkReceivableRequirement(creditLimit, sfReceivableInfo.receivableAmount);
-
-        // Populates fields related to receivable
         if (sfReceivableInfo.receivableAsset == address(0)) revert Errors.zeroAddressProvided();
+        if (sfReceivableInfo.receivableParam == 0) revert Errors.todo();
+        _checkReceivableRequirement(creditLimit, sfReceivableInfo.receivableAmount);
 
         _setReceivableInfo(borrower, sfReceivableInfo);
 
@@ -78,21 +136,20 @@ contract SuperfluidProcessor is PoolConfigCache, SuperAppBase, SuperfluidProcess
             0,
             ""
         );
+        IERC721(address(receivableAsset)).approve(address(receivableFactoringCredit), tokenId);
 
-        // receivableFactoringCredit.approveReceivable(
-        //     borrower,
-        //     ReceivableInput(sfReceivableInfo.receivableAmount, uint64(tokenId)),
-        //     creditLimit,
-        //     remainingPeriods,
-        //     yieldInBps,
-        //     committedAmount,
-        //     designatedStartDate
-        // );
+        receivableLevelCreditManager.approveReceivable(
+            address(this),
+            ReceivableInput(sfReceivableInfo.receivableAmount, uint64(tokenId)),
+            creditLimit,
+            remainingPeriods,
+            yieldInBps
+        );
 
         bytes32 key = keccak256(
             abi.encodePacked(sfReceivableInfo.receivableAsset, sfReceivableInfo.receivableParam)
         );
-        _sfReceivableParamInternalReceivableIdMapping[key] = tokenId;
+        sfReceivableParamInternalReceivableIdMapping[key] = tokenId;
     }
 
     /**
@@ -119,26 +176,24 @@ contract SuperfluidProcessor is PoolConfigCache, SuperAppBase, SuperfluidProcess
             underlyingToken
         );
 
-        uint256 allowance = IERC20(underlyingToken).allowance(borrower, address(this));
+        IERC20 underlyingTokenContract = IERC20(underlyingToken);
+        uint256 allowance = underlyingTokenContract.allowance(borrower, address(this));
         if (allowance < borrowAmount) revert Errors.allowanceTooLow();
 
         _internalCall = true;
 
         uint256 sfReceivableId = _mintNFT(receivableAsset, dataForMintTo);
 
-        receivableFactoringCredit.drawdownWithReceivable(borrower, internalTokenId, borrowAmount);
+        uint256 balance = underlyingTokenContract.balanceOf(address(this));
+        receivableFactoringCredit.drawdownWithReceivable(
+            address(this),
+            internalTokenId,
+            borrowAmount
+        );
+        balance = underlyingTokenContract.balanceOf(address(this)) - balance;
+        underlyingTokenContract.safeTransfer(borrower, balance);
 
-        _sfReceivableIdInternalReceivableIdMapping[sfReceivableId] = internalTokenId;
-
-        // TODO add event later
-        // emit DrawdownMadeWithReceivable(
-        //     address(pool),
-        //     borrower,
-        //     borrowAmount,
-        //     netAmountToBorrower,
-        //     receivableAsset,
-        //     sfReceivableId
-        // );
+        sfReceivableIdInternalReceivableIdMapping[sfReceivableId] = internalTokenId;
 
         _internalCall = false;
     }
@@ -167,11 +222,11 @@ contract SuperfluidProcessor is PoolConfigCache, SuperAppBase, SuperfluidProcess
         IERC20 underlyingToken = IERC20(poolConfig.underlyingToken());
 
         uint256 beforeAmount = underlyingToken.balanceOf(address(this));
-        _withdrawFromNFT(receivableAsset, receivableId, si);
+        _withdrawFromNFT(receivableId, si);
         uint256 amountReceived = underlyingToken.balanceOf(address(this)) - beforeAmount;
 
-        uint256 internalTokenId = _sfReceivableIdInternalReceivableIdMapping[receivableId];
-        CreditRecord memory creditRecord = receivableFactoringCredit.getCreditRecord(
+        uint256 internalTokenId = sfReceivableIdInternalReceivableIdMapping[receivableId];
+        CreditRecord memory creditRecord = receivableFactoringCredit.getReceivableCreditRecord(
             internalTokenId
         );
 
@@ -189,7 +244,7 @@ contract SuperfluidProcessor is PoolConfigCache, SuperAppBase, SuperfluidProcess
         bool paidoff;
         if (amountReceived > 0) {
             (, paidoff) = receivableFactoringCredit.makePaymentWithReceivable(
-                si.borrower,
+                address(this),
                 internalTokenId,
                 amountReceived
             );
@@ -205,18 +260,22 @@ contract SuperfluidProcessor is PoolConfigCache, SuperAppBase, SuperfluidProcess
             delete _streamInfoMapping[receivableId];
             _burnNFT(receivableAsset, receivableId);
 
-            // TODO add event later
-            // emit ReceivableCleared(
-            //     poolAddr,
-            //     si.borrower,
-            //     si.flowKey,
-            //     receivableAsset,
-            //     receivableId
-            // );
+            emit ReceivableCleared(
+                address(receivableFactoringCredit),
+                si.borrower,
+                si.flowKey,
+                receivableAsset,
+                receivableId
+            );
         }
 
-        // TODO add event later
-        // emit SettlementMade(poolAddr, si.borrower, si.flowKey, receivableAsset, receivableId);
+        emit SettlementMade(
+            address(receivableFactoringCredit),
+            si.borrower,
+            si.flowKey,
+            receivableAsset,
+            receivableId
+        );
 
         _internalCall = false;
     }
@@ -234,8 +293,8 @@ contract SuperfluidProcessor is PoolConfigCache, SuperAppBase, SuperfluidProcess
         StreamInfo memory si = _streamInfoMapping[receivableId];
         if (si.flowrate != 0) revert Errors.invalidFlowrate();
 
-        uint256 internalTokenId = _sfReceivableIdInternalReceivableIdMapping[receivableId];
-        CreditRecord memory creditRecord = receivableFactoringCredit.getCreditRecord(
+        uint256 internalTokenId = sfReceivableIdInternalReceivableIdMapping[receivableId];
+        CreditRecord memory creditRecord = receivableFactoringCredit.getReceivableCreditRecord(
             internalTokenId
         );
         if (creditRecord.state > CreditState.GoodStanding)
@@ -259,14 +318,13 @@ contract SuperfluidProcessor is PoolConfigCache, SuperAppBase, SuperfluidProcess
                     received
                 );
                 if (received >= diff) {
-                    // TODO add event later
-                    // emit ReadyToSettlement(
-                    //     address(pool),
-                    //     si.borrower,
-                    //     tradableStream,
-                    //     receivableId,
-                    //     block.timestamp
-                    // );
+                    emit ReadyToSettlement(
+                        address(receivableFactoringCredit),
+                        si.borrower,
+                        tradableStream,
+                        receivableId,
+                        block.timestamp
+                    );
                 }
             }
         }
@@ -304,7 +362,7 @@ contract SuperfluidProcessor is PoolConfigCache, SuperAppBase, SuperfluidProcess
         );
 
         if (received > 0) {
-            uint256 internalTokenId = _sfReceivableIdInternalReceivableIdMapping[receivableId];
+            uint256 internalTokenId = sfReceivableIdInternalReceivableIdMapping[receivableId];
             receivableFactoringCredit.makePaymentWithReceivable(
                 borrower,
                 internalTokenId,
@@ -315,19 +373,24 @@ contract SuperfluidProcessor is PoolConfigCache, SuperAppBase, SuperfluidProcess
         if (received < difference) {
             // didn't receive enough amount
             // send an event to trigger tryTransferFromBorrower function periodically
-            //TODO add event later
-            // emit NotGettingEnoughAllowance(address(pool), borrower, tradableStream, receivableId);
+
+            emit NotGettingEnoughAllowance(
+                address(receivableFactoringCredit),
+                borrower,
+                tradableStream,
+                receivableId
+            );
         } else {
             // received enough amount from borrower's allowance
             // send an event to notify settlement is ready to be called
-            //TODO add event later
-            // emit ReadyToSettlement(
-            //     address(pool),
-            //     borrower,
-            //     tradableStream,
-            //     receivableId,
-            //     block.timestamp
-            // );
+
+            emit ReadyToSettlement(
+                address(receivableFactoringCredit),
+                borrower,
+                tradableStream,
+                receivableId,
+                block.timestamp
+            );
         }
 
         _streamInfoMapping[receivableId] = si;
@@ -388,6 +451,15 @@ contract SuperfluidProcessor is PoolConfigCache, SuperAppBase, SuperfluidProcess
         endTime = _flowEndMapping[flowKey];
     }
 
+    function onERC721Received(
+        address /*operator*/,
+        address /*from*/,
+        uint256 /*tokenId*/,
+        bytes calldata /*data*/
+    ) external virtual returns (bytes4) {
+        return this.onERC721Received.selector;
+    }
+
     function _burnNFT(address receivableAsset, uint256 receivableId) internal virtual {
         bool burned = TradableStream(receivableAsset).burned(receivableId);
         if (!burned) {
@@ -432,11 +504,7 @@ contract SuperfluidProcessor is PoolConfigCache, SuperAppBase, SuperfluidProcess
         if (transferredAmount > 0) token.safeTransferFrom(from, to, transferredAmount);
     }
 
-    function _withdrawFromNFT(
-        address receivableAsset,
-        uint256 receivableId,
-        StreamInfo memory si
-    ) internal virtual {
+    function _withdrawFromNFT(uint256 receivableId, StreamInfo memory si) internal virtual {
         ISuperToken token = ISuperToken(si.superToken);
         uint256 amount = si.receivedFlowAmount;
         if (si.endTime > si.lastStartTime) {
@@ -444,7 +512,7 @@ contract SuperfluidProcessor is PoolConfigCache, SuperAppBase, SuperfluidProcess
         }
 
         if (amount > 0) {
-            token.downgradeTo(address(this), amount);
+            token.downgrade(amount);
 
             si.lastStartTime = si.endTime;
             si.receivedFlowAmount = 0;
@@ -487,17 +555,28 @@ contract SuperfluidProcessor is PoolConfigCache, SuperAppBase, SuperfluidProcess
         if (_flowrate <= 0) revert Errors.invalidFlowrate();
         uint256 flowrate = uint256(uint96(_flowrate));
 
-        // TODO update this check based on new CreditConfig
-        // crs = pool.creditRecordStaticMapping(receiver);
-        // if (duration > crs.intervalInDays * SECONDS_IN_A_DAY) revert Errors.durationTooLong();
+        internalTokenId = sfReceivableParamInternalReceivableIdMapping[
+            keccak256(abi.encodePacked(receivableAsset, receivableParam))
+        ];
+
+        {
+            CreditConfig memory cc = receivableLevelCreditManager.getReceivableCreditConfig(
+                internalTokenId
+            );
+            CreditRecord memory cr = receivableFactoringCredit.getReceivableCreditRecord(
+                internalTokenId
+            );
+            uint256 nextDueDate = block.timestamp;
+            for (uint256 i = cr.remainingPeriods; i > 0; i--) {
+                nextDueDate = calendar.getStartDateOfNextPeriod(cc.periodDuration, nextDueDate);
+            }
+            uint256 creditDuration = nextDueDate - block.timestamp;
+            if (duration > creditDuration) revert Errors.durationTooLong();
+        }
 
         uint256 receivableAmount = flowrate * duration;
         receivableAmount = _convertAmount(receivableAmount, superToken, underlyingToken);
         if (receivableAmount < borrowAmount) revert Errors.insufficientReceivableAmount();
-
-        internalTokenId = _sfReceivableParamInternalReceivableIdMapping[
-            keccak256(abi.encodePacked(receivableAsset, receivableParam))
-        ];
     }
 
     function _mintNFT(
@@ -544,8 +623,7 @@ contract SuperfluidProcessor is PoolConfigCache, SuperAppBase, SuperfluidProcess
         // Store a keccak256 hash of the receivableAsset and receivableParam on-chain
         _streamInfoMapping[receivableId] = streamInfo;
 
-        // TODO add event later
-        // emit ReceivableFlowKey(address(pool), receiver, receivableId, key);
+        emit ReceivableFlowKey(address(receivableFactoringCredit), receiver, receivableId, key);
     }
 
     /**
@@ -565,22 +643,22 @@ contract SuperfluidProcessor is PoolConfigCache, SuperAppBase, SuperfluidProcess
         if (decimalsIn == decimalsOut) {
             amountOut = amountIn;
         } else {
-            amountOut = (amountIn * decimalsOut) / decimalsIn;
+            amountOut = (amountIn * (10 ** decimalsOut)) / (10 ** decimalsIn);
         }
     }
 
     /**
      * @notice Checks if the receivable provided is able fulfill the receivable requirement
      * for the requested credit line.
-     * @param creditLine the credit limit requested
+     * @param creditLimit the credit limit requested
      * @param receivableAmount the value of the receivable
      */
     function _checkReceivableRequirement(
-        uint256 creditLine,
+        uint256 creditLimit,
         uint256 receivableAmount
     ) internal view {
         PoolSettings memory ps = poolConfig.getPoolSettings();
-        if (receivableAmount < (creditLine * ps.receivableRequiredInBps) / HUNDRED_PERCENT_IN_BPS)
+        if (receivableAmount < (creditLimit * ps.receivableRequiredInBps) / HUNDRED_PERCENT_IN_BPS)
             revert Errors.insufficientReceivableAmount();
     }
 
@@ -610,8 +688,7 @@ contract SuperfluidProcessor is PoolConfigCache, SuperAppBase, SuperfluidProcess
                 // flow is terminated
                 _flowEndMapping[key] = block.timestamp;
 
-                //TODO add event later
-                // emit FlowIsTerminated(key, block.timestamp);
+                emit FlowIsTerminated(key, block.timestamp);
             } else {
                 // flow is decreased or increased
                 revert Errors.invalidSuperfluidAction();

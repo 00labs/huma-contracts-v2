@@ -17,5 +17,7 @@ interface IReceivableFactoringCredit {
         uint256 amount
     ) external returns (uint256 amountPaid, bool paidoff);
 
-    function getCreditRecord(uint256 receivableId) external view returns (CreditRecord memory);
+    function getReceivableCreditRecord(
+        uint256 receivableId
+    ) external view returns (CreditRecord memory);
 }

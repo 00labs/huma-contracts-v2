@@ -184,7 +184,7 @@ export async function deployProtocolContracts(
 
 export async function deployPoolContracts(
     humaConfigContract: HumaConfig,
-    mockTokenContract: MockToken,
+    tokenContractAddress: string,
     tranchesPolicyContractName: TranchesPolicyContractName,
     deployer: SignerWithAddress,
     poolOwner: SignerWithAddress,
@@ -258,7 +258,7 @@ export async function deployPoolContracts(
 
     await poolConfigContract.initialize("Test Pool", [
         humaConfigContract.address,
-        mockTokenContract.address,
+        tokenContractAddress,
         calendarContract.address,
         poolContract.address,
         poolSafeContract.address,
@@ -510,7 +510,7 @@ export async function deployAndSetupPoolContracts(
         receivableContract,
     ] = await deployPoolContracts(
         humaConfigContract,
-        mockTokenContract,
+        mockTokenContract.address,
         tranchesPolicyContractName,
         deployer,
         poolOwner,

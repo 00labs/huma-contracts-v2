@@ -92,7 +92,7 @@ describe("PoolConfigCache Test", function () {
             creditManagerContract as unknown,
         ] = await deployPoolContracts(
             humaConfigContract,
-            mockTokenContract,
+            mockTokenContract.address,
             "RiskAdjustedTranchesPolicy",
             defaultDeployer,
             poolOwner,

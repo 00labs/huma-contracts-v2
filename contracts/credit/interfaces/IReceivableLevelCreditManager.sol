@@ -94,4 +94,8 @@ interface IReceivableLevelCreditManager {
     function waiveLateFee(uint256 receivableId, uint256 waivedAmount) external;
 
     function onlyPayer(address account, bytes32 creditHash) external view returns (address);
+
+    function getReceivableCreditConfig(
+        uint256 receivableId
+    ) external view returns (CreditConfig memory);
 }

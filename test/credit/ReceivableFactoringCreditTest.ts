@@ -25,13 +25,7 @@ import {
     deployProtocolContracts,
     printCreditRecord,
 } from "../BaseTest";
-import {
-    evmRevert,
-    evmSnapshot,
-    getMinFirstLossCoverRequirement,
-    setNextBlockTimestamp,
-    toToken,
-} from "../TestUtils";
+import { evmRevert, evmSnapshot, setNextBlockTimestamp, toToken } from "../TestUtils";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
@@ -109,32 +103,30 @@ describe("ReceivableFactoringCredit Tests", function () {
 
         await nftContract.initialize(mockTokenContract.address, poolSafeContract.address);
         await poolConfigContract.connect(poolOwner).setReceivableAsset(nftContract.address);
-        await creditManagerContract.connect(poolOwner).addPayer(nftContract.address);
+        await creditManagerContract
+            .connect(poolOwner)
+            .addRole(await creditManagerContract.APPROVER_ROLE(), eaServiceAccount.address);
+        await creditManagerContract
+            .connect(poolOwner)
+            .addRole(await creditManagerContract.PAYER_ROLE(), nftContract.address);
         await mockTokenContract
             .connect(payer)
             .approve(nftContract.address, ethers.constants.MaxUint256);
 
-        await borrowerFirstLossCoverContract
+        await poolConfigContract
             .connect(poolOwner)
-            .setCoverProvider(borrower.address, {
-                poolCapCoverageInBps: 1,
-                poolValueCoverageInBps: 100,
-            });
-        await mockTokenContract
-            .connect(borrower)
-            .approve(borrowerFirstLossCoverContract.address, ethers.constants.MaxUint256);
-        await borrowerFirstLossCoverContract
-            .connect(borrower)
-            .depositCover(
-                (
-                    await getMinFirstLossCoverRequirement(
-                        borrowerFirstLossCoverContract,
-                        poolConfigContract,
-                        poolContract,
-                        borrower.address,
-                    )
-                ).mul(2),
+            .setFirstLossCover(
+                CONSTANTS.BORROWER_FIRST_LOSS_COVER_INDEX,
+                ethers.constants.AddressZero,
+                {
+                    coverRateInBps: 0,
+                    coverCap: 0,
+                    liquidityCap: 0,
+                    maxPercentOfPoolValueInBps: 0,
+                    riskYieldMultiplier: 0,
+                },
             );
+        await creditContract.connect(poolOwner).updatePoolConfigData();
 
         await juniorTrancheVaultContract
             .connect(lender)
@@ -240,7 +232,7 @@ describe("ReceivableFactoringCredit Tests", function () {
         });
 
         it("payee pays half of the credit", async function () {
-            let cr = await creditContract["getCreditRecord(bytes32)"](creditHash);
+            let cr = await creditContract.getCreditRecord(creditHash);
             printCreditRecord("cr", cr);
 
             await creditContract
@@ -249,7 +241,7 @@ describe("ReceivableFactoringCredit Tests", function () {
         });
 
         it("refresh credit after late grace period", async function () {
-            let cr = await creditContract["getCreditRecord(bytes32)"](creditHash);
+            let cr = await creditContract.getCreditRecord(creditHash);
             nextTime =
                 cr.nextDueDate.toNumber() +
                 CONSTANTS.SECONDS_IN_A_DAY * lateGracePeriodInDays +
@@ -257,14 +249,14 @@ describe("ReceivableFactoringCredit Tests", function () {
             await setNextBlockTimestamp(nextTime);
 
             await creditManagerContract.refreshCredit(borrower.address);
-            cr = await creditContract["getCreditRecord(bytes32)"](creditHash);
+            cr = await creditContract.getCreditRecord(creditHash);
             printCreditRecord("cr", cr);
         });
 
         it("payer pays the receivable", async function () {
             await nftContract.connect(payer).payOwner(tokenId, creditLimit);
 
-            let cr = await creditContract["getCreditRecord(bytes32)"](creditHash);
+            let cr = await creditContract.getCreditRecord(creditHash);
             printCreditRecord("cr", cr);
         });
     });

@@ -5,7 +5,7 @@ import {CreditManager} from "./CreditManager.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {PoolConfig} from "../PoolConfig.sol";
 import {Errors} from "../Errors.sol";
-import {ReceivableInput, PayPeriodDuration} from "./CreditStructs.sol";
+import {ReceivableInput, PayPeriodDuration, CreditConfig} from "./CreditStructs.sol";
 import {IReceivableLevelCreditManager} from "./interfaces/IReceivableLevelCreditManager.sol";
 
 contract ReceivableLevelCreditManager is
@@ -14,6 +14,7 @@ contract ReceivableLevelCreditManager is
     IReceivableLevelCreditManager
 {
     bytes32 public constant PAYER_ROLE = keccak256("PAYER");
+    bytes32 public constant APPROVER_ROLE = keccak256("APPROVER");
 
     event ReceivableFactoringCreditApproved(
         address indexed borrower,
@@ -31,16 +32,16 @@ contract ReceivableLevelCreditManager is
         _initialize(_poolConfig);
     }
 
-    function addPayer(address payer) external virtual {
+    function addRole(bytes32 role, address account) external virtual {
         poolConfig.onlyPoolOwner(msg.sender); // TODO operator?
-        if (payer == address(0)) revert Errors.zeroAddressProvided();
-        _grantRole(PAYER_ROLE, payer);
+        if (account == address(0)) revert Errors.zeroAddressProvided();
+        _grantRole(role, account);
     }
 
-    function removePayer(address payer) external virtual {
+    function removeRole(bytes32 role, address account) external virtual {
         poolConfig.onlyPoolOwner(msg.sender); // TODO
-        if (payer == address(0)) revert Errors.zeroAddressProvided();
-        _revokeRole(PAYER_ROLE, payer);
+        if (account == address(0)) revert Errors.zeroAddressProvided();
+        _revokeRole(role, account);
     }
 
     function approveReceivable(
@@ -49,9 +50,8 @@ contract ReceivableLevelCreditManager is
         uint96 creditLimit,
         uint16 remainingPeriods,
         uint16 yieldInBps
-    ) external virtual {
+    ) external virtual onlyRole(APPROVER_ROLE) {
         poolConfig.onlyProtocolAndPoolOn();
-        _onlyEAServiceAccount();
         if (creditLimit > receivableInput.receivableAmount)
             revert Errors.insufficientReceivableAmount();
 
@@ -129,6 +129,13 @@ contract ReceivableLevelCreditManager is
     function waiveLateFee(uint256 receivableId, uint256 waivedAmount) external virtual {
         bytes32 creditHash = _getCreditHash(receivableId);
         _waiveLateFee(creditHash, waivedAmount);
+    }
+
+    function getReceivableCreditConfig(
+        uint256 receivableId
+    ) external view returns (CreditConfig memory) {
+        bytes32 creditHash = _getCreditHash(receivableId);
+        return _creditConfigMap[creditHash];
     }
 
     function onlyPayer(address account, bytes32 creditHash) external view returns (address) {
