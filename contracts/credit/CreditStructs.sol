@@ -82,7 +82,6 @@ enum PayPeriodDuration {
 
 enum CreditState {
     Deleted,
-    Requested,
     Approved,
     GoodStanding,
     Delayed,

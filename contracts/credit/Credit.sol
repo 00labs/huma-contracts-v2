@@ -17,6 +17,8 @@ import {ICreditDueManager} from "./utils/interfaces/ICreditDueManager.sol";
 import {IERC20, IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {BORROWER_FIRST_LOSS_COVER_INDEX, DAYS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS, SECONDS_IN_A_DAY} from "../SharedDefs.sol";
 
+import "hardhat/console.sol";
+
 /**
  * Credit is the core borrowing concept in Huma Protocol. This abstract contract provides
  * basic operations that applies to all credits in Huma Protocol.
@@ -399,11 +401,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         if (amount == 0) revert Errors.zeroAmountProvided();
 
         CreditRecord memory cr = getCreditRecord(creditHash);
-        if (
-            cr.state == CreditState.Requested ||
-            cr.state == CreditState.Approved ||
-            cr.state == CreditState.Deleted
-        ) {
+        if (cr.state == CreditState.Approved || cr.state == CreditState.Deleted) {
             revert Errors.creditLineNotInStateForMakingPayment();
         }
         DueDetail memory dd;
