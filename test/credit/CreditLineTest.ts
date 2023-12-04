@@ -7644,7 +7644,7 @@ describe("CreditLine Test", function () {
                 oldCR.nextDueDate,
                 startOfLiquidationPeriod,
             );
-            const expectedYieldPastDue = calcYield(
+            const expectedAdditionalYieldPastDue = calcYield(
                 borrowAmount,
                 yieldInBps,
                 daysPassed.toNumber(),
@@ -7655,7 +7655,7 @@ describe("CreditLine Test", function () {
                 CONSTANTS.DAYS_IN_A_MONTH,
             );
             const expectedYieldLoss = oldCR.yieldDue
-                .add(expectedYieldPastDue)
+                .add(expectedAdditionalYieldPastDue)
                 .add(expectedYieldDue);
             // Late fee starts to accrue since the beginning of the second billing cycle until the start of tomorrow.
             const lateFeeDays =
