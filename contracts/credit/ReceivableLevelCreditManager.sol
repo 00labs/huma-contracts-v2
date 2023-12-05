@@ -80,6 +80,9 @@ contract ReceivableLevelCreditManager is
     }
 
     function refreshCredit(uint256 receivableId) external virtual {
+        poolConfig.onlyProtocolAndPoolOn();
+        _onlyPDSServiceAccount();
+
         bytes32 creditHash = _getCreditHash(receivableId);
         _refreshCredit(creditHash);
     }
@@ -87,26 +90,38 @@ contract ReceivableLevelCreditManager is
     function triggerDefault(
         uint256 receivableId
     ) external virtual returns (uint256 principalLoss, uint256 yieldLoss, uint256 feesLoss) {
+        poolConfig.onlyProtocolAndPoolOn();
+        _onlyEAServiceAccount();
+
         bytes32 creditHash = _getCreditHash(receivableId);
         return _triggerDefault(creditHash);
     }
 
-    function closeCredit(uint256 receivableId) external virtual {
+    function closeCredit(address borrower, uint256 receivableId) external virtual {
+        if (msg.sender != borrower && msg.sender != humaConfig.eaServiceAccount())
+            revert Errors.notBorrowerOrEA();
+
         bytes32 creditHash = _getCreditHash(receivableId);
         _closeCredit(creditHash);
     }
 
     function pauseCredit(uint256 receivableId) external virtual {
+        _onlyEAServiceAccount();
+
         bytes32 creditHash = _getCreditHash(receivableId);
         _pauseCredit(creditHash);
     }
 
     function unpauseCredit(uint256 receivableId) external virtual {
+        _onlyEAServiceAccount();
+
         bytes32 creditHash = _getCreditHash(receivableId);
         _unpauseCredit(creditHash);
     }
 
     function updateYield(uint256 receivableId, uint256 yieldInBps) external virtual {
+        _onlyEAServiceAccount();
+
         bytes32 creditHash = _getCreditHash(receivableId);
         _updateYield(creditHash, yieldInBps);
     }
@@ -116,17 +131,22 @@ contract ReceivableLevelCreditManager is
         uint256 creditLimit,
         uint256 committedAmount
     ) external {
+        _onlyEAServiceAccount();
+
         bytes32 creditHash = _getCreditHash(receivableId);
         _updateLimitAndCommitment(creditHash, creditLimit, committedAmount);
     }
 
     function extendRemainingPeriod(uint256 receivableId, uint256 numOfPeriods) external virtual {
         _onlyEAServiceAccount();
+
         bytes32 creditHash = _getCreditHash(receivableId);
         _extendRemainingPeriod(creditHash, numOfPeriods);
     }
 
     function waiveLateFee(uint256 receivableId, uint256 waivedAmount) external virtual {
+        _onlyEAServiceAccount();
+
         bytes32 creditHash = _getCreditHash(receivableId);
         _waiveLateFee(creditHash, waivedAmount);
     }

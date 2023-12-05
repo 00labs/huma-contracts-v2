@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {IBorrowerLevelCreditManager} from "./interfaces/IBorrowerLevelCreditManager.sol";
 import {CreditManager} from "./CreditManager.sol";
-import {CreditConfig, CreditRecord, DueDetail, PayPeriodDuration, CreditLineClosureReason} from "./CreditStructs.sol";
+import {CreditConfig, CreditRecord, DueDetail, PayPeriodDuration, CreditClosureReason} from "./CreditStructs.sol";
 import {Errors} from "../Errors.sol";
 
 /**
@@ -15,17 +15,6 @@ import {Errors} from "../Errors.sol";
 contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManager {
     //* todo standardize whether to emit events at Credit contract or this contract.
     //* todo standardize where to place access control, at Credit contract or this contract
-
-    /**
-     * @notice An existing credit line has been closed
-     * @param reasonCode the reason for the credit line closure
-     */
-    event CreditLineClosed(
-        address indexed borrower,
-        address by,
-        CreditLineClosureReason reasonCode
-    );
-
     event LateFeeWaived(address borrower, uint256 amountWaived);
 
     event CreditLineApproved(
@@ -88,6 +77,9 @@ contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManage
 
     /// @inheritdoc IBorrowerLevelCreditManager
     function refreshCredit(address borrower) external virtual override {
+        poolConfig.onlyProtocolAndPoolOn();
+        _onlyPDSServiceAccount();
+
         bytes32 creditHash = getCreditHash(borrower);
         _refreshCredit(creditHash);
     }
@@ -103,6 +95,7 @@ contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManage
     {
         poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
+
         bytes32 creditHash = getCreditHash(borrower);
         return _triggerDefault(creditHash);
     }
@@ -110,28 +103,35 @@ contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManage
     /// @inheritdoc IBorrowerLevelCreditManager
     /// @dev Only the borrower or EA Service account can call this function
     function closeCredit(address borrower) external virtual override {
+        poolConfig.onlyProtocolAndPoolOn();
         if (msg.sender != borrower && msg.sender != humaConfig.eaServiceAccount())
             revert Errors.notBorrowerOrEA();
+
         bytes32 creditHash = getCreditHash(borrower);
         onlyCreditBorrower(creditHash, borrower);
         _closeCredit(creditHash);
-        emit CreditLineClosed(borrower, msg.sender, CreditLineClosureReason.AdminClosure);
     }
 
     /// @inheritdoc IBorrowerLevelCreditManager
     function pauseCredit(address borrower) external virtual override {
+        _onlyEAServiceAccount();
+
         bytes32 creditHash = getCreditHash(borrower);
         _pauseCredit(creditHash);
     }
 
     /// @inheritdoc IBorrowerLevelCreditManager
     function unpauseCredit(address borrower) external virtual override {
+        _onlyEAServiceAccount();
+
         bytes32 creditHash = getCreditHash(borrower);
         _unpauseCredit(creditHash);
     }
 
     /// @inheritdoc IBorrowerLevelCreditManager
     function updateYield(address borrower, uint256 yieldInBps) external virtual override {
+        _onlyEAServiceAccount();
+
         bytes32 creditHash = getCreditHash(borrower);
         _updateYield(creditHash, yieldInBps);
     }
@@ -146,6 +146,7 @@ contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManage
         uint256 numOfPeriods
     ) external virtual override {
         _onlyEAServiceAccount();
+
         bytes32 creditHash = getCreditHash(borrower);
         _extendRemainingPeriod(creditHash, numOfPeriods);
     }
@@ -165,6 +166,7 @@ contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManage
     /// @inheritdoc IBorrowerLevelCreditManager
     function waiveLateFee(address borrower, uint256 amount) external {
         _onlyEAServiceAccount();
+
         uint256 amountWaived = _waiveLateFee(getCreditHash(borrower), amount);
         emit LateFeeWaived(borrower, amountWaived);
     }

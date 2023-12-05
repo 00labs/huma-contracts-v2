@@ -47,7 +47,7 @@ interface IReceivableLevelCreditManager {
      * @dev Revert if there is still balance due
      * @dev Revert if the committed amount is non-zero and there are periods remaining
      */
-    function closeCredit(uint256 receivableId) external;
+    function closeCredit(address borrower, uint256 receivableId) external;
 
     /**
      * @notice Pauses the credit. No drawdown is allowed for paused credit.

@@ -9,7 +9,7 @@ import {ICreditManager} from "./interfaces/ICreditManager.sol";
 import {PoolConfig, PoolSettings} from "../PoolConfig.sol";
 import {PoolConfigCache} from "../PoolConfigCache.sol";
 import {CreditManagerStorage} from "./CreditManagerStorage.sol";
-import {CreditConfig, CreditLimit, CreditRecord, CreditState, DueDetail, PayPeriodDuration, CreditLoss} from "./CreditStructs.sol";
+import {CreditClosureReason, CreditConfig, CreditLimit, CreditRecord, CreditState, DueDetail, PayPeriodDuration, CreditLoss} from "./CreditStructs.sol";
 import {Errors} from "../Errors.sol";
 import {DAYS_IN_A_MONTH, DAYS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS, SECONDS_IN_A_DAY} from "../SharedDefs.sol";
 
@@ -33,6 +33,14 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
     event CreditPaused(bytes32 indexed creditHash);
 
     /**
+     * @notice An existing credit has been closed
+     * @param creditHash the credit hash
+     * @param reasonCode the reason for the credit closure
+     * @param by the address who has closed the credit
+     */
+    event CreditClosed(bytes32 indexed creditHash, CreditClosureReason reasonCode, address by);
+
+    /**
      * @notice The credit line has been marked as Defaulted.
      * @param creditHash the credit hash
      * @param principalLoss the principal losses to be written off because of the default.
@@ -51,11 +59,66 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
      * @param creditHash the credit hash
      * @param oldRemainingPeriods the number of remaining pay periods before the extension
      * @param newRemainingPeriods the number of remaining pay periods after the extension
+     * @param by The address who has triggered the update.
      */
     event RemainingPeriodsExtended(
         bytes32 indexed creditHash,
         uint256 oldRemainingPeriods,
         uint256 newRemainingPeriods,
+        address by
+    );
+
+    /**
+     * @notice The expiration (maturity) date of a credit line has been extended.
+     * @param creditHash The credit hash.
+     * @param oldYieldInBps The old yield in basis points before the update.
+     * @param newYieldInBps The new yield in basis points limit after the update.
+     * @param oldYieldDue The old amount of yield due before the update.
+     * @param newYieldDue The new amount of yield due after the update.
+     * @param by The address who has triggered the update.
+     */
+    event YieldUpdated(
+        bytes32 indexed creditHash,
+        uint256 oldYieldInBps,
+        uint256 newYieldInBps,
+        uint256 oldYieldDue,
+        uint256 newYieldDue,
+        address by
+    );
+
+    /**
+     * @notice The expiration (maturity) date of a credit line has been extended.
+     * @param creditHash The credit hash.
+     * @param oldLimit The old credit limit before the update.
+     * @param newLimit The new credit limit after the update.
+     * @param oldCommittedAmount The old committed amount before the update.
+     * @param newCommittedAmount The new committed amount after the update.
+     * @param oldYieldDue The old amount of yield due before the update.
+     * @param newYieldDue The new amount of yield due after the update.
+     * @param by The address who has triggered the update.
+     */
+    event LimitAndCommitmentUpdated(
+        bytes32 indexed creditHash,
+        uint256 oldLimit,
+        uint256 newLimit,
+        uint256 oldCommittedAmount,
+        uint256 newCommittedAmount,
+        uint256 oldYieldDue,
+        uint256 newYieldDue,
+        address by
+    );
+
+    /**
+     * @notice The expiration (maturity) date of a credit line has been extended.
+     * @param creditHash The credit hash.
+     * @param oldLateFee The amount of late fee before the update.
+     * @param newLateFee The amount of late fee after the update.
+     * @param by The address who has triggered the update.
+     */
+    event LateFeeWaived(
+        bytes32 indexed creditHash,
+        uint256 oldLateFee,
+        uint256 newLateFee,
         address by
     );
 
@@ -227,10 +290,11 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         // TODO really need this?
         cc.creditLimit = 0;
         _setCreditConfig(creditHash, cc);
+
+        emit CreditClosed(creditHash, CreditClosureReason.AdminClosure, msg.sender);
     }
 
     function _pauseCredit(bytes32 creditHash) internal {
-        _onlyEAServiceAccount();
         CreditRecord memory cr = credit.getCreditRecord(creditHash);
         if (cr.state == CreditState.GoodStanding) {
             cr.state = CreditState.Paused;
@@ -240,7 +304,6 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
     }
 
     function _unpauseCredit(bytes32 creditHash) internal virtual {
-        _onlyEAServiceAccount();
         CreditRecord memory cr = credit.getCreditRecord(creditHash);
         if (cr.state == CreditState.Paused) {
             cr.state = CreditState.GoodStanding;
@@ -338,6 +401,10 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         (CreditRecord memory cr, DueDetail memory dd) = credit.updateDueInfo(creditHash);
 
         CreditConfig memory cc = getCreditConfig(creditHash);
+        uint256 oldYieldInBps = cc.yieldInBps;
+        cc.yieldInBps = uint16(yieldInBps);
+        _setCreditConfig(creditHash, cc);
+
         uint256 principal = cr.unbilledPrincipal + cr.nextDue - cr.yieldDue + dd.principalPastDue;
         // Note that the new yield rate takes effect the next day. We need to:
         // 1. Deduct the yield that was computed with the previous rate from tomorrow onwards, and
@@ -356,11 +423,20 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
             )
         );
         uint256 updatedYieldDue = dd.committed > dd.accrued ? dd.committed : dd.accrued;
-        cr.nextDue = uint96(cr.nextDue - cr.yieldDue + updatedYieldDue);
-        cr.yieldDue = uint96(updatedYieldDue);
+        uint256 unpaidYieldDue = updatedYieldDue > dd.paid ? updatedYieldDue - dd.paid : 0;
+        cr.nextDue = uint96(cr.nextDue - cr.yieldDue + unpaidYieldDue);
+        uint256 oldYieldDue = cr.yieldDue;
+        cr.yieldDue = uint96(unpaidYieldDue);
         credit.setCreditRecord(creditHash, cr);
         credit.setDueDetail(creditHash, dd);
-        // TODO emit event. Need to report old bps, new bps, old yieldDue, new yieldDue
+        emit YieldUpdated(
+            creditHash,
+            oldYieldInBps,
+            cc.yieldInBps,
+            oldYieldDue,
+            cr.yieldDue,
+            msg.sender
+        );
     }
 
     /**
@@ -377,7 +453,9 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         CreditConfig memory cc = getCreditConfig(creditHash);
         (CreditRecord memory cr, DueDetail memory dd) = credit.updateDueInfo(creditHash);
 
+        uint256 oldCreditLimit = cc.creditLimit;
         cc.creditLimit = uint96(creditLimit);
+        uint256 oldCommittedAmount = cc.committedAmount;
         cc.committedAmount = uint96(committedAmount);
         _setCreditConfig(creditHash, cc);
 
@@ -386,17 +464,28 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
                 cc,
                 cr,
                 dd.committed,
-                cc.committedAmount,
+                oldCommittedAmount,
                 committedAmount,
                 cc.yieldInBps
             )
         );
         uint256 updatedYieldDue = dd.committed > dd.accrued ? dd.committed : dd.accrued;
-        cr.nextDue = uint96(cr.nextDue - cr.yieldDue + updatedYieldDue);
-        cr.yieldDue = uint96(updatedYieldDue);
+        uint256 unpaidYieldDue = updatedYieldDue > dd.paid ? updatedYieldDue - dd.paid : 0;
+        cr.nextDue = uint96(cr.nextDue - cr.yieldDue + unpaidYieldDue);
+        uint256 oldYieldDue = cr.yieldDue;
+        cr.yieldDue = uint96(unpaidYieldDue);
         credit.setCreditRecord(creditHash, cr);
         credit.setDueDetail(creditHash, dd);
-        // TODO emit event
+        emit LimitAndCommitmentUpdated(
+            creditHash,
+            oldCreditLimit,
+            cc.creditLimit,
+            oldCommittedAmount,
+            cc.committedAmount,
+            oldYieldDue,
+            cr.yieldDue,
+            msg.sender
+        );
     }
 
     function _waiveLateFee(
@@ -404,11 +493,13 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         uint256 amount
     ) internal returns (uint256 amountWaived) {
         (CreditRecord memory cr, DueDetail memory dd) = credit.updateDueInfo(creditHash);
+        uint256 oldLateFee = dd.lateFee;
         amountWaived = amount > dd.lateFee ? dd.lateFee : amount;
         dd.lateFee -= uint96(amountWaived);
         cr.totalPastDue -= uint96(amountWaived);
         credit.setDueDetail(creditHash, dd);
         credit.setCreditRecord(creditHash, cr);
+        emit LateFeeWaived(creditHash, oldLateFee, dd.lateFee, msg.sender);
         return amountWaived;
     }
 
@@ -430,7 +521,8 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         );
         // Since the new value may be smaller than the old value, we need to work with signed integers.
         int256 valueDiff = int256(newValue) - int256(oldValue);
-        int256 yieldDiff = (int256((totalDays - daysPassed) * multiplier) * valueDiff) /
+        // -1 since the new value takes effect the nect day.
+        int256 yieldDiff = (int256((totalDays - daysPassed - 1) * multiplier) * valueDiff) /
             int256(HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR);
         return uint256(int256(oldYield) + yieldDiff);
     }
