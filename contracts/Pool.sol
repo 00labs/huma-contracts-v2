@@ -11,6 +11,8 @@ import {IPool} from "./interfaces/IPool.sol";
 import {IPoolFeeManager} from "./interfaces/IPoolFeeManager.sol";
 import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import {ITranchesPolicy} from "./interfaces/ITranchesPolicy.sol";
+import {ICreditManager} from "./credit/interfaces/ICreditManager.sol";
+import {ICredit} from "./credit/interfaces/ICredit.sol";
 
 /**
  * @title Pool
@@ -45,6 +47,8 @@ contract Pool is PoolConfigCache, IPool {
     IPoolFeeManager public feeManager;
     IPoolSafe public poolSafe;
     ITranchesPolicy public tranchesPolicy;
+    ICredit public credit;
+    ICreditManager public creditManager;
 
     TranchesAssets public tranchesAssets;
     TranchesLosses public tranchesLosses;
@@ -104,6 +108,14 @@ contract Pool is PoolConfigCache, IPool {
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         epochManager = IEpochManager(addr);
 
+        addr = _poolConfig.credit();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        credit = ICredit(addr);
+
+        addr = _poolConfig.creditManager();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        creditManager = ICreditManager(addr);
+
         address[16] memory covers = _poolConfig.getFirstLossCovers();
         for (uint256 i = 0; i < covers.length; i++) {
             if (covers[i] != address(0)) _firstLossCovers.push(IFirstLossCover(covers[i]));
@@ -146,19 +158,20 @@ contract Pool is PoolConfigCache, IPool {
 
     /// @inheritdoc IPool
     function distributeProfit(uint256 profit) external {
-        if (msg.sender != poolConfig.credit()) revert Errors.todo();
+        // TODO(jiatu): add pool tests for non-authorized callers.
+        _onlyCreditOrCreditManager(msg.sender);
         _distributeProfit(profit);
     }
 
     /// @inheritdoc IPool
     function distributeLoss(uint256 loss) external {
-        if (msg.sender != poolConfig.credit()) revert Errors.todo();
+        _onlyCreditOrCreditManager(msg.sender);
         _distributeLoss(loss);
     }
 
     /// @inheritdoc IPool
     function distributeLossRecovery(uint256 lossRecovery) external {
-        if (msg.sender != poolConfig.credit()) revert Errors.todo();
+        if (msg.sender != address(credit)) revert Errors.notAuthorizedCaller();
         _distributeLossRecovery(lossRecovery);
     }
 
@@ -449,5 +462,11 @@ contract Pool is PoolConfigCache, IPool {
             account != poolConfig.seniorTranche() &&
             account != poolConfig.epochManager()
         ) revert Errors.notAuthorizedCaller();
+    }
+
+    function _onlyCreditOrCreditManager(address account) internal view {
+        if (account != address(credit) && account != address(creditManager)) {
+            revert Errors.notAuthorizedCaller();
+        }
     }
 }
