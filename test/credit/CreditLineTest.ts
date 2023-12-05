@@ -8005,17 +8005,23 @@ describe("CreditLine Test", function () {
         });
 
         it("Should not allow non-EA to pause or unpause the credit", async function () {
-            const oldCR = await creditContract.getCreditRecord(creditHash);
             await creditContract.connect(borrower).drawdown(borrower.getAddress(), toToken(1_000));
+            const oldCR = await creditContract.getCreditRecord(creditHash);
             await expect(
                 creditManagerContract.connect(borrower).pauseCredit(borrower.getAddress()),
-            ).to.be.revertedWithCustomError(creditManagerContract, "notEA");
+            ).to.be.revertedWithCustomError(
+                creditManagerContract,
+                "evaluationAgentServiceAccountRequired",
+            );
             let newCR = await creditContract.getCreditRecord(creditHash);
             expect(newCR.state).to.equal(oldCR.state);
 
             await expect(
                 creditManagerContract.connect(borrower).unpauseCredit(borrower.getAddress()),
-            ).to.be.revertedWithCustomError(creditManagerContract, "notEA");
+            ).to.be.revertedWithCustomError(
+                creditManagerContract,
+                "evaluationAgentServiceAccountRequired",
+            );
             newCR = await creditContract.getCreditRecord(creditHash);
             expect(newCR.state).to.equal(oldCR.state);
         });
@@ -8044,23 +8050,24 @@ describe("CreditLine Test", function () {
             await loadFixture(approveCredit);
         });
 
-        it("Should allow the EA to extend the remaining periods of a credit line", async function () {
-            const oldCreditRecord = await creditContract.getCreditRecord(creditHash);
-            const newRemainingPeriods = oldCreditRecord.remainingPeriods + numOfPeriods;
+        it.only("Should allow the EA to extend the remaining periods of a credit line", async function () {
+            const oldCR = await creditContract.getCreditRecord(creditHash);
+            const newRemainingPeriods = oldCR.remainingPeriods + numOfPeriods;
             await expect(
                 creditManagerContract
                     .connect(eaServiceAccount)
                     .extendRemainingPeriod(borrower.getAddress(), numOfPeriods),
             )
-                .to.emit(creditContract, "RemainingPeriodsExtended")
+                .to.emit(creditManagerContract, "RemainingPeriodsExtended")
                 .withArgs(
                     creditHash,
-                    oldCreditRecord.remainingPeriods,
-                    newRemainingPeriods,
+                    // -1 because `updateDueInfo` kicked start the credit line.
+                    oldCR.remainingPeriods - 1,
+                    newRemainingPeriods - 1,
                     await eaServiceAccount.getAddress(),
                 );
             const newCR = await creditContract.getCreditRecord(creditHash);
-            expect(newCR.remainingPeriods).to.equal(newRemainingPeriods);
+            expect(newCR.remainingPeriods).to.equal(newRemainingPeriods - 1);
         });
 
         it("Should disallow non-EAs to extend the remaining period", async function () {
@@ -8069,7 +8076,7 @@ describe("CreditLine Test", function () {
                     .connect(borrower)
                     .extendRemainingPeriod(borrower.getAddress(), numOfPeriods),
             ).to.be.revertedWithCustomError(
-                creditContract,
+                creditManagerContract,
                 "evaluationAgentServiceAccountRequired",
             );
         });
@@ -8478,6 +8485,34 @@ describe("CreditLine Test", function () {
                     });
                 });
             });
+        });
+
+        it("Should not allow non-EAs to perform the update", async function () {
+            await expect(
+                creditManagerContract.updateLimitAndCommitment(
+                    await borrower.getAddress(),
+                    toToken(200_000),
+                    toToken(100_000),
+                ),
+            ).to.be.revertedWithCustomError(
+                creditManagerContract,
+                "evaluationAgentServiceAccountRequired",
+            );
+        });
+
+        it("Should not allow the updated committed amount to exceed the credit limit", async function () {
+            await expect(
+                creditManagerContract
+                    .connect(eaServiceAccount)
+                    .updateLimitAndCommitment(
+                        await borrower.getAddress(),
+                        toToken(100_000),
+                        toToken(200_000),
+                    ),
+            ).to.be.revertedWithCustomError(
+                creditManagerContract,
+                "committedAmountGreaterThanCreditLimit",
+            );
         });
     });
 

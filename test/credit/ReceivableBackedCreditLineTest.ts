@@ -572,7 +572,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                 100;
             await setNextBlockTimestamp(nextTime);
 
-            await creditManagerContract.refreshCredit(borrower.address);
+            await creditManagerContract.connect(pdsServiceAccount).refreshCredit(borrower.address);
             let cr = await creditContract.getCreditRecord(creditHash);
             printCreditRecord("cr", cr);
 
