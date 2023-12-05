@@ -15,8 +15,6 @@ import {Errors} from "../Errors.sol";
 contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManager {
     //* todo standardize whether to emit events at Credit contract or this contract.
     //* todo standardize where to place access control, at Credit contract or this contract
-    event LateFeeWaived(address borrower, uint256 amountWaived);
-
     event CreditLineApproved(
         address indexed borrower,
         bytes32 indexed creditHash,
@@ -72,7 +70,7 @@ contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManage
 
         bytes32 creditHash = getCreditHash(borrower);
         onlyCreditBorrower(creditHash, borrower);
-        _startCommittedCredit(borrower, creditHash);
+        _startCommittedCredit(creditHash);
     }
 
     /// @inheritdoc IBorrowerLevelCreditManager
@@ -167,7 +165,6 @@ contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManage
     function waiveLateFee(address borrower, uint256 amount) external {
         _onlyEAServiceAccount();
 
-        uint256 amountWaived = _waiveLateFee(getCreditHash(borrower), amount);
-        emit LateFeeWaived(borrower, amountWaived);
+        _waiveLateFee(getCreditHash(borrower), amount);
     }
 }

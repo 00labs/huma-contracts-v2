@@ -953,11 +953,12 @@ export function checkCreditConfig(
 export function checkCreditRecordsMatch(
     actualCR: CreditRecordStruct,
     expectedCR: CreditRecordStruct,
+    delta: BN = BN.from(0),
 ) {
     expect(actualCR.unbilledPrincipal).to.equal(expectedCR.unbilledPrincipal);
     expect(actualCR.nextDueDate).to.equal(expectedCR.nextDueDate);
-    expect(actualCR.nextDue).to.equal(expectedCR.nextDue);
-    expect(actualCR.yieldDue).to.equal(expectedCR.yieldDue);
+    expect(actualCR.nextDue).to.be.closeTo(expectedCR.nextDue, delta);
+    expect(actualCR.yieldDue).to.be.closeTo(expectedCR.yieldDue, delta);
     expect(actualCR.totalPastDue).to.equal(expectedCR.totalPastDue);
     expect(actualCR.missedPeriods).to.equal(expectedCR.missedPeriods);
     expect(actualCR.remainingPeriods).to.equal(expectedCR.remainingPeriods);
@@ -1010,7 +1011,7 @@ export function checkDueDetailsMatch(
     expect(actualDD.principalPastDue).to.equal(expectedDD.principalPastDue);
     expect(actualDD.yieldPastDue).to.equal(expectedDD.yieldPastDue);
     expect(actualDD.committed).to.be.closeTo(expectedDD.committed, delta);
-    expect(actualDD.accrued).to.equal(expectedDD.accrued);
+    expect(actualDD.accrued).to.be.closeTo(expectedDD.accrued, delta);
     expect(actualDD.paid).to.equal(expectedDD.paid);
 }
 

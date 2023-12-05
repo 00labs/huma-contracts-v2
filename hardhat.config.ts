@@ -19,7 +19,7 @@ const config = {
     contractSizer: {
         alphaSort: true,
         disambiguatePaths: false,
-        runOnCompile: true,
+        runOnCompile: false,
         strict: true,
     },
     /**
@@ -28,7 +28,7 @@ const config = {
      * More here: https://hardhat.org/plugins/hardhat-gas-reporter.html
      */
     gasReporter: {
-        enabled: true,
+        enabled: false,
         currency: "USD",
         // coinmarketcap: process.env.COINMARKETCAP || null,
     },

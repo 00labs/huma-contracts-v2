@@ -22,6 +22,10 @@ export function sumBNArray(arr: BN[]): BN {
     return arr.reduce((acc, curValue) => acc.add(curValue), BN.from(0));
 }
 
+export function isCloseTo(actualValue: BN, expectedValue: BN, delta: BN): boolean {
+    return actualValue.sub(expectedValue).abs().lte(delta);
+}
+
 export async function setNextBlockTimestamp(nextTS: BN | number) {
     await network.provider.request({
         method: "evm_setNextBlockTimestamp",
@@ -50,28 +54,6 @@ export async function evmRevert(sId: unknown) {
         console.log(`emvRevert failed: ${sId}`);
     }
     return res;
-}
-
-export function getNextDate(
-    lastDate: number,
-    currentDate: number,
-    periodDuration: number,
-): number[] {
-    let date: moment.Moment;
-    let numberOfPeriodsPassed = 0;
-    let dayCount = 0;
-    if (lastDate > 0) {
-        date = timestampToMoment(lastDate);
-        numberOfPeriodsPassed = Math.floor(
-            timestampToMoment(currentDate).diff(date, "days") / periodDuration,
-        );
-    } else {
-        date = timestampToMoment(currentDate, "YYYY-MM-DD");
-        dayCount = 1;
-    }
-    dayCount += (numberOfPeriodsPassed + 1) * periodDuration;
-    date.add(dayCount, "days");
-    return [date.unix(), numberOfPeriodsPassed];
 }
 
 export async function getFutureBlockTime(offsetSeconds: number) {

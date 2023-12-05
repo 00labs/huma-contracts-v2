@@ -245,8 +245,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
      * @notice startCommittedCredit helper function.
      * @dev Access control is done outside of this function.
      */
-    function _startCommittedCredit(address borrower, bytes32 creditHash) internal virtual {
-        CreditConfig memory cc = getCreditConfig(creditHash);
+    function _startCommittedCredit(bytes32 creditHash) internal virtual {
         CreditRecord memory cr = credit.getCreditRecord(creditHash);
         if (
             cr.state != CreditState.Approved ||
@@ -259,7 +258,6 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
             // 3. We have not yet reached the designated start date.
             revert Errors.committedCreditCannotBeStarted();
         }
-        DueDetail memory dd;
         credit.updateDueInfo(creditHash);
 
         emit CommittedCreditStarted(creditHash);
@@ -410,14 +408,14 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         // 1. Deduct the yield that was computed with the previous rate from tomorrow onwards, and
         // 2. Incorporate the yield calculated with the new rate, also beginning tomorrow.
         dd.accrued = uint96(
-            _computeUpdatedYield(cc, cr, dd.accrued, cc.yieldInBps, yieldInBps, principal)
+            _computeUpdatedYield(cc, cr, dd.accrued, oldYieldInBps, yieldInBps, principal)
         );
         dd.committed = uint96(
             _computeUpdatedYield(
                 cc,
                 cr,
                 dd.committed,
-                cc.yieldInBps,
+                oldYieldInBps,
                 yieldInBps,
                 cc.committedAmount
             )
@@ -497,8 +495,8 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         amountWaived = amount > dd.lateFee ? dd.lateFee : amount;
         dd.lateFee -= uint96(amountWaived);
         cr.totalPastDue -= uint96(amountWaived);
-        credit.setDueDetail(creditHash, dd);
         credit.setCreditRecord(creditHash, cr);
+        credit.setDueDetail(creditHash, dd);
         emit LateFeeWaived(creditHash, oldLateFee, dd.lateFee, msg.sender);
         return amountWaived;
     }
@@ -521,7 +519,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         );
         // Since the new value may be smaller than the old value, we need to work with signed integers.
         int256 valueDiff = int256(newValue) - int256(oldValue);
-        // -1 since the new value takes effect the nect day.
+        // -1 since the new value takes effect the next day.
         int256 yieldDiff = (int256((totalDays - daysPassed - 1) * multiplier) * valueDiff) /
             int256(HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR);
         return uint256(int256(oldYield) + yieldDiff);
