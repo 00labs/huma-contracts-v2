@@ -160,7 +160,7 @@ describe("PoolFeeManager Tests", function () {
             const feesInvestable =
                 await poolFeeManagerContract.getAvailableFeesToInvestInFirstLossCover();
             expect(feesInvestable).to.not.equal(ethers.constants.Zero);
-            await poolFeeManagerContract.connect(poolOwner).investFeesInFirstLossCover();
+            await poolFeeManagerContract.connect(pdsServiceAccount).investFeesInFirstLossCover();
         }
 
         async function performUpdate(
@@ -602,7 +602,7 @@ describe("PoolFeeManager Tests", function () {
             const oldFirstLossCoverAssets = await affiliateFirstLossCoverContract.totalAssets();
             const olsPoolSafeAssets = await poolSafeContract.totalLiquidity();
 
-            await poolFeeManagerContract.connect(poolOwner).investFeesInFirstLossCover();
+            await poolFeeManagerContract.connect(pdsServiceAccount).investFeesInFirstLossCover();
             const newAccruedIncomes = await poolFeeManagerContract.getAccruedIncomes();
             expect(newAccruedIncomes.protocolIncome).to.equal(oldAccruedIncomes.protocolIncome);
             expect(newAccruedIncomes.poolOwnerIncome).to.equal(oldAccruedIncomes.poolOwnerIncome);
@@ -640,7 +640,9 @@ describe("PoolFeeManager Tests", function () {
                     await affiliateFirstLossCoverContract.totalAssets();
                 const olsPoolSafeAssets = await poolSafeContract.totalLiquidity();
 
-                await poolFeeManagerContract.connect(poolOwner).investFeesInFirstLossCover();
+                await poolFeeManagerContract
+                    .connect(pdsServiceAccount)
+                    .investFeesInFirstLossCover();
                 const newAccruedIncomes = await poolFeeManagerContract.getAccruedIncomes();
                 expect(newAccruedIncomes.protocolIncome).to.equal(0);
                 expect(newAccruedIncomes.poolOwnerIncome).to.equal(0);
@@ -704,7 +706,9 @@ describe("PoolFeeManager Tests", function () {
                     oldAccruedIncomes.protocolIncome,
                 );
 
-                await poolFeeManagerContract.connect(poolOwner).investFeesInFirstLossCover();
+                await poolFeeManagerContract
+                    .connect(pdsServiceAccount)
+                    .investFeesInFirstLossCover();
                 const newAccruedIncomes = await poolFeeManagerContract.getAccruedIncomes();
                 expect(newAccruedIncomes.protocolIncome).to.equal(
                     oldAccruedIncomes.protocolIncome.sub(expectedProtocolFeesInvested),
