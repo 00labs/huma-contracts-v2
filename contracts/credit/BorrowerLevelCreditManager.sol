@@ -76,7 +76,6 @@ contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManage
     /// @inheritdoc IBorrowerLevelCreditManager
     function refreshCredit(address borrower) external virtual override {
         poolConfig.onlyProtocolAndPoolOn();
-        _onlyPDSServiceAccount();
 
         bytes32 creditHash = getCreditHash(borrower);
         _refreshCredit(creditHash);
@@ -112,6 +111,7 @@ contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManage
 
     /// @inheritdoc IBorrowerLevelCreditManager
     function pauseCredit(address borrower) external virtual override {
+        poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
 
         bytes32 creditHash = getCreditHash(borrower);
@@ -120,6 +120,7 @@ contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManage
 
     /// @inheritdoc IBorrowerLevelCreditManager
     function unpauseCredit(address borrower) external virtual override {
+        poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
 
         bytes32 creditHash = getCreditHash(borrower);
@@ -128,6 +129,7 @@ contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManage
 
     /// @inheritdoc IBorrowerLevelCreditManager
     function updateYield(address borrower, uint256 yieldInBps) external virtual override {
+        poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
 
         bytes32 creditHash = getCreditHash(borrower);
@@ -143,6 +145,7 @@ contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManage
         address borrower,
         uint256 numOfPeriods
     ) external virtual override {
+        poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
 
         bytes32 creditHash = getCreditHash(borrower);
@@ -155,6 +158,7 @@ contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManage
         uint256 creditLimit,
         uint256 committedAmount
     ) external virtual override {
+        poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
         if (committedAmount > creditLimit) revert Errors.committedAmountGreaterThanCreditLimit();
 
@@ -163,6 +167,7 @@ contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManage
 
     /// @inheritdoc IBorrowerLevelCreditManager
     function waiveLateFee(address borrower, uint256 amount) external {
+        poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
 
         _waiveLateFee(getCreditHash(borrower), amount);

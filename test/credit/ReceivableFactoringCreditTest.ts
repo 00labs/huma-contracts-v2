@@ -256,7 +256,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                 100;
             await setNextBlockTimestamp(nextTime);
 
-            await creditManagerContract.connect(pdsServiceAccount).refreshCredit(borrower.address);
+            await creditManagerContract.refreshCredit(borrower.address);
             cr = await creditContract["getCreditRecord(bytes32)"](creditHash);
             printCreditRecord("cr", cr);
         });

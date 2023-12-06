@@ -81,7 +81,6 @@ contract ReceivableLevelCreditManager is
 
     function refreshCredit(uint256 receivableId) external virtual {
         poolConfig.onlyProtocolAndPoolOn();
-        _onlyPDSServiceAccount();
 
         bytes32 creditHash = _getCreditHash(receivableId);
         _refreshCredit(creditHash);
@@ -98,6 +97,7 @@ contract ReceivableLevelCreditManager is
     }
 
     function closeCredit(address borrower, uint256 receivableId) external virtual {
+        poolConfig.onlyProtocolAndPoolOn();
         if (msg.sender != borrower && msg.sender != humaConfig.eaServiceAccount())
             revert Errors.notBorrowerOrEA();
 
@@ -106,6 +106,7 @@ contract ReceivableLevelCreditManager is
     }
 
     function pauseCredit(uint256 receivableId) external virtual {
+        poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
 
         bytes32 creditHash = _getCreditHash(receivableId);
@@ -113,6 +114,7 @@ contract ReceivableLevelCreditManager is
     }
 
     function unpauseCredit(uint256 receivableId) external virtual {
+        poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
 
         bytes32 creditHash = _getCreditHash(receivableId);
@@ -120,6 +122,7 @@ contract ReceivableLevelCreditManager is
     }
 
     function updateYield(uint256 receivableId, uint256 yieldInBps) external virtual {
+        poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
 
         bytes32 creditHash = _getCreditHash(receivableId);
@@ -131,6 +134,7 @@ contract ReceivableLevelCreditManager is
         uint256 creditLimit,
         uint256 committedAmount
     ) external {
+        poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
 
         bytes32 creditHash = _getCreditHash(receivableId);
@@ -138,6 +142,7 @@ contract ReceivableLevelCreditManager is
     }
 
     function extendRemainingPeriod(uint256 receivableId, uint256 numOfPeriods) external virtual {
+        poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
 
         bytes32 creditHash = _getCreditHash(receivableId);
@@ -145,6 +150,7 @@ contract ReceivableLevelCreditManager is
     }
 
     function waiveLateFee(uint256 receivableId, uint256 waivedAmount) external virtual {
+        poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
 
         bytes32 creditHash = _getCreditHash(receivableId);
