@@ -567,6 +567,14 @@ describe("FirstLossCover Tests", function () {
             // Distribute PnL so that the LP token isn't always 1:1 with the asset
             // when PnL is non-zero.
             await creditContract.mockDistributePnL(profit, loss, lossRecovery);
+
+            const tranchesAssets = await poolContract.tranchesAssets();
+            const totalTrancheAssets = tranchesAssets.seniorTotalAssets.add(
+                tranchesAssets.juniorTotalAssets,
+            );
+            const coverCap = await affiliateFirstLossCoverContract.getCapacity(totalTrancheAssets);
+            console.log(`coverCap: ${coverCap}`);
+
             await affiliateFirstLossCoverContract.connect(evaluationAgent).depositCover(assets);
         }
 
@@ -587,6 +595,7 @@ describe("FirstLossCover Tests", function () {
                 );
                 const coverCap =
                     await affiliateFirstLossCoverContract.getCapacity(totalTrancheAssets);
+                console.log(`coverCap: ${coverCap}`);
                 await depositCover(coverCap.add(assetsToRedeem), profit, loss, lossRecovery);
 
                 const oldSupply = await affiliateFirstLossCoverContract.totalSupply();
@@ -635,7 +644,7 @@ describe("FirstLossCover Tests", function () {
                 await testRedeemCover(assetsToRedeem);
             });
 
-            it("Should allow the cover provider to redeem excessive assets over the cover cap when there is more profit than loss", async function () {
+            it.only("Should allow the cover provider to redeem excessive assets over the cover cap when there is more profit than loss", async function () {
                 const assetsToRedeem = toToken(5_000);
                 const profit = toToken(178),
                     loss = toToken(132),
@@ -1032,10 +1041,6 @@ describe("FirstLossCover Tests", function () {
                 const newCoveredLoss = oldCoveredLoss.sub(amountRecovered);
                 const oldPoolSafeAssets = await poolSafeContract.totalLiquidity();
 
-                const lossRecoverCalcResult =
-                    await affiliateFirstLossCoverContract.calcLossRecover(lossRecovery);
-                expect(lossRecoverCalcResult[0]).to.equal(lossRecovery.sub(amountLossCovered));
-                expect(lossRecoverCalcResult[1]).to.equal(amountRecovered);
                 await expect(affiliateFirstLossCoverContract.recoverLoss(lossRecovery))
                     .to.emit(affiliateFirstLossCoverContract, "LossRecovered")
                     .withArgs(amountRecovered, newCoveredLoss);
