@@ -1,6 +1,6 @@
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
-import { BigNumber as BN } from "ethers";
+import { BigNumber, BigNumber as BN } from "ethers";
 import { ethers } from "hardhat";
 import moment from "moment";
 import {
@@ -26,7 +26,6 @@ import {
     ReceivableLevelCreditManager,
     TrancheVault,
 } from "../typechain-types";
-import { FirstLossCoverConfigStruct } from "../typechain-types/contracts/PoolConfig.sol/PoolConfig";
 import {
     CreditRecordStruct,
     CreditRecordStructOutput,
@@ -38,6 +37,7 @@ import {
     CreditConfigStructOutput,
 } from "../typechain-types/contracts/credit/CreditManager";
 import { EpochInfoStruct } from "../typechain-types/contracts/interfaces/IEpoch";
+import { FirstLossCoverConfigStruct } from "../typechain-types/contracts/PoolConfig.sol/PoolConfig";
 import { maxBigNumber, minBigNumber, sumBNArray, toToken } from "./TestUtils";
 
 export type CreditContractType =
@@ -1017,24 +1017,20 @@ export function checkDueDetailsMatch(
 
 export function calcYieldDue(
     cc: CreditConfigStruct,
-    principal: BN,
+    principal: BigNumber,
     daysPassed: number,
-    periodsPassed: number | BN,
-    membershipFee: BN,
-): [BN, BN] {
+): [BigNumber, BigNumber] {
     if (daysPassed == 0) {
         return [BN.from(0), BN.from(0)];
     }
     const accrued = principal
         .mul(BN.from(cc.yieldInBps))
         .mul(daysPassed)
-        .div(CONSTANTS.BP_FACTOR.mul(CONSTANTS.DAYS_IN_A_YEAR))
-        .add(membershipFee.mul(periodsPassed));
+        .div(CONSTANTS.BP_FACTOR.mul(CONSTANTS.DAYS_IN_A_YEAR));
     const committed = BN.from(cc.committedAmount)
         .mul(BN.from(cc.yieldInBps))
         .mul(daysPassed)
-        .div(CONSTANTS.BP_FACTOR.mul(CONSTANTS.DAYS_IN_A_YEAR))
-        .add(membershipFee.mul(periodsPassed));
+        .div(CONSTANTS.BP_FACTOR.mul(CONSTANTS.DAYS_IN_A_YEAR));
     return [accrued, committed];
 }
 
@@ -1046,8 +1042,7 @@ export async function calcYieldDueNew(
     currentDate: moment.Moment,
     maturityDate: moment.Moment,
     latePaymentGracePeriodInDays: number,
-    membershipFee: BN,
-): Promise<[BN, BN, [BN, BN]]> {
+): Promise<[BigNumber, BigNumber, [BigNumber, BigNumber]]> {
     const nextBillRefreshDate = getNextBillRefreshDate(
         cr,
         currentDate,
@@ -1071,8 +1066,6 @@ export async function calcYieldDueNew(
             cc,
             principal,
             daysUntilNextDue.toNumber(),
-            1,
-            membershipFee,
         );
         return [
             BN.from(0),
@@ -1123,16 +1116,12 @@ export async function calcYieldDueNew(
         cc,
         principal,
         daysOverdue.toNumber(),
-        periodsOverdue,
-        membershipFee,
     );
     const yieldPastDue = maxBigNumber(accruedYieldPastDue, committedYieldPastDue);
     const [accruedYieldNextDue, committedYieldNextDue] = calcYieldDue(
         cc,
         principal,
         daysUntilNextDue.toNumber(),
-        periodsNextDue,
-        membershipFee,
     );
     const yieldNextDue = maxBigNumber(accruedYieldNextDue, committedYieldNextDue);
     return [

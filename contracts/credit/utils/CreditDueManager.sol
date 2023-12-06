@@ -247,27 +247,18 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             _cr.nextDue -
             _cr.yieldDue +
             _dd.principalPastDue;
-        (, , uint256 membershipFee) = poolConfig.getFees();
         //        console.log("membershipFee: %s, daysOverdue: %s", membershipFee, daysOverdue);
         (uint256 accruedPastDue, uint256 committedPastDue) = _getYieldDue(
             _cc,
             principal,
-            daysOverdue,
-            periodsOverdue,
-            membershipFee
+            daysOverdue
         );
         newDD.yieldPastDue += uint96(
             accruedPastDue > committedPastDue ? accruedPastDue : committedPastDue
         );
         // Reset the recorded yield due amounts since we are in a new billing cycle now.
         // console.log("membershipFee: %s, daysUntilNextDue: %s", membershipFee, daysUntilNextDue);
-        (newDD.accrued, newDD.committed) = _getYieldDue(
-            _cc,
-            principal,
-            daysUntilNextDue,
-            1,
-            membershipFee
-        );
+        (newDD.accrued, newDD.committed) = _getYieldDue(_cc, principal, daysUntilNextDue);
         newDD.paid = 0;
 
         //        console.log(
@@ -322,24 +313,17 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
     function _getYieldDue(
         CreditConfig memory cc,
         uint256 principal,
-        uint256 daysPassed,
-        uint256 periodsPassed,
-        uint256 membershipFee
+        uint256 daysPassed
     ) internal pure returns (uint96 accrued, uint96 committed) {
         if (daysPassed == 0) {
             return (0, 0);
         }
         accrued = uint96(
-            (principal * cc.yieldInBps * daysPassed) /
-                (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR) +
-                periodsPassed *
-                membershipFee
+            (principal * cc.yieldInBps * daysPassed) / (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR)
         );
         committed = uint96(
             (cc.committedAmount * cc.yieldInBps * daysPassed) /
-                (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR) +
-                periodsPassed *
-                membershipFee
+                (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR)
         );
         return (accrued, committed);
     }
