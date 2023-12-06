@@ -7,7 +7,7 @@ import {PoolConfig, PoolSettings} from "../PoolConfig.sol";
 import {IPool} from "../interfaces/IPool.sol";
 import {PoolConfigCache} from "../PoolConfigCache.sol";
 import {CreditStorage} from "./CreditStorage.sol";
-import {CreditConfig, CreditRecord, CreditLimit, CreditLoss, CreditState, DueDetail, CreditLoss, PayPeriodDuration, CreditClosureReason} from "./CreditStructs.sol";
+import {CreditConfig, CreditRecord, CreditLimit, CreditLoss, CreditState, DueDetail, CreditLoss, PayPeriodDuration} from "./CreditStructs.sol";
 import {ICalendar} from "./interfaces/ICalendar.sol";
 import {IFirstLossCover} from "../interfaces/IFirstLossCover.sol";
 import {IPoolSafe} from "../interfaces/IPoolSafe.sol";
@@ -113,10 +113,9 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
     /**
      * @notice An existing credit has been closed
      * @param creditHash the credit hash
-     * @param reasonCode the reason for the credit closure
      * @param by the address who has triggered the default
      */
-    event CreditClosed(bytes32 indexed creditHash, CreditClosureReason reasonCode, address by);
+    event CreditClosedAfterPayOff(bytes32 indexed creditHash, address by);
 
     struct PaymentRecord {
         uint256 principalDuePaid;
@@ -525,7 +524,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             // Closes the credit line if it is in the final period
             if (cr.remainingPeriods == 0) {
                 cr.state = CreditState.Deleted;
-                emit CreditClosed(creditHash, CreditClosureReason.Paidoff, msg.sender);
+                emit CreditClosedAfterPayOff(creditHash, msg.sender);
             } else cr.state = CreditState.GoodStanding;
 
             _setDueDetail(creditHash, dd);
@@ -612,7 +611,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         if (cr.nextDue == 0) {
             if (cr.unbilledPrincipal == 0 && cr.remainingPeriods == 0) {
                 cr.state = CreditState.Deleted;
-                emit CreditClosed(creditHash, CreditClosureReason.Paidoff, msg.sender);
+                emit CreditClosedAfterPayOff(creditHash, msg.sender);
             } else cr.state = CreditState.GoodStanding;
         }
 
