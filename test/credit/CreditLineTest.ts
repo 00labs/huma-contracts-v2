@@ -8174,7 +8174,7 @@ describe("CreditLine Test", function () {
                         newYieldInBps,
                         oldYieldDue,
                         (actualNewYieldDue: BN) =>
-                            isCloseTo(actualNewYieldDue, newYieldDue, BN.from(2)),
+                            isCloseTo(actualNewYieldDue, newYieldDue, BN.from(1)),
                         await eaServiceAccount.getAddress(),
                     );
 
@@ -8188,7 +8188,7 @@ describe("CreditLine Test", function () {
                         yieldDue: expectedYieldDue,
                     },
                 };
-                checkCreditRecordsMatch(actualCR, expectedCR, BN.from(2));
+                checkCreditRecordsMatch(actualCR, expectedCR, BN.from(1));
                 const actualDD = await creditContract.getDueDetail(creditHash);
                 const expectedAccruedYield = calcYield(borrowAmount, yieldInBps, 2).add(
                     calcYield(borrowAmount, newYieldInBps, CONSTANTS.DAYS_IN_A_MONTH - 2),
@@ -8203,7 +8203,7 @@ describe("CreditLine Test", function () {
                         committed: expectedCommittedYield,
                     },
                 };
-                checkDueDetailsMatch(actualDD, expectedDD, BN.from(2));
+                checkDueDetailsMatch(actualDD, expectedDD, BN.from(1));
             }
 
             describe("If the yield is updated to a higher value", function () {
@@ -8627,7 +8627,7 @@ describe("CreditLine Test", function () {
                         committed: expectedCommittedYield,
                     },
                 };
-                checkDueDetailsMatch(actualDD, expectedDD, BN.from(1));
+                checkDueDetailsMatch(actualDD, expectedDD, BN.from(0));
             }
 
             describe("If the updated committed yield stays below the accrued yield", function () {

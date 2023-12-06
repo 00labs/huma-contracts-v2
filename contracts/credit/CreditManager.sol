@@ -520,9 +520,10 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         // Since the new value may be smaller than the old value, we need to work with signed integers.
         int256 valueDiff = int256(newValue) - int256(oldValue);
         // -1 since the new value takes effect the next day.
-        int256 yieldDiff = (int256((totalDays - daysPassed - 1) * multiplier) * valueDiff) /
-            int256(HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR);
-        return uint256(int256(oldYield) + yieldDiff);
+        int256 yieldDiff = (int256((totalDays - daysPassed - 1) * multiplier) * valueDiff);
+        return
+            uint256(int256(oldYield * HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR) + yieldDiff) /
+            (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR);
     }
 
     /// Shared setter to the credit config mapping
