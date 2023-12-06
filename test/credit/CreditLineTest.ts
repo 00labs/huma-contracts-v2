@@ -1162,7 +1162,7 @@ describe("CreditLine Test", function () {
                     await calendarContract.getDaysDiff(startOfDay, nextDueDate)
                 ).toNumber();
                 let cc = await creditManagerContract.getCreditConfig(creditHash);
-                const [yieldDue] = calcYieldDue(cc, borrowAmount, days, 1, BN.from(0));
+                const [yieldDue] = calcYieldDue(cc, borrowAmount, days);
 
                 const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
                 const poolSafeOldBalance = await mockTokenContract.balanceOf(
@@ -1227,7 +1227,7 @@ describe("CreditLine Test", function () {
                     await calendarContract.getDaysDiff(startOfDay, nextDueDate)
                 ).toNumber();
                 let cc = await creditManagerContract.getCreditConfig(creditHash);
-                let [yieldDue] = calcYieldDue(cc, borrowAmount, days, 1, BN.from(0));
+                let [yieldDue] = calcYieldDue(cc, borrowAmount, days);
                 let totalYieldDue = yieldDue;
 
                 let borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
@@ -1278,7 +1278,7 @@ describe("CreditLine Test", function () {
 
                 startOfDay = getStartOfDay(nextTime);
                 days = (await calendarContract.getDaysDiff(startOfDay, nextDueDate)).toNumber();
-                [yieldDue] = calcYieldDue(cc, borrowAmount, days, 1, BN.from(0));
+                [yieldDue] = calcYieldDue(cc, borrowAmount, days);
                 totalYieldDue = totalYieldDue.add(yieldDue);
 
                 borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
@@ -1334,7 +1334,7 @@ describe("CreditLine Test", function () {
                 });
 
                 let cc = await creditManagerContract.getCreditConfig(creditHash);
-                let [yieldDue] = calcYieldDue(cc, borrowAmount, 30, 1, BN.from(0));
+                let [yieldDue] = calcYieldDue(cc, borrowAmount, 30);
                 let totalYieldDue = yieldDue;
                 borrowAmount = toToken(35000);
                 totalBorrowAmount = totalBorrowAmount.add(borrowAmount);
@@ -1351,7 +1351,7 @@ describe("CreditLine Test", function () {
                 let days = (
                     await calendarContract.getDaysDiff(startOfDay, nextDueDate)
                 ).toNumber();
-                [yieldDue] = calcYieldDue(cc, borrowAmount, days, 1, BN.from(0));
+                [yieldDue] = calcYieldDue(cc, borrowAmount, days);
 
                 const remainingPeriods = creditRecord.remainingPeriods;
                 const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
@@ -1429,7 +1429,7 @@ describe("CreditLine Test", function () {
                     await calendarContract.getDaysDiff(startOfDay, nextDueDate)
                 ).toNumber();
                 let cc = await creditManagerContract.getCreditConfig(creditHash);
-                const [yieldDue, committed] = calcYieldDue(cc, borrowAmount, days, 1, BN.from(0));
+                const [yieldDue, committed] = calcYieldDue(cc, borrowAmount, days);
 
                 const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
                 const poolSafeOldBalance = await mockTokenContract.balanceOf(
@@ -1486,7 +1486,7 @@ describe("CreditLine Test", function () {
                     await calendarContract.getDaysDiff(startOfDay, nextDueDate)
                 ).toNumber();
                 let cc = await creditManagerContract.getCreditConfig(creditHash);
-                const [yieldDue, committed] = calcYieldDue(cc, borrowAmount, days, 1, BN.from(0));
+                const [yieldDue, committed] = calcYieldDue(cc, borrowAmount, days);
 
                 const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
                 const poolSafeOldBalance = await mockTokenContract.balanceOf(
@@ -1554,7 +1554,7 @@ describe("CreditLine Test", function () {
                     await calendarContract.getDaysDiff(startOfDay, nextDueDate)
                 ).toNumber();
                 const cc = await creditManagerContract.getCreditConfig(creditHash);
-                let [yieldDue, committed] = calcYieldDue(cc, borrowAmount, days, 1, BN.from(0));
+                let [yieldDue, committed] = calcYieldDue(cc, borrowAmount, days);
                 let totalYieldDue = yieldDue;
 
                 await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
@@ -1592,7 +1592,7 @@ describe("CreditLine Test", function () {
 
                 startOfDay = getStartOfDay(nextTime);
                 days = (await calendarContract.getDaysDiff(startOfDay, nextDueDate)).toNumber();
-                [yieldDue] = calcYieldDue(cc, borrowAmount, days, 1, BN.from(0));
+                [yieldDue] = calcYieldDue(cc, borrowAmount, days);
                 totalYieldDue = totalYieldDue.add(yieldDue);
 
                 let borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
@@ -1659,7 +1659,7 @@ describe("CreditLine Test", function () {
                     await calendarContract.getDaysDiff(startOfDay, nextDueDate)
                 ).toNumber();
                 const cc = await creditManagerContract.getCreditConfig(creditHash);
-                let [yieldDue, committed] = calcYieldDue(cc, borrowAmount, days, 1, BN.from(0));
+                let [yieldDue, committed] = calcYieldDue(cc, borrowAmount, days);
                 let totalYieldDue = yieldDue;
 
                 await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
@@ -1697,7 +1697,7 @@ describe("CreditLine Test", function () {
 
                 startOfDay = getStartOfDay(nextTime);
                 days = (await calendarContract.getDaysDiff(startOfDay, nextDueDate)).toNumber();
-                [yieldDue] = calcYieldDue(cc, borrowAmount, days, 1, BN.from(0));
+                [yieldDue] = calcYieldDue(cc, borrowAmount, days);
                 totalYieldDue = totalYieldDue.add(yieldDue);
 
                 let borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
@@ -1793,7 +1793,7 @@ describe("CreditLine Test", function () {
                     await calendarContract.getDaysDiff(startOfDay, nextDueDate)
                 ).toNumber();
                 let cc = await creditManagerContract.getCreditConfig(creditHash);
-                const [yieldDue] = calcYieldDue(cc, borrowAmount, days, 1, BN.from(0));
+                const [yieldDue] = calcYieldDue(cc, borrowAmount, days);
                 const principalDue = calcPrincipalDueForPartialPeriod(
                     borrowAmount,
                     principalRateInBps,
@@ -1880,13 +1880,7 @@ describe("CreditLine Test", function () {
                     await calendarContract.getDaysDiff(startOfDay, nextDueDate)
                 ).toNumber();
                 const cc = await creditManagerContract.getCreditConfig(creditHash);
-                const [additionalYieldDue] = calcYieldDue(
-                    cc,
-                    secondBorrowAmount,
-                    days,
-                    1,
-                    BN.from(0),
-                );
+                const [additionalYieldDue] = calcYieldDue(cc, secondBorrowAmount, days);
                 expect(additionalYieldDue).to.be.gt(0);
                 const additionalPrincipalDue = calcPrincipalDueForPartialPeriod(
                     secondBorrowAmount,
@@ -1982,13 +1976,7 @@ describe("CreditLine Test", function () {
                     await calendarContract.getDaysDiff(startOfDay, nextDueDate)
                 ).toNumber();
                 const cc = await creditManagerContract.getCreditConfig(creditHash);
-                const [additionalYieldDue] = calcYieldDue(
-                    cc,
-                    secondBorrowAmount,
-                    days,
-                    1,
-                    BN.from(0),
-                );
+                const [additionalYieldDue] = calcYieldDue(cc, secondBorrowAmount, days);
                 expect(additionalYieldDue).to.be.gt(0);
                 const additionalPrincipalDue = calcPrincipalDueForPartialPeriod(
                     secondBorrowAmount,
@@ -2206,7 +2194,7 @@ describe("CreditLine Test", function () {
                     await calendarContract.getDaysDiff(creditRecord.nextDueDate, nextDueDate)
                 ).toNumber();
                 let cc = await creditManagerContract.getCreditConfig(creditHash);
-                const [yieldDue, committed] = calcYieldDue(cc, borrowAmount, days, 1, BN.from(0));
+                const [yieldDue, committed] = calcYieldDue(cc, borrowAmount, days);
                 let totalPastDue = creditRecord.nextDue;
 
                 const remainingPeriods = creditRecord.remainingPeriods;
@@ -2309,7 +2297,7 @@ describe("CreditLine Test", function () {
                     await calendarContract.getDaysDiff(creditRecord.nextDueDate, nextDueDate)
                 ).toNumber();
                 let cc = await creditManagerContract.getCreditConfig(creditHash);
-                const [yieldDue, committed] = calcYieldDue(cc, borrowAmount, days, 1, BN.from(0));
+                const [yieldDue, committed] = calcYieldDue(cc, borrowAmount, days);
 
                 totalPastDue = totalPastDue.add(creditRecord.nextDue);
                 await expect(
@@ -2358,7 +2346,7 @@ describe("CreditLine Test", function () {
                 let days = (
                     await calendarContract.getDaysDiff(startDateOfLastPeriod, maturityDate)
                 ).toNumber();
-                const [yieldDue, committed] = calcYieldDue(cc, borrowAmount, days, 1, BN.from(0));
+                const [yieldDue, committed] = calcYieldDue(cc, borrowAmount, days);
 
                 let creditRecord = await creditContract.getCreditRecord(creditHash);
                 let totalPastDue = creditRecord.nextDue;
@@ -2372,8 +2360,6 @@ describe("CreditLine Test", function () {
                                 startDateOfLastPeriod,
                             )
                         ).toNumber(),
-                        1,
-                        BN.from(0),
                     )[0],
                 );
 
@@ -2534,20 +2520,18 @@ describe("CreditLine Test", function () {
             });
         });
 
-        describe("With Settings(principalRate, membershipFee, lateFeeInBps)", function () {
+        describe("With Settings(principalRate, lateFeeInBps)", function () {
             const principalRate = 100;
             const lateFeeFlat = 0;
             const lateFeeBps = 2400;
-            let membershipFee: BN;
 
             async function prepareForTestsWithSettings() {
-                membershipFee = toToken(100);
                 await poolConfigContract.connect(poolOwner).setFeeStructure({
                     yieldInBps: yieldInBps,
                     minPrincipalRateInBps: principalRate,
                     lateFeeFlat: lateFeeFlat,
                     lateFeeBps: lateFeeBps,
-                    membershipFee: membershipFee,
+                    membershipFee: 0,
                 });
 
                 committedAmount = toToken(10_000);
@@ -2590,13 +2574,7 @@ describe("CreditLine Test", function () {
                     await calendarContract.getDaysDiff(creditRecord.nextDueDate, nextDueDate)
                 ).toNumber();
                 let cc = await creditManagerContract.getCreditConfig(creditHash);
-                const [yieldDue, committed] = calcYieldDue(
-                    cc,
-                    borrowAmount,
-                    days,
-                    1,
-                    membershipFee,
-                );
+                const [yieldDue, committed] = calcYieldDue(cc, borrowAmount, days);
                 let principalDue = calcPrincipalDueForFullPeriods(
                     creditRecord.unbilledPrincipal,
                     principalRate,
@@ -2670,13 +2648,7 @@ describe("CreditLine Test", function () {
                 let days = (
                     await calendarContract.getDaysDiff(startDateOfLastPeriod, maturityDate)
                 ).toNumber();
-                const [yieldDue, committed] = calcYieldDue(
-                    cc,
-                    borrowAmount,
-                    days,
-                    1,
-                    membershipFee,
-                );
+                const [yieldDue, committed] = calcYieldDue(cc, borrowAmount, days);
                 let creditRecord = await creditContract.getCreditRecord(creditHash);
                 let principalPastDue = calcPrincipalDueForFullPeriods(
                     creditRecord.unbilledPrincipal,
@@ -2697,9 +2669,7 @@ describe("CreditLine Test", function () {
                             startDateOfLastPeriod,
                         )
                     ).toNumber(),
-                )
-                    .add(creditRecord.yieldDue)
-                    .add(membershipFee.mul(periodsOverdue));
+                ).add(creditRecord.yieldDue);
                 let unbilledPrincipal = creditRecord.unbilledPrincipal.sub(principalPastDue);
                 let principalDue = calcPrincipalDueForPartialPeriod(
                     unbilledPrincipal,
@@ -2790,8 +2760,6 @@ describe("CreditLine Test", function () {
                     cc,
                     borrowAmount,
                     daysPassed,
-                    1,
-                    membershipFee,
                 );
                 const principalDue = calcPrincipalDueForFullPeriods(
                     oldCR.unbilledPrincipal,
@@ -2890,7 +2858,7 @@ describe("CreditLine Test", function () {
                     borrowAmount,
                     yieldInBps,
                     daysPassed.toNumber(),
-                ).add(membershipFee.mul(2));
+                );
                 const expectedLateFeeUpdatedDate = await calendarContract.getStartOfTomorrow();
                 const expectedLateFee = calcYield(
                     borrowAmount,
@@ -3013,14 +2981,13 @@ describe("CreditLine Test", function () {
             lateFeeBps = 300,
             latePaymentGracePeriodInDays = 5,
             remainingPeriods = 6;
-        let principalRateInBps: number, membershipFee: BN;
+        let principalRateInBps: number;
         let borrowAmount: BN, creditHash: string;
         let drawdownDate: moment.Moment,
             makePaymentDate: moment.Moment,
             firstDueDate: moment.Moment;
 
         beforeEach(async function () {
-            membershipFee = toToken(10);
             creditHash = await borrowerLevelCreditHash(creditContract, borrower);
         });
 
@@ -3155,7 +3122,6 @@ describe("CreditLine Test", function () {
                     paymentDate,
                     maturityDate,
                     latePaymentGracePeriodInDays,
-                    membershipFee,
                 );
                 let [lateFeeUpdatedDate, remainingLateFee] = await calcLateFeeNew(
                     poolConfigContract,
@@ -3442,7 +3408,7 @@ describe("CreditLine Test", function () {
                         minPrincipalRateInBps: principalRateInBps,
                         lateFeeFlat,
                         lateFeeBps,
-                        membershipFee,
+                        membershipFee: 0,
                     });
                     await approveCredit();
                     await drawdown();
@@ -3485,7 +3451,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const paymentAmount = yieldNextDue.sub(toToken(1));
                             await testMakePayment(paymentAmount);
@@ -3509,7 +3474,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const paymentAmount = yieldNextDue.add(toToken(1));
                             await testMakePayment(paymentAmount);
@@ -3533,7 +3497,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const paymentAmount = yieldNextDue.add(borrowAmount);
                             await testMakePayment(paymentAmount);
@@ -3557,7 +3520,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const paymentAmount = yieldNextDue.add(borrowAmount).add(toToken(1));
                             await testMakePayment(paymentAmount);
@@ -3581,7 +3543,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
 
                             // Make a series of payment gradually and eventually pay off the bill.
@@ -3631,7 +3592,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const paymentAmount = yieldNextDue.sub(toToken(1));
                             await testMakePayment(paymentAmount);
@@ -3655,7 +3615,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const paymentAmount = yieldNextDue.add(toToken(1));
                             await testMakePayment(paymentAmount);
@@ -3679,7 +3638,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const paymentAmount = yieldNextDue.add(borrowAmount);
                             await testMakePayment(paymentAmount);
@@ -3703,7 +3661,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const paymentAmount = yieldNextDue.add(borrowAmount).add(toToken(1));
                             await testMakePayment(paymentAmount);
@@ -3727,7 +3684,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
 
                             // Make a series of payment gradually and eventually pay off the bill.
@@ -3752,7 +3708,6 @@ describe("CreditLine Test", function () {
                                 secondPaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             await testMakePayment(
                                 borrowAmount.add(yieldNextDue),
@@ -3800,7 +3755,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const paymentAmount = yieldPastDue.sub(toToken(1));
                             await testMakePayment(paymentAmount);
@@ -3824,7 +3778,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const paymentAmount = yieldPastDue.add(toToken(1));
                             await testMakePayment(paymentAmount);
@@ -3848,7 +3801,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
@@ -3880,7 +3832,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
@@ -3912,7 +3863,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
@@ -3947,7 +3897,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
@@ -3983,7 +3932,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
@@ -4054,7 +4002,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const paymentAmount = yieldPastDue.sub(toToken(1));
                             await testMakePayment(paymentAmount);
@@ -4078,7 +4025,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const paymentAmount = yieldPastDue.add(toToken(1));
                             await testMakePayment(paymentAmount);
@@ -4102,7 +4048,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
@@ -4134,7 +4079,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
@@ -4166,7 +4110,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
@@ -4211,7 +4154,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
@@ -4247,7 +4189,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
 
                             await testMakePayment(yieldPastDue);
@@ -4350,7 +4291,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const paymentAmount = yieldPastDue.sub(toToken(1));
                             await testMakePayment(paymentAmount);
@@ -4374,7 +4314,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const paymentAmount = yieldPastDue.add(toToken(1));
                             await testMakePayment(paymentAmount);
@@ -4398,7 +4337,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
@@ -4443,7 +4381,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
@@ -4479,7 +4416,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
 
                             await testMakePayment(yieldPastDue);
@@ -4601,7 +4537,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const paymentAmount = yieldPastDue.sub(toToken(1));
                             await testMakePayment(paymentAmount);
@@ -4625,7 +4560,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const paymentAmount = yieldPastDue.add(toToken(1));
                             await testMakePayment(paymentAmount);
@@ -4649,7 +4583,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
@@ -4681,7 +4614,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
@@ -4713,7 +4645,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
@@ -4748,7 +4679,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
 
                             await testMakePayment(yieldPastDue);
@@ -4840,7 +4770,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const paymentAmount = yieldPastDue.sub(toToken(1));
                             await testMakePayment(paymentAmount);
@@ -4864,7 +4793,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const paymentAmount = yieldPastDue.add(toToken(1));
                             await testMakePayment(paymentAmount);
@@ -4888,7 +4816,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
@@ -4920,7 +4847,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
@@ -4952,7 +4878,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
@@ -4987,7 +4912,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
 
                             await testMakePayment(yieldPastDue);
@@ -5061,7 +4985,7 @@ describe("CreditLine Test", function () {
                         minPrincipalRateInBps: principalRateInBps,
                         lateFeeFlat,
                         lateFeeBps,
-                        membershipFee,
+                        membershipFee: 0,
                     });
                     await approveCredit();
                     await drawdown();
@@ -5104,7 +5028,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const paymentAmount = yieldNextDue.sub(toToken(1));
                             await testMakePayment(paymentAmount);
@@ -5128,7 +5051,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const paymentAmount = yieldNextDue.add(toToken(1));
                             await testMakePayment(paymentAmount);
@@ -5152,7 +5074,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [, , principalNextDue] = await calcPrincipalDueNew(
                                 calendarContract,
@@ -5188,7 +5109,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [unbilledPrincipal, , principalNextDue] =
                                 await calcPrincipalDueNew(
@@ -5225,7 +5145,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [unbilledPrincipal, , principalNextDue] =
                                 await calcPrincipalDueNew(
@@ -5263,7 +5182,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [unbilledPrincipal, , principalNextDue] =
                                 await calcPrincipalDueNew(
@@ -5328,7 +5246,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const paymentAmount = yieldNextDue.sub(toToken(1));
                             await testMakePayment(paymentAmount);
@@ -5352,7 +5269,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const paymentAmount = yieldNextDue.add(toToken(1));
                             await testMakePayment(paymentAmount);
@@ -5376,7 +5292,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [, , principalNextDue] = await calcPrincipalDueNew(
                                 calendarContract,
@@ -5412,7 +5327,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [unbilledPrincipal, , principalNextDue] =
                                 await calcPrincipalDueNew(
@@ -5449,7 +5363,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [unbilledPrincipal, , principalNextDue] =
                                 await calcPrincipalDueNew(
@@ -5487,7 +5400,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [unbilledPrincipal, , principalNextDue] =
                                 await calcPrincipalDueNew(
@@ -5552,7 +5464,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const paymentAmount = yieldPastDue.sub(toToken(1));
                             await testMakePayment(paymentAmount);
@@ -5576,7 +5487,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const paymentAmount = yieldPastDue.add(toToken(1));
                             await testMakePayment(paymentAmount);
@@ -5600,7 +5510,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [, principalPastDue] = await calcPrincipalDueNew(
                                 calendarContract,
@@ -5636,7 +5545,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [, principalPastDue] = await calcPrincipalDueNew(
                                 calendarContract,
@@ -5681,7 +5589,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [principalPastDue, principalNextDue] = await calcPrincipalDueNew(
                                 calendarContract,
@@ -5727,7 +5634,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [unbilledPrincipal, principalPastDue, principalNextDue] =
                                 await calcPrincipalDueNew(
@@ -5775,7 +5681,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [unbilledPrincipal, principalPastDue, principalNextDue] =
                                 await calcPrincipalDueNew(
@@ -5815,7 +5720,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [unbilledPrincipal, principalPastDue, principalNextDue] =
                                 await calcPrincipalDueNew(
@@ -5901,7 +5805,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const paymentAmount = yieldPastDue.sub(toToken(1));
                             await testMakePayment(paymentAmount);
@@ -5925,7 +5828,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const paymentAmount = yieldPastDue.add(toToken(1));
                             await testMakePayment(paymentAmount);
@@ -5949,7 +5851,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [, principalPastDue] = await calcPrincipalDueNew(
                                 calendarContract,
@@ -5985,7 +5886,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [, principalPastDue] = await calcPrincipalDueNew(
                                 calendarContract,
@@ -6030,7 +5930,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [principalPastDue, principalNextDue] = await calcPrincipalDueNew(
                                 calendarContract,
@@ -6076,7 +5975,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [unbilledPrincipal, principalPastDue, principalNextDue] =
                                 await calcPrincipalDueNew(
@@ -6134,7 +6032,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [unbilledPrincipal, principalPastDue, principalNextDue] =
                                 await calcPrincipalDueNew(
@@ -6188,7 +6085,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const paymentAmount = yieldPastDue.sub(toToken(1));
                             await testMakePayment(paymentAmount);
@@ -6212,7 +6108,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const paymentAmount = yieldPastDue.add(toToken(1));
                             await testMakePayment(paymentAmount);
@@ -6236,7 +6131,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [, principalPastDue] = await calcPrincipalDueNew(
                                 calendarContract,
@@ -6272,7 +6166,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [unbilledPrincipal, principalPastDue, principalNextDue] =
                                 await calcPrincipalDueNew(
@@ -6330,7 +6223,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [unbilledPrincipal, principalPastDue, principalNextDue] =
                                 await calcPrincipalDueNew(
@@ -6404,7 +6296,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const paymentAmount = yieldPastDue.sub(toToken(1));
                             await testMakePayment(paymentAmount);
@@ -6428,7 +6319,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const paymentAmount = yieldPastDue.add(toToken(1));
                             await testMakePayment(paymentAmount);
@@ -6452,7 +6342,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [, principalPastDue] = await calcPrincipalDueNew(
                                 calendarContract,
@@ -6488,7 +6377,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [, principalPastDue] = await calcPrincipalDueNew(
                                 calendarContract,
@@ -6533,7 +6421,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [principalPastDue, principalNextDue] = await calcPrincipalDueNew(
                                 calendarContract,
@@ -6579,7 +6466,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [unbilledPrincipal, principalPastDue, principalNextDue] =
                                 await calcPrincipalDueNew(
@@ -6638,7 +6524,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const paymentAmount = yieldPastDue.sub(toToken(1));
                             await testMakePayment(paymentAmount);
@@ -6662,7 +6547,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const paymentAmount = yieldPastDue.add(toToken(1));
                             await testMakePayment(paymentAmount);
@@ -6686,7 +6570,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [, principalPastDue] = await calcPrincipalDueNew(
                                 calendarContract,
@@ -6722,7 +6605,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [, principalPastDue] = await calcPrincipalDueNew(
                                 calendarContract,
@@ -6767,7 +6649,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [principalPastDue, principalNextDue] = await calcPrincipalDueNew(
                                 calendarContract,
@@ -6813,7 +6694,6 @@ describe("CreditLine Test", function () {
                                 makePaymentDate,
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                membershipFee,
                             );
                             const [unbilledPrincipal, principalPastDue, principalNextDue] =
                                 await calcPrincipalDueNew(
@@ -6885,14 +6765,13 @@ describe("CreditLine Test", function () {
             lateFeeBps = 300,
             latePaymentGracePeriodInDays = 5,
             remainingPeriods = 6;
-        let principalRateInBps: number, membershipFee: BN;
+        let principalRateInBps: number;
         let borrowAmount: BN, creditHash: string;
         let drawdownDate: moment.Moment,
             makePaymentDate: moment.Moment,
             firstDueDate: moment.Moment;
 
         beforeEach(async function () {
-            membershipFee = toToken(10);
             creditHash = await borrowerLevelCreditHash(creditContract, borrower);
         });
 
@@ -7053,7 +6932,7 @@ describe("CreditLine Test", function () {
                         minPrincipalRateInBps: principalRateInBps,
                         lateFeeFlat,
                         lateFeeBps,
-                        membershipFee,
+                        membershipFee: 0,
                     });
                     await approveCredit();
                     await drawdown();
@@ -7213,7 +7092,6 @@ describe("CreditLine Test", function () {
                         makePaymentDate,
                         maturityDate,
                         latePaymentGracePeriodInDays,
-                        membershipFee,
                     );
                     const [, lateFee] = await calcLateFeeNew(
                         poolConfigContract,
@@ -7331,7 +7209,7 @@ describe("CreditLine Test", function () {
                         minPrincipalRateInBps: principalRateInBps,
                         lateFeeFlat,
                         lateFeeBps,
-                        membershipFee,
+                        membershipFee: 0,
                     });
                     await approveCredit();
                     await drawdown();
@@ -7496,7 +7374,6 @@ describe("CreditLine Test", function () {
                         makePaymentDate,
                         maturityDate,
                         latePaymentGracePeriodInDays,
-                        membershipFee,
                     );
                     let [unbilledPrincipal, principalPastDue, principalNextDue] =
                         await calcPrincipalDueNew(
