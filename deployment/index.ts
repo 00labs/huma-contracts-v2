@@ -21,13 +21,18 @@ import {
     Receivable,
     ReceivableBackedCreditLine,
     ReceivableBackedCreditLineManager,
+    ReceivableFactoringCredit,
     ReceivableLevelCreditManager,
     TrancheVault,
 } from "../typechain-types";
 import { awaitTx } from "./commonUtils";
 import { deploy } from "./deployUtils";
 
-export type CreditContractType = MockPoolCredit | CreditLine | ReceivableBackedCreditLine;
+export type CreditContractType =
+    | MockPoolCredit
+    | CreditLine
+    | ReceivableBackedCreditLine
+    | ReceivableFactoringCredit;
 export type CreditManagerContractType =
     | BorrowerLevelCreditManager
     | ReceivableBackedCreditLineManager
@@ -53,7 +58,11 @@ export type PoolContracts = [
 export type TranchesPolicyContractName =
     | "FixedSeniorYieldTranchePolicy"
     | "RiskAdjustedTranchesPolicy";
-export type CreditContractName = "CreditLine" | "ReceivableBackedCreditLine" | "MockPoolCredit";
+export type CreditContractName =
+    | "CreditLine"
+    | "ReceivableBackedCreditLine"
+    | "ReceivableFactoringCredit"
+    | "MockPoolCredit";
 export type CreditManagerContractName =
     | "BorrowerLevelCreditManager"
     | "ReceivableBackedCreditLineManager"
@@ -67,7 +76,6 @@ export enum PayPeriodDuration {
 
 export enum CreditState {
     Deleted,
-    Requested,
     Approved,
     GoodStanding,
     Delayed,
@@ -96,7 +104,7 @@ const DEFAULT_DECIMALS_FACTOR = BN.from(10).pow(18);
 const BP_FACTOR = BN.from(10000);
 const MONTHS_IN_A_YEAR = 12;
 const SECONDS_IN_A_DAY = 24 * 60 * 60;
-const SECONDS_IN_YEAR = 60 * 60 * 24 * 365;
+const SECONDS_IN_A_YEAR = 60 * 60 * 24 * 365;
 const BORROWER_FIRST_LOSS_COVER_INDEX = 0;
 const AFFILIATE_FIRST_LOSS_COVER_INDEX = 1;
 const PERIOD_DURATION_MONTHLY = 0;
@@ -114,7 +122,7 @@ export const CONSTANTS = {
     BP_FACTOR,
     MONTHS_IN_A_YEAR,
     SECONDS_IN_A_DAY,
-    SECONDS_IN_YEAR,
+    SECONDS_IN_A_YEAR,
     BORROWER_FIRST_LOSS_COVER_INDEX,
     AFFILIATE_FIRST_LOSS_COVER_INDEX,
     PERIOD_DURATION_MONTHLY,
@@ -525,6 +533,16 @@ export async function setupPoolContracts(
     awaitTx(
         await poolContract.connect(poolOwner).setReadyForFirstLossCoverWithdrawal(true),
         "poolOwner setReadyForFirstLossCoverWithdrawal",
+    );
+
+    const lpConfig = await poolConfigContract.getLPConfig();
+    const newLPConfig = {
+        ...lpConfig,
+        fixedSeniorYieldInBps: 1217,
+    };
+    awaitTx(
+        await poolConfigContract.connect(poolOwner).setLPConfig(newLPConfig),
+        "poolOwner setLPConfig",
     );
 
     awaitTx(await poolContract.connect(poolOwner).enablePool(), "Pool enabled");
