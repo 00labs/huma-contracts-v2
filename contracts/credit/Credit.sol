@@ -679,7 +679,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
 
     /// "Modifier" function that limits access to pdsServiceAccount only.
     function _onlyPDSServiceAccount() internal view {
-        if (msg.sender != HumaConfig(humaConfig).pdsServiceAccount())
+        if (msg.sender != humaConfig.pdsServiceAccount())
             revert Errors.paymentDetectionServiceAccountRequired();
     }
 

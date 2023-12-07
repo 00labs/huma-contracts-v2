@@ -805,7 +805,7 @@ describe("CreditLine Test", function () {
             await humaConfigContract.connect(protocolOwner).pause();
             await expect(
                 creditManagerContract
-                    .connect(borrower)
+                    .connect(pdsServiceAccount)
                     .startCommittedCredit(borrower.getAddress()),
             ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
             await humaConfigContract.connect(protocolOwner).unpause();
@@ -813,20 +813,17 @@ describe("CreditLine Test", function () {
             await poolContract.connect(poolOwner).disablePool();
             await expect(
                 creditManagerContract
-                    .connect(borrower)
+                    .connect(pdsServiceAccount)
                     .startCommittedCredit(borrower.getAddress()),
             ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
         });
 
-        it("Should not allow non-pds service accounts to start a credit", async function () {
+        it("Should not allow non-pds service accounts or pool owner to start a credit", async function () {
             await expect(
                 creditManagerContract
                     .connect(borrower)
                     .startCommittedCredit(borrower.getAddress()),
-            ).to.be.revertedWithCustomError(
-                creditManagerContract,
-                "paymentDetectionServiceAccountRequired",
-            );
+            ).to.be.revertedWithCustomError(poolConfigContract, "notPoolOwner");
         });
 
         it("Should not start a credit for a borrower without an approved credit", async function () {

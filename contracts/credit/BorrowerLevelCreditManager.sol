@@ -66,7 +66,7 @@ contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManage
     /// @inheritdoc IBorrowerLevelCreditManager
     function startCommittedCredit(address borrower) external virtual override {
         poolConfig.onlyProtocolAndPoolOn();
-        _onlyPDSServiceAccount();
+        _onlyPoolOwnerOrPDSServiceAccount();
 
         bytes32 creditHash = getCreditHash(borrower);
         onlyCreditBorrower(creditHash, borrower);

@@ -537,7 +537,6 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
     ) internal view returns (bool isDefault) {
         PoolSettings memory settings = poolConfig.getPoolSettings();
         uint256 totalDaysInFullPeriod = calendar.getTotalDaysInFullPeriod(periodDuration);
-        console.log("missedPeriods %d", missedPeriods);
         return
             missedPeriods > 1 &&
             (missedPeriods - 1) * totalDaysInFullPeriod >=
@@ -550,8 +549,9 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
             revert Errors.evaluationAgentServiceAccountRequired();
     }
 
-    function _onlyPDSServiceAccount() internal view {
-        if (msg.sender != HumaConfig(humaConfig).pdsServiceAccount())
-            revert Errors.paymentDetectionServiceAccountRequired();
+    function _onlyPoolOwnerOrPDSServiceAccount() internal view {
+        if (msg.sender != humaConfig.pdsServiceAccount()) {
+            poolConfig.onlyPoolOwner(msg.sender);
+        }
     }
 }
