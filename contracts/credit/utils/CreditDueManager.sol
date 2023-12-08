@@ -61,7 +61,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             poolSettings.latePaymentGracePeriodInDays *
             SECONDS_IN_A_DAY;
         if (cr.state == CreditState.GoodStanding && block.timestamp <= latePaymentDeadline) {
-            // If this is the first time ever that the bill has surpassed the due dat, then we don't want to refresh
+            // If this is the first time ever that the bill has surpassed the due date, then we don't want to refresh
             // the bill since we want the user to focus on paying off the current due.
             return latePaymentDeadline;
         }

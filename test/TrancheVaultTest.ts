@@ -129,6 +129,15 @@ function checkUserInfo(
     expect(userInfo.reinvestYield).to.equal(reinvestYield);
 }
 
+async function mockDistributePnL(profit: BN, loss: BN, lossRecovery: BN) {
+    let amount = profit.add(lossRecovery);
+    if (amount.gt(0)) {
+        await mockTokenContract.mint(creditContract.address, amount);
+        await creditContract.makePayment(ethers.constants.HashZero, amount);
+    }
+    await creditContract.mockDistributePnL(profit, loss, lossRecovery);
+}
+
 describe("TrancheVault Test", function () {
     before(async function () {
         [
@@ -1267,7 +1276,7 @@ describe("TrancheVault Test", function () {
                 it("Should allow lenders to request redemption and cancel redemption request when there is profit", async function () {
                     // Introduce profit
                     let profit = toToken(10_000);
-                    await creditContract.mockDistributePnL(profit, BN.from(0), BN.from(0));
+                    await mockDistributePnL(profit, BN.from(0), BN.from(0));
 
                     // lender adds redemption request
                     let shares = toToken(10_000);
@@ -1304,7 +1313,7 @@ describe("TrancheVault Test", function () {
 
                     // Introduce profit again
                     profit = toToken(20_000);
-                    await creditContract.mockDistributePnL(profit, BN.from(0), BN.from(0));
+                    await mockDistributePnL(profit, BN.from(0), BN.from(0));
 
                     // lender adds redemption request again
 
@@ -1341,7 +1350,7 @@ describe("TrancheVault Test", function () {
 
                     // Introduce profit again
                     profit = toToken(3000);
-                    await creditContract.mockDistributePnL(profit, BN.from(0), BN.from(0));
+                    await mockDistributePnL(profit, BN.from(0), BN.from(0));
 
                     // Close current epoch while processing partially
                     let currentEpoch = await epochManagerContract.currentEpoch();
@@ -1365,7 +1374,7 @@ describe("TrancheVault Test", function () {
 
                     // Introduce profit again
                     profit = toToken(7000);
-                    await creditContract.mockDistributePnL(profit, BN.from(0), BN.from(0));
+                    await mockDistributePnL(profit, BN.from(0), BN.from(0));
 
                     // lender cancels redemption request
                     shares = toToken(10_000);
@@ -1862,7 +1871,7 @@ describe("TrancheVault Test", function () {
                 it("Should disbuse when there is profit", async function () {
                     // Introduce profit
                     let profit = toToken(10_000);
-                    await creditContract.mockDistributePnL(profit, BN.from(0), BN.from(0));
+                    await mockDistributePnL(profit, BN.from(0), BN.from(0));
 
                     // lender adds redemption request
                     let shares = toToken(10_000);
@@ -1908,7 +1917,7 @@ describe("TrancheVault Test", function () {
 
                     // Introduce profit
                     profit = toToken(30_000);
-                    await creditContract.mockDistributePnL(profit, BN.from(0), BN.from(0));
+                    await mockDistributePnL(profit, BN.from(0), BN.from(0));
 
                     // Lender disbures processed redemption
                     let balance = await mockTokenContract.balanceOf(lender.address);
@@ -1974,7 +1983,7 @@ describe("TrancheVault Test", function () {
 
                     // Introduce profit
                     let profit = toToken(10_000);
-                    await creditContract.mockDistributePnL(profit, BN.from(0), BN.from(0));
+                    await mockDistributePnL(profit, BN.from(0), BN.from(0));
 
                     // Lender disbures processed redemption
                     let balance = await mockTokenContract.balanceOf(lender.address);
@@ -2161,7 +2170,7 @@ describe("TrancheVault Test", function () {
             // Introduce profit
             let totalAssets = await juniorTrancheVaultContract.totalAssets();
             let profit = totalAssets.mul(BN.from(50));
-            await creditContract.mockDistributePnL(profit, BN.from(0), BN.from(0));
+            await mockDistributePnL(profit, BN.from(0), BN.from(0));
             let totalSupply = await juniorTrancheVaultContract.totalSupply();
             totalAssets = await juniorTrancheVaultContract.totalAssets();
             lenders[0].setInterest(totalSupply, totalAssets);
@@ -2203,7 +2212,7 @@ describe("TrancheVault Test", function () {
             // Introduce profit
             let totalAssets = await juniorTrancheVaultContract.totalAssets();
             let profit = totalAssets.mul(BN.from(50));
-            await creditContract.mockDistributePnL(profit, BN.from(0), BN.from(0));
+            await mockDistributePnL(profit, BN.from(0), BN.from(0));
             let totalSupply = await juniorTrancheVaultContract.totalSupply();
             totalAssets = await juniorTrancheVaultContract.totalAssets();
             lenders[0].setInterest(totalSupply, totalAssets);
@@ -2250,7 +2259,7 @@ describe("TrancheVault Test", function () {
             // Introduce profit
             let totalAssets = await juniorTrancheVaultContract.totalAssets();
             let profit = totalAssets.mul(BN.from(50));
-            await creditContract.mockDistributePnL(profit, BN.from(0), BN.from(0));
+            await mockDistributePnL(profit, BN.from(0), BN.from(0));
             let totalSupply = await juniorTrancheVaultContract.totalSupply();
             totalAssets = await juniorTrancheVaultContract.totalAssets();
             lenders[0].setInterest(totalSupply, totalAssets);

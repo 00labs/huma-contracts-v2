@@ -32,11 +32,6 @@ contract Pool is PoolConfigCache, IPool {
         uint96 juniorLoss; // total losses of junior tranche
     }
 
-    struct ReservedAssetsForFirstLossCover {
-        uint96 profit;
-        uint96 lossRecovery;
-    }
-
     enum PoolStatus {
         Off,
         On
@@ -57,8 +52,6 @@ contract Pool is PoolConfigCache, IPool {
     PoolStatus internal _status;
 
     bool public readyForFirstLossCoverWithdrawal;
-    mapping(IFirstLossCover => ReservedAssetsForFirstLossCover)
-        internal _reservedAssetsForFirstLossCovers;
 
     event PoolDisabled(address indexed by);
     event PoolEnabled(address indexed by);
@@ -175,62 +168,6 @@ contract Pool is PoolConfigCache, IPool {
         _distributeLossRecovery(lossRecovery);
     }
 
-    /**
-     * @notice Allows the pool owner to top up the first loss covers using
-     * the reserved profit and loss recovery until they're full.
-     */
-    function syncFirstLossCovers() external {
-        poolConfig.onlyPoolOwner(msg.sender);
-
-        uint256 remainingAssets = poolSafe.totalLiquidity();
-        uint256 numFirstLossCovers = _firstLossCovers.length;
-        uint256 availableAssets;
-        for (uint256 i = 0; i < numFirstLossCovers && remainingAssets > 0; i++) {
-            bool synced = false;
-            IFirstLossCover cover = _firstLossCovers[i];
-            ReservedAssetsForFirstLossCover
-                memory reservedAssets = _reservedAssetsForFirstLossCovers[cover];
-
-            // Recovers loss in the FirstLossCover with available liquidity.
-            if (reservedAssets.lossRecovery > 0) {
-                availableAssets = remainingAssets > reservedAssets.lossRecovery
-                    ? reservedAssets.lossRecovery
-                    : remainingAssets;
-                cover.recoverLoss(availableAssets);
-                remainingAssets -= availableAssets;
-                reservedAssets.lossRecovery -= uint96(availableAssets);
-                synced = true;
-            }
-
-            // Adds profit in the FirstLossCover with available liquidity.
-            if (reservedAssets.profit > 0 && remainingAssets > 0) {
-                availableAssets = remainingAssets > reservedAssets.profit
-                    ? reservedAssets.profit
-                    : remainingAssets;
-                cover.addCoverAssets(availableAssets);
-                remainingAssets -= availableAssets;
-                reservedAssets.profit -= uint96(availableAssets);
-                synced = true;
-            }
-
-            if (synced) {
-                _reservedAssetsForFirstLossCovers[cover] = reservedAssets;
-            }
-        }
-    }
-
-    /// @inheritdoc IPool
-    function getReservedAssetsForFirstLossCovers() external view returns (uint256 reservedAssets) {
-        uint256 numFirstLossCovers = _firstLossCovers.length;
-        for (uint256 i = 0; i < numFirstLossCovers; i++) {
-            IFirstLossCover cover = _firstLossCovers[i];
-            ReservedAssetsForFirstLossCover memory assets = _reservedAssetsForFirstLossCovers[
-                cover
-            ];
-            reservedAssets += assets.profit + assets.lossRecovery;
-        }
-    }
-
     function _distributeProfit(uint256 profit) internal {
         TranchesAssets memory assets = tranchesAssets;
 
@@ -285,10 +222,7 @@ contract Pool is PoolConfigCache, IPool {
                 continue;
             }
             IFirstLossCover cover = _firstLossCovers[i];
-            ReservedAssetsForFirstLossCover
-                memory reservedAssets = _reservedAssetsForFirstLossCovers[cover];
-            reservedAssets.profit += uint96(profitsForFirstLossCovers[i]);
-            _reservedAssetsForFirstLossCovers[cover] = reservedAssets;
+            cover.addCoverAssets(profitsForFirstLossCovers[i]);
         }
         newJuniorTotalAssets = juniorTotalAssets + juniorProfit;
     }
@@ -388,16 +322,9 @@ contract Pool is PoolConfigCache, IPool {
             );
 
             uint256 numFirstLossCovers = _firstLossCovers.length;
-            uint256 recoveredAmount;
             for (uint256 i = 0; i < numFirstLossCovers && remainingLossRecovery > 0; i++) {
                 IFirstLossCover cover = _firstLossCovers[numFirstLossCovers - i - 1];
-                (remainingLossRecovery, recoveredAmount) = cover.calcLossRecover(
-                    remainingLossRecovery
-                );
-                ReservedAssetsForFirstLossCover
-                    memory reserveAssets = _reservedAssetsForFirstLossCovers[cover];
-                reserveAssets.lossRecovery += uint96(recoveredAmount);
-                _reservedAssetsForFirstLossCovers[cover] = reserveAssets;
+                remainingLossRecovery = cover.recoverLoss(remainingLossRecovery);
             }
         }
     }
@@ -436,22 +363,14 @@ contract Pool is PoolConfigCache, IPool {
         uint256 poolAssets
     ) external view returns (uint256 availableCap) {
         IFirstLossCover cover = IFirstLossCover(coverAddress);
-        ReservedAssetsForFirstLossCover memory reservedAssets = _reservedAssetsForFirstLossCovers[
-            cover
-        ];
-        availableCap = _getFirstLossCoverAvailableCap(
-            cover,
-            reservedAssets.profit + reservedAssets.lossRecovery,
-            poolAssets
-        );
+        return _getFirstLossCoverAvailableCap(cover, poolAssets);
     }
 
     function _getFirstLossCoverAvailableCap(
         IFirstLossCover cover,
-        uint256 reservedForCover,
         uint256 poolAssets
     ) internal view returns (uint256 availableCap) {
-        uint256 coverTotalAssets = cover.totalAssets() + reservedForCover;
+        uint256 coverTotalAssets = cover.totalAssets();
         uint256 totalCap = cover.getCapacity(poolAssets);
         return totalCap > coverTotalAssets ? totalCap - coverTotalAssets : 0;
     }
