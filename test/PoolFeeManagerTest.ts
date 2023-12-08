@@ -160,7 +160,7 @@ describe("PoolFeeManager Tests", function () {
             const feesInvestable =
                 await poolFeeManagerContract.getAvailableFeesToInvestInFirstLossCover();
             expect(feesInvestable).to.not.equal(ethers.constants.Zero);
-            await poolFeeManagerContract.connect(poolOwner).investFeesInFirstLossCover();
+            await poolFeeManagerContract.connect(pdsServiceAccount).investFeesInFirstLossCover();
         }
 
         async function performUpdate(
@@ -585,6 +585,12 @@ describe("PoolFeeManager Tests", function () {
             await loadFixture(setPool);
         });
 
+        it("Should not allow a non-pool owner and non-pds service account to invest fees", async function () {
+            await expect(
+                poolFeeManagerContract.connect(lender).investFeesInFirstLossCover(),
+            ).to.be.revertedWithCustomError(poolConfigContract, "notAuthorizedCaller");
+        });
+
         it("Should allow the pool owner to not invest anything if there is no available fees to invest", async function () {
             // Zero-out the first loss cover capacity so that the fees cannot be invested.
             await overrideFirstLossCoverConfig(
@@ -602,7 +608,7 @@ describe("PoolFeeManager Tests", function () {
             const oldFirstLossCoverAssets = await affiliateFirstLossCoverContract.totalAssets();
             const olsPoolSafeAssets = await poolSafeContract.totalLiquidity();
 
-            await poolFeeManagerContract.connect(poolOwner).investFeesInFirstLossCover();
+            await poolFeeManagerContract.connect(pdsServiceAccount).investFeesInFirstLossCover();
             const newAccruedIncomes = await poolFeeManagerContract.getAccruedIncomes();
             expect(newAccruedIncomes.protocolIncome).to.equal(oldAccruedIncomes.protocolIncome);
             expect(newAccruedIncomes.poolOwnerIncome).to.equal(oldAccruedIncomes.poolOwnerIncome);
@@ -640,7 +646,9 @@ describe("PoolFeeManager Tests", function () {
                     await affiliateFirstLossCoverContract.totalAssets();
                 const olsPoolSafeAssets = await poolSafeContract.totalLiquidity();
 
-                await poolFeeManagerContract.connect(poolOwner).investFeesInFirstLossCover();
+                await poolFeeManagerContract
+                    .connect(pdsServiceAccount)
+                    .investFeesInFirstLossCover();
                 const newAccruedIncomes = await poolFeeManagerContract.getAccruedIncomes();
                 expect(newAccruedIncomes.protocolIncome).to.equal(0);
                 expect(newAccruedIncomes.poolOwnerIncome).to.equal(0);
@@ -733,6 +741,70 @@ describe("PoolFeeManager Tests", function () {
                 );
             },
         );
+
+        it("Should allow PDS service account to invest fees", async function () {
+            const coverTotalAssets = await affiliateFirstLossCoverContract.totalAssets();
+            await poolFeeManagerContract.distributePoolFees(profit);
+            const totalAvailableFees = await poolFeeManagerContract.getTotalAvailableFees();
+            const feesLiquidity = totalAvailableFees.sub(1_000);
+            // Make the first loss cover available capacity less than the total available fees.
+            await overrideFirstLossCoverConfig(
+                affiliateFirstLossCoverContract,
+                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                poolConfigContract,
+                poolOwner,
+                {
+                    liquidityCap: coverTotalAssets.add(feesLiquidity),
+                    maxPercentOfPoolValueInBps: 0,
+                },
+            );
+            mockTokenContract.mint(poolSafeContract.address, totalAvailableFees);
+            const oldAccruedIncomes = await poolFeeManagerContract.getAccruedIncomes();
+            const oldFirstLossCoverAssets = await affiliateFirstLossCoverContract.totalAssets();
+            const olsPoolSafeAssets = await poolSafeContract.totalLiquidity();
+
+            // Make sure we are indeed testing the partial investment scenario.
+            const expectedPoolOwnerFeesInvested = oldAccruedIncomes.poolOwnerIncome
+                .mul(feesLiquidity)
+                .div(totalAvailableFees);
+            expect(expectedPoolOwnerFeesInvested).to.be.lessThan(
+                oldAccruedIncomes.poolOwnerIncome,
+            );
+            const expectedEAFeesInvested = oldAccruedIncomes.eaIncome
+                .mul(feesLiquidity)
+                .div(totalAvailableFees);
+            expect(expectedEAFeesInvested).to.be.lessThan(oldAccruedIncomes.eaIncome);
+            const expectedProtocolFeesInvested = feesLiquidity
+                .sub(expectedPoolOwnerFeesInvested)
+                .sub(expectedEAFeesInvested);
+            expect(expectedProtocolFeesInvested).to.be.lessThan(oldAccruedIncomes.protocolIncome);
+
+            await poolFeeManagerContract.connect(pdsServiceAccount).investFeesInFirstLossCover();
+            const newAccruedIncomes = await poolFeeManagerContract.getAccruedIncomes();
+            expect(newAccruedIncomes.protocolIncome).to.equal(
+                oldAccruedIncomes.protocolIncome.sub(expectedProtocolFeesInvested),
+            );
+            expect(newAccruedIncomes.poolOwnerIncome).to.equal(
+                oldAccruedIncomes.poolOwnerIncome.sub(expectedPoolOwnerFeesInvested),
+            );
+            expect(newAccruedIncomes.eaIncome).to.equal(
+                oldAccruedIncomes.eaIncome.sub(expectedEAFeesInvested),
+            );
+            // Make sure that:
+            // (1) the first loss cover contract gets all the fees invested
+            // (2) the pool fee manager contract doesn't have any money
+            // (3) the pool safe contract has the amount of fees invested transferred out
+            const totalFeesInvested = expectedProtocolFeesInvested
+                .add(expectedPoolOwnerFeesInvested)
+                .add(expectedEAFeesInvested);
+            expect(await affiliateFirstLossCoverContract.totalAssets()).to.equal(
+                oldFirstLossCoverAssets.add(totalFeesInvested),
+            );
+            expect(await mockTokenContract.balanceOf(poolFeeManagerContract.address)).to.equal(0);
+            expect(await poolSafeContract.totalLiquidity()).to.equal(
+                olsPoolSafeAssets.sub(totalFeesInvested),
+            );
+        });
     });
 
     describe("getWithdrawables", function () {
