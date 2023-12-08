@@ -7,7 +7,7 @@ import {PoolConfig, PoolSettings} from "../PoolConfig.sol";
 import {IPool} from "../interfaces/IPool.sol";
 import {PoolConfigCache} from "../PoolConfigCache.sol";
 import {CreditStorage} from "./CreditStorage.sol";
-import {CreditConfig, CreditRecord, CreditLimit, CreditLoss, CreditState, DueDetail, CreditLoss, PayPeriodDuration, CreditLineClosureReason} from "./CreditStructs.sol";
+import {CreditConfig, CreditRecord, CreditLimit, CreditLoss, CreditState, DueDetail, CreditLoss, PayPeriodDuration} from "./CreditStructs.sol";
 import {ICalendar} from "./interfaces/ICalendar.sol";
 import {IFirstLossCover} from "../interfaces/IFirstLossCover.sol";
 import {IPoolSafe} from "../interfaces/IPoolSafe.sol";
@@ -50,16 +50,6 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         address indexed borrower,
         uint256 oldCreditLimit,
         uint256 newCreditLimit
-    );
-
-    /**
-     * @notice An existing credit line has been closed
-     * @param reasonCode the reason for the credit line closure
-     */
-    event CreditLineClosed(
-        address indexed borrower,
-        address by,
-        CreditLineClosureReason reasonCode
     );
 
     /**
@@ -119,6 +109,13 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         uint256 unbilledPrincipalPaid,
         address by
     );
+
+    /**
+     * @notice An existing credit has been closed
+     * @param creditHash the credit hash
+     * @param by the address who has triggered the default
+     */
+    event CreditClosedAfterPayOff(bytes32 indexed creditHash, address by);
 
     struct PaymentRecord {
         uint256 principalDuePaid;
@@ -527,7 +524,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             // Closes the credit line if it is in the final period
             if (cr.remainingPeriods == 0) {
                 cr.state = CreditState.Deleted;
-                emit CreditLineClosed(borrower, msg.sender, CreditLineClosureReason.Paidoff);
+                emit CreditClosedAfterPayOff(creditHash, msg.sender);
             } else cr.state = CreditState.GoodStanding;
 
             _setDueDetail(creditHash, dd);
@@ -614,7 +611,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         if (cr.nextDue == 0) {
             if (cr.unbilledPrincipal == 0 && cr.remainingPeriods == 0) {
                 cr.state = CreditState.Deleted;
-                emit CreditLineClosed(borrower, msg.sender, CreditLineClosureReason.Paidoff);
+                emit CreditClosedAfterPayOff(creditHash, msg.sender);
             } else cr.state = CreditState.GoodStanding;
         }
 
@@ -682,7 +679,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
 
     /// "Modifier" function that limits access to pdsServiceAccount only.
     function _onlyPDSServiceAccount() internal view {
-        if (msg.sender != HumaConfig(humaConfig).pdsServiceAccount())
+        if (msg.sender != humaConfig.pdsServiceAccount())
             revert Errors.paymentDetectionServiceAccountRequired();
     }
 

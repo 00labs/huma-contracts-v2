@@ -106,6 +106,13 @@ export enum ReceivableState {
     Defaulted,
 }
 
+export enum CreditClosureReason {
+    Paidoff,
+    CreditLimitChangedToBeZero,
+    OverwrittenByNewLine,
+    AdminClosure,
+}
+
 const DAYS_IN_A_MONTH = 30;
 const DAYS_IN_A_QUARTER = 90;
 const DAYS_IN_A_HALF_YEAR = 180;
@@ -909,6 +916,19 @@ export class EpochChecker {
     }
 }
 
+export function checkCreditConfigsMatch(
+    actualCC: CreditConfigStruct,
+    expectedCC: CreditConfigStruct,
+) {
+    expect(actualCC.creditLimit).to.equal(expectedCC.creditLimit);
+    expect(actualCC.committedAmount).to.equal(expectedCC.committedAmount);
+    expect(actualCC.periodDuration).to.equal(expectedCC.periodDuration);
+    expect(actualCC.numOfPeriods).to.equal(expectedCC.numOfPeriods);
+    expect(actualCC.yieldInBps).to.equal(expectedCC.yieldInBps);
+    expect(actualCC.advanceRateInBps).to.equal(expectedCC.advanceRateInBps);
+    expect(actualCC.autoApproval).to.equal(expectedCC.autoApproval);
+}
+
 export function checkCreditConfig(
     creditConfig: CreditConfigStruct,
     creditLimit: BN,
@@ -933,11 +953,12 @@ export function checkCreditConfig(
 export function checkCreditRecordsMatch(
     actualCR: CreditRecordStruct,
     expectedCR: CreditRecordStruct,
+    delta: BN = BN.from(0),
 ) {
     expect(actualCR.unbilledPrincipal).to.equal(expectedCR.unbilledPrincipal);
     expect(actualCR.nextDueDate).to.equal(expectedCR.nextDueDate);
-    expect(actualCR.nextDue).to.equal(expectedCR.nextDue);
-    expect(actualCR.yieldDue).to.equal(expectedCR.yieldDue);
+    expect(actualCR.nextDue).to.be.closeTo(expectedCR.nextDue, delta);
+    expect(actualCR.yieldDue).to.be.closeTo(expectedCR.yieldDue, delta);
     expect(actualCR.totalPastDue).to.equal(expectedCR.totalPastDue);
     expect(actualCR.missedPeriods).to.equal(expectedCR.missedPeriods);
     expect(actualCR.remainingPeriods).to.equal(expectedCR.remainingPeriods);
@@ -980,24 +1001,18 @@ export function genDueDetail(ddOverrides: Partial<DueDetailStruct>): DueDetailSt
     };
 }
 
-export function checkDueDetailsMatch(actualDD: DueDetailStruct, expectedDD: DueDetailStruct) {
+export function checkDueDetailsMatch(
+    actualDD: DueDetailStruct,
+    expectedDD: DueDetailStruct,
+    delta: BN = BN.from(0),
+) {
     expect(actualDD.lateFeeUpdatedDate).to.equal(expectedDD.lateFeeUpdatedDate);
     expect(actualDD.lateFee).to.equal(expectedDD.lateFee);
     expect(actualDD.principalPastDue).to.equal(expectedDD.principalPastDue);
     expect(actualDD.yieldPastDue).to.equal(expectedDD.yieldPastDue);
-    expect(actualDD.committed).to.equal(expectedDD.committed);
-    expect(actualDD.accrued).to.equal(expectedDD.accrued);
+    expect(actualDD.committed).to.be.closeTo(expectedDD.committed, delta);
+    expect(actualDD.accrued).to.be.closeTo(expectedDD.accrued, delta);
     expect(actualDD.paid).to.equal(expectedDD.paid);
-}
-
-export function checkCreditLoss(
-    // creditLoss: CreditLossStructOutput,
-    totalAccruedLoss: BN,
-    totalLossRecovery: BN,
-    delta = 0,
-) {
-    // expect(creditLoss.totalAccruedLoss).to.be.closeTo(totalAccruedLoss, delta);
-    // expect(creditLoss.totalLossRecovery).to.be.closeTo(totalLossRecovery, delta);
 }
 
 export function calcYieldDue(

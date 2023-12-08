@@ -126,7 +126,7 @@ struct ReceivableInput {
     uint64 receivableId;
 }
 
-enum CreditLineClosureReason {
+enum CreditClosureReason {
     Paidoff,
     CreditLimitChangedToBeZero,
     OverwrittenByNewLine,
