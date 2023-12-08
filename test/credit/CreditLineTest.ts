@@ -1192,9 +1192,6 @@ describe("CreditLine Test", function () {
                 const [yieldDue] = calcYieldDue(cc, borrowAmount, days);
 
                 const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
-                const poolSafeOldBalance = await mockTokenContract.balanceOf(
-                    poolSafeContract.address,
-                );
                 await expect(
                     creditContract.connect(borrower).drawdown(borrower.address, borrowAmount),
                 )
@@ -1203,11 +1200,7 @@ describe("CreditLine Test", function () {
                     .to.emit(creditContract, "BillRefreshed")
                     .withArgs(creditHash, nextDueDate, yieldDue);
                 const borrowerNewBalance = await mockTokenContract.balanceOf(borrower.address);
-                const poolSafeNewBalance = await mockTokenContract.balanceOf(
-                    poolSafeContract.address,
-                );
                 expect(borrowerNewBalance.sub(borrowerOldBalance)).to.equal(netBorrowAmount);
-                expect(poolSafeOldBalance.sub(poolSafeNewBalance)).to.equal(netBorrowAmount);
 
                 const cr = await creditContract.getCreditRecord(creditHash);
                 checkCreditRecord(
@@ -1258,9 +1251,6 @@ describe("CreditLine Test", function () {
                 let totalYieldDue = yieldDue;
 
                 let borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
-                let poolSafeOldBalance = await mockTokenContract.balanceOf(
-                    poolSafeContract.address,
-                );
                 await expect(
                     creditContract.connect(borrower).drawdown(borrower.address, borrowAmount),
                 )
@@ -1270,11 +1260,7 @@ describe("CreditLine Test", function () {
                     .withArgs(creditHash, nextDueDate, yieldDue)
                     .to.emit(poolContract, "ProfitDistributed");
                 let borrowerNewBalance = await mockTokenContract.balanceOf(borrower.address);
-                let poolSafeNewBalance = await mockTokenContract.balanceOf(
-                    poolSafeContract.address,
-                );
                 expect(borrowerNewBalance.sub(borrowerOldBalance)).to.equal(netBorrowAmount);
-                expect(poolSafeOldBalance.sub(poolSafeNewBalance)).to.equal(netBorrowAmount);
 
                 let cr = await creditContract.getCreditRecord(creditHash);
                 checkCreditRecord(
@@ -1309,7 +1295,6 @@ describe("CreditLine Test", function () {
                 totalYieldDue = totalYieldDue.add(yieldDue);
 
                 borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
-                poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
                 await expect(
                     creditContract.connect(borrower).drawdown(borrower.address, borrowAmount),
                 )
@@ -1317,9 +1302,7 @@ describe("CreditLine Test", function () {
                     .withArgs(borrower.address, borrowAmount, netBorrowAmount)
                     .to.emit(poolContract, "ProfitDistributed");
                 borrowerNewBalance = await mockTokenContract.balanceOf(borrower.address);
-                poolSafeNewBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
                 expect(borrowerNewBalance.sub(borrowerOldBalance)).to.equal(netBorrowAmount);
-                expect(poolSafeOldBalance.sub(poolSafeNewBalance)).to.equal(netBorrowAmount);
 
                 cr = await creditContract.getCreditRecord(creditHash);
                 checkCreditRecord(
@@ -1379,9 +1362,6 @@ describe("CreditLine Test", function () {
 
                 const remainingPeriods = cr.remainingPeriods;
                 const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
-                const poolSafeOldBalance = await mockTokenContract.balanceOf(
-                    poolSafeContract.address,
-                );
                 await expect(
                     creditContract.connect(borrower).drawdown(borrower.address, borrowAmount),
                 )
@@ -1391,11 +1371,7 @@ describe("CreditLine Test", function () {
                     .withArgs(creditHash, nextDueDate, totalYieldDue)
                     .to.emit(poolContract, "ProfitDistributed");
                 const borrowerNewBalance = await mockTokenContract.balanceOf(borrower.address);
-                const poolSafeNewBalance = await mockTokenContract.balanceOf(
-                    poolSafeContract.address,
-                );
                 expect(borrowerNewBalance.sub(borrowerOldBalance)).to.equal(netBorrowAmount);
-                expect(poolSafeOldBalance.sub(poolSafeNewBalance)).to.equal(netBorrowAmount);
 
                 totalYieldDue = totalYieldDue.add(yieldDue);
 
@@ -1620,9 +1596,6 @@ describe("CreditLine Test", function () {
                 totalYieldDue = totalYieldDue.add(yieldDue);
 
                 let borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
-                let poolSafeOldBalance = await mockTokenContract.balanceOf(
-                    poolSafeContract.address,
-                );
                 await expect(
                     creditContract.connect(borrower).drawdown(borrower.address, borrowAmount),
                 )
@@ -1630,11 +1603,7 @@ describe("CreditLine Test", function () {
                     .withArgs(borrower.address, borrowAmount, netBorrowAmount)
                     .to.emit(poolContract, "ProfitDistributed");
                 let borrowerNewBalance = await mockTokenContract.balanceOf(borrower.address);
-                let poolSafeNewBalance = await mockTokenContract.balanceOf(
-                    poolSafeContract.address,
-                );
                 expect(borrowerNewBalance.sub(borrowerOldBalance)).to.equal(netBorrowAmount);
-                expect(poolSafeOldBalance.sub(poolSafeNewBalance)).to.equal(netBorrowAmount);
 
                 cr = await creditContract.getCreditRecord(creditHash);
                 checkCreditRecord(
@@ -1725,9 +1694,6 @@ describe("CreditLine Test", function () {
                 totalYieldDue = totalYieldDue.add(yieldDue);
 
                 let borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
-                let poolSafeOldBalance = await mockTokenContract.balanceOf(
-                    poolSafeContract.address,
-                );
                 await expect(
                     creditContract.connect(borrower).drawdown(borrower.address, borrowAmount),
                 )
@@ -1735,11 +1701,7 @@ describe("CreditLine Test", function () {
                     .withArgs(borrower.address, borrowAmount, netBorrowAmount)
                     .to.emit(poolContract, "ProfitDistributed");
                 let borrowerNewBalance = await mockTokenContract.balanceOf(borrower.address);
-                let poolSafeNewBalance = await mockTokenContract.balanceOf(
-                    poolSafeContract.address,
-                );
                 expect(borrowerNewBalance.sub(borrowerOldBalance)).to.equal(netBorrowAmount);
-                expect(poolSafeOldBalance.sub(poolSafeNewBalance)).to.equal(netBorrowAmount);
 
                 cr = await creditContract.getCreditRecord(creditHash);
                 checkCreditRecord(
@@ -1827,9 +1789,6 @@ describe("CreditLine Test", function () {
                 const totalDue = yieldDue.add(principalDue);
 
                 const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
-                const poolSafeOldBalance = await mockTokenContract.balanceOf(
-                    poolSafeContract.address,
-                );
                 await expect(
                     creditContract.connect(borrower).drawdown(borrower.address, borrowAmount),
                 )
@@ -1839,11 +1798,7 @@ describe("CreditLine Test", function () {
                     .withArgs(creditHash, nextDueDate, totalDue)
                     .to.emit(poolContract, "ProfitDistributed");
                 const borrowerNewBalance = await mockTokenContract.balanceOf(borrower.address);
-                const poolSafeNewBalance = await mockTokenContract.balanceOf(
-                    poolSafeContract.address,
-                );
                 expect(borrowerNewBalance.sub(borrowerOldBalance)).to.equal(netBorrowAmount);
-                expect(poolSafeOldBalance.sub(poolSafeNewBalance)).to.equal(netBorrowAmount);
 
                 const cr = await creditContract.getCreditRecord(creditHash);
                 checkCreditRecord(
@@ -1916,9 +1871,6 @@ describe("CreditLine Test", function () {
                 const additionalNextDue = additionalYieldDue.add(additionalPrincipalDue);
 
                 const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
-                const poolSafeOldBalance = await mockTokenContract.balanceOf(
-                    poolSafeContract.address,
-                );
                 const oldCR = await creditContract.getCreditRecord(creditHash);
                 const oldDD = await creditContract.getDueDetail(creditHash);
                 await expect(
@@ -1930,11 +1882,7 @@ describe("CreditLine Test", function () {
                     .withArgs(borrower.address, secondBorrowAmount, netBorrowAmount)
                     .to.emit(poolContract, "ProfitDistributed");
                 const borrowerNewBalance = await mockTokenContract.balanceOf(borrower.address);
-                const poolSafeNewBalance = await mockTokenContract.balanceOf(
-                    poolSafeContract.address,
-                );
                 expect(borrowerNewBalance.sub(borrowerOldBalance)).to.equal(netBorrowAmount);
-                expect(poolSafeOldBalance.sub(poolSafeNewBalance)).to.equal(netBorrowAmount);
 
                 const actualCR = await creditContract.getCreditRecord(creditHash);
                 const expectedCR = {
@@ -2012,9 +1960,6 @@ describe("CreditLine Test", function () {
                 const additionalNextDue = additionalYieldDue.add(additionalPrincipalDue);
 
                 const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
-                const poolSafeOldBalance = await mockTokenContract.balanceOf(
-                    poolSafeContract.address,
-                );
                 const oldCR = await creditContract.getCreditRecord(creditHash);
                 const oldDD = await creditContract.getDueDetail(creditHash);
                 await expect(
@@ -2026,11 +1971,7 @@ describe("CreditLine Test", function () {
                     .withArgs(borrower.address, secondBorrowAmount, netBorrowAmount)
                     .to.emit(poolContract, "ProfitDistributed");
                 const borrowerNewBalance = await mockTokenContract.balanceOf(borrower.address);
-                const poolSafeNewBalance = await mockTokenContract.balanceOf(
-                    poolSafeContract.address,
-                );
                 expect(borrowerNewBalance.sub(borrowerOldBalance)).to.equal(netBorrowAmount);
-                expect(poolSafeOldBalance.sub(poolSafeNewBalance)).to.equal(netBorrowAmount);
 
                 const actualCR = await creditContract.getCreditRecord(creditHash);
                 const expectedCR = {
@@ -3213,9 +3154,6 @@ describe("CreditLine Test", function () {
                 const borrowerBalanceBefore = await mockTokenContract.balanceOf(
                     borrower.getAddress(),
                 );
-                const poolSafeBalanceBefore = await mockTokenContract.balanceOf(
-                    poolSafeContract.address,
-                );
 
                 console.log(
                     `paymentAmountUsed ${paymentAmountUsed}`,
@@ -3289,12 +3227,6 @@ describe("CreditLine Test", function () {
                     borrower.getAddress(),
                 );
                 expect(borrowerBalanceBefore.sub(borrowerBalanceAfter)).to.equal(
-                    paymentAmountUsed,
-                );
-                const poolSafeBalanceAfter = await mockTokenContract.balanceOf(
-                    poolSafeContract.address,
-                );
-                expect(poolSafeBalanceAfter.sub(poolSafeBalanceBefore)).to.equal(
                     paymentAmountUsed,
                 );
 

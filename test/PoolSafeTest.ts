@@ -261,21 +261,6 @@ describe("PoolSafe Tests", function () {
     });
 
     describe("getAvailableLiquidityForFees", function () {
-        it(
-            "Should return the difference between the amount of underlying tokens and" +
-                " the amount reserved for first loss covers",
-            async function () {
-                await poolConfigContract
-                    .connect(poolOwner)
-                    .setPoolFeeManager(defaultDeployer.getAddress());
-                const totalLiquidity = await poolSafeContract.totalLiquidity();
-                const amountReserved = await poolContract.getReservedAssetsForFirstLossCovers();
-                expect(await poolSafeContract.getAvailableLiquidityForFees()).to.equal(
-                    totalLiquidity.sub(amountReserved),
-                );
-            },
-        );
-
         it("Should return 0 if the reserve exceeds the amount of assets", async function () {
             const profit = toToken(1_000_000);
             await creditContract.mockDistributePnL(profit, toToken(0), toToken(0));

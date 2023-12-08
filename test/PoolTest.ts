@@ -22,6 +22,7 @@ import {
 import {
     CONSTANTS,
     FeeCalculator,
+    FirstLossCoverInfo,
     PnLCalculator,
     deployAndSetupPoolContracts,
     deployPoolContracts,
@@ -387,7 +388,8 @@ describe("Pool Test", function () {
                         assetInfo[CONSTANTS.JUNIOR_TRANCHE],
                     ];
 
-                    let firstLossCoverInfos,
+                    let firstLossCoverInfos: FirstLossCoverInfo[] = [],
+                        newFirstLossCoverInfos: FirstLossCoverInfo[] = [],
                         seniorAssets,
                         juniorAssets,
                         totalAssets,
@@ -448,11 +450,19 @@ describe("Pool Test", function () {
                         totalAssets = await poolContract.totalAssets();
                         expect(totalAssets).to.equal(seniorAssets.add(juniorAssets));
 
-                        assetsReservedForFirstLossCovers =
-                            await poolContract.getReservedAssetsForFirstLossCovers();
-                        expect(assetsReservedForFirstLossCovers).to.equal(
-                            sumBNArray([...firstLossCoverProfits]),
+                        console.log(`firstLossCoverProfits: ${firstLossCoverProfits}`);
+
+                        newFirstLossCoverInfos = await Promise.all(
+                            [borrowerFirstLossCoverContract, affiliateFirstLossCoverContract].map(
+                                (contract) => getFirstLossCoverInfo(contract, poolConfigContract),
+                            ),
                         );
+
+                        newFirstLossCoverInfos.forEach((info, index) => {
+                            expect(info.asset).to.equal(
+                                firstLossCoverInfos[index].asset.add(firstLossCoverProfits[index]),
+                            );
+                        });
 
                         assets = [seniorAssets, juniorAssets];
                     }
@@ -506,11 +516,6 @@ describe("Pool Test", function () {
                         totalAssets = await poolContract.totalAssets();
                         expect(totalAssets).to.equal(seniorAssets.add(juniorAssets));
 
-                        assetsReservedForFirstLossCovers =
-                            await poolContract.getReservedAssetsForFirstLossCovers();
-                        expect(assetsReservedForFirstLossCovers).to.equal(
-                            sumBNArray([...firstLossCoverProfits]),
-                        );
                         for (const [index, cover] of [
                             borrowerFirstLossCoverContract,
                             affiliateFirstLossCoverContract,
@@ -523,6 +528,11 @@ describe("Pool Test", function () {
                     }
 
                     if (recovery.gt(0)) {
+                        firstLossCoverInfos = await Promise.all(
+                            [borrowerFirstLossCoverContract, affiliateFirstLossCoverContract].map(
+                                (contract) => getFirstLossCoverInfo(contract, poolConfigContract),
+                            ),
+                        );
                         const [
                             ,
                             assetsWithRecovery,
@@ -565,14 +575,19 @@ describe("Pool Test", function () {
                         totalAssets = await poolContract.totalAssets();
                         expect(totalAssets).to.equal(seniorAssets.add(juniorAssets));
 
-                        assetsReservedForFirstLossCovers =
-                            await poolContract.getReservedAssetsForFirstLossCovers();
-                        expect(assetsReservedForFirstLossCovers).to.equal(
-                            sumBNArray([
-                                ...firstLossCoverProfits,
-                                ...lossRecoveredInFirstLossCovers,
-                            ]),
+                        newFirstLossCoverInfos = await Promise.all(
+                            [borrowerFirstLossCoverContract, affiliateFirstLossCoverContract].map(
+                                (contract) => getFirstLossCoverInfo(contract, poolConfigContract),
+                            ),
                         );
+
+                        newFirstLossCoverInfos.forEach((info, index) => {
+                            expect(info.asset).to.equal(
+                                firstLossCoverInfos[index].asset.add(
+                                    lossRecoveredInFirstLossCovers[index],
+                                ),
+                            );
+                        });
                     }
                 }
 
