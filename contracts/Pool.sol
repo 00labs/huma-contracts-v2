@@ -363,7 +363,7 @@ contract Pool is PoolConfigCache, IPool {
         uint256 poolAssets
     ) external view returns (uint256 availableCap) {
         IFirstLossCover cover = IFirstLossCover(coverAddress);
-        availableCap = _getFirstLossCoverAvailableCap(cover, poolAssets);
+        return _getFirstLossCoverAvailableCap(cover, poolAssets);
     }
 
     function _getFirstLossCoverAvailableCap(
