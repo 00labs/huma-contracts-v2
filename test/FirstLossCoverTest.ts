@@ -570,11 +570,16 @@ describe("FirstLossCover Tests", function () {
 
             // Distribute PnL so that the LP token isn't always 1:1 with the asset
             // when PnL is non-zero.
-            await creditContract.mockDistributePnL(profit, loss, lossRecovery);
+            await creditContract.mockDistributePnL(profit, BN.from(0), BN.from(0));
 
             oldSupply = await affiliateFirstLossCoverContract.totalSupply();
             oldAssets = await affiliateFirstLossCoverContract.totalAssets();
-            console.log(`oldSupply: ${oldSupply}, oldAssets: ${oldAssets}`);
+            console.log(
+                `newSupply: ${oldSupply}, newAssets: ${oldAssets}, assets: ${await affiliateFirstLossCoverContract.totalAssets()}`,
+            );
+            console.log(
+                `affiliateFirstLossCoverContract.address: ${affiliateFirstLossCoverContract.address}`,
+            );
 
             const tranchesAssets = await poolContract.tranchesAssets();
             const totalTrancheAssets = tranchesAssets.seniorTotalAssets.add(
@@ -609,6 +614,7 @@ describe("FirstLossCover Tests", function () {
                 const oldSupply = await affiliateFirstLossCoverContract.totalSupply();
                 const oldAssets = await affiliateFirstLossCoverContract.totalAssets();
                 const sharesToRedeem = assetsToRedeem.mul(oldSupply).div(oldAssets);
+                const expectedAssetsToRedeem = sharesToRedeem.mul(oldAssets).div(oldSupply);
                 const oldEABalance = await mockTokenContract.balanceOf(
                     evaluationAgent.getAddress(),
                 );
@@ -626,21 +632,21 @@ describe("FirstLossCover Tests", function () {
                         await evaluationAgent.getAddress(),
                         await evaluationAgent.getAddress(),
                         sharesToRedeem,
-                        assetsToRedeem,
+                        expectedAssetsToRedeem,
                     );
 
                 expect(await affiliateFirstLossCoverContract.totalSupply()).to.equal(
                     oldSupply.sub(sharesToRedeem),
                 );
                 expect(await affiliateFirstLossCoverContract.totalAssets()).to.equal(
-                    oldAssets.sub(assetsToRedeem),
+                    oldAssets.sub(expectedAssetsToRedeem),
                 );
                 expect(await mockTokenContract.balanceOf(evaluationAgent.getAddress())).to.equal(
-                    oldEABalance.add(assetsToRedeem),
+                    oldEABalance.add(expectedAssetsToRedeem),
                 );
                 expect(
                     await mockTokenContract.balanceOf(affiliateFirstLossCoverContract.address),
-                ).to.equal(oldFirstLossCoverContractBalance.sub(assetsToRedeem));
+                ).to.equal(oldFirstLossCoverContractBalance.sub(expectedAssetsToRedeem));
             }
 
             beforeEach(async function () {
@@ -653,7 +659,7 @@ describe("FirstLossCover Tests", function () {
             });
 
             // TO: Jiatu This test doesn't work as imagined before, it works as expected now but failed, need to solve it.
-            it.skip("Should allow the cover provider to redeem excessive assets over the cover cap when there is more profit than loss", async function () {
+            it("Should allow the cover provider to redeem excessive assets over the cover cap when there is more profit than loss", async function () {
                 const assetsToRedeem = toToken(5_000);
                 const profit = toToken(178),
                     loss = toToken(132),
@@ -661,7 +667,7 @@ describe("FirstLossCover Tests", function () {
                 await testRedeemCover(assetsToRedeem, profit, loss, lossRecovery);
             });
 
-            it.skip("Should allow the cover provider to redeem excessive assets over the cover cap when there is more loss than profit", async function () {
+            it("Should allow the cover provider to redeem excessive assets over the cover cap when there is more loss than profit", async function () {
                 const assetsToRedeem = toToken(5_000);
                 const profit = toToken(132),
                     loss = toToken(1908),
@@ -805,8 +811,7 @@ describe("FirstLossCover Tests", function () {
                 // Make sure the total assets exceeds the cap by depositing the shortfall plus some buffer
                 // as the excessive amount.
                 await depositCover(liquidityCap.sub(coverTotalAssets).add(assetsToRedeem.div(2)));
-                const sharesToRedeem =
-                    await affiliateFirstLossCoverContract.convertToShares(assetsToRedeem);
+                await creditContract.mockDistributePnL(profit, loss, lossRecovery);
 
                 const oldSupply = await affiliateFirstLossCoverContract.totalSupply();
                 const oldAssets = await affiliateFirstLossCoverContract.totalAssets();
@@ -817,7 +822,10 @@ describe("FirstLossCover Tests", function () {
                     affiliateFirstLossCoverContract.address,
                 );
 
-                await creditContract.mockDistributePnL(profit, loss, lossRecovery);
+                const sharesToRedeem =
+                    await affiliateFirstLossCoverContract.convertToShares(assetsToRedeem);
+                const expectedAssetsToRedeem =
+                    await affiliateFirstLossCoverContract.convertToAssets(sharesToRedeem);
                 await expect(
                     affiliateFirstLossCoverContract
                         .connect(evaluationAgent)
@@ -828,21 +836,21 @@ describe("FirstLossCover Tests", function () {
                         await evaluationAgent.getAddress(),
                         await evaluationAgent.getAddress(),
                         sharesToRedeem,
-                        assetsToRedeem,
+                        expectedAssetsToRedeem,
                     );
 
                 expect(await affiliateFirstLossCoverContract.totalSupply()).to.equal(
                     oldSupply.sub(sharesToRedeem),
                 );
                 expect(await affiliateFirstLossCoverContract.totalAssets()).to.equal(
-                    oldAssets.sub(assetsToRedeem),
+                    oldAssets.sub(expectedAssetsToRedeem),
                 );
                 expect(await mockTokenContract.balanceOf(evaluationAgent.getAddress())).to.equal(
-                    oldEABalance.add(assetsToRedeem),
+                    oldEABalance.add(expectedAssetsToRedeem),
                 );
                 expect(
                     await mockTokenContract.balanceOf(affiliateFirstLossCoverContract.address),
-                ).to.equal(oldFirstLossCoverContractBalance.sub(assetsToRedeem));
+                ).to.equal(oldFirstLossCoverContractBalance.sub(expectedAssetsToRedeem));
             }
 
             beforeEach(async function () {
@@ -855,7 +863,7 @@ describe("FirstLossCover Tests", function () {
                 await testRedeemCover(assetsToRedeem);
             });
 
-            it.skip("Should allow the cover provider to redeem any valid amount when there is more profit than loss", async function () {
+            it("Should allow the cover provider to redeem any valid amount when there is more profit than loss", async function () {
                 const assetsToRedeem = toToken(1_000);
                 const profit = toToken(578),
                     loss = toToken(216),
@@ -863,7 +871,7 @@ describe("FirstLossCover Tests", function () {
                 await testRedeemCover(assetsToRedeem, profit, loss, lossRecovery);
             });
 
-            it.skip("Should allow the cover provider to redeem any valid amount when there is more loss than profit", async function () {
+            it("Should allow the cover provider to redeem any valid amount when there is more loss than profit", async function () {
                 const assetsToRedeem = toToken(1_000);
                 const profit = toToken(578),
                     loss = toToken(1230),
