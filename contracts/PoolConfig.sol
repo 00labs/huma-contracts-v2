@@ -857,10 +857,8 @@ contract PoolConfig is AccessControl, Initializable {
      */
     function onlyPoolOwnerOrPDSServiceAccount(address account) public view {
         // Treat DEFAULT_ADMIN_ROLE role as owner role
-        if (
-            !hasRole(DEFAULT_ADMIN_ROLE, account) &&
-            account != HumaConfig(humaConfig).pdsServiceAccount()
-        ) revert Errors.notAuthorizedCaller();
+        if (!hasRole(DEFAULT_ADMIN_ROLE, account) && account != humaConfig.pdsServiceAccount())
+            revert Errors.notAuthorizedCaller();
     }
 
     /**
