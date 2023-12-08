@@ -203,7 +203,7 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
      * while getAvailableFeesToInvestInFirstLossCover returns a positive value.
      */
     function investFeesInFirstLossCover() external {
-        _onlyPDSServiceAccount();
+        poolConfig.onlyPoolOwnerOrPDSServiceAccount(msg.sender);
         _investFeesInFirstLossCover();
     }
 
@@ -321,10 +321,5 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         address tempPoolOwnerTreasury = poolConfig.poolOwnerTreasury();
         if (account != tempPoolOwnerTreasury) revert Errors.notAuthorizedCaller();
         return tempPoolOwnerTreasury;
-    }
-
-    function _onlyPDSServiceAccount() internal view {
-        if (msg.sender != HumaConfig(humaConfig).pdsServiceAccount())
-            revert Errors.paymentDetectionServiceAccountRequired();
     }
 }
