@@ -215,15 +215,6 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
     ) internal virtual returns (CreditRecord memory cr, DueDetail memory dd) {
         cr = getCreditRecord(creditHash);
         dd = getDueDetail(creditHash);
-
-        // Do not update dueInfo for accounts already in default state
-        if (cr.state == CreditState.Defaulted) return (cr, dd);
-
-        // Before the first drawdown, cr.nextDueDate is used to capture credit expiration
-        // date. It is validated in the precheck logic for the first drawdown, thus safe
-        // to reset cr.nextDueDate to 0 to remove special handling in getDueInfo().
-        if (cr.state == CreditState.Approved) cr.nextDueDate = 0;
-
         // Get the up-to-date due information for the borrower. If the account has been
         // late or dormant for multiple cycles, getDueInfo() will bring it current and
         // return the most up-to-date due information.
@@ -616,8 +607,6 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             // After the credit approval, if the credit has commitment and a designated start date, then the
             // credit will kick start on that whether the borrower has initiated the drawdown or not.
             // The date is set in `cr.nextDueDate` in `approveCredit()`.
-            // Note: for pools designated start dates, `cr.nextDueDate` is 0
-            // before the first drawdown, thus the `cr.nextDueDate > 0` condition in the check.
             if (cr.nextDueDate > 0 && block.timestamp < cr.nextDueDate)
                 revert Errors.firstDrawdownTooSoon();
 

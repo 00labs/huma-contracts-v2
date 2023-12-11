@@ -108,12 +108,16 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         override
         returns (CreditRecord memory newCR, DueDetail memory newDD, uint256 periodsPassed)
     {
+        // Do not update due info for accounts already in default state.
+        if (cr.state == CreditState.Defaulted) return (cr, dd, 0);
+
         newCR = _deepCopyCreditRecord(cr);
         newDD = _deepCopyDueDetail(dd);
 
+        bool isFirstPeriod = cr.state == CreditState.Approved;
         // If the current timestamp has not yet reached the bill refresh date, then all the amount due is up-to-date
         // except possibly the late fee. So we only need to update the late fee if it is already late.
-        if (cr.nextDueDate != 0 && timestamp <= getNextBillRefreshDate(cr, timestamp)) {
+        if (!isFirstPeriod && timestamp <= getNextBillRefreshDate(cr, timestamp)) {
             if (cr.missedPeriods == 0) return (newCR, newDD, 0);
             else {
                 newCR.totalPastDue -= dd.lateFee;
@@ -143,12 +147,11 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             uint256 maturityDate = calendar.getMaturityDate(
                 cc.periodDuration,
                 cr.remainingPeriods,
-                cr.nextDueDate == 0 ? timestamp : cr.nextDueDate
+                isFirstPeriod ? timestamp : cr.nextDueDate
             );
 
-            // Compute amounts overdue.
-            if (cr.nextDueDate != 0) {
-                // If cr.nextDueDate == 0, then the credit is just starting, so there is no past due.
+            // Compute amounts overdue. Note that there is no past due if this is the first period of the credit.
+            if (!isFirstPeriod) {
                 (
                     uint256 accruedYieldPastDue,
                     uint256 committedYieldPastDue,
@@ -170,7 +173,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                 totalPrincipal,
                 timestamp,
                 maturityDate,
-                cr.nextDueDate == 0
+                isFirstPeriod
             );
             newCR.unbilledPrincipal -= uint96(principalDue);
         } else {
@@ -186,7 +189,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         // Only the newly generated next due needs to be recorded.
         newCR.nextDue = uint96(newCR.yieldDue + principalDue);
 
-        if (cr.nextDueDate == 0) {
+        if (isFirstPeriod) {
             periodsPassed = 1;
         } else {
             periodsPassed = calendar.getNumPeriodsPassed(
