@@ -34,6 +34,11 @@ contract Calendar is ICalendar {
     }
 
     /// @inheritdoc ICalendar
+    function getStartOfNextDay(uint256 timestamp) external pure returns (uint256 startOfNextDay) {
+        return DTL.addDays(_getStartOfDay(timestamp), 1);
+    }
+
+    /// @inheritdoc ICalendar
     function getStartOfThisMonth() public view returns (uint256 startOfMonth) {
         return _getStartOfMonth(block.timestamp);
     }
@@ -159,7 +164,7 @@ contract Calendar is ICalendar {
         PayPeriodDuration periodDuration,
         uint256 numPeriods,
         uint256 timestamp
-    ) external view returns (uint256 maturityDate) {
+    ) external pure returns (uint256 maturityDate) {
         // The first period may be a partial period, so advance to the next period and only count full
         // periods.
         uint256 startDate = _getStartDateOfNextPeriod(periodDuration, timestamp);

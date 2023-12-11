@@ -16,6 +16,7 @@ interface ICredit {
     function setCreditLoss(bytes32 creditHash, CreditLoss memory loss) external;
 
     function updateDueInfo(
-        bytes32 creditHash
+        bytes32 creditHash,
+        uint256 timestamp
     ) external returns (CreditRecord memory cr, DueDetail memory dd);
 }

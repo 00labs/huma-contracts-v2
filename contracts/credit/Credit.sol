@@ -179,10 +179,11 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
     }
 
     function updateDueInfo(
-        bytes32 creditHash
+        bytes32 creditHash,
+        uint256 timestamp
     ) external virtual returns (CreditRecord memory cr, DueDetail memory dd) {
         _onlyCreditManager();
-        return _updateDueInfo(creditHash);
+        return _updateDueInfo(creditHash, timestamp);
     }
 
     /// Shared setter to the credit record mapping for contract size consideration
@@ -209,7 +210,8 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
      * @param creditHash the hash of the credit
      */
     function _updateDueInfo(
-        bytes32 creditHash
+        bytes32 creditHash,
+        uint256 timestamp
     ) internal virtual returns (CreditRecord memory cr, DueDetail memory dd) {
         cr = getCreditRecord(creditHash);
         dd = getDueDetail(creditHash);
@@ -228,58 +230,15 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         CreditConfig memory cc = _getCreditConfig(creditHash);
 
         uint256 periodsPassed;
-        // console.log("block.timestamp: %s, cr.nextDueDate: %s", block.timestamp, cr.nextDueDate);
-        if (cr.nextDueDate == 0) {
-            periodsPassed = 1;
-        } else if (block.timestamp > cr.nextDueDate) {
-            if (cr.state == CreditState.GoodStanding) {
-                PoolSettings memory poolSettings = poolConfig.getPoolSettings();
-                if (
-                    block.timestamp >
-                    cr.nextDueDate + poolSettings.latePaymentGracePeriodInDays * SECONDS_IN_A_DAY
-                ) {
-                    periodsPassed = calendar.getNumPeriodsPassed(
-                        cc.periodDuration,
-                        cr.nextDueDate,
-                        block.timestamp
-                    );
-                }
-            } else {
-                periodsPassed = calendar.getNumPeriodsPassed(
-                    cc.periodDuration,
-                    cr.nextDueDate,
-                    block.timestamp
-                );
-            }
-        }
-
-        bool late;
-        (cr, dd, late) = feeManager.getDueInfo(cr, cc, dd);
+        (cr, dd, periodsPassed) = feeManager.getDueInfo(cr, cc, dd, timestamp);
         // console.log("periodsPassed: %s", periodsPassed);
         if (periodsPassed > 0) {
-            // Adjusts remainingPeriods. Sets remainingPeriods to 0 if the credit line has reached maturity.
-            cr.remainingPeriods = cr.remainingPeriods > periodsPassed
-                ? uint16(cr.remainingPeriods - periodsPassed)
-                : 0;
-
-            // Sets the correct missedPeriods. If nextDue is non-zero, the nextDue must be
-            // non-zero for each of the passed period, thus add periodsPassed to cr.missedPeriods
-            if (late) cr.missedPeriods = uint16(cr.missedPeriods + periodsPassed);
-            else cr.missedPeriods = 0;
-
-            if (cr.missedPeriods > 0) {
-                if (cr.state != CreditState.Defaulted) {
-                    cr.state = CreditState.Delayed;
-                }
-            } else cr.state = CreditState.GoodStanding;
-
             _setCreditRecord(creditHash, cr);
             _setDueDetail(creditHash, dd);
-
-            emit BillRefreshed(creditHash, cr.nextDueDate, cr.nextDue);
-        } else if (late) {
+        } else if (cr.state == CreditState.Delayed) {
             _setDueDetail(creditHash, dd);
         }
+        emit BillRefreshed(creditHash, cr.nextDueDate, cr.nextDue);
         return (cr, dd);
     }
 
@@ -308,7 +267,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             // Note that we need to write to _creditRecordMap here directly rather than its copy `cr`
             // because `updateDueInfo()` needs to access the updated `unbilledPrincipal` in storage.
             _creditRecordMap[creditHash].unbilledPrincipal = uint96(borrowAmount);
-            (cr, ) = _updateDueInfo(creditHash);
+            (cr, ) = _updateDueInfo(creditHash, block.timestamp);
             cr.state = CreditState.GoodStanding;
         } else {
             // Disallow repeated drawdown for non-revolving credit
@@ -317,7 +276,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             DueDetail memory dd;
             if (block.timestamp > cr.nextDueDate) {
                 // Bring the credit current and check if it is still in good standing.
-                (cr, dd) = _updateDueInfo(creditHash);
+                (cr, dd) = _updateDueInfo(creditHash, block.timestamp);
                 if (cr.state != CreditState.GoodStanding)
                     revert Errors.creditLineNotInGoodStandingState();
             } else {
@@ -402,7 +361,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             revert Errors.creditLineNotInStateForMakingPayment();
         }
         DueDetail memory dd;
-        (cr, dd) = _updateDueInfo(creditHash);
+        (cr, dd) = _updateDueInfo(creditHash, block.timestamp);
         CreditState oldCRState = cr.state;
 
         uint256 payoffAmount = feeManager.getPayoffAmount(cr);
@@ -581,7 +540,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             revert Errors.creditLineNotInStateForMakingPrincipalPayment();
         }
         if (block.timestamp > cr.nextDueDate) {
-            (cr, ) = _updateDueInfo(creditHash);
+            (cr, ) = _updateDueInfo(creditHash, block.timestamp);
             if (cr.state != CreditState.GoodStanding) {
                 revert Errors.creditLineNotInStateForMakingPrincipalPayment();
             }

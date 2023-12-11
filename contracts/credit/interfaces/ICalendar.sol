@@ -29,6 +29,11 @@ interface ICalendar {
     function getStartOfTomorrow() external view returns (uint256 startOfTomorrow);
 
     /**
+     * @notice Returns the beginning of the next day relative to the given timestamp.
+     */
+    function getStartOfNextDay(uint256 timestamp) external pure returns (uint256 startOfNextDay);
+
+    /**
      * @notice Returns the beginning of this month
      */
     function getStartOfThisMonth() external view returns (uint256 startOfMonth);
@@ -104,7 +109,7 @@ interface ICalendar {
         PayPeriodDuration periodDuration,
         uint256 numPeriods,
         uint256 timestamp
-    ) external view returns (uint256 maturityDate);
+    ) external pure returns (uint256 maturityDate);
 
     /**
      * @notice Returns the total number of days in a full period, e.g. 30, 90 or 180 days.
