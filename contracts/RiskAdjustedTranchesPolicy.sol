@@ -12,17 +12,15 @@ import {SENIOR_TRANCHE, JUNIOR_TRANCHE, HUNDRED_PERCENT_IN_BPS} from "./SharedDe
 contract RiskAdjustedTranchesPolicy is BaseTranchesPolicy {
     /**
      * @notice Distribute profit between tranches.
+     * @dev It can't be view function because it implements ITranchesPolicy's disProfitToTranches.
      */
     function distProfitToTranches(
         uint256 profit,
         uint96[2] memory assets
-    ) external view returns (uint96[2] memory newAssets) {
+    ) external override returns (uint96[2] memory newAssets) {
         uint256 seniorAssets = assets[SENIOR_TRANCHE];
         uint256 juniorAssets = assets[JUNIOR_TRANCHE];
 
-        // todo the following logic is critically flawed. seniorProfit is calculated
-        // using the entire senior assets in the pool. It should be based on senior
-        // assets that has been DEPLOYED
         uint256 seniorProfit = (profit * seniorAssets) / (seniorAssets + juniorAssets);
 
         LPConfig memory lpConfig = poolConfig.getLPConfig();
