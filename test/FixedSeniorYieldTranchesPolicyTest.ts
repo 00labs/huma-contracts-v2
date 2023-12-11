@@ -143,7 +143,10 @@ describe("FixedSeniorYieldTranchePolicy Test", function () {
             deployedAssets,
             apy,
         );
-        const result = await tranchesPolicyContract.distProfitToTranches(profit, assets, lastDate);
+        const result = await tranchesPolicyContract.callStatic.distProfitToTranches(
+            profit,
+            assets,
+        );
         // TODO(jiatu): re-enable this?
         // expect(result[CONSTANTS.SENIOR_TRANCHE]).to.equal(
         //     newAssets[CONSTANTS.SENIOR_TRANCHE]
