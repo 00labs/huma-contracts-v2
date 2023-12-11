@@ -28,7 +28,8 @@ interface ICreditDueManager {
 
     function refreshLateFee(
         CreditRecord memory _cr,
-        DueDetail memory _dd
+        DueDetail memory _dd,
+        uint256 timestamp
     ) external view returns (uint64 lateFeeUpdatedDate, uint96 lateFee);
 
     /**
@@ -41,15 +42,19 @@ interface ICreditDueManager {
      * @dev the difference between nextDue and yieldDue is the required principal payment
      * @dev please note the first due date is set after the initial drawdown. All the future due
      * dates are computed by adding multiples of the payment interval to the first due date.
-     * @param _cr the credit record associated with the account
-     * @param _cc the credit config associated with with account
-     * @param _dd the due details associated with the account
+     * @param cr the credit record associated with the account
+     * @param cc the credit config associated with with account
+     * @param dd the due details associated with the account
      */
     function getDueInfo(
-        CreditRecord memory _cr,
-        CreditConfig memory _cc,
-        DueDetail memory _dd
-    ) external view returns (CreditRecord memory newCR, DueDetail memory newDD, bool isLate);
+        CreditRecord memory cr,
+        CreditConfig memory cc,
+        DueDetail memory dd,
+        uint256 timestamp
+    )
+        external
+        view
+        returns (CreditRecord memory newCR, DueDetail memory newDD, uint256 periodsPassed);
 
     function getPayoffAmount(CreditRecord memory cr) external view returns (uint256 payoffAmount);
 }

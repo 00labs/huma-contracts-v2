@@ -1089,29 +1089,6 @@ export async function calcYieldDueNew(
         );
     }
 
-    let periodsNextDue, periodsOverdue;
-    if (currentDate > maturityDate) {
-        periodsNextDue = 0;
-        periodsOverdue = await calendarContract.getNumPeriodsPassed(
-            cc.periodDuration,
-            cr.nextDueDate,
-            maturityDate.unix(),
-        );
-    } else {
-        periodsNextDue = 1;
-        const periodStartDate = await calendarContract.getStartDateOfPeriod(
-            cc.periodDuration,
-            currentDate.unix(),
-        );
-        periodsOverdue = await calendarContract.getNumPeriodsPassed(
-            cc.periodDuration,
-            cr.nextDueDate,
-            periodStartDate,
-        );
-        console.log(
-            `currentDate ${currentDate}, cr.nextDueDate ${cr.nextDueDate}, periodStartDate ${periodStartDate}, periodsOverdue ${periodsOverdue}`,
-        );
-    }
     const [accruedYieldPastDue, committedYieldPastDue] = calcYieldDue(
         cc,
         principal,
