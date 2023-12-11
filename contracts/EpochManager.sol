@@ -6,6 +6,7 @@ import {PoolConfig, PoolSettings, LPConfig} from "./PoolConfig.sol";
 import {PoolConfigCache} from "./PoolConfigCache.sol";
 import {IEpoch, EpochInfo} from "./interfaces/IEpoch.sol";
 import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
+import {ITranchesPolicy} from "./interfaces/ITranchesPolicy.sol";
 import {DEFAULT_DECIMALS_FACTOR, JUNIOR_TRANCHE, SENIOR_TRANCHE} from "./SharedDefs.sol";
 import {IEpochManager} from "./interfaces/IEpochManager.sol";
 import {Errors} from "./Errors.sol";
@@ -31,6 +32,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
     ITrancheVaultLike public seniorTranche;
     ITrancheVaultLike public juniorTranche;
     ICalendar public calendar;
+    ITranchesPolicy public tranchesPolicy;
 
     CurrentEpoch internal _currentEpoch;
 
@@ -71,6 +73,10 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         addr = _poolConfig.calendar();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         calendar = ICalendar(addr);
+
+        addr = _poolConfig.tranchesPolicy();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        tranchesPolicy = ITranchesPolicy(addr);
 
         addr = _poolConfig.underlyingToken();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
@@ -120,6 +126,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         }
 
         pool.updateTranchesAssets(tranchesAssets);
+        tranchesPolicy.refreshData(tranchesAssets);
 
         emit EpochClosed(
             ce.id,

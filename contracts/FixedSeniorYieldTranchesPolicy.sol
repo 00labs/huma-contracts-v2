@@ -13,46 +13,53 @@ import {SENIOR_TRANCHE, JUNIOR_TRANCHE, SECONDS_IN_A_YEAR, HUNDRED_PERCENT_IN_BP
  * the risk loss does not make it impossible.
  */
 contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
+    struct SeniorYieldData {
+        uint96 seniorDebt;
+        uint96 unpaidYield;
+        uint64 lastUpdatedDate;
+    }
+
+    SeniorYieldData public seniorYieldData;
+
+    function refreshData(uint96[2] memory assets) public override {
+        SeniorYieldData memory seniorData = _getSeniorData();
+        seniorData.seniorDebt = assets[SENIOR_TRANCHE];
+        seniorYieldData = seniorData;
+    }
+
     function distProfitToTranches(
         uint256 profit,
-        uint96[2] memory assets,
-        uint256 lastUpdatedTime
-    ) external view returns (uint96[2] memory newAssets) {
-        uint256 poolSafeAssets = IPoolSafe(poolConfig.poolSafe()).getPoolLiquidity();
-        uint256 totalAssets = assets[SENIOR_TRANCHE] + assets[JUNIOR_TRANCHE];
-        //* todo deployedTotalAssets below is not really true deployedTotalAsset.
-        // It is the total asset in the pool including the undeployed. For the calculation
-        // in this contract, we should use deployed. Overall: there are three kind of
-        // assets related to the pool: deployed (borrowed by the borrowers), idle in the pool,
-        // saved in the safe.
-        uint256 deployedTotalAssets = totalAssets - poolSafeAssets;
+        uint96[2] memory assets
+    ) external returns (uint96[2] memory newAssets) {
+        SeniorYieldData memory seniorData = _getSeniorData();
 
-        //* todo this calculation might be flawed. It assumed the same distribution of senior in
-        // the safe as the overall pool. This is not always the case.
-        uint256 deployedSeniorAssets = (deployedTotalAssets * assets[SENIOR_TRANCHE]) /
-            totalAssets;
-
-        uint256 seniorProfit;
-        if (block.timestamp > lastUpdatedTime) {
-            LPConfig memory lpConfig = poolConfig.getLPConfig();
-            // TODO: update the calculation using day0boundaries instead. We need to decide
-            // when the day boundary starts and ends.
-            seniorProfit =
-                (deployedSeniorAssets *
-                    lpConfig.fixedSeniorYieldInBps *
-                    (block.timestamp - lastUpdatedTime)) /
-                SECONDS_IN_A_YEAR /
-                HUNDRED_PERCENT_IN_BPS;
-        }
-
-        // TODO calculate senior apr last updated timestamp if profit < seniorProfit?
-        seniorProfit = seniorProfit > profit ? profit : seniorProfit;
+        uint256 seniorProfit = seniorData.unpaidYield > profit ? profit : seniorData.unpaidYield;
         uint256 juniorProfit = profit - seniorProfit;
-
-        //console.log("seniorProfit: %s, juniorProfit: %s", seniorProfit, juniorProfit);
 
         newAssets[SENIOR_TRANCHE] = assets[SENIOR_TRANCHE] + uint96(seniorProfit);
         newAssets[JUNIOR_TRANCHE] = assets[JUNIOR_TRANCHE] + uint96(juniorProfit);
+
+        seniorData.unpaidYield -= uint96(seniorProfit);
+        seniorData.seniorDebt = newAssets[SENIOR_TRANCHE];
+        seniorYieldData = seniorData;
+
         return newAssets;
+    }
+
+    function _getSeniorData() public view returns (SeniorYieldData memory) {
+        SeniorYieldData memory seniorData = seniorYieldData;
+        if (block.timestamp > seniorData.lastUpdatedDate) {
+            LPConfig memory lpConfig = poolConfig.getLPConfig();
+            seniorData.unpaidYield = uint96(
+                (seniorData.seniorDebt *
+                    lpConfig.fixedSeniorYieldInBps *
+                    (block.timestamp - seniorData.lastUpdatedDate)) /
+                    SECONDS_IN_A_YEAR /
+                    HUNDRED_PERCENT_IN_BPS
+            );
+            seniorData.lastUpdatedDate = uint64(block.timestamp);
+        }
+
+        return seniorData;
     }
 }

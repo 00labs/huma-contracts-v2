@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import {EpochInfo} from "./interfaces/IEpoch.sol";
 import {IEpochManager} from "./interfaces/IEpochManager.sol";
+import {ITranchesPolicy} from "./interfaces/ITranchesPolicy.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -36,6 +37,7 @@ contract TrancheVaultStorage {
     IPool public pool;
     IPoolSafe public poolSafe;
     IEpochManager public epochManager;
+    ITranchesPolicy public tranchesPolicy;
 
     // The IDs of all epochs where there is at least one redemption request.
     // Note that the index may not be contiguous: if there is no redemption request,

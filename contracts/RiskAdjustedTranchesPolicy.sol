@@ -15,8 +15,7 @@ contract RiskAdjustedTranchesPolicy is BaseTranchesPolicy {
      */
     function distProfitToTranches(
         uint256 profit,
-        uint96[2] memory assets,
-        uint256 /*lastUpdatedTime*/
+        uint96[2] memory assets
     ) external view returns (uint96[2] memory newAssets) {
         uint256 seniorAssets = assets[SENIOR_TRANCHE];
         uint256 juniorAssets = assets[JUNIOR_TRANCHE];

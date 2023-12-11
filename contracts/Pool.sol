@@ -23,8 +23,6 @@ contract Pool is PoolConfigCache, IPool {
     struct TranchesAssets {
         uint96 seniorTotalAssets; // total assets of senior tranche
         uint96 juniorTotalAssets; // total assets of junior tranche
-        // This is only used for FixedSeniorYieldTranchePolicy, TODO move it to FixedSeniorYieldTranchePolicy
-        uint64 lastProfitDistributedTime;
     }
 
     struct TranchesLosses {
@@ -176,8 +174,7 @@ contract Pool is PoolConfigCache, IPool {
         if (poolProfit > 0) {
             uint96[2] memory newAssets = tranchesPolicy.distProfitToTranches(
                 poolProfit,
-                [assets.seniorTotalAssets, assets.juniorTotalAssets],
-                assets.lastProfitDistributedTime
+                [assets.seniorTotalAssets, assets.juniorTotalAssets]
             );
             poolSafe.addUnprocessedProfit(
                 poolConfig.seniorTranche(),
@@ -200,8 +197,7 @@ contract Pool is PoolConfigCache, IPool {
 
             tranchesAssets = TranchesAssets({
                 seniorTotalAssets: newAssets[SENIOR_TRANCHE],
-                juniorTotalAssets: newAssets[JUNIOR_TRANCHE],
-                lastProfitDistributedTime: uint64(block.timestamp)
+                juniorTotalAssets: newAssets[JUNIOR_TRANCHE]
             });
             emit ProfitDistributed(profit, newAssets[SENIOR_TRANCHE], newAssets[JUNIOR_TRANCHE]);
         }
@@ -271,8 +267,7 @@ contract Pool is PoolConfigCache, IPool {
                     );
                 tranchesAssets = TranchesAssets({
                     seniorTotalAssets: newAssets[SENIOR_TRANCHE],
-                    juniorTotalAssets: newAssets[JUNIOR_TRANCHE],
-                    lastProfitDistributedTime: assets.lastProfitDistributedTime
+                    juniorTotalAssets: newAssets[JUNIOR_TRANCHE]
                 });
 
                 TranchesLosses memory losses = tranchesLosses;
@@ -306,8 +301,7 @@ contract Pool is PoolConfigCache, IPool {
                 );
             tranchesAssets = TranchesAssets({
                 seniorTotalAssets: newAssets[SENIOR_TRANCHE],
-                juniorTotalAssets: newAssets[JUNIOR_TRANCHE],
-                lastProfitDistributedTime: assets.lastProfitDistributedTime
+                juniorTotalAssets: newAssets[JUNIOR_TRANCHE]
             });
             tranchesLosses = TranchesLosses({
                 seniorLoss: newLosses[SENIOR_TRANCHE],
