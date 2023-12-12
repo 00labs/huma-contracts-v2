@@ -1446,7 +1446,6 @@ describe("CreditLine Test", function () {
 
                 const remainingPeriods = cr.remainingPeriods;
                 const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
-                console.log(`totalYieldDue ${totalYieldDue}, ${totalYieldDue.add(yieldDue)}`);
                 await expect(
                     creditContract.connect(borrower).drawdown(borrower.address, borrowAmount),
                 )
