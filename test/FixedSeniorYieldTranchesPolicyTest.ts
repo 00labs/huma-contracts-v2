@@ -64,7 +64,7 @@ let poolConfigContract: PoolConfig,
     creditContract: MockPoolCredit,
     creditDueManagerContract: CreditDueManager;
 
-describe.only("FixedSeniorYieldTranchePolicy Test", function () {
+describe("FixedSeniorYieldTranchePolicy Test", function () {
     before(async function () {
         [
             defaultDeployer,
