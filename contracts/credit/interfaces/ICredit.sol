@@ -17,6 +17,7 @@ interface ICredit {
 
     function updateDueInfo(
         bytes32 creditHash,
-        uint256 timestamp
-    ) external returns (CreditRecord memory cr, DueDetail memory dd);
+        CreditRecord memory cr,
+        DueDetail memory dd
+    ) external;
 }

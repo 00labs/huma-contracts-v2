@@ -1442,9 +1442,11 @@ describe("CreditLine Test", function () {
                     await calendarContract.getDaysDiff(startOfDay, nextDueDate)
                 ).toNumber();
                 [yieldDue] = calcYieldDue(cc, borrowAmount, days);
+                totalYieldDue = totalYieldDue.add(yieldDue);
 
                 const remainingPeriods = cr.remainingPeriods;
                 const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
+                console.log(`totalYieldDue ${totalYieldDue}, ${totalYieldDue.add(yieldDue)}`);
                 await expect(
                     creditContract.connect(borrower).drawdown(borrower.address, borrowAmount),
                 )
@@ -1455,8 +1457,6 @@ describe("CreditLine Test", function () {
                     .to.emit(poolContract, "ProfitDistributed");
                 const borrowerNewBalance = await mockTokenContract.balanceOf(borrower.address);
                 expect(borrowerNewBalance.sub(borrowerOldBalance)).to.equal(netBorrowAmount);
-
-                totalYieldDue = totalYieldDue.add(yieldDue);
 
                 cr = await creditContract.getCreditRecord(creditHash);
                 checkCreditRecord(

@@ -12,6 +12,7 @@ import {CreditManagerStorage} from "./CreditManagerStorage.sol";
 import {CreditClosureReason, CreditConfig, CreditLimit, CreditRecord, CreditState, DueDetail, PayPeriodDuration, CreditLoss} from "./CreditStructs.sol";
 import {Errors} from "../Errors.sol";
 import {DAYS_IN_A_MONTH, DAYS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS, SECONDS_IN_A_DAY} from "../SharedDefs.sol";
+import {ICreditDueManager} from "./utils/interfaces/ICreditDueManager.sol";
 
 import "hardhat/console.sol";
 
@@ -158,6 +159,10 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         addr = _poolConfig.credit();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         credit = ICredit(addr);
+
+        addr = _poolConfig.creditDueManager();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        dueManager = ICreditDueManager(addr);
     }
 
     /**
@@ -258,7 +263,10 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
             // 3. We have not yet reached the designated start date.
             revert Errors.committedCreditCannotBeStarted();
         }
-        credit.updateDueInfo(creditHash, cr.nextDueDate);
+        CreditConfig memory cc = getCreditConfig(creditHash);
+        DueDetail memory dd = credit.getDueDetail(creditHash);
+        (cr, dd) = dueManager.getDueInfo(cr, cc, dd, cr.nextDueDate);
+        credit.updateDueInfo(creditHash, cr, dd);
 
         emit CommittedCreditStarted(creditHash);
     }
@@ -311,14 +319,6 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
 
     /**
      * @notice Updates the account and brings its billing status current
-     * @dev If the account is defaulted, no need to update the account anymore.
-     * @dev If the account is ready to be defaulted but not yet, update the account without
-     * distributing the income for the upcoming period. Otherwise, update and distribute income.
-     * Note the reason that we do not distribute income in the final cycle anymore since
-     * it does not make sense to distribute income that we know cannot be collected to the
-     * administrators (e.g. protocol, pool owner and EA) since it will only add more losses
-     * to the LPs. Unfortunately, this special business consideration added more complexity
-     * and cognitive load to `updateDueInfo`.
      */
     function _refreshCredit(bytes32 creditHash) internal {
         CreditRecord memory cr = credit.getCreditRecord(creditHash);
@@ -326,7 +326,10 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
             // There is nothing to refresh when:
             // 1. the credit is approved but hasn't started yet;
             // 2. the credit has already been closed.
-            credit.updateDueInfo(creditHash, block.timestamp);
+            CreditConfig memory cc = getCreditConfig(creditHash);
+            DueDetail memory dd = credit.getDueDetail(creditHash);
+            (cr, dd) = dueManager.getDueInfo(cr, cc, dd, block.timestamp);
+            credit.updateDueInfo(creditHash, cr, dd);
         }
     }
 
@@ -343,11 +346,11 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         CreditRecord memory cr = credit.getCreditRecord(creditHash);
         if (cr.state == CreditState.Defaulted) revert Errors.defaultHasAlreadyBeenTriggered();
 
-        DueDetail memory dd;
-        (cr, dd) = credit.updateDueInfo(creditHash, block.timestamp);
+        CreditConfig memory cc = getCreditConfig(creditHash);
+        DueDetail memory dd = credit.getDueDetail(creditHash);
+        (cr, dd) = dueManager.getDueInfo(cr, cc, dd, block.timestamp);
 
         // Check if grace period has been exceeded.
-        CreditConfig memory cc = getCreditConfig(creditHash);
         if (!_isDefaultReady(cc.periodDuration, cr.missedPeriods))
             revert Errors.defaultTriggeredTooEarly();
 
@@ -365,7 +368,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         IPool(poolConfig.pool()).distributeLoss(cl.principalLoss + cl.yieldLoss + cl.feesLoss);
 
         cr.state = CreditState.Defaulted;
-        credit.setCreditRecord(creditHash, cr);
+        credit.updateDueInfo(creditHash, cr, dd);
         emit DefaultTriggered(creditHash, principalLoss, yieldLoss, feesLoss, msg.sender);
     }
 
@@ -375,17 +378,19 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
      * @param newNumOfPeriods the number of pay periods to be extended
      */
     function _extendRemainingPeriod(bytes32 creditHash, uint256 newNumOfPeriods) internal virtual {
-        // Although not essential to call updateDueInfo() to extend the credit line duration,
+        // Although not essential to call getDueInfo() to extend the credit line duration,
         // it is still a good practice to bring the account current while we update one of the fields.
-        (CreditRecord memory cr, ) = credit.updateDueInfo(creditHash, block.timestamp);
-
+        CreditRecord memory cr = credit.getCreditRecord(creditHash);
         CreditConfig memory cc = getCreditConfig(creditHash);
+        DueDetail memory dd = credit.getDueDetail(creditHash);
+        (cr, dd) = dueManager.getDueInfo(cr, cc, dd, block.timestamp);
+
         cc.numOfPeriods += uint16(newNumOfPeriods);
         _setCreditConfig(creditHash, cc);
 
         uint256 oldRemainingPeriods = cr.remainingPeriods;
         cr.remainingPeriods += uint16(newNumOfPeriods);
-        credit.setCreditRecord(creditHash, cr);
+        credit.updateDueInfo(creditHash, cr, dd);
 
         emit RemainingPeriodsExtended(
             creditHash,
@@ -396,12 +401,11 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
     }
 
     function _updateYield(bytes32 creditHash, uint256 yieldInBps) internal virtual {
-        (CreditRecord memory cr, DueDetail memory dd) = credit.updateDueInfo(
-            creditHash,
-            block.timestamp
-        );
-
+        CreditRecord memory cr = credit.getCreditRecord(creditHash);
         CreditConfig memory cc = getCreditConfig(creditHash);
+        DueDetail memory dd = credit.getDueDetail(creditHash);
+        (cr, dd) = dueManager.getDueInfo(cr, cc, dd, block.timestamp);
+
         uint256 oldYieldInBps = cc.yieldInBps;
         cc.yieldInBps = uint16(yieldInBps);
         _setCreditConfig(creditHash, cc);
@@ -411,10 +415,17 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         // 1. Deduct the yield that was computed with the previous rate from tomorrow onwards, and
         // 2. Incorporate the yield calculated with the new rate, also beginning tomorrow.
         dd.accrued = uint96(
-            _computeUpdatedYield(cc, cr, dd.accrued, oldYieldInBps, yieldInBps, principal)
+            dueManager.computeUpdatedYieldDue(
+                cc,
+                cr,
+                dd.accrued,
+                oldYieldInBps,
+                yieldInBps,
+                principal
+            )
         );
         dd.committed = uint96(
-            _computeUpdatedYield(
+            dueManager.computeUpdatedYieldDue(
                 cc,
                 cr,
                 dd.committed,
@@ -428,8 +439,8 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         cr.nextDue = uint96(cr.nextDue - cr.yieldDue + unpaidYieldDue);
         uint256 oldYieldDue = cr.yieldDue;
         cr.yieldDue = uint96(unpaidYieldDue);
-        credit.setCreditRecord(creditHash, cr);
-        credit.setDueDetail(creditHash, dd);
+        credit.updateDueInfo(creditHash, cr, dd);
+
         emit YieldUpdated(
             creditHash,
             oldYieldInBps,
@@ -451,11 +462,10 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         uint256 creditLimit,
         uint256 committedAmount
     ) internal virtual {
+        CreditRecord memory cr = credit.getCreditRecord(creditHash);
         CreditConfig memory cc = getCreditConfig(creditHash);
-        (CreditRecord memory cr, DueDetail memory dd) = credit.updateDueInfo(
-            creditHash,
-            block.timestamp
-        );
+        DueDetail memory dd = credit.getDueDetail(creditHash);
+        (cr, dd) = dueManager.getDueInfo(cr, cc, dd, block.timestamp);
 
         uint256 oldCreditLimit = cc.creditLimit;
         cc.creditLimit = uint96(creditLimit);
@@ -464,7 +474,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         _setCreditConfig(creditHash, cc);
 
         dd.committed = uint96(
-            _computeUpdatedYield(
+            dueManager.computeUpdatedYieldDue(
                 cc,
                 cr,
                 dd.committed,
@@ -478,8 +488,8 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         cr.nextDue = uint96(cr.nextDue - cr.yieldDue + unpaidYieldDue);
         uint256 oldYieldDue = cr.yieldDue;
         cr.yieldDue = uint96(unpaidYieldDue);
-        credit.setCreditRecord(creditHash, cr);
-        credit.setDueDetail(creditHash, dd);
+        credit.updateDueInfo(creditHash, cr, dd);
+
         emit LimitAndCommitmentUpdated(
             creditHash,
             oldCreditLimit,
@@ -496,43 +506,19 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         bytes32 creditHash,
         uint256 amount
     ) internal returns (uint256 amountWaived) {
-        (CreditRecord memory cr, DueDetail memory dd) = credit.updateDueInfo(
-            creditHash,
-            block.timestamp
-        );
+        CreditRecord memory cr = credit.getCreditRecord(creditHash);
+        CreditConfig memory cc = getCreditConfig(creditHash);
+        DueDetail memory dd = credit.getDueDetail(creditHash);
+        (cr, dd) = dueManager.getDueInfo(cr, cc, dd, block.timestamp);
+
         uint256 oldLateFee = dd.lateFee;
         amountWaived = amount > dd.lateFee ? dd.lateFee : amount;
         dd.lateFee -= uint96(amountWaived);
         cr.totalPastDue -= uint96(amountWaived);
-        credit.setCreditRecord(creditHash, cr);
-        credit.setDueDetail(creditHash, dd);
+        credit.updateDueInfo(creditHash, cr, dd);
+
         emit LateFeeWaived(creditHash, oldLateFee, dd.lateFee, msg.sender);
         return amountWaived;
-    }
-
-    /**
-     * @notice Returns the difference in yield due to the value that the yield is calculated from changed from the old
-     * value to the new value.
-     */
-    function _computeUpdatedYield(
-        CreditConfig memory cc,
-        CreditRecord memory cr,
-        uint256 oldYield,
-        uint256 oldValue,
-        uint256 newValue,
-        uint256 multiplier
-    ) internal view returns (uint256 updatedYield) {
-        (uint256 daysPassed, uint256 totalDays) = calendar.getDaysPassedInPeriod(
-            cc.periodDuration,
-            cr.nextDueDate
-        );
-        // Since the new value may be smaller than the old value, we need to work with signed integers.
-        int256 valueDiff = int256(newValue) - int256(oldValue);
-        // -1 since the new value takes effect the next day.
-        int256 yieldDiff = (int256((totalDays - daysPassed - 1) * multiplier) * valueDiff);
-        return
-            uint256(int256(oldYield * HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR) + yieldDiff) /
-            (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR);
     }
 
     /// Shared setter to the credit config mapping
