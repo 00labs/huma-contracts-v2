@@ -562,7 +562,7 @@ export async function deployAndSetupPoolContracts(
     ];
 }
 
-export type SeniorYieldData = { seniorDebt: BN; unpaidYield: BN; lastUpdatedDate: BN };
+export type SeniorYieldData = { totalAssets: BN; unpaidYield: BN; lastUpdatedDate: BN };
 
 function calcLatestSeniorData(
     currentTS: number,
@@ -572,7 +572,7 @@ function calcLatestSeniorData(
     let newSeniorData = { ...seniorYieldData };
     if (currentTS > newSeniorData.lastUpdatedDate.toNumber()) {
         newSeniorData.unpaidYield = newSeniorData.unpaidYield.add(
-            newSeniorData.seniorDebt
+            newSeniorData.totalAssets
                 .mul(BN.from(currentTS).sub(newSeniorData.lastUpdatedDate))
                 .mul(BN.from(yieldInBps))
                 .div(BN.from(CONSTANTS.SECONDS_IN_A_YEAR).mul(CONSTANTS.BP_FACTOR)),
@@ -593,7 +593,7 @@ function calcProfitForFixedSeniorYieldPolicy(
     let seniorProfit = newSeniorData.unpaidYield.gt(profit) ? profit : newSeniorData.unpaidYield;
     let juniorProfit = profit.sub(seniorProfit);
     newSeniorData.unpaidYield = newSeniorData.unpaidYield.sub(seniorProfit);
-    newSeniorData.seniorDebt = assets[CONSTANTS.SENIOR_TRANCHE].add(seniorProfit);
+    newSeniorData.totalAssets = assets[CONSTANTS.SENIOR_TRANCHE].add(seniorProfit);
 
     return [
         newSeniorData,
@@ -1031,7 +1031,7 @@ export function checkDueDetailsMatch(
 
 export function printSeniorData(seniorData: SeniorYieldData) {
     console.log(
-        `[${seniorData.seniorDebt}, ${seniorData.unpaidYield}, ${seniorData.lastUpdatedDate}]`,
+        `[${seniorData.totalAssets}, ${seniorData.unpaidYield}, ${seniorData.lastUpdatedDate}]`,
     );
 }
 
@@ -1040,7 +1040,7 @@ export function checkSeniorDatasMatch(
     expectedSD: SeniorYieldData,
     delta: BN = BN.from(0),
 ) {
-    expect(actualSD.seniorDebt).to.be.closeTo(expectedSD.seniorDebt, delta);
+    expect(actualSD.totalAssets).to.be.closeTo(expectedSD.totalAssets, delta);
     expect(actualSD.unpaidYield).to.be.closeTo(expectedSD.unpaidYield, delta);
     expect(actualSD.lastUpdatedDate).to.be.closeTo(expectedSD.lastUpdatedDate, delta);
 }

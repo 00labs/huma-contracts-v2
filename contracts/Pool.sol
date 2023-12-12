@@ -195,6 +195,8 @@ contract Pool is PoolConfigCache, IPool {
                 );
             }
 
+            // Don't call _updateTranchesAssets() here because tranchePolicy.refreshData() has already
+            // been called in distProfitToTranches().
             tranchesAssets = TranchesAssets({
                 seniorTotalAssets: newAssets[SENIOR_TRANCHE],
                 juniorTotalAssets: newAssets[JUNIOR_TRANCHE]
@@ -265,10 +267,7 @@ contract Pool is PoolConfigCache, IPool {
                         loss,
                         [assets.seniorTotalAssets, assets.juniorTotalAssets]
                     );
-                tranchesAssets = TranchesAssets({
-                    seniorTotalAssets: newAssets[SENIOR_TRANCHE],
-                    juniorTotalAssets: newAssets[JUNIOR_TRANCHE]
-                });
+                _updateTranchesAssets(newAssets);
 
                 TranchesLosses memory losses = tranchesLosses;
                 losses.seniorLoss += lossesDelta[SENIOR_TRANCHE];
@@ -299,10 +298,7 @@ contract Pool is PoolConfigCache, IPool {
                     [assets.seniorTotalAssets, assets.juniorTotalAssets],
                     [losses.seniorLoss, losses.juniorLoss]
                 );
-            tranchesAssets = TranchesAssets({
-                seniorTotalAssets: newAssets[SENIOR_TRANCHE],
-                juniorTotalAssets: newAssets[JUNIOR_TRANCHE]
-            });
+            _updateTranchesAssets(newAssets);
             tranchesLosses = TranchesLosses({
                 seniorLoss: newLosses[SENIOR_TRANCHE],
                 juniorLoss: newLosses[JUNIOR_TRANCHE]
@@ -340,15 +336,19 @@ contract Pool is PoolConfigCache, IPool {
 
     function updateTranchesAssets(uint96[2] memory assets) external {
         _onlyTrancheVaultOrEpochManager(msg.sender);
-
-        TranchesAssets memory tempTranchesAssets = tranchesAssets;
-        tempTranchesAssets.seniorTotalAssets = assets[SENIOR_TRANCHE];
-        tempTranchesAssets.juniorTotalAssets = assets[JUNIOR_TRANCHE];
-        tranchesAssets = tempTranchesAssets;
+        _updateTranchesAssets(assets);
     }
 
     function getFirstLossCovers() external view returns (IFirstLossCover[] memory) {
         return _firstLossCovers;
+    }
+
+    function _updateTranchesAssets(uint96[2] memory assets) internal {
+        tranchesAssets = TranchesAssets({
+            seniorTotalAssets: assets[SENIOR_TRANCHE],
+            juniorTotalAssets: assets[JUNIOR_TRANCHE]
+        });
+        tranchesPolicy.refreshData(assets);
     }
 
     /// @inheritdoc IPool

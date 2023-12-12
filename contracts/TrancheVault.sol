@@ -229,9 +229,6 @@ contract TrancheVault is
 
         tranches[trancheIndex] += uint96(assets);
         pool.updateTranchesAssets(tranches);
-        if (trancheIndex == SENIOR_TRANCHE) {
-            tranchesPolicy.refreshData(tranches);
-        }
 
         emit LiquidityDeposited(receiver, assets, shares);
     }

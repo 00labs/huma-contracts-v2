@@ -17,7 +17,7 @@ interface ITranchesPolicy {
     function distLossToTranches(
         uint256 loss,
         uint96[2] memory assets
-    ) external returns (uint96[2] memory updatedAssets, uint96[2] memory losses);
+    ) external pure returns (uint96[2] memory updatedAssets, uint96[2] memory losses);
 
     /**
      * @notice Write function of distributing loss recovery to tranches
@@ -35,6 +35,7 @@ interface ITranchesPolicy {
         uint96[2] memory losses
     )
         external
+        pure
         returns (
             uint256 remainingLossRecovery,
             uint96[2] memory newAssets,

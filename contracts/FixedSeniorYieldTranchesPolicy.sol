@@ -14,7 +14,7 @@ import {SENIOR_TRANCHE, JUNIOR_TRANCHE, SECONDS_IN_A_YEAR, HUNDRED_PERCENT_IN_BP
  */
 contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
     struct SeniorYieldData {
-        uint96 seniorDebt;
+        uint96 totalAssets;
         uint96 unpaidYield;
         uint64 lastUpdatedDate;
     }
@@ -22,16 +22,22 @@ contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
     SeniorYieldData public seniorYieldData;
 
     function refreshData(uint96[2] memory assets) public override {
-        SeniorYieldData memory seniorData = _getSeniorData();
-        seniorData.seniorDebt = assets[SENIOR_TRANCHE];
-        seniorYieldData = seniorData;
+        (SeniorYieldData memory seniorData, bool updated) = _getSeniorData();
+        if (seniorData.totalAssets != assets[SENIOR_TRANCHE]) {
+            seniorData.totalAssets = assets[SENIOR_TRANCHE];
+            updated = true;
+        }
+        if (updated) {
+            seniorYieldData = seniorData;
+        }
     }
 
     function distProfitToTranches(
         uint256 profit,
         uint96[2] memory assets
     ) external returns (uint96[2] memory newAssets) {
-        SeniorYieldData memory seniorData = _getSeniorData();
+        // Accrues senior tranches yield to the current block timestamp first
+        (SeniorYieldData memory seniorData, ) = _getSeniorData();
 
         uint256 seniorProfit = seniorData.unpaidYield > profit ? profit : seniorData.unpaidYield;
         uint256 juniorProfit = profit - seniorProfit;
@@ -40,26 +46,27 @@ contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
         newAssets[JUNIOR_TRANCHE] = assets[JUNIOR_TRANCHE] + uint96(juniorProfit);
 
         seniorData.unpaidYield -= uint96(seniorProfit);
-        seniorData.seniorDebt = newAssets[SENIOR_TRANCHE];
+        seniorData.totalAssets = newAssets[SENIOR_TRANCHE];
         seniorYieldData = seniorData;
 
         return newAssets;
     }
 
-    function _getSeniorData() public view returns (SeniorYieldData memory) {
+    function _getSeniorData() public view returns (SeniorYieldData memory, bool updated) {
         SeniorYieldData memory seniorData = seniorYieldData;
         if (block.timestamp > seniorData.lastUpdatedDate) {
             LPConfig memory lpConfig = poolConfig.getLPConfig();
-            seniorData.unpaidYield = uint96(
-                (seniorData.seniorDebt *
+            seniorData.unpaidYield += uint96(
+                (seniorData.totalAssets *
                     lpConfig.fixedSeniorYieldInBps *
                     (block.timestamp - seniorData.lastUpdatedDate)) /
                     SECONDS_IN_A_YEAR /
                     HUNDRED_PERCENT_IN_BPS
             );
             seniorData.lastUpdatedDate = uint64(block.timestamp);
+            updated = true;
         }
 
-        return seniorData;
+        return (seniorData, updated);
     }
 }

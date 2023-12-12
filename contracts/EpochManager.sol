@@ -126,7 +126,6 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         }
 
         pool.updateTranchesAssets(tranchesAssets);
-        tranchesPolicy.refreshData(tranchesAssets);
 
         emit EpochClosed(
             ce.id,

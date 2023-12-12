@@ -13,7 +13,7 @@ abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
     function distLossToTranches(
         uint256 loss,
         uint96[2] memory assets
-    ) external returns (uint96[2] memory updatedAssets, uint96[2] memory losses) {
+    ) external pure returns (uint96[2] memory updatedAssets, uint96[2] memory losses) {
         uint256 juniorTotalAssets = assets[JUNIOR_TRANCHE];
         // Distribute losses to junior tranche up to the total junior asset
         losses[JUNIOR_TRANCHE] = uint96(juniorTotalAssets >= loss ? loss : juniorTotalAssets);
@@ -21,7 +21,6 @@ abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
         updatedAssets[JUNIOR_TRANCHE] = uint96(assets[JUNIOR_TRANCHE] - losses[JUNIOR_TRANCHE]);
         updatedAssets[SENIOR_TRANCHE] = uint96(assets[SENIOR_TRANCHE] - losses[SENIOR_TRANCHE]);
 
-        refreshData(updatedAssets);
         return (updatedAssets, losses);
     }
 
@@ -30,7 +29,7 @@ abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
         uint256 lossRecovery,
         uint96[2] memory assets,
         uint96[2] memory losses
-    ) external returns (uint256 remainingLossRecovery, uint96[2] memory, uint96[2] memory) {
+    ) external pure returns (uint256 remainingLossRecovery, uint96[2] memory, uint96[2] memory) {
         uint96 seniorLoss = losses[SENIOR_TRANCHE];
         // Allocates recovery to senior first, up to the total senior losses
         uint256 seniorLossRecovery = lossRecovery >= seniorLoss ? seniorLoss : lossRecovery;
@@ -49,8 +48,6 @@ abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
             losses[JUNIOR_TRANCHE] -= uint96(juniorLossRecovery);
             remainingLossRecovery = remainingLossRecovery - juniorLossRecovery;
         }
-
-        refreshData(assets);
 
         return (remainingLossRecovery, assets, losses);
     }
