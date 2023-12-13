@@ -363,20 +363,21 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
                         dd.yieldPastDue -= uint96(amount);
                         amount = 0;
                     }
-                    if (amount > dd.principalPastDue) {
-                        amount -= dd.principalPastDue;
-                        paymentRecord.principalPastDuePaid = dd.principalPastDue;
-                        dd.principalPastDue = 0;
-                    } else if (amount > 0) {
-                        paymentRecord.principalPastDuePaid = amount;
-                        dd.principalPastDue -= uint96(amount);
+                    if (amount > dd.lateFee) {
+                        amount -= dd.lateFee;
+                        paymentRecord.lateFeePaid = dd.lateFee;
+                        dd.lateFee = 0;
+                    } else {
+                        paymentRecord.lateFeePaid = amount;
+                        dd.lateFee -= uint96(amount);
                         amount = 0;
                     }
                     // Since `amount < totalPastDue`, the remaining amount must be smaller than
-                    // the late fee (unless the late fee is 0, in which case the amount must be 0 as well).
+                    // the principal past due (unless the principal past due is 0, in which case the amount must
+                    // be 0 as well).
                     if (amount > 0) {
-                        dd.lateFee -= uint96(amount);
-                        paymentRecord.lateFeePaid = amount;
+                        paymentRecord.principalPastDuePaid = amount;
+                        dd.principalPastDue -= uint96(amount);
                         amount = 0;
                     }
                     cr.totalPastDue -= uint96(
@@ -440,7 +441,6 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
 
             if (cr.state == CreditState.Defaulted) {
                 // Clear `CreditLoss` if recovered from default.
-                // TODO(jiatu): test this when we test default.
                 CreditLoss memory cl = getCreditLoss(creditHash);
                 cl.principalLoss = 0;
                 cl.yieldLoss = 0;
@@ -576,7 +576,6 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         uint256 borrowAmount,
         uint256 creditLimit
     ) internal view {
-        console.log("cr.nextDue %d, cr.nextDueDate %d", cr.nextDue, cr.nextDueDate);
         if (!firstLossCover.isSufficient(borrower))
             revert Errors.insufficientBorrowerFirstLossCover();
 

@@ -3473,22 +3473,20 @@ describe("CreditLine Test", function () {
                         lateFeePaid = remainingLateFee;
                         remainingLateFee = BN.from(0);
                         remainingPaymentAmount = paymentAmount.sub(remainingPastDue);
-                    } else if (
-                        paymentAmount.gte(remainingYieldPastDue.add(remainingPrincipalPastDue))
-                    ) {
-                        lateFeePaid = paymentAmount
+                    } else if (paymentAmount.gte(remainingYieldPastDue.add(remainingLateFee))) {
+                        principalPastDuePaid = paymentAmount
                             .sub(remainingYieldPastDue)
-                            .sub(remainingPrincipalPastDue);
-                        remainingLateFee = remainingLateFee.sub(lateFeePaid);
-                        yieldPastDuePaid = remainingYieldPastDue;
-                        remainingYieldPastDue = BN.from(0);
-                        principalPastDuePaid = remainingPrincipalPastDue;
-                        remainingPrincipalPastDue = BN.from(0);
-                        remainingPaymentAmount = BN.from(0);
-                    } else if (paymentAmount.gte(remainingYieldPastDue)) {
-                        principalPastDuePaid = paymentAmount.sub(remainingYieldPastDue);
+                            .sub(remainingLateFee);
                         remainingPrincipalPastDue =
                             remainingPrincipalPastDue.sub(principalPastDuePaid);
+                        yieldPastDuePaid = remainingYieldPastDue;
+                        remainingYieldPastDue = BN.from(0);
+                        lateFeePaid = remainingLateFee;
+                        remainingLateFee = BN.from(0);
+                        remainingPaymentAmount = BN.from(0);
+                    } else if (paymentAmount.gte(remainingYieldPastDue)) {
+                        lateFeePaid = paymentAmount.sub(remainingYieldPastDue);
+                        remainingLateFee = remainingLateFee.sub(lateFeePaid);
                         yieldPastDuePaid = remainingYieldPastDue;
                         remainingYieldPastDue = BN.from(0);
                         remainingPaymentAmount = BN.from(0);
@@ -3693,29 +3691,13 @@ describe("CreditLine Test", function () {
                 } else {
                     creditState = cr.state;
                 }
-                // if (
-                //     remainingPeriods === 0 &&
-                //     remainingUnbilledPrincipal.isZero() &&
-                //     nextDueAfter.isZero() &&
-                //     remainingPastDue.isZero()
-                // ) {
-                //     creditState = CreditState.Deleted;
-                // } else if (missedPeriods !== 0) {
-                //     creditState = cr.state;
-                // } else {
-                //     if (cr.state === CreditState.Delayed) {
-                //         creditState = CreditState.GoodStanding;
-                //     } else {
-                //         creditState = cr.state;
-                //     }
-                // }
                 const expectedNewCR = {
                     unbilledPrincipal: remainingUnbilledPrincipal,
                     nextDueDate: newDueDate,
                     nextDue: nextDueAfter,
                     yieldDue: remainingYieldNextDue,
                     totalPastDue: remainingPastDue,
-                    missedPeriods: missedPeriods,
+                    missedPeriods,
                     remainingPeriods,
                     state: creditState,
                 };
@@ -4788,28 +4770,14 @@ describe("CreditLine Test", function () {
                                 latePaymentGracePeriodInDays,
                             );
                             setNextBlockTimestamp(thirdPaymentDate.unix());
-                            await testMakePayment(yieldNextDue.add(lateFee), thirdPaymentDate);
+                            await testMakePayment(borrowAmount.add(lateFee), thirdPaymentDate);
 
-                            const fourthPaymentDate = thirdPaymentDate.clone().add("11", "hours");
-                            cr = await creditContract.getCreditRecord(creditHash);
-                            dd = await creditContract.getDueDetail(creditHash);
-                            [, lateFee] = await calcLateFeeNew(
-                                poolConfigContract,
-                                calendarContract,
-                                cr,
-                                dd,
-                                fourthPaymentDate,
-                                latePaymentGracePeriodInDays,
-                            );
-                            setNextBlockTimestamp(fourthPaymentDate.unix());
-                            await testMakePayment(borrowAmount.add(lateFee), fourthPaymentDate);
-
-                            const fifthPaymentDate = fourthPaymentDate
+                            const fourthPaymentDate = thirdPaymentDate
                                 .clone()
                                 .add(2, "days")
                                 .add("21", "hours")
                                 .add(1, "second");
-                            setNextBlockTimestamp(fifthPaymentDate.unix());
+                            setNextBlockTimestamp(fourthPaymentDate.unix());
                             await expect(
                                 creditContract
                                     .connect(borrower)
@@ -6056,7 +6024,7 @@ describe("CreditLine Test", function () {
                             await testMakePayment(paymentAmount);
                         });
 
-                        it("Should allow the borrower to make partial payment that covers all of yield and principal past due and part of late fee", async function () {
+                        it("Should allow the borrower to make partial payment that covers all of yield and late fee and part of principal past due", async function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
@@ -6075,19 +6043,15 @@ describe("CreditLine Test", function () {
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
-                            const [, principalPastDue] = await calcPrincipalDueNew(
+                            const [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
                                 calendarContract,
-                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                principalRateInBps,
                             );
-                            const paymentAmount = yieldPastDue
-                                .add(principalPastDue)
-                                .add(toToken(1));
+                            const paymentAmount = yieldPastDue.add(lateFee).add(toToken(1));
                             await testMakePayment(paymentAmount);
                         });
 
@@ -6397,7 +6361,7 @@ describe("CreditLine Test", function () {
                             await testMakePayment(paymentAmount);
                         });
 
-                        it("Should allow the borrower to make partial payment that covers all of yield and principal past due and part of late fee", async function () {
+                        it("Should allow the borrower to make partial payment that covers all of yield past due and late fee and part of principal past due", async function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
@@ -6416,19 +6380,15 @@ describe("CreditLine Test", function () {
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
-                            const [, principalPastDue] = await calcPrincipalDueNew(
+                            const [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
                                 calendarContract,
-                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                principalRateInBps,
                             );
-                            const paymentAmount = yieldPastDue
-                                .add(principalPastDue)
-                                .add(toToken(1));
+                            const paymentAmount = yieldPastDue.add(lateFee).add(toToken(1));
                             await testMakePayment(paymentAmount);
                         });
 
@@ -6677,7 +6637,7 @@ describe("CreditLine Test", function () {
                             await testMakePayment(paymentAmount);
                         });
 
-                        it("Should allow the borrower to make partial payment that covers all of yield and principal past due and part of late fee", async function () {
+                        it("Should allow the borrower to make partial payment that covers all of yield past due and late fee and part of principal past due", async function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
@@ -6696,19 +6656,15 @@ describe("CreditLine Test", function () {
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
-                            const [, principalPastDue] = await calcPrincipalDueNew(
+                            const [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
                                 calendarContract,
-                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                principalRateInBps,
                             );
-                            const paymentAmount = yieldPastDue
-                                .add(principalPastDue)
-                                .add(toToken(1));
+                            const paymentAmount = yieldPastDue.add(lateFee).add(toToken(1));
                             await testMakePayment(paymentAmount);
                         });
 
@@ -6886,7 +6842,7 @@ describe("CreditLine Test", function () {
                             await testMakePayment(paymentAmount);
                         });
 
-                        it("Should allow the borrower to make partial payment that covers all of yield and principal past due and part of late fee", async function () {
+                        it("Should allow the borrower to make partial payment that covers all of yield past due and late fee and part of principal past due", async function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
@@ -6905,19 +6861,15 @@ describe("CreditLine Test", function () {
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
-                            const [, principalPastDue] = await calcPrincipalDueNew(
+                            const [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
                                 calendarContract,
-                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                principalRateInBps,
                             );
-                            const paymentAmount = yieldPastDue
-                                .add(principalPastDue)
-                                .add(toToken(1));
+                            const paymentAmount = yieldPastDue.add(lateFee).add(toToken(1));
                             await testMakePayment(paymentAmount);
                         });
 
@@ -7114,7 +7066,7 @@ describe("CreditLine Test", function () {
                             await testMakePayment(paymentAmount);
                         });
 
-                        it("Should allow the borrower to make partial payment that covers all of yield and principal past due and part of late fee", async function () {
+                        it("Should allow the borrower to make partial payment that covers all of yield past due and late fee and principal past due", async function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
@@ -7133,19 +7085,15 @@ describe("CreditLine Test", function () {
                                 moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
-                            const [, principalPastDue] = await calcPrincipalDueNew(
+                            const [, lateFee] = await calcLateFeeNew(
+                                poolConfigContract,
                                 calendarContract,
-                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
-                                principalRateInBps,
                             );
-                            const paymentAmount = yieldPastDue
-                                .add(principalPastDue)
-                                .add(toToken(1));
+                            const paymentAmount = yieldPastDue.add(lateFee).add(toToken(1));
                             await testMakePayment(paymentAmount);
                         });
 
