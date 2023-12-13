@@ -7,7 +7,7 @@ pragma solidity ^0.8.0;
 
 interface ITranchesPolicy {
     /**
-     * @notice Write function of distributing loss to tranches
+     * @notice Distributing loss to tranches
      * @dev Passing asset value for the tranches as a parameter to make the function stateless
      * @param loss the loss amount
      * @param assets assets for each tranche, index 0 for senior, 1 for junior
@@ -20,7 +20,7 @@ interface ITranchesPolicy {
     ) external pure returns (uint96[2] memory updatedAssets, uint96[2] memory losses);
 
     /**
-     * @notice Write function of distributing loss recovery to tranches
+     * @notice Distributing loss recovery to tranches
      * @dev Passing asset value for the tranches as a parameter to make the function stateless
      * @param lossRecovery the loss recovery amount
      * @param assets assets for each tranche, index 0 for senior, 1 for junior
@@ -43,7 +43,7 @@ interface ITranchesPolicy {
         );
 
     /**
-     * @notice Write function of distributing profit to tranches
+     * @notice Distributing profit to tranches
      * @dev Passing asset value for the tranches as a parameter to make the function stateless
      * @param profit the profit amount
      * @param assets assets for each tranche, assets[0] for senior and assets[1] for junior
@@ -60,5 +60,5 @@ interface ITranchesPolicy {
      * update the senior total assets which is updated when distributing profit/loss/loss recovery
      * @param assets assets for each tranche, assets[0] for senior and assets[1] for junior
      */
-    function refreshData(uint96[2] memory assets) external;
+    function refreshTracker(uint96[2] memory assets) external;
 }

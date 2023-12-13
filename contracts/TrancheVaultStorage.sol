@@ -37,7 +37,6 @@ contract TrancheVaultStorage {
     IPool public pool;
     IPoolSafe public poolSafe;
     IEpochManager public epochManager;
-    ITranchesPolicy public tranchesPolicy;
 
     // The IDs of all epochs where there is at least one redemption request.
     // Note that the index may not be contiguous: if there is no redemption request,

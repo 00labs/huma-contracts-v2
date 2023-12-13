@@ -13,22 +13,22 @@ import {SENIOR_TRANCHE, JUNIOR_TRANCHE, SECONDS_IN_A_YEAR, HUNDRED_PERCENT_IN_BP
  * the risk loss does not make it impossible.
  */
 contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
-    struct SeniorYieldData {
+    struct SeniorYieldTracker {
         uint96 totalAssets;
         uint96 unpaidYield;
         uint64 lastUpdatedDate;
     }
 
-    SeniorYieldData public seniorYieldData;
+    SeniorYieldTracker public seniorYieldTracker;
 
-    function refreshData(uint96[2] memory assets) public override {
-        (SeniorYieldData memory seniorData, bool updated) = _getSeniorData();
-        if (seniorData.totalAssets != assets[SENIOR_TRANCHE]) {
-            seniorData.totalAssets = assets[SENIOR_TRANCHE];
+    function refreshTracker(uint96[2] memory assets) public override {
+        (SeniorYieldTracker memory tracker, bool updated) = _getSeniorTracker();
+        if (tracker.totalAssets != assets[SENIOR_TRANCHE]) {
+            tracker.totalAssets = assets[SENIOR_TRANCHE];
             updated = true;
         }
         if (updated) {
-            seniorYieldData = seniorData;
+            seniorYieldTracker = tracker;
         }
     }
 
@@ -37,36 +37,36 @@ contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
         uint96[2] memory assets
     ) external returns (uint96[2] memory newAssets) {
         // Accrues senior tranches yield to the current block timestamp first
-        (SeniorYieldData memory seniorData, ) = _getSeniorData();
+        (SeniorYieldTracker memory tracker, ) = _getSeniorTracker();
 
-        uint256 seniorProfit = seniorData.unpaidYield > profit ? profit : seniorData.unpaidYield;
+        uint256 seniorProfit = tracker.unpaidYield > profit ? profit : tracker.unpaidYield;
         uint256 juniorProfit = profit - seniorProfit;
 
         newAssets[SENIOR_TRANCHE] = assets[SENIOR_TRANCHE] + uint96(seniorProfit);
         newAssets[JUNIOR_TRANCHE] = assets[JUNIOR_TRANCHE] + uint96(juniorProfit);
 
-        seniorData.unpaidYield -= uint96(seniorProfit);
-        seniorData.totalAssets = newAssets[SENIOR_TRANCHE];
-        seniorYieldData = seniorData;
+        tracker.unpaidYield -= uint96(seniorProfit);
+        tracker.totalAssets = newAssets[SENIOR_TRANCHE];
+        seniorYieldTracker = tracker;
 
         return newAssets;
     }
 
-    function _getSeniorData() public view returns (SeniorYieldData memory, bool updated) {
-        SeniorYieldData memory seniorData = seniorYieldData;
-        if (block.timestamp > seniorData.lastUpdatedDate) {
+    function _getSeniorTracker() public view returns (SeniorYieldTracker memory, bool updated) {
+        SeniorYieldTracker memory tracker = seniorYieldTracker;
+        if (block.timestamp > tracker.lastUpdatedDate) {
             LPConfig memory lpConfig = poolConfig.getLPConfig();
-            seniorData.unpaidYield += uint96(
-                (seniorData.totalAssets *
+            tracker.unpaidYield += uint96(
+                (tracker.totalAssets *
                     lpConfig.fixedSeniorYieldInBps *
-                    (block.timestamp - seniorData.lastUpdatedDate)) /
+                    (block.timestamp - tracker.lastUpdatedDate)) /
                     SECONDS_IN_A_YEAR /
                     HUNDRED_PERCENT_IN_BPS
             );
-            seniorData.lastUpdatedDate = uint64(block.timestamp);
+            tracker.lastUpdatedDate = uint64(block.timestamp);
             updated = true;
         }
 
-        return (seniorData, updated);
+        return (tracker, updated);
     }
 }

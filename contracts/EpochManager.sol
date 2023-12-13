@@ -32,7 +32,6 @@ contract EpochManager is PoolConfigCache, IEpochManager {
     ITrancheVaultLike public seniorTranche;
     ITrancheVaultLike public juniorTranche;
     ICalendar public calendar;
-    ITranchesPolicy public tranchesPolicy;
 
     CurrentEpoch internal _currentEpoch;
 
@@ -73,10 +72,6 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         addr = _poolConfig.calendar();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         calendar = ICalendar(addr);
-
-        addr = _poolConfig.tranchesPolicy();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
-        tranchesPolicy = ITranchesPolicy(addr);
 
         addr = _poolConfig.underlyingToken();
         if (addr == address(0)) revert Errors.zeroAddressProvided();

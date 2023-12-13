@@ -195,7 +195,7 @@ contract Pool is PoolConfigCache, IPool {
                 );
             }
 
-            // Don't call _updateTranchesAssets() here because tranchePolicy.refreshData() has already
+            // Don't call _updateTranchesAssets() here because tranchePolicy.refreshTracker() has already
             // been called in distProfitToTranches().
             tranchesAssets = TranchesAssets({
                 seniorTotalAssets: newAssets[SENIOR_TRANCHE],
@@ -348,7 +348,7 @@ contract Pool is PoolConfigCache, IPool {
             seniorTotalAssets: assets[SENIOR_TRANCHE],
             juniorTotalAssets: assets[JUNIOR_TRANCHE]
         });
-        tranchesPolicy.refreshData(assets);
+        tranchesPolicy.refreshTracker(assets);
     }
 
     /// @inheritdoc IPool

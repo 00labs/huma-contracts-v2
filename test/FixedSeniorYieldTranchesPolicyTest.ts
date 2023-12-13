@@ -22,11 +22,11 @@ import {
 import {
     CONSTANTS,
     PnLCalculator,
-    SeniorYieldData,
-    checkSeniorDatasMatch,
+    SeniorYieldTracker,
+    checkSeniorYieldTrackersMatch,
     deployAndSetupPoolContracts,
     deployProtocolContracts,
-    printSeniorData,
+    printSeniorYieldTracker,
 } from "./BaseTest";
 import {
     getLatestBlock,
@@ -148,13 +148,13 @@ describe("FixedSeniorYieldTranchePolicy Test", function () {
             let nextDate = lastBlock.timestamp + 10;
             await mineNextBlockWithTimestamp(nextDate);
 
-            let seniorData = await tranchesPolicyContract.seniorYieldData();
+            let tracker = await tranchesPolicyContract.seniorYieldTracker();
             let [, newAssets] = PnLCalculator.calcProfitForFixedSeniorYieldPolicy(
                 profit,
                 assets,
                 nextDate,
                 apy,
-                seniorData,
+                tracker,
             );
 
             const afterAssets = await tranchesPolicyContract.callStatic.distProfitToTranches(
@@ -177,21 +177,20 @@ describe("FixedSeniorYieldTranchePolicy Test", function () {
             nextDate = lastBlock.timestamp + 100;
             await setNextBlockTimestamp(nextDate);
 
-            let newSeniorData: SeniorYieldData;
-            [newSeniorData, newAssets] = PnLCalculator.calcProfitForFixedSeniorYieldPolicy(
+            let newTracker: SeniorYieldTracker;
+            [newTracker, newAssets] = PnLCalculator.calcProfitForFixedSeniorYieldPolicy(
                 profit,
                 assets,
                 nextDate,
                 apy,
-                seniorData,
+                tracker,
             );
-            // printSeniorData(newSeniorData);
             await tranchesPolicyContract.distProfitToTranches(profit, assets);
-            const afterSeniorData = await tranchesPolicyContract.seniorYieldData();
-            checkSeniorDatasMatch(afterSeniorData, newSeniorData);
-            expect(afterSeniorData.unpaidYield).to.greaterThan(0);
-            expect(afterSeniorData.lastUpdatedDate).to.equal(nextDate);
-            expect(afterSeniorData.totalAssets).to.equal(newAssets[CONSTANTS.SENIOR_TRANCHE]);
+            const afterSeniorTracker = await tranchesPolicyContract.seniorYieldTracker();
+            checkSeniorYieldTrackersMatch(afterSeniorTracker, newTracker);
+            expect(afterSeniorTracker.unpaidYield).to.greaterThan(0);
+            expect(afterSeniorTracker.lastUpdatedDate).to.equal(nextDate);
+            expect(afterSeniorTracker.totalAssets).to.equal(newAssets[CONSTANTS.SENIOR_TRANCHE]);
         });
 
         it("Profit is enough for both senior tranche and junior tranche", async function () {
@@ -203,13 +202,13 @@ describe("FixedSeniorYieldTranchePolicy Test", function () {
             let nextDate = lastBlock.timestamp + 10;
             await mineNextBlockWithTimestamp(nextDate);
 
-            let seniorData = await tranchesPolicyContract.seniorYieldData();
+            let tracker = await tranchesPolicyContract.seniorYieldTracker();
             let [, newAssets] = PnLCalculator.calcProfitForFixedSeniorYieldPolicy(
                 profit,
                 assets,
                 nextDate,
                 apy,
-                seniorData,
+                tracker,
             );
 
             const afterAssets = await tranchesPolicyContract.callStatic.distProfitToTranches(
@@ -232,21 +231,21 @@ describe("FixedSeniorYieldTranchePolicy Test", function () {
             nextDate = lastBlock.timestamp + 100;
             await setNextBlockTimestamp(nextDate);
 
-            let newSeniorData: SeniorYieldData;
-            [newSeniorData, newAssets] = PnLCalculator.calcProfitForFixedSeniorYieldPolicy(
+            let newTracker: SeniorYieldTracker;
+            [newTracker, newAssets] = PnLCalculator.calcProfitForFixedSeniorYieldPolicy(
                 profit,
                 assets,
                 nextDate,
                 apy,
-                seniorData,
+                tracker,
             );
             // printSeniorData(newSeniorData);
             await tranchesPolicyContract.distProfitToTranches(profit, assets);
-            const afterSeniorData = await tranchesPolicyContract.seniorYieldData();
-            checkSeniorDatasMatch(afterSeniorData, newSeniorData);
-            expect(afterSeniorData.unpaidYield).to.equal(0);
-            expect(afterSeniorData.lastUpdatedDate).to.equal(nextDate);
-            expect(afterSeniorData.totalAssets).to.equal(newAssets[CONSTANTS.SENIOR_TRANCHE]);
+            const afterTracker = await tranchesPolicyContract.seniorYieldTracker();
+            checkSeniorYieldTrackersMatch(afterTracker, newTracker);
+            expect(afterTracker.unpaidYield).to.equal(0);
+            expect(afterTracker.lastUpdatedDate).to.equal(nextDate);
+            expect(afterTracker.totalAssets).to.equal(newAssets[CONSTANTS.SENIOR_TRANCHE]);
         });
 
         it("Distribute loss", async function () {
@@ -254,14 +253,13 @@ describe("FixedSeniorYieldTranchePolicy Test", function () {
             let nextDate = lastBlock.timestamp + 100;
             await setNextBlockTimestamp(nextDate);
 
-            let seniorData = await tranchesPolicyContract.seniorYieldData();
-            // printSeniorData(seniorData);
-            let newSeniorData = PnLCalculator.calcLatestSeniorData(nextDate, apy, seniorData);
-            newSeniorData.totalAssets = seniorData.totalAssets;
+            let tracker = await tranchesPolicyContract.seniorYieldTracker();
+            let newTracker = PnLCalculator.calcLatestSeniorTracker(nextDate, apy, tracker);
+            newTracker.totalAssets = tracker.totalAssets;
             await creditContract.mockDistributePnL(BN.from(0), toToken(100), BN.from(0));
-            seniorData = await tranchesPolicyContract.seniorYieldData();
-            checkSeniorDatasMatch(seniorData, newSeniorData);
-            expect(seniorData.unpaidYield).to.greaterThan(0);
+            tracker = await tranchesPolicyContract.seniorYieldTracker();
+            checkSeniorYieldTrackersMatch(tracker, newTracker);
+            expect(tracker.unpaidYield).to.greaterThan(0);
         });
 
         it("Distribute loss recovery", async function () {
@@ -271,21 +269,21 @@ describe("FixedSeniorYieldTranchePolicy Test", function () {
             let nextDate = lastBlock.timestamp + 100;
             await setNextBlockTimestamp(nextDate);
 
-            let seniorData = await tranchesPolicyContract.seniorYieldData();
-            printSeniorData(seniorData);
-            let newSeniorData = PnLCalculator.calcLatestSeniorData(nextDate, apy, seniorData);
-            newSeniorData.totalAssets = seniorData.totalAssets;
+            let tracker = await tranchesPolicyContract.seniorYieldTracker();
+            printSeniorYieldTracker(tracker);
+            let newTracker = PnLCalculator.calcLatestSeniorTracker(nextDate, apy, tracker);
+            newTracker.totalAssets = tracker.totalAssets;
             await creditContract.mockDistributePnL(BN.from(0), BN.from(0), toToken(100));
-            seniorData = await tranchesPolicyContract.seniorYieldData();
-            printSeniorData(seniorData);
-            checkSeniorDatasMatch(seniorData, newSeniorData);
-            expect(seniorData.unpaidYield).to.greaterThan(0);
+            tracker = await tranchesPolicyContract.seniorYieldTracker();
+            // printSeniorYieldTracker(tracker);
+            checkSeniorYieldTrackersMatch(tracker, newTracker);
+            expect(tracker.unpaidYield).to.greaterThan(0);
         });
     });
 
     describe("LP deposit/withdraw", function () {
         it("Deposit into senior tranche", async function () {
-            let seniorData = await tranchesPolicyContract.seniorYieldData();
+            let tracker = await tranchesPolicyContract.seniorYieldTracker();
             // printSeniorData(seniorData);
 
             const lastBlock = await getLatestBlock();
@@ -293,35 +291,34 @@ describe("FixedSeniorYieldTranchePolicy Test", function () {
             await setNextBlockTimestamp(nextDate);
 
             const amount = toToken(1000);
-            let newSeniorData = PnLCalculator.calcLatestSeniorData(nextDate, apy, seniorData);
-            newSeniorData.totalAssets = seniorData.totalAssets.add(amount);
+            let newTracker = PnLCalculator.calcLatestSeniorTracker(nextDate, apy, tracker);
+            newTracker.totalAssets = tracker.totalAssets.add(amount);
 
             await seniorTrancheVaultContract.connect(lender).deposit(amount, lender.address);
 
-            seniorData = await tranchesPolicyContract.seniorYieldData();
+            tracker = await tranchesPolicyContract.seniorYieldTracker();
 
-            checkSeniorDatasMatch(seniorData, newSeniorData);
-            expect(seniorData.unpaidYield).to.greaterThan(0);
+            checkSeniorYieldTrackersMatch(tracker, newTracker);
+            expect(tracker.unpaidYield).to.greaterThan(0);
         });
 
         it("Deposit into junior tranche", async function () {
-            let seniorData = await tranchesPolicyContract.seniorYieldData();
-            // printSeniorData(seniorData);
+            let tracker = await tranchesPolicyContract.seniorYieldTracker();
 
             const lastBlock = await getLatestBlock();
             let nextDate = lastBlock.timestamp + 100;
             await setNextBlockTimestamp(nextDate);
 
             const amount = toToken(1000);
-            let newSeniorData = PnLCalculator.calcLatestSeniorData(nextDate, apy, seniorData);
-            newSeniorData.totalAssets = seniorData.totalAssets;
+            let newTracker = PnLCalculator.calcLatestSeniorTracker(nextDate, apy, tracker);
+            newTracker.totalAssets = tracker.totalAssets;
 
             await juniorTrancheVaultContract.connect(lender).deposit(amount, lender.address);
 
-            seniorData = await tranchesPolicyContract.seniorYieldData();
+            tracker = await tranchesPolicyContract.seniorYieldTracker();
 
-            checkSeniorDatasMatch(seniorData, newSeniorData);
-            expect(seniorData.unpaidYield).to.greaterThan(0);
+            checkSeniorYieldTrackersMatch(tracker, newTracker);
+            expect(tracker.unpaidYield).to.greaterThan(0);
         });
 
         it("Withdraw from senior tranche", async function () {
@@ -331,17 +328,16 @@ describe("FixedSeniorYieldTranchePolicy Test", function () {
             let ts = lastEpoch.endTime.toNumber() + 60 * 5;
             await setNextBlockTimestamp(ts);
 
-            let seniorData = await tranchesPolicyContract.seniorYieldData();
-            // printSeniorData(seniorData);
+            let tracker = await tranchesPolicyContract.seniorYieldTracker();
 
-            let newSeniorData = PnLCalculator.calcLatestSeniorData(ts, apy, seniorData);
-            newSeniorData.totalAssets = seniorData.totalAssets.sub(shares);
+            let newTracker = PnLCalculator.calcLatestSeniorTracker(ts, apy, tracker);
+            newTracker.totalAssets = tracker.totalAssets.sub(shares);
 
             await epochManagerContract.closeEpoch();
 
-            seniorData = await tranchesPolicyContract.seniorYieldData();
-            checkSeniorDatasMatch(seniorData, newSeniorData);
-            expect(seniorData.unpaidYield).to.greaterThan(0);
+            tracker = await tranchesPolicyContract.seniorYieldTracker();
+            checkSeniorYieldTrackersMatch(tracker, newTracker);
+            expect(tracker.unpaidYield).to.greaterThan(0);
         });
 
         it("Withdraw from junior tranche", async function () {
@@ -351,17 +347,16 @@ describe("FixedSeniorYieldTranchePolicy Test", function () {
             let ts = lastEpoch.endTime.toNumber() + 60 * 5;
             await setNextBlockTimestamp(ts);
 
-            let seniorData = await tranchesPolicyContract.seniorYieldData();
-            // printSeniorData(seniorData);
+            let tracker = await tranchesPolicyContract.seniorYieldTracker();
 
-            let newSeniorData = PnLCalculator.calcLatestSeniorData(ts, apy, seniorData);
-            newSeniorData.totalAssets = seniorData.totalAssets;
+            let newTracker = PnLCalculator.calcLatestSeniorTracker(ts, apy, tracker);
+            newTracker.totalAssets = tracker.totalAssets;
 
             await epochManagerContract.closeEpoch();
 
-            seniorData = await tranchesPolicyContract.seniorYieldData();
-            checkSeniorDatasMatch(seniorData, newSeniorData);
-            expect(seniorData.unpaidYield).to.greaterThan(0);
+            tracker = await tranchesPolicyContract.seniorYieldTracker();
+            checkSeniorYieldTrackersMatch(tracker, newTracker);
+            expect(tracker.unpaidYield).to.greaterThan(0);
         });
     });
 });

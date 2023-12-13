@@ -8,7 +8,6 @@ import {JUNIOR_TRANCHE, SENIOR_TRANCHE, DEFAULT_DECIMALS_FACTOR} from "./SharedD
 import {TrancheVaultStorage, IERC20} from "./TrancheVaultStorage.sol";
 import {IEpoch, EpochInfo} from "./interfaces/IEpoch.sol";
 import {IEpochManager} from "./interfaces/IEpochManager.sol";
-import {ITranchesPolicy} from "./interfaces/ITranchesPolicy.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
@@ -83,10 +82,6 @@ contract TrancheVault is
         addr = _poolConfig.epochManager();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         epochManager = IEpochManager(addr);
-
-        addr = _poolConfig.tranchesPolicy();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
-        tranchesPolicy = ITranchesPolicy(addr);
     }
 
     /**

@@ -562,24 +562,24 @@ export async function deployAndSetupPoolContracts(
     ];
 }
 
-export type SeniorYieldData = { totalAssets: BN; unpaidYield: BN; lastUpdatedDate: BN };
+export type SeniorYieldTracker = { totalAssets: BN; unpaidYield: BN; lastUpdatedDate: BN };
 
-function calcLatestSeniorData(
+function calcLatestSeniorTracker(
     currentTS: number,
     yieldInBps: number,
-    seniorYieldData: SeniorYieldData,
-): SeniorYieldData {
-    let newSeniorData = { ...seniorYieldData };
-    if (currentTS > newSeniorData.lastUpdatedDate.toNumber()) {
-        newSeniorData.unpaidYield = newSeniorData.unpaidYield.add(
-            newSeniorData.totalAssets
-                .mul(BN.from(currentTS).sub(newSeniorData.lastUpdatedDate))
+    seniorYieldTracker: SeniorYieldTracker,
+): SeniorYieldTracker {
+    let newSeniorTracker = { ...seniorYieldTracker };
+    if (currentTS > newSeniorTracker.lastUpdatedDate.toNumber()) {
+        newSeniorTracker.unpaidYield = newSeniorTracker.unpaidYield.add(
+            newSeniorTracker.totalAssets
+                .mul(BN.from(currentTS).sub(newSeniorTracker.lastUpdatedDate))
                 .mul(BN.from(yieldInBps))
                 .div(BN.from(CONSTANTS.SECONDS_IN_A_YEAR).mul(CONSTANTS.BP_FACTOR)),
         );
-        newSeniorData.lastUpdatedDate = BN.from(currentTS);
+        newSeniorTracker.lastUpdatedDate = BN.from(currentTS);
     }
-    return newSeniorData;
+    return newSeniorTracker;
 }
 
 function calcProfitForFixedSeniorYieldPolicy(
@@ -587,16 +587,18 @@ function calcProfitForFixedSeniorYieldPolicy(
     assets: BN[],
     currentTS: number,
     yieldInBps: number,
-    seniorYieldData: SeniorYieldData,
-): [SeniorYieldData, BN[]] {
-    let newSeniorData = calcLatestSeniorData(currentTS, yieldInBps, seniorYieldData);
-    let seniorProfit = newSeniorData.unpaidYield.gt(profit) ? profit : newSeniorData.unpaidYield;
+    seniorYieldTracker: SeniorYieldTracker,
+): [SeniorYieldTracker, BN[]] {
+    let newSeniorTracker = calcLatestSeniorTracker(currentTS, yieldInBps, seniorYieldTracker);
+    let seniorProfit = newSeniorTracker.unpaidYield.gt(profit)
+        ? profit
+        : newSeniorTracker.unpaidYield;
     let juniorProfit = profit.sub(seniorProfit);
-    newSeniorData.unpaidYield = newSeniorData.unpaidYield.sub(seniorProfit);
-    newSeniorData.totalAssets = assets[CONSTANTS.SENIOR_TRANCHE].add(seniorProfit);
+    newSeniorTracker.unpaidYield = newSeniorTracker.unpaidYield.sub(seniorProfit);
+    newSeniorTracker.totalAssets = assets[CONSTANTS.SENIOR_TRANCHE].add(seniorProfit);
 
     return [
-        newSeniorData,
+        newSeniorTracker,
         [
             assets[CONSTANTS.SENIOR_TRANCHE].add(seniorProfit),
             assets[CONSTANTS.JUNIOR_TRANCHE].add(juniorProfit),
@@ -762,7 +764,7 @@ async function calcRiskAdjustedProfitAndLoss(
 
 export const PnLCalculator = {
     calcProfitForFixedSeniorYieldPolicy,
-    calcLatestSeniorData,
+    calcLatestSeniorTracker,
     calcProfitForRiskAdjustedPolicy,
     calcProfitForFirstLossCovers,
     calcLoss,
@@ -1029,20 +1031,18 @@ export function checkDueDetailsMatch(
     expect(actualDD.paid).to.equal(expectedDD.paid);
 }
 
-export function printSeniorData(seniorData: SeniorYieldData) {
-    console.log(
-        `[${seniorData.totalAssets}, ${seniorData.unpaidYield}, ${seniorData.lastUpdatedDate}]`,
-    );
+export function printSeniorYieldTracker(tracker: SeniorYieldTracker) {
+    console.log(`[${tracker.totalAssets}, ${tracker.unpaidYield}, ${tracker.lastUpdatedDate}]`);
 }
 
-export function checkSeniorDatasMatch(
-    actualSD: SeniorYieldData,
-    expectedSD: SeniorYieldData,
+export function checkSeniorYieldTrackersMatch(
+    actualST: SeniorYieldTracker,
+    expectedST: SeniorYieldTracker,
     delta: BN = BN.from(0),
 ) {
-    expect(actualSD.totalAssets).to.be.closeTo(expectedSD.totalAssets, delta);
-    expect(actualSD.unpaidYield).to.be.closeTo(expectedSD.unpaidYield, delta);
-    expect(actualSD.lastUpdatedDate).to.be.closeTo(expectedSD.lastUpdatedDate, delta);
+    expect(actualST.totalAssets).to.be.closeTo(expectedST.totalAssets, delta);
+    expect(actualST.unpaidYield).to.be.closeTo(expectedST.unpaidYield, delta);
+    expect(actualST.lastUpdatedDate).to.be.closeTo(expectedST.lastUpdatedDate, delta);
 }
 
 export function calcYieldDue(
