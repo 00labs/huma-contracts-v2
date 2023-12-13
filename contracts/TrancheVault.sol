@@ -30,7 +30,12 @@ contract TrancheVault is
         uint256 amountProcessed
     );
 
-    event LiquidityDeposited(address indexed account, uint256 assetAmount, uint256 shareAmount);
+    event LiquidityDeposited(
+        address indexed sender,
+        address indexed receiver,
+        uint256 assetAmount,
+        uint256 shareAmount
+    );
 
     event LenderFundDisbursed(address indexed account, address receiver, uint256 withdrawnAmount);
 
@@ -225,7 +230,9 @@ contract TrancheVault is
         tranches[trancheIndex] += uint96(assets);
         pool.updateTranchesAssets(tranches);
 
-        emit LiquidityDeposited(receiver, assets, shares);
+        lastDepositTime[receiver] = block.timestamp;
+
+        emit LiquidityDeposited(msg.sender, receiver, assets, shares);
     }
 
     /**
@@ -235,6 +242,11 @@ contract TrancheVault is
     function addRedemptionRequest(uint256 shares) external {
         if (shares == 0) revert Errors.zeroAmountProvided();
         poolConfig.onlyProtocolAndPoolOn();
+
+        if (
+            block.timestamp <
+            lastDepositTime[msg.sender] + poolConfig.getLPConfig().withdrawalLockoutPeriodInSeconds
+        ) revert Errors.withdrawTooSoon();
 
         poolConfig.checkFirstLossCoverRequirementsForRedemption(msg.sender);
         uint256 sharesBalance = ERC20Upgradeable.balanceOf(msg.sender);

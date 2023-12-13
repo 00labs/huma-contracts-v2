@@ -277,7 +277,7 @@ describe("TrancheVault Test", function () {
                 juniorTrancheVaultContract.connect(poolOwnerTreasury).makeInitialDeposit(amount),
             )
                 .to.emit(juniorTrancheVaultContract, "LiquidityDeposited")
-                .withArgs(poolOwnerTreasury.address, amount, shares);
+                .withArgs(poolOwnerTreasury.address, poolOwnerTreasury.address, amount, shares);
             await humaConfigContract.connect(protocolOwner).unpause();
 
             await poolContract.connect(poolOwner).disablePool();
@@ -285,7 +285,7 @@ describe("TrancheVault Test", function () {
                 juniorTrancheVaultContract.connect(poolOwnerTreasury).makeInitialDeposit(amount),
             )
                 .to.emit(juniorTrancheVaultContract, "LiquidityDeposited")
-                .withArgs(poolOwnerTreasury.address, amount, shares);
+                .withArgs(poolOwnerTreasury.address, poolOwnerTreasury.address, amount, shares);
         });
 
         it("Should allow the EA to make the initial deposit even if the protocol is paused or the pool is off", async function () {
@@ -296,7 +296,7 @@ describe("TrancheVault Test", function () {
                 juniorTrancheVaultContract.connect(evaluationAgent).makeInitialDeposit(amount),
             )
                 .to.emit(juniorTrancheVaultContract, "LiquidityDeposited")
-                .withArgs(evaluationAgent.address, amount, shares);
+                .withArgs(evaluationAgent.address, evaluationAgent.address, amount, shares);
             await humaConfigContract.connect(protocolOwner).unpause();
 
             await poolContract.connect(poolOwner).disablePool();
@@ -304,7 +304,7 @@ describe("TrancheVault Test", function () {
                 juniorTrancheVaultContract.connect(evaluationAgent).makeInitialDeposit(amount),
             )
                 .to.emit(juniorTrancheVaultContract, "LiquidityDeposited")
-                .withArgs(evaluationAgent.address, amount, shares);
+                .withArgs(evaluationAgent.address, evaluationAgent.address, amount, shares);
         });
 
         it("Should now allow anyone else to make the initial deposit", async function () {
@@ -397,7 +397,7 @@ describe("TrancheVault Test", function () {
                 juniorTrancheVaultContract.connect(lender).deposit(juniorAmount, lender.address),
             )
                 .to.emit(juniorTrancheVaultContract, "LiquidityDeposited")
-                .withArgs(lender.address, juniorAmount, juniorShares);
+                .withArgs(lender.address, lender.address, juniorAmount, juniorShares);
 
             expect(await poolContract.totalAssets()).to.equal(
                 existingJuniorAssets.add(juniorAmount),
@@ -429,7 +429,7 @@ describe("TrancheVault Test", function () {
                 seniorTrancheVaultContract.connect(lender).deposit(seniorAmount, lender2.address),
             )
                 .to.emit(seniorTrancheVaultContract, "LiquidityDeposited")
-                .withArgs(lender2.address, seniorAmount, seniorAmount);
+                .withArgs(lender.address, lender2.address, seniorAmount, seniorAmount);
             expect(await poolContract.totalAssets()).to.equal(poolAssets.add(seniorAmount));
             expect(await seniorTrancheVaultContract.totalAssets()).to.equal(seniorAmount);
             expect(await seniorTrancheVaultContract.totalSupply()).to.equal(seniorAmount);
@@ -453,7 +453,7 @@ describe("TrancheVault Test", function () {
                 juniorTrancheVaultContract.connect(lender).deposit(juniorAmount, lender.address),
             )
                 .to.emit(juniorTrancheVaultContract, "LiquidityDeposited")
-                .withArgs(lender.address, juniorAmount, juniorAmount);
+                .withArgs(lender.address, lender.address, juniorAmount, juniorAmount);
             expect(await poolContract.totalAssets()).to.equal(poolAssets.add(juniorAmount));
             expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
                 juniorTotalAssets.add(juniorAmount),
@@ -536,7 +536,12 @@ describe("TrancheVault Test", function () {
                         .deposit(juniorAmount, lender3.address),
                 )
                     .to.emit(juniorTrancheVaultContract, "LiquidityDeposited")
-                    .withArgs(lender3.address, juniorAmount, expectedNewJuniorShares);
+                    .withArgs(
+                        lender3.address,
+                        lender3.address,
+                        juniorAmount,
+                        expectedNewJuniorShares,
+                    );
                 const poolAssets = await poolContract.totalAssets();
                 expect(poolAssets).to.equal(expectedJuniorAssets.add(seniorAssets));
                 expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
@@ -563,7 +568,12 @@ describe("TrancheVault Test", function () {
                         .deposit(seniorAmount, lender4.address),
                 )
                     .to.emit(seniorTrancheVaultContract, "LiquidityDeposited")
-                    .withArgs(lender4.address, seniorAmount, expectedNewSeniorShares);
+                    .withArgs(
+                        lender4.address,
+                        lender4.address,
+                        seniorAmount,
+                        expectedNewSeniorShares,
+                    );
                 expect(await poolContract.totalAssets()).to.equal(poolAssets.add(seniorAmount));
                 expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
                     expectedSeniorAssets,

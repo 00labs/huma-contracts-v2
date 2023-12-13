@@ -1798,6 +1798,7 @@ describe("PoolConfig Tests", function () {
                     maxSeniorJuniorRatio: 4,
                     fixedSeniorYieldInBps: 2000,
                     tranchesRiskAdjustmentInBps: 8000,
+                    withdrawalLockoutPeriodInSeconds: 0,
                 };
             });
 

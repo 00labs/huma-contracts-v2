@@ -66,6 +66,8 @@ struct LPConfig {
     uint16 fixedSeniorYieldInBps;
     // Percentage of yield to be shifted from senior to junior. Either this or fixedSeniorYieldInBps is non-zero
     uint16 tranchesRiskAdjustmentInBps;
+    // How long a lender has to wait after the last deposit before they can withdraw
+    uint64 withdrawalLockoutPeriodInSeconds;
 }
 
 struct FrontLoadingFeesStructure {
