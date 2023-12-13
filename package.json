@@ -10,7 +10,7 @@
     "chain": "hardhat node",
     "clean": "hardhat clean",
     "compile": "hardhat compile",
-    "coverage": "hardhat coverage --network hardhat",
+    "coverage": "hardhat coverage --network hardhat --config hardhat.coverage.ts",
     "deploy-local": "hardhat run ./scripts/deploy-local-test-pools.ts --network localhost",
     "format": "prettier '**/*.{js,json,ts,yml,yaml}' --write --plugin=prettier-plugin-organize-imports",
     "format-solidity": "prettier 'contracts/**/*.sol' --write --plugin=prettier-plugin-solidity",
