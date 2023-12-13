@@ -1,7 +1,9 @@
 import "@nomicfoundation/hardhat-toolbox";
 import "hardhat-contract-sizer";
 
-const config = {
+import { HardhatUserConfig } from "hardhat/types";
+
+const config: HardhatUserConfig = {
     solidity: {
         compilers: [
             {
