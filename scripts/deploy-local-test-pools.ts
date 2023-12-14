@@ -204,6 +204,8 @@ async function main() {
     console.log(`Senior lender: ${seniorLender.address}`);
     console.log(`Borrower:      ${borrowerActive.address}`);
     console.log(`PDS service:   ${pdsServiceAccount.address}`);
+    console.log(`Pool owner:   ${poolOwner.address}`);
+    console.log(`EA service:   ${eaServiceAccount.address}`);
 
     console.log("=====================================");
     console.log("Addresses:");
@@ -216,6 +218,9 @@ async function main() {
     console.log(`Senior tranche:  ${seniorTrancheVaultContract.address}`);
     console.log(`Pool safe:       ${poolSafeContract.address}`);
     console.log(`Test token:      ${mockTokenContract.address}`);
+    console.log(`Credit manager:      ${creditManagerContract.address}`);
+    console.log(`Borrower FLC:      ${borrowerFirstLossCoverContract.address}`);
+    console.log(`Affiliate FLC:      ${affiliateFirstLossCoverContract.address}`);
 
     console.log("=====================================");
     console.log(`Current block timestamp: ${await time.latest()}`);
