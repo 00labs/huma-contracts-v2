@@ -650,6 +650,16 @@ describe("TrancheVault Test", function () {
             await loadFixture(prepareForWithdrawTests);
         });
 
+        describe("Transfer Tests", function () {
+            it("Should not transfer tranche vault token", async function () {
+                await expect(
+                    juniorTrancheVaultContract
+                        .connect(lender)
+                        .transfer(lender2.address, toToken(100)),
+                ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "unsupportedFunction");
+            });
+        });
+
         describe("Redemption Tests", function () {
             describe("When there is no redemption request", function () {
                 it("getNumEpochsWithRedemption should return 0", async function () {
