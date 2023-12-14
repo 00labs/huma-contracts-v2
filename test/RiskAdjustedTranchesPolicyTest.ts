@@ -137,7 +137,9 @@ describe("RiskAdjustedTranchesPolicy Test", function () {
             assets,
             BN.from(adjustment),
         );
-        const result = await tranchesPolicyContract.distProfitToTranches(profit, [...assets], 0);
+        const result = await tranchesPolicyContract.callStatic.distProfitToTranches(profit, [
+            ...assets,
+        ]);
         expect(result[CONSTANTS.SENIOR_TRANCHE]).to.equal(newAssets[CONSTANTS.SENIOR_TRANCHE]);
         expect(result[CONSTANTS.JUNIOR_TRANCHE]).to.equal(newAssets[CONSTANTS.JUNIOR_TRANCHE]);
     });
