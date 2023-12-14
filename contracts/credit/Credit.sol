@@ -414,6 +414,12 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
                     dd.lateFeeUpdatedDate = 0;
                     // Moves account to GoodStanding if it was delayed.
                     if (cr.state == CreditState.Delayed) cr.state = CreditState.GoodStanding;
+
+                    // If all next due is paid off and the bill has already entered the new billing cycle,
+                    // then refresh the bill.
+                    if (block.timestamp > cr.nextDueDate) {
+                        (cr, dd) = feeManager.getDueInfo(cr, cc, dd, block.timestamp);
+                    }
                 }
             }
         } else {

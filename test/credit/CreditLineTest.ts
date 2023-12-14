@@ -51,6 +51,7 @@ import {
     getMinFirstLossCoverRequirement,
     getStartOfDay,
     isCloseTo,
+    maxBigNumber,
     minBigNumber,
     setNextBlockTimestamp,
     toToken,
@@ -3691,30 +3692,77 @@ describe("CreditLine Test", function () {
                 } else {
                     creditState = cr.state;
                 }
-                const expectedNewCR = {
-                    unbilledPrincipal: remainingUnbilledPrincipal,
-                    nextDueDate: newDueDate,
-                    nextDue: nextDueAfter,
-                    yieldDue: remainingYieldNextDue,
-                    totalPastDue: remainingPastDue,
-                    missedPeriods,
-                    remainingPeriods,
-                    state: creditState,
-                };
+                let expectedNewCR, expectedNewDD;
+                console.log(
+                    `cr.nextDueDate ${cr.nextDueDate}, paymentDate ${paymentDate}, newDueDate ${newDueDate}`,
+                );
+                if (
+                    nextDueAfter.isZero() &&
+                    !remainingUnbilledPrincipal.isZero() &&
+                    newDueDate.lt(paymentDate.unix())
+                ) {
+                    // We expect the bill to be refreshed if all next due is paid off and the bill is in the
+                    // new billing cycle.
+                    const [accrued, committed] = calcYieldDue(
+                        cc,
+                        remainingUnbilledPrincipal,
+                        CONSTANTS.DAYS_IN_A_MONTH,
+                    );
+                    const yieldDue = maxBigNumber(accrued, committed);
+                    const principalDue = calcPrincipalDueForFullPeriods(
+                        remainingUnbilledPrincipal,
+                        principalRateInBps,
+                        1,
+                    );
+                    newDueDate = await calendarContract.getStartDateOfNextPeriod(
+                        cc.periodDuration,
+                        newDueDate,
+                    );
+                    expectedNewCR = {
+                        unbilledPrincipal: remainingUnbilledPrincipal.sub(principalDue),
+                        nextDueDate: newDueDate,
+                        nextDue: yieldDue.add(principalDue),
+                        yieldDue: yieldDue,
+                        totalPastDue: BN.from(0),
+                        missedPeriods: 0,
+                        remainingPeriods: remainingPeriods - 1,
+                        state: CreditState.GoodStanding,
+                    };
+                    expectedNewDD = {
+                        lateFeeUpdatedDate: 0,
+                        lateFee: 0,
+                        principalPastDue: 0,
+                        yieldPastDue: 0,
+                        accrued: accrued,
+                        committed: committed,
+                        paid: 0,
+                    };
+                } else {
+                    expectedNewCR = {
+                        unbilledPrincipal: remainingUnbilledPrincipal,
+                        nextDueDate: newDueDate,
+                        nextDue: nextDueAfter,
+                        yieldDue: remainingYieldNextDue,
+                        totalPastDue: remainingPastDue,
+                        missedPeriods,
+                        remainingPeriods,
+                        state: creditState,
+                    };
+                    const yieldPaidInCurrentCycle =
+                        newDueDate === cr.nextDueDate ? dd.paid.add(yieldDuePaid) : yieldDuePaid;
+                    expectedNewDD = {
+                        lateFeeUpdatedDate,
+                        lateFee: remainingLateFee,
+                        principalPastDue: remainingPrincipalPastDue,
+                        yieldPastDue: remainingYieldPastDue,
+                        accrued: accruedYieldNextDue,
+                        committed: committedYieldNextDue,
+                        paid: yieldPaidInCurrentCycle,
+                    };
+                }
                 await checkCreditRecordsMatch(newCR, expectedNewCR);
 
                 const newDD = await creditContract.getDueDetail(creditHash);
-                const yieldPaidInCurrentCycle =
-                    newDueDate === cr.nextDueDate ? dd.paid.add(yieldDuePaid) : yieldDuePaid;
-                const expectedNewDD = {
-                    lateFeeUpdatedDate,
-                    lateFee: remainingLateFee,
-                    principalPastDue: remainingPrincipalPastDue,
-                    yieldPastDue: remainingYieldPastDue,
-                    accrued: accruedYieldNextDue,
-                    committed: committedYieldNextDue,
-                    paid: yieldPaidInCurrentCycle,
-                };
                 await checkDueDetailsMatch(newDD, expectedNewDD);
             }
 
@@ -3774,7 +3822,7 @@ describe("CreditLine Test", function () {
                             await testMakePayment(paymentAmount);
                         });
 
-                        it("Should allow the borrower to make full payment that covers part of all of next due and part of unbilled principal", async function () {
+                        it("Should allow the borrower to make full payment that covers all of next due and part of unbilled principal", async function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
@@ -3915,7 +3963,7 @@ describe("CreditLine Test", function () {
                             await testMakePayment(paymentAmount);
                         });
 
-                        it("Should allow the borrower to make full payment that covers part of all of next due and part of unbilled principal", async function () {
+                        it("Should allow the borrower to make full payment that covers all of next due and part of unbilled principal", async function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
@@ -5806,7 +5854,7 @@ describe("CreditLine Test", function () {
                             await testMakePayment(paymentAmount);
                         });
 
-                        it("Should allow the borrower to make full payment that covers part of all of next due and part of unbilled principal", async function () {
+                        it("Should allow the borrower to make full payment that covers all of next due and part of unbilled principal", async function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
