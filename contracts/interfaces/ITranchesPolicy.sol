@@ -7,7 +7,7 @@ pragma solidity ^0.8.0;
 
 interface ITranchesPolicy {
     /**
-     * @notice Distributing loss to tranches
+     * @notice Distributes loss to tranches
      * @dev Passing asset value for the tranches as a parameter to make the function stateless
      * @param loss the loss amount
      * @param assets assets for each tranche, index 0 for senior, 1 for junior
@@ -20,7 +20,7 @@ interface ITranchesPolicy {
     ) external pure returns (uint96[2] memory updatedAssets, uint96[2] memory losses);
 
     /**
-     * @notice Distributing loss recovery to tranches
+     * @notice Distributes loss recovery to tranches
      * @dev Passing asset value for the tranches as a parameter to make the function stateless
      * @param lossRecovery the loss recovery amount
      * @param assets assets for each tranche, index 0 for senior, 1 for junior
@@ -43,7 +43,7 @@ interface ITranchesPolicy {
         );
 
     /**
-     * @notice Distributing profit to tranches
+     * @notice Distributes profit to tranches
      * @dev Passing asset value for the tranches as a parameter to make the function stateless
      * @param profit the profit amount
      * @param assets assets for each tranche, assets[0] for senior and assets[1] for junior
@@ -55,10 +55,10 @@ interface ITranchesPolicy {
     ) external returns (uint96[2] memory newAssets);
 
     /**
-     * @notice Refreshes the policy data, it is used for FixedSeniorYieldTranchesPolicy to update latest senior yield data
+     * @notice Refreshes the policy yield tracker, it is used for FixedSeniorYieldTranchesPolicy to update latest senior yield data
      * @dev Accrues senior tranches yield to the current block timestamp before senior debt changes, this function won't
      * update the senior total assets which is updated when distributing profit/loss/loss recovery
      * @param assets assets for each tranche, assets[0] for senior and assets[1] for junior
      */
-    function refreshTracker(uint96[2] memory assets) external;
+    function refreshYieldTracker(uint96[2] memory assets) external;
 }

@@ -53,7 +53,7 @@ abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
     }
 
     /// @inheritdoc ITranchesPolicy
-    function refreshTracker(uint96[2] memory assets) public virtual {
+    function refreshYieldTracker(uint96[2] memory assets) public virtual {
         // Empty function for RiskAdjustedTranchePolicy
     }
 }

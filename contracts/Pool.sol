@@ -195,8 +195,8 @@ contract Pool is PoolConfigCache, IPool {
                 );
             }
 
-            // Don't call _updateTranchesAssets() here because tranchePolicy.refreshTracker() has already
-            // been called in distProfitToTranches().
+            // Don't call _updateTranchesAssets() here because yield tracker has already
+            // been updated in distProfitToTranches().
             tranchesAssets = TranchesAssets({
                 seniorTotalAssets: newAssets[SENIOR_TRANCHE],
                 juniorTotalAssets: newAssets[JUNIOR_TRANCHE]
@@ -348,7 +348,7 @@ contract Pool is PoolConfigCache, IPool {
             seniorTotalAssets: assets[SENIOR_TRANCHE],
             juniorTotalAssets: assets[JUNIOR_TRANCHE]
         });
-        tranchesPolicy.refreshTracker(assets);
+        tranchesPolicy.refreshYieldTracker(assets);
     }
 
     /// @inheritdoc IPool

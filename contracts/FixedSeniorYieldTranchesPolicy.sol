@@ -21,8 +21,8 @@ contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
 
     SeniorYieldTracker public seniorYieldTracker;
 
-    function refreshTracker(uint96[2] memory assets) public override {
-        (SeniorYieldTracker memory tracker, bool updated) = _getSeniorTracker();
+    function refreshYieldTracker(uint96[2] memory assets) public override {
+        (SeniorYieldTracker memory tracker, bool updated) = _getYieldTracker();
         if (tracker.totalAssets != assets[SENIOR_TRANCHE]) {
             tracker.totalAssets = assets[SENIOR_TRANCHE];
             updated = true;
@@ -37,7 +37,7 @@ contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
         uint96[2] memory assets
     ) external returns (uint96[2] memory newAssets) {
         // Accrues senior tranches yield to the current block timestamp first
-        (SeniorYieldTracker memory tracker, ) = _getSeniorTracker();
+        (SeniorYieldTracker memory tracker, ) = _getYieldTracker();
 
         uint256 seniorProfit = tracker.unpaidYield > profit ? profit : tracker.unpaidYield;
         uint256 juniorProfit = profit - seniorProfit;
@@ -52,7 +52,7 @@ contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
         return newAssets;
     }
 
-    function _getSeniorTracker() public view returns (SeniorYieldTracker memory, bool updated) {
+    function _getYieldTracker() public view returns (SeniorYieldTracker memory, bool updated) {
         SeniorYieldTracker memory tracker = seniorYieldTracker;
         if (block.timestamp > tracker.lastUpdatedDate) {
             LPConfig memory lpConfig = poolConfig.getLPConfig();

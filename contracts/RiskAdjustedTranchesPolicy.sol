@@ -11,8 +11,8 @@ import {SENIOR_TRANCHE, JUNIOR_TRANCHE, HUNDRED_PERCENT_IN_BPS} from "./SharedDe
  */
 contract RiskAdjustedTranchesPolicy is BaseTranchesPolicy {
     /**
-     * @notice Distribute profit between tranches.
-     * @dev It can't be view function because it implements ITranchesPolicy's disProfitToTranches.
+     * @notice Distributes profit between tranches.
+     * @dev Ignores solhint warning, it can't be view function because it implements ITranchesPolicy's disProfitToTranches.
      */
     function distProfitToTranches(
         uint256 profit,
