@@ -80,12 +80,8 @@ struct FeeStructure {
     uint16 yieldInBps;
     // The min % of the outstanding principal to be paid in the statement for each each period
     uint16 minPrincipalRateInBps;
-    // Part of late fee, charged as a flat amount when a payment is late
-    uint96 lateFeeFlat;
     // Part of late fee, charged as % of the totaling outstanding balance when a payment is late
     uint16 lateFeeBps;
-    // Membership fee per pay period. It is a flat fee
-    uint96 membershipFee;
 }
 
 struct FirstLossCoverConfig {
@@ -221,9 +217,7 @@ contract PoolConfig is AccessControl, Initializable {
     event FeeStructureChanged(
         uint16 yieldInBps,
         uint16 minPrincipalRateInBps,
-        uint96 lateFeeFlat,
         uint16 lateFeeBps,
-        uint96 membershipFee,
         address by
     );
 
@@ -675,9 +669,7 @@ contract PoolConfig is AccessControl, Initializable {
         emit FeeStructureChanged(
             feeStructure.yieldInBps,
             feeStructure.minPrincipalRateInBps,
-            feeStructure.lateFeeFlat,
             feeStructure.lateFeeBps,
-            feeStructure.membershipFee,
             msg.sender
         );
     }
@@ -832,15 +824,10 @@ contract PoolConfig is AccessControl, Initializable {
     }
 
     /**
-     * @notice Gets the fee structure for the pool
+     * @notice Returns the late fee in bps setting.
      */
-    function getFees()
-        external
-        view
-        virtual
-        returns (uint256 _lateFeeFlat, uint256 _lateFeeBps, uint256 _membershipFee)
-    {
-        return (_feeStructure.lateFeeFlat, _feeStructure.lateFeeBps, _feeStructure.membershipFee);
+    function getLateFeeBps() external view virtual returns (uint256 lateFeeBps) {
+        return _feeStructure.lateFeeBps;
     }
 
     function getMinPrincipalRateInBps() external view virtual returns (uint256 _minPrincipalRate) {

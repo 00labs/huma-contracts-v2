@@ -1813,9 +1813,7 @@ describe("CreditLine Test", function () {
                 await poolConfigContract.connect(poolOwner).setFeeStructure({
                     yieldInBps: 0,
                     minPrincipalRateInBps: principalRateInBps,
-                    lateFeeFlat: 0,
                     lateFeeBps: 0,
-                    membershipFee: 0,
                 });
 
                 await creditManagerContract
@@ -2665,16 +2663,13 @@ describe("CreditLine Test", function () {
 
         describe("With Settings(principalRate, lateFeeInBps)", function () {
             const principalRate = 100;
-            const lateFeeFlat = 0;
             const lateFeeBps = 2400;
 
             async function prepareForTestsWithSettings() {
                 await poolConfigContract.connect(poolOwner).setFeeStructure({
                     yieldInBps: yieldInBps,
                     minPrincipalRateInBps: principalRate,
-                    lateFeeFlat: lateFeeFlat,
                     lateFeeBps: lateFeeBps,
-                    membershipFee: 0,
                 });
                 await prepareForTests();
 
@@ -3298,7 +3293,6 @@ describe("CreditLine Test", function () {
 
     describe("makePayment", function () {
         const yieldInBps = 1217,
-            lateFeeFlat = 0,
             lateFeeBps = 300,
             latePaymentGracePeriodInDays = 5,
             remainingPeriods = 6;
@@ -3772,9 +3766,7 @@ describe("CreditLine Test", function () {
                     await poolConfigContract.connect(poolOwner).setFeeStructure({
                         yieldInBps,
                         minPrincipalRateInBps: principalRateInBps,
-                        lateFeeFlat,
                         lateFeeBps,
-                        membershipFee: 0,
                     });
                     await approveCredit();
                     await drawdown();
@@ -5563,9 +5555,7 @@ describe("CreditLine Test", function () {
                     await poolConfigContract.connect(poolOwner).setFeeStructure({
                         yieldInBps,
                         minPrincipalRateInBps: principalRateInBps,
-                        lateFeeFlat,
                         lateFeeBps,
-                        membershipFee: 0,
                     });
                     await approveCredit();
                     await drawdown();
@@ -7319,7 +7309,6 @@ describe("CreditLine Test", function () {
 
     describe("makePrincipalPayment", function () {
         const yieldInBps = 1217,
-            lateFeeFlat = 0,
             lateFeeBps = 300,
             latePaymentGracePeriodInDays = 5,
             remainingPeriods = 6;
@@ -7488,9 +7477,7 @@ describe("CreditLine Test", function () {
                     await poolConfigContract.connect(poolOwner).setFeeStructure({
                         yieldInBps,
                         minPrincipalRateInBps: principalRateInBps,
-                        lateFeeFlat,
                         lateFeeBps,
-                        membershipFee: 0,
                     });
                     await approveCredit();
                     await drawdown();
@@ -7799,9 +7786,7 @@ describe("CreditLine Test", function () {
                     await poolConfigContract.connect(poolOwner).setFeeStructure({
                         yieldInBps,
                         minPrincipalRateInBps: principalRateInBps,
-                        lateFeeFlat,
                         lateFeeBps,
-                        membershipFee: 0,
                     });
                     await approveCredit();
                     await drawdown();
@@ -8068,9 +8053,7 @@ describe("CreditLine Test", function () {
             await poolConfigContract.connect(poolOwner).setFeeStructure({
                 yieldInBps,
                 minPrincipalRateInBps: 50,
-                lateFeeFlat: 0,
                 lateFeeBps,
-                membershipFee: 0,
             });
             await creditManagerContract
                 .connect(eaServiceAccount)
@@ -9470,8 +9453,7 @@ describe("CreditLine Test", function () {
 
     describe("waiveLateFee", function () {
         let drawdownDate: number;
-        const lateFeeFlat = 0,
-            lateFeeBps = 300,
+        const lateFeeBps = 300,
             latePaymentGracePeriodInDays = 5,
             yieldInBps = 1317;
         let borrowAmount: BN;
@@ -9484,9 +9466,7 @@ describe("CreditLine Test", function () {
             await poolConfigContract.connect(poolOwner).setFeeStructure({
                 yieldInBps,
                 minPrincipalRateInBps: 50,
-                lateFeeFlat,
                 lateFeeBps,
-                membershipFee: 0,
             });
 
             borrowAmount = toToken(50_000);

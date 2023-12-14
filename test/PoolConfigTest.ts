@@ -1748,11 +1748,7 @@ describe("PoolConfig Tests", function () {
         });
 
         describe("setWithdrawalLockoutPeriod", function () {
-            let calendarUnit: number, lockoutPeriod: number;
-
-            before(function () {
-                lockoutPeriod = 30;
-            });
+            const lockoutPeriod: number = 30;
 
             it("Should allow the pool owner to set the withdrawal lockout period", async function () {
                 await expect(
@@ -1926,9 +1922,7 @@ describe("PoolConfig Tests", function () {
                 newFeeStructure = {
                     yieldInBps: BN.from(1000),
                     minPrincipalRateInBps: BN.from(2000),
-                    lateFeeFlat: toToken(1_000),
                     lateFeeBps: BN.from(3000),
-                    membershipFee: toToken(50),
                 };
             });
 
@@ -1940,18 +1934,14 @@ describe("PoolConfig Tests", function () {
                     .withArgs(
                         newFeeStructure.yieldInBps,
                         newFeeStructure.minPrincipalRateInBps,
-                        newFeeStructure.lateFeeFlat,
                         newFeeStructure.lateFeeBps,
-                        newFeeStructure.membershipFee,
                         poolOwner.address,
                     );
                 const poolSummary = await poolConfigContract.getPoolSummary();
-                const fees = await poolConfigContract.getFees();
+                const lateFeeBps = await poolConfigContract.getLateFeeBps();
                 const minPrincipalRateInBps = await poolConfigContract.getMinPrincipalRateInBps();
                 expect(poolSummary[1]).to.equal(newFeeStructure.yieldInBps);
-                expect(fees[0]).to.equal(newFeeStructure.lateFeeFlat);
-                expect(fees[1]).to.equal(newFeeStructure.lateFeeBps);
-                expect(fees[2]).to.equal(newFeeStructure.membershipFee);
+                expect(lateFeeBps).to.equal(newFeeStructure.lateFeeBps);
                 expect(minPrincipalRateInBps).to.equal(newFeeStructure.minPrincipalRateInBps);
             });
 
@@ -1963,18 +1953,14 @@ describe("PoolConfig Tests", function () {
                     .withArgs(
                         newFeeStructure.yieldInBps,
                         newFeeStructure.minPrincipalRateInBps,
-                        newFeeStructure.lateFeeFlat,
                         newFeeStructure.lateFeeBps,
-                        newFeeStructure.membershipFee,
                         protocolOwner.address,
                     );
                 const poolSummary = await poolConfigContract.getPoolSummary();
-                const fees = await poolConfigContract.getFees();
+                const lateFeeBps = await poolConfigContract.getLateFeeBps();
                 const minPrincipalRateInBps = await poolConfigContract.getMinPrincipalRateInBps();
                 expect(poolSummary[1]).to.equal(newFeeStructure.yieldInBps);
-                expect(fees[0]).to.equal(newFeeStructure.lateFeeFlat);
-                expect(fees[1]).to.equal(newFeeStructure.lateFeeBps);
-                expect(fees[2]).to.equal(newFeeStructure.membershipFee);
+                expect(lateFeeBps).to.equal(newFeeStructure.lateFeeBps);
                 expect(minPrincipalRateInBps).to.equal(newFeeStructure.minPrincipalRateInBps);
             });
 
