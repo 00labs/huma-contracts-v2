@@ -562,32 +562,47 @@ export async function deployAndSetupPoolContracts(
     ];
 }
 
+export type SeniorYieldTracker = { totalAssets: BN; unpaidYield: BN; lastUpdatedDate: BN };
+
+function calcLatestSeniorTracker(
+    currentTS: number,
+    yieldInBps: number,
+    seniorYieldTracker: SeniorYieldTracker,
+): SeniorYieldTracker {
+    let newSeniorTracker = { ...seniorYieldTracker };
+    if (currentTS > newSeniorTracker.lastUpdatedDate.toNumber()) {
+        newSeniorTracker.unpaidYield = newSeniorTracker.unpaidYield.add(
+            newSeniorTracker.totalAssets
+                .mul(BN.from(currentTS).sub(newSeniorTracker.lastUpdatedDate))
+                .mul(BN.from(yieldInBps))
+                .div(BN.from(CONSTANTS.SECONDS_IN_A_YEAR).mul(CONSTANTS.BP_FACTOR)),
+        );
+        newSeniorTracker.lastUpdatedDate = BN.from(currentTS);
+    }
+    return newSeniorTracker;
+}
+
 function calcProfitForFixedSeniorYieldPolicy(
     profit: BN,
     assets: BN[],
-    lastUpdateTS: number,
     currentTS: number,
-    deployedAssets: BN,
     yieldInBps: number,
-): BN[] {
-    const totalAssets = assets[CONSTANTS.SENIOR_TRANCHE].add(assets[CONSTANTS.JUNIOR_TRANCHE]);
-    const seniorDeployedAssets = deployedAssets
-        .mul(assets[CONSTANTS.SENIOR_TRANCHE])
-        .div(totalAssets);
-    let seniorProfit = BN.from(0);
-    if (currentTS > lastUpdateTS) {
-        seniorProfit = seniorDeployedAssets
-            .mul(BN.from(currentTS).sub(BN.from(lastUpdateTS)))
-            .mul(BN.from(yieldInBps))
-            .div(CONSTANTS.SECONDS_IN_A_YEAR)
-            .div(CONSTANTS.BP_FACTOR);
-    }
-    seniorProfit = seniorProfit.gt(profit) ? profit : seniorProfit;
-    const juniorProfit = profit.sub(seniorProfit);
+    seniorYieldTracker: SeniorYieldTracker,
+): [SeniorYieldTracker, BN[]] {
+    let newSeniorTracker = calcLatestSeniorTracker(currentTS, yieldInBps, seniorYieldTracker);
+    let seniorProfit = newSeniorTracker.unpaidYield.gt(profit)
+        ? profit
+        : newSeniorTracker.unpaidYield;
+    let juniorProfit = profit.sub(seniorProfit);
+    newSeniorTracker.unpaidYield = newSeniorTracker.unpaidYield.sub(seniorProfit);
+    newSeniorTracker.totalAssets = assets[CONSTANTS.SENIOR_TRANCHE].add(seniorProfit);
 
     return [
-        assets[CONSTANTS.SENIOR_TRANCHE].add(seniorProfit),
-        assets[CONSTANTS.JUNIOR_TRANCHE].add(juniorProfit),
+        newSeniorTracker,
+        [
+            assets[CONSTANTS.SENIOR_TRANCHE].add(seniorProfit),
+            assets[CONSTANTS.JUNIOR_TRANCHE].add(juniorProfit),
+        ],
     ];
 }
 
@@ -749,6 +764,7 @@ async function calcRiskAdjustedProfitAndLoss(
 
 export const PnLCalculator = {
     calcProfitForFixedSeniorYieldPolicy,
+    calcLatestSeniorTracker,
     calcProfitForRiskAdjustedPolicy,
     calcProfitForFirstLossCovers,
     calcLoss,
@@ -1013,6 +1029,20 @@ export function checkDueDetailsMatch(
     expect(actualDD.committed).to.be.closeTo(expectedDD.committed, delta);
     expect(actualDD.accrued).to.be.closeTo(expectedDD.accrued, delta);
     expect(actualDD.paid).to.equal(expectedDD.paid);
+}
+
+export function printSeniorYieldTracker(tracker: SeniorYieldTracker) {
+    console.log(`[${tracker.totalAssets}, ${tracker.unpaidYield}, ${tracker.lastUpdatedDate}]`);
+}
+
+export function checkSeniorYieldTrackersMatch(
+    actualST: SeniorYieldTracker,
+    expectedST: SeniorYieldTracker,
+    delta: BN = BN.from(0),
+) {
+    expect(actualST.totalAssets).to.be.closeTo(expectedST.totalAssets, delta);
+    expect(actualST.unpaidYield).to.be.closeTo(expectedST.unpaidYield, delta);
+    expect(actualST.lastUpdatedDate).to.be.closeTo(expectedST.lastUpdatedDate, delta);
 }
 
 export function calcYieldDue(

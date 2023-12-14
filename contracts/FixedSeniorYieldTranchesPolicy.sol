@@ -13,46 +13,60 @@ import {SENIOR_TRANCHE, JUNIOR_TRANCHE, SECONDS_IN_A_YEAR, HUNDRED_PERCENT_IN_BP
  * the risk loss does not make it impossible.
  */
 contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
+    struct SeniorYieldTracker {
+        uint96 totalAssets;
+        uint96 unpaidYield;
+        uint64 lastUpdatedDate;
+    }
+
+    SeniorYieldTracker public seniorYieldTracker;
+
+    function refreshYieldTracker(uint96[2] memory assets) public override {
+        (SeniorYieldTracker memory tracker, bool updated) = _getYieldTracker();
+        if (tracker.totalAssets != assets[SENIOR_TRANCHE]) {
+            tracker.totalAssets = assets[SENIOR_TRANCHE];
+            updated = true;
+        }
+        if (updated) {
+            seniorYieldTracker = tracker;
+        }
+    }
+
     function distProfitToTranches(
         uint256 profit,
-        uint96[2] memory assets,
-        uint256 lastUpdatedTime
-    ) external view returns (uint96[2] memory newAssets) {
-        uint256 poolSafeAssets = IPoolSafe(poolConfig.poolSafe()).getPoolLiquidity();
-        uint256 totalAssets = assets[SENIOR_TRANCHE] + assets[JUNIOR_TRANCHE];
-        //* todo deployedTotalAssets below is not really true deployedTotalAsset.
-        // It is the total asset in the pool including the undeployed. For the calculation
-        // in this contract, we should use deployed. Overall: there are three kind of
-        // assets related to the pool: deployed (borrowed by the borrowers), idle in the pool,
-        // saved in the safe.
-        uint256 deployedTotalAssets = totalAssets - poolSafeAssets;
+        uint96[2] memory assets
+    ) external returns (uint96[2] memory newAssets) {
+        // Accrues senior tranches yield to the current block timestamp first
+        (SeniorYieldTracker memory tracker, ) = _getYieldTracker();
 
-        //* todo this calculation might be flawed. It assumed the same distribution of senior in
-        // the safe as the overall pool. This is not always the case.
-        uint256 deployedSeniorAssets = (deployedTotalAssets * assets[SENIOR_TRANCHE]) /
-            totalAssets;
-
-        uint256 seniorProfit;
-        if (block.timestamp > lastUpdatedTime) {
-            LPConfig memory lpConfig = poolConfig.getLPConfig();
-            // TODO: update the calculation using day0boundaries instead. We need to decide
-            // when the day boundary starts and ends.
-            seniorProfit =
-                (deployedSeniorAssets *
-                    lpConfig.fixedSeniorYieldInBps *
-                    (block.timestamp - lastUpdatedTime)) /
-                SECONDS_IN_A_YEAR /
-                HUNDRED_PERCENT_IN_BPS;
-        }
-
-        // TODO calculate senior apr last updated timestamp if profit < seniorProfit?
-        seniorProfit = seniorProfit > profit ? profit : seniorProfit;
+        uint256 seniorProfit = tracker.unpaidYield > profit ? profit : tracker.unpaidYield;
         uint256 juniorProfit = profit - seniorProfit;
-
-        //console.log("seniorProfit: %s, juniorProfit: %s", seniorProfit, juniorProfit);
 
         newAssets[SENIOR_TRANCHE] = assets[SENIOR_TRANCHE] + uint96(seniorProfit);
         newAssets[JUNIOR_TRANCHE] = assets[JUNIOR_TRANCHE] + uint96(juniorProfit);
+
+        tracker.unpaidYield -= uint96(seniorProfit);
+        tracker.totalAssets = newAssets[SENIOR_TRANCHE];
+        seniorYieldTracker = tracker;
+
         return newAssets;
+    }
+
+    function _getYieldTracker() public view returns (SeniorYieldTracker memory, bool updated) {
+        SeniorYieldTracker memory tracker = seniorYieldTracker;
+        if (block.timestamp > tracker.lastUpdatedDate) {
+            LPConfig memory lpConfig = poolConfig.getLPConfig();
+            tracker.unpaidYield += uint96(
+                (tracker.totalAssets *
+                    lpConfig.fixedSeniorYieldInBps *
+                    (block.timestamp - tracker.lastUpdatedDate)) /
+                    SECONDS_IN_A_YEAR /
+                    HUNDRED_PERCENT_IN_BPS
+            );
+            tracker.lastUpdatedDate = uint64(block.timestamp);
+            updated = true;
+        }
+
+        return (tracker, updated);
     }
 }
