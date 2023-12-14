@@ -29,6 +29,7 @@ import {
 } from "./BaseTest";
 import {
     getFirstLossCoverInfo,
+    getLatestBlock,
     mineNextBlockWithTimestamp,
     overrideLPConfig,
     setNextBlockTimestamp,
@@ -737,6 +738,16 @@ describe("TrancheVault Test", function () {
                     );
                 });
 
+                it("Should reject redemption requests that would breach the withdrawal lockout period", async function () {
+                    await poolConfigContract.connect(poolOwner).setWithdrawalLockoutPeriod(1);
+
+                    await expect(
+                        juniorTrancheVaultContract
+                            .connect(lender)
+                            .addRedemptionRequest(BN.from(1)),
+                    ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "withdrawTooSoon");
+                });
+
                 it("Should allow lenders to request redemption in the same epoch", async function () {
                     const shares = toToken(10_000);
                     const currentEpochId = await epochManagerContract.currentEpochId();
@@ -882,7 +893,15 @@ describe("TrancheVault Test", function () {
                     ).to.equal(shares);
 
                     // Close current epoch
+                    let block = await getLatestBlock();
                     let currentEpoch = await epochManagerContract.currentEpoch();
+                    let lockout = currentEpoch.endTime
+                        .sub(block.timestamp)
+                        .div(CONSTANTS.SECONDS_IN_A_DAY);
+                    // console.log("lockout", lockout.toString());
+                    await poolConfigContract
+                        .connect(poolOwner)
+                        .setWithdrawalLockoutPeriod(lockout);
                     await mineNextBlockWithTimestamp(
                         currentEpoch.endTime.add(BN.from(60 * 5)).toNumber(),
                     );

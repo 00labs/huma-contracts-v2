@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import {Errors} from "./Errors.sol";
 import {PoolConfig, LPConfig} from "./PoolConfig.sol";
 import {PoolConfigCache} from "./PoolConfigCache.sol";
-import {JUNIOR_TRANCHE, SENIOR_TRANCHE, DEFAULT_DECIMALS_FACTOR} from "./SharedDefs.sol";
+import {JUNIOR_TRANCHE, SENIOR_TRANCHE, DEFAULT_DECIMALS_FACTOR, SECONDS_IN_A_DAY} from "./SharedDefs.sol";
 import {TrancheVaultStorage, IERC20} from "./TrancheVaultStorage.sol";
 import {IEpoch, EpochInfo} from "./interfaces/IEpoch.sol";
 import {IEpochManager} from "./interfaces/IEpochManager.sol";
@@ -245,7 +245,9 @@ contract TrancheVault is
 
         if (
             block.timestamp <
-            lastDepositTime[msg.sender] + poolConfig.getLPConfig().withdrawalLockoutPeriodInSeconds
+            lastDepositTime[msg.sender] +
+                poolConfig.getLPConfig().withdrawalLockoutPeriodInDays *
+                SECONDS_IN_A_DAY
         ) revert Errors.withdrawTooSoon();
 
         poolConfig.checkFirstLossCoverRequirementsForRedemption(msg.sender);
