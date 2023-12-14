@@ -2897,7 +2897,7 @@ describe("CreditLine Test", function () {
                     nextDue: nextDue,
                     yieldDue: yieldNextDue,
                     totalPastDue: yieldPastDue.add(principalPastDue).add(lateFee),
-                    missedPeriods: 2,
+                    missedPeriods: 1,
                     remainingPeriods: oldCR.remainingPeriods - 2,
                     state: CreditState.Delayed,
                 };
