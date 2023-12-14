@@ -1268,11 +1268,17 @@ export async function calcLateFee(
     calendarContract: Calendar,
     cr: CreditRecordStruct,
     dd: DueDetailStruct,
+    timestamp: number = 0,
 ): Promise<[BN, BN]> {
     const [, lateFeeInBps] = await poolConfigContract.getFees();
     const lateFeeStartDate =
         cr.state === CreditState.GoodStanding ? cr.nextDueDate : dd.lateFeeUpdatedDate;
-    const lateFeeUpdatedDate = await calendarContract.getStartOfTomorrow();
+    let lateFeeUpdatedDate;
+    if (timestamp === 0) {
+        lateFeeUpdatedDate = await calendarContract.getStartOfTomorrow();
+    } else {
+        lateFeeUpdatedDate = await calendarContract.getStartOfNextDay(timestamp);
+    }
     const principal = getPrincipal(cr, dd);
     const lateFeeDays = await calendarContract.getDaysDiff(lateFeeStartDate, lateFeeUpdatedDate);
     return [
