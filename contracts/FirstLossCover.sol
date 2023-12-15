@@ -180,6 +180,13 @@ contract FirstLossCover is
         }
     }
 
+    /**
+     * @notice Disables transfer function currently
+     */
+    function transfer(address, uint256) public virtual override returns (bool) {
+        revert Errors.unsupportedFunction();
+    }
+
     function decimals() public view override returns (uint8) {
         return _decimals;
     }

@@ -58,14 +58,14 @@ struct LPConfig {
     bool permissioned;
     // The max liquidity allowed for the pool.
     uint96 liquidityCap;
-    // How long a lender has to wait after the last deposit before they can withdraw
-    uint8 withdrawalLockoutInMonths;
     // The upper bound of senior-to-junior ratio allowed
     uint8 maxSeniorJuniorRatio;
     // The fixed yield for senior tranche. Either this or tranchesRiskAdjustmentInBps is non-zero
     uint16 fixedSeniorYieldInBps;
     // Percentage of yield to be shifted from senior to junior. Either this or fixedSeniorYieldInBps is non-zero
     uint16 tranchesRiskAdjustmentInBps;
+    // How long a lender has to wait after the last deposit before they can withdraw
+    uint16 withdrawalLockoutPeriodInDays;
 }
 
 struct FrontLoadingFeesStructure {
@@ -207,10 +207,10 @@ contract PoolConfig is AccessControl, Initializable {
     event LPConfigChanged(
         bool permissioned,
         uint96 liquidityCap,
-        uint8 withdrawalLockoutInMonths,
         uint8 maxSeniorJuniorRatio,
         uint16 fixedSeniorYieldInBps,
         uint16 tranchesRiskAdjustmentInBps,
+        uint16 withdrawalLockoutInDays,
         address by
     );
     event FrontLoadingFeesChanged(
@@ -637,12 +637,12 @@ contract PoolConfig is AccessControl, Initializable {
 
     /**
      * Sets withdrawal lockout period after the lender makes the last deposit
-     * @param lockoutPeriod the lockout period in terms of days
+     * @param lockoutPeriodInDays the lockout period in terms of days
      */
-    function setWithdrawalLockoutPeriod(uint256 lockoutPeriod) external {
+    function setWithdrawalLockoutPeriod(uint256 lockoutPeriodInDays) external {
         _onlyOwnerOrHumaMasterAdmin();
-        _lpConfig.withdrawalLockoutInMonths = uint8(lockoutPeriod);
-        emit WithdrawalLockoutPeriodChanged(lockoutPeriod, msg.sender);
+        _lpConfig.withdrawalLockoutPeriodInDays = uint8(lockoutPeriodInDays);
+        emit WithdrawalLockoutPeriodChanged(lockoutPeriodInDays, msg.sender);
     }
 
     function setLPConfig(LPConfig calldata lpConfig) external {
@@ -651,10 +651,10 @@ contract PoolConfig is AccessControl, Initializable {
         emit LPConfigChanged(
             lpConfig.permissioned,
             lpConfig.liquidityCap,
-            lpConfig.withdrawalLockoutInMonths,
             lpConfig.maxSeniorJuniorRatio,
             lpConfig.fixedSeniorYieldInBps,
             lpConfig.tranchesRiskAdjustmentInBps,
+            lpConfig.withdrawalLockoutPeriodInDays,
             msg.sender
         );
     }
