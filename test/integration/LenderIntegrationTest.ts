@@ -113,9 +113,7 @@ async function configPool(lpConfig: Partial<LPConfigStructOutput>) {
     await poolConfigContract.connect(poolOwner).setFeeStructure({
         yieldInBps: YIELD_IN_BPS,
         minPrincipalRateInBps: MIN_PRINCIPAL_RATE_IN_BPS,
-        lateFeeFlat: 0,
         lateFeeBps: LATE_FEE_BPS,
-        membershipFee: 0,
     });
 
     await humaConfigContract.connect(protocolOwner).setTreasuryFee(PROTOCOL_FEE_IN_BPS);
