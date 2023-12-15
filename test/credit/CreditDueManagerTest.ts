@@ -525,14 +525,11 @@ describe("CreditDueManager Tests", function () {
                 it("Should return updated CreditRecord and DueDetail with refreshed late fees", async function () {
                     const timestamp = await getFutureBlockTime(2);
 
-                    const [lateFeeFlat, , membershipFee] = await poolConfigContract.getFees();
                     const lateFeeBps = 500;
                     await poolConfigContract.connect(poolOwner).setFeeStructure({
                         yieldInBps: 1000,
                         minPrincipalRateInBps: 10,
-                        lateFeeFlat,
                         lateFeeBps,
-                        membershipFee,
                     });
 
                     const [cc, cr, dd] = getInputParams(
@@ -615,14 +612,11 @@ describe("CreditDueManager Tests", function () {
                             )
                         ).add(14 * CONSTANTS.SECONDS_IN_A_DAY);
 
-                        const [lateFeeFlat, , membershipFee] = await poolConfigContract.getFees();
                         const lateFeeBps = 500;
                         await poolConfigContract.connect(poolOwner).setFeeStructure({
                             yieldInBps: 1000,
                             minPrincipalRateInBps: 0,
-                            lateFeeFlat,
                             lateFeeBps,
-                            membershipFee,
                         });
                         const [cc, cr, dd] = getInputParams(
                             {},
@@ -687,15 +681,12 @@ describe("CreditDueManager Tests", function () {
                             )
                         ).add(14 * CONSTANTS.SECONDS_IN_A_DAY);
 
-                        const [lateFeeFlat, , membershipFee] = await poolConfigContract.getFees();
                         const lateFeeBps = 500;
                         const principalRateInBps = 100;
                         await poolConfigContract.connect(poolOwner).setFeeStructure({
                             yieldInBps: 1000,
                             minPrincipalRateInBps: principalRateInBps,
-                            lateFeeFlat,
                             lateFeeBps,
-                            membershipFee,
                         });
                         const [cc, cr, dd] = getInputParams(
                             {},
@@ -763,15 +754,11 @@ describe("CreditDueManager Tests", function () {
                                 day: 14,
                             });
 
-                            const [lateFeeFlat, , membershipFee] =
-                                await poolConfigContract.getFees();
                             const lateFeeBps = 500;
                             await poolConfigContract.connect(poolOwner).setFeeStructure({
                                 yieldInBps: 1000,
                                 minPrincipalRateInBps: 0,
-                                lateFeeFlat,
                                 lateFeeBps,
-                                membershipFee,
                             });
                             const lastDueDate = moment.utc({
                                 year: nextYear,
@@ -867,16 +854,12 @@ describe("CreditDueManager Tests", function () {
                                 day: 14,
                             });
 
-                            const [lateFeeFlat, , membershipFee] =
-                                await poolConfigContract.getFees();
                             const lateFeeBps = 500;
                             const principalRateInBps = 100;
                             await poolConfigContract.connect(poolOwner).setFeeStructure({
                                 yieldInBps: 1000,
                                 minPrincipalRateInBps: principalRateInBps,
-                                lateFeeFlat,
                                 lateFeeBps,
-                                membershipFee,
                             });
                             const lastDueDate = moment.utc({
                                 year: nextYear,
@@ -992,15 +975,11 @@ describe("CreditDueManager Tests", function () {
                                 day: 14,
                             });
 
-                            const [lateFeeFlat, , membershipFee] =
-                                await poolConfigContract.getFees();
                             const lateFeeBps = 500;
                             await poolConfigContract.connect(poolOwner).setFeeStructure({
                                 yieldInBps: 1000,
                                 minPrincipalRateInBps: 0,
-                                lateFeeFlat,
                                 lateFeeBps,
-                                membershipFee,
                             });
                             const lastDueDate = moment.utc({
                                 year: nextYear,
@@ -1106,16 +1085,12 @@ describe("CreditDueManager Tests", function () {
                                 day: 14,
                             });
 
-                            const [lateFeeFlat, , membershipFee] =
-                                await poolConfigContract.getFees();
                             const lateFeeBps = 500;
                             const principalRateInBps = 100;
                             await poolConfigContract.connect(poolOwner).setFeeStructure({
                                 yieldInBps: 1000,
                                 minPrincipalRateInBps: principalRateInBps,
-                                lateFeeFlat,
                                 lateFeeBps,
-                                membershipFee,
                             });
                             const lastDueDate = moment.utc({
                                 year: nextYear,
@@ -1241,15 +1216,12 @@ describe("CreditDueManager Tests", function () {
                             day: 20,
                         });
 
-                        const [lateFeeFlat, , membershipFee] = await poolConfigContract.getFees();
                         const lateFeeBps = 500;
                         const principalRateInBps = 0;
                         await poolConfigContract.connect(poolOwner).setFeeStructure({
                             yieldInBps: 1000,
                             minPrincipalRateInBps: principalRateInBps,
-                            lateFeeFlat,
                             lateFeeBps,
-                            membershipFee,
                         });
                         const lastDueDate = moment.utc({
                             year: nextYear,
