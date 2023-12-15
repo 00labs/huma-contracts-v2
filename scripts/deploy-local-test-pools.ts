@@ -161,9 +161,9 @@ async function main() {
     await depositFirstLossCover(poolContract, borrowerFirstLossCoverContract, borrowerActive);
 
     // Set first loss cover liquidity cap
-    let totalAssetsBorrowerFLC = await borrowerFirstLossCoverContract.totalAssets();
-    let totalAssetsAffiliateFLC = await affiliateFirstLossCoverContract.totalAssets();
-    let yieldAmount = toToken(10_000);
+    const totalAssetsBorrowerFLC = await borrowerFirstLossCoverContract.totalAssets();
+    const totalAssetsAffiliateFLC = await affiliateFirstLossCoverContract.totalAssets();
+    const yieldAmount = toToken(10_000);
     await overrideFirstLossCoverConfig(
         borrowerFirstLossCoverContract,
         CONSTANTS.BORROWER_FIRST_LOSS_COVER_INDEX,
