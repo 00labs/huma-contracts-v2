@@ -372,6 +372,14 @@ contract TrancheVault is
     }
 
     /**
+     * @notice Disables transfer function currently, need to consider how to support it later(lender permission,
+     * yield payout, profit distribution, etc.) when integrating with DEXs.
+     */
+    function transfer(address, uint256) public virtual override returns (bool) {
+        revert Errors.unsupportedFunction();
+    }
+
+    /**
      * @notice Returns the withdrawable assets value of the given account
      */
     function withdrawableAssets(address account) external view returns (uint256 assets) {

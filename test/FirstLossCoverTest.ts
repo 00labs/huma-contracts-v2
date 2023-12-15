@@ -574,12 +574,12 @@ describe("FirstLossCover Tests", function () {
 
             oldSupply = await affiliateFirstLossCoverContract.totalSupply();
             oldAssets = await affiliateFirstLossCoverContract.totalAssets();
-            console.log(
-                `newSupply: ${oldSupply}, newAssets: ${oldAssets}, assets: ${await affiliateFirstLossCoverContract.totalAssets()}`,
-            );
-            console.log(
-                `affiliateFirstLossCoverContract.address: ${affiliateFirstLossCoverContract.address}`,
-            );
+            // console.log(
+            //     `newSupply: ${oldSupply}, newAssets: ${oldAssets}, assets: ${await affiliateFirstLossCoverContract.totalAssets()}`,
+            // );
+            // console.log(
+            //     `affiliateFirstLossCoverContract.address: ${affiliateFirstLossCoverContract.address}`,
+            // );
 
             const tranchesAssets = await poolContract.tranchesAssets();
             const totalTrancheAssets = tranchesAssets.seniorTotalAssets.add(
@@ -590,6 +590,19 @@ describe("FirstLossCover Tests", function () {
 
             await affiliateFirstLossCoverContract.connect(evaluationAgent).depositCover(assets);
         }
+
+        describe("Transfer", function () {
+            it("Should not transfer first loss cover token", async function () {
+                await expect(
+                    affiliateFirstLossCoverContract
+                        .connect(evaluationAgent)
+                        .transfer(lender.address, toToken(100)),
+                ).to.be.revertedWithCustomError(
+                    affiliateFirstLossCoverContract,
+                    "unsupportedFunction",
+                );
+            });
+        });
 
         describe("When the pool is not ready for first loss cover withdrawal", function () {
             async function setFirstLossCoverWithdrawalToNotReady() {
