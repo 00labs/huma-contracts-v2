@@ -11,6 +11,7 @@ contract Errors {
     error insufficientSharesForRequest(); // 0x439f3ef3
     error lessThanRequiredCover(); // 0xd0f0d90e
     error emptyArray(); // 0x81a5a837
+    error unsupportedFunction();
 
     // security
     error permissionDeniedNotAdmin(); // 0xf2c5b6a7
