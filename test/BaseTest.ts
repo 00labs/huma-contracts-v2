@@ -1270,7 +1270,7 @@ export async function calcLateFee(
     dd: DueDetailStruct,
     timestamp: number = 0,
 ): Promise<[BN, BN]> {
-    const [, lateFeeInBps] = await poolConfigContract.getFees();
+    const lateFeeInBps = await poolConfigContract.getLateFeeBps();
     const lateFeeStartDate =
         cr.state === CreditState.GoodStanding ? cr.nextDueDate : dd.lateFeeUpdatedDate;
     let lateFeeUpdatedDate;
@@ -1309,7 +1309,7 @@ export async function calcLateFeeNew(
     ) {
         return [dd.lateFeeUpdatedDate, dd.lateFee];
     }
-    const [, lateFeeInBps] = await poolConfigContract.getFees();
+    const lateFeeInBps = await poolConfigContract.getLateFeeBps();
     const lateFeeStartDate =
         cr.state === CreditState.GoodStanding ? cr.nextDueDate : dd.lateFeeUpdatedDate;
     const lateFeeUpdatedDate = currentDate.clone().add(1, "day").startOf("day");

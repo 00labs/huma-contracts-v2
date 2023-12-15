@@ -77,7 +77,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         uint256 timestamp
     ) public view override returns (uint64 lateFeeUpdatedDate, uint96 lateFee) {
         lateFeeUpdatedDate = uint64(calendar.getStartOfNextDay(timestamp));
-        (, uint256 lateFeeInBps, ) = poolConfig.getFees();
+        uint256 lateFeeInBps = poolConfig.getLateFeeBps();
         // If the credit state is good-standing, then the bill is late for the first time.
         // We need to charge the late fee from the last due date onwards.
         uint256 lateFeeStartDate = _cr.state == CreditState.GoodStanding
