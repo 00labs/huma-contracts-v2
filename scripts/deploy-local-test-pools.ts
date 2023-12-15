@@ -2,8 +2,12 @@ import { time } from "@nomicfoundation/hardhat-network-helpers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { BigNumber as BN } from "ethers";
 import { ethers, network } from "hardhat";
-import { deployAndSetupPoolContracts, deployProtocolContracts } from "../test/BaseTest";
-import { getMinFirstLossCoverRequirement, toToken } from "../test/TestUtils";
+import { CONSTANTS, deployAndSetupPoolContracts, deployProtocolContracts } from "../test/BaseTest";
+import {
+    getMinFirstLossCoverRequirement,
+    overrideFirstLossCoverConfig,
+    toToken,
+} from "../test/TestUtils";
 import {
     BorrowerLevelCreditManager,
     Calendar,
@@ -155,6 +159,29 @@ async function main() {
 
     // Deposit first loss cover
     await depositFirstLossCover(poolContract, borrowerFirstLossCoverContract, borrowerActive);
+
+    // Set first loss cover liquidity cap
+    const totalAssetsBorrowerFLC = await borrowerFirstLossCoverContract.totalAssets();
+    const totalAssetsAffiliateFLC = await affiliateFirstLossCoverContract.totalAssets();
+    const yieldAmount = toToken(10_000);
+    await overrideFirstLossCoverConfig(
+        borrowerFirstLossCoverContract,
+        CONSTANTS.BORROWER_FIRST_LOSS_COVER_INDEX,
+        poolConfigContract,
+        poolOwner,
+        {
+            liquidityCap: totalAssetsBorrowerFLC.sub(yieldAmount),
+        },
+    );
+    await overrideFirstLossCoverConfig(
+        affiliateFirstLossCoverContract,
+        CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+        poolConfigContract,
+        poolOwner,
+        {
+            liquidityCap: totalAssetsAffiliateFLC.sub(yieldAmount),
+        },
+    );
 
     // Depositing junior and senior liquidity into the tranches
     await juniorTrancheVaultContract
