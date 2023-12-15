@@ -3693,9 +3693,9 @@ describe("CreditLine Test", function () {
                     creditState = cr.state;
                 }
                 let expectedNewCR, expectedNewDD;
-                console.log(
-                    `cr.nextDueDate ${cr.nextDueDate}, paymentDate ${paymentDate}, newDueDate ${newDueDate}`,
-                );
+                // console.log(
+                //     `cr.nextDueDate ${cr.nextDueDate}, paymentDate ${paymentDate}, newDueDate ${newDueDate}`,
+                // );
                 if (
                     nextDueAfter.isZero() &&
                     !remainingUnbilledPrincipal.isZero() &&

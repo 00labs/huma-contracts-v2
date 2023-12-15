@@ -210,7 +210,7 @@ contract PoolConfig is AccessControl, Initializable {
         uint8 maxSeniorJuniorRatio,
         uint16 fixedSeniorYieldInBps,
         uint16 tranchesRiskAdjustmentInBps,
-        uint64 withdrawalLockoutInDays,
+        uint16 withdrawalLockoutInDays,
         address by
     );
     event FrontLoadingFeesChanged(
