@@ -201,7 +201,13 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         if (newDD.yieldPastDue > 0 || newDD.principalPastDue > 0) {
             // Make sure the late fee is up-to-date if there is past due.
             (newDD.lateFeeUpdatedDate, newDD.lateFee) = refreshLateFee(cr, dd, timestamp);
-            newCR.missedPeriods = uint16(cr.missedPeriods + periodsPassed);
+            if (cr.state == CreditState.GoodStanding && cr.nextDue == 0) {
+                // If the amount due is paid off in the previous billing cycle, then that billing cycle
+                // is not missed even if the bill is late now, hence the -1.
+                newCR.missedPeriods = uint16(cr.missedPeriods + periodsPassed - 1);
+            } else {
+                newCR.missedPeriods = uint16(cr.missedPeriods + periodsPassed);
+            }
             newCR.state = CreditState.Delayed;
         } else {
             newCR.missedPeriods = 0;
