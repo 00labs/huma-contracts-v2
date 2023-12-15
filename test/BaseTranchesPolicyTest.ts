@@ -138,7 +138,10 @@ describe("BaseTranchesPolicy Tests", function () {
                 assets,
                 firstLossCoverInfos,
             );
-            const result = await tranchesPolicyContract.distLossToTranches(loss, assets);
+            const result = await tranchesPolicyContract.callStatic.distLossToTranches(
+                loss,
+                assets,
+            );
 
             expect(result[0][CONSTANTS.SENIOR_TRANCHE]).to.equal(
                 newAssets[CONSTANTS.SENIOR_TRANCHE],
@@ -168,7 +171,10 @@ describe("BaseTranchesPolicy Tests", function () {
                 assets,
                 firstLossCoverInfos,
             );
-            const result = await tranchesPolicyContract.distLossToTranches(loss, assets);
+            const result = await tranchesPolicyContract.callStatic.distLossToTranches(
+                loss,
+                assets,
+            );
 
             expect(result[0][CONSTANTS.SENIOR_TRANCHE]).to.equal(
                 newAssets[CONSTANTS.SENIOR_TRANCHE],
@@ -193,20 +199,19 @@ describe("BaseTranchesPolicy Tests", function () {
             const loss = assets[CONSTANTS.SENIOR_TRANCHE].add(assets[CONSTANTS.JUNIOR_TRANCHE]);
             const recovery = assets[CONSTANTS.SENIOR_TRANCHE];
 
-            const [assetsAfterLosses, losses] = await tranchesPolicyContract.distLossToTranches(
-                loss,
-                assets,
-            );
+            const [assetsAfterLosses, losses] =
+                await tranchesPolicyContract.callStatic.distLossToTranches(loss, assets);
             const [, newAssetsWithLossRecovery, newLossesWithLossRecovery] =
                 await PnLCalculator.calcLossRecovery(recovery, assetsAfterLosses, losses, [
                     BN.from(0),
                     BN.from(0),
                 ]);
-            const resultWithLossRecovery = await tranchesPolicyContract.distLossRecoveryToTranches(
-                recovery,
-                assetsAfterLosses,
-                losses,
-            );
+            const resultWithLossRecovery =
+                await tranchesPolicyContract.callStatic.distLossRecoveryToTranches(
+                    recovery,
+                    assetsAfterLosses,
+                    losses,
+                );
             expect(resultWithLossRecovery[0]).to.equal(0);
             expect(resultWithLossRecovery[1][CONSTANTS.SENIOR_TRANCHE]).to.equal(
                 newAssetsWithLossRecovery[CONSTANTS.SENIOR_TRANCHE],
@@ -231,20 +236,19 @@ describe("BaseTranchesPolicy Tests", function () {
             const loss = assets[CONSTANTS.SENIOR_TRANCHE].add(assets[CONSTANTS.JUNIOR_TRANCHE]);
             const recovery = loss;
 
-            const [assetsAfterLosses, losses] = await tranchesPolicyContract.distLossToTranches(
-                loss,
-                assets,
-            );
+            const [assetsAfterLosses, losses] =
+                await tranchesPolicyContract.callStatic.distLossToTranches(loss, assets);
             const [, newAssetsWithLossRecovery, newLossesWithLossRecovery] =
                 await PnLCalculator.calcLossRecovery(recovery, assetsAfterLosses, losses, [
                     BN.from(0),
                     BN.from(0),
                 ]);
-            const resultWithLossRecovery = await tranchesPolicyContract.distLossRecoveryToTranches(
-                recovery,
-                assetsAfterLosses,
-                losses,
-            );
+            const resultWithLossRecovery =
+                await tranchesPolicyContract.callStatic.distLossRecoveryToTranches(
+                    recovery,
+                    assetsAfterLosses,
+                    losses,
+                );
             expect(resultWithLossRecovery[0]).to.equal(0);
             expect(resultWithLossRecovery[1][CONSTANTS.SENIOR_TRANCHE]).to.equal(
                 newAssetsWithLossRecovery[CONSTANTS.SENIOR_TRANCHE],

@@ -5,11 +5,13 @@ import {HumaConfig} from "../HumaConfig.sol";
 import {CreditConfig, CreditLimit} from "./CreditStructs.sol";
 import {ICredit} from "./interfaces/ICredit.sol";
 import {ICalendar} from "./interfaces/ICalendar.sol";
+import {ICreditDueManager} from "./utils/interfaces/ICreditDueManager.sol";
 
 contract CreditManagerStorage {
     HumaConfig public humaConfig;
     ICredit public credit;
     ICalendar public calendar;
+    ICreditDueManager public dueManager;
 
     /// mapping from credit id to the credit config
     mapping(bytes32 => CreditConfig) internal _creditConfigMap;

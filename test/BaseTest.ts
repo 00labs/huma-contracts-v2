@@ -562,32 +562,47 @@ export async function deployAndSetupPoolContracts(
     ];
 }
 
+export type SeniorYieldTracker = { totalAssets: BN; unpaidYield: BN; lastUpdatedDate: BN };
+
+function calcLatestSeniorTracker(
+    currentTS: number,
+    yieldInBps: number,
+    seniorYieldTracker: SeniorYieldTracker,
+): SeniorYieldTracker {
+    let newSeniorTracker = { ...seniorYieldTracker };
+    if (currentTS > newSeniorTracker.lastUpdatedDate.toNumber()) {
+        newSeniorTracker.unpaidYield = newSeniorTracker.unpaidYield.add(
+            newSeniorTracker.totalAssets
+                .mul(BN.from(currentTS).sub(newSeniorTracker.lastUpdatedDate))
+                .mul(BN.from(yieldInBps))
+                .div(BN.from(CONSTANTS.SECONDS_IN_A_YEAR).mul(CONSTANTS.BP_FACTOR)),
+        );
+        newSeniorTracker.lastUpdatedDate = BN.from(currentTS);
+    }
+    return newSeniorTracker;
+}
+
 function calcProfitForFixedSeniorYieldPolicy(
     profit: BN,
     assets: BN[],
-    lastUpdateTS: number,
     currentTS: number,
-    deployedAssets: BN,
     yieldInBps: number,
-): BN[] {
-    const totalAssets = assets[CONSTANTS.SENIOR_TRANCHE].add(assets[CONSTANTS.JUNIOR_TRANCHE]);
-    const seniorDeployedAssets = deployedAssets
-        .mul(assets[CONSTANTS.SENIOR_TRANCHE])
-        .div(totalAssets);
-    let seniorProfit = BN.from(0);
-    if (currentTS > lastUpdateTS) {
-        seniorProfit = seniorDeployedAssets
-            .mul(BN.from(currentTS).sub(BN.from(lastUpdateTS)))
-            .mul(BN.from(yieldInBps))
-            .div(CONSTANTS.SECONDS_IN_A_YEAR)
-            .div(CONSTANTS.BP_FACTOR);
-    }
-    seniorProfit = seniorProfit.gt(profit) ? profit : seniorProfit;
-    const juniorProfit = profit.sub(seniorProfit);
+    seniorYieldTracker: SeniorYieldTracker,
+): [SeniorYieldTracker, BN[]] {
+    let newSeniorTracker = calcLatestSeniorTracker(currentTS, yieldInBps, seniorYieldTracker);
+    let seniorProfit = newSeniorTracker.unpaidYield.gt(profit)
+        ? profit
+        : newSeniorTracker.unpaidYield;
+    let juniorProfit = profit.sub(seniorProfit);
+    newSeniorTracker.unpaidYield = newSeniorTracker.unpaidYield.sub(seniorProfit);
+    newSeniorTracker.totalAssets = assets[CONSTANTS.SENIOR_TRANCHE].add(seniorProfit);
 
     return [
-        assets[CONSTANTS.SENIOR_TRANCHE].add(seniorProfit),
-        assets[CONSTANTS.JUNIOR_TRANCHE].add(juniorProfit),
+        newSeniorTracker,
+        [
+            assets[CONSTANTS.SENIOR_TRANCHE].add(seniorProfit),
+            assets[CONSTANTS.JUNIOR_TRANCHE].add(juniorProfit),
+        ],
     ];
 }
 
@@ -749,6 +764,7 @@ async function calcRiskAdjustedProfitAndLoss(
 
 export const PnLCalculator = {
     calcProfitForFixedSeniorYieldPolicy,
+    calcLatestSeniorTracker,
     calcProfitForRiskAdjustedPolicy,
     calcProfitForFirstLossCovers,
     calcLoss,
@@ -1015,6 +1031,20 @@ export function checkDueDetailsMatch(
     expect(actualDD.paid).to.equal(expectedDD.paid);
 }
 
+export function printSeniorYieldTracker(tracker: SeniorYieldTracker) {
+    console.log(`[${tracker.totalAssets}, ${tracker.unpaidYield}, ${tracker.lastUpdatedDate}]`);
+}
+
+export function checkSeniorYieldTrackersMatch(
+    actualST: SeniorYieldTracker,
+    expectedST: SeniorYieldTracker,
+    delta: BN = BN.from(0),
+) {
+    expect(actualST.totalAssets).to.be.closeTo(expectedST.totalAssets, delta);
+    expect(actualST.unpaidYield).to.be.closeTo(expectedST.unpaidYield, delta);
+    expect(actualST.lastUpdatedDate).to.be.closeTo(expectedST.lastUpdatedDate, delta);
+}
+
 export function calcYieldDue(
     cc: CreditConfigStruct,
     principal: BigNumber,
@@ -1238,11 +1268,17 @@ export async function calcLateFee(
     calendarContract: Calendar,
     cr: CreditRecordStruct,
     dd: DueDetailStruct,
+    timestamp: number = 0,
 ): Promise<[BN, BN]> {
-    const [, lateFeeInBps] = await poolConfigContract.getFees();
+    const lateFeeInBps = await poolConfigContract.getLateFeeBps();
     const lateFeeStartDate =
         cr.state === CreditState.GoodStanding ? cr.nextDueDate : dd.lateFeeUpdatedDate;
-    const lateFeeUpdatedDate = await calendarContract.getStartOfTomorrow();
+    let lateFeeUpdatedDate;
+    if (timestamp === 0) {
+        lateFeeUpdatedDate = await calendarContract.getStartOfTomorrow();
+    } else {
+        lateFeeUpdatedDate = await calendarContract.getStartOfNextDay(timestamp);
+    }
     const principal = getPrincipal(cr, dd);
     const lateFeeDays = await calendarContract.getDaysDiff(lateFeeStartDate, lateFeeUpdatedDate);
     return [
@@ -1273,7 +1309,7 @@ export async function calcLateFeeNew(
     ) {
         return [dd.lateFeeUpdatedDate, dd.lateFee];
     }
-    const [, lateFeeInBps] = await poolConfigContract.getFees();
+    const lateFeeInBps = await poolConfigContract.getLateFeeBps();
     const lateFeeStartDate =
         cr.state === CreditState.GoodStanding ? cr.nextDueDate : dd.lateFeeUpdatedDate;
     const lateFeeUpdatedDate = currentDate.clone().add(1, "day").startOf("day");

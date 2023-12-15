@@ -164,9 +164,7 @@ describe("ReceivableFactoringCredit Tests", function () {
         let creditLimit: BN;
         const yieldInBps = 1200;
         const lateFeeBps = 2400;
-        const lateFeeFlat = 0;
         const principalRate = 0;
-        const membershipFee = 0;
         const lateGracePeriodInDays = 5;
         let tokenId: BN;
 
@@ -186,11 +184,9 @@ describe("ReceivableFactoringCredit Tests", function () {
                 .setLatePaymentGracePeriodInDays(lateGracePeriodInDays);
 
             await poolConfigContract.connect(poolOwner).setFeeStructure({
-                yieldInBps: yieldInBps,
+                yieldInBps,
                 minPrincipalRateInBps: principalRate,
-                lateFeeFlat: lateFeeFlat,
-                lateFeeBps: lateFeeBps,
-                membershipFee: membershipFee,
+                lateFeeBps,
             });
 
             await nftContract.mintNFT(borrower.address, "");

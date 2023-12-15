@@ -77,7 +77,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         uint256 timestamp
     ) public view override returns (uint64 lateFeeUpdatedDate, uint96 lateFee) {
         lateFeeUpdatedDate = uint64(calendar.getStartOfNextDay(timestamp));
-        (, uint256 lateFeeInBps, ) = poolConfig.getFees();
+        uint256 lateFeeInBps = poolConfig.getLateFeeBps();
         // If the credit state is good-standing, then the bill is late for the first time.
         // We need to charge the late fee from the last due date onwards.
         uint256 lateFeeStartDate = _cr.state == CreditState.GoodStanding
@@ -101,15 +101,9 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         CreditConfig memory cc,
         DueDetail memory dd,
         uint256 timestamp
-    )
-        public
-        view
-        virtual
-        override
-        returns (CreditRecord memory newCR, DueDetail memory newDD, uint256 periodsPassed)
-    {
+    ) public view virtual override returns (CreditRecord memory newCR, DueDetail memory newDD) {
         // Do not update due info for accounts already in default state.
-        if (cr.state == CreditState.Defaulted) return (cr, dd, 0);
+        if (cr.state == CreditState.Defaulted) return (cr, dd);
 
         newCR = _deepCopyCreditRecord(cr);
         newDD = _deepCopyDueDetail(dd);
@@ -118,12 +112,12 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         // If the current timestamp has not yet reached the bill refresh date, then all the amount due is up-to-date
         // except possibly the late fee. So we only need to update the late fee if it is already late.
         if (!isFirstPeriod && timestamp <= getNextBillRefreshDate(cr, timestamp)) {
-            if (cr.missedPeriods == 0) return (newCR, newDD, 0);
+            if (cr.missedPeriods == 0) return (newCR, newDD);
             else {
                 newCR.totalPastDue -= dd.lateFee;
                 (newDD.lateFeeUpdatedDate, newDD.lateFee) = refreshLateFee(cr, dd, timestamp);
                 newCR.totalPastDue += newDD.lateFee;
-                return (newCR, newDD, 0);
+                return (newCR, newDD);
             }
         }
 
@@ -189,6 +183,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         // Only the newly generated next due needs to be recorded.
         newCR.nextDue = uint96(newCR.yieldDue + principalDue);
 
+        uint256 periodsPassed;
         if (isFirstPeriod) {
             periodsPassed = 1;
         } else {
@@ -206,7 +201,13 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         if (newDD.yieldPastDue > 0 || newDD.principalPastDue > 0) {
             // Make sure the late fee is up-to-date if there is past due.
             (newDD.lateFeeUpdatedDate, newDD.lateFee) = refreshLateFee(cr, dd, timestamp);
-            newCR.missedPeriods = uint16(cr.missedPeriods + periodsPassed);
+            if (cr.state == CreditState.GoodStanding && cr.nextDue == 0) {
+                // If the amount due is paid off in the previous billing cycle, then that billing cycle
+                // is not missed even if the bill is late now, hence the -1.
+                newCR.missedPeriods = uint16(cr.missedPeriods + periodsPassed - 1);
+            } else {
+                newCR.missedPeriods = uint16(cr.missedPeriods + periodsPassed);
+            }
             newCR.state = CreditState.Delayed;
         } else {
             newCR.missedPeriods = 0;
@@ -214,7 +215,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         }
         newCR.totalPastDue = newDD.lateFee + newDD.yieldPastDue + newDD.principalPastDue;
 
-        return (newCR, newDD, periodsPassed);
+        return (newCR, newDD);
     }
 
     function getPayoffAmount(
@@ -245,6 +246,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             uint96((principal * yieldInBps * numDays) / (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR));
     }
 
+    /// @inheritdoc ICreditDueManager
     function computeUpdatedYieldDue(
         CreditConfig memory cc,
         CreditRecord memory cr,
@@ -277,6 +279,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             (HUNDRED_PERCENT_IN_BPS ** numPeriods);
     }
 
+    /// @inheritdoc ICreditDueManager
     function computePrincipalDueForPartialPeriod(
         uint256 unbilledPrincipal,
         uint256 principalRateInBps,

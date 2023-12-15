@@ -166,9 +166,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
         let creditLimit: BN;
         const yieldInBps = 1200;
         const lateFeeBps = 2400;
-        const lateFeeFlat = 0;
         const principalRate = 0;
-        const membershipFee = 0;
         const lateGracePeriodInDays = 5;
         let advanceRate: BN;
 
@@ -198,11 +196,9 @@ describe("ReceivableBackedCreditLine Tests", function () {
             await poolConfigContract.connect(poolOwner).setReceivableAutoApproval(true);
 
             await poolConfigContract.connect(poolOwner).setFeeStructure({
-                yieldInBps: yieldInBps,
+                yieldInBps,
                 minPrincipalRateInBps: principalRate,
-                lateFeeFlat: lateFeeFlat,
-                lateFeeBps: lateFeeBps,
-                membershipFee: membershipFee,
+                lateFeeBps,
             });
         }
 
