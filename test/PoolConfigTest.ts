@@ -1763,7 +1763,7 @@ describe("PoolConfig Tests", function () {
                     .to.emit(poolConfigContract, "WithdrawalLockoutPeriodChanged")
                     .withArgs(lockoutPeriod, poolOwner.address);
                 const lpConfig = await poolConfigContract.getLPConfig();
-                expect(lpConfig.withdrawalLockoutInMonths).to.equal(lockoutPeriod);
+                expect(lpConfig.withdrawalLockoutPeriodInDays).to.equal(lockoutPeriod);
             });
 
             it("Should allow the Huma master admin to set the withdrawal lockout period", async function () {
@@ -1775,7 +1775,7 @@ describe("PoolConfig Tests", function () {
                     .to.emit(poolConfigContract, "WithdrawalLockoutPeriodChanged")
                     .withArgs(lockoutPeriod, protocolOwner.address);
                 const lpConfig = await poolConfigContract.getLPConfig();
-                expect(lpConfig.withdrawalLockoutInMonths).to.equal(lockoutPeriod);
+                expect(lpConfig.withdrawalLockoutPeriodInDays).to.equal(lockoutPeriod);
             });
 
             it("Should reject non-owner or admin to set the withdrawal lockout period", async function () {
@@ -1794,10 +1794,10 @@ describe("PoolConfig Tests", function () {
                 newLPConfig = {
                     permissioned: false,
                     liquidityCap: toToken(100_000_000),
-                    withdrawalLockoutInMonths: 30,
                     maxSeniorJuniorRatio: 4,
                     fixedSeniorYieldInBps: 2000,
                     tranchesRiskAdjustmentInBps: 8000,
+                    withdrawalLockoutPeriodInDays: 30,
                 };
             });
 
@@ -1807,17 +1807,17 @@ describe("PoolConfig Tests", function () {
                     .withArgs(
                         newLPConfig.permissioned,
                         newLPConfig.liquidityCap,
-                        newLPConfig.withdrawalLockoutInMonths,
                         newLPConfig.maxSeniorJuniorRatio,
                         newLPConfig.fixedSeniorYieldInBps,
                         newLPConfig.tranchesRiskAdjustmentInBps,
+                        newLPConfig.withdrawalLockoutPeriodInDays,
                         poolOwner.address,
                     );
                 const lpConfig = await poolConfigContract.getLPConfig();
                 expect(lpConfig.permissioned).to.equal(newLPConfig.permissioned);
                 expect(lpConfig.liquidityCap).to.equal(newLPConfig.liquidityCap);
-                expect(lpConfig.withdrawalLockoutInMonths).to.equal(
-                    newLPConfig.withdrawalLockoutInMonths,
+                expect(lpConfig.withdrawalLockoutPeriodInDays).to.equal(
+                    newLPConfig.withdrawalLockoutPeriodInDays,
                 );
                 expect(lpConfig.maxSeniorJuniorRatio).to.equal(newLPConfig.maxSeniorJuniorRatio);
                 expect(lpConfig.fixedSeniorYieldInBps).to.equal(newLPConfig.fixedSeniorYieldInBps);
@@ -1832,17 +1832,17 @@ describe("PoolConfig Tests", function () {
                     .withArgs(
                         newLPConfig.permissioned,
                         newLPConfig.liquidityCap,
-                        newLPConfig.withdrawalLockoutInMonths,
                         newLPConfig.maxSeniorJuniorRatio,
                         newLPConfig.fixedSeniorYieldInBps,
                         newLPConfig.tranchesRiskAdjustmentInBps,
+                        newLPConfig.withdrawalLockoutPeriodInDays,
                         protocolOwner.address,
                     );
                 const lpConfig = await poolConfigContract.getLPConfig();
                 expect(lpConfig.permissioned).to.equal(newLPConfig.permissioned);
                 expect(lpConfig.liquidityCap).to.equal(newLPConfig.liquidityCap);
-                expect(lpConfig.withdrawalLockoutInMonths).to.equal(
-                    newLPConfig.withdrawalLockoutInMonths,
+                expect(lpConfig.withdrawalLockoutPeriodInDays).to.equal(
+                    newLPConfig.withdrawalLockoutPeriodInDays,
                 );
                 expect(lpConfig.maxSeniorJuniorRatio).to.equal(newLPConfig.maxSeniorJuniorRatio);
                 expect(lpConfig.fixedSeniorYieldInBps).to.equal(newLPConfig.fixedSeniorYieldInBps);

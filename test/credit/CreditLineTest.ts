@@ -3556,19 +3556,19 @@ describe("CreditLine Test", function () {
                     borrower.getAddress(),
                 );
 
-                console.log(
-                    `paymentAmountUsed ${paymentAmountUsed}`,
-                    `newDueDate ${newDueDate}`,
-                    `nextDueAfter ${nextDueAfter}`,
-                    `remainingPastDue ${remainingPastDue}`,
-                    `remainingUnbilledPrincipal ${remainingUnbilledPrincipal}`,
-                    `yieldDuePaid ${yieldDuePaid}`,
-                    `principalDuePaid ${principalDuePaid}`,
-                    `unbilledPrincipalPaid ${unbilledPrincipalPaid}`,
-                    `yieldPastDuePaid ${yieldPastDuePaid}`,
-                    `lateFeePaid ${lateFeePaid}`,
-                    `principalPastDuePaid ${principalPastDuePaid}`,
-                );
+                // console.log(
+                //     `paymentAmountUsed ${paymentAmountUsed}`,
+                //     `newDueDate ${newDueDate}`,
+                //     `nextDueAfter ${nextDueAfter}`,
+                //     `remainingPastDue ${remainingPastDue}`,
+                //     `remainingUnbilledPrincipal ${remainingUnbilledPrincipal}`,
+                //     `yieldDuePaid ${yieldDuePaid}`,
+                //     `principalDuePaid ${principalDuePaid}`,
+                //     `unbilledPrincipalPaid ${unbilledPrincipalPaid}`,
+                //     `yieldPastDuePaid ${yieldPastDuePaid}`,
+                //     `lateFeePaid ${lateFeePaid}`,
+                //     `principalPastDuePaid ${principalPastDuePaid}`,
+                // );
                 if (paymentAmountUsed.gt(ethers.constants.Zero)) {
                     let poolDistributionEventName = "";
                     if (cr.state === CreditState.Defaulted) {
@@ -3693,9 +3693,9 @@ describe("CreditLine Test", function () {
                     creditState = cr.state;
                 }
                 let expectedNewCR, expectedNewDD;
-                console.log(
-                    `cr.nextDueDate ${cr.nextDueDate}, paymentDate ${paymentDate}, newDueDate ${newDueDate}`,
-                );
+                // console.log(
+                //     `cr.nextDueDate ${cr.nextDueDate}, paymentDate ${paymentDate}, newDueDate ${newDueDate}`,
+                // );
                 if (
                     nextDueAfter.isZero() &&
                     !remainingUnbilledPrincipal.isZero() &&
