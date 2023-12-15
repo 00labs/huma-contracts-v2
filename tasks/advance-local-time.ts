@@ -64,6 +64,11 @@ task("advance-local-time", "Advances the locally deployed pool based on options"
             timeToAdvance = nextEpochStartTime.toNumber() - currentBlockTimestamp;
         }
 
+        if (timeToAdvance < 0) {
+            console.log("The selected milestone is in the past. Exiting.");
+            return;
+        }
+
         console.log(
             `Advancing blockchain by ${timeToAdvance} seconds (~${(
                 timeToAdvance /
