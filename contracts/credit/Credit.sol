@@ -67,6 +67,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
     /**
      * @notice A payment has been made against the credit line
      * @param borrower the address of the borrower
+     * @param payer the address from which the money is coming
      * @param amount the payback amount
      * @param yieldDuePaid the amount of this payment applied to yield due in the current billing cycle
      * @param principalDuePaid the amount of this payment applied to principal due in the current billing cycle
@@ -79,6 +80,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
      */
     event PaymentMade(
         address indexed borrower,
+        address indexed payer,
         uint256 amount,
         uint256 yieldDuePaid,
         uint256 principalDuePaid,
@@ -92,6 +94,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
     /**
      * @notice A payment has been made against the credit line
      * @param borrower the address of the borrower
+     * @param payer the address from which the money is coming
      * @param amount the payback amount
      * @param nextDueDate the due date of the next payment
      * @param principalDue the principal due on the credit line after processing the payment
@@ -103,6 +106,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
      */
     event PrincipalPaymentMade(
         address indexed borrower,
+        address indexed payer,
         uint256 amount,
         uint256 nextDueDate,
         uint256 principalDue,
@@ -463,7 +467,8 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         _updateDueInfo(creditHash, cr, dd);
 
         if (amountToCollect > 0) {
-            poolSafe.deposit(msg.sender, amountToCollect);
+            address payer = _getPaymentOriginator(borrower);
+            poolSafe.deposit(payer, amountToCollect);
             if (oldCRState == CreditState.Defaulted) {
                 IPool(poolConfig.pool()).distributeLossRecovery(amountToCollect);
             } else {
@@ -476,6 +481,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             }
             emit PaymentMade(
                 borrower,
+                payer,
                 amountToCollect,
                 paymentRecord.yieldDuePaid,
                 paymentRecord.principalDuePaid,
@@ -550,9 +556,11 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         _updateDueInfo(creditHash, cr, dd);
 
         if (amountToCollect > 0) {
-            poolSafe.deposit(msg.sender, amountToCollect);
+            address payer = _getPaymentOriginator(borrower);
+            poolSafe.deposit(payer, amountToCollect);
             emit PrincipalPaymentMade(
                 borrower,
+                payer,
                 amountToCollect,
                 cr.nextDueDate,
                 cr.nextDue - cr.yieldDue,
@@ -611,6 +619,10 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
     function _onlyPDSServiceAccount() internal view {
         if (msg.sender != humaConfig.pdsServiceAccount())
             revert Errors.paymentDetectionServiceAccountRequired();
+    }
+
+    function _getPaymentOriginator(address borrower) internal view returns (address originator) {
+        return msg.sender == humaConfig.pdsServiceAccount() ? borrower : msg.sender;
     }
 
     function _onlyCreditManager() internal view {

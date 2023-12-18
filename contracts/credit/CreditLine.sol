@@ -31,7 +31,6 @@ contract CreditLine is Credit, ICreditLine {
         uint256 amount
     ) external virtual override returns (uint256 amountPaid, bool paidoff) {
         poolConfig.onlyProtocolAndPoolOn();
-        // TODO: do we still need the PDS service account to make payment?
         if (msg.sender != borrower) _onlyPDSServiceAccount();
 
         bytes32 creditHash = getCreditHash(borrower);
