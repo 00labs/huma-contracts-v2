@@ -456,14 +456,15 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             // Closes the credit line if it is in the final period
             if (cr.remainingPeriods == 0) {
                 cr.state = CreditState.Deleted;
-                emit CreditClosedAfterPayOff(creditHash, msg.sender);
+                emit CreditClosedAfterPayOff(creditHash, _getPaymentOriginator(borrower));
             } else cr.state = CreditState.GoodStanding;
         }
 
         _updateDueInfo(creditHash, cr, dd);
 
         if (amountToCollect > 0) {
-            poolSafe.deposit(msg.sender, amountToCollect);
+            address payer = _getPaymentOriginator(borrower);
+            poolSafe.deposit(payer, amountToCollect);
             if (oldCRState == CreditState.Defaulted) {
                 IPool(poolConfig.pool()).distributeLossRecovery(amountToCollect);
             } else {
@@ -483,7 +484,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
                 paymentRecord.yieldPastDuePaid,
                 paymentRecord.lateFeePaid,
                 paymentRecord.principalPastDuePaid,
-                msg.sender
+                payer
             );
         }
 
@@ -543,14 +544,15 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         if (cr.nextDue == 0) {
             if (cr.unbilledPrincipal == 0 && cr.remainingPeriods == 0) {
                 cr.state = CreditState.Deleted;
-                emit CreditClosedAfterPayOff(creditHash, msg.sender);
+                emit CreditClosedAfterPayOff(creditHash, _getPaymentOriginator(borrower));
             } else cr.state = CreditState.GoodStanding;
         }
 
         _updateDueInfo(creditHash, cr, dd);
 
         if (amountToCollect > 0) {
-            poolSafe.deposit(msg.sender, amountToCollect);
+            address payer = _getPaymentOriginator(borrower);
+            poolSafe.deposit(payer, amountToCollect);
             emit PrincipalPaymentMade(
                 borrower,
                 amountToCollect,
@@ -559,7 +561,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
                 cr.unbilledPrincipal,
                 principalDuePaid,
                 unbilledPrincipalPaid,
-                msg.sender
+                payer
             );
         }
 
@@ -611,6 +613,10 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
     function _onlyPDSServiceAccount() internal view {
         if (msg.sender != humaConfig.pdsServiceAccount())
             revert Errors.paymentDetectionServiceAccountRequired();
+    }
+
+    function _getPaymentOriginator(address borrower) internal view returns (address originator) {
+        return msg.sender == humaConfig.pdsServiceAccount() ? borrower : msg.sender;
     }
 
     function _onlyCreditManager() internal view {
