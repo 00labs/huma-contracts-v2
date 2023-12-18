@@ -3462,6 +3462,7 @@ describe("CreditLine Test", function () {
             async function testMakePayment(
                 paymentAmount: BN,
                 paymentDate: moment.Moment = makePaymentDate,
+                paymentInitiator: SignerWithAddress = borrower,
             ) {
                 const cc = await creditManagerContract.getCreditConfig(creditHash);
                 const cr = await creditContract.getCreditRecord(creditHash);
@@ -3640,11 +3641,12 @@ describe("CreditLine Test", function () {
                     if (poolDistributionEventName !== "") {
                         await expect(
                             creditContract
-                                .connect(borrower)
+                                .connect(paymentInitiator)
                                 .makePayment(borrower.getAddress(), paymentAmount),
                         )
                             .to.emit(creditContract, "PaymentMade")
                             .withArgs(
+                                await borrower.getAddress(),
                                 await borrower.getAddress(),
                                 paymentAmountUsed,
                                 yieldDuePaid,
@@ -3653,17 +3655,18 @@ describe("CreditLine Test", function () {
                                 yieldPastDuePaid,
                                 lateFeePaid,
                                 principalPastDuePaid,
-                                await borrower.getAddress(),
+                                await paymentInitiator.getAddress(),
                             )
                             .to.emit(poolContract, poolDistributionEventName);
                     } else {
                         await expect(
                             creditContract
-                                .connect(borrower)
+                                .connect(paymentInitiator)
                                 .makePayment(borrower.getAddress(), paymentAmount),
                         )
                             .to.emit(creditContract, "PaymentMade")
                             .withArgs(
+                                await borrower.getAddress(),
                                 await borrower.getAddress(),
                                 paymentAmountUsed,
                                 yieldDuePaid,
@@ -3672,13 +3675,13 @@ describe("CreditLine Test", function () {
                                 yieldPastDuePaid,
                                 lateFeePaid,
                                 principalPastDuePaid,
-                                await borrower.getAddress(),
+                                await paymentInitiator.getAddress(),
                             );
                     }
                 } else {
                     await expect(
                         creditContract
-                            .connect(borrower)
+                            .connect(paymentInitiator)
                             .makePayment(borrower.getAddress(), paymentAmount),
                     ).not.to.emit(creditContract, "PaymentMade");
                 }
@@ -3753,9 +3756,6 @@ describe("CreditLine Test", function () {
                     creditState = cr.state;
                 }
                 let expectedNewCR, expectedNewDD;
-                // console.log(
-                //     `cr.nextDueDate ${cr.nextDueDate}, paymentDate ${paymentDate}, newDueDate ${newDueDate}`,
-                // );
                 if (
                     nextDueAfter.isZero() &&
                     !remainingUnbilledPrincipal.isZero() &&
@@ -3878,6 +3878,33 @@ describe("CreditLine Test", function () {
                             );
                             const paymentAmount = yieldNextDue.sub(toToken(1));
                             await testMakePayment(paymentAmount);
+                        });
+
+                        it("Should allow the PDS to make partial payment from the borrower's wallet that covers part of yield next due", async function () {
+                            const cc = await creditManagerContract.getCreditConfig(creditHash);
+                            const cr = await creditContract.getCreditRecord(creditHash);
+                            const dd = await creditContract.getDueDetail(creditHash);
+                            const maturityDate = await calendarContract.getMaturityDate(
+                                cc.periodDuration,
+                                cc.numOfPeriods,
+                                drawdownDate.unix(),
+                            );
+
+                            const [, yieldNextDue] = await calcYieldDueNew(
+                                calendarContract,
+                                cc,
+                                cr,
+                                dd,
+                                makePaymentDate,
+                                moment.utc(maturityDate.toNumber() * 1000),
+                                latePaymentGracePeriodInDays,
+                            );
+                            const paymentAmount = yieldNextDue.sub(toToken(1));
+                            await testMakePayment(
+                                paymentAmount,
+                                makePaymentDate,
+                                pdsServiceAccount,
+                            );
                         });
 
                         it("Should allow the borrower to make full payment that covers all of next due and part of unbilled principal", async function () {
@@ -7484,6 +7511,7 @@ describe("CreditLine Test", function () {
                 unbilledPrincipalPaid: BN,
                 expectedNewCR: CreditRecordStruct,
                 expectedNewDD: DueDetailStruct,
+                paymentInitiator: SignerWithAddress = borrower,
             ) {
                 await setNextBlockTimestamp(paymentDate.unix());
 
@@ -7496,11 +7524,12 @@ describe("CreditLine Test", function () {
                 if (paymentAmountCollected.gt(0)) {
                     await expect(
                         creditContract
-                            .connect(borrower)
+                            .connect(paymentInitiator)
                             .makePrincipalPayment(borrower.getAddress(), paymentAmount),
                     )
                         .to.emit(creditContract, "PrincipalPaymentMade")
                         .withArgs(
+                            await borrower.getAddress(),
                             await borrower.getAddress(),
                             paymentAmountCollected,
                             nextDueDate.unix(),
@@ -7508,12 +7537,12 @@ describe("CreditLine Test", function () {
                             expectedNewCR.unbilledPrincipal,
                             principalDuePaid,
                             unbilledPrincipalPaid,
-                            await borrower.getAddress(),
+                            await paymentInitiator.getAddress(),
                         );
                 } else {
                     await expect(
                         creditContract
-                            .connect(borrower)
+                            .connect(paymentInitiator)
                             .makePrincipalPayment(borrower.getAddress(), paymentAmount),
                     ).not.to.emit(creditContract, "PrincipalPaymentMade");
                 }
@@ -7591,6 +7620,48 @@ describe("CreditLine Test", function () {
                         borrowAmount,
                         expectedNewCR,
                         expectedNewDD,
+                    );
+                });
+
+                it("Should allow the PDS to pay for the unbilled principal once in the current billing cycle from the borrower's wallet", async function () {
+                    const cr = await creditContract.getCreditRecord(creditHash);
+                    const dd = await creditContract.getDueDetail(creditHash);
+
+                    makePaymentDate = drawdownDate
+                        .clone()
+                        .add(2, "days")
+                        .add(22, "hours")
+                        .add(14, "seconds");
+                    const nextDueDate = firstDueDate;
+                    const expectedNewCR = {
+                        unbilledPrincipal: 0,
+                        nextDueDate: nextDueDate.unix(),
+                        nextDue: cr.nextDue,
+                        yieldDue: cr.yieldDue,
+                        totalPastDue: BN.from(0),
+                        missedPeriods: 0,
+                        remainingPeriods: cr.remainingPeriods,
+                        state: CreditState.GoodStanding,
+                    };
+                    const expectedNewDD = {
+                        lateFeeUpdatedDate: BN.from(0),
+                        lateFee: BN.from(0),
+                        principalPastDue: BN.from(0),
+                        yieldPastDue: BN.from(0),
+                        committed: dd.committed,
+                        accrued: dd.accrued,
+                        paid: BN.from(0),
+                    };
+                    await testMakePrincipalPayment(
+                        makePaymentDate,
+                        borrowAmount,
+                        borrowAmount,
+                        nextDueDate,
+                        BN.from(0),
+                        borrowAmount,
+                        expectedNewCR,
+                        expectedNewDD,
+                        pdsServiceAccount,
                     );
                 });
 
