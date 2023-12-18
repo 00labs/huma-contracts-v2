@@ -3581,6 +3581,7 @@ describe("CreditLine Test", function () {
                             .to.emit(creditContract, "PaymentMade")
                             .withArgs(
                                 await borrower.getAddress(),
+                                await borrower.getAddress(),
                                 paymentAmountUsed,
                                 yieldDuePaid,
                                 principalDuePaid,
@@ -3588,7 +3589,7 @@ describe("CreditLine Test", function () {
                                 yieldPastDuePaid,
                                 lateFeePaid,
                                 principalPastDuePaid,
-                                await borrower.getAddress(),
+                                await paymentInitiator.getAddress(),
                             )
                             .to.emit(poolContract, poolDistributionEventName);
                     } else {
@@ -3600,6 +3601,7 @@ describe("CreditLine Test", function () {
                             .to.emit(creditContract, "PaymentMade")
                             .withArgs(
                                 await borrower.getAddress(),
+                                await borrower.getAddress(),
                                 paymentAmountUsed,
                                 yieldDuePaid,
                                 principalDuePaid,
@@ -3607,7 +3609,7 @@ describe("CreditLine Test", function () {
                                 yieldPastDuePaid,
                                 lateFeePaid,
                                 principalPastDuePaid,
-                                await borrower.getAddress(),
+                                await paymentInitiator.getAddress(),
                             );
                     }
                 } else {
@@ -7462,13 +7464,14 @@ describe("CreditLine Test", function () {
                         .to.emit(creditContract, "PrincipalPaymentMade")
                         .withArgs(
                             await borrower.getAddress(),
+                            await borrower.getAddress(),
                             paymentAmountCollected,
                             nextDueDate.unix(),
                             BN.from(expectedNewCR.nextDue).sub(BN.from(expectedNewCR.yieldDue)),
                             expectedNewCR.unbilledPrincipal,
                             principalDuePaid,
                             unbilledPrincipalPaid,
-                            await borrower.getAddress(),
+                            await paymentInitiator.getAddress(),
                         );
                 } else {
                     await expect(

@@ -67,6 +67,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
     /**
      * @notice A payment has been made against the credit line
      * @param borrower the address of the borrower
+     * @param payer the address from which the money is coming
      * @param amount the payback amount
      * @param yieldDuePaid the amount of this payment applied to yield due in the current billing cycle
      * @param principalDuePaid the amount of this payment applied to principal due in the current billing cycle
@@ -79,6 +80,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
      */
     event PaymentMade(
         address indexed borrower,
+        address indexed payer,
         uint256 amount,
         uint256 yieldDuePaid,
         uint256 principalDuePaid,
@@ -92,6 +94,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
     /**
      * @notice A payment has been made against the credit line
      * @param borrower the address of the borrower
+     * @param payer the address from which the money is coming
      * @param amount the payback amount
      * @param nextDueDate the due date of the next payment
      * @param principalDue the principal due on the credit line after processing the payment
@@ -103,6 +106,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
      */
     event PrincipalPaymentMade(
         address indexed borrower,
+        address indexed payer,
         uint256 amount,
         uint256 nextDueDate,
         uint256 principalDue,
@@ -456,7 +460,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             // Closes the credit line if it is in the final period
             if (cr.remainingPeriods == 0) {
                 cr.state = CreditState.Deleted;
-                emit CreditClosedAfterPayOff(creditHash, _getPaymentOriginator(borrower));
+                emit CreditClosedAfterPayOff(creditHash, msg.sender);
             } else cr.state = CreditState.GoodStanding;
         }
 
@@ -477,6 +481,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             }
             emit PaymentMade(
                 borrower,
+                payer,
                 amountToCollect,
                 paymentRecord.yieldDuePaid,
                 paymentRecord.principalDuePaid,
@@ -484,7 +489,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
                 paymentRecord.yieldPastDuePaid,
                 paymentRecord.lateFeePaid,
                 paymentRecord.principalPastDuePaid,
-                payer
+                msg.sender
             );
         }
 
@@ -544,7 +549,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         if (cr.nextDue == 0) {
             if (cr.unbilledPrincipal == 0 && cr.remainingPeriods == 0) {
                 cr.state = CreditState.Deleted;
-                emit CreditClosedAfterPayOff(creditHash, _getPaymentOriginator(borrower));
+                emit CreditClosedAfterPayOff(creditHash, msg.sender);
             } else cr.state = CreditState.GoodStanding;
         }
 
@@ -555,13 +560,14 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             poolSafe.deposit(payer, amountToCollect);
             emit PrincipalPaymentMade(
                 borrower,
+                payer,
                 amountToCollect,
                 cr.nextDueDate,
                 cr.nextDue - cr.yieldDue,
                 cr.unbilledPrincipal,
                 principalDuePaid,
                 unbilledPrincipalPaid,
-                payer
+                msg.sender
             );
         }
 
