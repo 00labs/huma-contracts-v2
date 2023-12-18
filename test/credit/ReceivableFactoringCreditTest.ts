@@ -21,6 +21,7 @@ import {
 } from "../../typechain-types";
 import {
     CONSTANTS,
+    PayPeriodDuration,
     deployAndSetupPoolContracts,
     deployProtocolContracts,
     printCreditRecord,
@@ -178,7 +179,7 @@ describe("ReceivableFactoringCredit Tests", function () {
 
             await poolConfigContract
                 .connect(poolOwner)
-                .setPoolPayPeriod(CONSTANTS.PERIOD_DURATION_MONTHLY);
+                .setPoolPayPeriod(PayPeriodDuration.Monthly);
             await poolConfigContract
                 .connect(poolOwner)
                 .setLatePaymentGracePeriodInDays(lateGracePeriodInDays);
@@ -235,7 +236,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                 .drawdownWithReceivable(borrower.address, tokenId, borrowAmount);
         });
 
-        it("payee pays half of the credit", async function () {
+        it("payee pays for half of the amount due", async function () {
             let cr = await creditContract["getCreditRecord(bytes32)"](creditHash);
             printCreditRecord("cr", cr);
 
@@ -244,7 +245,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                 .makePaymentWithReceivable(borrower.address, tokenId, cr.nextDue.div(2));
         });
 
-        it("refresh credit after late grace period", async function () {
+        it("refresh credit after late payment grace period", async function () {
             let cr = await creditContract["getCreditRecord(bytes32)"](creditHash);
             nextTime =
                 cr.nextDueDate.toNumber() +

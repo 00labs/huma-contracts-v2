@@ -31,7 +31,10 @@ import {
     CreditState,
     PayPeriodDuration,
     calcLateFeeNew,
+    calcPrincipalDueForFullPeriods,
+    calcPrincipalDueForPartialPeriod,
     calcPrincipalDueNew,
+    calcYield,
     calcYieldDue,
     calcYieldDueNew,
     checkCreditConfig,
@@ -85,36 +88,6 @@ let poolConfigContract: PoolConfig,
     creditContract: CreditLine,
     creditDueManagerContract: CreditDueManager,
     creditManagerContract: BorrowerLevelCreditManager;
-
-function calcPrincipalDueForFullPeriods(
-    unbilledPrincipal: BN,
-    principalRateInBps: number,
-    numPeriods: number,
-): BN {
-    return CONSTANTS.BP_FACTOR.pow(numPeriods)
-        .sub(CONSTANTS.BP_FACTOR.sub(principalRateInBps).pow(numPeriods))
-        .mul(unbilledPrincipal)
-        .div(CONSTANTS.BP_FACTOR.pow(numPeriods));
-}
-
-function calcPrincipalDueForPartialPeriod(
-    unbilledPrincipal: BN,
-    principalRateInBps: number,
-    daysLeft: number | BN,
-    totalDaysInFullPeriod: number | BN,
-) {
-    return unbilledPrincipal
-        .mul(principalRateInBps)
-        .mul(daysLeft)
-        .div(CONSTANTS.BP_FACTOR.mul(totalDaysInFullPeriod));
-}
-
-function calcYield(principal: BN, yieldInBps: number, days: number): BN {
-    return principal
-        .mul(yieldInBps)
-        .mul(days)
-        .div(CONSTANTS.BP_FACTOR.mul(CONSTANTS.DAYS_IN_A_YEAR));
-}
 
 describe("CreditLine Test", function () {
     before(async function () {
@@ -1266,7 +1239,7 @@ describe("CreditLine Test", function () {
 
                 let startOfDay = getStartOfDay(nextTime);
                 let nextDueDate = await calendarContract.getStartDateOfNextPeriod(
-                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    PayPeriodDuration.Monthly,
                     nextTime,
                 );
                 let days = (
@@ -1324,7 +1297,7 @@ describe("CreditLine Test", function () {
 
                 let startOfDay = getStartOfDay(nextTime);
                 let nextDueDate = await calendarContract.getStartDateOfNextPeriod(
-                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    PayPeriodDuration.Monthly,
                     nextTime,
                 );
                 let days = (
@@ -1436,7 +1409,7 @@ describe("CreditLine Test", function () {
 
                 let startOfDay = getStartOfDay(nextTime);
                 let nextDueDate = await calendarContract.getStartDateOfNextPeriod(
-                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    PayPeriodDuration.Monthly,
                     nextTime,
                 );
                 let days = (
@@ -1505,7 +1478,7 @@ describe("CreditLine Test", function () {
 
                 let startOfDay = getStartOfDay(nextTime);
                 let nextDueDate = await calendarContract.getStartDateOfNextPeriod(
-                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    PayPeriodDuration.Monthly,
                     nextTime,
                 );
                 let days = (
@@ -1562,7 +1535,7 @@ describe("CreditLine Test", function () {
 
                 let startOfDay = getStartOfDay(nextTime);
                 let nextDueDate = await calendarContract.getStartDateOfNextPeriod(
-                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    PayPeriodDuration.Monthly,
                     nextTime,
                 );
                 let days = (
@@ -1630,7 +1603,7 @@ describe("CreditLine Test", function () {
 
                 let startOfDay = getStartOfDay(nextTime);
                 let nextDueDate = await calendarContract.getStartDateOfNextPeriod(
-                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    PayPeriodDuration.Monthly,
                     nextTime,
                 );
                 let days = (
@@ -1728,7 +1701,7 @@ describe("CreditLine Test", function () {
 
                 let startOfDay = getStartOfDay(nextTime);
                 let nextDueDate = await calendarContract.getStartDateOfNextPeriod(
-                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    PayPeriodDuration.Monthly,
                     nextTime,
                 );
                 let days = (
@@ -1853,7 +1826,7 @@ describe("CreditLine Test", function () {
 
                 let startOfDay = getStartOfDay(nextTime);
                 let nextDueDate = await calendarContract.getStartDateOfNextPeriod(
-                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    PayPeriodDuration.Monthly,
                     nextTime,
                 );
                 let days = (
@@ -1933,7 +1906,7 @@ describe("CreditLine Test", function () {
 
                 const startOfDay = getStartOfDay(secondDrawdownDate.toNumber());
                 const nextDueDate = await calendarContract.getStartDateOfNextPeriod(
-                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    PayPeriodDuration.Monthly,
                     secondDrawdownDate,
                 );
                 const days = (
@@ -2022,7 +1995,7 @@ describe("CreditLine Test", function () {
 
                 const startOfDay = getStartOfDay(secondDrawdownDate.toNumber());
                 const nextDueDate = await calendarContract.getStartDateOfNextPeriod(
-                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    PayPeriodDuration.Monthly,
                     secondDrawdownDate,
                 );
                 const days = (
@@ -2245,7 +2218,7 @@ describe("CreditLine Test", function () {
                 await setNextBlockTimestamp(nextTime);
 
                 let nextDueDate = await calendarContract.getStartDateOfNextPeriod(
-                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    PayPeriodDuration.Monthly,
                     nextTime,
                 );
                 let days = (
@@ -2335,7 +2308,7 @@ describe("CreditLine Test", function () {
                 await setNextBlockTimestamp(nextTime);
 
                 let nextDueDate = await calendarContract.getStartDateOfNextPeriod(
-                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    PayPeriodDuration.Monthly,
                     nextTime,
                 );
                 let days = (
@@ -2386,7 +2359,7 @@ describe("CreditLine Test", function () {
                 await setNextBlockTimestamp(refreshDate);
 
                 const nextDueDate = await calendarContract.getStartDateOfNextPeriod(
-                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    PayPeriodDuration.Monthly,
                     refreshDate,
                 );
                 const cc = await creditManagerContract.getCreditConfig(creditHash);
@@ -2445,7 +2418,7 @@ describe("CreditLine Test", function () {
                 await setNextBlockTimestamp(nextTime);
 
                 let startDateOfLastPeriod = await calendarContract.getStartDateOfPeriod(
-                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    PayPeriodDuration.Monthly,
                     nextTime,
                 );
                 let days = (
@@ -2693,7 +2666,7 @@ describe("CreditLine Test", function () {
                 await setNextBlockTimestamp(nextTime);
 
                 let nextDueDate = await calendarContract.getStartDateOfNextPeriod(
-                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    PayPeriodDuration.Monthly,
                     nextTime,
                 );
                 let days = (
@@ -2767,7 +2740,7 @@ describe("CreditLine Test", function () {
                 await setNextBlockTimestamp(refreshDate);
 
                 const nextDueDate = await calendarContract.getStartDateOfNextPeriod(
-                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    PayPeriodDuration.Monthly,
                     refreshDate,
                 );
                 const cc = await creditManagerContract.getCreditConfig(creditHash);
@@ -2840,7 +2813,7 @@ describe("CreditLine Test", function () {
                 await setNextBlockTimestamp(refreshDate);
 
                 const nextDueDate = await calendarContract.getStartDateOfNextPeriod(
-                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    PayPeriodDuration.Monthly,
                     refreshDate,
                 );
                 const cc = await creditManagerContract.getCreditConfig(creditHash);
@@ -2877,10 +2850,14 @@ describe("CreditLine Test", function () {
                     .withArgs(creditHash, nextDueDate, nextDue);
 
                 const tomorrow = await calendarContract.getStartOfTomorrow();
+                const previousBillDueDate = await calendarContract.getStartDateOfNextPeriod(
+                    cc.periodDuration,
+                    oldCR.nextDueDate,
+                );
                 const lateFee = calcYield(
                     oldCR.unbilledPrincipal.add(oldCR.nextDue.sub(oldCR.yieldDue)),
                     lateFeeBps,
-                    (await calendarContract.getDaysDiff(oldCR.nextDueDate, tomorrow)).toNumber(),
+                    (await calendarContract.getDaysDiff(previousBillDueDate, tomorrow)).toNumber(),
                 );
 
                 const actualCR = await creditContract.getCreditRecord(creditHash);
@@ -2911,6 +2888,95 @@ describe("CreditLine Test", function () {
                 checkDueDetailsMatch(actualDD, expectedDD);
             });
 
+            it("Should update correctly if the bill is completely paid off, but then delayed due to having outstanding commitment", async function () {
+                borrowAmount = toToken(20_000);
+                // Drawdown and make payment for all dues in the first period.
+                const drawdownDate = (await calendarContract.getStartOfNextMonth()).toNumber();
+                await setNextBlockTimestamp(drawdownDate);
+                await creditContract
+                    .connect(borrower)
+                    .drawdown(await borrower.getAddress(), borrowAmount);
+                let oldCR = await creditContract.getCreditRecord(creditHash);
+                const makePaymentDate = drawdownDate + 5 * CONSTANTS.SECONDS_IN_A_DAY;
+                await setNextBlockTimestamp(makePaymentDate);
+                await creditContract
+                    .connect(borrower)
+                    .makePayment(
+                        await borrower.getAddress(),
+                        oldCR.nextDue.add(oldCR.unbilledPrincipal),
+                    );
+
+                oldCR = await creditContract.getCreditRecord(creditHash);
+                const refreshDate = moment
+                    .utc(oldCR.nextDueDate.toNumber() * 1000)
+                    .add(1, "month")
+                    .add(2, "days")
+                    .unix();
+                await setNextBlockTimestamp(refreshDate);
+
+                const nextDueDate = await calendarContract.getStartDateOfNextPeriod(
+                    PayPeriodDuration.Monthly,
+                    refreshDate,
+                );
+                const cc = await creditManagerContract.getCreditConfig(creditHash);
+                const startDateOfPeriod = await calendarContract.getStartDateOfPeriod(
+                    cc.periodDuration,
+                    refreshDate,
+                );
+                const daysOverdue = (
+                    await calendarContract.getDaysDiff(oldCR.nextDueDate, startDateOfPeriod)
+                ).toNumber();
+                const daysNextDue = (
+                    await calendarContract.getDaysDiff(startDateOfPeriod, nextDueDate)
+                ).toNumber();
+                const [, committedNextDue] = calcYieldDue(
+                    cc,
+                    oldCR.unbilledPrincipal,
+                    daysNextDue,
+                );
+                const [, committedPastDue] = calcYieldDue(
+                    cc,
+                    oldCR.unbilledPrincipal,
+                    daysOverdue,
+                );
+
+                await expect(creditManagerContract.refreshCredit(borrower.address))
+                    .to.emit(creditContract, "BillRefreshed")
+                    .withArgs(creditHash, nextDueDate, committedNextDue);
+
+                const tomorrow = await calendarContract.getStartOfTomorrow();
+                const lateFee = calcYield(
+                    oldCR.unbilledPrincipal.add(oldCR.nextDue.sub(oldCR.yieldDue)),
+                    lateFeeBps,
+                    (await calendarContract.getDaysDiff(oldCR.nextDueDate, tomorrow)).toNumber(),
+                );
+
+                const actualCR = await creditContract.getCreditRecord(creditHash);
+                const expectedCR = {
+                    unbilledPrincipal: 0,
+                    nextDueDate: nextDueDate,
+                    nextDue: committedNextDue,
+                    yieldDue: committedNextDue,
+                    totalPastDue: committedPastDue,
+                    missedPeriods: 1,
+                    remainingPeriods: oldCR.remainingPeriods - 2,
+                    state: CreditState.Delayed,
+                };
+                checkCreditRecordsMatch(actualCR, expectedCR);
+
+                const actualDD = await creditContract.getDueDetail(creditHash);
+                const expectedDD = {
+                    lateFeeUpdatedDate: tomorrow,
+                    lateFee: lateFee,
+                    yieldPastDue: committedPastDue,
+                    principalPastDue: 0,
+                    accrued: 0,
+                    committed: committedNextDue,
+                    paid: 0,
+                };
+                checkDueDetailsMatch(actualDD, expectedDD);
+            });
+
             it("Should update correctly for the first time in the last period", async function () {
                 borrowAmount = toToken(20_000);
                 const drawdownDate = await getFutureBlockTime(2);
@@ -2927,7 +2993,7 @@ describe("CreditLine Test", function () {
                 await setNextBlockTimestamp(nextTime);
 
                 let startDateOfLastPeriod = await calendarContract.getStartDateOfPeriod(
-                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    PayPeriodDuration.Monthly,
                     nextTime,
                 );
                 let days = (
@@ -2941,7 +3007,7 @@ describe("CreditLine Test", function () {
                     cr.remainingPeriods - 1,
                 );
                 const periodsOverdue = await calendarContract.getNumPeriodsPassed(
-                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    PayPeriodDuration.Monthly,
                     cr.nextDueDate,
                     startDateOfLastPeriod,
                 );
@@ -9156,7 +9222,7 @@ describe("CreditLine Test", function () {
                         committed: expectedCommittedYield,
                     },
                 };
-                checkDueDetailsMatch(actualDD, expectedDD, BN.from(0));
+                checkDueDetailsMatch(actualDD, expectedDD);
             }
 
             describe("If the updated committed yield stays below the accrued yield", function () {

@@ -126,9 +126,6 @@ const SECONDS_IN_A_DAY = 24 * 60 * 60;
 const SECONDS_IN_A_YEAR = 60 * 60 * 24 * 365;
 const BORROWER_FIRST_LOSS_COVER_INDEX = 0;
 const AFFILIATE_FIRST_LOSS_COVER_INDEX = 1;
-const PERIOD_DURATION_MONTHLY = 0;
-const PERIOD_DURATION_QUARTERLY = 1;
-const PERIOD_DURATION_SEMI_ANNUALLY = 2;
 
 export const CONSTANTS = {
     DAYS_IN_A_MONTH,
@@ -144,9 +141,6 @@ export const CONSTANTS = {
     SECONDS_IN_A_YEAR,
     BORROWER_FIRST_LOSS_COVER_INDEX,
     AFFILIATE_FIRST_LOSS_COVER_INDEX,
-    PERIOD_DURATION_MONTHLY,
-    PERIOD_DURATION_QUARTERLY,
-    PERIOD_DURATION_SEMI_ANNUALLY,
 };
 
 export async function deployProtocolContracts(
@@ -1053,14 +1047,8 @@ export function calcYieldDue(
     if (daysPassed == 0) {
         return [BN.from(0), BN.from(0)];
     }
-    const accrued = principal
-        .mul(BN.from(cc.yieldInBps))
-        .mul(daysPassed)
-        .div(CONSTANTS.BP_FACTOR.mul(CONSTANTS.DAYS_IN_A_YEAR));
-    const committed = BN.from(cc.committedAmount)
-        .mul(BN.from(cc.yieldInBps))
-        .mul(daysPassed)
-        .div(CONSTANTS.BP_FACTOR.mul(CONSTANTS.DAYS_IN_A_YEAR));
+    const accrued = calcYield(principal, Number(cc.yieldInBps), daysPassed);
+    const committed = calcYield(BN.from(cc.committedAmount), Number(cc.yieldInBps), daysPassed);
     return [accrued, committed];
 }
 
@@ -1446,4 +1434,34 @@ async function getCreditManagerContractFactory(
         default:
             throw new Error("Invalid creditManagerContractName");
     }
+}
+
+export function calcPrincipalDueForFullPeriods(
+    unbilledPrincipal: BN,
+    principalRateInBps: number,
+    numPeriods: number,
+): BN {
+    return CONSTANTS.BP_FACTOR.pow(numPeriods)
+        .sub(CONSTANTS.BP_FACTOR.sub(principalRateInBps).pow(numPeriods))
+        .mul(unbilledPrincipal)
+        .div(CONSTANTS.BP_FACTOR.pow(numPeriods));
+}
+
+export function calcPrincipalDueForPartialPeriod(
+    unbilledPrincipal: BN,
+    principalRateInBps: number,
+    daysLeft: number | BN,
+    totalDaysInFullPeriod: number | BN,
+) {
+    return unbilledPrincipal
+        .mul(principalRateInBps)
+        .mul(daysLeft)
+        .div(CONSTANTS.BP_FACTOR.mul(totalDaysInFullPeriod));
+}
+
+export function calcYield(principal: BN, yieldInBps: number, days: number): BN {
+    return principal
+        .mul(yieldInBps)
+        .mul(days)
+        .div(CONSTANTS.BP_FACTOR.mul(CONSTANTS.DAYS_IN_A_YEAR));
 }
