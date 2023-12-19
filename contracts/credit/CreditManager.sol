@@ -322,7 +322,11 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
      */
     function _refreshCredit(bytes32 creditHash) internal {
         CreditRecord memory cr = credit.getCreditRecord(creditHash);
-        if (cr.state != CreditState.Approved && cr.state != CreditState.Deleted) {
+        if (
+            cr.state != CreditState.Approved &&
+            cr.state != CreditState.Deleted &&
+            cr.state != CreditState.Defaulted
+        ) {
             // There is nothing to refresh when:
             // 1. the credit is approved but hasn't started yet;
             // 2. the credit has already been closed.

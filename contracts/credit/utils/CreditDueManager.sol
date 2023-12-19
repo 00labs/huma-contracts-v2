@@ -74,21 +74,45 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
     function refreshLateFee(
         CreditRecord memory _cr,
         DueDetail memory _dd,
+        PayPeriodDuration periodDuration,
+        uint256 committedAmount,
         uint256 timestamp
     ) public view override returns (uint64 lateFeeUpdatedDate, uint96 lateFee) {
         lateFeeUpdatedDate = uint64(calendar.getStartOfNextDay(timestamp));
         uint256 lateFeeInBps = poolConfig.getLateFeeBps();
         // If the credit state is good-standing, then the bill is late for the first time.
         // We need to charge the late fee from the last due date onwards.
-        uint256 lateFeeStartDate = _cr.state == CreditState.GoodStanding
-            ? _cr.nextDueDate
-            : _dd.lateFeeUpdatedDate;
+        uint256 lateFeeStartDate;
+        if (_cr.state == CreditState.GoodStanding) {
+            if (_cr.nextDue == 0) {
+                // If the amount due has been paid off in the current billing cycle,
+                // then the late fee should be charged from the due date of the next billing cycle onwards
+                // since the next billing cycle is the first cycle that's late.
+                lateFeeStartDate = calendar.getStartDateOfNextPeriod(
+                    periodDuration,
+                    _cr.nextDueDate
+                );
+            } else {
+                lateFeeStartDate = _cr.nextDueDate;
+            }
+        } else {
+            lateFeeStartDate = _dd.lateFeeUpdatedDate;
+        }
 
         // TODO(jiatu): gas-golf dd reading
+        // Use the larger of the outstanding principal and the committed amount as the basis for calculating
+        // the late fee. While this is not 100% accurate since the relative magnitude of the two value
+        // may change between the last time late fee was refreshed and now, we are intentionally making this
+        // simplification since in reality the principal will almost always be higher the committed amount.
+        uint256 totalPrincipal = _cr.unbilledPrincipal +
+            _cr.nextDue -
+            _cr.yieldDue +
+            _dd.principalPastDue;
+        uint256 lateFeeBasis = totalPrincipal > committedAmount ? totalPrincipal : committedAmount;
         lateFee = uint96(
             _dd.lateFee +
                 (lateFeeInBps *
-                    (_cr.unbilledPrincipal + _cr.nextDue - _cr.yieldDue + _dd.principalPastDue) *
+                    lateFeeBasis *
                     calendar.getDaysDiff(lateFeeStartDate, lateFeeUpdatedDate)) /
                 (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR)
         );
@@ -115,7 +139,13 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             if (cr.missedPeriods == 0) return (newCR, newDD);
             else {
                 newCR.totalPastDue -= dd.lateFee;
-                (newDD.lateFeeUpdatedDate, newDD.lateFee) = refreshLateFee(cr, dd, timestamp);
+                (newDD.lateFeeUpdatedDate, newDD.lateFee) = refreshLateFee(
+                    cr,
+                    dd,
+                    cc.periodDuration,
+                    cc.committedAmount,
+                    timestamp
+                );
                 newCR.totalPastDue += newDD.lateFee;
                 return (newCR, newDD);
             }
@@ -200,7 +230,13 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
 
         if (newDD.yieldPastDue > 0 || newDD.principalPastDue > 0) {
             // Make sure the late fee is up-to-date if there is past due.
-            (newDD.lateFeeUpdatedDate, newDD.lateFee) = refreshLateFee(cr, dd, timestamp);
+            (newDD.lateFeeUpdatedDate, newDD.lateFee) = refreshLateFee(
+                cr,
+                dd,
+                cc.periodDuration,
+                cc.committedAmount,
+                timestamp
+            );
             if (cr.state == CreditState.GoodStanding && cr.nextDue == 0) {
                 // If the amount due is paid off in the previous billing cycle, then that billing cycle
                 // is not missed even if the bill is late now, hence the -1.

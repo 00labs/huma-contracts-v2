@@ -549,6 +549,7 @@ describe("CreditDueManager Tests", function () {
                     const [lateFeeUpdatedDate, lateFee] = await calcLateFee(
                         poolConfigContract,
                         calendarContract,
+                        cc,
                         cr,
                         dd,
                         timestamp,
@@ -800,6 +801,7 @@ describe("CreditDueManager Tests", function () {
                             const [lateFeeUpdatedDate, expectedLateFee] = await calcLateFee(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 timestamp.unix(),
@@ -902,6 +904,7 @@ describe("CreditDueManager Tests", function () {
                             const [lateFeeUpdatedDate, expectedLateFee] = await calcLateFee(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 timestamp.unix(),
@@ -1027,6 +1030,7 @@ describe("CreditDueManager Tests", function () {
                             const [lateFeeUpdatedDate, expectedLateFee] = await calcLateFee(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 timestamp.unix(),
@@ -1139,6 +1143,7 @@ describe("CreditDueManager Tests", function () {
                             const [lateFeeUpdatedDate, expectedLateFee] = await calcLateFee(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 timestamp.unix(),
@@ -1261,6 +1266,7 @@ describe("CreditDueManager Tests", function () {
                         const [lateFeeUpdatedDate, expectedLateFee] = await calcLateFee(
                             poolConfigContract,
                             calendarContract,
+                            cc,
                             cr,
                             dd,
                             timestamp.unix(),

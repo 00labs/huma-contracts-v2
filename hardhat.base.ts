@@ -26,7 +26,7 @@ const config: HardhatUserConfig = {
     /**
      * gas reporter configuration that lets you know
      * an estimate of gas for contract deployments and function calls
-     * More here: https://hardhat.org/plugins/hardhat-gas-reporter.html
+     * More here: https://www.npmjs.com/package/hardhat-gas-reporter
      */
     gasReporter: {
         enabled: true,

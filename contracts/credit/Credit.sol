@@ -337,7 +337,11 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
                     dd.lateFee = 0;
                     dd.yieldPastDue = 0;
                     dd.principalPastDue = 0;
+                    dd.lateFeeUpdatedDate = 0;
                     cr.totalPastDue = 0;
+                    cr.missedPeriods = 0;
+                    // Moves account to GoodStanding if it was delayed.
+                    if (cr.state == CreditState.Delayed) cr.state = CreditState.GoodStanding;
                 } else {
                     // If the payment is not enough to cover the total amount past due, then
                     // apply the payment to the yield past due, followed by principal past due,
@@ -398,10 +402,6 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
                     cr.unbilledPrincipal -= uint96(paymentRecord.unbilledPrincipalPaid);
                     cr.nextDue = 0;
                     cr.yieldDue = 0;
-                    cr.missedPeriods = 0;
-                    dd.lateFeeUpdatedDate = 0;
-                    // Moves account to GoodStanding if it was delayed.
-                    if (cr.state == CreditState.Delayed) cr.state = CreditState.GoodStanding;
 
                     // If all next due is paid off and the bill has already entered the new billing cycle,
                     // then refresh the bill.
