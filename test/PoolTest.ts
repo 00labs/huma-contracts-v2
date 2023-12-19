@@ -393,7 +393,6 @@ describe("Pool Test", function () {
                         seniorAssets,
                         juniorAssets,
                         totalAssets,
-                        assetsReservedForFirstLossCovers,
                         firstLossCoverProfits: BN[] = [],
                         losses: BN[] = [],
                         lossesCoveredByFirstLossCovers: BN[] = [];
@@ -537,7 +536,7 @@ describe("Pool Test", function () {
                             ,
                             assetsWithRecovery,
                             lossesWithRecovery,
-                            lossRecoveredInFirstLossCovers,
+                            lossRecoveredByFirstLossCovers,
                         ] = await PnLCalculator.calcLossRecovery(
                             recovery,
                             assets,
@@ -584,7 +583,7 @@ describe("Pool Test", function () {
                         newFirstLossCoverInfos.forEach((info, index) => {
                             expect(info.asset).to.equal(
                                 firstLossCoverInfos[index].asset.add(
-                                    lossRecoveredInFirstLossCovers[index],
+                                    lossRecoveredByFirstLossCovers[index],
                                 ),
                             );
                         });

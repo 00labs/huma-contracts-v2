@@ -22,7 +22,11 @@ import {
 } from "../../typechain-types";
 import {
     CONSTANTS,
+    CreditState,
+    PayPeriodDuration,
     calcLateFeeNew,
+    checkCreditConfig,
+    checkCreditRecord,
     deployAndSetupPoolContracts,
     deployProtocolContracts,
     printCreditRecord,
@@ -188,7 +192,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
 
             await poolConfigContract
                 .connect(poolOwner)
-                .setPoolPayPeriod(CONSTANTS.PERIOD_DURATION_MONTHLY);
+                .setPoolPayPeriod(PayPeriodDuration.Monthly);
             await poolConfigContract
                 .connect(poolOwner)
                 .setLatePaymentGracePeriodInDays(lateGracePeriodInDays);
@@ -218,7 +222,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
 
         let nextTime: number;
         it("approve borrower credit", async function () {
-            let poolSettings = await poolConfigContract.getPoolSettings();
+            const poolSettings = await poolConfigContract.getPoolSettings();
 
             await creditManagerContract
                 .connect(eaServiceAccount)
@@ -232,33 +236,34 @@ describe("ReceivableBackedCreditLine Tests", function () {
                     true,
                 );
 
-            // let creditConfig = await creditContract.getCreditConfig(creditHash);
-            // checkCreditConfig(
-            //     creditConfig,
-            //     creditLimit,
-            //     toToken(10_000),
-            //     poolSettings.payPeriodDuration,
-            //     1,
-            //     1217,
-            //     true,
-            //     false,
-            //     false,
-            //     false,
-            // );
+            const cc = await creditManagerContract.getCreditConfig(creditHash);
+            checkCreditConfig(
+                cc,
+                creditLimit,
+                borrowAmount,
+                poolSettings.payPeriodDuration,
+                24,
+                yieldInBps,
+                true,
+                advanceRate.toNumber(),
+                true,
+            );
 
-            // let creditRecord = await creditContract.getCreditRecord(creditHash);
-            // checkCreditRecord(
-            //     creditRecord,
-            //     BN.from(0),
-            //     0,
-            //     BN.from(0),
-            //     BN.from(0),
-            //     BN.from(0),
-            //     0,
-            //     1,
-            //     2,
-            // );
-            // expect(await creditContract.getCreditBorrower(creditHash)).to.equal(borrower.address);
+            const cr = await creditContract.getCreditRecord(creditHash);
+            checkCreditRecord(
+                cr,
+                BN.from(0),
+                0,
+                BN.from(0),
+                BN.from(0),
+                BN.from(0),
+                0,
+                24,
+                CreditState.Approved,
+            );
+            expect(await creditManagerContract.getCreditBorrower(creditHash)).to.equal(
+                await borrower.getAddress(),
+            );
         });
 
         it("Month1 - Day1 ~ Day5: drawdown in the first week", async function () {
@@ -267,7 +272,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
             nextTime =
                 (
                     await calendarContract.getStartDateOfNextPeriod(
-                        CONSTANTS.PERIOD_DURATION_MONTHLY,
+                        PayPeriodDuration.Monthly,
                         block.timestamp,
                     )
                 ).toNumber() -
@@ -421,7 +426,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
             nextTime =
                 (
                     await calendarContract.getStartDateOfNextPeriod(
-                        CONSTANTS.PERIOD_DURATION_MONTHLY,
+                        PayPeriodDuration.Monthly,
                         nextTime,
                     )
                 ).toNumber() + 100;
@@ -560,7 +565,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
             nextTime =
                 (
                     await calendarContract.getStartDateOfNextPeriod(
-                        CONSTANTS.PERIOD_DURATION_MONTHLY,
+                        PayPeriodDuration.Monthly,
                         nextTime,
                     )
                 ).toNumber() +
@@ -599,11 +604,13 @@ describe("ReceivableBackedCreditLine Tests", function () {
             nextTime += CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(nextTime);
 
+            const cc = await creditManagerContract.getCreditConfig(creditHash);
             let cr = await creditContract.getCreditRecord(creditHash);
             let dd = await creditContract.getDueDetail(creditHash);
-            let [lateUpdated, lateFee] = await calcLateFeeNew(
+            let [, lateFee] = await calcLateFeeNew(
                 poolConfigContract,
                 calendarContract,
+                cc,
                 cr,
                 dd,
                 timestampToMoment(nextTime),

@@ -148,13 +148,15 @@ export async function getFirstLossCoverInfo(
     firstLossCoverContract: FirstLossCover,
     poolConfigContract: PoolConfig,
 ): Promise<FirstLossCoverInfo> {
-    const totalAssets = await firstLossCoverContract.totalAssets();
     const config = await poolConfigContract.getFirstLossCoverConfig(
         firstLossCoverContract.address,
     );
+    const totalAssets = await firstLossCoverContract.totalAssets();
+    const coveredLoss = await firstLossCoverContract.coveredLoss();
     return {
         config,
         asset: totalAssets,
+        coveredLoss,
     };
 }
 

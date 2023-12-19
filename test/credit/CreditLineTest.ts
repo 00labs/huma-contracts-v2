@@ -31,7 +31,10 @@ import {
     CreditState,
     PayPeriodDuration,
     calcLateFeeNew,
+    calcPrincipalDueForFullPeriods,
+    calcPrincipalDueForPartialPeriod,
     calcPrincipalDueNew,
+    calcYield,
     calcYieldDue,
     calcYieldDueNew,
     checkCreditConfig,
@@ -85,36 +88,6 @@ let poolConfigContract: PoolConfig,
     creditContract: CreditLine,
     creditDueManagerContract: CreditDueManager,
     creditManagerContract: BorrowerLevelCreditManager;
-
-function calcPrincipalDueForFullPeriods(
-    unbilledPrincipal: BN,
-    principalRateInBps: number,
-    numPeriods: number,
-): BN {
-    return CONSTANTS.BP_FACTOR.pow(numPeriods)
-        .sub(CONSTANTS.BP_FACTOR.sub(principalRateInBps).pow(numPeriods))
-        .mul(unbilledPrincipal)
-        .div(CONSTANTS.BP_FACTOR.pow(numPeriods));
-}
-
-function calcPrincipalDueForPartialPeriod(
-    unbilledPrincipal: BN,
-    principalRateInBps: number,
-    daysLeft: number | BN,
-    totalDaysInFullPeriod: number | BN,
-) {
-    return unbilledPrincipal
-        .mul(principalRateInBps)
-        .mul(daysLeft)
-        .div(CONSTANTS.BP_FACTOR.mul(totalDaysInFullPeriod));
-}
-
-function calcYield(principal: BN, yieldInBps: number, days: number): BN {
-    return principal
-        .mul(yieldInBps)
-        .mul(days)
-        .div(CONSTANTS.BP_FACTOR.mul(CONSTANTS.DAYS_IN_A_YEAR));
-}
 
 describe("CreditLine Test", function () {
     before(async function () {
@@ -1266,7 +1239,7 @@ describe("CreditLine Test", function () {
 
                 let startOfDay = getStartOfDay(nextTime);
                 let nextDueDate = await calendarContract.getStartDateOfNextPeriod(
-                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    PayPeriodDuration.Monthly,
                     nextTime,
                 );
                 let days = (
@@ -1324,7 +1297,7 @@ describe("CreditLine Test", function () {
 
                 let startOfDay = getStartOfDay(nextTime);
                 let nextDueDate = await calendarContract.getStartDateOfNextPeriod(
-                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    PayPeriodDuration.Monthly,
                     nextTime,
                 );
                 let days = (
@@ -1436,7 +1409,7 @@ describe("CreditLine Test", function () {
 
                 let startOfDay = getStartOfDay(nextTime);
                 let nextDueDate = await calendarContract.getStartDateOfNextPeriod(
-                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    PayPeriodDuration.Monthly,
                     nextTime,
                 );
                 let days = (
@@ -1505,7 +1478,7 @@ describe("CreditLine Test", function () {
 
                 let startOfDay = getStartOfDay(nextTime);
                 let nextDueDate = await calendarContract.getStartDateOfNextPeriod(
-                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    PayPeriodDuration.Monthly,
                     nextTime,
                 );
                 let days = (
@@ -1562,7 +1535,7 @@ describe("CreditLine Test", function () {
 
                 let startOfDay = getStartOfDay(nextTime);
                 let nextDueDate = await calendarContract.getStartDateOfNextPeriod(
-                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    PayPeriodDuration.Monthly,
                     nextTime,
                 );
                 let days = (
@@ -1630,7 +1603,7 @@ describe("CreditLine Test", function () {
 
                 let startOfDay = getStartOfDay(nextTime);
                 let nextDueDate = await calendarContract.getStartDateOfNextPeriod(
-                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    PayPeriodDuration.Monthly,
                     nextTime,
                 );
                 let days = (
@@ -1728,7 +1701,7 @@ describe("CreditLine Test", function () {
 
                 let startOfDay = getStartOfDay(nextTime);
                 let nextDueDate = await calendarContract.getStartDateOfNextPeriod(
-                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    PayPeriodDuration.Monthly,
                     nextTime,
                 );
                 let days = (
@@ -1853,7 +1826,7 @@ describe("CreditLine Test", function () {
 
                 let startOfDay = getStartOfDay(nextTime);
                 let nextDueDate = await calendarContract.getStartDateOfNextPeriod(
-                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    PayPeriodDuration.Monthly,
                     nextTime,
                 );
                 let days = (
@@ -1933,7 +1906,7 @@ describe("CreditLine Test", function () {
 
                 const startOfDay = getStartOfDay(secondDrawdownDate.toNumber());
                 const nextDueDate = await calendarContract.getStartDateOfNextPeriod(
-                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    PayPeriodDuration.Monthly,
                     secondDrawdownDate,
                 );
                 const days = (
@@ -2022,7 +1995,7 @@ describe("CreditLine Test", function () {
 
                 const startOfDay = getStartOfDay(secondDrawdownDate.toNumber());
                 const nextDueDate = await calendarContract.getStartDateOfNextPeriod(
-                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    PayPeriodDuration.Monthly,
                     secondDrawdownDate,
                 );
                 const days = (
@@ -2245,7 +2218,7 @@ describe("CreditLine Test", function () {
                 await setNextBlockTimestamp(nextTime);
 
                 let nextDueDate = await calendarContract.getStartDateOfNextPeriod(
-                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    PayPeriodDuration.Monthly,
                     nextTime,
                 );
                 let days = (
@@ -2335,7 +2308,7 @@ describe("CreditLine Test", function () {
                 await setNextBlockTimestamp(nextTime);
 
                 let nextDueDate = await calendarContract.getStartDateOfNextPeriod(
-                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    PayPeriodDuration.Monthly,
                     nextTime,
                 );
                 let days = (
@@ -2386,7 +2359,7 @@ describe("CreditLine Test", function () {
                 await setNextBlockTimestamp(refreshDate);
 
                 const nextDueDate = await calendarContract.getStartDateOfNextPeriod(
-                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    PayPeriodDuration.Monthly,
                     refreshDate,
                 );
                 const cc = await creditManagerContract.getCreditConfig(creditHash);
@@ -2445,7 +2418,7 @@ describe("CreditLine Test", function () {
                 await setNextBlockTimestamp(nextTime);
 
                 let startDateOfLastPeriod = await calendarContract.getStartDateOfPeriod(
-                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    PayPeriodDuration.Monthly,
                     nextTime,
                 );
                 let days = (
@@ -2684,42 +2657,42 @@ describe("CreditLine Test", function () {
                 borrowAmount = toToken(5_000);
                 await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
 
-                let cr = await creditContract.getCreditRecord(creditHash);
-                let settings = await poolConfigContract.getPoolSettings();
-                let nextTime =
+                const cr = await creditContract.getCreditRecord(creditHash);
+                const settings = await poolConfigContract.getPoolSettings();
+                const nextTime =
                     cr.nextDueDate.toNumber() +
                     settings.latePaymentGracePeriodInDays * CONSTANTS.SECONDS_IN_A_DAY +
                     100;
                 await setNextBlockTimestamp(nextTime);
 
-                let nextDueDate = await calendarContract.getStartDateOfNextPeriod(
-                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                const nextDueDate = await calendarContract.getStartDateOfNextPeriod(
+                    PayPeriodDuration.Monthly,
                     nextTime,
                 );
-                let days = (
+                const days = (
                     await calendarContract.getDaysDiff(cr.nextDueDate, nextDueDate)
                 ).toNumber();
-                let cc = await creditManagerContract.getCreditConfig(creditHash);
+                const cc = await creditManagerContract.getCreditConfig(creditHash);
                 const [yieldDue, committed] = calcYieldDue(cc, borrowAmount, days);
-                let principalDue = calcPrincipalDueForFullPeriods(
+                const principalDue = calcPrincipalDueForFullPeriods(
                     cr.unbilledPrincipal,
                     principalRate,
                     1,
                 );
-                let nextDue = committed.add(principalDue);
+                const nextDue = committed.add(principalDue);
 
                 await expect(creditManagerContract.refreshCredit(borrower.address))
                     .to.emit(creditContract, "BillRefreshed")
                     .withArgs(creditHash, nextDueDate, nextDue);
 
-                let tomorrow = await calendarContract.getStartOfTomorrow();
-                let lateFee = calcYield(
-                    borrowAmount,
+                const tomorrow = await calendarContract.getStartOfTomorrow();
+                const lateFee = calcYield(
+                    committedAmount,
                     lateFeeBps,
                     (await calendarContract.getDaysDiff(cr.nextDueDate, tomorrow)).toNumber(),
                 );
 
-                let newCreditRecord = await creditContract.getCreditRecord(creditHash);
+                const newCreditRecord = await creditContract.getCreditRecord(creditHash);
                 checkCreditRecord(
                     newCreditRecord,
                     cr.unbilledPrincipal.sub(principalDue),
@@ -2767,7 +2740,7 @@ describe("CreditLine Test", function () {
                 await setNextBlockTimestamp(refreshDate);
 
                 const nextDueDate = await calendarContract.getStartDateOfNextPeriod(
-                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    PayPeriodDuration.Monthly,
                     refreshDate,
                 );
                 const cc = await creditManagerContract.getCreditConfig(creditHash);
@@ -2840,7 +2813,7 @@ describe("CreditLine Test", function () {
                 await setNextBlockTimestamp(refreshDate);
 
                 const nextDueDate = await calendarContract.getStartDateOfNextPeriod(
-                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    PayPeriodDuration.Monthly,
                     refreshDate,
                 );
                 const cc = await creditManagerContract.getCreditConfig(creditHash);
@@ -2877,10 +2850,14 @@ describe("CreditLine Test", function () {
                     .withArgs(creditHash, nextDueDate, nextDue);
 
                 const tomorrow = await calendarContract.getStartOfTomorrow();
+                const previousBillDueDate = await calendarContract.getStartDateOfNextPeriod(
+                    cc.periodDuration,
+                    oldCR.nextDueDate,
+                );
                 const lateFee = calcYield(
                     oldCR.unbilledPrincipal.add(oldCR.nextDue.sub(oldCR.yieldDue)),
                     lateFeeBps,
-                    (await calendarContract.getDaysDiff(oldCR.nextDueDate, tomorrow)).toNumber(),
+                    (await calendarContract.getDaysDiff(previousBillDueDate, tomorrow)).toNumber(),
                 );
 
                 const actualCR = await creditContract.getCreditRecord(creditHash);
@@ -2911,6 +2888,96 @@ describe("CreditLine Test", function () {
                 checkDueDetailsMatch(actualDD, expectedDD);
             });
 
+            it("Should update correctly if the bill is completely paid off, but then delayed due to having outstanding commitment", async function () {
+                borrowAmount = toToken(20_000);
+                // Drawdown and make payment for all dues in the first period.
+                const drawdownDate = (await calendarContract.getStartOfNextMonth()).toNumber();
+                await setNextBlockTimestamp(drawdownDate);
+                await creditContract
+                    .connect(borrower)
+                    .drawdown(await borrower.getAddress(), borrowAmount);
+                let oldCR = await creditContract.getCreditRecord(creditHash);
+                const makePaymentDate = drawdownDate + 5 * CONSTANTS.SECONDS_IN_A_DAY;
+                await setNextBlockTimestamp(makePaymentDate);
+                await creditContract
+                    .connect(borrower)
+                    .makePayment(
+                        await borrower.getAddress(),
+                        oldCR.nextDue.add(oldCR.unbilledPrincipal),
+                    );
+
+                oldCR = await creditContract.getCreditRecord(creditHash);
+                const refreshDate = moment
+                    .utc(oldCR.nextDueDate.toNumber() * 1000)
+                    .add(1, "month")
+                    .add(2, "days")
+                    .unix();
+                await setNextBlockTimestamp(refreshDate);
+
+                const nextDueDate = await calendarContract.getStartDateOfNextPeriod(
+                    PayPeriodDuration.Monthly,
+                    refreshDate,
+                );
+                const cc = await creditManagerContract.getCreditConfig(creditHash);
+                const startDateOfPeriod = await calendarContract.getStartDateOfPeriod(
+                    cc.periodDuration,
+                    refreshDate,
+                );
+                const daysOverdue = (
+                    await calendarContract.getDaysDiff(oldCR.nextDueDate, startDateOfPeriod)
+                ).toNumber();
+                const daysNextDue = (
+                    await calendarContract.getDaysDiff(startDateOfPeriod, nextDueDate)
+                ).toNumber();
+                const [, committedNextDue] = calcYieldDue(
+                    cc,
+                    oldCR.unbilledPrincipal,
+                    daysNextDue,
+                );
+                const [, committedPastDue] = calcYieldDue(
+                    cc,
+                    oldCR.unbilledPrincipal,
+                    daysOverdue,
+                );
+
+                await expect(creditManagerContract.refreshCredit(borrower.address))
+                    .to.emit(creditContract, "BillRefreshed")
+                    .withArgs(creditHash, nextDueDate, committedNextDue);
+
+                const tomorrow = await calendarContract.getStartOfTomorrow();
+                const lateFee = calcYield(
+                    cc.committedAmount,
+                    lateFeeBps,
+                    (await calendarContract.getDaysDiff(startDateOfPeriod, tomorrow)).toNumber(),
+                );
+                expect(lateFee).to.be.gt(0);
+
+                const actualCR = await creditContract.getCreditRecord(creditHash);
+                const expectedCR = {
+                    unbilledPrincipal: 0,
+                    nextDueDate: nextDueDate,
+                    nextDue: committedNextDue,
+                    yieldDue: committedNextDue,
+                    totalPastDue: committedPastDue.add(lateFee),
+                    missedPeriods: 1,
+                    remainingPeriods: oldCR.remainingPeriods - 2,
+                    state: CreditState.Delayed,
+                };
+                checkCreditRecordsMatch(actualCR, expectedCR);
+
+                const actualDD = await creditContract.getDueDetail(creditHash);
+                const expectedDD = {
+                    lateFeeUpdatedDate: tomorrow,
+                    lateFee: lateFee,
+                    yieldPastDue: committedPastDue,
+                    principalPastDue: 0,
+                    accrued: 0,
+                    committed: committedNextDue,
+                    paid: 0,
+                };
+                checkDueDetailsMatch(actualDD, expectedDD);
+            });
+
             it("Should update correctly for the first time in the last period", async function () {
                 borrowAmount = toToken(20_000);
                 const drawdownDate = await getFutureBlockTime(2);
@@ -2927,7 +2994,7 @@ describe("CreditLine Test", function () {
                 await setNextBlockTimestamp(nextTime);
 
                 let startDateOfLastPeriod = await calendarContract.getStartDateOfPeriod(
-                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    PayPeriodDuration.Monthly,
                     nextTime,
                 );
                 let days = (
@@ -2941,7 +3008,7 @@ describe("CreditLine Test", function () {
                     cr.remainingPeriods - 1,
                 );
                 const periodsOverdue = await calendarContract.getNumPeriodsPassed(
-                    CONSTANTS.PERIOD_DURATION_MONTHLY,
+                    PayPeriodDuration.Monthly,
                     cr.nextDueDate,
                     startDateOfLastPeriod,
                 );
@@ -3258,7 +3325,7 @@ describe("CreditLine Test", function () {
                     expectedLateFeeRefreshDate,
                 );
                 const additionalLateFee = calcYield(
-                    borrowAmount,
+                    committedAmount,
                     lateFeeBps,
                     daysPassed.toNumber(),
                 );
@@ -3442,6 +3509,7 @@ describe("CreditLine Test", function () {
                 let [lateFeeUpdatedDate, remainingLateFee] = await calcLateFeeNew(
                     poolConfigContract,
                     calendarContract,
+                    cc,
                     cr,
                     dd,
                     paymentDate,
@@ -3528,7 +3596,7 @@ describe("CreditLine Test", function () {
                 }
 
                 // Clear late fee updated date if the bill is paid off
-                if (remainingPastDue.isZero() && nextDueAfter.isZero()) {
+                if (remainingPastDue.isZero()) {
                     lateFeeUpdatedDate = BN.from(0);
                 }
 
@@ -3563,6 +3631,7 @@ describe("CreditLine Test", function () {
                 //     `yieldPastDuePaid ${yieldPastDuePaid}`,
                 //     `lateFeePaid ${lateFeePaid}`,
                 //     `principalPastDuePaid ${principalPastDuePaid}`,
+                //     `remaining late fee ${remainingLateFee}`
                 // );
                 if (paymentAmountUsed.gt(ethers.constants.Zero)) {
                     let poolDistributionEventName = "";
@@ -3664,12 +3733,10 @@ describe("CreditLine Test", function () {
                             getLatePaymentGracePeriodDeadline(cr, latePaymentGracePeriodInDays),
                         ));
                 const missedPeriods =
-                    !isLate || (nextDueAfter.isZero() && remainingPastDue.isZero())
-                        ? 0
-                        : cr.missedPeriods + periodsPassed;
+                    !isLate || remainingPastDue.isZero() ? 0 : cr.missedPeriods + periodsPassed;
                 let creditState;
-                if (nextDueAfter.isZero() && remainingPastDue.isZero()) {
-                    if (remainingUnbilledPrincipal.isZero()) {
+                if (remainingPastDue.isZero()) {
+                    if (nextDueAfter.isZero() && remainingUnbilledPrincipal.isZero()) {
                         if (remainingPeriods === 0) {
                             creditState = CreditState.Deleted;
                         } else {
@@ -4190,6 +4257,7 @@ describe("CreditLine Test", function () {
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
@@ -4221,6 +4289,7 @@ describe("CreditLine Test", function () {
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
@@ -4252,6 +4321,7 @@ describe("CreditLine Test", function () {
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
@@ -4286,6 +4356,7 @@ describe("CreditLine Test", function () {
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
@@ -4321,6 +4392,7 @@ describe("CreditLine Test", function () {
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
@@ -4437,6 +4509,7 @@ describe("CreditLine Test", function () {
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
@@ -4468,6 +4541,7 @@ describe("CreditLine Test", function () {
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
@@ -4499,6 +4573,7 @@ describe("CreditLine Test", function () {
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
@@ -4543,6 +4618,7 @@ describe("CreditLine Test", function () {
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
@@ -4588,6 +4664,7 @@ describe("CreditLine Test", function () {
                             let [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 secondPaymentDate,
@@ -4604,6 +4681,7 @@ describe("CreditLine Test", function () {
                             [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 thirdPaymentDate,
@@ -4618,6 +4696,7 @@ describe("CreditLine Test", function () {
                             [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 fourthPaymentDate,
@@ -4726,6 +4805,7 @@ describe("CreditLine Test", function () {
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
@@ -4770,6 +4850,7 @@ describe("CreditLine Test", function () {
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
@@ -4815,6 +4896,7 @@ describe("CreditLine Test", function () {
                             let [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 secondPaymentDate,
@@ -4831,6 +4913,7 @@ describe("CreditLine Test", function () {
                             [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 thirdPaymentDate,
@@ -4956,6 +5039,7 @@ describe("CreditLine Test", function () {
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
@@ -4987,6 +5071,7 @@ describe("CreditLine Test", function () {
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
@@ -5018,6 +5103,7 @@ describe("CreditLine Test", function () {
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
@@ -5062,6 +5148,7 @@ describe("CreditLine Test", function () {
                             let [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 secondPaymentDate,
@@ -5078,6 +5165,7 @@ describe("CreditLine Test", function () {
                             [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 thirdPaymentDate,
@@ -5092,6 +5180,7 @@ describe("CreditLine Test", function () {
                             [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 fourthPaymentDate,
@@ -5189,6 +5278,7 @@ describe("CreditLine Test", function () {
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
@@ -5220,6 +5310,7 @@ describe("CreditLine Test", function () {
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
@@ -5251,6 +5342,7 @@ describe("CreditLine Test", function () {
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
@@ -5295,6 +5387,7 @@ describe("CreditLine Test", function () {
                             let [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 secondPaymentDate,
@@ -5311,6 +5404,7 @@ describe("CreditLine Test", function () {
                             [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 thirdPaymentDate,
@@ -5325,6 +5419,7 @@ describe("CreditLine Test", function () {
                             [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 fourthPaymentDate,
@@ -5449,6 +5544,7 @@ describe("CreditLine Test", function () {
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
@@ -5480,6 +5576,7 @@ describe("CreditLine Test", function () {
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
@@ -5511,6 +5608,7 @@ describe("CreditLine Test", function () {
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
@@ -5545,6 +5643,7 @@ describe("CreditLine Test", function () {
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 triggerDefaultDate,
@@ -6111,6 +6210,7 @@ describe("CreditLine Test", function () {
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
@@ -6152,6 +6252,7 @@ describe("CreditLine Test", function () {
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
@@ -6196,6 +6297,7 @@ describe("CreditLine Test", function () {
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
@@ -6242,6 +6344,7 @@ describe("CreditLine Test", function () {
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
@@ -6328,6 +6431,7 @@ describe("CreditLine Test", function () {
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
@@ -6448,6 +6552,7 @@ describe("CreditLine Test", function () {
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
@@ -6489,6 +6594,7 @@ describe("CreditLine Test", function () {
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
@@ -6533,6 +6639,7 @@ describe("CreditLine Test", function () {
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
@@ -6579,6 +6686,7 @@ describe("CreditLine Test", function () {
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
@@ -6724,6 +6832,7 @@ describe("CreditLine Test", function () {
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
@@ -6766,6 +6875,7 @@ describe("CreditLine Test", function () {
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
@@ -6929,6 +7039,7 @@ describe("CreditLine Test", function () {
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
@@ -6970,6 +7081,7 @@ describe("CreditLine Test", function () {
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
@@ -7014,6 +7126,7 @@ describe("CreditLine Test", function () {
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
@@ -7060,6 +7173,7 @@ describe("CreditLine Test", function () {
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
@@ -7153,6 +7267,7 @@ describe("CreditLine Test", function () {
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
@@ -7194,6 +7309,7 @@ describe("CreditLine Test", function () {
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
@@ -7238,6 +7354,7 @@ describe("CreditLine Test", function () {
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
@@ -7284,6 +7401,7 @@ describe("CreditLine Test", function () {
                             const [, lateFee] = await calcLateFeeNew(
                                 poolConfigContract,
                                 calendarContract,
+                                cc,
                                 cr,
                                 dd,
                                 makePaymentDate,
@@ -7712,6 +7830,7 @@ describe("CreditLine Test", function () {
                     const [, lateFee] = await calcLateFeeNew(
                         poolConfigContract,
                         calendarContract,
+                        cc,
                         cr,
                         dd,
                         makePaymentDate,
@@ -8037,6 +8156,7 @@ describe("CreditLine Test", function () {
                     const [, lateFee] = await calcLateFeeNew(
                         poolConfigContract,
                         calendarContract,
+                        cc,
                         cr,
                         dd,
                         makePaymentDate,
@@ -9227,7 +9347,7 @@ describe("CreditLine Test", function () {
                         committed: expectedCommittedYield,
                     },
                 };
-                checkDueDetailsMatch(actualDD, expectedDD, BN.from(0));
+                checkDueDetailsMatch(actualDD, expectedDD);
             }
 
             describe("If the updated committed yield stays below the accrued yield", function () {

@@ -518,6 +518,7 @@ describe("TrancheVault Test", function () {
                         loss,
                         lossRecovery,
                         assets,
+                        [BN.from(0), BN.from(0)],
                         BN.from(adjustment),
                         firstLossCoverInfos,
                     );
