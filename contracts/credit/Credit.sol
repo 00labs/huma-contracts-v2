@@ -7,7 +7,7 @@ import {PoolConfig, PoolSettings} from "../PoolConfig.sol";
 import {IPool} from "../interfaces/IPool.sol";
 import {PoolConfigCache} from "../PoolConfigCache.sol";
 import {CreditStorage} from "./CreditStorage.sol";
-import {CreditConfig, CreditRecord, CreditLimit, CreditLoss, CreditState, DueDetail, CreditLoss, PayPeriodDuration} from "./CreditStructs.sol";
+import {CreditConfig, CreditRecord, CreditLimit, CreditState, DueDetail, PayPeriodDuration} from "./CreditStructs.sol";
 import {ICalendar} from "./interfaces/ICalendar.sol";
 import {IFirstLossCover} from "../interfaces/IFirstLossCover.sol";
 import {IPoolSafe} from "../interfaces/IPoolSafe.sol";
@@ -144,12 +144,6 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         _setDueDetail(creditHash, dd);
     }
 
-    /// Shared setter to the CreditLoss mapping for contract size consideration
-    function setCreditLoss(bytes32 creditHash, CreditLoss memory cl) external {
-        _onlyCreditManager();
-        _setCreditLoss(creditHash, cl);
-    }
-
     /**
      * @notice checks if the credit line is behind in payments
      * @dev When the account is in Approved state, there is no borrowing yet, being late
@@ -179,11 +173,6 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         return _dueDetailMap[creditHash];
     }
 
-    /// Shared accessor to CreditLoss for contract size consideration
-    function getCreditLoss(bytes32 creditHash) public view returns (CreditLoss memory) {
-        return _creditLossMap[creditHash];
-    }
-
     function updateDueInfo(
         bytes32 creditHash,
         CreditRecord memory cr,
@@ -201,11 +190,6 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
     /// Shared setter to the DueDetail mapping for contract size consideration
     function _setDueDetail(bytes32 creditHash, DueDetail memory dd) internal {
         _dueDetailMap[creditHash] = dd;
-    }
-
-    /// Shared setter to the CreditLoss mapping for contract size consideration
-    function _setCreditLoss(bytes32 creditHash, CreditLoss memory cl) internal {
-        _creditLossMap[creditHash] = cl;
     }
 
     /**
@@ -449,14 +433,6 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             cr.totalPastDue = 0;
             cr.missedPeriods = 0;
 
-            if (cr.state == CreditState.Defaulted) {
-                // Clear `CreditLoss` if recovered from default.
-                CreditLoss memory cl = getCreditLoss(creditHash);
-                cl.principalLoss = 0;
-                cl.yieldLoss = 0;
-                cl.feesLoss = 0;
-                _setCreditLoss(creditHash, cl);
-            }
             // Closes the credit line if it is in the final period
             if (cr.remainingPeriods == 0) {
                 cr.state = CreditState.Deleted;

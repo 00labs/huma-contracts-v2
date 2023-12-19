@@ -8202,11 +8202,6 @@ describe("CreditLine Test", function () {
                 .to.emit(poolContract, "ProfitDistributed")
                 .to.emit(poolContract, "LossDistributed");
 
-            const cl = await creditContract.getCreditLoss(creditHash);
-            expect(cl.principalLoss).to.equal(expectedPrincipalLoss);
-            expect(cl.yieldLoss).to.equal(expectedYieldLoss);
-            expect(cl.feesLoss).to.equal(expectedFeesLoss);
-
             const cr = await creditContract.getCreditRecord(creditHash);
             expect(cr.state).to.equal(CreditState.Defaulted);
 
