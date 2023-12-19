@@ -30,6 +30,7 @@ interface ICreditDueManager {
         CreditRecord memory _cr,
         DueDetail memory _dd,
         PayPeriodDuration periodDuration,
+        uint256 committedAmount,
         uint256 timestamp
     ) external view returns (uint64 lateFeeUpdatedDate, uint96 lateFee);
 

@@ -249,6 +249,7 @@ describe("EpochManager Test", function () {
             loss,
             lossRecovery,
             assets,
+            [BN.from(0), BN.from(0)],
             BN.from(adjustment),
             firstLossCoverInfos,
         );
@@ -1364,8 +1365,6 @@ describe("EpochManager Test", function () {
                 totalJuniorSharesToRedeem = totalJuniorSharesToRedeem.add(juniorSharesInEpoch3);
                 juniorSharesRedeemable = BN.from(0);
 
-                // console.log(`pool liquidity: ${await poolSafeContract.getPoolLiquidity()}`);
-
                 await testCloseEpoch(
                     seniorSharesRedeemable,
                     juniorSharesRedeemable,
@@ -1375,8 +1374,6 @@ describe("EpochManager Test", function () {
                     1,
                 );
 
-                let epoch = await juniorTrancheVaultContract.epochInfoByEpochId(epochId);
-                // console.log(`epoch: ${epoch}`);
                 await epochChecker.checkJuniorEpochInfoById(epochId, totalJuniorSharesToRedeem);
                 await epochChecker.checkJuniorCurrentEpochInfo(totalJuniorSharesToRedeem);
                 await epochChecker.checkSeniorCurrentEpochEmpty();

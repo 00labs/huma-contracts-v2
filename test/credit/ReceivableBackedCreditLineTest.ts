@@ -604,11 +604,13 @@ describe("ReceivableBackedCreditLine Tests", function () {
             nextTime += CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(nextTime);
 
+            const cc = await creditManagerContract.getCreditConfig(creditHash);
             let cr = await creditContract.getCreditRecord(creditHash);
             let dd = await creditContract.getDueDetail(creditHash);
-            let [lateUpdated, lateFee] = await calcLateFeeNew(
+            let [, lateFee] = await calcLateFeeNew(
                 poolConfigContract,
                 calendarContract,
+                cc,
                 cr,
                 dd,
                 timestampToMoment(nextTime),

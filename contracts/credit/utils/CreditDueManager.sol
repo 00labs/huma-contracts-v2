@@ -75,6 +75,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         CreditRecord memory _cr,
         DueDetail memory _dd,
         PayPeriodDuration periodDuration,
+        uint256 committedAmount,
         uint256 timestamp
     ) public view override returns (uint64 lateFeeUpdatedDate, uint96 lateFee) {
         lateFeeUpdatedDate = uint64(calendar.getStartOfNextDay(timestamp));
@@ -99,10 +100,19 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         }
 
         // TODO(jiatu): gas-golf dd reading
+        // Use the larger of the outstanding principal and the committed amount as the basis for calculating
+        // the late fee. While this is not 100% accurate since the relative magnitude of the two value
+        // may change between the last time late fee was refreshed and now, we are intentionally making this
+        // simplification since in reality the principal will almost always be higher the committed amount.
+        uint256 totalPrincipal = _cr.unbilledPrincipal +
+            _cr.nextDue -
+            _cr.yieldDue +
+            _dd.principalPastDue;
+        uint256 lateFeeBasis = totalPrincipal > committedAmount ? totalPrincipal : committedAmount;
         lateFee = uint96(
             _dd.lateFee +
                 (lateFeeInBps *
-                    (_cr.unbilledPrincipal + _cr.nextDue - _cr.yieldDue + _dd.principalPastDue) *
+                    lateFeeBasis *
                     calendar.getDaysDiff(lateFeeStartDate, lateFeeUpdatedDate)) /
                 (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR)
         );
@@ -133,6 +143,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                     cr,
                     dd,
                     cc.periodDuration,
+                    cc.committedAmount,
                     timestamp
                 );
                 newCR.totalPastDue += newDD.lateFee;
@@ -223,6 +234,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                 cr,
                 dd,
                 cc.periodDuration,
+                cc.committedAmount,
                 timestamp
             );
             if (cr.state == CreditState.GoodStanding && cr.nextDue == 0) {

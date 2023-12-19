@@ -24,7 +24,11 @@ import {
 import {
     CONSTANTS,
     CreditState,
+    FeeCalculator,
+    FirstLossCoverInfo,
     PayPeriodDuration,
+    PnLCalculator,
+    calcPoolFees,
     calcPrincipalDueForFullPeriods,
     calcPrincipalDueForPartialPeriod,
     calcYield,
@@ -41,9 +45,13 @@ import {
 import {
     evmRevert,
     evmSnapshot,
+    getFirstLossCoverInfo,
     getMinFirstLossCoverRequirement,
     isCloseTo,
+    overrideFirstLossCoverConfig,
+    overrideLPConfig,
     setNextBlockTimestamp,
+    sumBNArray,
     toToken,
 } from "../TestUtils";
 
@@ -56,7 +64,7 @@ let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
     evaluationAgent: SignerWithAddress,
     poolOperator: SignerWithAddress;
-let lender: SignerWithAddress, borrower: SignerWithAddress;
+let juniorLender: SignerWithAddress, seniorLender: SignerWithAddress, borrower: SignerWithAddress;
 
 let eaNFTContract: EvaluationAgentNFT,
     humaConfigContract: HumaConfig,
@@ -77,19 +85,118 @@ let poolConfigContract: PoolConfig,
     creditManagerContract: BorrowerLevelCreditManager,
     receivableContract: Receivable;
 
+let feeCalculator: FeeCalculator;
+
 describe("Credit Line Integration Test", function () {
     let creditHash: string;
-    let creditLimit: BN, committedAmount: BN, newCommittedAmount: BN;
+    let creditLimit: BN,
+        committedAmount: BN,
+        newCommittedAmount: BN,
+        frontLoadingFeeFlat: BN,
+        coverCap: BN;
     let nextYear: number, designatedStartDate: moment.Moment;
     const yieldInBps = 1200,
         newYieldInBps = 600,
         lateFeeBps = 2400,
         principalRateInBps = 200,
-        numPeriods = 12;
+        numPeriods = 12,
+        riskAdjustment = 8000,
+        coverRateInBps = 5_000;
     let payPeriodDuration: PayPeriodDuration;
     const latePaymentGracePeriodInDays = 5,
         defaultGracePeriodInMonths = 1;
     let snapshotId: unknown;
+
+    async function getAssetsAfterPnLDistribution(
+        profit: BN,
+        loss: BN = BN.from(0),
+        lossRecovery: BN = BN.from(0),
+    ) {
+        await overrideLPConfig(poolConfigContract, poolOwner, {
+            tranchesRiskAdjustmentInBps: riskAdjustment,
+        });
+        const assetInfo = await poolContract.tranchesAssets();
+        const assets = [assetInfo[CONSTANTS.SENIOR_TRANCHE], assetInfo[CONSTANTS.JUNIOR_TRANCHE]];
+        const lossInfo = await poolContract.tranchesLosses();
+        const losses = [lossInfo[CONSTANTS.SENIOR_TRANCHE], lossInfo[CONSTANTS.JUNIOR_TRANCHE]];
+        const profitAfterFees = await feeCalculator.calcPoolFeeDistribution(profit);
+        const firstLossCoverInfos = await Promise.all(
+            [borrowerFirstLossCoverContract, affiliateFirstLossCoverContract].map(
+                async (contract) => await getFirstLossCoverInfo(contract, poolConfigContract),
+            ),
+        );
+
+        return await PnLCalculator.calcRiskAdjustedProfitAndLoss(
+            profitAfterFees,
+            loss,
+            lossRecovery,
+            assets,
+            losses,
+            BN.from(riskAdjustment),
+            firstLossCoverInfos,
+        );
+    }
+
+    async function getFirstLossCoverInfos() {
+        return await Promise.all(
+            [borrowerFirstLossCoverContract, affiliateFirstLossCoverContract].map((contract) =>
+                getFirstLossCoverInfo(contract, poolConfigContract),
+            ),
+        );
+    }
+
+    async function testPoolFees(
+        profit: BN,
+        oldAccruedIncomes: PoolFeeManager.AccruedIncomesStructOutput,
+    ) {
+        const protocolFeeInBps = await humaConfigContract.protocolFeeInBps();
+        expect(protocolFeeInBps).to.be.gt(0);
+        const adminRnR = await poolConfigContract.getAdminRnR();
+        expect(adminRnR.rewardRateInBpsForPoolOwner).to.be.gt(0);
+        expect(adminRnR.rewardRateInBpsForEA).to.be.gt(0);
+        const actualAccruedIncomes = await poolFeeManagerContract.getAccruedIncomes();
+        const [additionalAccruedIncomes] = calcPoolFees(
+            profit,
+            protocolFeeInBps,
+            adminRnR.rewardRateInBpsForPoolOwner,
+            adminRnR.rewardRateInBpsForEA,
+        );
+        expect(
+            actualAccruedIncomes.protocolIncome.sub(oldAccruedIncomes.protocolIncome),
+        ).to.be.equal(additionalAccruedIncomes.protocolIncome);
+        expect(
+            actualAccruedIncomes.poolOwnerIncome.sub(oldAccruedIncomes.poolOwnerIncome),
+        ).to.be.equal(additionalAccruedIncomes.poolOwnerIncome);
+        expect(actualAccruedIncomes.eaIncome.sub(oldAccruedIncomes.eaIncome)).to.be.equal(
+            additionalAccruedIncomes.eaIncome,
+        );
+    }
+
+    async function testTranchesAssets(assets: BN[]) {
+        const seniorAssets = await poolContract.trancheTotalAssets(CONSTANTS.SENIOR_TRANCHE);
+        expect(seniorAssets).to.equal(assets[CONSTANTS.SENIOR_TRANCHE]);
+        const juniorAssets = await poolContract.trancheTotalAssets(CONSTANTS.JUNIOR_TRANCHE);
+        expect(juniorAssets).to.equal(assets[CONSTANTS.JUNIOR_TRANCHE]);
+        const totalAssets = await poolContract.totalAssets();
+        expect(totalAssets).to.equal(seniorAssets.add(juniorAssets));
+    }
+
+    async function testFirstLossCoverAssets(
+        profits: BN[],
+        oldFirstLossCoverInfos: FirstLossCoverInfo[],
+        losses: BN[] = [BN.from(0), BN.from(0)],
+        lossRecoveries: BN[] = [BN.from(0), BN.from(0)],
+    ) {
+        const actualFirstLossCoverInfos = await getFirstLossCoverInfos();
+        actualFirstLossCoverInfos.forEach((info, index) => {
+            expect(info.asset).to.equal(
+                oldFirstLossCoverInfos[index].asset
+                    .add(profits[index])
+                    .sub(losses[index])
+                    .add(lossRecoveries[index]),
+            );
+        });
+    }
 
     async function prepare() {
         [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
@@ -127,8 +234,22 @@ describe("Credit Line Integration Test", function () {
             evaluationAgent,
             poolOwnerTreasury,
             poolOperator,
-            [lender, borrower],
+            [juniorLender, seniorLender, borrower],
         );
+
+        creditLimit = toToken(1_000_000);
+        committedAmount = toToken(300_000);
+        newCommittedAmount = toToken(500_000);
+        frontLoadingFeeFlat = toToken(1_000);
+        nextYear = moment.utc().year() + 1;
+        designatedStartDate = moment.utc({
+            year: nextYear + 1,
+            month: 0,
+            day: 2,
+        });
+        payPeriodDuration = PayPeriodDuration.Monthly;
+        coverCap = toToken(3_000_000);
+        feeCalculator = new FeeCalculator(humaConfigContract, poolConfigContract);
 
         await borrowerFirstLossCoverContract
             .connect(poolOwner)
@@ -147,46 +268,53 @@ describe("Credit Line Integration Test", function () {
                         borrowerFirstLossCoverContract,
                         poolConfigContract,
                         poolContract,
-                        borrower.address,
+                        await borrower.getAddress(),
                     )
                 ).mul(2),
             );
+        await overrideFirstLossCoverConfig(
+            borrowerFirstLossCoverContract,
+            CONSTANTS.BORROWER_FIRST_LOSS_COVER_INDEX,
+            poolConfigContract,
+            poolOwner,
+            {
+                coverRateInBps: coverRateInBps,
+                coverCap: coverCap,
+            },
+        );
 
         await juniorTrancheVaultContract
-            .connect(lender)
-            .deposit(toToken(10_000_000), lender.address);
+            .connect(juniorLender)
+            .deposit(toToken(500_000), juniorLender.getAddress());
+        await seniorTrancheVaultContract
+            .connect(seniorLender)
+            .deposit(toToken(1_500_000), seniorLender.getAddress());
 
         creditHash = ethers.utils.keccak256(
             ethers.utils.defaultAbiCoder.encode(
                 ["address", "address"],
-                [creditContract.address, borrower.address],
+                [creditContract.address, await borrower.getAddress()],
             ),
         );
-        creditLimit = toToken(1_000_000);
-        committedAmount = toToken(300_000);
-        newCommittedAmount = toToken(500_000);
-        nextYear = moment.utc().year() + 1;
-        designatedStartDate = moment.utc({
-            year: nextYear + 1,
-            month: 0,
-            day: 2,
-        });
-        payPeriodDuration = PayPeriodDuration.Monthly;
 
-        await poolConfigContract
-            .connect(poolOwner)
-            .setPoolPayPeriod(PayPeriodDuration.Monthly);
+        await poolConfigContract.connect(poolOwner).setPoolPayPeriod(payPeriodDuration);
         await poolConfigContract
             .connect(poolOwner)
             .setLatePaymentGracePeriodInDays(latePaymentGracePeriodInDays);
         await poolConfigContract
             .connect(poolOwner)
             .setPoolDefaultGracePeriod(defaultGracePeriodInMonths);
-
         await poolConfigContract.connect(poolOwner).setFeeStructure({
             yieldInBps,
             minPrincipalRateInBps: principalRateInBps,
             lateFeeBps,
+        });
+        await poolConfigContract.connect(poolOwner).setFrontLoadingFees({
+            frontLoadingFeeFlat,
+            frontLoadingFeeBps: BN.from(0),
+        });
+        await overrideLPConfig(poolConfigContract, poolOwner, {
+            tranchesRiskAdjustmentInBps: riskAdjustment,
         });
     }
 
@@ -201,7 +329,8 @@ describe("Credit Line Integration Test", function () {
             poolOwnerTreasury,
             evaluationAgent,
             poolOperator,
-            lender,
+            juniorLender,
+            seniorLender,
             borrower,
         ] = await ethers.getSigners();
 
@@ -327,7 +456,7 @@ describe("Credit Line Integration Test", function () {
         await setNextBlockTimestamp(dateOfDrawdown.unix());
 
         const borrowAmount = committedAmount.add(toToken(200_000));
-        const netBorrowAmount = borrowAmount;
+        const netBorrowAmount = borrowAmount.sub(frontLoadingFeeFlat);
 
         const nextDueDate = moment.utc({
             year: nextYear + 1,
@@ -335,32 +464,45 @@ describe("Credit Line Integration Test", function () {
             day: 1,
         });
         const daysUntilNextDue = 21;
-        const cc = await creditManagerContract.getCreditConfig(creditHash);
         const accruedYieldDue = calcYield(borrowAmount, yieldInBps, daysUntilNextDue);
         // Committed yield should be calculated since the designated credit start date, not the drawdown date,
         // hence 29.
-        const committedYieldDue = calcYield(BN.from(cc.committedAmount), yieldInBps, 29);
+        const committedYieldDue = calcYield(BN.from(committedAmount), yieldInBps, 29);
+        expect(accruedYieldDue).to.be.gt(committedYieldDue);
         const principalDue = calcPrincipalDueForPartialPeriod(
             borrowAmount,
             principalRateInBps,
             daysUntilNextDue,
             CONSTANTS.DAYS_IN_A_MONTH,
         );
-        expect(accruedYieldDue).to.be.gt(committedYieldDue);
+        const [assets, , profitsForFirstLossCovers] =
+            await getAssetsAfterPnLDistribution(frontLoadingFeeFlat);
+        const totalProfitsForFirstLossCovers = sumBNArray(profitsForFirstLossCovers);
+        expect(totalProfitsForFirstLossCovers).to.be.gt(0);
+        const oldFirstLossCoverInfos = await getFirstLossCoverInfos();
+        const oldAccruedIncomes = await poolFeeManagerContract.getAccruedIncomes();
 
-        const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
-        const poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
+        const oldBorrowerBalance = await mockTokenContract.balanceOf(borrower.address);
+        const oldPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
         await expect(
             creditContract.connect(borrower).drawdown(borrower.getAddress(), borrowAmount),
         )
             .to.emit(creditContract, "DrawdownMade")
             .withArgs(await borrower.getAddress(), borrowAmount, netBorrowAmount)
             .to.emit(creditContract, "BillRefreshed")
-            .withArgs(creditHash, nextDueDate.unix(), accruedYieldDue.add(principalDue));
-        const borrowerNewBalance = await mockTokenContract.balanceOf(borrower.getAddress());
-        const poolSafeNewBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
-        expect(borrowerNewBalance.sub(borrowerOldBalance)).to.equal(netBorrowAmount);
-        expect(poolSafeOldBalance.sub(poolSafeNewBalance)).to.equal(netBorrowAmount);
+            .withArgs(creditHash, nextDueDate.unix(), accruedYieldDue.add(principalDue))
+            .to.emit(poolContract, "ProfitDistributed")
+            .withArgs(
+                frontLoadingFeeFlat,
+                assets[CONSTANTS.SENIOR_TRANCHE],
+                assets[CONSTANTS.JUNIOR_TRANCHE],
+            );
+        const newBorrowerBalance = await mockTokenContract.balanceOf(borrower.getAddress());
+        const newPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
+        expect(newBorrowerBalance.sub(oldBorrowerBalance)).to.equal(netBorrowAmount);
+        expect(oldPoolSafeBalance.sub(newPoolSafeBalance)).to.equal(
+            netBorrowAmount.add(totalProfitsForFirstLossCovers),
+        );
 
         const actualCR = await creditContract.getCreditRecord(creditHash);
         const expectedCR = {
@@ -381,6 +523,10 @@ describe("Credit Line Integration Test", function () {
             committed: committedYieldDue,
         });
         checkDueDetailsMatch(actualDD, expectedDD);
+
+        await testPoolFees(frontLoadingFeeFlat, oldAccruedIncomes);
+        await testTranchesAssets(assets);
+        await testFirstLossCoverAssets(profitsForFirstLossCovers, oldFirstLossCoverInfos);
     });
 
     it("1/15: 2nd drawdown within the same period", async function () {
@@ -395,7 +541,7 @@ describe("Credit Line Integration Test", function () {
         await setNextBlockTimestamp(dateOfDrawdown.unix());
 
         const borrowAmount = toToken(250_000);
-        const netBorrowAmount = borrowAmount;
+        const netBorrowAmount = borrowAmount.sub(frontLoadingFeeFlat);
 
         const oldCR = await creditContract.getCreditRecord(creditHash);
         const oldDD = await creditContract.getDueDetail(creditHash);
@@ -410,20 +556,34 @@ describe("Credit Line Integration Test", function () {
         );
         expect(additionalPrincipalDue).to.be.gt(0);
         const nextDue = oldCR.nextDue.add(additionalAccruedYieldDue).add(additionalPrincipalDue);
+        const [assets, , profitsForFirstLossCovers] =
+            await getAssetsAfterPnLDistribution(frontLoadingFeeFlat);
+        const totalProfitsForFirstLossCovers = sumBNArray(profitsForFirstLossCovers);
+        expect(totalProfitsForFirstLossCovers).to.be.gt(0);
+        const oldFirstLossCoverInfos = await getFirstLossCoverInfos();
+        const oldAccruedIncomes = await poolFeeManagerContract.getAccruedIncomes();
 
-        const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
-        const poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
+        const oldBorrowerBalance = await mockTokenContract.balanceOf(borrower.address);
+        const oldPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
         await expect(
             creditContract.connect(borrower).drawdown(borrower.getAddress(), borrowAmount),
         )
             .to.emit(creditContract, "DrawdownMade")
             .withArgs(await borrower.getAddress(), borrowAmount, netBorrowAmount)
             .to.emit(creditContract, "BillRefreshed")
-            .withArgs(creditHash, oldCR.nextDueDate, nextDue);
-        const borrowerNewBalance = await mockTokenContract.balanceOf(borrower.getAddress());
-        const poolSafeNewBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
-        expect(borrowerNewBalance.sub(borrowerOldBalance)).to.equal(netBorrowAmount);
-        expect(poolSafeOldBalance.sub(poolSafeNewBalance)).to.equal(netBorrowAmount);
+            .withArgs(creditHash, oldCR.nextDueDate, nextDue)
+            .to.emit(poolContract, "ProfitDistributed")
+            .withArgs(
+                frontLoadingFeeFlat,
+                assets[CONSTANTS.SENIOR_TRANCHE],
+                assets[CONSTANTS.JUNIOR_TRANCHE],
+            );
+        const newBorrowerBalance = await mockTokenContract.balanceOf(borrower.getAddress());
+        const newPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
+        expect(newBorrowerBalance.sub(oldBorrowerBalance)).to.equal(netBorrowAmount);
+        expect(oldPoolSafeBalance.sub(newPoolSafeBalance)).to.equal(
+            netBorrowAmount.add(totalProfitsForFirstLossCovers),
+        );
 
         const actualCR = await creditContract.getCreditRecord(creditHash);
         const expectedCR = {
@@ -448,6 +608,10 @@ describe("Credit Line Integration Test", function () {
             },
         };
         checkDueDetailsMatch(actualDD, expectedDD);
+
+        await testPoolFees(frontLoadingFeeFlat, oldAccruedIncomes);
+        await testTranchesAssets(assets);
+        await testFirstLossCoverAssets(profitsForFirstLossCovers, oldFirstLossCoverInfos);
     });
 
     it("1/20: 1st full payment for all due", async function () {
@@ -464,14 +628,22 @@ describe("Credit Line Integration Test", function () {
         const oldCR = await creditContract.getCreditRecord(creditHash);
         const oldDD = await creditContract.getDueDetail(creditHash);
         const paymentAmount = oldCR.nextDue;
+        const [assets, , profitsForFirstLossCovers] = await getAssetsAfterPnLDistribution(
+            oldCR.yieldDue,
+        );
+        const totalProfitsForFirstLossCovers = sumBNArray(profitsForFirstLossCovers);
+        expect(totalProfitsForFirstLossCovers).to.be.gt(0);
+        const oldFirstLossCoverInfos = await getFirstLossCoverInfos();
+        const oldAccruedIncomes = await poolFeeManagerContract.getAccruedIncomes();
 
-        const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
-        const poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
+        const oldBorrowerBalance = await mockTokenContract.balanceOf(borrower.address);
+        const oldPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
         await expect(
             creditContract.connect(borrower).makePayment(borrower.getAddress(), paymentAmount),
         )
             .to.emit(creditContract, "PaymentMade")
             .withArgs(
+                await borrower.getAddress(),
                 await borrower.getAddress(),
                 paymentAmount,
                 oldCR.yieldDue,
@@ -482,11 +654,18 @@ describe("Credit Line Integration Test", function () {
                 0,
                 await borrower.getAddress(),
             )
-            .to.emit(poolContract, "ProfitDistributed");
-        const borrowerNewBalance = await mockTokenContract.balanceOf(borrower.getAddress());
-        const poolSafeNewBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
-        expect(borrowerOldBalance.sub(borrowerNewBalance)).to.equal(paymentAmount);
-        // expect(poolSafeNewBalance.add(poolSafeOldBalance)).to.equal(paymentAmount);
+            .to.emit(poolContract, "ProfitDistributed")
+            .withArgs(
+                oldCR.yieldDue,
+                assets[CONSTANTS.SENIOR_TRANCHE],
+                assets[CONSTANTS.JUNIOR_TRANCHE],
+            );
+        const newBorrowerBalance = await mockTokenContract.balanceOf(borrower.getAddress());
+        const newPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
+        expect(oldBorrowerBalance.sub(newBorrowerBalance)).to.equal(paymentAmount);
+        expect(newPoolSafeBalance.sub(oldPoolSafeBalance)).to.equal(
+            paymentAmount.sub(totalProfitsForFirstLossCovers),
+        );
 
         const actualCR = await creditContract.getCreditRecord(creditHash);
         const expectedCR = {
@@ -509,6 +688,10 @@ describe("Credit Line Integration Test", function () {
             },
         };
         checkDueDetailsMatch(actualDD, expectedDD);
+
+        await testPoolFees(oldCR.yieldDue, oldAccruedIncomes);
+        await testTranchesAssets(assets);
+        await testFirstLossCoverAssets(profitsForFirstLossCovers, oldFirstLossCoverInfos);
     });
 
     it("2/1: 2nd bill", async function () {
@@ -583,14 +766,22 @@ describe("Credit Line Integration Test", function () {
         const oldCR = await creditContract.getCreditRecord(creditHash);
         const oldDD = await creditContract.getDueDetail(creditHash);
         const paymentAmount = oldCR.nextDue;
+        const [assets, , profitsForFirstLossCovers] = await getAssetsAfterPnLDistribution(
+            oldCR.yieldDue,
+        );
+        const totalProfitsForFirstLossCovers = sumBNArray(profitsForFirstLossCovers);
+        expect(totalProfitsForFirstLossCovers).to.be.gt(0);
+        const oldFirstLossCoverInfos = await getFirstLossCoverInfos();
+        const oldAccruedIncomes = await poolFeeManagerContract.getAccruedIncomes();
 
-        const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
-        const poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
+        const oldBorrowerBalance = await mockTokenContract.balanceOf(borrower.address);
+        const oldPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
         await expect(
             creditContract.connect(borrower).makePayment(borrower.getAddress(), paymentAmount),
         )
             .to.emit(creditContract, "PaymentMade")
             .withArgs(
+                await borrower.getAddress(),
                 await borrower.getAddress(),
                 paymentAmount,
                 oldCR.yieldDue,
@@ -601,11 +792,18 @@ describe("Credit Line Integration Test", function () {
                 0,
                 await borrower.getAddress(),
             )
-            .to.emit(poolContract, "ProfitDistributed");
-        const borrowerNewBalance = await mockTokenContract.balanceOf(borrower.getAddress());
-        const poolSafeNewBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
-        expect(borrowerOldBalance.sub(borrowerNewBalance)).to.equal(paymentAmount);
-        // expect(poolSafeNewBalance.add(poolSafeOldBalance)).to.equal(paymentAmount);
+            .to.emit(poolContract, "ProfitDistributed")
+            .withArgs(
+                oldCR.yieldDue,
+                assets[CONSTANTS.SENIOR_TRANCHE],
+                assets[CONSTANTS.JUNIOR_TRANCHE],
+            );
+        const newBorrowerBalance = await mockTokenContract.balanceOf(borrower.getAddress());
+        const newPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
+        expect(oldBorrowerBalance.sub(newBorrowerBalance)).to.equal(paymentAmount);
+        expect(newPoolSafeBalance.sub(oldPoolSafeBalance)).to.equal(
+            paymentAmount.sub(totalProfitsForFirstLossCovers),
+        );
 
         // A new bill is generated since all next due is paid off in the late payment grace period.
         const cc = await creditManagerContract.getCreditConfig(creditHash);
@@ -649,6 +847,10 @@ describe("Credit Line Integration Test", function () {
             },
         };
         checkDueDetailsMatch(actualDD, expectedDD);
+
+        await testPoolFees(oldCR.yieldDue, oldAccruedIncomes);
+        await testTranchesAssets(assets);
+        await testFirstLossCoverAssets(profitsForFirstLossCovers, oldFirstLossCoverInfos);
     });
 
     it("3/5: 3rd partial payment for part of yield due", async function () {
@@ -666,14 +868,21 @@ describe("Credit Line Integration Test", function () {
         const oldDD = await creditContract.getDueDetail(creditHash);
         const paymentAmount = toToken(100);
         expect(paymentAmount).to.be.lt(oldCR.yieldDue);
+        const [assets, , profitsForFirstLossCovers] =
+            await getAssetsAfterPnLDistribution(paymentAmount);
+        const totalProfitsForFirstLossCovers = sumBNArray(profitsForFirstLossCovers);
+        expect(totalProfitsForFirstLossCovers).to.be.gt(0);
+        const oldFirstLossCoverInfos = await getFirstLossCoverInfos();
+        const oldAccruedIncomes = await poolFeeManagerContract.getAccruedIncomes();
 
-        const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
-        const poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
+        const oldBorrowerBalance = await mockTokenContract.balanceOf(borrower.address);
+        const oldPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
         await expect(
             creditContract.connect(borrower).makePayment(borrower.getAddress(), paymentAmount),
         )
             .to.emit(creditContract, "PaymentMade")
             .withArgs(
+                await borrower.getAddress(),
                 await borrower.getAddress(),
                 paymentAmount,
                 paymentAmount,
@@ -684,11 +893,18 @@ describe("Credit Line Integration Test", function () {
                 0,
                 await borrower.getAddress(),
             )
-            .to.emit(poolContract, "ProfitDistributed");
-        const borrowerNewBalance = await mockTokenContract.balanceOf(borrower.getAddress());
-        const poolSafeNewBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
-        expect(borrowerOldBalance.sub(borrowerNewBalance)).to.equal(paymentAmount);
-        // expect(poolSafeNewBalance.add(poolSafeOldBalance)).to.equal(paymentAmount);
+            .to.emit(poolContract, "ProfitDistributed")
+            .withArgs(
+                paymentAmount,
+                assets[CONSTANTS.SENIOR_TRANCHE],
+                assets[CONSTANTS.JUNIOR_TRANCHE],
+            );
+        const newBorrowerBalance = await mockTokenContract.balanceOf(borrower.getAddress());
+        const newPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
+        expect(oldBorrowerBalance.sub(newBorrowerBalance)).to.equal(paymentAmount);
+        expect(newPoolSafeBalance.sub(oldPoolSafeBalance)).to.equal(
+            paymentAmount.sub(totalProfitsForFirstLossCovers),
+        );
 
         const actualCR = await creditContract.getCreditRecord(creditHash);
         const expectedCR = {
@@ -711,6 +927,10 @@ describe("Credit Line Integration Test", function () {
             },
         };
         checkDueDetailsMatch(actualDD, expectedDD);
+
+        await testPoolFees(paymentAmount, oldAccruedIncomes);
+        await testTranchesAssets(assets);
+        await testFirstLossCoverAssets(profitsForFirstLossCovers, oldFirstLossCoverInfos);
     });
 
     it("4/8: 4th full payment covering all past due and the generation of the 4th bill", async function () {
@@ -731,14 +951,22 @@ describe("Credit Line Integration Test", function () {
         const lateFee = calcYield(totalPrincipal, lateFeeBps, 8);
         expect(lateFee).to.be.gt(0);
         const paymentAmount = oldCR.nextDue.add(lateFee);
+        const poolProfit = oldCR.yieldDue.add(lateFee);
+        const [assets, , profitsForFirstLossCovers] =
+            await getAssetsAfterPnLDistribution(poolProfit);
+        const totalProfitsForFirstLossCovers = sumBNArray(profitsForFirstLossCovers);
+        expect(totalProfitsForFirstLossCovers).to.be.gt(0);
+        const oldFirstLossCoverInfos = await getFirstLossCoverInfos();
+        const oldAccruedIncomes = await poolFeeManagerContract.getAccruedIncomes();
 
-        const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
-        const poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
+        const oldBorrowerBalance = await mockTokenContract.balanceOf(borrower.address);
+        const oldPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
         await expect(
             creditContract.connect(borrower).makePayment(borrower.getAddress(), paymentAmount),
         )
             .to.emit(creditContract, "PaymentMade")
             .withArgs(
+                await borrower.getAddress(),
                 await borrower.getAddress(),
                 paymentAmount,
                 0,
@@ -749,11 +977,18 @@ describe("Credit Line Integration Test", function () {
                 oldCR.nextDue.sub(oldCR.yieldDue),
                 await borrower.getAddress(),
             )
-            .to.emit(poolContract, "ProfitDistributed");
-        const borrowerNewBalance = await mockTokenContract.balanceOf(borrower.getAddress());
-        const poolSafeNewBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
-        expect(borrowerOldBalance.sub(borrowerNewBalance)).to.equal(paymentAmount);
-        // expect(poolSafeNewBalance.add(poolSafeOldBalance)).to.equal(paymentAmount);
+            .to.emit(poolContract, "ProfitDistributed")
+            .withArgs(
+                poolProfit,
+                assets[CONSTANTS.SENIOR_TRANCHE],
+                assets[CONSTANTS.JUNIOR_TRANCHE],
+            );
+        const newBorrowerBalance = await mockTokenContract.balanceOf(borrower.getAddress());
+        const newPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
+        expect(oldBorrowerBalance.sub(newBorrowerBalance)).to.equal(paymentAmount);
+        expect(newPoolSafeBalance.sub(oldPoolSafeBalance)).to.equal(
+            paymentAmount.sub(totalProfitsForFirstLossCovers),
+        );
 
         const cc = await creditManagerContract.getCreditConfig(creditHash);
         const nextDueDate = moment.utc({
@@ -781,24 +1016,23 @@ describe("Credit Line Integration Test", function () {
             nextDue: nextDue,
             yieldDue: accruedYieldDue,
             totalPastDue: 0,
-            missedPeriods: 1,
+            missedPeriods: 0,
             remainingPeriods: numPeriods - 4,
-            state: CreditState.Delayed,
+            state: CreditState.GoodStanding,
         };
         checkCreditRecordsMatch(actualCR, expectedCR);
 
         const actualDD = await creditContract.getDueDetail(creditHash);
-        const lateFeeUpdatedDate = moment.utc({
-            year: nextYear + 1,
-            month: 3,
-            day: 9,
-        });
         const expectedDD = genDueDetail({
-            lateFeeUpdatedDate: lateFeeUpdatedDate.unix(),
+            lateFeeUpdatedDate: 0,
             accrued: accruedYieldDue,
             committed: committedYieldDue,
         });
         checkDueDetailsMatch(actualDD, expectedDD);
+
+        await testPoolFees(poolProfit, oldAccruedIncomes);
+        await testTranchesAssets(assets);
+        await testFirstLossCoverAssets(profitsForFirstLossCovers, oldFirstLossCoverInfos);
     });
 
     it("4/15: 5th payment covering all of next due and part of unbilled principal", async function () {
@@ -814,35 +1048,46 @@ describe("Credit Line Integration Test", function () {
 
         const oldCR = await creditContract.getCreditRecord(creditHash);
         const oldDD = await creditContract.getDueDetail(creditHash);
-        // Additional late fee is assessed since the previous payment did not cover next due.
-        const totalPrincipal = getPrincipal(oldCR, oldDD);
-        const lateFee = calcYield(totalPrincipal, lateFeeBps, 7);
-        expect(lateFee).to.be.gt(0);
         const amountPrincipalPaid = toToken(1_000);
-        const paymentAmount = oldCR.nextDue.add(amountPrincipalPaid).add(lateFee);
+        const paymentAmount = oldCR.nextDue.add(amountPrincipalPaid);
+        const [assets, , profitsForFirstLossCovers] = await getAssetsAfterPnLDistribution(
+            oldCR.yieldDue,
+        );
+        const totalProfitsForFirstLossCovers = sumBNArray(profitsForFirstLossCovers);
+        expect(totalProfitsForFirstLossCovers).to.be.gt(0);
+        const oldFirstLossCoverInfos = await getFirstLossCoverInfos();
+        const oldAccruedIncomes = await poolFeeManagerContract.getAccruedIncomes();
 
-        const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
-        const poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
+        const oldBorrowerBalance = await mockTokenContract.balanceOf(borrower.address);
+        const oldPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
         await expect(
             creditContract.connect(borrower).makePayment(borrower.getAddress(), paymentAmount),
         )
             .to.emit(creditContract, "PaymentMade")
             .withArgs(
                 await borrower.getAddress(),
+                await borrower.getAddress(),
                 paymentAmount,
                 oldCR.yieldDue,
                 oldCR.nextDue.sub(oldCR.yieldDue),
                 amountPrincipalPaid,
                 0,
-                lateFee,
+                0,
                 0,
                 await borrower.getAddress(),
             )
-            .to.emit(poolContract, "ProfitDistributed");
-        const borrowerNewBalance = await mockTokenContract.balanceOf(borrower.getAddress());
-        const poolSafeNewBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
-        expect(borrowerOldBalance.sub(borrowerNewBalance)).to.equal(paymentAmount);
-        // expect(poolSafeNewBalance.add(poolSafeOldBalance)).to.equal(paymentAmount);
+            .to.emit(poolContract, "ProfitDistributed")
+            .withArgs(
+                oldCR.yieldDue,
+                assets[CONSTANTS.SENIOR_TRANCHE],
+                assets[CONSTANTS.JUNIOR_TRANCHE],
+            );
+        const newBorrowerBalance = await mockTokenContract.balanceOf(borrower.getAddress());
+        const newPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
+        expect(oldBorrowerBalance.sub(newBorrowerBalance)).to.equal(paymentAmount);
+        expect(newPoolSafeBalance.sub(oldPoolSafeBalance)).to.equal(
+            paymentAmount.sub(totalProfitsForFirstLossCovers),
+        );
 
         const actualCR = await creditContract.getCreditRecord(creditHash);
         const expectedCR = {
@@ -861,11 +1106,14 @@ describe("Credit Line Integration Test", function () {
         const expectedDD = {
             ...oldDD,
             ...{
-                lateFeeUpdatedDate: 0,
                 paid: oldCR.yieldDue,
             },
         };
         checkDueDetailsMatch(actualDD, expectedDD);
+
+        await testPoolFees(oldCR.yieldDue, oldAccruedIncomes);
+        await testTranchesAssets(assets);
+        await testFirstLossCoverAssets(profitsForFirstLossCovers, oldFirstLossCoverInfos);
     });
 
     it("4/20: 6th payment: extra principal payment using `makePayment`", async function () {
@@ -882,15 +1130,19 @@ describe("Credit Line Integration Test", function () {
         const oldCR = await creditContract.getCreditRecord(creditHash);
         const oldDD = await creditContract.getDueDetail(creditHash);
         const paymentAmount = toToken(2_000);
+        const [assets] = await getAssetsAfterPnLDistribution(BN.from(0));
+        const oldFirstLossCoverInfos = await getFirstLossCoverInfos();
+        const oldAccruedIncomes = await poolFeeManagerContract.getAccruedIncomes();
 
-        const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
-        const poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
+        const oldBorrowerBalance = await mockTokenContract.balanceOf(borrower.address);
+        const oldPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
         await expect(
             creditContract.connect(borrower).makePayment(borrower.getAddress(), paymentAmount),
         )
             .to.emit(creditContract, "PaymentMade")
             .withArgs(
                 await borrower.getAddress(),
+                await borrower.getAddress(),
                 paymentAmount,
                 0,
                 0,
@@ -899,11 +1151,12 @@ describe("Credit Line Integration Test", function () {
                 0,
                 0,
                 await borrower.getAddress(),
-            );
-        const borrowerNewBalance = await mockTokenContract.balanceOf(borrower.getAddress());
-        const poolSafeNewBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
-        expect(borrowerOldBalance.sub(borrowerNewBalance)).to.equal(paymentAmount);
-        // expect(poolSafeNewBalance.add(poolSafeOldBalance)).to.equal(paymentAmount);
+            )
+            .not.to.emit(poolContract, "ProfitDistributed");
+        const newBorrowerBalance = await mockTokenContract.balanceOf(borrower.getAddress());
+        const newPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
+        expect(oldBorrowerBalance.sub(newBorrowerBalance)).to.equal(paymentAmount);
+        expect(newPoolSafeBalance.sub(oldPoolSafeBalance)).to.equal(paymentAmount);
 
         const actualCR = await creditContract.getCreditRecord(creditHash);
         const expectedCR = {
@@ -921,6 +1174,10 @@ describe("Credit Line Integration Test", function () {
         const actualDD = await creditContract.getDueDetail(creditHash);
         const expectedDD = oldDD;
         checkDueDetailsMatch(actualDD, expectedDD);
+
+        await testPoolFees(BN.from(0), oldAccruedIncomes);
+        await testTranchesAssets(assets);
+        await testFirstLossCoverAssets([BN.from(0), BN.from(0)], oldFirstLossCoverInfos);
     });
 
     it("6/1: 6th bill. 5th bill wasn't generated, and is now late", async function () {
@@ -1127,7 +1384,7 @@ describe("Credit Line Integration Test", function () {
         checkDueDetailsMatch(actualDD, expectedDD);
     });
 
-    it("7/5: Default triggered. Bill no longer refreshed", async function () {
+    it("7/5: Default triggered. Bill no longer refreshed afterwards", async function () {
         const dateOfDefault = moment.utc({
             year: nextYear + 1,
             month: 6,
@@ -1144,7 +1401,18 @@ describe("Credit Line Integration Test", function () {
         const additionalLateFee = calcYield(totalPrincipal, lateFeeBps, 2);
         expect(additionalLateFee).to.be.gt(0);
         const totalLateFee = oldDD.lateFee.add(additionalLateFee);
+        const totalProfit = oldCR.yieldDue.add(oldDD.yieldPastDue).add(totalLateFee);
+        const totalLoss = totalProfit.add(totalPrincipal);
+        const [assets, losses, profitsForFirstLossCovers, , lossesCoveredByFirstLossCovers] =
+            await getAssetsAfterPnLDistribution(totalProfit, totalLoss);
+        const totalProfitsForFirstLossCovers = sumBNArray(profitsForFirstLossCovers);
+        expect(totalProfitsForFirstLossCovers).to.be.gt(0);
+        const totalLossesCoveredByFirstLossCovers = sumBNArray(lossesCoveredByFirstLossCovers);
+        expect(totalLossesCoveredByFirstLossCovers).to.be.gt(0);
+        const oldFirstLossCoverInfos = await getFirstLossCoverInfos();
+        const oldAccruedIncomes = await poolFeeManagerContract.getAccruedIncomes();
 
+        const oldPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
         await expect(
             creditManagerContract.connect(eaServiceAccount).triggerDefault(borrower.getAddress()),
         )
@@ -1157,8 +1425,25 @@ describe("Credit Line Integration Test", function () {
                 await eaServiceAccount.getAddress(),
             )
             .to.emit(creditContract, "BillRefreshed")
+            .withArgs(creditHash, oldCR.nextDueDate, oldCR.nextDue)
             .to.emit(poolContract, "ProfitDistributed")
-            .to.emit(poolContract, "LossDistributed");
+            .withArgs(
+                totalProfit,
+                assets[CONSTANTS.SENIOR_TRANCHE],
+                assets[CONSTANTS.JUNIOR_TRANCHE].add(losses[CONSTANTS.JUNIOR_TRANCHE]),
+            )
+            .to.emit(poolContract, "LossDistributed")
+            .withArgs(
+                totalLoss.sub(totalLossesCoveredByFirstLossCovers),
+                assets[CONSTANTS.SENIOR_TRANCHE],
+                assets[CONSTANTS.JUNIOR_TRANCHE],
+                losses[CONSTANTS.SENIOR_TRANCHE],
+                losses[CONSTANTS.JUNIOR_TRANCHE],
+            );
+        const newPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
+        expect(newPoolSafeBalance.sub(oldPoolSafeBalance)).to.equal(
+            totalLossesCoveredByFirstLossCovers.sub(totalProfitsForFirstLossCovers),
+        );
 
         const actualCR = await creditContract.getCreditRecord(creditHash);
         const expectedCR = {
@@ -1184,6 +1469,14 @@ describe("Credit Line Integration Test", function () {
             },
         };
         checkDueDetailsMatch(actualDD, expectedDD);
+
+        await testPoolFees(totalProfit, oldAccruedIncomes);
+        await testTranchesAssets(assets);
+        await testFirstLossCoverAssets(
+            profitsForFirstLossCovers,
+            oldFirstLossCoverInfos,
+            lossesCoveredByFirstLossCovers,
+        );
 
         // Any further refresh should be no-op.
         const dateOfRefresh = moment.utc({
@@ -1263,14 +1556,21 @@ describe("Credit Line Integration Test", function () {
         const oldCR = await creditContract.getCreditRecord(creditHash);
         const oldDD = await creditContract.getDueDetail(creditHash);
         const paymentAmount = oldCR.unbilledPrincipal.add(oldCR.nextDue).add(oldCR.totalPastDue);
+        const [assets, losses, , lossesRecoveredByFirstLossCovers] =
+            await getAssetsAfterPnLDistribution(BN.from(0), BN.from(0), paymentAmount);
+        const totalLossRecoveredByFirstLossCovers = sumBNArray(lossesRecoveredByFirstLossCovers);
+        expect(totalLossRecoveredByFirstLossCovers).to.be.gt(0);
+        const oldFirstLossCoverInfos = await getFirstLossCoverInfos();
+        const oldAccruedIncomes = await poolFeeManagerContract.getAccruedIncomes();
 
-        const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
-        const poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
+        const oldBorrowerBalance = await mockTokenContract.balanceOf(borrower.address);
+        const oldPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
         await expect(
             creditContract.connect(borrower).makePayment(borrower.getAddress(), paymentAmount),
         )
             .to.emit(creditContract, "PaymentMade")
             .withArgs(
+                await borrower.getAddress(),
                 await borrower.getAddress(),
                 paymentAmount,
                 oldCR.yieldDue,
@@ -1280,11 +1580,21 @@ describe("Credit Line Integration Test", function () {
                 0,
                 oldDD.principalPastDue,
                 await borrower.getAddress(),
+            )
+            .to.emit(poolContract, "LossRecoveryDistributed")
+            .withArgs(
+                paymentAmount.sub(totalLossRecoveredByFirstLossCovers),
+                assets[CONSTANTS.SENIOR_TRANCHE],
+                assets[CONSTANTS.JUNIOR_TRANCHE],
+                losses[CONSTANTS.SENIOR_TRANCHE],
+                losses[CONSTANTS.JUNIOR_TRANCHE],
             );
-        const borrowerNewBalance = await mockTokenContract.balanceOf(borrower.getAddress());
-        const poolSafeNewBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
-        expect(borrowerOldBalance.sub(borrowerNewBalance)).to.equal(paymentAmount);
-        // expect(poolSafeNewBalance.add(poolSafeOldBalance)).to.equal(paymentAmount);
+        const newBorrowerBalance = await mockTokenContract.balanceOf(borrower.getAddress());
+        const newPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
+        expect(oldBorrowerBalance.sub(newBorrowerBalance)).to.equal(paymentAmount);
+        expect(newPoolSafeBalance.sub(oldPoolSafeBalance)).to.equal(
+            paymentAmount.sub(totalLossRecoveredByFirstLossCovers),
+        );
 
         const actualCR = await creditContract.getCreditRecord(creditHash);
         const expectedCR = {
@@ -1306,6 +1616,15 @@ describe("Credit Line Integration Test", function () {
             paid: oldDD.accrued,
         });
         checkDueDetailsMatch(actualDD, expectedDD);
+
+        await testPoolFees(BN.from(0), oldAccruedIncomes);
+        await testTranchesAssets(assets);
+        await testFirstLossCoverAssets(
+            [BN.from(0), BN.from(0)],
+            oldFirstLossCoverInfos,
+            [BN.from(0), BN.from(0)],
+            lossesRecoveredByFirstLossCovers,
+        );
     });
 
     it("8/1: 8th bill generated because of outstanding commitment", async function () {
@@ -1394,6 +1713,9 @@ describe("Credit Line Integration Test", function () {
         expect(accruedYieldDue).to.equal(0);
         expect(committedYieldDue).to.be.gt(0);
         const nextDue = committedYieldDue;
+        const lateFee = calcYield(committedAmount, lateFeeBps, 6);
+        expect(lateFee).to.be.gt(0);
+        const totalPastDue = oldCR.yieldDue.add(lateFee);
 
         await expect(creditManagerContract.refreshCredit(borrower.address))
             .to.emit(creditContract, "BillRefreshed")
@@ -1405,7 +1727,7 @@ describe("Credit Line Integration Test", function () {
             nextDueDate: nextDueDate.unix(),
             nextDue: nextDue,
             yieldDue: committedYieldDue,
-            totalPastDue: oldCR.yieldDue,
+            totalPastDue: totalPastDue,
             missedPeriods: 1,
             remainingPeriods: numPeriods - 9,
             state: CreditState.Delayed,
@@ -1418,9 +1740,9 @@ describe("Credit Line Integration Test", function () {
             month: 8,
             day: 7,
         });
-        // TODO(jiatu): This is wrong. The late fee due should be non-zero.
         const expectedDD = genDueDetail({
             lateFeeUpdatedDate: lateFeeUpdatedDate.unix(),
+            lateFee: lateFee,
             yieldPastDue: oldCR.yieldDue,
             committed: committedYieldDue,
         });
@@ -1457,6 +1779,9 @@ describe("Credit Line Integration Test", function () {
         expect(accruedYieldDue).to.equal(0);
         expect(committedYieldDue).to.be.gt(0);
         const nextDue = committedYieldDue;
+        const additionalLateFee = calcYield(committedAmount, lateFeeBps, 25);
+        expect(additionalLateFee).to.be.gt(0);
+        const totalPastDue = oldCR.totalPastDue.add(oldCR.yieldDue).add(additionalLateFee);
 
         await expect(creditManagerContract.refreshCredit(borrower.address))
             .to.emit(creditContract, "BillRefreshed")
@@ -1468,7 +1793,7 @@ describe("Credit Line Integration Test", function () {
             nextDueDate: nextDueDate.unix(),
             nextDue: nextDue,
             yieldDue: committedYieldDue,
-            totalPastDue: oldCR.totalPastDue.add(oldCR.yieldDue),
+            totalPastDue: totalPastDue,
             missedPeriods: 2,
             remainingPeriods: numPeriods - 10,
             state: CreditState.Delayed,
@@ -1481,9 +1806,9 @@ describe("Credit Line Integration Test", function () {
             month: 9,
             day: 2,
         });
-        // TODO(jiatu): This is wrong. The late fee due should be non-zero.
         const expectedDD = genDueDetail({
             lateFeeUpdatedDate: lateFeeUpdatedDate.unix(),
+            lateFee: oldDD.lateFee.add(additionalLateFee),
             yieldPastDue: oldDD.yieldPastDue.add(oldCR.yieldDue),
             committed: committedYieldDue,
         });
@@ -1516,29 +1841,50 @@ describe("Credit Line Integration Test", function () {
 
         const oldCR = await creditContract.getCreditRecord(creditHash);
         const oldDD = await creditContract.getDueDetail(creditHash);
-        const paymentAmount = oldCR.nextDue.add(oldCR.totalPastDue);
+        const additionalLateFee = calcYield(committedAmount, lateFeeBps, 4);
+        expect(additionalLateFee).to.be.gt(0);
+        const paymentAmount = oldCR.nextDue.add(oldCR.totalPastDue).add(additionalLateFee);
+        const totalProfit = oldCR.yieldDue
+            .add(oldDD.yieldPastDue)
+            .add(oldDD.lateFee)
+            .add(additionalLateFee);
+        const [assets, , profitsForFirstLossCovers] =
+            await getAssetsAfterPnLDistribution(totalProfit);
+        const totalProfitsForFirstLossCovers = sumBNArray(profitsForFirstLossCovers);
+        expect(totalProfitsForFirstLossCovers).to.be.gt(0);
+        const oldFirstLossCoverInfos = await getFirstLossCoverInfos();
+        const oldAccruedIncomes = await poolFeeManagerContract.getAccruedIncomes();
 
-        const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
-        const poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
+        const oldBorrowerBalance = await mockTokenContract.balanceOf(borrower.address);
+        const oldPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
         await expect(
             creditContract.connect(borrower).makePayment(borrower.getAddress(), paymentAmount),
         )
             .to.emit(creditContract, "PaymentMade")
             .withArgs(
                 await borrower.getAddress(),
+                await borrower.getAddress(),
                 paymentAmount,
                 oldCR.yieldDue,
                 0,
                 0,
                 oldDD.yieldPastDue,
-                0,
+                oldDD.lateFee.add(additionalLateFee),
                 0,
                 await borrower.getAddress(),
+            )
+            .to.emit(poolContract, "ProfitDistributed")
+            .withArgs(
+                totalProfit,
+                assets[CONSTANTS.SENIOR_TRANCHE],
+                assets[CONSTANTS.JUNIOR_TRANCHE],
             );
-        const borrowerNewBalance = await mockTokenContract.balanceOf(borrower.getAddress());
-        const poolSafeNewBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
-        expect(borrowerOldBalance.sub(borrowerNewBalance)).to.equal(paymentAmount);
-        // expect(poolSafeNewBalance.add(poolSafeOldBalance)).to.equal(paymentAmount);
+        const newBorrowerBalance = await mockTokenContract.balanceOf(borrower.getAddress());
+        const newPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
+        expect(oldBorrowerBalance.sub(newBorrowerBalance)).to.equal(paymentAmount);
+        expect(newPoolSafeBalance.sub(oldPoolSafeBalance)).to.equal(
+            paymentAmount.sub(totalProfitsForFirstLossCovers),
+        );
 
         const actualCR = await creditContract.getCreditRecord(creditHash);
         const expectedCR = {
@@ -1559,6 +1905,10 @@ describe("Credit Line Integration Test", function () {
             paid: oldDD.committed,
         });
         checkDueDetailsMatch(actualDD, expectedDD);
+
+        await testPoolFees(totalProfit, oldAccruedIncomes);
+        await testTranchesAssets(assets);
+        await testFirstLossCoverAssets(profitsForFirstLossCovers, oldFirstLossCoverInfos);
     });
 
     it("10/15: New drawdown", async function () {
@@ -1573,7 +1923,7 @@ describe("Credit Line Integration Test", function () {
         await setNextBlockTimestamp(dateOfDrawdown.unix());
 
         const borrowAmount = committedAmount.add(toToken(300_000));
-        const netBorrowAmount = borrowAmount;
+        const netBorrowAmount = borrowAmount.sub(frontLoadingFeeFlat);
         const oldCR = await creditContract.getCreditRecord(creditHash);
         const oldDD = await creditContract.getDueDetail(creditHash);
         expect(oldDD.committed).to.equal(oldDD.paid);
@@ -1586,9 +1936,14 @@ describe("Credit Line Integration Test", function () {
             CONSTANTS.DAYS_IN_A_MONTH,
         );
         expect(accruedYieldDue).to.be.gt(oldDD.committed);
+        const [assets, , profitsForFirstLossCovers] =
+            await getAssetsAfterPnLDistribution(frontLoadingFeeFlat);
+        const totalProfitsForFirstLossCovers = sumBNArray(profitsForFirstLossCovers);
+        const oldFirstLossCoverInfos = await getFirstLossCoverInfos();
+        const oldAccruedIncomes = await poolFeeManagerContract.getAccruedIncomes();
 
-        const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
-        const poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
+        const oldBorrowerBalance = await mockTokenContract.balanceOf(borrower.address);
+        const oldPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
         await expect(
             creditContract.connect(borrower).drawdown(borrower.getAddress(), borrowAmount),
         )
@@ -1599,11 +1954,19 @@ describe("Credit Line Integration Test", function () {
                 creditHash,
                 oldCR.nextDueDate,
                 accruedYieldDue.add(principalDue).sub(oldDD.paid),
+            )
+            .to.emit(poolContract, "ProfitDistributed")
+            .withArgs(
+                frontLoadingFeeFlat,
+                assets[CONSTANTS.SENIOR_TRANCHE],
+                assets[CONSTANTS.JUNIOR_TRANCHE],
             );
-        const borrowerNewBalance = await mockTokenContract.balanceOf(borrower.getAddress());
-        const poolSafeNewBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
-        expect(borrowerNewBalance.sub(borrowerOldBalance)).to.equal(netBorrowAmount);
-        expect(poolSafeOldBalance.sub(poolSafeNewBalance)).to.equal(netBorrowAmount);
+        const newBorrowerBalance = await mockTokenContract.balanceOf(borrower.getAddress());
+        const newPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
+        expect(newBorrowerBalance.sub(oldBorrowerBalance)).to.equal(netBorrowAmount);
+        expect(oldPoolSafeBalance.sub(newPoolSafeBalance)).to.equal(
+            netBorrowAmount.add(totalProfitsForFirstLossCovers),
+        );
 
         const actualCR = await creditContract.getCreditRecord(creditHash);
         const expectedCR = {
@@ -1624,6 +1987,10 @@ describe("Credit Line Integration Test", function () {
             },
         };
         checkDueDetailsMatch(actualDD, expectedDD);
+
+        await testPoolFees(frontLoadingFeeFlat, oldAccruedIncomes);
+        await testTranchesAssets(assets);
+        await testFirstLossCoverAssets(profitsForFirstLossCovers, oldFirstLossCoverInfos);
     });
 
     it("10/20: Committed amount adjusted to be above the drawdown amount", async function () {
@@ -1703,13 +2070,14 @@ describe("Credit Line Integration Test", function () {
         const oldCR = await creditContract.getCreditRecord(creditHash);
         const paymentAmount = oldCR.nextDue;
 
-        const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
-        const poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
+        const oldBorrowerBalance = await mockTokenContract.balanceOf(borrower.address);
+        const oldPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
         await expect(
             creditContract.connect(borrower).makePayment(borrower.getAddress(), paymentAmount),
         )
             .to.emit(creditContract, "PaymentMade")
             .withArgs(
+                await borrower.getAddress(),
                 await borrower.getAddress(),
                 paymentAmount,
                 oldCR.yieldDue,
@@ -1721,10 +2089,10 @@ describe("Credit Line Integration Test", function () {
                 await borrower.getAddress(),
             )
             .to.emit(poolContract, "ProfitDistributed");
-        const borrowerNewBalance = await mockTokenContract.balanceOf(borrower.getAddress());
-        const poolSafeNewBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
-        expect(borrowerOldBalance.sub(borrowerNewBalance)).to.equal(paymentAmount);
-        // expect(poolSafeNewBalance.add(poolSafeOldBalance)).to.equal(paymentAmount);
+        const newBorrowerBalance = await mockTokenContract.balanceOf(borrower.getAddress());
+        const newPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
+        expect(oldBorrowerBalance.sub(newBorrowerBalance)).to.equal(paymentAmount);
+        // expect(newPoolSafeBalance.add(oldPoolSafeBalance)).to.equal(paymentAmount);
 
         // A new bill is generated since all next due is paid off in the late payment grace period.
         const cc = await creditManagerContract.getCreditConfig(creditHash);
@@ -1849,7 +2217,7 @@ describe("Credit Line Integration Test", function () {
         await setNextBlockTimestamp(dateOfDrawdown.unix());
 
         const borrowAmount = toToken(100_000);
-        const netBorrowAmount = borrowAmount;
+        const netBorrowAmount = borrowAmount.sub(frontLoadingFeeFlat);
         const oldCR = await creditContract.getCreditRecord(creditHash);
         const oldDD = await creditContract.getDueDetail(creditHash);
         const daysUntilNextDue = 19;
@@ -1861,20 +2229,33 @@ describe("Credit Line Integration Test", function () {
             CONSTANTS.DAYS_IN_A_MONTH,
         );
         const nextDue = oldCR.nextDue.add(additionalAccruedYieldDue).add(additionalPrincipalDue);
+        const [assets, , profitsForFirstLossCovers] =
+            await getAssetsAfterPnLDistribution(frontLoadingFeeFlat);
+        const totalProfitsForFirstLossCovers = sumBNArray(profitsForFirstLossCovers);
+        const oldFirstLossCoverInfos = await getFirstLossCoverInfos();
+        const oldAccruedIncomes = await poolFeeManagerContract.getAccruedIncomes();
 
-        const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
-        const poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
+        const oldBorrowerBalance = await mockTokenContract.balanceOf(borrower.address);
+        const oldPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
         await expect(
             creditContract.connect(borrower).drawdown(borrower.getAddress(), borrowAmount),
         )
             .to.emit(creditContract, "DrawdownMade")
             .withArgs(await borrower.getAddress(), borrowAmount, netBorrowAmount)
             .to.emit(creditContract, "BillRefreshed")
-            .withArgs(creditHash, oldCR.nextDueDate, nextDue);
-        const borrowerNewBalance = await mockTokenContract.balanceOf(borrower.getAddress());
-        const poolSafeNewBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
-        expect(borrowerNewBalance.sub(borrowerOldBalance)).to.equal(netBorrowAmount);
-        expect(poolSafeOldBalance.sub(poolSafeNewBalance)).to.equal(netBorrowAmount);
+            .withArgs(creditHash, oldCR.nextDueDate, nextDue)
+            .to.emit(poolContract, "ProfitDistributed")
+            .withArgs(
+                frontLoadingFeeFlat,
+                assets[CONSTANTS.SENIOR_TRANCHE],
+                assets[CONSTANTS.JUNIOR_TRANCHE],
+            );
+        const newBorrowerBalance = await mockTokenContract.balanceOf(borrower.getAddress());
+        const newPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
+        expect(newBorrowerBalance.sub(oldBorrowerBalance)).to.equal(netBorrowAmount);
+        expect(oldPoolSafeBalance.sub(newPoolSafeBalance)).to.equal(
+            netBorrowAmount.add(totalProfitsForFirstLossCovers),
+        );
 
         const actualCR = await creditContract.getCreditRecord(creditHash);
         const expectedCR = {
@@ -1897,6 +2278,10 @@ describe("Credit Line Integration Test", function () {
             },
         };
         checkDueDetailsMatch(actualDD, expectedDD);
+
+        await testPoolFees(frontLoadingFeeFlat, oldAccruedIncomes);
+        await testTranchesAssets(assets);
+        await testFirstLossCoverAssets(profitsForFirstLossCovers, oldFirstLossCoverInfos);
     });
 
     it("11/15: Partial principal payment with `makePrincipalPayment`", async function () {
@@ -1916,8 +2301,8 @@ describe("Credit Line Integration Test", function () {
         const principalDuePaid = oldCR.nextDue.sub(oldCR.yieldDue);
         const unbilledPrincipalPaid = paymentAmount.sub(principalDuePaid);
 
-        const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
-        const poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
+        const oldBorrowerBalance = await mockTokenContract.balanceOf(borrower.address);
+        const oldPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
         await expect(
             creditContract
                 .connect(borrower)
@@ -1926,6 +2311,7 @@ describe("Credit Line Integration Test", function () {
             .to.emit(creditContract, "PrincipalPaymentMade")
             .withArgs(
                 await borrower.getAddress(),
+                await borrower.getAddress(),
                 paymentAmount,
                 oldCR.nextDueDate,
                 0,
@@ -1933,11 +2319,12 @@ describe("Credit Line Integration Test", function () {
                 principalDuePaid,
                 unbilledPrincipalPaid,
                 await borrower.getAddress(),
-            );
-        const borrowerNewBalance = await mockTokenContract.balanceOf(borrower.getAddress());
-        const poolSafeNewBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
-        expect(borrowerOldBalance.sub(borrowerNewBalance)).to.equal(paymentAmount);
-        // expect(poolSafeNewBalance.add(poolSafeOldBalance)).to.equal(paymentAmount);
+            )
+            .not.to.emit(poolContract, "ProfitDistributed");
+        const newBorrowerBalance = await mockTokenContract.balanceOf(borrower.getAddress());
+        const newPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
+        expect(oldBorrowerBalance.sub(newBorrowerBalance)).to.equal(paymentAmount);
+        expect(newPoolSafeBalance.sub(oldPoolSafeBalance)).to.equal(paymentAmount);
 
         const actualCR = await creditContract.getCreditRecord(creditHash);
         const expectedCR = {
@@ -1969,14 +2356,22 @@ describe("Credit Line Integration Test", function () {
         const oldCR = await creditContract.getCreditRecord(creditHash);
         const oldDD = await creditContract.getDueDetail(creditHash);
         const paymentAmount = oldCR.nextDue;
+        const [assets, , profitsForFirstLossCovers] = await getAssetsAfterPnLDistribution(
+            oldCR.yieldDue,
+        );
+        const totalProfitsForFirstLossCovers = sumBNArray(profitsForFirstLossCovers);
+        expect(totalProfitsForFirstLossCovers).to.be.gt(0);
+        const oldFirstLossCoverInfos = await getFirstLossCoverInfos();
+        const oldAccruedIncomes = await poolFeeManagerContract.getAccruedIncomes();
 
-        const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
-        const poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
+        const oldBorrowerBalance = await mockTokenContract.balanceOf(borrower.address);
+        const oldPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
         await expect(
             creditContract.connect(borrower).makePayment(borrower.getAddress(), paymentAmount),
         )
             .to.emit(creditContract, "PaymentMade")
             .withArgs(
+                await borrower.getAddress(),
                 await borrower.getAddress(),
                 paymentAmount,
                 oldCR.yieldDue,
@@ -1987,11 +2382,18 @@ describe("Credit Line Integration Test", function () {
                 0,
                 await borrower.getAddress(),
             )
-            .to.emit(poolContract, "ProfitDistributed");
-        const borrowerNewBalance = await mockTokenContract.balanceOf(borrower.getAddress());
-        const poolSafeNewBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
-        expect(borrowerOldBalance.sub(borrowerNewBalance)).to.equal(paymentAmount);
-        // expect(poolSafeNewBalance.add(poolSafeOldBalance)).to.equal(paymentAmount);
+            .to.emit(poolContract, "ProfitDistributed")
+            .withArgs(
+                oldCR.yieldDue,
+                assets[CONSTANTS.SENIOR_TRANCHE],
+                assets[CONSTANTS.JUNIOR_TRANCHE],
+            );
+        const newBorrowerBalance = await mockTokenContract.balanceOf(borrower.getAddress());
+        const newPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
+        expect(oldBorrowerBalance.sub(newBorrowerBalance)).to.equal(paymentAmount);
+        expect(newPoolSafeBalance.sub(oldPoolSafeBalance)).to.equal(
+            paymentAmount.sub(totalProfitsForFirstLossCovers),
+        );
 
         const actualCR = await creditContract.getCreditRecord(creditHash);
         const expectedCR = {
@@ -2011,6 +2413,10 @@ describe("Credit Line Integration Test", function () {
             },
         };
         checkDueDetailsMatch(actualDD, expectedDD);
+
+        await testPoolFees(oldCR.yieldDue, oldAccruedIncomes);
+        await testTranchesAssets(assets);
+        await testFirstLossCoverAssets(profitsForFirstLossCovers, oldFirstLossCoverInfos);
     });
 
     it("12/1: 12th bill", async function () {
@@ -2253,14 +2659,22 @@ describe("Credit Line Integration Test", function () {
         const additionalLateFee = calcYield(totalPrincipal, lateFeeBps, 1);
         expect(additionalLateFee).to.be.gt(0);
         const paymentAmount = oldCR.totalPastDue.add(additionalLateFee);
+        const totalProfit = oldDD.yieldPastDue.add(oldDD.lateFee).add(additionalLateFee);
+        const [assets, , profitsForFirstLossCovers] =
+            await getAssetsAfterPnLDistribution(totalProfit);
+        const totalProfitsForFirstLossCovers = sumBNArray(profitsForFirstLossCovers);
+        expect(totalProfitsForFirstLossCovers).to.be.gt(0);
+        const oldFirstLossCoverInfos = await getFirstLossCoverInfos();
+        const oldAccruedIncomes = await poolFeeManagerContract.getAccruedIncomes();
 
-        const borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
-        const poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
+        const oldBorrowerBalance = await mockTokenContract.balanceOf(borrower.address);
+        const oldPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
         await expect(
             creditContract.connect(borrower).makePayment(borrower.getAddress(), paymentAmount),
         )
             .to.emit(creditContract, "PaymentMade")
             .withArgs(
+                await borrower.getAddress(),
                 await borrower.getAddress(),
                 paymentAmount,
                 0,
@@ -2270,11 +2684,19 @@ describe("Credit Line Integration Test", function () {
                 oldDD.lateFee.add(additionalLateFee),
                 oldDD.principalPastDue,
                 await borrower.getAddress(),
+            )
+            .to.emit(poolContract, "ProfitDistributed")
+            .withArgs(
+                totalProfit,
+                assets[CONSTANTS.SENIOR_TRANCHE],
+                assets[CONSTANTS.JUNIOR_TRANCHE],
             );
-        const borrowerNewBalance = await mockTokenContract.balanceOf(borrower.getAddress());
-        const poolSafeNewBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
-        expect(borrowerOldBalance.sub(borrowerNewBalance)).to.equal(paymentAmount);
-        // expect(poolSafeNewBalance.add(poolSafeOldBalance)).to.equal(paymentAmount);
+        const newBorrowerBalance = await mockTokenContract.balanceOf(borrower.getAddress());
+        const newPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
+        expect(oldBorrowerBalance.sub(newBorrowerBalance)).to.equal(paymentAmount);
+        expect(newPoolSafeBalance.sub(oldPoolSafeBalance)).to.equal(
+            paymentAmount.sub(totalProfitsForFirstLossCovers),
+        );
 
         const actualCR = await creditContract.getCreditRecord(creditHash);
         const expectedCR = {
@@ -2292,5 +2714,9 @@ describe("Credit Line Integration Test", function () {
         const actualDD = await creditContract.getDueDetail(creditHash);
         const expectedDD = genDueDetail({});
         checkDueDetailsMatch(actualDD, expectedDD);
+
+        await testPoolFees(totalProfit, oldAccruedIncomes);
+        await testTranchesAssets(assets);
+        await testFirstLossCoverAssets(profitsForFirstLossCovers, oldFirstLossCoverInfos);
     });
 });

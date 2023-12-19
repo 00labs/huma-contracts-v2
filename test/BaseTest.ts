@@ -1,6 +1,6 @@
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
-import { BigNumber, BigNumber as BN } from "ethers";
+import { BigNumber as BN, BigNumber } from "ethers";
 import { ethers } from "hardhat";
 import moment from "moment";
 import {
@@ -26,6 +26,7 @@ import {
     ReceivableLevelCreditManager,
     TrancheVault,
 } from "../typechain-types";
+import { FirstLossCoverConfigStruct } from "../typechain-types/contracts/PoolConfig.sol/PoolConfig";
 import {
     CreditRecordStruct,
     CreditRecordStructOutput,
@@ -37,7 +38,6 @@ import {
     CreditConfigStructOutput,
 } from "../typechain-types/contracts/credit/CreditManager";
 import { EpochInfoStruct } from "../typechain-types/contracts/interfaces/IEpoch";
-import { FirstLossCoverConfigStruct } from "../typechain-types/contracts/PoolConfig.sol/PoolConfig";
 import { maxBigNumber, minBigNumber, sumBNArray, toToken } from "./TestUtils";
 
 export type CreditContractType =
@@ -634,6 +634,7 @@ async function calcProfitForFirstLossCovers(
 export interface FirstLossCoverInfo {
     config: FirstLossCoverConfigStruct;
     asset: BN;
+    coveredLoss: BN;
 }
 
 async function calcLossCover(loss: BN, firstLossCoverInfo: FirstLossCoverInfo): Promise<BN[]> {
@@ -720,9 +721,10 @@ async function calcRiskAdjustedProfitAndLoss(
     loss: BN,
     lossRecovery: BN,
     assets: BN[],
+    losses: BN[],
     riskAdjustment: BN,
     firstLossCoverInfos: FirstLossCoverInfo[],
-): Promise<[BN[], BN[], BN[], BN[]]> {
+): Promise<[BN[], BN[], BN[], BN[], BN[]]> {
     const assetsAfterProfit = calcProfitForRiskAdjustedPolicy(profit, assets, riskAdjustment);
     const [juniorProfitAfterFirstLossCoverProfitDistribution, profitsForFirstLossCovers] =
         await PnLCalculator.calcProfitForFirstLossCovers(
@@ -730,7 +732,7 @@ async function calcRiskAdjustedProfitAndLoss(
             assets[CONSTANTS.JUNIOR_TRANCHE],
             firstLossCoverInfos,
         );
-    const [assetsAfterLoss, remainingLosses, lossesCoveredByFirstLossCovers] =
+    const [assetsAfterLoss, newTranchesLosses, lossesCoveredByFirstLossCovers] =
         await PnLCalculator.calcLoss(
             loss,
             [
@@ -741,18 +743,28 @@ async function calcRiskAdjustedProfitAndLoss(
             ],
             firstLossCoverInfos,
         );
-    const [, assetsAfterRecovery, lossesAfterRecovery, lossRecoveredInFirstLossCovers] =
+
+    // Add existing losses to new losses to calculate recovery.
+    const totalTranchesLosses = [
+        newTranchesLosses[CONSTANTS.SENIOR_TRANCHE].add(losses[CONSTANTS.SENIOR_TRANCHE]),
+        newTranchesLosses[CONSTANTS.JUNIOR_TRANCHE].add(losses[CONSTANTS.JUNIOR_TRANCHE]),
+    ];
+    const totalLossesCoveredByFirstLossCovers = firstLossCoverInfos.map((info, index) =>
+        info.coveredLoss.add(lossesCoveredByFirstLossCovers[index]),
+    );
+    const [, assetsAfterRecovery, lossesAfterRecovery, lossesRecoveredByFirstLossCovers] =
         await PnLCalculator.calcLossRecovery(
             lossRecovery,
             assetsAfterLoss,
-            remainingLosses,
-            lossesCoveredByFirstLossCovers,
+            totalTranchesLosses,
+            totalLossesCoveredByFirstLossCovers,
         );
     return [
         assetsAfterRecovery,
         lossesAfterRecovery,
         profitsForFirstLossCovers,
-        lossRecoveredInFirstLossCovers,
+        lossesRecoveredByFirstLossCovers,
+        totalLossesCoveredByFirstLossCovers,
     ];
 }
 
@@ -778,15 +790,11 @@ export class FeeCalculator {
     async calcPoolFeeDistribution(profit: BN): Promise<BN> {
         const protocolFeeInBps = await this.humaConfigContract.protocolFeeInBps();
         const adminRnR = await this.poolConfigContract.getAdminRnR();
-        let remaining = profit.sub(profit.mul(BN.from(protocolFeeInBps)).div(CONSTANTS.BP_FACTOR));
-        remaining = remaining.sub(
-            remaining
-                .mul(
-                    BN.from(adminRnR.rewardRateInBpsForPoolOwner).add(
-                        BN.from(adminRnR.rewardRateInBpsForEA),
-                    ),
-                )
-                .div(CONSTANTS.BP_FACTOR),
+        const [, remaining] = calcPoolFees(
+            profit,
+            protocolFeeInBps,
+            adminRnR.rewardRateInBpsForPoolOwner,
+            adminRnR.rewardRateInBpsForEA,
         );
         return remaining;
     }
@@ -1254,13 +1262,25 @@ export async function calcPrincipalDueNew(
 export async function calcLateFee(
     poolConfigContract: PoolConfig,
     calendarContract: Calendar,
+    cc: CreditConfigStruct,
     cr: CreditRecordStruct,
     dd: DueDetailStruct,
     timestamp: number = 0,
 ): Promise<[BN, BN]> {
     const lateFeeInBps = await poolConfigContract.getLateFeeBps();
-    const lateFeeStartDate =
-        cr.state === CreditState.GoodStanding ? cr.nextDueDate : dd.lateFeeUpdatedDate;
+    let lateFeeStartDate;
+    if (cr.state == CreditState.GoodStanding) {
+        if (BN.from(cr.nextDue).isZero()) {
+            lateFeeStartDate = await calendarContract.getStartDateOfNextPeriod(
+                cc.periodDuration,
+                cr.nextDueDate,
+            );
+        } else {
+            lateFeeStartDate = cr.nextDueDate;
+        }
+    } else {
+        lateFeeStartDate = dd.lateFeeUpdatedDate;
+    }
     let lateFeeUpdatedDate;
     if (timestamp === 0) {
         lateFeeUpdatedDate = await calendarContract.getStartOfTomorrow();
@@ -1268,11 +1288,12 @@ export async function calcLateFee(
         lateFeeUpdatedDate = await calendarContract.getStartOfNextDay(timestamp);
     }
     const principal = getPrincipal(cr, dd);
+    const lateFeeBasis = maxBigNumber(principal, BN.from(cc.committedAmount));
     const lateFeeDays = await calendarContract.getDaysDiff(lateFeeStartDate, lateFeeUpdatedDate);
     return [
         lateFeeUpdatedDate,
         BN.from(dd.lateFee).add(
-            principal
+            lateFeeBasis
                 .mul(lateFeeInBps)
                 .mul(lateFeeDays)
                 .div(CONSTANTS.BP_FACTOR.mul(CONSTANTS.DAYS_IN_A_YEAR)),
@@ -1283,6 +1304,7 @@ export async function calcLateFee(
 export async function calcLateFeeNew(
     poolConfigContract: PoolConfig,
     calendarContract: Calendar,
+    cc: CreditConfigStructOutput,
     cr: CreditRecordStructOutput,
     dd: DueDetailStructOutput,
     currentDate: moment.Moment,
@@ -1293,15 +1315,28 @@ export async function calcLateFeeNew(
             getLatePaymentGracePeriodDeadline(cr, latePaymentGracePeriodInDays),
         ) &&
             cr.state === CreditState.GoodStanding) ||
-        (cr.nextDue.isZero() && cr.totalPastDue.isZero())
+        (cr.nextDue.isZero() && cr.totalPastDue.isZero()) ||
+        cr.state == CreditState.Defaulted
     ) {
         return [dd.lateFeeUpdatedDate, dd.lateFee];
     }
     const lateFeeInBps = await poolConfigContract.getLateFeeBps();
-    const lateFeeStartDate =
-        cr.state === CreditState.GoodStanding ? cr.nextDueDate : dd.lateFeeUpdatedDate;
+    let lateFeeStartDate;
+    if (cr.state == CreditState.GoodStanding) {
+        if (cr.nextDue.isZero()) {
+            lateFeeStartDate = await calendarContract.getStartDateOfNextPeriod(
+                cc.periodDuration,
+                cr.nextDueDate,
+            );
+        } else {
+            lateFeeStartDate = cr.nextDueDate;
+        }
+    } else {
+        lateFeeStartDate = dd.lateFeeUpdatedDate;
+    }
     const lateFeeUpdatedDate = currentDate.clone().add(1, "day").startOf("day");
     const principal = getPrincipal(cr, dd);
+    const lateFeeBasis = maxBigNumber(principal, cc.committedAmount);
     const lateFeeDays = await calendarContract.getDaysDiff(
         lateFeeStartDate,
         lateFeeUpdatedDate.unix(),
@@ -1309,7 +1344,7 @@ export async function calcLateFeeNew(
     return [
         BN.from(lateFeeUpdatedDate.unix()),
         BN.from(dd.lateFee).add(
-            principal
+            lateFeeBasis
                 .mul(lateFeeInBps)
                 .mul(lateFeeDays)
                 .div(CONSTANTS.BP_FACTOR.mul(CONSTANTS.DAYS_IN_A_YEAR)),
@@ -1464,4 +1499,30 @@ export function calcYield(principal: BN, yieldInBps: number, days: number): BN {
         .mul(yieldInBps)
         .mul(days)
         .div(CONSTANTS.BP_FACTOR.mul(CONSTANTS.DAYS_IN_A_YEAR));
+}
+
+export interface AccruedIncomes {
+    protocolIncome: BN;
+    poolOwnerIncome: BN;
+    eaIncome: BN;
+}
+
+export function calcPoolFees(
+    profit: BN,
+    protocolFeeInBps: number,
+    rewardRateInBpsForPoolOwner: number,
+    rewardRateInBpsForEA: number,
+): [AccruedIncomes, BN] {
+    const protocolIncome = profit.mul(protocolFeeInBps).div(CONSTANTS.BP_FACTOR);
+    const remainingProfit = profit.sub(protocolIncome);
+    const poolOwnerIncome = remainingProfit
+        .mul(rewardRateInBpsForPoolOwner)
+        .div(CONSTANTS.BP_FACTOR);
+    const eaIncome = remainingProfit.mul(rewardRateInBpsForEA).div(CONSTANTS.BP_FACTOR);
+    const accruedIncomes: AccruedIncomes = {
+        protocolIncome,
+        poolOwnerIncome,
+        eaIncome,
+    };
+    return [accruedIncomes, remainingProfit.sub(poolOwnerIncome).sub(eaIncome)];
 }
