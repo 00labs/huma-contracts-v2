@@ -8792,10 +8792,10 @@ describe("CreditLine Test", function () {
             const settings = await poolConfigContract.getPoolSettings();
             const refreshDate =
                 oldCR.nextDueDate.toNumber() +
-                (settings.defaultGracePeriodInMonths * CONSTANTS.DAYS_IN_A_MONTH + 2) *
+                (settings.defaultGracePeriodInMonths + 1) *
+                    CONSTANTS.DAYS_IN_A_MONTH *
                     CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(refreshDate);
-
             await creditManagerContract.refreshCredit(borrower.getAddress());
             await creditManagerContract
                 .connect(eaServiceAccount)
