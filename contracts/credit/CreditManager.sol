@@ -383,6 +383,10 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         DueDetail memory dd = credit.getDueDetail(creditHash);
         (cr, dd) = dueManager.getDueInfo(cr, cc, dd, block.timestamp);
 
+        if (cr.state != CreditState.Approved && cr.state != CreditState.GoodStanding) {
+            revert Errors.creditLineNotInStateForUpdate();
+        }
+
         cc.numOfPeriods += uint16(newNumOfPeriods);
         _setCreditConfig(creditHash, cc);
 
