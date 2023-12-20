@@ -58,15 +58,6 @@ struct DueDetail {
     uint96 paid;
 }
 
-struct CreditLoss {
-    uint96 principalLoss;
-    uint96 yieldLoss;
-    uint96 feesLoss;
-    uint96 principalRecovered;
-    uint96 yieldRecovered;
-    uint96 feesRecovered;
-}
-
 // todo The design of this struct is not optiized. There is duplication of creditLimit field
 // in this struct and CreditConfig. Need to revisit and refine it.
 struct CreditLimit {

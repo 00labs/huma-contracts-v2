@@ -9,7 +9,7 @@ import {ICreditManager} from "./interfaces/ICreditManager.sol";
 import {PoolConfig, PoolSettings} from "../PoolConfig.sol";
 import {PoolConfigCache} from "../PoolConfigCache.sol";
 import {CreditManagerStorage} from "./CreditManagerStorage.sol";
-import {CreditClosureReason, CreditConfig, CreditLimit, CreditRecord, CreditState, DueDetail, PayPeriodDuration, CreditLoss} from "./CreditStructs.sol";
+import {CreditClosureReason, CreditConfig, CreditLimit, CreditRecord, CreditState, DueDetail, PayPeriodDuration} from "./CreditStructs.sol";
 import {Errors} from "../Errors.sol";
 import {DAYS_IN_A_MONTH, DAYS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS, SECONDS_IN_A_DAY} from "../SharedDefs.sol";
 import {ICreditDueManager} from "./utils/interfaces/ICreditDueManager.sol";
@@ -362,14 +362,8 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         yieldLoss = cr.yieldDue + dd.yieldPastDue;
         feesLoss = dd.lateFee;
 
-        CreditLoss memory cl = credit.getCreditLoss(creditHash);
-        cl.principalLoss = uint96(principalLoss);
-        cl.yieldLoss = uint96(yieldLoss);
-        cl.feesLoss = uint96(feesLoss);
-        credit.setCreditLoss(creditHash, cl);
-
-        IPool(poolConfig.pool()).distributeProfit(cl.yieldLoss + cl.feesLoss);
-        IPool(poolConfig.pool()).distributeLoss(cl.principalLoss + cl.yieldLoss + cl.feesLoss);
+        IPool(poolConfig.pool()).distributeProfit(yieldLoss + feesLoss);
+        IPool(poolConfig.pool()).distributeLoss(principalLoss + yieldLoss + feesLoss);
 
         cr.state = CreditState.Defaulted;
         credit.updateDueInfo(creditHash, cr, dd);

@@ -1395,13 +1395,6 @@ export function getTotalDaysInPeriod(periodDuration: number) {
     }
 }
 
-export function checkTwoCreditLosses() {
-    // preCreditLoss: CreditLossStructOutput,
-    // creditLoss: CreditLossStructOutput,
-    // expect(preCreditLoss.totalAccruedLoss).to.equal(creditLoss.totalAccruedLoss);
-    // expect(preCreditLoss.totalLossRecovery).to.equal(creditLoss.totalLossRecovery);
-}
-
 export function printCreditRecord(name: string, creditRecord: CreditRecordStruct) {
     console.log(
         `${name}[
