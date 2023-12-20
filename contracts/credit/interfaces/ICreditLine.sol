@@ -1,10 +1,25 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
-import {CreditRecord} from "../CreditStructs.sol";
+
+import {CreditRecord, DueDetail} from "../CreditStructs.sol";
 
 interface ICreditLine {
     /**
-     * @notice allows the borrower to borrow against an approved credit line.
+     * @notice Returns the date that the bill should be refreshed.
+     * @param borrower The borrower address
+     */
+    function getNextBillRefreshDate(address borrower) external view returns (uint256 refreshDate);
+
+    /**
+     * @notice Returns the bill with up-to-date due info.
+     * @param borrower Address of the borrower
+     */
+    function getDueInfo(
+        address borrower
+    ) external view returns (CreditRecord memory cr, DueDetail memory dd);
+
+    /**
+     * @notice Allows the borrower to borrow against an approved credit line.
      * @param borrower Address of the borrower
      * @param borrowAmount the amount to borrow
      * @dev Only the owner of the credit line can drawdown.
