@@ -148,15 +148,7 @@ contract Calendar is ICalendar {
         // a partial period or not, so push the start date to the beginning of the period
         // to simplify the calculation.
         startDate = getStartDateOfPeriod(periodDuration, startDate);
-        numPeriodsPassed =
-            getDaysDiff(startDate, endDate) /
-            getTotalDaysInFullPeriod(periodDuration);
-        if (endDate != getStartDateOfPeriod(periodDuration, endDate)) {
-            // If the end date is in the middle of a period, then we need to account for the
-            // last partial period.
-            ++numPeriodsPassed;
-        }
-        return numPeriodsPassed;
+        return getDaysDiff(startDate, endDate) / getTotalDaysInFullPeriod(periodDuration);
     }
 
     /// @inheritdoc ICalendar

@@ -3707,22 +3707,24 @@ describe("CreditLine Test", function () {
                             getLatePaymentGracePeriodDeadline(cr, latePaymentGracePeriodInDays),
                         )
                     ) {
-                        periodsPassed = (
+                        periodsPassed =
+                            (
+                                await calendarContract.getNumPeriodsPassed(
+                                    cc.periodDuration,
+                                    cr.nextDueDate,
+                                    paymentDate.unix(),
+                                )
+                            ).toNumber() + 1;
+                    }
+                } else if (paymentDate.isAfter(moment.utc(cr.nextDueDate.toNumber() * 1000))) {
+                    periodsPassed =
+                        (
                             await calendarContract.getNumPeriodsPassed(
                                 cc.periodDuration,
                                 cr.nextDueDate,
                                 paymentDate.unix(),
                             )
-                        ).toNumber();
-                    }
-                } else if (paymentDate.isAfter(moment.utc(cr.nextDueDate.toNumber() * 1000))) {
-                    periodsPassed = (
-                        await calendarContract.getNumPeriodsPassed(
-                            cc.periodDuration,
-                            cr.nextDueDate,
-                            paymentDate.unix(),
-                        )
-                    ).toNumber();
+                        ).toNumber() + 1;
                 }
                 const remainingPeriods = Math.max(cr.remainingPeriods - periodsPassed, 0);
                 // Whether the bill is late up until payment is made.
