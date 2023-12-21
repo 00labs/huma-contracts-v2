@@ -24,7 +24,7 @@ interface IPoolSafe {
      * @notice Gets the total available underlying tokens in the pool
      * @return liquidity the quantity of underlying tokens in the pool
      */
-    function getPoolBalance() external view returns (uint256 liquidity);
+    function getAvailableBalanceForPool() external view returns (uint256 liquidity);
 
     /**
      * @notice Gets total available balance of pool safe. Pool calls this function for profit and loss recoevery cases.
@@ -36,7 +36,7 @@ interface IPoolSafe {
      * 1. invest in FirstLossCover if there is still room.
      * 2. withdraw by admins
      */
-    function getAvailableLiquidityForFees() external view returns (uint256 liquidity);
+    function getAvailableBalanceForFees() external view returns (uint256 liquidity);
 
     /**
      * @notice Pool calls this function to reserve the unprocessed profit for junior/senior tranches.

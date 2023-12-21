@@ -920,7 +920,7 @@ describe("PoolFeeManager Tests", function () {
                     .setPoolOwnerRewardsAndLiquidity(CONSTANTS.BP_FACTOR, 0);
 
                 await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.address);
-                const poolLiquidity = await poolSafeContract.getAvailableLiquidityForFees();
+                const poolLiquidity = await poolSafeContract.getAvailableBalanceForFees();
                 await poolFeeManagerContract.distributePoolFees(poolLiquidity.add(1));
                 const availableIncomes = await poolFeeManagerContract.getTotalAvailableFees();
                 // Make sure the first loss cover cap is large enough.

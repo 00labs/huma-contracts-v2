@@ -71,7 +71,7 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
     }
 
     /// @inheritdoc IPoolSafe
-    function getPoolBalance() external view virtual returns (uint256 liquidity) {
+    function getAvailableBalanceForPool() external view virtual returns (uint256 liquidity) {
         uint256 reserved = poolFeeManager.getTotalAvailableFees();
         reserved +=
             unprocessedTrancheProfit[poolConfig.seniorTranche()] +
@@ -86,7 +86,7 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
     }
 
     /// @inheritdoc IPoolSafe
-    function getAvailableLiquidityForFees() external view returns (uint256 liquidity) {
+    function getAvailableBalanceForFees() external view returns (uint256 liquidity) {
         liquidity = underlyingToken.balanceOf(address(this));
     }
 

@@ -218,7 +218,7 @@ describe("PoolSafe Tests", function () {
         });
     });
 
-    describe("getPoolBalance", function () {
+    describe("getAvailableBalanceForPool", function () {
         async function setPool() {
             await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.getAddress());
         }
@@ -233,7 +233,9 @@ describe("PoolSafe Tests", function () {
             await poolFeeManagerContract.distributePoolFees(profit);
             const totalBalance = await poolSafeContract.totalBalance();
             const poolFees = await poolFeeManagerContract.getTotalAvailableFees();
-            expect(await poolSafeContract.getPoolBalance()).to.equal(totalBalance.sub(poolFees));
+            expect(await poolSafeContract.getAvailableBalanceForPool()).to.equal(
+                totalBalance.sub(poolFees),
+            );
         });
 
         it("Should return 0 if the reserve exceeds the amount of underlying tokens", async function () {
@@ -246,7 +248,9 @@ describe("PoolSafe Tests", function () {
                 .setPoolOwnerRewardsAndLiquidity(CONSTANTS.BP_FACTOR, 0);
             const profit = totalBalance.add(1);
             await poolFeeManagerContract.distributePoolFees(profit);
-            expect(await poolSafeContract.getPoolBalance()).to.equal(ethers.constants.Zero);
+            expect(await poolSafeContract.getAvailableBalanceForPool()).to.equal(
+                ethers.constants.Zero,
+            );
         });
     });
 
@@ -258,7 +262,7 @@ describe("PoolSafe Tests", function () {
         });
     });
 
-    describe("getAvailableLiquidityForFees", function () {
+    describe("getAvailableBalanceForFees", function () {
         it("Should return 0 if the reserve exceeds the amount of assets", async function () {
             const profit = toToken(1_000_000);
             await creditContract.mockDistributePnL(profit, toToken(0), toToken(0));
@@ -268,7 +272,7 @@ describe("PoolSafe Tests", function () {
                 .setPoolFeeManager(defaultDeployer.getAddress());
             const totalBalance = await poolSafeContract.totalBalance();
             await poolSafeContract.withdraw(defaultDeployer.getAddress(), totalBalance);
-            expect(await poolSafeContract.getAvailableLiquidityForFees()).to.equal(
+            expect(await poolSafeContract.getAvailableBalanceForFees()).to.equal(
                 ethers.constants.Zero,
             );
         });
