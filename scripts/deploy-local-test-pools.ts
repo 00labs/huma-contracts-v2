@@ -8,6 +8,7 @@ import {
     CreditManagerContractName,
     deployAndSetupPoolContracts,
     deployProtocolContracts,
+    PayPeriodDuration,
 } from "../test/BaseTest";
 import {
     getMinFirstLossCoverRequirement,
@@ -103,9 +104,13 @@ async function depositFirstLossCover(
 async function deployPool(
     creditContractName: CreditContractName,
     creditManagerContractName: CreditManagerContractName,
+    poolName?: "ArfV2",
 ) {
     console.log("=====================================");
     console.log(`Deploying pool with ${creditContractName} and ${creditManagerContractName}`);
+    if (poolName) {
+        console.log(`Pool name: ${poolName}`);
+    }
     console.log(`Starting block timestamp: ${await time.latest()}`);
     [
         defaultDeployer,
@@ -202,13 +207,32 @@ async function deployPool(
         .connect(seniorLender)
         .deposit(toToken(200_000), seniorLender.address);
 
-    // Drawdown
     const frontLoadingFeeFlat = toToken(100);
     const frontLoadingFeeBps = BN.from(100);
     await poolConfigContract.connect(poolOwner).setFrontLoadingFees({
         frontLoadingFeeFlat: frontLoadingFeeFlat,
         frontLoadingFeeBps: frontLoadingFeeBps,
     });
+
+    if (poolName === "ArfV2") {
+        const lateGracePeriodInDays = 5;
+        const advanceRate = CONSTANTS.BP_FACTOR;
+        const yieldInBps = 1200;
+        const lateFeeBps = 2400;
+        const principalRate = 0;
+        await poolConfigContract.connect(poolOwner).setPoolPayPeriod(PayPeriodDuration.Monthly);
+        await poolConfigContract
+            .connect(poolOwner)
+            .setLatePaymentGracePeriodInDays(lateGracePeriodInDays);
+        await poolConfigContract.connect(poolOwner).setAdvanceRateInBps(advanceRate);
+        await poolConfigContract.connect(poolOwner).setReceivableAutoApproval(true);
+
+        await poolConfigContract.connect(poolOwner).setFeeStructure({
+            yieldInBps,
+            minPrincipalRateInBps: principalRate,
+            lateFeeBps,
+        });
+    }
 
     console.log("=====================================");
     console.log("Accounts:");
@@ -242,7 +266,11 @@ async function deployPool(
 async function deployPools() {
     try {
         await deployPool("CreditLine", "BorrowerLevelCreditManager");
-        await deployPool("ReceivableBackedCreditLine", "ReceivableBackedCreditLineManager");
+        await deployPool(
+            "ReceivableBackedCreditLine",
+            "ReceivableBackedCreditLineManager",
+            "ArfV2",
+        );
     } catch (error) {
         console.error(error);
         process.exitCode = 1;
