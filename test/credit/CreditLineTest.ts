@@ -8845,6 +8845,8 @@ describe("CreditLine Test", function () {
         });
 
         it("Should allow the EA to extend the remaining periods of a credit line", async function () {
+            await creditContract.connect(borrower).drawdown(borrower.address, toToken(5_000));
+
             const oldCR = await creditContract.getCreditRecord(creditHash);
             const newRemainingPeriods = oldCR.remainingPeriods + numOfPeriods;
             await expect(
@@ -8855,13 +8857,12 @@ describe("CreditLine Test", function () {
                 .to.emit(creditManagerContract, "RemainingPeriodsExtended")
                 .withArgs(
                     creditHash,
-                    // -1 because `updateDueInfo` kicked start the credit line.
-                    oldCR.remainingPeriods - 1,
-                    newRemainingPeriods - 1,
+                    oldCR.remainingPeriods,
+                    newRemainingPeriods,
                     await eaServiceAccount.getAddress(),
                 );
             const newCR = await creditContract.getCreditRecord(creditHash);
-            expect(newCR.remainingPeriods).to.equal(newRemainingPeriods - 1);
+            expect(newCR.remainingPeriods).to.equal(newRemainingPeriods);
         });
 
         it("Should not allow extension when the protocol is paused or pool is not on", async function () {
@@ -8890,6 +8891,20 @@ describe("CreditLine Test", function () {
             ).to.be.revertedWithCustomError(
                 creditManagerContract,
                 "evaluationAgentServiceAccountRequired",
+            );
+        });
+
+        it("Should not allow extension on a newly approved credit line", async function () {
+            const oldCR = await creditContract.getCreditRecord(creditHash);
+            expect(oldCR.state).to.equal(CreditState.Approved);
+
+            await expect(
+                creditManagerContract
+                    .connect(eaServiceAccount)
+                    .extendRemainingPeriod(borrower.getAddress(), 1),
+            ).to.be.revertedWithCustomError(
+                creditManagerContract,
+                "creditLineNotInStateForUpdate",
             );
         });
 

@@ -379,11 +379,13 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         // Although not essential to call getDueInfo() to extend the credit line duration,
         // it is still a good practice to bring the account current while we update one of the fields.
         CreditRecord memory cr = credit.getCreditRecord(creditHash);
+        if (cr.state != CreditState.GoodStanding) {
+            revert Errors.creditLineNotInStateForUpdate();
+        }
         CreditConfig memory cc = getCreditConfig(creditHash);
         DueDetail memory dd = credit.getDueDetail(creditHash);
         (cr, dd) = dueManager.getDueInfo(cr, cc, dd, block.timestamp);
-
-        if (cr.state != CreditState.Approved && cr.state != CreditState.GoodStanding) {
+        if (cr.state != CreditState.GoodStanding) {
             revert Errors.creditLineNotInStateForUpdate();
         }
 
