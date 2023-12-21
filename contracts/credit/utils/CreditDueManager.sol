@@ -48,22 +48,17 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
     ) public view returns (bool isLate) {
         if (cr.missedPeriods > 0) return true;
 
-        return cr.nextDue != 0 && timestamp > getNextBillRefreshDate(cr, timestamp);
+        return cr.nextDue != 0 && timestamp > getNextBillRefreshDate(cr);
     }
 
     function getNextBillRefreshDate(
-        CreditRecord memory cr,
-        uint256 timestamp
+        CreditRecord memory cr
     ) public view returns (uint256 refreshDate) {
         PoolSettings memory poolSettings = poolConfig.getPoolSettings();
         uint256 latePaymentDeadline = cr.nextDueDate +
             poolSettings.latePaymentGracePeriodInDays *
             SECONDS_IN_A_DAY;
-        if (
-            cr.state == CreditState.GoodStanding &&
-            cr.nextDue != 0 &&
-            timestamp <= latePaymentDeadline
-        ) {
+        if (cr.state == CreditState.GoodStanding && cr.nextDue != 0) {
             // If this is the first time ever that the bill has surpassed the due date and the bill has unpaid amounts,
             // then we don't want to refresh the bill since we want the user to focus on paying off the current due.
             return latePaymentDeadline;
@@ -135,7 +130,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         bool isFirstPeriod = cr.state == CreditState.Approved;
         // If the current timestamp has not yet reached the bill refresh date, then all the amount due is up-to-date
         // except possibly the late fee. So we only need to update the late fee if it is already late.
-        if (!isFirstPeriod && timestamp <= getNextBillRefreshDate(cr, timestamp)) {
+        if (!isFirstPeriod && timestamp <= getNextBillRefreshDate(cr)) {
             if (cr.missedPeriods == 0) return (newCR, newDD);
             else {
                 newCR.totalPastDue -= dd.lateFee;

@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import {IERC721, IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {ERC165Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/introspection/ERC165Upgradeable.sol";
 import {Credit} from "./Credit.sol";
-import {ReceivableInput, CreditRecord} from "./CreditStructs.sol";
+import {CreditRecord, DueDetail} from "./CreditStructs.sol";
 import {IReceivableFactoringCredit} from "./interfaces/IReceivableFactoringCredit.sol";
 import {IReceivableFactoringCreditForContract} from "./interfaces/IReceivableFactoringCreditForContract.sol";
 import {IReceivableLevelCreditManager} from "./interfaces/IReceivableLevelCreditManager.sol";
@@ -23,6 +23,22 @@ contract ReceivableFactoringCredit is
     event ExtraFundsDispersed(address indexed receiver, uint256 amount);
 
     //TODO add events
+
+    /// @inheritdoc IReceivableFactoringCredit
+    function getNextBillRefreshDate(
+        uint256 receivableId
+    ) external view returns (uint256 refreshDate) {
+        bytes32 creditHash = _getCreditHash(receivableId);
+        return _getNextBillRefreshDate(creditHash);
+    }
+
+    /// @inheritdoc IReceivableFactoringCredit
+    function getDueInfo(
+        uint256 receivableId
+    ) external view returns (CreditRecord memory cr, DueDetail memory dd) {
+        bytes32 creditHash = _getCreditHash(receivableId);
+        return _getDueInfo(creditHash);
+    }
 
     function drawdownWithReceivable(
         address borrower,

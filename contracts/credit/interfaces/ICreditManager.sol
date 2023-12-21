@@ -7,5 +7,5 @@ interface ICreditManager {
 
     function onlyCreditBorrower(bytes32 creditHash, address borrower) external view;
 
-    function getCreditBorrower(bytes32 creditHash) external view returns (address);
+    function getCreditBorrower(bytes32 creditHash) external view returns (address borrower);
 }

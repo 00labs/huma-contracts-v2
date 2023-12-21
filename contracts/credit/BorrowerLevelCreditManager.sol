@@ -3,11 +3,11 @@ pragma solidity ^0.8.0;
 
 import {IBorrowerLevelCreditManager} from "./interfaces/IBorrowerLevelCreditManager.sol";
 import {CreditManager} from "./CreditManager.sol";
-import {CreditConfig, CreditRecord, DueDetail, PayPeriodDuration, CreditClosureReason} from "./CreditStructs.sol";
+import {PayPeriodDuration} from "./CreditStructs.sol";
 import {Errors} from "../Errors.sol";
 
 /**
- * BorrowerLevelCreditConfig has a set of administrative functions to manage the settings
+ * BorrowerLevelCreditManager has a set of administrative functions to manage the settings
  * for a borrower-level credit. A borrower-level credit can have many drawdowns and paybacks
  * with or without backing of a collateral or receivable, but the balance is all aggregated
  * at the borrower-level. A classic example of borrower-level credit is credit line.

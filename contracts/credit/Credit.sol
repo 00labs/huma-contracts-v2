@@ -192,6 +192,22 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         _dueDetailMap[creditHash] = dd;
     }
 
+    function _getDueInfo(
+        bytes32 creditHash
+    ) internal view returns (CreditRecord memory cr, DueDetail memory dd) {
+        CreditConfig memory cc = creditManager.getCreditConfig(creditHash);
+        cr = getCreditRecord(creditHash);
+        dd = getDueDetail(creditHash);
+        return feeManager.getDueInfo(cr, cc, dd, block.timestamp);
+    }
+
+    function _getNextBillRefreshDate(
+        bytes32 creditHash
+    ) internal view returns (uint256 refreshDate) {
+        CreditRecord memory cr = getCreditRecord(creditHash);
+        return feeManager.getNextBillRefreshDate(cr);
+    }
+
     /**
      * @notice Stores CreditRecord and DueDetail passed in for `creditHash`.
      * @param creditHash the hash of the credit
