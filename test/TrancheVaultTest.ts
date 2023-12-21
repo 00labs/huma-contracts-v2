@@ -24,6 +24,7 @@ import {
     EpochChecker,
     FeeCalculator,
     PnLCalculator,
+    checkRedemptionInfoByLender,
     deployAndSetupPoolContracts,
     deployProtocolContracts,
 } from "./BaseTest";
@@ -68,52 +69,6 @@ let poolConfigContract: PoolConfig,
     creditDueManagerContract: CreditDueManager;
 
 let epochChecker: EpochChecker, feeCalculator: FeeCalculator;
-
-async function checkRedemptionInfoByLender(
-    trancheVaultContract: TrancheVault,
-    lender: SignerWithAddress,
-    lastUpdatedEpochIndex: BN | number,
-    numSharesRequested: BN = BN.from(0),
-    principalRequested: BN = BN.from(0),
-    totalAmountProcessed: BN = BN.from(0),
-    totalAmountWithdrawn: BN = BN.from(0),
-    delta: number = 0,
-) {
-    const redemptionInfo = await trancheVaultContract.redemptionInfoByLender(lender.address);
-    checkRedemptionInfo(
-        redemptionInfo,
-        lastUpdatedEpochIndex,
-        numSharesRequested,
-        principalRequested,
-        totalAmountProcessed,
-        totalAmountWithdrawn,
-        delta,
-    );
-}
-
-type RedemptionInfoStructOutput = [BN, BN, BN, BN, BN] & {
-    lastUpdatedEpochIndex: BN;
-    numSharesRequested: BN;
-    principalRequested: BN;
-    totalAmountProcessed: BN;
-    totalAmountWithdrawn: BN;
-};
-
-function checkRedemptionInfo(
-    redemptionInfo: RedemptionInfoStructOutput,
-    lastUpdatedEpochIndex: BN | number,
-    numSharesRequested: BN = BN.from(0),
-    principalRequested: BN = BN.from(0),
-    totalAmountProcessed: BN = BN.from(0),
-    totalAmountWithdrawn: BN = BN.from(0),
-    delta: number = 0,
-) {
-    expect(redemptionInfo.lastUpdatedEpochIndex).to.be.closeTo(lastUpdatedEpochIndex, delta);
-    expect(redemptionInfo.numSharesRequested).to.be.closeTo(numSharesRequested, delta);
-    expect(redemptionInfo.principalRequested).to.be.closeTo(principalRequested, delta);
-    expect(redemptionInfo.totalAmountProcessed).to.be.closeTo(totalAmountProcessed, delta);
-    expect(redemptionInfo.totalAmountWithdrawn).to.be.closeTo(totalAmountWithdrawn, delta);
-}
 
 type UserInfoStructOutput = [BN, boolean] & {
     principal: BN;
