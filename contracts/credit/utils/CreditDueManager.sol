@@ -208,16 +208,16 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         // Only the newly generated next due needs to be recorded.
         newCR.nextDue = uint96(newCR.yieldDue + principalDue);
 
-        uint256 periodsPassed;
-        if (isFirstPeriod) {
-            periodsPassed = 1;
-        } else {
-            periodsPassed = calendar.getNumPeriodsPassed(
+        // +1 to account for the first period:
+        // 1. If this is the first period, 1 represents the first partial period.
+        // 2. Otherwise, since we start counting the number of periods passed with `cr.nextDueDate`
+        //    as the start date, 1 represents the period that ends on `cr.nextDueDate`.
+        uint256 periodsPassed = 1 +
+            calendar.getNumPeriodsPassed(
                 cc.periodDuration,
-                cr.nextDueDate,
+                isFirstPeriod ? timestamp : cr.nextDueDate,
                 timestamp
             );
-        }
         // Adjusts remainingPeriods. Sets remainingPeriods to 0 if the credit line has reached maturity.
         newCR.remainingPeriods = cr.remainingPeriods > periodsPassed
             ? uint16(cr.remainingPeriods - periodsPassed)

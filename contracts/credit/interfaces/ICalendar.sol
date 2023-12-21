@@ -82,6 +82,8 @@ interface ICalendar {
 
     /**
      * @notice Returns the number of periods passed between the two given dates.
+     * @notice This function returns whole periods passed. However, if the first period is
+     * a partial period, it is counted as a whole period as well.
      */
     function getNumPeriodsPassed(
         PayPeriodDuration periodDuration,

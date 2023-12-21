@@ -736,7 +736,7 @@ describe("Calendar Test", function () {
                 ).to.equal(0);
             });
 
-            it("Should return 1 if the start and end dates are within the same period", async function () {
+            it("Should return 0 if the start and end dates are within the same period", async function () {
                 const startDate = moment.utc({
                     year: 2024,
                     month: 1,
@@ -753,7 +753,7 @@ describe("Calendar Test", function () {
                         startDate.unix(),
                         endDate.unix(),
                     ),
-                ).to.equal(1);
+                ).to.equal(0);
             });
 
             it("Should return 1 if the end date is at the beginning of the next period but the start date is in the middle of a period", async function () {
@@ -796,7 +796,7 @@ describe("Calendar Test", function () {
                 ).to.equal(1);
             });
 
-            it("Should return 2 if the end date is in the immediate next period of the start date", async function () {
+            it("Should return 1 if the end date is in the immediate next period of the start date", async function () {
                 const startDate = moment.utc({
                     year: 2024,
                     month: 1,
@@ -813,7 +813,7 @@ describe("Calendar Test", function () {
                         startDate.unix(),
                         endDate.unix(),
                     ),
-                ).to.equal(2);
+                ).to.equal(1);
             });
 
             it("Should return the correct number of periods if the start and end dates are many different periods apart and both are on period boundaries", async function () {
@@ -853,7 +853,7 @@ describe("Calendar Test", function () {
                         startDate.unix(),
                         endDate.unix(),
                     ),
-                ).to.equal(3);
+                ).to.equal(2);
             });
 
             it("Should revert if the start date is later than the end date", async function () {
@@ -933,7 +933,7 @@ describe("Calendar Test", function () {
                 ).to.equal(1);
             });
 
-            it("Should return 2 if the end date is in the immediate next period of the start date", async function () {
+            it("Should return 1 if the end date is in the immediate next period of the start date", async function () {
                 const startDate = moment.utc({
                     year: 2024,
                     month: 1,
@@ -950,7 +950,7 @@ describe("Calendar Test", function () {
                         startDate.unix(),
                         endDate.unix(),
                     ),
-                ).to.equal(2);
+                ).to.equal(1);
             });
 
             it("Should return the correct number of periods if the start and end dates are many different periods apart and both are on period boundaries", async function () {
@@ -990,7 +990,7 @@ describe("Calendar Test", function () {
                         startDate.unix(),
                         endDate.unix(),
                     ),
-                ).to.equal(5);
+                ).to.equal(4);
             });
 
             it("Should revert if the start date is later than the end date", async function () {
@@ -1030,7 +1030,7 @@ describe("Calendar Test", function () {
                 ).to.equal(0);
             });
 
-            it("Should return 1 if the start and end dates are within the same period", async function () {
+            it("Should return 0 if the start and end dates are within the same period", async function () {
                 const startDate = moment.utc({
                     year: 2024,
                     month: 1,
@@ -1047,10 +1047,10 @@ describe("Calendar Test", function () {
                         startDate.unix(),
                         endDate.unix(),
                     ),
-                ).to.equal(1);
+                ).to.equal(0);
             });
 
-            it("Should return 1 if the end date is at the beginning of the next period but the start date is in the middle of a period", async function () {
+            it("Should return 0 if the end date is at the beginning of the next period but the start date is in the middle of a period", async function () {
                 const startDate = moment.utc({
                     year: 2024,
                     month: 0,
@@ -1067,7 +1067,7 @@ describe("Calendar Test", function () {
                         startDate.unix(),
                         endDate.unix(),
                     ),
-                ).to.equal(1);
+                ).to.equal(0);
             });
 
             it("Should return 1 if both the start and end dates are on period boundaries", async function () {
@@ -1090,7 +1090,7 @@ describe("Calendar Test", function () {
                 ).to.equal(1);
             });
 
-            it("Should return 2 if the end date is in the immediate next period of the start date", async function () {
+            it("Should return 1 if the end date is in the immediate next period of the start date", async function () {
                 const startDate = moment.utc({
                     year: 2024,
                     month: 1,
@@ -1107,7 +1107,7 @@ describe("Calendar Test", function () {
                         startDate.unix(),
                         endDate.unix(),
                     ),
-                ).to.equal(2);
+                ).to.equal(1);
             });
 
             it("Should return the correct number of periods if the start and end dates are many different periods apart and both are on period boundaries", async function () {
@@ -1147,7 +1147,7 @@ describe("Calendar Test", function () {
                         startDate.unix(),
                         endDate.unix(),
                     ),
-                ).to.equal(3);
+                ).to.equal(2);
             });
 
             it("Should revert if the start date is later than the end date", async function () {
