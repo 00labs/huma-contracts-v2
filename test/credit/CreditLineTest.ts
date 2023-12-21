@@ -8400,14 +8400,11 @@ describe("CreditLine Test", function () {
             await setNextBlockTimestamp(drawdownDate);
             await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
 
-            // Default date is one day after the default grace period has passed.
             const oldCR = await creditContract.getCreditRecord(creditHash);
             const defaultDate =
                 oldCR.nextDueDate.toNumber() +
-                CONSTANTS.SECONDS_IN_A_DAY *
-                    CONSTANTS.DAYS_IN_A_MONTH *
-                    (defaultGracePeriodInMonths + 1) +
-                CONSTANTS.SECONDS_IN_A_DAY;
+                (defaultGracePeriodInMonths * CONSTANTS.DAYS_IN_A_MONTH + 2) *
+                    CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(defaultDate);
 
             const cc = await creditManagerContract.getCreditConfig(creditHash);
@@ -8848,6 +8845,8 @@ describe("CreditLine Test", function () {
         });
 
         it("Should allow the EA to extend the remaining periods of a credit line", async function () {
+            await creditContract.connect(borrower).drawdown(borrower.address, toToken(5_000));
+
             const oldCR = await creditContract.getCreditRecord(creditHash);
             const newRemainingPeriods = oldCR.remainingPeriods + numOfPeriods;
             await expect(
@@ -8858,13 +8857,12 @@ describe("CreditLine Test", function () {
                 .to.emit(creditManagerContract, "RemainingPeriodsExtended")
                 .withArgs(
                     creditHash,
-                    // -1 because `updateDueInfo` kicked start the credit line.
-                    oldCR.remainingPeriods - 1,
-                    newRemainingPeriods - 1,
+                    oldCR.remainingPeriods,
+                    newRemainingPeriods,
                     await eaServiceAccount.getAddress(),
                 );
             const newCR = await creditContract.getCreditRecord(creditHash);
-            expect(newCR.remainingPeriods).to.equal(newRemainingPeriods - 1);
+            expect(newCR.remainingPeriods).to.equal(newRemainingPeriods);
         });
 
         it("Should not allow extension when the protocol is paused or pool is not on", async function () {
@@ -8885,7 +8883,7 @@ describe("CreditLine Test", function () {
             await poolContract.connect(poolOwner).enablePool();
         });
 
-        it("Should disallow non-EAs to extend the remaining period", async function () {
+        it("Should not allow non-EAs to extend the remaining period", async function () {
             await expect(
                 creditManagerContract
                     .connect(borrower)
@@ -8893,6 +8891,73 @@ describe("CreditLine Test", function () {
             ).to.be.revertedWithCustomError(
                 creditManagerContract,
                 "evaluationAgentServiceAccountRequired",
+            );
+        });
+
+        it("Should not allow extension on a newly approved credit line", async function () {
+            const oldCR = await creditContract.getCreditRecord(creditHash);
+            expect(oldCR.state).to.equal(CreditState.Approved);
+
+            await expect(
+                creditManagerContract
+                    .connect(eaServiceAccount)
+                    .extendRemainingPeriod(borrower.getAddress(), 1),
+            ).to.be.revertedWithCustomError(
+                creditManagerContract,
+                "creditLineNotInStateForUpdate",
+            );
+        });
+
+        it("Should not allow extension on a delayed credit line", async function () {
+            await creditContract.connect(borrower).drawdown(borrower.address, toToken(5_000));
+
+            const oldCR = await creditContract.getCreditRecord(creditHash);
+            const settings = await poolConfigContract.getPoolSettings();
+            const latePaymentDeadline =
+                oldCR.nextDueDate.toNumber() +
+                settings.latePaymentGracePeriodInDays * CONSTANTS.SECONDS_IN_A_DAY;
+            const nextTime = latePaymentDeadline + 100;
+            await setNextBlockTimestamp(nextTime);
+
+            await creditManagerContract.refreshCredit(borrower.getAddress());
+            const newCR = await creditContract.getCreditRecord(creditHash);
+            expect(newCR.state).to.equal(CreditState.Delayed);
+
+            await expect(
+                creditManagerContract
+                    .connect(eaServiceAccount)
+                    .extendRemainingPeriod(borrower.getAddress(), 1),
+            ).to.be.revertedWithCustomError(
+                creditManagerContract,
+                "creditLineNotInStateForUpdate",
+            );
+        });
+
+        it("Should not allow extension on a defaulted credit line", async function () {
+            await creditContract.connect(borrower).drawdown(borrower.address, toToken(5_000));
+
+            const oldCR = await creditContract.getCreditRecord(creditHash);
+            const settings = await poolConfigContract.getPoolSettings();
+            const refreshDate =
+                oldCR.nextDueDate.toNumber() +
+                (settings.defaultGracePeriodInMonths + 1) *
+                    CONSTANTS.DAYS_IN_A_MONTH *
+                    CONSTANTS.SECONDS_IN_A_DAY;
+            await setNextBlockTimestamp(refreshDate);
+            await creditManagerContract.refreshCredit(borrower.getAddress());
+            await creditManagerContract
+                .connect(eaServiceAccount)
+                .triggerDefault(borrower.getAddress());
+            const newCR = await creditContract.getCreditRecord(creditHash);
+            expect(newCR.state).to.equal(CreditState.Defaulted);
+
+            await expect(
+                creditManagerContract
+                    .connect(eaServiceAccount)
+                    .extendRemainingPeriod(borrower.getAddress(), 1),
+            ).to.be.revertedWithCustomError(
+                creditManagerContract,
+                "creditLineNotInStateForUpdate",
             );
         });
     });
