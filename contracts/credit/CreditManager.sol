@@ -406,9 +406,15 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
 
     function _updateYield(bytes32 creditHash, uint256 yieldInBps) internal virtual {
         CreditRecord memory cr = credit.getCreditRecord(creditHash);
+        if (cr.state == CreditState.Approved || cr.state == CreditState.Deleted) {
+            revert Errors.creditLineNotInStateForUpdate();
+        }
         CreditConfig memory cc = getCreditConfig(creditHash);
         DueDetail memory dd = credit.getDueDetail(creditHash);
         (cr, dd) = dueManager.getDueInfo(cr, cc, dd, block.timestamp);
+        // No state check is needed after the bill is updated since it's impossible for a
+        // credit to go into the Approved or Deleted state if they weren't already in these
+        // states prior to the update.
 
         uint256 oldYieldInBps = cc.yieldInBps;
         cc.yieldInBps = uint16(yieldInBps);
@@ -465,9 +471,15 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         uint256 committedAmount
     ) internal virtual {
         CreditRecord memory cr = credit.getCreditRecord(creditHash);
+        if (cr.state == CreditState.Approved || cr.state == CreditState.Deleted) {
+            revert Errors.creditLineNotInStateForUpdate();
+        }
         CreditConfig memory cc = getCreditConfig(creditHash);
         DueDetail memory dd = credit.getDueDetail(creditHash);
         (cr, dd) = dueManager.getDueInfo(cr, cc, dd, block.timestamp);
+        // No state check is needed after the bill is updated since it's impossible for a
+        // credit to go into the Approved or Deleted state if they weren't already in these
+        // states prior to the update.
 
         uint256 oldCreditLimit = cc.creditLimit;
         cc.creditLimit = uint96(creditLimit);
@@ -508,9 +520,15 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         uint256 amount
     ) internal returns (uint256 amountWaived) {
         CreditRecord memory cr = credit.getCreditRecord(creditHash);
+        if (cr.state == CreditState.Approved || cr.state == CreditState.Deleted) {
+            revert Errors.creditLineNotInStateForUpdate();
+        }
         CreditConfig memory cc = getCreditConfig(creditHash);
         DueDetail memory dd = credit.getDueDetail(creditHash);
         (cr, dd) = dueManager.getDueInfo(cr, cc, dd, block.timestamp);
+        // No state check is needed after the bill is updated since it's impossible for a
+        // credit to go into the Approved or Deleted state if they weren't already in these
+        // states prior to the update.
 
         uint256 oldLateFee = dd.lateFee;
         amountWaived = amount > dd.lateFee ? dd.lateFee : amount;
