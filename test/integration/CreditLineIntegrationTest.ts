@@ -43,6 +43,7 @@ import {
     getPrincipal,
 } from "../BaseTest";
 import {
+    borrowerLevelCreditHash,
     evmRevert,
     evmSnapshot,
     getFirstLossCoverInfo,
@@ -290,12 +291,7 @@ describe("Credit Line Integration Test", function () {
             .connect(seniorLender)
             .deposit(toToken(1_500_000), seniorLender.getAddress());
 
-        creditHash = ethers.utils.keccak256(
-            ethers.utils.defaultAbiCoder.encode(
-                ["address", "address"],
-                [creditContract.address, await borrower.getAddress()],
-            ),
-        );
+        creditHash = await borrowerLevelCreditHash(creditContract, borrower);
 
         await poolConfigContract.connect(poolOwner).setPoolPayPeriod(payPeriodDuration);
         await poolConfigContract
