@@ -5,8 +5,10 @@ import {BorrowerLevelCreditManager} from "./BorrowerLevelCreditManager.sol";
 import {ReceivableBackedCreditLineManagerStorage} from "./ReceivableBackedCreditLineManagerStorage.sol";
 import {ReceivableInput, CreditLimit} from "./CreditStructs.sol";
 import {Errors} from "../Errors.sol";
+import {IReceivableBackedCreditLineManager} from "./interfaces/IReceivableBackedCreditLineManager.sol";
 
 contract ReceivableBackedCreditLineManager is
+    IReceivableBackedCreditLineManager,
     BorrowerLevelCreditManager,
     ReceivableBackedCreditLineManagerStorage
 {
