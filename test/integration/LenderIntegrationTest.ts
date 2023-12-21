@@ -667,11 +667,11 @@ describe("Lender Integration Test", function () {
         }
 
         before(async function () {
-            console.log(
-                `RiskAdjustedTranchesPolicy before block.timestamp: ${
-                    (await getLatestBlock()).timestamp
-                }`,
-            );
+            // console.log(
+            //     `RiskAdjustedTranchesPolicy before block.timestamp: ${
+            //         (await getLatestBlock()).timestamp
+            //     }`,
+            // );
             sId = await evmSnapshot();
             await prepare();
         });
@@ -698,7 +698,7 @@ describe("Lender Integration Test", function () {
             sLenderWithdrawns = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
             sActiveLenders = [];
             jActiveLenders = [];
-            console.log("RiskAdjustedTranchesPolicy after");
+            // console.log("RiskAdjustedTranchesPolicy after");
         });
 
         it("Epoch 0, day 0: Lenders provide liquidity and the borrower makes initial drawdown", async function () {
@@ -787,7 +787,7 @@ describe("Lender Integration Test", function () {
             let [expectedTranchesAssets, expectedTranchesProfits, expectedFirstLossCoverProfits] =
                 await pnlCalculator.endRiskAdjustedProfitCalculation(poolProfit);
 
-            console.log(`expectedTranchesProfits: ${expectedTranchesProfits}`);
+            // console.log(`expectedTranchesProfits: ${expectedTranchesProfits}`);
 
             await checkAssetsForProfit(
                 expectedTranchesAssets,
@@ -844,7 +844,7 @@ describe("Lender Integration Test", function () {
             let [expectedTranchesAssets, expectedTranchesProfits, expectedFirstLossCoverProfits] =
                 await pnlCalculator.endRiskAdjustedProfitCalculation(poolProfit);
 
-            console.log(`expectedTranchesProfits: ${expectedTranchesProfits}`);
+            // console.log(`expectedTranchesProfits: ${expectedTranchesProfits}`);
 
             await checkAssetsForProfit(
                 expectedTranchesAssets,
@@ -929,7 +929,7 @@ describe("Lender Integration Test", function () {
             let [expectedTranchesAssets, expectedTranchesProfits, expectedFirstLossCoverProfits] =
                 await pnlCalculator.endRiskAdjustedProfitCalculation(poolProfit);
 
-            console.log(`expectedTranchesProfits: ${expectedTranchesProfits}`);
+            // console.log(`expectedTranchesProfits: ${expectedTranchesProfits}`);
 
             await checkAssetsForProfit(
                 expectedTranchesAssets,
@@ -1062,9 +1062,9 @@ describe("Lender Integration Test", function () {
             currentTS = currentTS + 4 * 24 * 3600;
             await setNextBlockTimestamp(currentTS);
 
-            console.log(
-                `junior assets: ${await juniorTrancheVaultContract.totalAssets()}, senior assets: ${await seniorTrancheVaultContract.totalAssets()}`,
-            );
+            // console.log(
+            //     `junior assets: ${await juniorTrancheVaultContract.totalAssets()}, senior assets: ${await seniorTrancheVaultContract.totalAssets()}`,
+            // );
 
             await expect(
                 seniorTrancheVaultContract
@@ -1223,7 +1223,7 @@ describe("Lender Integration Test", function () {
 
             let [expectedTranchesAssets, expectedTranchesProfits, expectedFirstLossCoverProfits] =
                 await pnlCalculator.endRiskAdjustedProfitCalculation(poolProfit);
-            console.log(`expectedTranchesProfits: ${expectedTranchesProfits}`);
+            // console.log(`expectedTranchesProfits: ${expectedTranchesProfits}`);
 
             await checkAssetsForProfit(
                 expectedTranchesAssets,
@@ -1297,9 +1297,9 @@ describe("Lender Integration Test", function () {
             ).to.closeTo(jLenderAmountProcesseds[0], 1);
             juniorShareRequested = jLenderShareRequesteds[0];
 
-            console.log(
-                `jLenderAmountProcesseds[0]: ${jLenderAmountProcesseds[0]}, jLenderShareRequesteds[0]: ${jLenderShareRequesteds[0]}, jLenderPrincipalRequesteds[0]: ${jLenderPrincipalRequesteds[0]}`,
-            );
+            // console.log(
+            //     `jLenderAmountProcesseds[0]: ${jLenderAmountProcesseds[0]}, jLenderShareRequesteds[0]: ${jLenderShareRequesteds[0]}, jLenderPrincipalRequesteds[0]: ${jLenderPrincipalRequesteds[0]}`,
+            // );
 
             await creditManagerContract.refreshCredit(borrower.address);
             expect((await creditContract.getCreditRecord(creditHash)).nextDueDate).to.equal(
@@ -1375,10 +1375,10 @@ describe("Lender Integration Test", function () {
                 sActiveLenders.map((l) => l.address),
             );
 
-            let epoch = await juniorTrancheVaultContract.epochInfoByEpochId(currentEpochId);
-            console.log(`junior epoch: ${epoch}`);
-            epoch = await seniorTrancheVaultContract.epochInfoByEpochId(currentEpochId);
-            console.log(`senior epoch: ${epoch}`);
+            // let epoch = await juniorTrancheVaultContract.epochInfoByEpochId(currentEpochId);
+            // console.log(`junior epoch: ${epoch}`);
+            // epoch = await seniorTrancheVaultContract.epochInfoByEpochId(currentEpochId);
+            // console.log(`senior epoch: ${epoch}`);
 
             let juniorOldAssets = await juniorTrancheVaultContract.totalAssets();
             let juniorOldShares = await juniorTrancheVaultContract.totalSupply();
@@ -1504,7 +1504,7 @@ describe("Lender Integration Test", function () {
 
             let [expectedTranchesAssets, expectedTranchesProfits, expectedFirstLossCoverProfits] =
                 await pnlCalculator.endRiskAdjustedProfitCalculation(poolProfit);
-            console.log(`expectedTranchesProfits: ${expectedTranchesProfits}`);
+            // console.log(`expectedTranchesProfits: ${expectedTranchesProfits}`);
 
             await checkAssetsForProfit(
                 expectedTranchesAssets,
@@ -1559,7 +1559,7 @@ describe("Lender Integration Test", function () {
             let [expectedTranchesAssets, expectedTranchesProfits, expectedFirstLossCoverProfits] =
                 await pnlCalculator.endRiskAdjustedProfitCalculation(poolProfit);
 
-            console.log(`expectedTranchesProfits: ${expectedTranchesProfits}`);
+            // console.log(`expectedTranchesProfits: ${expectedTranchesProfits}`);
 
             await checkAssetsForProfit(
                 expectedTranchesAssets,
@@ -1851,9 +1851,9 @@ describe("Lender Integration Test", function () {
                 ],
             );
 
-            console.log(
-                `seniorShareRequested: ${seniorShareRequested}, juniorShareRequested: ${juniorShareRequested}`,
-            );
+            // console.log(
+            //     `seniorShareRequested: ${seniorShareRequested}, juniorShareRequested: ${juniorShareRequested}`,
+            // );
         });
 
         it("Epoch 10, day after the epoch end date: Close epoch and the fulfillment of the redemption requests", async function () {
@@ -1870,9 +1870,9 @@ describe("Lender Integration Test", function () {
             );
             let jAmountProcessed =
                 await juniorTrancheVaultContract.convertToAssets(juniorShareRequested);
-            console.log(
-                `jAmountProcessed: ${jAmountProcessed}, juniorShareRequested: ${juniorShareRequested}`,
-            );
+            // console.log(
+            //     `jAmountProcessed: ${jAmountProcessed}, juniorShareRequested: ${juniorShareRequested}`,
+            // );
             let seniorOldAssets = await seniorTrancheVaultContract.totalAssets();
             let seniorOldShares = await seniorTrancheVaultContract.totalSupply();
             let seniorOldBalance = await mockTokenContract.balanceOf(
@@ -2004,11 +2004,11 @@ describe("Lender Integration Test", function () {
         }
 
         before(async function () {
-            console.log(
-                `FixedYieldTranchesPolicy before block.timestamp: ${
-                    (await getLatestBlock()).timestamp
-                }`,
-            );
+            // console.log(
+            //     `FixedYieldTranchesPolicy before block.timestamp: ${
+            //         (await getLatestBlock()).timestamp
+            //     }`,
+            // );
             sId = await evmSnapshot();
             await prepare();
         });
@@ -2035,12 +2035,12 @@ describe("Lender Integration Test", function () {
             sLenderWithdrawns = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
             sActiveLenders = [];
             jActiveLenders = [];
-            console.log("FixedYieldTranchesPolicy after");
+            // console.log("FixedYieldTranchesPolicy after");
         });
 
         it("Epoch 0, day 0: Lenders provide liquidity and the borrower makes initial drawdown", async function () {
             let block = await getLatestBlock();
-            console.log(`block.timestamp: ${block.timestamp}`);
+            // console.log(`block.timestamp: ${block.timestamp}`);
             currentTS =
                 timestampToMoment(block.timestamp, "YYYY-MM-01").add(1, "month").unix() + 300;
             await setNextBlockTimestamp(currentTS);
@@ -2115,7 +2115,7 @@ describe("Lender Integration Test", function () {
                 expectedFirstLossCoverProfits,
                 newTracker,
             ] = await pnlCalculator.endFixedSeniorYieldProfitCalculation(poolProfit, tracker);
-            console.log(`expectedTranchesProfits: ${expectedTranchesProfits}`);
+            // console.log(`expectedTranchesProfits: ${expectedTranchesProfits}`);
 
             tracker = await tranchesPolicyContract.seniorYieldTracker();
             checkSeniorYieldTrackersMatch(tracker, newTracker);
@@ -2181,7 +2181,7 @@ describe("Lender Integration Test", function () {
                 expectedFirstLossCoverProfits,
                 newTracker,
             ] = await pnlCalculator.endFixedSeniorYieldProfitCalculation(poolProfit, tracker);
-            console.log(`expectedTranchesProfits: ${expectedTranchesProfits}`);
+            // console.log(`expectedTranchesProfits: ${expectedTranchesProfits}`);
 
             tracker = await tranchesPolicyContract.seniorYieldTracker();
             checkSeniorYieldTrackersMatch(tracker, newTracker);
@@ -2273,7 +2273,7 @@ describe("Lender Integration Test", function () {
                 expectedFirstLossCoverProfits,
                 newTracker,
             ] = await pnlCalculator.endFixedSeniorYieldProfitCalculation(poolProfit, tracker);
-            console.log(`expectedTranchesProfits: ${expectedTranchesProfits}`);
+            // console.log(`expectedTranchesProfits: ${expectedTranchesProfits}`);
 
             tracker = await tranchesPolicyContract.seniorYieldTracker();
             checkSeniorYieldTrackersMatch(tracker, newTracker);
@@ -2418,9 +2418,9 @@ describe("Lender Integration Test", function () {
             currentTS = currentTS + 4 * 24 * 3600;
             await setNextBlockTimestamp(currentTS);
 
-            console.log(
-                `junior assets: ${await juniorTrancheVaultContract.totalAssets()}, senior assets: ${await seniorTrancheVaultContract.totalAssets()}`,
-            );
+            // console.log(
+            //     `junior assets: ${await juniorTrancheVaultContract.totalAssets()}, senior assets: ${await seniorTrancheVaultContract.totalAssets()}`,
+            // );
 
             await expect(
                 seniorTrancheVaultContract
@@ -2584,7 +2584,7 @@ describe("Lender Integration Test", function () {
                 expectedFirstLossCoverProfits,
                 newTracker,
             ] = await pnlCalculator.endFixedSeniorYieldProfitCalculation(poolProfit, tracker);
-            console.log(`expectedTranchesProfits: ${expectedTranchesProfits}`);
+            // console.log(`expectedTranchesProfits: ${expectedTranchesProfits}`);
 
             tracker = await tranchesPolicyContract.seniorYieldTracker();
             checkSeniorYieldTrackersMatch(tracker, newTracker);
@@ -2661,9 +2661,9 @@ describe("Lender Integration Test", function () {
             ).to.closeTo(jLenderAmountProcesseds[0], 1);
             juniorShareRequested = jLenderShareRequesteds[0];
 
-            console.log(
-                `jLenderAmountProcesseds[0]: ${jLenderAmountProcesseds[0]}, jLenderShareRequesteds[0]: ${jLenderShareRequesteds[0]}, jLenderPrincipalRequesteds[0]: ${jLenderPrincipalRequesteds[0]}`,
-            );
+            // console.log(
+            //     `jLenderAmountProcesseds[0]: ${jLenderAmountProcesseds[0]}, jLenderShareRequesteds[0]: ${jLenderShareRequesteds[0]}, jLenderPrincipalRequesteds[0]: ${jLenderPrincipalRequesteds[0]}`,
+            // );
 
             await creditManagerContract.refreshCredit(borrower.address);
             expect((await creditContract.getCreditRecord(creditHash)).nextDueDate).to.equal(
@@ -2739,10 +2739,10 @@ describe("Lender Integration Test", function () {
                 sActiveLenders.map((l) => l.address),
             );
 
-            let epoch = await juniorTrancheVaultContract.epochInfoByEpochId(currentEpochId);
-            console.log(`junior epoch: ${epoch}`);
-            epoch = await seniorTrancheVaultContract.epochInfoByEpochId(currentEpochId);
-            console.log(`senior epoch: ${epoch}`);
+            // let epoch = await juniorTrancheVaultContract.epochInfoByEpochId(currentEpochId);
+            // console.log(`junior epoch: ${epoch}`);
+            // epoch = await seniorTrancheVaultContract.epochInfoByEpochId(currentEpochId);
+            // console.log(`senior epoch: ${epoch}`);
 
             let juniorOldAssets = await juniorTrancheVaultContract.totalAssets();
             let juniorOldShares = await juniorTrancheVaultContract.totalSupply();
@@ -2873,7 +2873,7 @@ describe("Lender Integration Test", function () {
                 expectedFirstLossCoverProfits,
                 newTracker,
             ] = await pnlCalculator.endFixedSeniorYieldProfitCalculation(poolProfit, tracker);
-            console.log(`expectedTranchesProfits: ${expectedTranchesProfits}`);
+            // console.log(`expectedTranchesProfits: ${expectedTranchesProfits}`);
 
             tracker = await tranchesPolicyContract.seniorYieldTracker();
             checkSeniorYieldTrackersMatch(tracker, newTracker);
@@ -2935,7 +2935,7 @@ describe("Lender Integration Test", function () {
                 expectedFirstLossCoverProfits,
                 newTracker,
             ] = await pnlCalculator.endFixedSeniorYieldProfitCalculation(poolProfit, tracker);
-            console.log(`expectedTranchesProfits: ${expectedTranchesProfits}`);
+            // console.log(`expectedTranchesProfits: ${expectedTranchesProfits}`);
 
             tracker = await tranchesPolicyContract.seniorYieldTracker();
             checkSeniorYieldTrackersMatch(tracker, newTracker);
@@ -2978,10 +2978,10 @@ describe("Lender Integration Test", function () {
 
             await testYieldPayout();
 
-            let epoch = await juniorTrancheVaultContract.epochInfoByEpochId(currentEpochId);
-            console.log(`junior epoch: ${epoch}`);
-            epoch = await seniorTrancheVaultContract.epochInfoByEpochId(currentEpochId);
-            console.log(`senior epoch: ${epoch}`);
+            // let epoch = await juniorTrancheVaultContract.epochInfoByEpochId(currentEpochId);
+            // console.log(`junior epoch: ${epoch}`);
+            // epoch = await seniorTrancheVaultContract.epochInfoByEpochId(currentEpochId);
+            // console.log(`senior epoch: ${epoch}`);
 
             let seniorOldAssets = await seniorTrancheVaultContract.totalAssets();
             let seniorOldShares = await seniorTrancheVaultContract.totalSupply();
@@ -3113,13 +3113,13 @@ describe("Lender Integration Test", function () {
             tracker = await tranchesPolicyContract.seniorYieldTracker();
             checkSeniorYieldTrackersMatch(tracker, newTracker);
 
-            console.log(`expectedTranchesAssets: ${expectedTranchesAssets}`);
-            console.log(`expectedTranchesLosses: ${expectedTranchesLosses}`);
-            console.log(`expectedFirstLossCoverLosses: ${expectedFirstLossCoverLosses}`);
+            // console.log(`expectedTranchesAssets: ${expectedTranchesAssets}`);
+            // console.log(`expectedTranchesLosses: ${expectedTranchesLosses}`);
+            // console.log(`expectedFirstLossCoverLosses: ${expectedFirstLossCoverLosses}`);
 
-            console.log(
-                `junior assets: ${await juniorTrancheVaultContract.totalAssets()}, senior assets: ${await seniorTrancheVaultContract.totalAssets()}`,
-            );
+            // console.log(
+            //     `junior assets: ${await juniorTrancheVaultContract.totalAssets()}, senior assets: ${await seniorTrancheVaultContract.totalAssets()}`,
+            // );
 
             await checkAssetsForLoss(
                 expectedTranchesAssets,
@@ -3234,9 +3234,9 @@ describe("Lender Integration Test", function () {
                 ],
             );
 
-            console.log(
-                `seniorShareRequested: ${seniorShareRequested}, juniorShareRequested: ${juniorShareRequested}`,
-            );
+            // console.log(
+            //     `seniorShareRequested: ${seniorShareRequested}, juniorShareRequested: ${juniorShareRequested}`,
+            // );
         });
 
         it("Epoch 10, day after the epoch end date: Close epoch and the fulfillment of the redemption requests", async function () {
@@ -3253,9 +3253,9 @@ describe("Lender Integration Test", function () {
             );
             let jAmountProcessed =
                 await juniorTrancheVaultContract.convertToAssets(juniorShareRequested);
-            console.log(
-                `jAmountProcessed: ${jAmountProcessed}, juniorShareRequested: ${juniorShareRequested}`,
-            );
+            // console.log(
+            //     `jAmountProcessed: ${jAmountProcessed}, juniorShareRequested: ${juniorShareRequested}`,
+            // );
             let seniorOldAssets = await seniorTrancheVaultContract.totalAssets();
             let seniorOldShares = await seniorTrancheVaultContract.totalSupply();
             let seniorOldBalance = await mockTokenContract.balanceOf(
