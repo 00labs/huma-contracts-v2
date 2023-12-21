@@ -71,8 +71,7 @@ interface ICreditDueManager {
      * value to the new value.
      */
     function computeUpdatedYieldDue(
-        CreditConfig memory cc,
-        CreditRecord memory cr,
+        uint256 nextDueDate,
         uint256 oldYield,
         uint256 oldValue,
         uint256 newValue,

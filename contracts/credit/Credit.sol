@@ -261,16 +261,13 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             ) revert Errors.creditLineExceeded();
 
             // Add the yield of new borrowAmount for the remainder of the period
-            (uint256 daysPassed, uint256 totalDays) = calendar.getDaysPassedInPeriod(
-                cc.periodDuration,
-                cr.nextDueDate
-            );
+            uint256 daysRemaining = calendar.getDaysRemainingInPeriod(cr.nextDueDate);
             // It's important to note that the yield calculation includes the day of the drawdown. For instance,
             // if the borrower draws down at 11:59 PM on October 30th, the yield for October 30th must be paid.
             uint256 additionalYieldAccrued = feeManager.computeYieldDue(
                 borrowAmount,
                 cc.yieldInBps,
-                totalDays - daysPassed
+                daysRemaining
             );
             dd.accrued += uint96(additionalYieldAccrued);
             if (dd.accrued > dd.committed) {
@@ -291,7 +288,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
                 uint256 additionalPrincipalDue = feeManager.computePrincipalDueForPartialPeriod(
                     borrowAmount,
                     principalRate,
-                    totalDays - daysPassed,
+                    daysRemaining,
                     cc.periodDuration
                 );
                 cr.unbilledPrincipal -= uint96(additionalPrincipalDue);

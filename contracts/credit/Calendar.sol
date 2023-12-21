@@ -77,6 +77,22 @@ contract Calendar is ICalendar {
     }
 
     /// @inheritdoc ICalendar
+    function getDaysRemainingInPeriod(
+        uint256 endDate
+    ) external view returns (uint256 daysRemaining) {
+        if (block.timestamp > endDate) {
+            revert Errors.startDateLaterThanEndDate();
+        }
+        uint256 day = DTL.getDay(block.timestamp);
+        // If the day falls on the 31st, move it back to the 30th.
+        day = day > DAYS_IN_A_MONTH ? DAYS_IN_A_MONTH : day;
+        uint256 startDateOfMonth = _getStartOfMonth(block.timestamp);
+        uint256 numMonths = DTL.diffMonths(startDateOfMonth, endDate);
+        // +1 here since we are using the beginning of the day.
+        return numMonths * DAYS_IN_A_MONTH - day + 1;
+    }
+
+    /// @inheritdoc ICalendar
     function getDaysDiff(
         uint256 startDate,
         uint256 endDate

@@ -279,21 +279,17 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
 
     /// @inheritdoc ICreditDueManager
     function computeUpdatedYieldDue(
-        CreditConfig memory cc,
-        CreditRecord memory cr,
+        uint256 nextDueDate,
         uint256 oldYield,
         uint256 oldValue,
         uint256 newValue,
         uint256 principal
     ) public view returns (uint256 updatedYield) {
-        (uint256 daysPassed, uint256 totalDays) = calendar.getDaysPassedInPeriod(
-            cc.periodDuration,
-            cr.nextDueDate
-        );
+        uint256 daysRemaining = calendar.getDaysRemainingInPeriod(nextDueDate);
         // Since the new value may be smaller than the old value, we need to work with signed integers.
         int256 valueDiff = int256(newValue) - int256(oldValue);
         // -1 since the new value takes effect the next day.
-        int256 yieldDiff = (int256((totalDays - daysPassed - 1) * principal) * valueDiff);
+        int256 yieldDiff = (int256((daysRemaining - 1) * principal) * valueDiff);
         return
             uint256(int256(oldYield * HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR) + yieldDiff) /
             (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR);

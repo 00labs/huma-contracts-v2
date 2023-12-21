@@ -64,6 +64,13 @@ interface ICalendar {
     ) external view returns (uint256 daysPassed, uint256 totalDaysInPeriod);
 
     /**
+     * @notice Returns the number of days remaining in the period that ends on `endDate`.
+     */
+    function getDaysRemainingInPeriod(
+        uint256 endDate
+    ) external view returns (uint256 daysRemaining);
+
+    /**
      * @notice Returns the number of days between the two given dates. If `startDate` is 0, then
      * use the current block timestamp as the start date.
      * @dev The result should exclude the end date, e.g. the number of days between 1/1 and 1/2 is 1, not 2.
