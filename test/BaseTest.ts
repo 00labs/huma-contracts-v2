@@ -1,6 +1,6 @@
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
-import { BigNumber as BN } from "ethers";
+import { BigNumber as BN, BigNumber } from "ethers";
 import { ethers } from "hardhat";
 import moment from "moment";
 import {
@@ -38,7 +38,7 @@ import {
     CreditConfigStructOutput,
 } from "../typechain-types/contracts/credit/CreditManager";
 import { EpochInfoStruct } from "../typechain-types/contracts/interfaces/IEpoch";
-import { maxBigNumber, minBigNumber, sumBNArray, toToken } from "./TestUtils";
+import { getLatestBlock, maxBigNumber, minBigNumber, sumBNArray, toToken } from "./TestUtils";
 
 export type CreditContractType =
     | MockPoolCredit
@@ -106,6 +106,13 @@ export enum ReceivableState {
     Defaulted,
 }
 
+export enum CreditClosureReason {
+    Paidoff,
+    CreditLimitChangedToBeZero,
+    OverwrittenByNewLine,
+    AdminClosure,
+}
+
 const DAYS_IN_A_MONTH = 30;
 const DAYS_IN_A_QUARTER = 90;
 const DAYS_IN_A_HALF_YEAR = 180;
@@ -119,9 +126,6 @@ const SECONDS_IN_A_DAY = 24 * 60 * 60;
 const SECONDS_IN_A_YEAR = 60 * 60 * 24 * 365;
 const BORROWER_FIRST_LOSS_COVER_INDEX = 0;
 const AFFILIATE_FIRST_LOSS_COVER_INDEX = 1;
-const PERIOD_DURATION_MONTHLY = 0;
-const PERIOD_DURATION_QUARTERLY = 1;
-const PERIOD_DURATION_SEMI_ANNUALLY = 2;
 
 export const CONSTANTS = {
     DAYS_IN_A_MONTH,
@@ -137,9 +141,6 @@ export const CONSTANTS = {
     SECONDS_IN_A_YEAR,
     BORROWER_FIRST_LOSS_COVER_INDEX,
     AFFILIATE_FIRST_LOSS_COVER_INDEX,
-    PERIOD_DURATION_MONTHLY,
-    PERIOD_DURATION_QUARTERLY,
-    PERIOD_DURATION_SEMI_ANNUALLY,
 };
 
 export async function deployProtocolContracts(
@@ -407,7 +408,7 @@ export async function setupPoolContracts(
         .connect(evaluationAgent)
         .approve(poolSafeContract.address, ethers.constants.MaxUint256);
     await mockTokenContract.mint(evaluationAgent.getAddress(), toToken(1_000_000_000));
-    const evaluationAgentLiquidity = BN.from(adminRnR.liquidityRateInBpsByPoolOwner)
+    const evaluationAgentLiquidity = BN.from(adminRnR.liquidityRateInBpsByEA)
         .mul(poolLiquidityCap)
         .div(CONSTANTS.BP_FACTOR);
     await juniorTrancheVaultContract
@@ -555,32 +556,47 @@ export async function deployAndSetupPoolContracts(
     ];
 }
 
+export type SeniorYieldTracker = { totalAssets: BN; unpaidYield: BN; lastUpdatedDate: BN };
+
+function calcLatestSeniorTracker(
+    currentTS: number,
+    yieldInBps: number,
+    seniorYieldTracker: SeniorYieldTracker,
+): SeniorYieldTracker {
+    let newSeniorTracker = { ...seniorYieldTracker };
+    if (currentTS > newSeniorTracker.lastUpdatedDate.toNumber()) {
+        newSeniorTracker.unpaidYield = newSeniorTracker.unpaidYield.add(
+            newSeniorTracker.totalAssets
+                .mul(BN.from(currentTS).sub(newSeniorTracker.lastUpdatedDate))
+                .mul(BN.from(yieldInBps))
+                .div(BN.from(CONSTANTS.SECONDS_IN_A_YEAR).mul(CONSTANTS.BP_FACTOR)),
+        );
+        newSeniorTracker.lastUpdatedDate = BN.from(currentTS);
+    }
+    return newSeniorTracker;
+}
+
 function calcProfitForFixedSeniorYieldPolicy(
     profit: BN,
     assets: BN[],
-    lastUpdateTS: number,
     currentTS: number,
-    deployedAssets: BN,
     yieldInBps: number,
-): BN[] {
-    const totalAssets = assets[CONSTANTS.SENIOR_TRANCHE].add(assets[CONSTANTS.JUNIOR_TRANCHE]);
-    const seniorDeployedAssets = deployedAssets
-        .mul(assets[CONSTANTS.SENIOR_TRANCHE])
-        .div(totalAssets);
-    let seniorProfit = BN.from(0);
-    if (currentTS > lastUpdateTS) {
-        seniorProfit = seniorDeployedAssets
-            .mul(BN.from(currentTS).sub(BN.from(lastUpdateTS)))
-            .mul(BN.from(yieldInBps))
-            .div(CONSTANTS.SECONDS_IN_A_YEAR)
-            .div(CONSTANTS.BP_FACTOR);
-    }
-    seniorProfit = seniorProfit.gt(profit) ? profit : seniorProfit;
-    const juniorProfit = profit.sub(seniorProfit);
+    seniorYieldTracker: SeniorYieldTracker,
+): [SeniorYieldTracker, BN[]] {
+    let newSeniorTracker = calcLatestSeniorTracker(currentTS, yieldInBps, seniorYieldTracker);
+    let seniorProfit = newSeniorTracker.unpaidYield.gt(profit)
+        ? profit
+        : newSeniorTracker.unpaidYield;
+    let juniorProfit = profit.sub(seniorProfit);
+    newSeniorTracker.unpaidYield = newSeniorTracker.unpaidYield.sub(seniorProfit);
+    newSeniorTracker.totalAssets = assets[CONSTANTS.SENIOR_TRANCHE].add(seniorProfit);
 
     return [
-        assets[CONSTANTS.SENIOR_TRANCHE].add(seniorProfit),
-        assets[CONSTANTS.JUNIOR_TRANCHE].add(juniorProfit),
+        newSeniorTracker,
+        [
+            assets[CONSTANTS.SENIOR_TRANCHE].add(seniorProfit),
+            assets[CONSTANTS.JUNIOR_TRANCHE].add(juniorProfit),
+        ],
     ];
 }
 
@@ -618,6 +634,7 @@ async function calcProfitForFirstLossCovers(
 export interface FirstLossCoverInfo {
     config: FirstLossCoverConfigStruct;
     asset: BN;
+    coveredLoss: BN;
 }
 
 async function calcLossCover(loss: BN, firstLossCoverInfo: FirstLossCoverInfo): Promise<BN[]> {
@@ -704,9 +721,10 @@ async function calcRiskAdjustedProfitAndLoss(
     loss: BN,
     lossRecovery: BN,
     assets: BN[],
+    losses: BN[],
     riskAdjustment: BN,
     firstLossCoverInfos: FirstLossCoverInfo[],
-): Promise<[BN[], BN[], BN[], BN[]]> {
+): Promise<[BN[], BN[], BN[], BN[], BN[]]> {
     const assetsAfterProfit = calcProfitForRiskAdjustedPolicy(profit, assets, riskAdjustment);
     const [juniorProfitAfterFirstLossCoverProfitDistribution, profitsForFirstLossCovers] =
         await PnLCalculator.calcProfitForFirstLossCovers(
@@ -714,7 +732,7 @@ async function calcRiskAdjustedProfitAndLoss(
             assets[CONSTANTS.JUNIOR_TRANCHE],
             firstLossCoverInfos,
         );
-    const [assetsAfterLoss, remainingLosses, lossesCoveredByFirstLossCovers] =
+    const [assetsAfterLoss, newTranchesLosses, lossesCoveredByFirstLossCovers] =
         await PnLCalculator.calcLoss(
             loss,
             [
@@ -725,23 +743,34 @@ async function calcRiskAdjustedProfitAndLoss(
             ],
             firstLossCoverInfos,
         );
-    const [, assetsAfterRecovery, lossesAfterRecovery, lossRecoveredInFirstLossCovers] =
+
+    // Add existing losses to new losses to calculate recovery.
+    const totalTranchesLosses = [
+        newTranchesLosses[CONSTANTS.SENIOR_TRANCHE].add(losses[CONSTANTS.SENIOR_TRANCHE]),
+        newTranchesLosses[CONSTANTS.JUNIOR_TRANCHE].add(losses[CONSTANTS.JUNIOR_TRANCHE]),
+    ];
+    const totalLossesCoveredByFirstLossCovers = firstLossCoverInfos.map((info, index) =>
+        info.coveredLoss.add(lossesCoveredByFirstLossCovers[index]),
+    );
+    const [, assetsAfterRecovery, lossesAfterRecovery, lossesRecoveredByFirstLossCovers] =
         await PnLCalculator.calcLossRecovery(
             lossRecovery,
             assetsAfterLoss,
-            remainingLosses,
-            lossesCoveredByFirstLossCovers,
+            totalTranchesLosses,
+            totalLossesCoveredByFirstLossCovers,
         );
     return [
         assetsAfterRecovery,
         lossesAfterRecovery,
         profitsForFirstLossCovers,
-        lossRecoveredInFirstLossCovers,
+        lossesRecoveredByFirstLossCovers,
+        totalLossesCoveredByFirstLossCovers,
     ];
 }
 
 export const PnLCalculator = {
     calcProfitForFixedSeniorYieldPolicy,
+    calcLatestSeniorTracker,
     calcProfitForRiskAdjustedPolicy,
     calcProfitForFirstLossCovers,
     calcLoss,
@@ -758,20 +787,189 @@ export class FeeCalculator {
         this.poolConfigContract = poolConfigContract;
     }
 
+    async calcPoolFeesForDrawdown(borrowedAmount: BN): Promise<BN[]> {
+        const [frontLoadingFeeFlat, frontLoadingFeeBps] =
+            await this.poolConfigContract.getFrontLoadingFees();
+        const profit = frontLoadingFeeFlat.add(
+            borrowedAmount.mul(frontLoadingFeeBps).div(CONSTANTS.BP_FACTOR),
+        );
+        const [protocolFee, poolOwnerFee, eaFee, poolProfit] =
+            await this.calcPoolFeesForProfit(profit);
+        const amountToBorrower = borrowedAmount.sub(profit);
+        return [protocolFee, poolOwnerFee, eaFee, poolProfit, amountToBorrower];
+    }
+
+    async calcPoolFeesForProfit(profit: BN): Promise<BN[]> {
+        const protocolFeeInBps = await this.humaConfigContract.protocolFeeInBps();
+        const adminRnR = await this.poolConfigContract.getAdminRnR();
+        const protocolFee = profit.mul(BN.from(protocolFeeInBps)).div(CONSTANTS.BP_FACTOR);
+        let remaining = profit.sub(protocolFee);
+        const poolOwnerFee = remaining
+            .mul(BN.from(adminRnR.rewardRateInBpsForPoolOwner))
+            .div(CONSTANTS.BP_FACTOR);
+        const eaFee = remaining
+            .mul(BN.from(adminRnR.rewardRateInBpsForEA))
+            .div(CONSTANTS.BP_FACTOR);
+        const poolProfit = remaining.sub(poolOwnerFee.add(eaFee));
+        return [protocolFee, poolOwnerFee, eaFee, poolProfit];
+    }
+
+    // TODO: try to deprecate this function later
     async calcPoolFeeDistribution(profit: BN): Promise<BN> {
         const protocolFeeInBps = await this.humaConfigContract.protocolFeeInBps();
         const adminRnR = await this.poolConfigContract.getAdminRnR();
-        let remaining = profit.sub(profit.mul(BN.from(protocolFeeInBps)).div(CONSTANTS.BP_FACTOR));
-        remaining = remaining.sub(
-            remaining
-                .mul(
-                    BN.from(adminRnR.rewardRateInBpsForPoolOwner).add(
-                        BN.from(adminRnR.rewardRateInBpsForEA),
-                    ),
-                )
-                .div(CONSTANTS.BP_FACTOR),
+        const [, remaining] = calcPoolFees(
+            profit,
+            protocolFeeInBps,
+            adminRnR.rewardRateInBpsForPoolOwner,
+            adminRnR.rewardRateInBpsForEA,
         );
         return remaining;
+    }
+}
+
+export class ProfitAndLossCalculator {
+    poolConfigContract: PoolConfig;
+    poolContract: Pool;
+    firstLossCoverContracts: FirstLossCover[];
+
+    tranchesAssets: BN[] = [];
+    firstLossCoverInfos: FirstLossCoverInfo[] = [];
+
+    constructor(
+        poolConfigContract: PoolConfig,
+        poolContract: Pool,
+        firstLossCoverContracts: FirstLossCover[],
+    ) {
+        this.poolConfigContract = poolConfigContract;
+        this.poolContract = poolContract;
+        this.firstLossCoverContracts = firstLossCoverContracts;
+    }
+
+    async beginProfitCalculation() {
+        this.tranchesAssets = await this.poolContract.currentTranchesAssets();
+        this.firstLossCoverInfos = await Promise.all(
+            this.firstLossCoverContracts.map(async (firstLossCoverContract) => {
+                let asset = await firstLossCoverContract.totalAssets();
+                let coveredLoss = await firstLossCoverContract.coveredLoss();
+                let config = await this.poolConfigContract.getFirstLossCoverConfig(
+                    firstLossCoverContract.address,
+                );
+                return { asset, config, coveredLoss };
+            }),
+        );
+        await Promise.all(
+            this.firstLossCoverContracts.map(async (firstLossCoverContract, index) => {}),
+        );
+    }
+
+    async endRiskAdjustedProfitCalculation(profit: BN): Promise<[BN[], BN[], BN[]]> {
+        return await this._endRiskAdjustedProfitCalculation(profit);
+    }
+    async endRiskAdjustedProfitAndLossCalculation(
+        profit: BN,
+        loss: BN,
+    ): Promise<[BN[], BN[], BN[]]> {
+        let [assets, profitsForAssets, profitsForFirstLossCovers] =
+            await this._endRiskAdjustedProfitCalculation(profit);
+        this.firstLossCoverInfos.forEach((info, index) => {
+            info.asset = info.asset.add(profitsForFirstLossCovers[index]);
+        });
+
+        let [newAssets, lossesForAssets, lossesForFirstLossCovers] = await calcLoss(
+            loss,
+            assets,
+            this.firstLossCoverInfos,
+        );
+
+        return [
+            newAssets,
+            profitsForAssets.map((c, index) => c.sub(lossesForAssets[index])),
+            profitsForFirstLossCovers.map((c, index) => c.sub(lossesForFirstLossCovers[index])),
+        ];
+    }
+
+    async endFixedSeniorYieldProfitCalculation(
+        profit: BN,
+        tracker: SeniorYieldTracker,
+    ): Promise<[BN[], BN[], BN[], SeniorYieldTracker]> {
+        return await this._endFixedSeniorYieldProfitCalculation(profit, tracker);
+    }
+
+    async endFixedSeniorYieldProfitAndLossCalculation(
+        profit: BN,
+        tracker: SeniorYieldTracker,
+        loss: BN,
+    ): Promise<[BN[], BN[], BN[], SeniorYieldTracker]> {
+        let [assets, profitsForAssets, profitsForFirstLossCovers, newTracker] =
+            await this._endFixedSeniorYieldProfitCalculation(profit, tracker);
+        this.firstLossCoverInfos.forEach((info, index) => {
+            info.asset = info.asset.add(profitsForFirstLossCovers[index]);
+        });
+
+        let [newAssets, lossesForAssets, lossesForFirstLossCovers] = await calcLoss(
+            loss,
+            assets,
+            this.firstLossCoverInfos,
+        );
+
+        return [
+            newAssets,
+            profitsForAssets.map((c, index) => c.sub(lossesForAssets[index])),
+            profitsForFirstLossCovers.map((c, index) => c.sub(lossesForFirstLossCovers[index])),
+            newTracker,
+        ];
+    }
+
+    private async _endRiskAdjustedProfitCalculation(profit: BN): Promise<[BN[], BN[], BN[]]> {
+        let lpConfig = await this.poolConfigContract.getLPConfig();
+        let assets = await calcProfitForRiskAdjustedPolicy(
+            profit,
+            this.tranchesAssets,
+            BN.from(lpConfig.tranchesRiskAdjustmentInBps),
+        );
+        let [juniorProfit, firstLossCoverProfits] = await calcProfitForFirstLossCovers(
+            assets[CONSTANTS.JUNIOR_TRANCHE].sub(this.tranchesAssets[CONSTANTS.JUNIOR_TRANCHE]),
+            this.tranchesAssets[CONSTANTS.JUNIOR_TRANCHE],
+            this.firstLossCoverInfos,
+        );
+        assets[CONSTANTS.JUNIOR_TRANCHE] =
+            this.tranchesAssets[CONSTANTS.JUNIOR_TRANCHE].add(juniorProfit);
+        let trancheProfits = [
+            assets[CONSTANTS.SENIOR_TRANCHE].sub(this.tranchesAssets[CONSTANTS.SENIOR_TRANCHE]),
+            juniorProfit,
+        ];
+
+        return [assets, trancheProfits, firstLossCoverProfits];
+    }
+
+    private async _endFixedSeniorYieldProfitCalculation(
+        profit: BN,
+        tracker: SeniorYieldTracker,
+    ): Promise<[BN[], BN[], BN[], SeniorYieldTracker]> {
+        let lpConfig = await this.poolConfigContract.getLPConfig();
+        let block = await getLatestBlock();
+        let [newTracker, assets] = await calcProfitForFixedSeniorYieldPolicy(
+            profit,
+            this.tranchesAssets,
+            block.timestamp,
+            lpConfig.fixedSeniorYieldInBps,
+            tracker,
+        );
+
+        let [juniorProfit, firstLossCoverProfits] = await calcProfitForFirstLossCovers(
+            assets[CONSTANTS.JUNIOR_TRANCHE].sub(this.tranchesAssets[CONSTANTS.JUNIOR_TRANCHE]),
+            this.tranchesAssets[CONSTANTS.JUNIOR_TRANCHE],
+            this.firstLossCoverInfos,
+        );
+        assets[CONSTANTS.JUNIOR_TRANCHE] =
+            this.tranchesAssets[CONSTANTS.JUNIOR_TRANCHE].add(juniorProfit);
+        let trancheProfits = [
+            assets[CONSTANTS.SENIOR_TRANCHE].sub(this.tranchesAssets[CONSTANTS.SENIOR_TRANCHE]),
+            juniorProfit,
+        ];
+
+        return [assets, trancheProfits, firstLossCoverProfits, newTracker];
     }
 }
 
@@ -909,6 +1107,19 @@ export class EpochChecker {
     }
 }
 
+export function checkCreditConfigsMatch(
+    actualCC: CreditConfigStruct,
+    expectedCC: CreditConfigStruct,
+) {
+    expect(actualCC.creditLimit).to.equal(expectedCC.creditLimit);
+    expect(actualCC.committedAmount).to.equal(expectedCC.committedAmount);
+    expect(actualCC.periodDuration).to.equal(expectedCC.periodDuration);
+    expect(actualCC.numOfPeriods).to.equal(expectedCC.numOfPeriods);
+    expect(actualCC.yieldInBps).to.equal(expectedCC.yieldInBps);
+    expect(actualCC.advanceRateInBps).to.equal(expectedCC.advanceRateInBps);
+    expect(actualCC.autoApproval).to.equal(expectedCC.autoApproval);
+}
+
 export function checkCreditConfig(
     creditConfig: CreditConfigStruct,
     creditLimit: BN,
@@ -933,11 +1144,12 @@ export function checkCreditConfig(
 export function checkCreditRecordsMatch(
     actualCR: CreditRecordStruct,
     expectedCR: CreditRecordStruct,
+    delta: BN = BN.from(0),
 ) {
     expect(actualCR.unbilledPrincipal).to.equal(expectedCR.unbilledPrincipal);
     expect(actualCR.nextDueDate).to.equal(expectedCR.nextDueDate);
-    expect(actualCR.nextDue).to.equal(expectedCR.nextDue);
-    expect(actualCR.yieldDue).to.equal(expectedCR.yieldDue);
+    expect(actualCR.nextDue).to.be.closeTo(expectedCR.nextDue, delta);
+    expect(actualCR.yieldDue).to.be.closeTo(expectedCR.yieldDue, delta);
     expect(actualCR.totalPastDue).to.equal(expectedCR.totalPastDue);
     expect(actualCR.missedPeriods).to.equal(expectedCR.missedPeriods);
     expect(actualCR.remainingPeriods).to.equal(expectedCR.remainingPeriods);
@@ -980,46 +1192,44 @@ export function genDueDetail(ddOverrides: Partial<DueDetailStruct>): DueDetailSt
     };
 }
 
-export function checkDueDetailsMatch(actualDD: DueDetailStruct, expectedDD: DueDetailStruct) {
+export function checkDueDetailsMatch(
+    actualDD: DueDetailStruct,
+    expectedDD: DueDetailStruct,
+    delta: BN = BN.from(0),
+) {
     expect(actualDD.lateFeeUpdatedDate).to.equal(expectedDD.lateFeeUpdatedDate);
     expect(actualDD.lateFee).to.equal(expectedDD.lateFee);
     expect(actualDD.principalPastDue).to.equal(expectedDD.principalPastDue);
     expect(actualDD.yieldPastDue).to.equal(expectedDD.yieldPastDue);
-    expect(actualDD.committed).to.equal(expectedDD.committed);
-    expect(actualDD.accrued).to.equal(expectedDD.accrued);
+    expect(actualDD.committed).to.be.closeTo(expectedDD.committed, delta);
+    expect(actualDD.accrued).to.be.closeTo(expectedDD.accrued, delta);
     expect(actualDD.paid).to.equal(expectedDD.paid);
 }
 
-export function checkCreditLoss(
-    // creditLoss: CreditLossStructOutput,
-    totalAccruedLoss: BN,
-    totalLossRecovery: BN,
-    delta = 0,
+export function printSeniorYieldTracker(tracker: SeniorYieldTracker) {
+    console.log(`[${tracker.totalAssets}, ${tracker.unpaidYield}, ${tracker.lastUpdatedDate}]`);
+}
+
+export function checkSeniorYieldTrackersMatch(
+    actualST: SeniorYieldTracker,
+    expectedST: SeniorYieldTracker,
+    delta: BN = BN.from(0),
 ) {
-    // expect(creditLoss.totalAccruedLoss).to.be.closeTo(totalAccruedLoss, delta);
-    // expect(creditLoss.totalLossRecovery).to.be.closeTo(totalLossRecovery, delta);
+    expect(actualST.totalAssets).to.be.closeTo(expectedST.totalAssets, delta);
+    expect(actualST.unpaidYield).to.be.closeTo(expectedST.unpaidYield, delta);
+    expect(actualST.lastUpdatedDate).to.be.closeTo(expectedST.lastUpdatedDate, delta);
 }
 
 export function calcYieldDue(
     cc: CreditConfigStruct,
-    principal: BN,
+    principal: BigNumber,
     daysPassed: number,
-    periodsPassed: number | BN,
-    membershipFee: BN,
-): [BN, BN] {
+): [BigNumber, BigNumber] {
     if (daysPassed == 0) {
         return [BN.from(0), BN.from(0)];
     }
-    const accrued = principal
-        .mul(BN.from(cc.yieldInBps))
-        .mul(daysPassed)
-        .div(CONSTANTS.BP_FACTOR.mul(CONSTANTS.DAYS_IN_A_YEAR))
-        .add(membershipFee.mul(periodsPassed));
-    const committed = BN.from(cc.committedAmount)
-        .mul(BN.from(cc.yieldInBps))
-        .mul(daysPassed)
-        .div(CONSTANTS.BP_FACTOR.mul(CONSTANTS.DAYS_IN_A_YEAR))
-        .add(membershipFee.mul(periodsPassed));
+    const accrued = calcYield(principal, Number(cc.yieldInBps), daysPassed);
+    const committed = calcYield(BN.from(cc.committedAmount), Number(cc.yieldInBps), daysPassed);
     return [accrued, committed];
 }
 
@@ -1031,8 +1241,7 @@ export async function calcYieldDueNew(
     currentDate: moment.Moment,
     maturityDate: moment.Moment,
     latePaymentGracePeriodInDays: number,
-    membershipFee: BN,
-): Promise<[BN, BN, [BN, BN]]> {
+): Promise<[BigNumber, BigNumber, [BigNumber, BigNumber]]> {
     const nextBillRefreshDate = getNextBillRefreshDate(
         cr,
         currentDate,
@@ -1056,8 +1265,6 @@ export async function calcYieldDueNew(
             cc,
             principal,
             daysUntilNextDue.toNumber(),
-            1,
-            membershipFee,
         );
         return [
             BN.from(0),
@@ -1081,43 +1288,16 @@ export async function calcYieldDueNew(
         );
     }
 
-    let periodsNextDue, periodsOverdue;
-    if (currentDate > maturityDate) {
-        periodsNextDue = 0;
-        periodsOverdue = await calendarContract.getNumPeriodsPassed(
-            cc.periodDuration,
-            cr.nextDueDate,
-            maturityDate.unix(),
-        );
-    } else {
-        periodsNextDue = 1;
-        const periodStartDate = await calendarContract.getStartDateOfPeriod(
-            cc.periodDuration,
-            currentDate.unix(),
-        );
-        periodsOverdue = await calendarContract.getNumPeriodsPassed(
-            cc.periodDuration,
-            cr.nextDueDate,
-            periodStartDate,
-        );
-        console.log(
-            `currentDate ${currentDate}, cr.nextDueDate ${cr.nextDueDate}, periodStartDate ${periodStartDate}, periodsOverdue ${periodsOverdue}`,
-        );
-    }
     const [accruedYieldPastDue, committedYieldPastDue] = calcYieldDue(
         cc,
         principal,
         daysOverdue.toNumber(),
-        periodsOverdue,
-        membershipFee,
     );
     const yieldPastDue = maxBigNumber(accruedYieldPastDue, committedYieldPastDue);
     const [accruedYieldNextDue, committedYieldNextDue] = calcYieldDue(
         cc,
         principal,
         daysUntilNextDue.toNumber(),
-        periodsNextDue,
-        membershipFee,
     );
     const yieldNextDue = maxBigNumber(accruedYieldNextDue, committedYieldNextDue);
     return [
@@ -1255,19 +1435,38 @@ export async function calcPrincipalDueNew(
 export async function calcLateFee(
     poolConfigContract: PoolConfig,
     calendarContract: Calendar,
+    cc: CreditConfigStruct,
     cr: CreditRecordStruct,
     dd: DueDetailStruct,
+    timestamp: number = 0,
 ): Promise<[BN, BN]> {
-    const [, lateFeeInBps] = await poolConfigContract.getFees();
-    const lateFeeStartDate =
-        cr.state === CreditState.GoodStanding ? cr.nextDueDate : dd.lateFeeUpdatedDate;
-    const lateFeeUpdatedDate = await calendarContract.getStartOfTomorrow();
+    const lateFeeInBps = await poolConfigContract.getLateFeeBps();
+    let lateFeeStartDate;
+    if (cr.state == CreditState.GoodStanding) {
+        if (BN.from(cr.nextDue).isZero()) {
+            lateFeeStartDate = await calendarContract.getStartDateOfNextPeriod(
+                cc.periodDuration,
+                cr.nextDueDate,
+            );
+        } else {
+            lateFeeStartDate = cr.nextDueDate;
+        }
+    } else {
+        lateFeeStartDate = dd.lateFeeUpdatedDate;
+    }
+    let lateFeeUpdatedDate;
+    if (timestamp === 0) {
+        lateFeeUpdatedDate = await calendarContract.getStartOfTomorrow();
+    } else {
+        lateFeeUpdatedDate = await calendarContract.getStartOfNextDay(timestamp);
+    }
     const principal = getPrincipal(cr, dd);
+    const lateFeeBasis = maxBigNumber(principal, BN.from(cc.committedAmount));
     const lateFeeDays = await calendarContract.getDaysDiff(lateFeeStartDate, lateFeeUpdatedDate);
     return [
         lateFeeUpdatedDate,
         BN.from(dd.lateFee).add(
-            principal
+            lateFeeBasis
                 .mul(lateFeeInBps)
                 .mul(lateFeeDays)
                 .div(CONSTANTS.BP_FACTOR.mul(CONSTANTS.DAYS_IN_A_YEAR)),
@@ -1278,6 +1477,7 @@ export async function calcLateFee(
 export async function calcLateFeeNew(
     poolConfigContract: PoolConfig,
     calendarContract: Calendar,
+    cc: CreditConfigStructOutput,
     cr: CreditRecordStructOutput,
     dd: DueDetailStructOutput,
     currentDate: moment.Moment,
@@ -1288,15 +1488,28 @@ export async function calcLateFeeNew(
             getLatePaymentGracePeriodDeadline(cr, latePaymentGracePeriodInDays),
         ) &&
             cr.state === CreditState.GoodStanding) ||
-        (cr.nextDue.isZero() && cr.totalPastDue.isZero())
+        (cr.nextDue.isZero() && cr.totalPastDue.isZero()) ||
+        cr.state == CreditState.Defaulted
     ) {
         return [dd.lateFeeUpdatedDate, dd.lateFee];
     }
-    const [, lateFeeInBps] = await poolConfigContract.getFees();
-    const lateFeeStartDate =
-        cr.state === CreditState.GoodStanding ? cr.nextDueDate : dd.lateFeeUpdatedDate;
+    const lateFeeInBps = await poolConfigContract.getLateFeeBps();
+    let lateFeeStartDate;
+    if (cr.state == CreditState.GoodStanding) {
+        if (cr.nextDue.isZero()) {
+            lateFeeStartDate = await calendarContract.getStartDateOfNextPeriod(
+                cc.periodDuration,
+                cr.nextDueDate,
+            );
+        } else {
+            lateFeeStartDate = cr.nextDueDate;
+        }
+    } else {
+        lateFeeStartDate = dd.lateFeeUpdatedDate;
+    }
     const lateFeeUpdatedDate = currentDate.clone().add(1, "day").startOf("day");
     const principal = getPrincipal(cr, dd);
+    const lateFeeBasis = maxBigNumber(principal, cc.committedAmount);
     const lateFeeDays = await calendarContract.getDaysDiff(
         lateFeeStartDate,
         lateFeeUpdatedDate.unix(),
@@ -1304,7 +1517,7 @@ export async function calcLateFeeNew(
     return [
         BN.from(lateFeeUpdatedDate.unix()),
         BN.from(dd.lateFee).add(
-            principal
+            lateFeeBasis
                 .mul(lateFeeInBps)
                 .mul(lateFeeDays)
                 .div(CONSTANTS.BP_FACTOR.mul(CONSTANTS.DAYS_IN_A_YEAR)),
@@ -1353,13 +1566,6 @@ export function getTotalDaysInPeriod(periodDuration: number) {
         default:
             throw Error("Invalid period duration");
     }
-}
-
-export function checkTwoCreditLosses() {
-    // preCreditLoss: CreditLossStructOutput,
-    // creditLoss: CreditLossStructOutput,
-    // expect(preCreditLoss.totalAccruedLoss).to.equal(creditLoss.totalAccruedLoss);
-    // expect(preCreditLoss.totalLossRecovery).to.equal(creditLoss.totalLossRecovery);
 }
 
 export function printCreditRecord(name: string, creditRecord: CreditRecordStruct) {
@@ -1429,4 +1635,106 @@ async function getCreditManagerContractFactory(
         default:
             throw new Error("Invalid creditManagerContractName");
     }
+}
+
+export function calcPrincipalDueForFullPeriods(
+    unbilledPrincipal: BN,
+    principalRateInBps: number,
+    numPeriods: number,
+): BN {
+    return CONSTANTS.BP_FACTOR.pow(numPeriods)
+        .sub(CONSTANTS.BP_FACTOR.sub(principalRateInBps).pow(numPeriods))
+        .mul(unbilledPrincipal)
+        .div(CONSTANTS.BP_FACTOR.pow(numPeriods));
+}
+
+export function calcPrincipalDueForPartialPeriod(
+    unbilledPrincipal: BN,
+    principalRateInBps: number,
+    daysLeft: number | BN,
+    totalDaysInFullPeriod: number | BN,
+) {
+    return unbilledPrincipal
+        .mul(principalRateInBps)
+        .mul(daysLeft)
+        .div(CONSTANTS.BP_FACTOR.mul(totalDaysInFullPeriod));
+}
+
+export function calcYield(principal: BN, yieldInBps: number, days: number): BN {
+    return principal
+        .mul(yieldInBps)
+        .mul(days)
+        .div(CONSTANTS.BP_FACTOR.mul(CONSTANTS.DAYS_IN_A_YEAR));
+}
+
+export interface AccruedIncomes {
+    protocolIncome: BN;
+    poolOwnerIncome: BN;
+    eaIncome: BN;
+}
+
+export function calcPoolFees(
+    profit: BN,
+    protocolFeeInBps: number,
+    rewardRateInBpsForPoolOwner: number,
+    rewardRateInBpsForEA: number,
+): [AccruedIncomes, BN] {
+    const protocolIncome = profit.mul(protocolFeeInBps).div(CONSTANTS.BP_FACTOR);
+    const remainingProfit = profit.sub(protocolIncome);
+    const poolOwnerIncome = remainingProfit
+        .mul(rewardRateInBpsForPoolOwner)
+        .div(CONSTANTS.BP_FACTOR);
+    const eaIncome = remainingProfit.mul(rewardRateInBpsForEA).div(CONSTANTS.BP_FACTOR);
+    const accruedIncomes: AccruedIncomes = {
+        protocolIncome,
+        poolOwnerIncome,
+        eaIncome,
+    };
+    return [accruedIncomes, remainingProfit.sub(poolOwnerIncome).sub(eaIncome)];
+}
+
+export async function checkRedemptionInfoByLender(
+    trancheVaultContract: TrancheVault,
+    lender: SignerWithAddress,
+    lastUpdatedEpochIndex: BN | number,
+    numSharesRequested: BN = BN.from(0),
+    principalRequested: BN = BN.from(0),
+    totalAmountProcessed: BN = BN.from(0),
+    totalAmountWithdrawn: BN = BN.from(0),
+    delta: number = 0,
+) {
+    const redemptionInfo = await trancheVaultContract.redemptionInfoByLender(lender.address);
+    checkRedemptionInfo(
+        redemptionInfo,
+        lastUpdatedEpochIndex,
+        numSharesRequested,
+        principalRequested,
+        totalAmountProcessed,
+        totalAmountWithdrawn,
+        delta,
+    );
+}
+
+type RedemptionInfoStructOutput = [BN, BN, BN, BN, BN] & {
+    lastUpdatedEpochIndex: BN;
+    numSharesRequested: BN;
+    principalRequested: BN;
+    totalAmountProcessed: BN;
+    totalAmountWithdrawn: BN;
+};
+
+export function checkRedemptionInfo(
+    redemptionInfo: RedemptionInfoStructOutput,
+    lastUpdatedEpochIndex: BN | number,
+    numSharesRequested: BN = BN.from(0),
+    principalRequested: BN = BN.from(0),
+    totalAmountProcessed: BN = BN.from(0),
+    totalAmountWithdrawn: BN = BN.from(0),
+    delta: number = 0,
+) {
+    expect(redemptionInfo.lastUpdatedEpochIndex).to.be.closeTo(lastUpdatedEpochIndex, delta);
+    expect(redemptionInfo.numSharesRequested).to.be.closeTo(numSharesRequested, delta);
+    expect(redemptionInfo.principalRequested).to.be.closeTo(principalRequested, delta);
+    expect(redemptionInfo.totalAmountProcessed).to.be.closeTo(totalAmountProcessed, delta);
+    expect(redemptionInfo.totalAmountWithdrawn).to.be.closeTo(totalAmountWithdrawn, delta);
 }

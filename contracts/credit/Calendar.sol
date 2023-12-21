@@ -34,6 +34,11 @@ contract Calendar is ICalendar {
     }
 
     /// @inheritdoc ICalendar
+    function getStartOfNextDay(uint256 timestamp) external pure returns (uint256 startOfNextDay) {
+        return DTL.addDays(_getStartOfDay(timestamp), 1);
+    }
+
+    /// @inheritdoc ICalendar
     function getStartOfThisMonth() public view returns (uint256 startOfMonth) {
         return _getStartOfMonth(block.timestamp);
     }
@@ -69,6 +74,22 @@ contract Calendar is ICalendar {
         // -1 here since we are using the beginning of the day.
         daysPassed = numMonthsPassed * DAYS_IN_A_MONTH + day - 1;
         return (daysPassed, getDaysDiff(periodStartDate, nextDueDate));
+    }
+
+    /// @inheritdoc ICalendar
+    function getDaysRemainingInPeriod(
+        uint256 endDate
+    ) external view returns (uint256 daysRemaining) {
+        if (block.timestamp > endDate) {
+            revert Errors.startDateLaterThanEndDate();
+        }
+        uint256 day = DTL.getDay(block.timestamp);
+        // If the day falls on the 31st, move it back to the 30th.
+        day = day > DAYS_IN_A_MONTH ? DAYS_IN_A_MONTH : day;
+        uint256 startDateOfMonth = _getStartOfMonth(block.timestamp);
+        uint256 numMonths = DTL.diffMonths(startDateOfMonth, endDate);
+        // +1 here since we are using the beginning of the day.
+        return numMonths * DAYS_IN_A_MONTH - day + 1;
     }
 
     /// @inheritdoc ICalendar
@@ -143,15 +164,7 @@ contract Calendar is ICalendar {
         // a partial period or not, so push the start date to the beginning of the period
         // to simplify the calculation.
         startDate = getStartDateOfPeriod(periodDuration, startDate);
-        numPeriodsPassed =
-            getDaysDiff(startDate, endDate) /
-            getTotalDaysInFullPeriod(periodDuration);
-        if (endDate != getStartDateOfPeriod(periodDuration, endDate)) {
-            // If the end date is in the middle of a period, then we need to account for the
-            // last partial period.
-            ++numPeriodsPassed;
-        }
-        return numPeriodsPassed;
+        return getDaysDiff(startDate, endDate) / getTotalDaysInFullPeriod(periodDuration);
     }
 
     /// @inheritdoc ICalendar
@@ -159,7 +172,7 @@ contract Calendar is ICalendar {
         PayPeriodDuration periodDuration,
         uint256 numPeriods,
         uint256 timestamp
-    ) external view returns (uint256 maturityDate) {
+    ) external pure returns (uint256 maturityDate) {
         // The first period may be a partial period, so advance to the next period and only count full
         // periods.
         uint256 startDate = _getStartDateOfNextPeriod(periodDuration, timestamp);

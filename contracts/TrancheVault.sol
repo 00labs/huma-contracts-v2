@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import {Errors} from "./Errors.sol";
 import {PoolConfig, LPConfig} from "./PoolConfig.sol";
 import {PoolConfigCache} from "./PoolConfigCache.sol";
-import {JUNIOR_TRANCHE, SENIOR_TRANCHE, DEFAULT_DECIMALS_FACTOR} from "./SharedDefs.sol";
+import {JUNIOR_TRANCHE, SENIOR_TRANCHE, DEFAULT_DECIMALS_FACTOR, SECONDS_IN_A_DAY} from "./SharedDefs.sol";
 import {TrancheVaultStorage, IERC20} from "./TrancheVaultStorage.sol";
 import {IEpoch, EpochInfo} from "./interfaces/IEpoch.sol";
 import {IEpochManager} from "./interfaces/IEpochManager.sol";
@@ -30,7 +30,12 @@ contract TrancheVault is
         uint256 amountProcessed
     );
 
-    event LiquidityDeposited(address indexed account, uint256 assetAmount, uint256 shareAmount);
+    event LiquidityDeposited(
+        address indexed sender,
+        address indexed receiver,
+        uint256 assetAmount,
+        uint256 shareAmount
+    );
 
     event LenderFundDisbursed(address indexed account, address receiver, uint256 withdrawnAmount);
 
@@ -226,7 +231,9 @@ contract TrancheVault is
         tranches[trancheIndex] += uint96(assets);
         pool.updateTranchesAssets(tranches);
 
-        emit LiquidityDeposited(receiver, assets, shares);
+        lastDepositTime[receiver] = block.timestamp;
+
+        emit LiquidityDeposited(msg.sender, receiver, assets, shares);
     }
 
     /**
@@ -236,6 +243,13 @@ contract TrancheVault is
     function addRedemptionRequest(uint256 shares) external {
         if (shares == 0) revert Errors.zeroAmountProvided();
         poolConfig.onlyProtocolAndPoolOn();
+
+        if (
+            block.timestamp <
+            lastDepositTime[msg.sender] +
+                poolConfig.getLPConfig().withdrawalLockoutPeriodInDays *
+                SECONDS_IN_A_DAY
+        ) revert Errors.withdrawTooSoon();
 
         poolConfig.checkFirstLossCoverRequirementsForRedemption(msg.sender);
         uint256 sharesBalance = ERC20Upgradeable.balanceOf(msg.sender);
@@ -370,6 +384,14 @@ contract TrancheVault is
         }
         poolSafe.resetUnprocessedProfit();
         pool.updateTranchesAssets(tranchesAssets);
+    }
+
+    /**
+     * @notice Disables transfer function currently, need to consider how to support it later(lender permission,
+     * yield payout, profit distribution, etc.) when integrating with DEXs.
+     */
+    function transfer(address, uint256) public virtual override returns (bool) {
+        revert Errors.unsupportedFunction();
     }
 
     /**

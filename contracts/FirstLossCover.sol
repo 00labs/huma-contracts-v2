@@ -164,16 +164,28 @@ contract FirstLossCover is
     }
 
     /// @inheritdoc IFirstLossCover
-    function recoverLoss(uint256 recovery) external {
+    function recoverLoss(uint256 recovery) external returns (uint256 remainingRecovery) {
         poolConfig.onlyPool(msg.sender);
 
-        poolSafe.withdraw(address(this), recovery);
+        uint256 recoveredAmount;
+        (remainingRecovery, recoveredAmount) = _calcLossRecover(coveredLoss, recovery);
 
-        uint256 currCoveredLoss = coveredLoss;
-        currCoveredLoss -= recovery;
-        coveredLoss = currCoveredLoss;
+        if (recoveredAmount > 0) {
+            poolSafe.withdraw(address(this), recovery);
 
-        emit LossRecovered(recovery, currCoveredLoss);
+            uint256 currCoveredLoss = coveredLoss;
+            currCoveredLoss -= recovery;
+            coveredLoss = currCoveredLoss;
+
+            emit LossRecovered(recovery, currCoveredLoss);
+        }
+    }
+
+    /**
+     * @notice Disables transfer function currently
+     */
+    function transfer(address, uint256) public virtual override returns (bool) {
+        revert Errors.unsupportedFunction();
     }
 
     function decimals() public view override returns (uint8) {
@@ -229,12 +241,6 @@ contract FirstLossCover is
 
         // Reverts this transaction if only partial providers are paid out.
         if (remainingShares > 0) revert Errors.notAllProvidersPaidOut();
-    }
-
-    function calcLossRecover(
-        uint256 recovery
-    ) public view returns (uint256 remainingRecovery, uint256 recoveredAmount) {
-        (remainingRecovery, recoveredAmount) = _calcLossRecover(coveredLoss, recovery);
     }
 
     function isSufficient(address account) external view returns (bool) {

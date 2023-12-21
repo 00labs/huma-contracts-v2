@@ -44,6 +44,7 @@ contract ReceivableLevelCreditManager is
         _revokeRole(PAYER_ROLE, payer);
     }
 
+    /// @inheritdoc IReceivableLevelCreditManager
     function approveReceivable(
         address borrower,
         ReceivableInput memory receivableInput,
@@ -80,58 +81,104 @@ contract ReceivableLevelCreditManager is
         );
     }
 
+    /// @inheritdoc IReceivableLevelCreditManager
+    function startCommittedCredit(uint256 receivableId) external virtual {
+        poolConfig.onlyProtocolAndPoolOn();
+        _onlyPoolOwnerOrPDSServiceAccount();
+
+        bytes32 creditHash = _getCreditHash(receivableId);
+        _startCommittedCredit(creditHash);
+    }
+
+    /// @inheritdoc IReceivableLevelCreditManager
     function refreshCredit(uint256 receivableId) external virtual {
+        poolConfig.onlyProtocolAndPoolOn();
+
         bytes32 creditHash = _getCreditHash(receivableId);
         _refreshCredit(creditHash);
     }
 
+    /// @inheritdoc IReceivableLevelCreditManager
     function triggerDefault(
         uint256 receivableId
     ) external virtual returns (uint256 principalLoss, uint256 yieldLoss, uint256 feesLoss) {
+        poolConfig.onlyProtocolAndPoolOn();
+        _onlyEAServiceAccount();
+
         bytes32 creditHash = _getCreditHash(receivableId);
         return _triggerDefault(creditHash);
     }
 
-    function closeCredit(uint256 receivableId) external virtual {
+    /// @inheritdoc IReceivableLevelCreditManager
+    function closeCredit(address borrower, uint256 receivableId) external virtual {
+        poolConfig.onlyProtocolAndPoolOn();
+        if (msg.sender != borrower && msg.sender != humaConfig.eaServiceAccount())
+            revert Errors.notBorrowerOrEA();
+
         bytes32 creditHash = _getCreditHash(receivableId);
+        onlyCreditBorrower(creditHash, borrower);
         _closeCredit(creditHash);
     }
 
+    /// @inheritdoc IReceivableLevelCreditManager
     function pauseCredit(uint256 receivableId) external virtual {
+        poolConfig.onlyProtocolAndPoolOn();
+        _onlyEAServiceAccount();
+
         bytes32 creditHash = _getCreditHash(receivableId);
         _pauseCredit(creditHash);
     }
 
+    /// @inheritdoc IReceivableLevelCreditManager
     function unpauseCredit(uint256 receivableId) external virtual {
+        poolConfig.onlyProtocolAndPoolOn();
+        _onlyEAServiceAccount();
+
         bytes32 creditHash = _getCreditHash(receivableId);
         _unpauseCredit(creditHash);
     }
 
+    /// @inheritdoc IReceivableLevelCreditManager
     function updateYield(uint256 receivableId, uint256 yieldInBps) external virtual {
+        poolConfig.onlyProtocolAndPoolOn();
+        _onlyEAServiceAccount();
+
         bytes32 creditHash = _getCreditHash(receivableId);
         _updateYield(creditHash, yieldInBps);
     }
 
+    /// @inheritdoc IReceivableLevelCreditManager
     function updateLimitAndCommitment(
         uint256 receivableId,
         uint256 creditLimit,
         uint256 committedAmount
     ) external {
+        poolConfig.onlyProtocolAndPoolOn();
+        _onlyEAServiceAccount();
+
         bytes32 creditHash = _getCreditHash(receivableId);
         _updateLimitAndCommitment(creditHash, creditLimit, committedAmount);
     }
 
+    /// @inheritdoc IReceivableLevelCreditManager
     function extendRemainingPeriod(uint256 receivableId, uint256 numOfPeriods) external virtual {
+        poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
+
         bytes32 creditHash = _getCreditHash(receivableId);
         _extendRemainingPeriod(creditHash, numOfPeriods);
     }
 
+    /// @inheritdoc IReceivableLevelCreditManager
     function waiveLateFee(uint256 receivableId, uint256 waivedAmount) external virtual {
+        poolConfig.onlyProtocolAndPoolOn();
+        _onlyEAServiceAccount();
+
         bytes32 creditHash = _getCreditHash(receivableId);
         _waiveLateFee(creditHash, waivedAmount);
     }
 
+    /// @inheritdoc IReceivableLevelCreditManager
     function onlyPayer(address account, bytes32 creditHash) external view returns (address) {
         if (!hasRole(PAYER_ROLE, account)) revert Errors.permissionDeniedNotPayer();
         return _creditBorrowerMap[creditHash];

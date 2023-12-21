@@ -20,6 +20,7 @@ abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
         losses[SENIOR_TRANCHE] = uint96(loss - losses[JUNIOR_TRANCHE]);
         updatedAssets[JUNIOR_TRANCHE] = uint96(assets[JUNIOR_TRANCHE] - losses[JUNIOR_TRANCHE]);
         updatedAssets[SENIOR_TRANCHE] = uint96(assets[SENIOR_TRANCHE] - losses[SENIOR_TRANCHE]);
+
         return (updatedAssets, losses);
     }
 
@@ -49,5 +50,10 @@ abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
         }
 
         return (remainingLossRecovery, assets, losses);
+    }
+
+    /// @inheritdoc ITranchesPolicy
+    function refreshYieldTracker(uint96[2] memory assets) public virtual {
+        // Empty function for RiskAdjustedTranchePolicy
     }
 }

@@ -42,15 +42,12 @@ interface IFirstLossCover {
      * @notice Applies recovered amount to this first loss cover
      * @param recovery the recovery amount available for distribution to this cover
      * and other covers that are more junior than this one.
+     * @return remainingRecovery the remaining recovery after applying this recover
      * @dev Only pool contract tied with the cover can call this function.
      */
-    function recoverLoss(uint256 recovery) external;
+    function recoverLoss(uint256 recovery) external returns (uint256 remainingRecovery);
 
     function totalAssets() external view returns (uint256);
-
-    function calcLossRecover(
-        uint256 recovery
-    ) external view returns (uint256 remainingRecovery, uint256 recoveredAmount);
 
     function isSufficient(address account) external view returns (bool sufficient);
 

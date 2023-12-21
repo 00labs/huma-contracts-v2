@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {ICreditLine} from "./interfaces/ICreditLine.sol";
 import {Credit} from "./Credit.sol";
-import {CreditConfig, CreditRecord} from "./CreditStructs.sol";
+import {CreditRecord, DueDetail} from "./CreditStructs.sol";
 import {Errors} from "../Errors.sol";
 
 import "hardhat/console.sol";
@@ -14,6 +14,20 @@ import "hardhat/console.sol";
  * credit line as long as they stay under the approved credit limit.
  */
 contract CreditLine is Credit, ICreditLine {
+    /// @inheritdoc ICreditLine
+    function getNextBillRefreshDate(address borrower) external view returns (uint256 refreshDate) {
+        bytes32 creditHash = getCreditHash(borrower);
+        return _getNextBillRefreshDate(creditHash);
+    }
+
+    /// @inheritdoc ICreditLine
+    function getDueInfo(
+        address borrower
+    ) external view returns (CreditRecord memory cr, DueDetail memory dd) {
+        bytes32 creditHash = getCreditHash(borrower);
+        return _getDueInfo(creditHash);
+    }
+
     /// @inheritdoc ICreditLine
     function drawdown(address borrower, uint256 borrowAmount) external virtual override {
         poolConfig.onlyProtocolAndPoolOn();
@@ -31,7 +45,6 @@ contract CreditLine is Credit, ICreditLine {
         uint256 amount
     ) external virtual override returns (uint256 amountPaid, bool paidoff) {
         poolConfig.onlyProtocolAndPoolOn();
-        // TODO: do we still need the PDS service account to make payment?
         if (msg.sender != borrower) _onlyPDSServiceAccount();
 
         bytes32 creditHash = getCreditHash(borrower);

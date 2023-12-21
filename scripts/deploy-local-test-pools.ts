@@ -1,8 +1,13 @@
+import { time } from "@nomicfoundation/hardhat-network-helpers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { BigNumber as BN } from "ethers";
 import { ethers, network } from "hardhat";
-import { deployAndSetupPoolContracts, deployProtocolContracts } from "../test/BaseTest";
-import { getMinFirstLossCoverRequirement, toToken } from "../test/TestUtils";
+import { CONSTANTS, deployAndSetupPoolContracts, deployProtocolContracts } from "../test/BaseTest";
+import {
+    getMinFirstLossCoverRequirement,
+    overrideFirstLossCoverConfig,
+    toToken,
+} from "../test/TestUtils";
 import {
     BorrowerLevelCreditManager,
     Calendar,
@@ -90,6 +95,7 @@ async function depositFirstLossCover(
 }
 
 async function main() {
+    console.log(`Starting block timestamp: ${await time.latest()}`);
     [
         defaultDeployer,
         protocolOwner,
@@ -112,6 +118,7 @@ async function main() {
         borrowerDefault,
     ] = await ethers.getSigners();
 
+    console.log("Deploying and setting up protocol contracts");
     [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
         protocolOwner,
         treasury,
@@ -150,10 +157,33 @@ async function main() {
         [juniorLender, seniorLender, poolAffiliate, lenderRedemptionActive, borrowerActive],
     );
 
-    console.log("Depositing borrower cover into the pool");
+    // Deposit first loss cover
     await depositFirstLossCover(poolContract, borrowerFirstLossCoverContract, borrowerActive);
 
-    console.log("Depositing junior and senior liquidity into the tranches");
+    // Set first loss cover liquidity cap
+    const totalAssetsBorrowerFLC = await borrowerFirstLossCoverContract.totalAssets();
+    const totalAssetsAffiliateFLC = await affiliateFirstLossCoverContract.totalAssets();
+    const yieldAmount = toToken(10_000);
+    await overrideFirstLossCoverConfig(
+        borrowerFirstLossCoverContract,
+        CONSTANTS.BORROWER_FIRST_LOSS_COVER_INDEX,
+        poolConfigContract,
+        poolOwner,
+        {
+            liquidityCap: totalAssetsBorrowerFLC.sub(yieldAmount),
+        },
+    );
+    await overrideFirstLossCoverConfig(
+        affiliateFirstLossCoverContract,
+        CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+        poolConfigContract,
+        poolOwner,
+        {
+            liquidityCap: totalAssetsAffiliateFLC.sub(yieldAmount),
+        },
+    );
+
+    // Depositing junior and senior liquidity into the tranches
     await juniorTrancheVaultContract
         .connect(juniorLender)
         .deposit(toToken(150_000), juniorLender.address);
@@ -182,16 +212,18 @@ async function main() {
             true,
         );
     const borrowAmount = toToken(50_000);
-    console.log("Drawing down credit line");
+
+    // Drawing down credit line
     await creditContract.connect(borrowerActive).drawdown(borrowerActive.address, borrowAmount);
 
-    console.log("Submitting junior redemption request");
+    // Submitting junior redemption request
     await juniorTrancheVaultContract.connect(juniorLender).addRedemptionRequest(toToken(10_000));
 
-    console.log("Skipping to next epoch");
-    const threeDaysInSeconds = 3 * 24 * 60 * 60; // 3 days in seconds
+    console.log("Time skipping to next epoch");
+    const epochTimeInSeconds = 31 * 24 * 60 * 60; // 31 days in seconds
     // Simulate the passage of time by advancing the time on the Hardhat Network
-    await network.provider.send("evm_increaseTime", [threeDaysInSeconds]);
+    await network.provider.send("evm_increaseTime", [epochTimeInSeconds]);
+    await network.provider.send("evm_mine");
 
     console.log("=====================================");
     console.log("Accounts:");
@@ -199,6 +231,8 @@ async function main() {
     console.log(`Senior lender: ${seniorLender.address}`);
     console.log(`Borrower:      ${borrowerActive.address}`);
     console.log(`PDS service:   ${pdsServiceAccount.address}`);
+    console.log(`Pool owner:   ${poolOwner.address}`);
+    console.log(`EA service:   ${eaServiceAccount.address}`);
 
     console.log("=====================================");
     console.log("Addresses:");
@@ -211,6 +245,12 @@ async function main() {
     console.log(`Senior tranche:  ${seniorTrancheVaultContract.address}`);
     console.log(`Pool safe:       ${poolSafeContract.address}`);
     console.log(`Test token:      ${mockTokenContract.address}`);
+    console.log(`Credit manager:      ${creditManagerContract.address}`);
+    console.log(`Borrower FLC:      ${borrowerFirstLossCoverContract.address}`);
+    console.log(`Affiliate FLC:      ${affiliateFirstLossCoverContract.address}`);
+
+    console.log("=====================================");
+    console.log(`Current block timestamp: ${await time.latest()}`);
 }
 
 main().catch((error) => {

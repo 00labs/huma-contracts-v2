@@ -7,7 +7,7 @@ pragma solidity ^0.8.0;
 
 interface ITranchesPolicy {
     /**
-     * @notice View function of distributing loss to tranches
+     * @notice Distributes loss to tranches
      * @dev Passing asset value for the tranches as a parameter to make the function stateless
      * @param loss the loss amount
      * @param assets assets for each tranche, index 0 for senior, 1 for junior
@@ -17,10 +17,10 @@ interface ITranchesPolicy {
     function distLossToTranches(
         uint256 loss,
         uint96[2] memory assets
-    ) external view returns (uint96[2] memory updatedAssets, uint96[2] memory losses);
+    ) external pure returns (uint96[2] memory updatedAssets, uint96[2] memory losses);
 
     /**
-     * @notice View function of distributing loss recovery to tranches
+     * @notice Distributes loss recovery to tranches
      * @dev Passing asset value for the tranches as a parameter to make the function stateless
      * @param lossRecovery the loss recovery amount
      * @param assets assets for each tranche, index 0 for senior, 1 for junior
@@ -35,7 +35,7 @@ interface ITranchesPolicy {
         uint96[2] memory losses
     )
         external
-        view
+        pure
         returns (
             uint256 remainingLossRecovery,
             uint96[2] memory newAssets,
@@ -43,16 +43,22 @@ interface ITranchesPolicy {
         );
 
     /**
-     * @notice View function of distributing profit to tranches
+     * @notice Distributes profit to tranches
      * @dev Passing asset value for the tranches as a parameter to make the function stateless
      * @param profit the profit amount
      * @param assets assets for each tranche, assets[0] for senior and assets[1] for junior
-     * @param lastUpdatedTime the corresponding updated timestamp for @param assets
      * @return newAssets updated total assets for each tranche, index 0 for senior, 1 for junior
      */
     function distProfitToTranches(
         uint256 profit,
-        uint96[2] memory assets,
-        uint256 lastUpdatedTime
-    ) external view returns (uint96[2] memory newAssets);
+        uint96[2] memory assets
+    ) external returns (uint96[2] memory newAssets);
+
+    /**
+     * @notice Refreshes the policy yield tracker, it is used for FixedSeniorYieldTranchesPolicy to update latest senior yield data
+     * @dev Accrues senior tranches yield to the current block timestamp before senior debt changes, this function won't
+     * update the senior total assets which is updated when distributing profit/loss/loss recovery
+     * @param assets assets for each tranche, assets[0] for senior and assets[1] for junior
+     */
+    function refreshYieldTracker(uint96[2] memory assets) external;
 }

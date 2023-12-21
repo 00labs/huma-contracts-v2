@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
+
 import {ReceivableInput} from "../CreditStructs.sol";
-import {CreditConfig, CreditLimit} from "../CreditStructs.sol";
 
 interface IReceivableLevelCreditManager {
     /**
@@ -22,6 +22,15 @@ interface IReceivableLevelCreditManager {
         uint16 remainingPeriods,
         uint16 yieldInBps
     ) external;
+
+    /**
+     * @notice Initiates a credit line with a committed amount on the designated start date.
+     * This function is intended to be used for credit lines where there is a minimum borrowing
+     * commitment. If the borrower fails to drawdown the committed amount within the set timeframe,
+     * this function activates the credit line and applies yield based on the committed amount.
+     * @param receivableId The ID of the receivable
+     */
+    function startCommittedCredit(uint256 receivableId) external;
 
     /**
      * @notice Updates the account and brings its billing status current
@@ -47,7 +56,7 @@ interface IReceivableLevelCreditManager {
      * @dev Revert if there is still balance due
      * @dev Revert if the committed amount is non-zero and there are periods remaining
      */
-    function closeCredit(uint256 receivableId) external;
+    function closeCredit(address borrower, uint256 receivableId) external;
 
     /**
      * @notice Pauses the credit. No drawdown is allowed for paused credit.

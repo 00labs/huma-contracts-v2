@@ -29,6 +29,11 @@ interface ICalendar {
     function getStartOfTomorrow() external view returns (uint256 startOfTomorrow);
 
     /**
+     * @notice Returns the beginning of the next day relative to the given timestamp.
+     */
+    function getStartOfNextDay(uint256 timestamp) external pure returns (uint256 startOfNextDay);
+
+    /**
      * @notice Returns the beginning of this month
      */
     function getStartOfThisMonth() external view returns (uint256 startOfMonth);
@@ -59,6 +64,13 @@ interface ICalendar {
     ) external view returns (uint256 daysPassed, uint256 totalDaysInPeriod);
 
     /**
+     * @notice Returns the number of days remaining in the period that ends on `endDate`.
+     */
+    function getDaysRemainingInPeriod(
+        uint256 endDate
+    ) external view returns (uint256 daysRemaining);
+
+    /**
      * @notice Returns the number of days between the two given dates. If `startDate` is 0, then
      * use the current block timestamp as the start date.
      * @dev The result should exclude the end date, e.g. the number of days between 1/1 and 1/2 is 1, not 2.
@@ -70,6 +82,8 @@ interface ICalendar {
 
     /**
      * @notice Returns the number of periods passed between the two given dates.
+     * @notice This function returns whole periods passed. However, if the first period is
+     * a partial period, it is counted as a whole period as well.
      */
     function getNumPeriodsPassed(
         PayPeriodDuration periodDuration,
@@ -104,7 +118,7 @@ interface ICalendar {
         PayPeriodDuration periodDuration,
         uint256 numPeriods,
         uint256 timestamp
-    ) external view returns (uint256 maturityDate);
+    ) external pure returns (uint256 maturityDate);
 
     /**
      * @notice Returns the total number of days in a full period, e.g. 30, 90 or 180 days.

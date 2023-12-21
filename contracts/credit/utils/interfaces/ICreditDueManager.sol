@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {CreditConfig, CreditRecord, DueDetail} from "../../CreditStructs.sol";
+import {CreditConfig, CreditRecord, DueDetail, PayPeriodDuration} from "../../CreditStructs.sol";
 
 /**
  * @notice ICreditDueManager.sol defines functions to compute credit-related fees
@@ -26,9 +26,16 @@ interface ICreditDueManager {
      */
     function calcFrontLoadingFee(uint256 _amount) external view returns (uint256 fees);
 
+    function getNextBillRefreshDate(
+        CreditRecord memory cr
+    ) external view returns (uint256 refreshDate);
+
     function refreshLateFee(
         CreditRecord memory _cr,
-        DueDetail memory _dd
+        DueDetail memory _dd,
+        PayPeriodDuration periodDuration,
+        uint256 committedAmount,
+        uint256 timestamp
     ) external view returns (uint64 lateFeeUpdatedDate, uint96 lateFee);
 
     /**
@@ -38,18 +45,43 @@ interface ICreditDueManager {
      * these cycles to get the most up-to-date due information.
      * @dev This is a view only function, it does not update the account status. It is used to
      * help the borrowers to get their balances without paying gases.
-     * @dev the difference between nextDue and yieldDue is the required principal payment
-     * @dev please note the first due date is set after the initial drawdown. All the future due
-     * dates are computed by adding multiples of the payment interval to the first due date.
-     * @param _cr the credit record associated with the account
-     * @param _cc the credit config associated with with account
-     * @param _dd the due details associated with the account
+     * @dev The difference between nextDue and yieldDue is the required principal payment.
+     * @param cr The credit record associated with the account.
+     * @param cc The credit config associated with with account.
+     * @param dd The due details associated with the account.
+     * @param timestamp The timestamp at which the due info should be computed.
      */
     function getDueInfo(
-        CreditRecord memory _cr,
-        CreditConfig memory _cc,
-        DueDetail memory _dd
-    ) external view returns (CreditRecord memory newCR, DueDetail memory newDD, bool isLate);
+        CreditRecord memory cr,
+        CreditConfig memory cc,
+        DueDetail memory dd,
+        uint256 timestamp
+    ) external view returns (CreditRecord memory newCR, DueDetail memory newDD);
 
     function getPayoffAmount(CreditRecord memory cr) external view returns (uint256 payoffAmount);
+
+    function computeYieldDue(
+        uint256 principal,
+        uint256 yieldInBps,
+        uint256 numDays
+    ) external pure returns (uint96 yieldDue);
+
+    /**
+     * @notice Returns the difference in yield due to the value that the yield is calculated from changed from the old
+     * value to the new value.
+     */
+    function computeUpdatedYieldDue(
+        uint256 nextDueDate,
+        uint256 oldYield,
+        uint256 oldValue,
+        uint256 newValue,
+        uint256 principal
+    ) external view returns (uint256 updatedYield);
+
+    function computePrincipalDueForPartialPeriod(
+        uint256 unbilledPrincipal,
+        uint256 principalRateInBps,
+        uint256 numDays,
+        PayPeriodDuration periodDuration
+    ) external view returns (uint256 principalDue);
 }

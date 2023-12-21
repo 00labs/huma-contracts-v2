@@ -199,11 +199,11 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
     }
 
     /**
-     * @notice PoolOwner calls this function to invest available fees in FirstLossCover
+     * @notice PDS service account calls this function to invest available fees in FirstLossCover
      * while getAvailableFeesToInvestInFirstLossCover returns a positive value.
      */
     function investFeesInFirstLossCover() external {
-        poolConfig.onlyPoolOwner(msg.sender);
+        poolConfig.onlyPoolOwnerOrPDSServiceAccount(msg.sender);
         _investFeesInFirstLossCover();
     }
 
