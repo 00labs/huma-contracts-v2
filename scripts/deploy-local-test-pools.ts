@@ -1,8 +1,14 @@
 import { time } from "@nomicfoundation/hardhat-network-helpers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { BigNumber as BN } from "ethers";
-import { ethers, network } from "hardhat";
-import { CONSTANTS, deployAndSetupPoolContracts, deployProtocolContracts } from "../test/BaseTest";
+import { ethers } from "hardhat";
+import {
+    CONSTANTS,
+    CreditContractName,
+    CreditManagerContractName,
+    deployAndSetupPoolContracts,
+    deployProtocolContracts,
+} from "../test/BaseTest";
 import {
     getMinFirstLossCoverRequirement,
     overrideFirstLossCoverConfig,
@@ -94,7 +100,10 @@ async function depositFirstLossCover(
         );
 }
 
-async function main() {
+async function deployPool(
+    creditContractName: CreditContractName,
+    creditManagerContractName: CreditManagerContractName,
+) {
     console.log(`Starting block timestamp: ${await time.latest()}`);
     [
         defaultDeployer,
@@ -149,8 +158,8 @@ async function main() {
         "RiskAdjustedTranchesPolicy",
         defaultDeployer,
         poolOwner,
-        "CreditLine",
-        "BorrowerLevelCreditManager",
+        creditContractName,
+        creditManagerContractName,
         evaluationAgent,
         poolOwnerTreasury,
         poolOperator,
@@ -219,12 +228,6 @@ async function main() {
     // Submitting junior redemption request
     await juniorTrancheVaultContract.connect(juniorLender).addRedemptionRequest(toToken(10_000));
 
-    console.log("Time skipping to next epoch");
-    const epochTimeInSeconds = 31 * 24 * 60 * 60; // 31 days in seconds
-    // Simulate the passage of time by advancing the time on the Hardhat Network
-    await network.provider.send("evm_increaseTime", [epochTimeInSeconds]);
-    await network.provider.send("evm_mine");
-
     console.log("=====================================");
     console.log("Accounts:");
     console.log(`Junior lender: ${juniorLender.address}`);
@@ -245,15 +248,23 @@ async function main() {
     console.log(`Senior tranche:  ${seniorTrancheVaultContract.address}`);
     console.log(`Pool safe:       ${poolSafeContract.address}`);
     console.log(`Test token:      ${mockTokenContract.address}`);
-    console.log(`Credit manager:      ${creditManagerContract.address}`);
-    console.log(`Borrower FLC:      ${borrowerFirstLossCoverContract.address}`);
-    console.log(`Affiliate FLC:      ${affiliateFirstLossCoverContract.address}`);
+    console.log(`Credit:          ${creditContract.address}`);
+    console.log(`Credit manager:  ${creditManagerContract.address}`);
+    console.log(`Borrower FLC:    ${borrowerFirstLossCoverContract.address}`);
+    console.log(`Affiliate FLC:   ${affiliateFirstLossCoverContract.address}`);
 
     console.log("=====================================");
     console.log(`Current block timestamp: ${await time.latest()}`);
 }
 
-main().catch((error) => {
-    console.error(error);
-    process.exitCode = 1;
-});
+async function deployPools() {
+    try {
+        await deployPool("CreditLine", "BorrowerLevelCreditManager");
+        await deployPool("ReceivableBackedCreditLine", "ReceivableBackedCreditLineManager");
+    } catch (error) {
+        console.error(error);
+        process.exitCode = 1;
+    }
+}
+
+deployPools();

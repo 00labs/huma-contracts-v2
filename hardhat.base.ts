@@ -5,6 +5,11 @@ import "hardhat-contract-sizer";
 import { HardhatUserConfig } from "hardhat/types";
 
 const config: HardhatUserConfig = {
+    networks: {
+        localhost: {
+            chainId: Number(process.env.LOCALHOST_CHAIN_ID ?? 31337),
+        },
+    },
     solidity: {
         compilers: [
             {
