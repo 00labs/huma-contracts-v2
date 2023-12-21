@@ -9,8 +9,6 @@ interface ICredit {
 
     function setCreditRecord(bytes32 creditHash, CreditRecord memory cr) external;
 
-    function setDueDetail(bytes32 creditHash, DueDetail memory dd) external;
-
     function updateDueInfo(
         bytes32 creditHash,
         CreditRecord memory cr,
