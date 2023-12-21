@@ -122,21 +122,17 @@ let currentEpochId: BN;
 let sLenderReinvests = [false, true, true],
     jLenderReinvests = [true, false, true];
 let juniorShareRequested: BN = BN.from(0),
-    juniorShareProcessed: BN = BN.from(0),
-    juniorAmountProcessed: BN = BN.from(0),
-    seniorShareRequested: BN = BN.from(0),
-    seniorShareProcessed: BN = BN.from(0),
-    seniorAmountProcessed: BN = BN.from(0);
+    seniorShareRequested: BN = BN.from(0);
 let jLenderPrincipals: BN[] = Array(JUNIOR_LENDER_NUM).fill(BN.from(0)),
     sLenderPrincipals: BN[] = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
-let jLenderShareRequesteds: BN[] = Array(JUNIOR_LENDER_NUM).fill(BN.from(0)),
-    sLenderShareRequesteds: BN[] = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
-let jLenderPrincipalRequesteds: BN[] = Array(JUNIOR_LENDER_NUM).fill(BN.from(0)),
-    sLenderPrincipalRequesteds: BN[] = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
-let jLenderAmountProcesseds: BN[] = Array(JUNIOR_LENDER_NUM).fill(BN.from(0)),
-    sLenderAmountProcesseds: BN[] = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
-let jLenderWithdrawns: BN[] = Array(JUNIOR_LENDER_NUM).fill(BN.from(0)),
-    sLenderWithdrawns: BN[] = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
+let jLenderShareRequests: BN[] = Array(JUNIOR_LENDER_NUM).fill(BN.from(0)),
+    sLenderShareRequests: BN[] = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
+let jLenderPrincipalRequests: BN[] = Array(JUNIOR_LENDER_NUM).fill(BN.from(0)),
+    sLenderPrincipalRequests: BN[] = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
+let jLenderAmountsProcessed: BN[] = Array(JUNIOR_LENDER_NUM).fill(BN.from(0)),
+    sLenderAmountsProcessed: BN[] = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
+let jLenderWithdrawals: BN[] = Array(JUNIOR_LENDER_NUM).fill(BN.from(0)),
+    sLenderWithdrawals: BN[] = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
 
 async function configPool(lpConfig: Partial<LPConfigStructOutput>) {
     await poolConfigContract.connect(poolOwner).setPoolPayPeriod(POOL_PERIOD_DURATION);
@@ -519,8 +515,8 @@ async function testRedemptionRequest(jLenderRequests: BN[], sLenderRequests: BN[
                 jLenderRequests[i],
             );
             expect(newPrincipal).to.equal(jLenderPrincipals[i].sub(principalRequested));
-            jLenderShareRequesteds[i] = jLenderShareRequesteds[i].add(jLenderRequests[i]);
-            jLenderPrincipalRequesteds[i] = jLenderPrincipalRequesteds[i].add(principalRequested);
+            jLenderShareRequests[i] = jLenderShareRequests[i].add(jLenderRequests[i]);
+            jLenderPrincipalRequests[i] = jLenderPrincipalRequests[i].add(principalRequested);
             jLenderPrincipals[i] = newPrincipal;
             let lastUpdatedEpochIndex = (
                 await juniorTrancheVaultContract.redemptionInfoByLender(jLenders[i].address)
@@ -529,15 +525,15 @@ async function testRedemptionRequest(jLenderRequests: BN[], sLenderRequests: BN[
                 juniorTrancheVaultContract,
                 jLenders[i],
                 lastUpdatedEpochIndex,
-                jLenderShareRequesteds[i],
-                jLenderPrincipalRequesteds[i],
-                jLenderAmountProcesseds[i],
-                jLenderWithdrawns[i],
+                jLenderShareRequests[i],
+                jLenderPrincipalRequests[i],
+                jLenderAmountsProcessed[i],
+                jLenderWithdrawals[i],
                 1,
             );
             expect(
                 await juniorTrancheVaultContract.cancellableRedemptionShares(jLenders[i].address),
-            ).to.closeTo(jLenderShareRequesteds[i], 1);
+            ).to.closeTo(jLenderShareRequests[i], 1);
             let userEpochId = await juniorTrancheVaultContract.epochIds(lastUpdatedEpochIndex);
             expect(userEpochId).to.equal(currentEpochId);
             juniorShareRequested = juniorShareRequested.add(jLenderRequests[i]);
@@ -566,8 +562,8 @@ async function testRedemptionRequest(jLenderRequests: BN[], sLenderRequests: BN[
                 sLenderRequests[i],
             );
             expect(newPrincipal).to.equal(sLenderPrincipals[i].sub(principalRequested));
-            sLenderShareRequesteds[i] = sLenderShareRequesteds[i].add(sLenderRequests[i]);
-            sLenderPrincipalRequesteds[i] = sLenderPrincipalRequesteds[i].add(principalRequested);
+            sLenderShareRequests[i] = sLenderShareRequests[i].add(sLenderRequests[i]);
+            sLenderPrincipalRequests[i] = sLenderPrincipalRequests[i].add(principalRequested);
             sLenderPrincipals[i] = newPrincipal;
             let lastUpdatedEpochIndex = (
                 await seniorTrancheVaultContract.redemptionInfoByLender(sLenders[i].address)
@@ -576,14 +572,14 @@ async function testRedemptionRequest(jLenderRequests: BN[], sLenderRequests: BN[
                 seniorTrancheVaultContract,
                 sLenders[i],
                 lastUpdatedEpochIndex,
-                sLenderShareRequesteds[i],
-                sLenderPrincipalRequesteds[i],
-                sLenderAmountProcesseds[i],
-                sLenderWithdrawns[i],
+                sLenderShareRequests[i],
+                sLenderPrincipalRequests[i],
+                sLenderAmountsProcessed[i],
+                sLenderWithdrawals[i],
             );
             expect(
                 await seniorTrancheVaultContract.cancellableRedemptionShares(sLenders[i].address),
-            ).to.equal(sLenderShareRequesteds[i]);
+            ).to.equal(sLenderShareRequests[i]);
             let userEpochId = await seniorTrancheVaultContract.epochIds(lastUpdatedEpochIndex);
             expect(userEpochId).to.equal(currentEpochId);
             seniorShareRequested = seniorShareRequested.add(sLenderRequests[i]);
@@ -681,21 +677,17 @@ describe("Lender Integration Test", function () {
                 await evmRevert(sId);
             }
             juniorShareRequested = BN.from(0);
-            juniorShareProcessed = BN.from(0);
-            juniorAmountProcessed = BN.from(0);
             seniorShareRequested = BN.from(0);
-            seniorShareProcessed = BN.from(0);
-            seniorAmountProcessed = BN.from(0);
             jLenderPrincipals = Array(JUNIOR_LENDER_NUM).fill(BN.from(0));
             sLenderPrincipals = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
-            jLenderShareRequesteds = Array(JUNIOR_LENDER_NUM).fill(BN.from(0));
-            sLenderShareRequesteds = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
-            jLenderPrincipalRequesteds = Array(JUNIOR_LENDER_NUM).fill(BN.from(0));
-            sLenderPrincipalRequesteds = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
-            jLenderAmountProcesseds = Array(JUNIOR_LENDER_NUM).fill(BN.from(0));
-            sLenderAmountProcesseds = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
-            jLenderWithdrawns = Array(JUNIOR_LENDER_NUM).fill(BN.from(0));
-            sLenderWithdrawns = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
+            jLenderShareRequests = Array(JUNIOR_LENDER_NUM).fill(BN.from(0));
+            sLenderShareRequests = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
+            jLenderPrincipalRequests = Array(JUNIOR_LENDER_NUM).fill(BN.from(0));
+            sLenderPrincipalRequests = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
+            jLenderAmountsProcessed = Array(JUNIOR_LENDER_NUM).fill(BN.from(0));
+            sLenderAmountsProcessed = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
+            jLenderWithdrawals = Array(JUNIOR_LENDER_NUM).fill(BN.from(0));
+            sLenderWithdrawals = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
             sActiveLenders = [];
             jActiveLenders = [];
             // console.log("RiskAdjustedTranchesPolicy after");
@@ -1007,26 +999,26 @@ describe("Lender Integration Test", function () {
             );
 
             for (let i = 0; i < jActiveLenders.length; i++) {
-                jLenderAmountProcesseds[i] = jAmountProcessed
-                    .mul(jLenderShareRequesteds[i])
+                jLenderAmountsProcessed[i] = jAmountProcessed
+                    .mul(jLenderShareRequests[i])
                     .div(juniorShareRequested);
-                jLenderShareRequesteds[i] = BN.from(0);
-                jLenderPrincipalRequesteds[i] = BN.from(0);
+                jLenderShareRequests[i] = BN.from(0);
+                jLenderPrincipalRequests[i] = BN.from(0);
                 expect(
                     await juniorTrancheVaultContract.withdrawableAssets(jActiveLenders[i].address),
-                ).to.equal(jLenderAmountProcesseds[i]);
+                ).to.equal(jLenderAmountsProcessed[i]);
             }
             juniorShareRequested = BN.from(0);
 
             for (let i = 0; i < sActiveLenders.length; i++) {
-                sLenderAmountProcesseds[i] = sAmountProcessed
-                    .mul(sLenderShareRequesteds[i])
+                sLenderAmountsProcessed[i] = sAmountProcessed
+                    .mul(sLenderShareRequests[i])
                     .div(seniorShareRequested);
-                sLenderShareRequesteds[i] = BN.from(0);
-                sLenderPrincipalRequesteds[i] = BN.from(0);
+                sLenderShareRequests[i] = BN.from(0);
+                sLenderPrincipalRequests[i] = BN.from(0);
                 expect(
                     await seniorTrancheVaultContract.withdrawableAssets(sActiveLenders[i].address),
-                ).to.equal(sLenderAmountProcesseds[i]);
+                ).to.equal(sLenderAmountsProcessed[i]);
             }
             seniorShareRequested = BN.from(0);
 
@@ -1058,7 +1050,7 @@ describe("Lender Integration Test", function () {
             sActiveLenders.push(sLenders[2]);
         });
 
-        it("Epoch 2, day 10: Senior lenders attempts to inject liquidity, but blocked by senior : junior ratio", async function () {
+        it("Epoch 2, day 10: Senior lenders attempt to inject liquidity, but blocked by senior : junior ratio", async function () {
             currentTS = currentTS + 4 * 24 * 3600;
             await setNextBlockTimestamp(currentTS);
 
@@ -1287,18 +1279,18 @@ describe("Lender Integration Test", function () {
                 1,
             );
 
-            jLenderAmountProcesseds[0] = jLenderAmountProcesseds[0].add(jAmountProcessed);
-            jLenderShareRequesteds[0] = juniorShareRequested.sub(jShareProcessed);
-            jLenderPrincipalRequesteds[0] = jLenderPrincipalRequesteds[0]
-                .mul(jLenderShareRequesteds[0])
+            jLenderAmountsProcessed[0] = jLenderAmountsProcessed[0].add(jAmountProcessed);
+            jLenderShareRequests[0] = juniorShareRequested.sub(jShareProcessed);
+            jLenderPrincipalRequests[0] = jLenderPrincipalRequests[0]
+                .mul(jLenderShareRequests[0])
                 .div(juniorShareRequested);
             expect(
                 await juniorTrancheVaultContract.withdrawableAssets(jActiveLenders[0].address),
-            ).to.closeTo(jLenderAmountProcesseds[0], 1);
-            juniorShareRequested = jLenderShareRequesteds[0];
+            ).to.closeTo(jLenderAmountsProcessed[0], 1);
+            juniorShareRequested = jLenderShareRequests[0];
 
             // console.log(
-            //     `jLenderAmountProcesseds[0]: ${jLenderAmountProcesseds[0]}, jLenderShareRequesteds[0]: ${jLenderShareRequesteds[0]}, jLenderPrincipalRequesteds[0]: ${jLenderPrincipalRequesteds[0]}`,
+            //     `jLenderAmountsProcessed[0]: ${jLenderAmountsProcessed[0]}, jLenderShareRequests[0]: ${jLenderShareRequests[0]}, jLenderPrincipalRequests[0]: ${jLenderPrincipalRequests[0]}`,
             // );
 
             await creditManagerContract.refreshCredit(borrower.address);
@@ -1315,7 +1307,7 @@ describe("Lender Integration Test", function () {
             await testRedemptionRequest([], [toToken(200_000), toToken(100_000)]);
         });
 
-        it("Epoch 4, day 10: Pool admins withdraws fees", async function () {
+        it("Epoch 4, day 10: Pool admins withdraw fees", async function () {
             currentTS = currentTS + 8 * 24 * 3600;
             await setNextBlockTimestamp(currentTS);
 
@@ -1434,33 +1426,33 @@ describe("Lender Integration Test", function () {
             );
 
             for (let i = 0; i < jActiveLenders.length; i++) {
-                if (jLenderShareRequesteds[i].gt(0)) {
-                    jLenderAmountProcesseds[i] = jLenderAmountProcesseds[i].add(
-                        jAmountProcessed.mul(jLenderShareRequesteds[i]).div(juniorShareRequested),
+                if (jLenderShareRequests[i].gt(0)) {
+                    jLenderAmountsProcessed[i] = jLenderAmountsProcessed[i].add(
+                        jAmountProcessed.mul(jLenderShareRequests[i]).div(juniorShareRequested),
                     );
-                    jLenderShareRequesteds[i] = BN.from(0);
-                    jLenderPrincipalRequesteds[i] = BN.from(0);
+                    jLenderShareRequests[i] = BN.from(0);
+                    jLenderPrincipalRequests[i] = BN.from(0);
                     expect(
                         await juniorTrancheVaultContract.withdrawableAssets(
                             jActiveLenders[i].address,
                         ),
-                    ).to.closeTo(jLenderAmountProcesseds[i], 1);
+                    ).to.closeTo(jLenderAmountsProcessed[i], 1);
                 }
             }
             juniorShareRequested = BN.from(0);
 
             for (let i = 0; i < sActiveLenders.length; i++) {
-                if (sLenderShareRequesteds[i].gt(0)) {
-                    sLenderAmountProcesseds[i] = sLenderAmountProcesseds[i].add(
-                        sAmountProcessed.mul(sLenderShareRequesteds[i]).div(seniorShareRequested),
+                if (sLenderShareRequests[i].gt(0)) {
+                    sLenderAmountsProcessed[i] = sLenderAmountsProcessed[i].add(
+                        sAmountProcessed.mul(sLenderShareRequests[i]).div(seniorShareRequested),
                     );
-                    sLenderShareRequesteds[i] = BN.from(0);
-                    sLenderPrincipalRequesteds[i] = BN.from(0);
+                    sLenderShareRequests[i] = BN.from(0);
+                    sLenderPrincipalRequests[i] = BN.from(0);
                     expect(
                         await seniorTrancheVaultContract.withdrawableAssets(
                             sActiveLenders[i].address,
                         ),
-                    ).to.equal(sLenderAmountProcesseds[i]);
+                    ).to.equal(sLenderAmountsProcessed[i]);
                 }
             }
             seniorShareRequested = BN.from(0);
@@ -1531,7 +1523,7 @@ describe("Lender Integration Test", function () {
             await testYieldPayout();
         });
 
-        it("Epoch 5, day 10: The borrower makes a new credit", async function () {
+        it("Epoch 5, day 10: The borrower opens a new credit", async function () {
             currentTS = currentTS + 4 * 24 * 3600 + 100;
             await setNextBlockTimestamp(currentTS);
 
@@ -1601,7 +1593,7 @@ describe("Lender Integration Test", function () {
             expect(await mockTokenContract.balanceOf(juniorTrancheVaultContract.address)).to.equal(
                 trancheOldBalance.sub(amount),
             );
-            jLenderWithdrawns[0] = jLenderWithdrawns[0].add(amount);
+            jLenderWithdrawals[0] = jLenderWithdrawals[0].add(amount);
 
             amount = await seniorTrancheVaultContract.withdrawableAssets(
                 sActiveLenders[0].address,
@@ -1619,7 +1611,7 @@ describe("Lender Integration Test", function () {
             expect(await mockTokenContract.balanceOf(seniorTrancheVaultContract.address)).to.equal(
                 trancheOldBalance.sub(amount),
             );
-            sLenderWithdrawns[0] = sLenderWithdrawns[0].add(amount);
+            sLenderWithdrawals[0] = sLenderWithdrawals[0].add(amount);
         });
 
         it("Epoch 5, day after the epoch end date: Process yield, close epoch and no fulfillment of the junior redemption requests", async function () {
@@ -1763,7 +1755,7 @@ describe("Lender Integration Test", function () {
             await checkUserAssets(expectedTranchesAssets);
         });
 
-        it("Epoch 9, day 25: The borrower makes some payment back and distributes loss recovery", async function () {
+        it("Epoch 9, day 25: The borrower makes partial payment and distributes loss recovery", async function () {
             currentTS = currentTS + 24 * 24 * 3600 + 100;
             await setNextBlockTimestamp(currentTS);
 
@@ -1922,33 +1914,33 @@ describe("Lender Integration Test", function () {
             );
 
             for (let i = 0; i < jActiveLenders.length; i++) {
-                if (jLenderShareRequesteds[i].gt(0)) {
-                    jLenderAmountProcesseds[i] = jLenderAmountProcesseds[i].add(
-                        jAmountProcessed.mul(jLenderShareRequesteds[i]).div(juniorShareRequested),
+                if (jLenderShareRequests[i].gt(0)) {
+                    jLenderAmountsProcessed[i] = jLenderAmountsProcessed[i].add(
+                        jAmountProcessed.mul(jLenderShareRequests[i]).div(juniorShareRequested),
                     );
-                    jLenderShareRequesteds[i] = BN.from(0);
-                    jLenderPrincipalRequesteds[i] = BN.from(0);
+                    jLenderShareRequests[i] = BN.from(0);
+                    jLenderPrincipalRequests[i] = BN.from(0);
                     expect(
                         await juniorTrancheVaultContract.withdrawableAssets(
                             jActiveLenders[i].address,
                         ),
-                    ).to.closeTo(jLenderAmountProcesseds[i].sub(jLenderWithdrawns[i]), 1);
+                    ).to.closeTo(jLenderAmountsProcessed[i].sub(jLenderWithdrawals[i]), 1);
                 }
             }
             juniorShareRequested = BN.from(0);
 
             for (let i = 0; i < sActiveLenders.length; i++) {
-                if (sLenderShareRequesteds[i].gt(0)) {
-                    sLenderAmountProcesseds[i] = sLenderAmountProcesseds[i].add(
-                        sAmountProcessed.mul(sLenderShareRequesteds[i]).div(seniorShareRequested),
+                if (sLenderShareRequests[i].gt(0)) {
+                    sLenderAmountsProcessed[i] = sLenderAmountsProcessed[i].add(
+                        sAmountProcessed.mul(sLenderShareRequests[i]).div(seniorShareRequested),
                     );
-                    sLenderShareRequesteds[i] = BN.from(0);
-                    sLenderPrincipalRequesteds[i] = BN.from(0);
+                    sLenderShareRequests[i] = BN.from(0);
+                    sLenderPrincipalRequests[i] = BN.from(0);
                     expect(
                         await seniorTrancheVaultContract.withdrawableAssets(
                             sActiveLenders[i].address,
                         ),
-                    ).to.closeTo(sLenderAmountProcesseds[i].sub(sLenderWithdrawns[i]), 1);
+                    ).to.closeTo(sLenderAmountsProcessed[i].sub(sLenderWithdrawals[i]), 1);
                 }
             }
             seniorShareRequested = BN.from(0);
@@ -2018,21 +2010,17 @@ describe("Lender Integration Test", function () {
                 await evmRevert(sId);
             }
             juniorShareRequested = BN.from(0);
-            juniorShareProcessed = BN.from(0);
-            juniorAmountProcessed = BN.from(0);
             seniorShareRequested = BN.from(0);
-            seniorShareProcessed = BN.from(0);
-            seniorAmountProcessed = BN.from(0);
             jLenderPrincipals = Array(JUNIOR_LENDER_NUM).fill(BN.from(0));
             sLenderPrincipals = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
-            jLenderShareRequesteds = Array(JUNIOR_LENDER_NUM).fill(BN.from(0));
-            sLenderShareRequesteds = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
-            jLenderPrincipalRequesteds = Array(JUNIOR_LENDER_NUM).fill(BN.from(0));
-            sLenderPrincipalRequesteds = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
-            jLenderAmountProcesseds = Array(JUNIOR_LENDER_NUM).fill(BN.from(0));
-            sLenderAmountProcesseds = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
-            jLenderWithdrawns = Array(JUNIOR_LENDER_NUM).fill(BN.from(0));
-            sLenderWithdrawns = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
+            jLenderShareRequests = Array(JUNIOR_LENDER_NUM).fill(BN.from(0));
+            sLenderShareRequests = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
+            jLenderPrincipalRequests = Array(JUNIOR_LENDER_NUM).fill(BN.from(0));
+            sLenderPrincipalRequests = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
+            jLenderAmountsProcessed = Array(JUNIOR_LENDER_NUM).fill(BN.from(0));
+            sLenderAmountsProcessed = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
+            jLenderWithdrawals = Array(JUNIOR_LENDER_NUM).fill(BN.from(0));
+            sLenderWithdrawals = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
             sActiveLenders = [];
             jActiveLenders = [];
             // console.log("FixedYieldTranchesPolicy after");
@@ -2354,26 +2342,26 @@ describe("Lender Integration Test", function () {
             );
 
             for (let i = 0; i < jActiveLenders.length; i++) {
-                jLenderAmountProcesseds[i] = jAmountProcessed
-                    .mul(jLenderShareRequesteds[i])
+                jLenderAmountsProcessed[i] = jAmountProcessed
+                    .mul(jLenderShareRequests[i])
                     .div(juniorShareRequested);
-                jLenderShareRequesteds[i] = BN.from(0);
-                jLenderPrincipalRequesteds[i] = BN.from(0);
+                jLenderShareRequests[i] = BN.from(0);
+                jLenderPrincipalRequests[i] = BN.from(0);
                 expect(
                     await juniorTrancheVaultContract.withdrawableAssets(jActiveLenders[i].address),
-                ).to.equal(jLenderAmountProcesseds[i]);
+                ).to.equal(jLenderAmountsProcessed[i]);
             }
             juniorShareRequested = BN.from(0);
 
             for (let i = 0; i < sActiveLenders.length; i++) {
-                sLenderAmountProcesseds[i] = sAmountProcessed
-                    .mul(sLenderShareRequesteds[i])
+                sLenderAmountsProcessed[i] = sAmountProcessed
+                    .mul(sLenderShareRequests[i])
                     .div(seniorShareRequested);
-                sLenderShareRequesteds[i] = BN.from(0);
-                sLenderPrincipalRequesteds[i] = BN.from(0);
+                sLenderShareRequests[i] = BN.from(0);
+                sLenderPrincipalRequests[i] = BN.from(0);
                 expect(
                     await seniorTrancheVaultContract.withdrawableAssets(sActiveLenders[i].address),
-                ).to.equal(sLenderAmountProcesseds[i]);
+                ).to.equal(sLenderAmountsProcessed[i]);
             }
             seniorShareRequested = BN.from(0);
 
@@ -2651,18 +2639,18 @@ describe("Lender Integration Test", function () {
                 1,
             );
 
-            jLenderAmountProcesseds[0] = jLenderAmountProcesseds[0].add(jAmountProcessed);
-            jLenderShareRequesteds[0] = juniorShareRequested.sub(jShareProcessed);
-            jLenderPrincipalRequesteds[0] = jLenderPrincipalRequesteds[0]
-                .mul(jLenderShareRequesteds[0])
+            jLenderAmountsProcessed[0] = jLenderAmountsProcessed[0].add(jAmountProcessed);
+            jLenderShareRequests[0] = juniorShareRequested.sub(jShareProcessed);
+            jLenderPrincipalRequests[0] = jLenderPrincipalRequests[0]
+                .mul(jLenderShareRequests[0])
                 .div(juniorShareRequested);
             expect(
                 await juniorTrancheVaultContract.withdrawableAssets(jActiveLenders[0].address),
-            ).to.closeTo(jLenderAmountProcesseds[0], 1);
-            juniorShareRequested = jLenderShareRequesteds[0];
+            ).to.closeTo(jLenderAmountsProcessed[0], 1);
+            juniorShareRequested = jLenderShareRequests[0];
 
             // console.log(
-            //     `jLenderAmountProcesseds[0]: ${jLenderAmountProcesseds[0]}, jLenderShareRequesteds[0]: ${jLenderShareRequesteds[0]}, jLenderPrincipalRequesteds[0]: ${jLenderPrincipalRequesteds[0]}`,
+            //     `jLenderAmountsProcessed[0]: ${jLenderAmountsProcessed[0]}, jLenderShareRequests[0]: ${jLenderShareRequests[0]}, jLenderPrincipalRequests[0]: ${jLenderPrincipalRequests[0]}`,
             // );
 
             await creditManagerContract.refreshCredit(borrower.address);
@@ -2798,33 +2786,33 @@ describe("Lender Integration Test", function () {
             );
 
             for (let i = 0; i < jActiveLenders.length; i++) {
-                if (jLenderShareRequesteds[i].gt(0)) {
-                    jLenderAmountProcesseds[i] = jLenderAmountProcesseds[i].add(
-                        jAmountProcessed.mul(jLenderShareRequesteds[i]).div(juniorShareRequested),
+                if (jLenderShareRequests[i].gt(0)) {
+                    jLenderAmountsProcessed[i] = jLenderAmountsProcessed[i].add(
+                        jAmountProcessed.mul(jLenderShareRequests[i]).div(juniorShareRequested),
                     );
-                    jLenderShareRequesteds[i] = BN.from(0);
-                    jLenderPrincipalRequesteds[i] = BN.from(0);
+                    jLenderShareRequests[i] = BN.from(0);
+                    jLenderPrincipalRequests[i] = BN.from(0);
                     expect(
                         await juniorTrancheVaultContract.withdrawableAssets(
                             jActiveLenders[i].address,
                         ),
-                    ).to.closeTo(jLenderAmountProcesseds[i], 1);
+                    ).to.closeTo(jLenderAmountsProcessed[i], 1);
                 }
             }
             juniorShareRequested = BN.from(0);
 
             for (let i = 0; i < sActiveLenders.length; i++) {
-                if (sLenderShareRequesteds[i].gt(0)) {
-                    sLenderAmountProcesseds[i] = sLenderAmountProcesseds[i].add(
-                        sAmountProcessed.mul(sLenderShareRequesteds[i]).div(seniorShareRequested),
+                if (sLenderShareRequests[i].gt(0)) {
+                    sLenderAmountsProcessed[i] = sLenderAmountsProcessed[i].add(
+                        sAmountProcessed.mul(sLenderShareRequests[i]).div(seniorShareRequested),
                     );
-                    sLenderShareRequesteds[i] = BN.from(0);
-                    sLenderPrincipalRequesteds[i] = BN.from(0);
+                    sLenderShareRequests[i] = BN.from(0);
+                    sLenderPrincipalRequests[i] = BN.from(0);
                     expect(
                         await seniorTrancheVaultContract.withdrawableAssets(
                             sActiveLenders[i].address,
                         ),
-                    ).to.equal(sLenderAmountProcesseds[i]);
+                    ).to.equal(sLenderAmountsProcessed[i]);
                 }
             }
             seniorShareRequested = BN.from(0);
@@ -3011,17 +2999,17 @@ describe("Lender Integration Test", function () {
             );
 
             for (let i = 0; i < sActiveLenders.length; i++) {
-                if (sLenderShareRequesteds[i].gt(0)) {
-                    sLenderAmountProcesseds[i] = sLenderAmountProcesseds[i].add(
-                        sAmountProcessed.mul(sLenderShareRequesteds[i]).div(seniorShareRequested),
+                if (sLenderShareRequests[i].gt(0)) {
+                    sLenderAmountsProcessed[i] = sLenderAmountsProcessed[i].add(
+                        sAmountProcessed.mul(sLenderShareRequests[i]).div(seniorShareRequested),
                     );
-                    sLenderShareRequesteds[i] = BN.from(0);
-                    sLenderPrincipalRequesteds[i] = BN.from(0);
+                    sLenderShareRequests[i] = BN.from(0);
+                    sLenderPrincipalRequests[i] = BN.from(0);
                     expect(
                         await seniorTrancheVaultContract.withdrawableAssets(
                             sActiveLenders[i].address,
                         ),
-                    ).to.equal(sLenderAmountProcesseds[i]);
+                    ).to.equal(sLenderAmountsProcessed[i]);
                 }
             }
             seniorShareRequested = BN.from(0);
@@ -3305,33 +3293,33 @@ describe("Lender Integration Test", function () {
             );
 
             for (let i = 0; i < jActiveLenders.length; i++) {
-                if (jLenderShareRequesteds[i].gt(0)) {
-                    jLenderAmountProcesseds[i] = jLenderAmountProcesseds[i].add(
-                        jAmountProcessed.mul(jLenderShareRequesteds[i]).div(juniorShareRequested),
+                if (jLenderShareRequests[i].gt(0)) {
+                    jLenderAmountsProcessed[i] = jLenderAmountsProcessed[i].add(
+                        jAmountProcessed.mul(jLenderShareRequests[i]).div(juniorShareRequested),
                     );
-                    jLenderShareRequesteds[i] = BN.from(0);
-                    jLenderPrincipalRequesteds[i] = BN.from(0);
+                    jLenderShareRequests[i] = BN.from(0);
+                    jLenderPrincipalRequests[i] = BN.from(0);
                     expect(
                         await juniorTrancheVaultContract.withdrawableAssets(
                             jActiveLenders[i].address,
                         ),
-                    ).to.closeTo(jLenderAmountProcesseds[i].sub(jLenderWithdrawns[i]), 1);
+                    ).to.closeTo(jLenderAmountsProcessed[i].sub(jLenderWithdrawals[i]), 1);
                 }
             }
             juniorShareRequested = BN.from(0);
 
             for (let i = 0; i < sActiveLenders.length; i++) {
-                if (sLenderShareRequesteds[i].gt(0)) {
-                    sLenderAmountProcesseds[i] = sLenderAmountProcesseds[i].add(
-                        sAmountProcessed.mul(sLenderShareRequesteds[i]).div(seniorShareRequested),
+                if (sLenderShareRequests[i].gt(0)) {
+                    sLenderAmountsProcessed[i] = sLenderAmountsProcessed[i].add(
+                        sAmountProcessed.mul(sLenderShareRequests[i]).div(seniorShareRequested),
                     );
-                    sLenderShareRequesteds[i] = BN.from(0);
-                    sLenderPrincipalRequesteds[i] = BN.from(0);
+                    sLenderShareRequests[i] = BN.from(0);
+                    sLenderPrincipalRequests[i] = BN.from(0);
                     expect(
                         await seniorTrancheVaultContract.withdrawableAssets(
                             sActiveLenders[i].address,
                         ),
-                    ).to.closeTo(sLenderAmountProcesseds[i].sub(sLenderWithdrawns[i]), 1);
+                    ).to.closeTo(sLenderAmountsProcessed[i].sub(sLenderWithdrawals[i]), 1);
                 }
             }
             seniorShareRequested = BN.from(0);
