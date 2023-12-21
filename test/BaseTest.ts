@@ -864,6 +864,64 @@ export class ProfitAndLossCalculator {
     }
 
     async endRiskAdjustedProfitCalculation(profit: BN): Promise<[BN[], BN[], BN[]]> {
+        return await this._endRiskAdjustedProfitCalculation(profit);
+    }
+    async endRiskAdjustedProfitAndLossCalculation(
+        profit: BN,
+        loss: BN,
+    ): Promise<[BN[], BN[], BN[]]> {
+        let [assets, profitsForAssets, profitsForFirstLossCovers] =
+            await this._endRiskAdjustedProfitCalculation(profit);
+        this.firstLossCoverInfos.forEach((info, index) => {
+            info.asset = info.asset.add(profitsForFirstLossCovers[index]);
+        });
+
+        let [newAssets, lossesForAssets, lossesForFirstLossCovers] = await calcLoss(
+            loss,
+            assets,
+            this.firstLossCoverInfos,
+        );
+
+        return [
+            newAssets,
+            profitsForAssets.map((c, index) => c.sub(lossesForAssets[index])),
+            profitsForFirstLossCovers.map((c, index) => c.sub(lossesForFirstLossCovers[index])),
+        ];
+    }
+
+    async endFixedSeniorYieldProfitCalculation(
+        profit: BN,
+        tracker: SeniorYieldTracker,
+    ): Promise<[BN[], BN[], BN[], SeniorYieldTracker]> {
+        return await this._endFixedSeniorYieldProfitCalculation(profit, tracker);
+    }
+
+    async endFixedSeniorYieldProfitAndLossCalculation(
+        profit: BN,
+        tracker: SeniorYieldTracker,
+        loss: BN,
+    ): Promise<[BN[], BN[], BN[], SeniorYieldTracker]> {
+        let [assets, profitsForAssets, profitsForFirstLossCovers, newTracker] =
+            await this._endFixedSeniorYieldProfitCalculation(profit, tracker);
+        this.firstLossCoverInfos.forEach((info, index) => {
+            info.asset = info.asset.add(profitsForFirstLossCovers[index]);
+        });
+
+        let [newAssets, lossesForAssets, lossesForFirstLossCovers] = await calcLoss(
+            loss,
+            assets,
+            this.firstLossCoverInfos,
+        );
+
+        return [
+            newAssets,
+            profitsForAssets.map((c, index) => c.sub(lossesForAssets[index])),
+            profitsForFirstLossCovers.map((c, index) => c.sub(lossesForFirstLossCovers[index])),
+            newTracker,
+        ];
+    }
+
+    private async _endRiskAdjustedProfitCalculation(profit: BN): Promise<[BN[], BN[], BN[]]> {
         let lpConfig = await this.poolConfigContract.getLPConfig();
         let assets = await calcProfitForRiskAdjustedPolicy(
             profit,
@@ -885,7 +943,7 @@ export class ProfitAndLossCalculator {
         return [assets, trancheProfits, firstLossCoverProfits];
     }
 
-    async endFixedSeniorYieldProfitCalculation(
+    private async _endFixedSeniorYieldProfitCalculation(
         profit: BN,
         tracker: SeniorYieldTracker,
     ): Promise<[BN[], BN[], BN[], SeniorYieldTracker]> {
