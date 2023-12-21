@@ -104,6 +104,8 @@ async function deployPool(
     creditContractName: CreditContractName,
     creditManagerContractName: CreditManagerContractName,
 ) {
+    console.log("=====================================");
+    console.log(`Deploying pool with ${creditContractName} and ${creditManagerContractName}`);
     console.log(`Starting block timestamp: ${await time.latest()}`);
     [
         defaultDeployer,
@@ -207,26 +209,6 @@ async function deployPool(
         frontLoadingFeeFlat: frontLoadingFeeFlat,
         frontLoadingFeeBps: frontLoadingFeeBps,
     });
-    const numOfPeriods = 5;
-    const yieldInBps = 1217;
-    await creditManagerContract
-        .connect(eaServiceAccount)
-        .approveBorrower(
-            borrowerActive.address,
-            toToken(100_000),
-            numOfPeriods,
-            yieldInBps,
-            toToken(0),
-            0,
-            true,
-        );
-    const borrowAmount = toToken(50_000);
-
-    // Drawing down credit line
-    await creditContract.connect(borrowerActive).drawdown(borrowerActive.address, borrowAmount);
-
-    // Submitting junior redemption request
-    await juniorTrancheVaultContract.connect(juniorLender).addRedemptionRequest(toToken(10_000));
 
     console.log("=====================================");
     console.log("Accounts:");
