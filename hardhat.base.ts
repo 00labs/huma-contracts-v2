@@ -1,4 +1,5 @@
 import "@nomicfoundation/hardhat-toolbox";
+import "hardhat-abi-exporter";
 import "hardhat-contract-sizer";
 
 import { HardhatUserConfig } from "hardhat/types";
@@ -32,6 +33,16 @@ const config: HardhatUserConfig = {
         enabled: true,
         currency: "USD",
         // coinmarketcap: process.env.COINMARKETCAP || null,
+    },
+    abiExporter: {
+        path: "./abi",
+        runOnCompile: true,
+        clear: true,
+        flat: true,
+        only: [],
+        except: ["ITrancheVaultLike"],
+        spacing: 2,
+        pretty: false,
     },
 };
 
