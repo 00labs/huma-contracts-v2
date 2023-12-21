@@ -184,7 +184,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         uint256 juniorPrice
     ) internal view {
         // get available underlying token amount
-        uint256 availableAmount = poolSafe.getPoolLiquidity();
+        uint256 availableAmount = poolSafe.getPoolBalance();
         if (availableAmount <= minAmountToProcessPerEpoch) return;
 
         // Process senior tranche redemption requests.
