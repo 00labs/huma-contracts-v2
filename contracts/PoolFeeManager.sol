@@ -289,8 +289,8 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
             poolAssets
         );
         availableFees = availableTotalFees > availableCap ? availableCap : availableTotalFees;
-        uint256 availableLiquidity = poolSafe.getAvailableBalanceForFees();
-        availableFees = availableFees > availableLiquidity ? availableLiquidity : availableFees;
+        uint256 availableBalance = poolSafe.getAvailableBalanceForFees();
+        availableFees = availableFees > availableBalance ? availableBalance : availableFees;
     }
 
     /**
