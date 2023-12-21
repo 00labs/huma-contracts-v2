@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import {IERC721, IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {Credit} from "./Credit.sol";
 import {ReceivableInput} from "./CreditStructs.sol";
-import {CreditConfig, CreditRecord, CreditLimit, PayPeriodDuration, CreditState} from "./CreditStructs.sol";
+import {CreditRecord, CreditState, DueDetail} from "./CreditStructs.sol";
 import {Errors} from "../Errors.sol";
 import {IReceivableBackedCreditLineManager} from "./interfaces/IReceivableBackedCreditLineManager.sol";
 
@@ -30,6 +30,18 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         uint256 amount,
         address by
     );
+
+    function getNextBillRefreshDate(address borrower) external view returns (uint256 refreshDate) {
+        bytes32 creditHash = getCreditHash(borrower);
+        return _getNextBillRefreshDate(creditHash);
+    }
+
+    function getDueInfo(
+        address borrower
+    ) external view returns (CreditRecord memory cr, DueDetail memory dd) {
+        bytes32 creditHash = getCreditHash(borrower);
+        return _getDueInfo(creditHash);
+    }
 
     /**
      * @notice Allows the borrower to drawdown using a receivable.

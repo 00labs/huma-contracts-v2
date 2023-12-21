@@ -1,3 +1,4 @@
+import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { BigNumber as BN } from "ethers";
@@ -25,13 +26,20 @@ import {
     CreditState,
     PayPeriodDuration,
     calcLateFeeNew,
+    calcPrincipalDueForFullPeriods,
+    calcYield,
+    calcYieldDue,
     checkCreditConfig,
     checkCreditRecord,
+    checkCreditRecordsMatch,
+    checkDueDetailsMatch,
     deployAndSetupPoolContracts,
     deployProtocolContracts,
+    genDueDetail,
     printCreditRecord,
 } from "../BaseTest";
 import {
+    borrowerLevelCreditHash,
     evmRevert,
     evmSnapshot,
     getLatestBlock,
@@ -73,6 +81,22 @@ let poolConfigContract: PoolConfig,
     receivableContract: Receivable;
 
 describe("ReceivableBackedCreditLine Tests", function () {
+    before(async function () {
+        [
+            defaultDeployer,
+            protocolOwner,
+            treasury,
+            eaServiceAccount,
+            pdsServiceAccount,
+            poolOwner,
+            poolOwnerTreasury,
+            evaluationAgent,
+            poolOperator,
+            lender,
+            borrower,
+        ] = await ethers.getSigners();
+    });
+
     async function prepare() {
         [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
             protocolOwner,
@@ -148,20 +172,120 @@ describe("ReceivableBackedCreditLine Tests", function () {
             .connect(lender)
             .deposit(toToken(10_000_000), lender.address);
     }
-    before(async function () {
-        [
-            defaultDeployer,
-            protocolOwner,
-            treasury,
-            eaServiceAccount,
-            pdsServiceAccount,
-            poolOwner,
-            poolOwnerTreasury,
-            evaluationAgent,
-            poolOperator,
-            lender,
-            borrower,
-        ] = await ethers.getSigners();
+
+    describe("getDueInfo", function () {
+        const yieldInBps = 1217,
+            principalRate = 100,
+            lateFeeBps = 2400;
+        const numOfPeriods = 3,
+            latePaymentGracePeriodInDays = 5;
+        let committedAmount: BN, borrowAmount: BN, tokenId: BN;
+        let creditHash: string;
+
+        async function prepareForGetDueInfo() {
+            await poolConfigContract
+                .connect(poolOwner)
+                .setLatePaymentGracePeriodInDays(latePaymentGracePeriodInDays);
+            await poolConfigContract.connect(poolOwner).setAdvanceRateInBps(CONSTANTS.BP_FACTOR);
+            await poolConfigContract.connect(poolOwner).setReceivableAutoApproval(true);
+            await poolConfigContract.connect(poolOwner).setFeeStructure({
+                yieldInBps,
+                minPrincipalRateInBps: principalRate,
+                lateFeeBps,
+            });
+
+            committedAmount = toToken(10_000);
+            borrowAmount = toToken(15_000);
+            creditHash = await borrowerLevelCreditHash(creditContract, borrower);
+
+            await creditManagerContract
+                .connect(eaServiceAccount)
+                .approveBorrower(
+                    borrower.getAddress(),
+                    toToken(100_000),
+                    numOfPeriods,
+                    yieldInBps,
+                    committedAmount,
+                    0,
+                    true,
+                );
+
+            const currentTS = (await getLatestBlock()).timestamp;
+            const maturityDate =
+                currentTS + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
+            // Throw-away receivable to get around the tokenId != 0 check.
+            await receivableContract.connect(poolOwner).createReceivable(1, 0, 0, "");
+            await receivableContract
+                .connect(borrower)
+                .createReceivable(1, borrowAmount, maturityDate, "");
+            tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.getAddress(), 0);
+            await receivableContract.connect(borrower).approve(creditContract.address, tokenId);
+        }
+
+        beforeEach(async function () {
+            await loadFixture(prepare);
+            await loadFixture(prepareForGetDueInfo);
+        });
+
+        it("Should return the latest bill for the borrower", async function () {
+            await creditContract
+                .connect(borrower)
+                .drawdownWithReceivable(
+                    borrower.address,
+                    { receivableAmount: borrowAmount, receivableId: tokenId },
+                    borrowAmount,
+                );
+
+            const oldCR = await creditContract.getCreditRecord(creditHash);
+            const viewTime =
+                oldCR.nextDueDate.toNumber() +
+                latePaymentGracePeriodInDays * CONSTANTS.SECONDS_IN_A_DAY +
+                100;
+            await mineNextBlockWithTimestamp(viewTime);
+
+            const cc = await creditManagerContract.getCreditConfig(creditHash);
+            const nextDueDate = await calendarContract.getStartDateOfNextPeriod(
+                cc.periodDuration,
+                viewTime,
+            );
+            const [accruedYieldDue, committedYieldDue] = calcYieldDue(
+                cc,
+                borrowAmount,
+                CONSTANTS.DAYS_IN_A_MONTH,
+            );
+            expect(accruedYieldDue).to.be.gt(committedYieldDue);
+            const principalDue = calcPrincipalDueForFullPeriods(
+                oldCR.unbilledPrincipal,
+                principalRate,
+                1,
+            );
+            const nextDue = accruedYieldDue.add(principalDue);
+            const tomorrow = await calendarContract.getStartOfTomorrow();
+            const lateFee = calcYield(borrowAmount, lateFeeBps, latePaymentGracePeriodInDays + 1);
+            expect(lateFee).to.be.gt(0);
+
+            const [actualCR, actualDD] = await creditContract.getDueInfo(borrower.getAddress());
+            const expectedCR = {
+                unbilledPrincipal: oldCR.unbilledPrincipal.sub(principalDue),
+                nextDueDate,
+                nextDue,
+                yieldDue: accruedYieldDue,
+                totalPastDue: oldCR.nextDue.add(lateFee),
+                missedPeriods: 1,
+                remainingPeriods: oldCR.remainingPeriods - 1,
+                state: CreditState.Delayed,
+            };
+            checkCreditRecordsMatch(actualCR, expectedCR);
+            const expectedDD = genDueDetail({
+                lateFeeUpdatedDate: tomorrow,
+                lateFee: lateFee,
+                yieldPastDue: oldCR.yieldDue,
+                principalPastDue: oldCR.nextDue.sub(oldCR.yieldDue),
+                accrued: accruedYieldDue,
+                committed: committedYieldDue,
+            });
+            checkDueDetailsMatch(actualDD, expectedDD);
+        });
     });
 
     describe("Arf case tests", function () {
@@ -175,12 +299,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
         let advanceRate: BN;
 
         async function prepareForArfTests() {
-            creditHash = ethers.utils.keccak256(
-                ethers.utils.defaultAbiCoder.encode(
-                    ["address", "address"],
-                    [creditContract.address, borrower.address],
-                ),
-            );
+            creditHash = await borrowerLevelCreditHash(creditContract, borrower);
 
             borrowAmount = toToken(1_000_000);
             paymentAmount = borrowAmount;
@@ -209,8 +328,8 @@ describe("ReceivableBackedCreditLine Tests", function () {
         let sId: unknown;
 
         before(async function () {
-            await prepare();
-            await prepareForArfTests();
+            await loadFixture(prepare);
+            await loadFixture(prepareForArfTests);
             sId = await evmSnapshot();
         });
 

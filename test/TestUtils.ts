@@ -218,3 +218,16 @@ export async function borrowerLevelCreditHash(
         ),
     );
 }
+
+export async function receivableLevelCreditHash(
+    creditContract: Contract,
+    nftContract: Contract,
+    tokenId: BN,
+) {
+    return ethers.utils.keccak256(
+        ethers.utils.defaultAbiCoder.encode(
+            ["address", "address", "uint256"],
+            [creditContract.address, nftContract.address, tokenId],
+        ),
+    );
+}

@@ -48,22 +48,17 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
     ) public view returns (bool isLate) {
         if (cr.missedPeriods > 0) return true;
 
-        return cr.nextDue != 0 && timestamp > getNextBillRefreshDate(cr, timestamp);
+        return cr.nextDue != 0 && timestamp > getNextBillRefreshDate(cr);
     }
 
     function getNextBillRefreshDate(
-        CreditRecord memory cr,
-        uint256 timestamp
+        CreditRecord memory cr
     ) public view returns (uint256 refreshDate) {
         PoolSettings memory poolSettings = poolConfig.getPoolSettings();
         uint256 latePaymentDeadline = cr.nextDueDate +
             poolSettings.latePaymentGracePeriodInDays *
             SECONDS_IN_A_DAY;
-        if (
-            cr.state == CreditState.GoodStanding &&
-            cr.nextDue != 0 &&
-            timestamp <= latePaymentDeadline
-        ) {
+        if (cr.state == CreditState.GoodStanding && cr.nextDue != 0) {
             // If this is the first time ever that the bill has surpassed the due date and the bill has unpaid amounts,
             // then we don't want to refresh the bill since we want the user to focus on paying off the current due.
             return latePaymentDeadline;
@@ -135,7 +130,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         bool isFirstPeriod = cr.state == CreditState.Approved;
         // If the current timestamp has not yet reached the bill refresh date, then all the amount due is up-to-date
         // except possibly the late fee. So we only need to update the late fee if it is already late.
-        if (!isFirstPeriod && timestamp <= getNextBillRefreshDate(cr, timestamp)) {
+        if (!isFirstPeriod && timestamp <= getNextBillRefreshDate(cr)) {
             if (cr.missedPeriods == 0) return (newCR, newDD);
             else {
                 newCR.totalPastDue -= dd.lateFee;
@@ -213,16 +208,16 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         // Only the newly generated next due needs to be recorded.
         newCR.nextDue = uint96(newCR.yieldDue + principalDue);
 
-        uint256 periodsPassed;
-        if (isFirstPeriod) {
-            periodsPassed = 1;
-        } else {
-            periodsPassed = calendar.getNumPeriodsPassed(
+        // +1 to account for the first period:
+        // 1. If this is the first period, 1 represents the first partial period.
+        // 2. Otherwise, since we start counting the number of periods passed with `cr.nextDueDate`
+        //    as the start date, 1 represents the period that ends on `cr.nextDueDate`.
+        uint256 periodsPassed = 1 +
+            calendar.getNumPeriodsPassed(
                 cc.periodDuration,
-                cr.nextDueDate,
+                isFirstPeriod ? timestamp : cr.nextDueDate,
                 timestamp
             );
-        }
         // Adjusts remainingPeriods. Sets remainingPeriods to 0 if the credit line has reached maturity.
         newCR.remainingPeriods = cr.remainingPeriods > periodsPassed
             ? uint16(cr.remainingPeriods - periodsPassed)
@@ -284,21 +279,17 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
 
     /// @inheritdoc ICreditDueManager
     function computeUpdatedYieldDue(
-        CreditConfig memory cc,
-        CreditRecord memory cr,
+        uint256 nextDueDate,
         uint256 oldYield,
         uint256 oldValue,
         uint256 newValue,
         uint256 principal
     ) public view returns (uint256 updatedYield) {
-        (uint256 daysPassed, uint256 totalDays) = calendar.getDaysPassedInPeriod(
-            cc.periodDuration,
-            cr.nextDueDate
-        );
+        uint256 daysRemaining = calendar.getDaysRemainingInPeriod(nextDueDate);
         // Since the new value may be smaller than the old value, we need to work with signed integers.
         int256 valueDiff = int256(newValue) - int256(oldValue);
         // -1 since the new value takes effect the next day.
-        int256 yieldDiff = (int256((totalDays - daysPassed - 1) * principal) * valueDiff);
+        int256 yieldDiff = (int256((daysRemaining - 1) * principal) * valueDiff);
         return
             uint256(int256(oldYield * HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR) + yieldDiff) /
             (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR);
