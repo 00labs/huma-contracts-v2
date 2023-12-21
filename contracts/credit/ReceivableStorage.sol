@@ -14,6 +14,9 @@ contract ReceivableStorage {
     // Map tokenId to receivable information
     mapping(uint256 => ReceivableInfo) public receivableInfoMap;
 
+    // Map tokenId to the address of the creator of the receivable
+    mapping(uint256 => address) public originators;
+
     /**
      * @dev This empty reserved space is put in place to allow future versions to add new
      * variables without shifting down storage in the inheritance chain.
