@@ -936,7 +936,7 @@ describe("TrancheVault Test", function () {
                     await mineNextBlockWithTimestamp(
                         currentEpoch.endTime.add(BN.from(60 * 5)).toNumber(),
                     );
-                    const availableAssets = await poolSafeContract.getPoolLiquidity();
+                    const availableAssets = await poolSafeContract.getAvailableBalanceForPool();
                     await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
                     await epochManagerContract.closeEpoch();
                     currentEpochId = await epochManagerContract.currentEpochId();
@@ -1218,7 +1218,7 @@ describe("TrancheVault Test", function () {
                     await mineNextBlockWithTimestamp(
                         currentEpoch.endTime.add(BN.from(60 * 5)).toNumber(),
                     );
-                    const availableAssets = await poolSafeContract.getPoolLiquidity();
+                    const availableAssets = await poolSafeContract.getAvailableBalanceForPool();
                     await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
                     await epochManagerContract.closeEpoch();
                     currentEpochId = await epochManagerContract.currentEpochId();
@@ -1355,7 +1355,7 @@ describe("TrancheVault Test", function () {
                     let amountProcessed = toToken(7000);
                     let sharesProcessed =
                         await juniorTrancheVaultContract.convertToShares(amountProcessed);
-                    const availableAssets = await poolSafeContract.getPoolLiquidity();
+                    const availableAssets = await poolSafeContract.getAvailableBalanceForPool();
                     await creditContract.drawdown(
                         ethers.constants.HashZero,
                         availableAssets.sub(amountProcessed),
@@ -1455,7 +1455,7 @@ describe("TrancheVault Test", function () {
                     let amountProcessed = toToken(6000);
                     let sharesProcessed =
                         await juniorTrancheVaultContract.convertToShares(amountProcessed);
-                    const availableAssets = await poolSafeContract.getPoolLiquidity();
+                    const availableAssets = await poolSafeContract.getAvailableBalanceForPool();
                     await creditContract.drawdown(
                         ethers.constants.HashZero,
                         availableAssets.sub(amountProcessed),
@@ -1663,7 +1663,7 @@ describe("TrancheVault Test", function () {
                 // Move assets out of pool safe for partial processing
 
                 let availableAmount = toToken(1000);
-                let availableAssets = await poolSafeContract.getPoolLiquidity();
+                let availableAssets = await poolSafeContract.getAvailableBalanceForPool();
                 await creditContract.drawdown(
                     ethers.constants.HashZero,
                     availableAssets.sub(availableAmount),
@@ -1898,7 +1898,7 @@ describe("TrancheVault Test", function () {
                     let amountProcessed = toToken(3000);
                     let sharesProcessed =
                         await juniorTrancheVaultContract.convertToShares(amountProcessed);
-                    const availableAssets = await poolSafeContract.getPoolLiquidity();
+                    const availableAssets = await poolSafeContract.getAvailableBalanceForPool();
                     await creditContract.drawdown(
                         ethers.constants.HashZero,
                         availableAssets.sub(amountProcessed),
@@ -1964,7 +1964,7 @@ describe("TrancheVault Test", function () {
                     let amountProcessed = toToken(5000);
                     let sharesProcessed =
                         await juniorTrancheVaultContract.convertToShares(amountProcessed);
-                    const availableAssets = await poolSafeContract.getPoolLiquidity();
+                    const availableAssets = await poolSafeContract.getAvailableBalanceForPool();
                     await creditContract.drawdown(
                         ethers.constants.HashZero,
                         availableAssets.sub(amountProcessed),
@@ -2049,7 +2049,7 @@ describe("TrancheVault Test", function () {
                 // Move assets out of pool safe for partial processing
 
                 let availableAmount = toToken(1000);
-                let availableAssets = await poolSafeContract.getPoolLiquidity();
+                let availableAssets = await poolSafeContract.getAvailableBalanceForPool();
                 await creditContract.drawdown(
                     ethers.constants.HashZero,
                     availableAssets.sub(availableAmount),
