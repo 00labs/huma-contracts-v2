@@ -125,7 +125,6 @@ contract Errors {
 
     error invalidCalendarUnit(); // 0x353226f1
     error zeroPayPeriods(); // 0xd991f55d
-    error invalidPayPeriod(); // 0x068dc5cb
     error startDateLaterThanEndDate(); // 0x73838ce7
 
     error todo(); // 0xb47f18a1

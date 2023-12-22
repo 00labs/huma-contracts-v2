@@ -53,6 +53,7 @@ import {
     getLatestBlock,
     getMinFirstLossCoverRequirement,
     getStartOfDay,
+    getStartOfNextMonth,
     isCloseTo,
     maxBigNumber,
     minBigNumber,
@@ -263,7 +264,7 @@ describe("CreditLine Test", function () {
                 1,
             );
             const nextDue = accruedYieldDue.add(principalDue);
-            const tomorrow = await calendarContract.getStartOfTomorrow();
+            const tomorrow = await calendarContract.getStartOfNextDay(viewTime);
             const lateFee = calcYield(borrowAmount, lateFeeBps, latePaymentGracePeriodInDays + 1);
             expect(lateFee).to.be.gt(0);
 
@@ -2333,7 +2334,7 @@ describe("CreditLine Test", function () {
                     .to.emit(creditContract, "BillRefreshed")
                     .withArgs(creditHash, nextDueDate, yieldDue);
 
-                const tomorrow = await calendarContract.getStartOfTomorrow();
+                const tomorrow = await calendarContract.getStartOfNextDay(nextTime);
                 const actualCR = await creditContract.getCreditRecord(creditHash);
                 checkCreditRecord(
                     actualCR,
@@ -2451,7 +2452,7 @@ describe("CreditLine Test", function () {
             it("Should update immediately in the beginning of the next period if all dues are paid off in the current period", async function () {
                 borrowAmount = toToken(20_000);
                 // Drawdown and make payment for all dues in the first period.
-                const drawdownDate = (await calendarContract.getStartOfNextMonth()).toNumber();
+                const drawdownDate = await getStartOfNextMonth();
                 await setNextBlockTimestamp(drawdownDate);
                 await creditContract
                     .connect(borrower)
@@ -2762,7 +2763,8 @@ describe("CreditLine Test", function () {
                 checkDueDetailsMatch(
                     actualDD,
                     genDueDetail({
-                        lateFeeUpdatedDate: await calendarContract.getStartOfTomorrow(),
+                        lateFeeUpdatedDate:
+                            await calendarContract.getStartOfNextDay(secondRefreshDate),
                         principalPastDue: borrowAmount,
                         yieldPastDue: oldDD.yieldPastDue.add(oldCR.yieldDue),
                     }),
@@ -2821,7 +2823,7 @@ describe("CreditLine Test", function () {
                     .to.emit(creditContract, "BillRefreshed")
                     .withArgs(creditHash, nextDueDate, nextDue);
 
-                const tomorrow = await calendarContract.getStartOfTomorrow();
+                const tomorrow = await calendarContract.getStartOfNextDay(nextTime);
                 const lateFee = calcYield(
                     committedAmount,
                     lateFeeBps,
@@ -2858,7 +2860,7 @@ describe("CreditLine Test", function () {
             it("Should update immediately in the beginning of the next period if all dues are paid off in the current period", async function () {
                 borrowAmount = toToken(20_000);
                 // Drawdown and make payment for all dues in the first period.
-                const drawdownDate = (await calendarContract.getStartOfNextMonth()).toNumber();
+                const drawdownDate = await getStartOfNextMonth();
                 await setNextBlockTimestamp(drawdownDate);
                 await creditContract
                     .connect(borrower)
@@ -2928,7 +2930,7 @@ describe("CreditLine Test", function () {
             it("Should update correctly when all dues are paid off, but then delayed", async function () {
                 borrowAmount = toToken(20_000);
                 // Drawdown and make payment for all dues in the first period.
-                const drawdownDate = (await calendarContract.getStartOfNextMonth()).toNumber();
+                const drawdownDate = await getStartOfNextMonth();
                 await setNextBlockTimestamp(drawdownDate);
                 await creditContract
                     .connect(borrower)
@@ -2985,7 +2987,7 @@ describe("CreditLine Test", function () {
                     .to.emit(creditContract, "BillRefreshed")
                     .withArgs(creditHash, nextDueDate, nextDue);
 
-                const tomorrow = await calendarContract.getStartOfTomorrow();
+                const tomorrow = await calendarContract.getStartOfNextDay(refreshDate);
                 const previousBillDueDate = await calendarContract.getStartDateOfNextPeriod(
                     cc.periodDuration,
                     oldCR.nextDueDate,
@@ -3027,7 +3029,7 @@ describe("CreditLine Test", function () {
             it("Should update correctly if the bill is compconstely paid off, but then delayed due to having outstanding commitment", async function () {
                 borrowAmount = toToken(20_000);
                 // Drawdown and make payment for all dues in the first period.
-                const drawdownDate = (await calendarContract.getStartOfNextMonth()).toNumber();
+                const drawdownDate = await getStartOfNextMonth();
                 await setNextBlockTimestamp(drawdownDate);
                 await creditContract
                     .connect(borrower)
@@ -3080,7 +3082,7 @@ describe("CreditLine Test", function () {
                     .to.emit(creditContract, "BillRefreshed")
                     .withArgs(creditHash, nextDueDate, committedNextDue);
 
-                const tomorrow = await calendarContract.getStartOfTomorrow();
+                const tomorrow = await calendarContract.getStartOfNextDay(refreshDate);
                 const lateFee = calcYield(
                     cc.committedAmount,
                     lateFeeBps,
@@ -3164,7 +3166,7 @@ describe("CreditLine Test", function () {
                     .to.emit(creditContract, "BillRefreshed")
                     .withArgs(creditHash, maturityDate, nextDue);
 
-                const tomorrow = await calendarContract.getStartOfTomorrow();
+                const tomorrow = await calendarContract.getStartOfNextDay(nextTime);
                 const lateFee = calcYield(
                     borrowAmount,
                     lateFeeBps,
@@ -3242,7 +3244,8 @@ describe("CreditLine Test", function () {
                     .to.emit(creditContract, "BillRefreshed")
                     .withArgs(creditHash, expectedNextDueDate, nextDue);
 
-                const expectedLateFeeUpdatedDate = await calendarContract.getStartOfTomorrow();
+                const expectedLateFeeUpdatedDate =
+                    await calendarContract.getStartOfNextDay(secondRefreshDate);
                 const additionalLateFee = calcYield(
                     borrowAmount,
                     lateFeeBps,
@@ -3450,7 +3453,8 @@ describe("CreditLine Test", function () {
                     .withArgs(creditHash, expectedNextDueDate, 0);
 
                 const actualCR = await creditContract.getCreditRecord(creditHash);
-                const expectedLateFeeRefreshDate = await calendarContract.getStartOfTomorrow();
+                const expectedLateFeeRefreshDate =
+                    await calendarContract.getStartOfNextDay(secondRefreshDate);
                 const daysPassed = await calendarContract.getDaysDiff(
                     oldDD.lateFeeUpdatedDate,
                     expectedLateFeeRefreshDate,
@@ -8990,7 +8994,7 @@ describe("CreditLine Test", function () {
             await loadFixture(approveCredit);
         });
         async function drawdown() {
-            drawdownDate = (await calendarContract.getStartOfNextMonth()).toNumber();
+            drawdownDate = await getStartOfNextMonth();
             await setNextBlockTimestamp(drawdownDate);
             await creditContract.connect(borrower).drawdown(borrower.getAddress(), borrowAmount);
         }
@@ -9310,7 +9314,7 @@ describe("CreditLine Test", function () {
         });
 
         it("Should not allow the EA to update the yield if the credit is newly approved", async function () {
-            const updateDate = (await calendarContract.getStartOfNextMonth()).toNumber();
+            const updateDate = await getStartOfNextMonth();
             await setNextBlockTimestamp(updateDate);
 
             await expect(
@@ -9349,7 +9353,7 @@ describe("CreditLine Test", function () {
 
         async function drawdown() {
             borrowAmount = toToken(50_000);
-            drawdownDate = (await calendarContract.getStartOfNextMonth()).toNumber();
+            drawdownDate = await getStartOfNextMonth();
             await setNextBlockTimestamp(drawdownDate);
             await creditContract.connect(borrower).drawdown(borrower.getAddress(), borrowAmount);
         }
@@ -9704,7 +9708,7 @@ describe("CreditLine Test", function () {
         });
 
         it("Should not allow the EA to update the credit limit and commitment if the credit is newly approved", async function () {
-            const updateDate = (await calendarContract.getStartOfNextMonth()).toNumber();
+            const updateDate = await getStartOfNextMonth();
             await setNextBlockTimestamp(updateDate);
 
             await expect(
@@ -9756,7 +9760,7 @@ describe("CreditLine Test", function () {
         }
 
         async function drawDownAndRefresh() {
-            drawdownDate = (await calendarContract.getStartOfNextMonth()).toNumber();
+            drawdownDate = await getStartOfNextMonth();
             await setNextBlockTimestamp(drawdownDate);
             await creditContract.connect(borrower).drawdown(borrower.getAddress(), borrowAmount);
 
@@ -9780,7 +9784,7 @@ describe("CreditLine Test", function () {
             });
 
             it("Should not allow the EA to waive late", async function () {
-                const updateDate = (await calendarContract.getStartOfNextMonth()).toNumber();
+                const updateDate = await getStartOfNextMonth();
                 await setNextBlockTimestamp(updateDate);
 
                 await expect(
