@@ -196,7 +196,7 @@ describe("PoolFeeManager Tests", function () {
                     coverCap: 0,
                     liquidityCap: 0,
                     maxPercentOfPoolValueInBps: 0,
-                    riskYieldMultiplier: 20000,
+                    riskYieldMultiplierInBps: 20000,
                 },
             );
             await poolFeeManagerContract
