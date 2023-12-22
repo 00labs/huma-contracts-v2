@@ -9,59 +9,9 @@ import {PayPeriodDuration} from "../CreditStructs.sol";
 
 interface ICalendar {
     /**
-     * @notice Returns the beginning of the next month
-     */
-    function getStartOfNextMonth() external view returns (uint256 startOfNextMonth);
-
-    /**
-     * @notice Returns the beginning of the next quarter.
-     */
-    function getStartOfNextQuarter() external view returns (uint256 startOfNextQuarter);
-
-    /**
-     * @notice Returns the beginning of the next half of the year.
-     */
-    function getStartOfNextHalfYear() external view returns (uint256 startOfHalfYear);
-
-    /**
-     * @notice Returns the beginning of tomorrow as a timestamp.
-     */
-    function getStartOfTomorrow() external view returns (uint256 startOfTomorrow);
-
-    /**
      * @notice Returns the beginning of the next day relative to the given timestamp.
      */
     function getStartOfNextDay(uint256 timestamp) external pure returns (uint256 startOfNextDay);
-
-    /**
-     * @notice Returns the beginning of this month
-     */
-    function getStartOfThisMonth() external view returns (uint256 startOfMonth);
-
-    /**
-     * @notice Returns the beginning of this quarter
-     */
-    function getStartOfThisQuarter() external view returns (uint256 startOfQuarter);
-
-    /**
-     * @notice Returns the beginning of this half of the year. i.e. 1/1 or 7/1.
-     */
-    function getStartOfThisHalfYear() external view returns (uint256 startOfHalfYear);
-
-    /**
-     * @notice Returns the beginning of today
-     */
-    function getStartOfToday() external view returns (uint256 startOfToday);
-
-    /**
-     * @notice Returns the number of days passed and the total numbers of days of the period.
-     * @dev Since we are aligning at the start of a day, the maximum number of `daysPassed` possible
-     * is `totalDaysInPeriod - 1`, e.g. for a monthly period, the maximum possible `daysPassed` is 29.
-     */
-    function getDaysPassedInPeriod(
-        PayPeriodDuration periodDuration,
-        uint256 nextDueDate
-    ) external view returns (uint256 daysPassed, uint256 totalDaysInPeriod);
 
     /**
      * @notice Returns the number of days remaining in the period that ends on `endDate`.

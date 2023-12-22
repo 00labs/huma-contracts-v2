@@ -198,12 +198,29 @@ describe("Receivable Test", function () {
             expect(tokenDetails.paidAmount).to.equal(100);
         });
 
+        it("Should allow the creator to declare payment", async function () {
+            const tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
+            await receivableContract
+                .connect(borrower)
+                ["safeTransferFrom(address,address,uint256)"](
+                    borrower.address,
+                    lender.address,
+                    tokenId,
+                );
+            await expect(
+                receivableContract.connect(borrower).declarePayment(tokenId, 100),
+            ).to.emit(receivableContract, "PaymentDeclared");
+
+            const tokenDetails = await receivableContract.receivableInfoMap(tokenId);
+            expect(tokenDetails.paidAmount).to.equal(100);
+        });
+
         it("Should revert declare payment when not called by token owner", async function () {
             const tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
 
             await expect(
                 receivableContract.connect(poolOwner).declarePayment(tokenId, 1000),
-            ).to.be.revertedWithCustomError(receivableContract, "notNFTOwner");
+            ).to.be.revertedWithCustomError(receivableContract, "todo");
         });
     });
 

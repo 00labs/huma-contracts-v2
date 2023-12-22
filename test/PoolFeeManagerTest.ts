@@ -606,7 +606,7 @@ describe("PoolFeeManager Tests", function () {
             await poolFeeManagerContract.distributePoolFees(profit);
             const oldAccruedIncomes = await poolFeeManagerContract.getAccruedIncomes();
             const oldFirstLossCoverAssets = await affiliateFirstLossCoverContract.totalAssets();
-            const olsPoolSafeAssets = await poolSafeContract.totalLiquidity();
+            const olsPoolSafeAssets = await poolSafeContract.totalBalance();
 
             await poolFeeManagerContract.connect(pdsServiceAccount).investFeesInFirstLossCover();
             const newAccruedIncomes = await poolFeeManagerContract.getAccruedIncomes();
@@ -622,7 +622,7 @@ describe("PoolFeeManager Tests", function () {
                 oldFirstLossCoverAssets,
             );
             expect(await mockTokenContract.balanceOf(poolFeeManagerContract.address)).to.equal(0);
-            expect(await poolSafeContract.totalLiquidity()).to.equal(olsPoolSafeAssets);
+            expect(await poolSafeContract.totalBalance()).to.equal(olsPoolSafeAssets);
         });
 
         it(
@@ -644,7 +644,7 @@ describe("PoolFeeManager Tests", function () {
                 mockTokenContract.mint(poolSafeContract.address, totalAvailableFees);
                 const oldFirstLossCoverAssets =
                     await affiliateFirstLossCoverContract.totalAssets();
-                const olsPoolSafeAssets = await poolSafeContract.totalLiquidity();
+                const olsPoolSafeAssets = await poolSafeContract.totalBalance();
 
                 await poolFeeManagerContract
                     .connect(pdsServiceAccount)
@@ -663,7 +663,7 @@ describe("PoolFeeManager Tests", function () {
                 expect(await mockTokenContract.balanceOf(poolFeeManagerContract.address)).to.equal(
                     0,
                 );
-                expect(await poolSafeContract.totalLiquidity()).to.equal(
+                expect(await poolSafeContract.totalBalance()).to.equal(
                     olsPoolSafeAssets.sub(totalAvailableFees),
                 );
             },
@@ -692,7 +692,7 @@ describe("PoolFeeManager Tests", function () {
                 const oldAccruedIncomes = await poolFeeManagerContract.getAccruedIncomes();
                 const oldFirstLossCoverAssets =
                     await affiliateFirstLossCoverContract.totalAssets();
-                const olsPoolSafeAssets = await poolSafeContract.totalLiquidity();
+                const olsPoolSafeAssets = await poolSafeContract.totalBalance();
 
                 // Make sure we are indeed testing the partial investment scenario.
                 const expectedPoolOwnerFeesInvested = oldAccruedIncomes.poolOwnerIncome
@@ -736,7 +736,7 @@ describe("PoolFeeManager Tests", function () {
                 expect(await mockTokenContract.balanceOf(poolFeeManagerContract.address)).to.equal(
                     0,
                 );
-                expect(await poolSafeContract.totalLiquidity()).to.equal(
+                expect(await poolSafeContract.totalBalance()).to.equal(
                     olsPoolSafeAssets.sub(totalFeesInvested),
                 );
             },
@@ -761,7 +761,7 @@ describe("PoolFeeManager Tests", function () {
             mockTokenContract.mint(poolSafeContract.address, totalAvailableFees);
             const oldAccruedIncomes = await poolFeeManagerContract.getAccruedIncomes();
             const oldFirstLossCoverAssets = await affiliateFirstLossCoverContract.totalAssets();
-            const olsPoolSafeAssets = await poolSafeContract.totalLiquidity();
+            const olsPoolSafeAssets = await poolSafeContract.totalBalance();
 
             // Make sure we are indeed testing the partial investment scenario.
             const expectedPoolOwnerFeesInvested = oldAccruedIncomes.poolOwnerIncome
@@ -801,7 +801,7 @@ describe("PoolFeeManager Tests", function () {
                 oldFirstLossCoverAssets.add(totalFeesInvested),
             );
             expect(await mockTokenContract.balanceOf(poolFeeManagerContract.address)).to.equal(0);
-            expect(await poolSafeContract.totalLiquidity()).to.equal(
+            expect(await poolSafeContract.totalBalance()).to.equal(
                 olsPoolSafeAssets.sub(totalFeesInvested),
             );
         });
@@ -920,7 +920,7 @@ describe("PoolFeeManager Tests", function () {
                     .setPoolOwnerRewardsAndLiquidity(CONSTANTS.BP_FACTOR, 0);
 
                 await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.address);
-                const poolLiquidity = await poolSafeContract.getAvailableLiquidityForFees();
+                const poolLiquidity = await poolSafeContract.getAvailableBalanceForFees();
                 await poolFeeManagerContract.distributePoolFees(poolLiquidity.add(1));
                 const availableIncomes = await poolFeeManagerContract.getTotalAvailableFees();
                 // Make sure the first loss cover cap is large enough.
