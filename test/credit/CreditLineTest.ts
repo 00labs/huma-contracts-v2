@@ -1167,7 +1167,7 @@ describe("CreditLine Test", function () {
                 );
             });
 
-            it("Should not allow drawdown when the credit state is Delayed", async function () {
+            it("Should not allow drawdown if drawdown happens after the due date and there is unpaid next due", async function () {
                 await creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000));
                 const creditHash = await borrowerLevelCreditHash(creditContract, borrower);
                 let cr = await creditContract.getCreditRecord(creditHash);
@@ -1186,7 +1186,31 @@ describe("CreditLine Test", function () {
                 );
             });
 
-            it("Should not allow drawdown when the credit state is Defaulted", async function () {
+            it("Should not allow drawdown if the bill is delayed after refresh", async function () {
+                // First drawdown, then pay for all due in the same cycle.
+                await creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000));
+                const creditHash = await borrowerLevelCreditHash(creditContract, borrower);
+                const oldCR = await creditContract.getCreditRecord(creditHash);
+                await creditContract
+                    .connect(borrower)
+                    .makePayment(borrower.getAddress(), oldCR.nextDue);
+
+                // Second drawdown happens a couple of months after the due date of the current bill, at which point
+                // the bill would be delayed.
+                const secondDrawdownDate =
+                    oldCR.nextDueDate.toNumber() +
+                    2 * CONSTANTS.DAYS_IN_A_MONTH * CONSTANTS.SECONDS_IN_A_DAY;
+                await setNextBlockTimestamp(secondDrawdownDate);
+
+                await expect(
+                    creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
+                ).to.be.revertedWithCustomError(
+                    creditContract,
+                    "creditLineNotInGoodStandingState",
+                );
+            });
+
+            it("Should not allow drawdown if the credit is Defaulted", async function () {
                 const defaultGracePeriodInMonths = 1;
                 await poolConfigContract
                     .connect(poolOwner)
@@ -7710,6 +7734,15 @@ describe("CreditLine Test", function () {
                 const poolSafeBalanceBefore = await mockTokenContract.balanceOf(
                     poolSafeContract.address,
                 );
+                console.log(
+                    `amountToCollect: ${paymentAmountCollected}`,
+                    `principalDue ${BN.from(expectedNewCR.nextDue).sub(
+                        BN.from(expectedNewCR.yieldDue),
+                    )}`,
+                    `unbilled principal due ${expectedNewCR.unbilledPrincipal}`,
+                    `principalDuePaid: ${principalDuePaid}`,
+                    `unbilledPrincipalPaid ${unbilledPrincipalPaid}`,
+                );
                 if (paymentAmountCollected.gt(0)) {
                     await expect(
                         creditContract
@@ -7777,6 +7810,47 @@ describe("CreditLine Test", function () {
 
                     makePaymentDate = drawdownDate
                         .clone()
+                        .add(2, "days")
+                        .add(22, "hours")
+                        .add(14, "seconds");
+                    const nextDueDate = firstDueDate;
+                    const expectedNewCR = {
+                        unbilledPrincipal: 0,
+                        nextDueDate: nextDueDate.unix(),
+                        nextDue: cr.nextDue,
+                        yieldDue: cr.yieldDue,
+                        totalPastDue: BN.from(0),
+                        missedPeriods: 0,
+                        remainingPeriods: cr.remainingPeriods,
+                        state: CreditState.GoodStanding,
+                    };
+                    const expectedNewDD = {
+                        lateFeeUpdatedDate: BN.from(0),
+                        lateFee: BN.from(0),
+                        principalPastDue: BN.from(0),
+                        yieldPastDue: BN.from(0),
+                        committed: dd.committed,
+                        accrued: dd.accrued,
+                        paid: BN.from(0),
+                    };
+                    await testMakePrincipalPayment(
+                        makePaymentDate,
+                        borrowAmount,
+                        borrowAmount,
+                        nextDueDate,
+                        BN.from(0),
+                        borrowAmount,
+                        expectedNewCR,
+                        expectedNewDD,
+                    );
+                });
+
+                it("Should allow the borrower to pay for the unbilled principal once in the late payment grace period", async function () {
+                    const cr = await creditContract.getCreditRecord(creditHash);
+                    const dd = await creditContract.getDueDetail(creditHash);
+
+                    makePaymentDate = moment
+                        .utc(cr.nextDueDate.toNumber() * 1000)
                         .add(2, "days")
                         .add(22, "hours")
                         .add(14, "seconds");
@@ -8059,7 +8133,7 @@ describe("CreditLine Test", function () {
                     ).to.be.revertedWithCustomError(creditContract, "zeroAmountProvided");
                 });
 
-                it("Should not allow the borrower to pay for the principal if the bill is delayed", async function () {
+                it("Should not allow the borrower to make principal payment if the bill is delayed", async function () {
                     makePaymentDate = drawdownDate.add(2, "months");
                     await setNextBlockTimestamp(makePaymentDate.unix());
                     await expect(
@@ -8072,7 +8146,7 @@ describe("CreditLine Test", function () {
                     );
                 });
 
-                it("Should not allow the borrower to pay for the principal if the bill is defaulted", async function () {
+                it("Should not allow the borrower to make principal payment if the bill is defaulted", async function () {
                     const defaultGracePeriodInMonths = 1;
                     await poolConfigContract
                         .connect(poolOwner)
@@ -8189,7 +8263,7 @@ describe("CreditLine Test", function () {
                         ).toNumber() * 1000,
                     );
 
-                    // First payment pays off principal next due in the current billing cycle.
+                    // First payment pays for part of the principal next due in the current billing cycle.
                     makePaymentDate = drawdownDate
                         .clone()
                         .add(2, "days")
@@ -8206,11 +8280,13 @@ describe("CreditLine Test", function () {
                         latePaymentGracePeriodInDays,
                         principalRateInBps,
                     );
-                    const firstPaymentAmount = principalNextDue;
+                    // Leave 1 wei unpaid to test partial payment.
+                    const firstPaymentDiff = toToken(1);
+                    const firstPaymentAmount = principalNextDue.sub(firstPaymentDiff);
                     let expectedNewCR = {
                         unbilledPrincipal: cr.unbilledPrincipal,
                         nextDueDate: nextDueDate.unix(),
-                        nextDue: cr.nextDue.sub(principalNextDue),
+                        nextDue: cr.nextDue.sub(firstPaymentAmount),
                         yieldDue: cr.yieldDue,
                         totalPastDue: BN.from(0),
                         missedPeriods: 0,
@@ -8222,7 +8298,7 @@ describe("CreditLine Test", function () {
                         firstPaymentAmount,
                         firstPaymentAmount,
                         firstDueDate,
-                        principalNextDue,
+                        firstPaymentAmount,
                         BN.from(0),
                         expectedNewCR,
                         dd,
@@ -8235,7 +8311,7 @@ describe("CreditLine Test", function () {
                     expectedNewCR = {
                         unbilledPrincipal: BN.from(0),
                         nextDueDate: nextDueDate.unix(),
-                        nextDue: cr.nextDue.sub(principalNextDue),
+                        nextDue: cr.yieldDue,
                         yieldDue: cr.yieldDue,
                         totalPastDue: BN.from(0),
                         missedPeriods: 0,
@@ -8245,9 +8321,9 @@ describe("CreditLine Test", function () {
                     await testMakePrincipalPayment(
                         secondPaymentDate,
                         secondPaymentAmount,
-                        unbilledPrincipal,
+                        unbilledPrincipal.add(firstPaymentDiff),
                         nextDueDate,
-                        BN.from(0),
+                        firstPaymentDiff,
                         unbilledPrincipal,
                         expectedNewCR,
                         dd,
@@ -8360,6 +8436,23 @@ describe("CreditLine Test", function () {
                     );
                 });
             });
+        });
+    });
+
+    describe("updateDueInfo", function () {
+        let creditHash: string;
+
+        beforeEach(async function () {
+            creditHash = await borrowerLevelCreditHash(creditContract, borrower);
+        });
+
+        it("Should not allow non-credit manager to update due info", async function () {
+            const cr = await creditContract.getCreditRecord(creditHash);
+            const dd = await creditContract.getDueDetail(creditHash);
+
+            await expect(
+                creditContract.connect(borrower).updateDueInfo(creditHash, cr, dd),
+            ).to.be.revertedWithCustomError(creditContract, "notAuthorizedCaller");
         });
     });
 
