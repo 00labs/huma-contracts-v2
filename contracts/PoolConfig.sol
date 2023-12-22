@@ -22,8 +22,8 @@ struct PoolSettings {
     uint16 creditApprovalExpirationInDays;
     // The grace period before a late fee can be charged, in the unit of number of days
     uint8 latePaymentGracePeriodInDays;
-    // The grace period before a default can be triggered, in months. This can be 0.
-    uint16 defaultGracePeriodInMonths;
+    // The grace period before a default can be triggered, in days. This can be 0.
+    uint16 defaultGracePeriodInDays;
     // Percentage (in basis points) of the receivable amount applied towards available credit
     uint16 receivableRequiredInBps;
     // Specifies the max credit line as a percentage (in basis points) of the receivable amount.
@@ -163,7 +163,7 @@ contract PoolConfig is AccessControl, Initializable {
 
     event MaxCreditLineChanged(uint256 maxCreditLine, address by);
     event PoolChanged(address pool, address by);
-    event PoolDefaultGracePeriodChanged(uint256 gracePeriodInMonths, address by);
+    event PoolDefaultGracePeriodChanged(uint256 gracePeriodInDays, address by);
     event PoolLiquidityCapChanged(uint256 liquidityCap, address by);
     event PoolPayPeriodChanged(PayPeriodDuration payPeriodDuration, address by);
     event PoolNameChanged(string name, address by);
@@ -313,7 +313,7 @@ contract PoolConfig is AccessControl, Initializable {
         tempPoolSettings.receivableRequiredInBps = 10000; // 100%
         tempPoolSettings.advanceRateInBps = 8000; // 80%
         tempPoolSettings.latePaymentGracePeriodInDays = 5;
-        tempPoolSettings.defaultGracePeriodInMonths = 3; // 3 months
+        tempPoolSettings.defaultGracePeriodInDays = 10; // 10 days
         _poolSettings = tempPoolSettings;
 
         AdminRnR memory adminRnRConfig = _adminRnR;
@@ -476,7 +476,7 @@ contract PoolConfig is AccessControl, Initializable {
      */
     function setPoolDefaultGracePeriod(uint256 gracePeriod) external {
         _onlyOwnerOrHumaMasterAdmin();
-        _poolSettings.defaultGracePeriodInMonths = uint16(gracePeriod);
+        _poolSettings.defaultGracePeriodInDays = uint16(gracePeriod);
         emit PoolDefaultGracePeriodChanged(gracePeriod, msg.sender);
     }
 

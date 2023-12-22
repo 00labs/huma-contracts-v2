@@ -180,7 +180,7 @@ describe("PoolConfig Tests", function () {
             expect(poolSettings.receivableRequiredInBps).to.equal(10000);
             expect(poolSettings.advanceRateInBps).to.equal(8000);
             expect(poolSettings.latePaymentGracePeriodInDays).to.equal(5);
-            expect(poolSettings.defaultGracePeriodInMonths).to.equal(3);
+            expect(poolSettings.defaultGracePeriodInDays).to.equal(10);
 
             const adminRnR = await poolConfigContract.getAdminRnR();
             expect(adminRnR.rewardRateInBpsForEA).to.equal(300);
@@ -1163,7 +1163,7 @@ describe("PoolConfig Tests", function () {
                     .to.emit(poolConfigContract, "PoolDefaultGracePeriodChanged")
                     .withArgs(defaultGracePeriodDays, poolOwner.address);
                 const poolSettings = await poolConfigContract.getPoolSettings();
-                expect(poolSettings.defaultGracePeriodInMonths).to.equal(defaultGracePeriodDays);
+                expect(poolSettings.defaultGracePeriodInDays).to.equal(defaultGracePeriodDays);
             });
 
             it("Should allow the Huma master admin to set the default grace period", async function () {

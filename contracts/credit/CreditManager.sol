@@ -549,12 +549,15 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         PayPeriodDuration periodDuration,
         uint256 missedPeriods
     ) internal view returns (bool isDefault) {
+        if (missedPeriods < 1) return false;
         PoolSettings memory settings = poolConfig.getPoolSettings();
+        uint256 periodStartDate = calendar.getStartDateOfPeriod(periodDuration, block.timestamp);
+        uint256 daysSincePeriodStart = calendar.getDaysDiff(periodStartDate, block.timestamp);
         uint256 totalDaysInFullPeriod = calendar.getTotalDaysInFullPeriod(periodDuration);
+        // Note: the = in the >= is essential
         return
-            missedPeriods > 1 &&
-            (missedPeriods - 1) * totalDaysInFullPeriod >=
-            settings.defaultGracePeriodInMonths * DAYS_IN_A_MONTH;
+            (missedPeriods - 1) * totalDaysInFullPeriod + daysSincePeriodStart >=
+            settings.defaultGracePeriodInDays;
     }
 
     /// "Modifier" function that limits access to eaServiceAccount only
