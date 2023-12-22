@@ -468,7 +468,7 @@ describe("Calendar Test", function () {
 
     describe("getStartDateOfNextPeriod", function () {
         describe("With monthly period duration", function () {
-            it("Should return the start date of the immediate next period relative to the current block timestamp is timestamp is 0", async function () {
+            it("Should return the start date of the immediate next period relative to the current block timestamp if timestamp is 0", async function () {
                 const nextYear = moment.utc().year() + 1;
                 const nextBlockTime = moment.utc({
                     year: nextYear,
@@ -517,7 +517,7 @@ describe("Calendar Test", function () {
         });
 
         describe("With quarterly period duration", function () {
-            it("Should return the start date of the immediate next period relative to the current block timestamp is timestamp is 0", async function () {
+            it("Should return the start date of the immediate next period relative to the current block timestamp if timestamp is 0", async function () {
                 const nextYear = moment.utc().year() + 1;
                 const nextBlockTime = moment.utc({
                     year: nextYear,
@@ -529,6 +529,28 @@ describe("Calendar Test", function () {
                 const startDateOfNextPeriod = moment.utc({
                     year: nextYear,
                     month: 6,
+                    day: 1,
+                });
+                expect(
+                    await calendarContract.getStartDateOfNextPeriod(
+                        PayPeriodDuration.Quarterly,
+                        0,
+                    ),
+                ).to.equal(startDateOfNextPeriod.unix());
+            });
+
+            it("Should return the start date of the immediate next period relative to the current block timestamp if timestamp is 0 and the next period is in the next year", async function () {
+                const nextYear = moment.utc().year() + 1;
+                const nextBlockTime = moment.utc({
+                    year: nextYear,
+                    month: 10,
+                    day: 2,
+                });
+                await mineNextBlockWithTimestamp(nextBlockTime.unix());
+
+                const startDateOfNextPeriod = moment.utc({
+                    year: nextYear + 1,
+                    month: 0,
                     day: 1,
                 });
                 expect(
@@ -569,7 +591,7 @@ describe("Calendar Test", function () {
         });
 
         describe("With semi-annually period duration", function () {
-            it("Should return the start date of the immediate next period relative to the current block timestamp is timestamp is 0", async function () {
+            it("Should return the start date of the immediate next period relative to the current block timestamp if timestamp is 0", async function () {
                 const nextYear = moment.utc().year() + 1;
                 const nextBlockTime = moment.utc({
                     year: nextYear,

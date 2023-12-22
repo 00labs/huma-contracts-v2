@@ -70,8 +70,13 @@ export function getStartOfDay(timestamp: number): number {
     return timestampToMoment(timestamp, "YYYY-MM-DD").unix();
 }
 
-export function getStartOfNextMonth(): number {
-    return moment.utc().add(1, "month").startOf("month").unix();
+export async function getStartOfNextMonth() {
+    const block = await getLatestBlock();
+    return moment
+        .utc(block.timestamp * 1000)
+        .add(1, "month")
+        .startOf("month")
+        .unix();
 }
 
 export async function getLatestBlock() {

@@ -2452,7 +2452,7 @@ describe("CreditLine Test", function () {
             it("Should update immediately in the beginning of the next period if all dues are paid off in the current period", async function () {
                 borrowAmount = toToken(20_000);
                 // Drawdown and make payment for all dues in the first period.
-                const drawdownDate = getStartOfNextMonth();
+                const drawdownDate = await getStartOfNextMonth();
                 await setNextBlockTimestamp(drawdownDate);
                 await creditContract
                     .connect(borrower)
@@ -2860,7 +2860,7 @@ describe("CreditLine Test", function () {
             it("Should update immediately in the beginning of the next period if all dues are paid off in the current period", async function () {
                 borrowAmount = toToken(20_000);
                 // Drawdown and make payment for all dues in the first period.
-                const drawdownDate = getStartOfNextMonth();
+                const drawdownDate = await getStartOfNextMonth();
                 await setNextBlockTimestamp(drawdownDate);
                 await creditContract
                     .connect(borrower)
@@ -2930,7 +2930,7 @@ describe("CreditLine Test", function () {
             it("Should update correctly when all dues are paid off, but then delayed", async function () {
                 borrowAmount = toToken(20_000);
                 // Drawdown and make payment for all dues in the first period.
-                const drawdownDate = getStartOfNextMonth();
+                const drawdownDate = await getStartOfNextMonth();
                 await setNextBlockTimestamp(drawdownDate);
                 await creditContract
                     .connect(borrower)
@@ -3029,7 +3029,7 @@ describe("CreditLine Test", function () {
             it("Should update correctly if the bill is compconstely paid off, but then delayed due to having outstanding commitment", async function () {
                 borrowAmount = toToken(20_000);
                 // Drawdown and make payment for all dues in the first period.
-                const drawdownDate = getStartOfNextMonth();
+                const drawdownDate = await getStartOfNextMonth();
                 await setNextBlockTimestamp(drawdownDate);
                 await creditContract
                     .connect(borrower)
@@ -8994,7 +8994,7 @@ describe("CreditLine Test", function () {
             await loadFixture(approveCredit);
         });
         async function drawdown() {
-            drawdownDate = getStartOfNextMonth();
+            drawdownDate = await getStartOfNextMonth();
             await setNextBlockTimestamp(drawdownDate);
             await creditContract.connect(borrower).drawdown(borrower.getAddress(), borrowAmount);
         }
@@ -9314,7 +9314,7 @@ describe("CreditLine Test", function () {
         });
 
         it("Should not allow the EA to update the yield if the credit is newly approved", async function () {
-            const updateDate = getStartOfNextMonth();
+            const updateDate = await getStartOfNextMonth();
             await setNextBlockTimestamp(updateDate);
 
             await expect(
@@ -9353,7 +9353,7 @@ describe("CreditLine Test", function () {
 
         async function drawdown() {
             borrowAmount = toToken(50_000);
-            drawdownDate = getStartOfNextMonth();
+            drawdownDate = await getStartOfNextMonth();
             await setNextBlockTimestamp(drawdownDate);
             await creditContract.connect(borrower).drawdown(borrower.getAddress(), borrowAmount);
         }
@@ -9708,7 +9708,7 @@ describe("CreditLine Test", function () {
         });
 
         it("Should not allow the EA to update the credit limit and commitment if the credit is newly approved", async function () {
-            const updateDate = getStartOfNextMonth();
+            const updateDate = await getStartOfNextMonth();
             await setNextBlockTimestamp(updateDate);
 
             await expect(
@@ -9760,7 +9760,7 @@ describe("CreditLine Test", function () {
         }
 
         async function drawDownAndRefresh() {
-            drawdownDate = getStartOfNextMonth();
+            drawdownDate = await getStartOfNextMonth();
             await setNextBlockTimestamp(drawdownDate);
             await creditContract.connect(borrower).drawdown(borrower.getAddress(), borrowAmount);
 
@@ -9784,7 +9784,7 @@ describe("CreditLine Test", function () {
             });
 
             it("Should not allow the EA to waive late", async function () {
-                const updateDate = getStartOfNextMonth();
+                const updateDate = await getStartOfNextMonth();
                 await setNextBlockTimestamp(updateDate);
 
                 await expect(
