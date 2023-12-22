@@ -96,9 +96,7 @@ struct FirstLossCoverConfig {
     uint96 liquidityCap;
     // The max percent of pool assets that first loss cover can reach
     uint16 maxPercentOfPoolValueInBps;
-    // riskYieldMultiplierInBps is used to adjust the yield of the first loss covers relative to each other.
-    // The higher the multiplier, the higher the yield the first loss cover will get during profit distribution
-    // compared to other first loss covers.
+    // riskYieldMultiplierInBps is used to adjust the yield of the first loss covers and junior tranche
     uint16 riskYieldMultiplierInBps;
 }
 
