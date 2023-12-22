@@ -7,11 +7,14 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IPoolFeeManager} from "./interfaces/IPoolFeeManager.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IFirstLossCover} from "./interfaces/IFirstLossCover.sol";
+import {ITranchesPolicy} from "./interfaces/ITranchesPolicy.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {AFFILIATE_FIRST_LOSS_COVER_INDEX, HUNDRED_PERCENT_IN_BPS, JUNIOR_TRANCHE, SENIOR_TRANCHE} from "./SharedDefs.sol";
 import {HumaConfig} from "./HumaConfig.sol";
 import {Errors} from "./Errors.sol";
 import {PayPeriodDuration} from "./credit/CreditStructs.sol";
+
+import "hardhat/console.sol";
 
 struct PoolSettings {
     // The maximum credit line for a borrower in terms of the amount of poolTokens
@@ -641,6 +644,11 @@ contract PoolConfig is AccessControl, Initializable {
 
     function setLPConfig(LPConfig calldata lpConfig) external {
         _onlyOwnerOrHumaMasterAdmin();
+        if (lpConfig.fixedSeniorYieldInBps != _lpConfig.fixedSeniorYieldInBps) {
+            ITranchesPolicy(tranchesPolicy).refreshYieldTracker(
+                IPool(pool).currentTranchesAssets()
+            );
+        }
         _lpConfig = lpConfig;
         emit LPConfigChanged(
             lpConfig.permissioned,

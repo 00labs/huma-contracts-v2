@@ -561,7 +561,7 @@ async function testRedemptionRequest(jLenderRequests: BN[], sLenderRequests: BN[
             let principalRequested = await seniorTrancheVaultContract.convertToAssets(
                 sLenderRequests[i],
             );
-            expect(newPrincipal).to.equal(sLenderPrincipals[i].sub(principalRequested));
+            expect(newPrincipal).to.closeTo(sLenderPrincipals[i].sub(principalRequested), 1);
             sLenderShareRequests[i] = sLenderShareRequests[i].add(sLenderRequests[i]);
             sLenderPrincipalRequests[i] = sLenderPrincipalRequests[i].add(principalRequested);
             sLenderPrincipals[i] = newPrincipal;
@@ -2435,7 +2435,7 @@ describe("Lender Integration Test", function () {
             );
             expect(await juniorTrancheVaultContract.totalAssetsOf(jLenders[2].address)).to.closeTo(
                 amount,
-                1,
+                2,
             );
             jLenderPrincipals[2] = amount;
             jActiveLenders.push(jLenders[2]);

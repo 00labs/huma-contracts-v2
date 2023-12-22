@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
+import {Errors} from "./Errors.sol";
+import {PoolConfig} from "./PoolConfig.sol";
 import {BaseTranchesPolicy} from "./BaseTranchesPolicy.sol";
 import {LPConfig} from "./PoolConfig.sol";
 import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import {SENIOR_TRANCHE, JUNIOR_TRANCHE, SECONDS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS} from "./SharedDefs.sol";
 
-//import "hardhat/console.sol";
+import "hardhat/console.sol";
 
 /**
  * @notice Tranche policy when the yield for the senior tranche is fixed as long as
@@ -19,9 +21,16 @@ contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
         uint64 lastUpdatedDate;
     }
 
+    event YieldTrackerRefreshed(uint256 totalAssets, uint256 unpaidYield, uint256 lastUpdatedDate);
+
+    address public pool;
     SeniorYieldTracker public seniorYieldTracker;
 
     function refreshYieldTracker(uint96[2] memory assets) public override {
+        if (msg.sender != address(poolConfig) && msg.sender != pool) {
+            revert Errors.todo();
+        }
+
         (SeniorYieldTracker memory tracker, bool updated) = _getYieldTracker();
         if (tracker.totalAssets != assets[SENIOR_TRANCHE]) {
             tracker.totalAssets = assets[SENIOR_TRANCHE];
@@ -29,6 +38,11 @@ contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
         }
         if (updated) {
             seniorYieldTracker = tracker;
+            emit YieldTrackerRefreshed(
+                tracker.totalAssets,
+                tracker.unpaidYield,
+                tracker.lastUpdatedDate
+            );
         }
     }
 
@@ -50,6 +64,12 @@ contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
         seniorYieldTracker = tracker;
 
         return newAssets;
+    }
+
+    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
+        address addr = _poolConfig.pool();
+        assert(addr != address(0));
+        pool = addr;
     }
 
     function _getYieldTracker() public view returns (SeniorYieldTracker memory, bool updated) {
