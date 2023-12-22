@@ -77,6 +77,7 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
         virtual
         returns (uint256 availableBalance)
     {
+        // Deducts balance reserved for unprocessed yield and balance reserved for admin fees
         uint256 reserved = poolFeeManager.getTotalAvailableFees();
         reserved +=
             unprocessedTrancheProfit[poolConfig.seniorTranche()] +
@@ -92,6 +93,7 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
 
     /// @inheritdoc IPoolSafe
     function getAvailableBalanceForFees() external view returns (uint256 availableBalance) {
+        // Deducts balance reserved for unprocessed yield
         uint256 reserved = unprocessedTrancheProfit[poolConfig.seniorTranche()] +
             unprocessedTrancheProfit[poolConfig.juniorTranche()];
         uint256 balance = underlyingToken.balanceOf(address(this));

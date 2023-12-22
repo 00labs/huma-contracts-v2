@@ -143,7 +143,7 @@ describe("PoolSafe Tests", function () {
                     coverCap: 0,
                     liquidityCap: 0,
                     maxPercentOfPoolValueInBps: 0,
-                    riskYieldMultiplier: 0,
+                    riskYieldMultiplierInBps: 0,
                 });
             await testDeposit();
         });
@@ -196,7 +196,7 @@ describe("PoolSafe Tests", function () {
                     coverCap: 0,
                     liquidityCap: 0,
                     maxPercentOfPoolValueInBps: 0,
-                    riskYieldMultiplier: 0,
+                    riskYieldMultiplierInBps: 0,
                 });
             await testWithdrawal();
         });

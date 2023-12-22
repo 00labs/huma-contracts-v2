@@ -2164,7 +2164,7 @@ describe("TrancheVault Test", function () {
 
             // Introduce profit
             let totalAssets = await juniorTrancheVaultContract.totalAssets();
-            let profit = totalAssets.mul(BN.from(50));
+            let profit = totalAssets.div(10);
             await mockDistributePnL(profit, BN.from(0), BN.from(0));
             let totalSupply = await juniorTrancheVaultContract.totalSupply();
             totalAssets = await juniorTrancheVaultContract.totalAssets();
@@ -2206,7 +2206,7 @@ describe("TrancheVault Test", function () {
 
             // Introduce profit
             let totalAssets = await juniorTrancheVaultContract.totalAssets();
-            let profit = totalAssets.mul(BN.from(50));
+            let profit = totalAssets.div(10);
             await mockDistributePnL(profit, BN.from(0), BN.from(0));
             let totalSupply = await juniorTrancheVaultContract.totalSupply();
             totalAssets = await juniorTrancheVaultContract.totalAssets();
@@ -2253,7 +2253,7 @@ describe("TrancheVault Test", function () {
 
             // Introduce profit
             let totalAssets = await juniorTrancheVaultContract.totalAssets();
-            let profit = totalAssets.mul(BN.from(50));
+            let profit = totalAssets.div(10);
             await mockDistributePnL(profit, BN.from(0), BN.from(0));
             let totalSupply = await juniorTrancheVaultContract.totalSupply();
             totalAssets = await juniorTrancheVaultContract.totalAssets();

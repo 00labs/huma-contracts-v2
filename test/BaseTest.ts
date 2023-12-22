@@ -280,7 +280,7 @@ export async function deployPoolContracts(
             coverCap: 0,
             liquidityCap: 0,
             maxPercentOfPoolValueInBps: 0,
-            riskYieldMultiplier: 0,
+            riskYieldMultiplierInBps: 0,
         },
     );
     await poolConfigContract.setFirstLossCover(
@@ -291,7 +291,7 @@ export async function deployPoolContracts(
             coverCap: 0,
             liquidityCap: 0,
             maxPercentOfPoolValueInBps: 0,
-            riskYieldMultiplier: 20000,
+            riskYieldMultiplierInBps: 20000,
         },
     );
 
@@ -620,7 +620,7 @@ async function calcProfitForFirstLossCovers(
 ): Promise<[BN, BN[]]> {
     const riskWeightedCoverTotalAssets = await Promise.all(
         firstLossCoverInfos.map(async (info, index) =>
-            info.asset.mul(await info.config.riskYieldMultiplier),
+            info.asset.mul(await info.config.riskYieldMultiplierInBps).div(CONSTANTS.BP_FACTOR),
         ),
     );
     const totalWeight = juniorTotalAssets.add(sumBNArray(riskWeightedCoverTotalAssets));
