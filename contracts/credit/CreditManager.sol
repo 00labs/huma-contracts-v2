@@ -149,19 +149,19 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
 
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = address(_poolConfig.humaConfig());
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         humaConfig = HumaConfig(addr);
 
         addr = _poolConfig.calendar();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         calendar = ICalendar(addr);
 
         addr = _poolConfig.credit();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         credit = ICredit(addr);
 
         addr = _poolConfig.creditDueManager();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         dueManager = ICreditDueManager(addr);
     }
 
@@ -184,8 +184,11 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         uint64 designatedStartDate,
         bool revolving
     ) internal virtual {
+        // It's only theoretically possible for the hash value to be 0, so using an assert here instead of
+        // revert.
+        assert(creditHash != bytes32(0));
+
         if (borrower == address(0)) revert Errors.zeroAddressProvided();
-        if (creditHash == bytes32(0)) revert Errors.zeroAddressProvided();
         if (creditLimit == 0) revert Errors.zeroAmountProvided();
         if (remainingPeriods == 0) revert Errors.zeroPayPeriods();
         if (committedAmount > creditLimit) revert Errors.committedAmountGreaterThanCreditLimit();

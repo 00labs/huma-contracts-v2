@@ -1654,7 +1654,7 @@ describe("Lender Integration Test", function () {
             currentEpochId = newEpochId;
         });
 
-        it("Epoch 6, day 6: Late 1th payment", async function () {
+        it("Epoch 6, day 6: Late 1st payment", async function () {
             currentTS = currentTS + 5 * 24 * 3600 + 100;
             await setNextBlockTimestamp(currentTS);
 
@@ -3021,7 +3021,7 @@ describe("Lender Integration Test", function () {
             currentEpochId = newEpochId;
         });
 
-        it("Epoch 6, day 6: Late 1th payment", async function () {
+        it("Epoch 6, day 6: Late 1st payment", async function () {
             currentTS = currentTS + 5 * 24 * 3600 + 100;
             await setNextBlockTimestamp(currentTS);
 
