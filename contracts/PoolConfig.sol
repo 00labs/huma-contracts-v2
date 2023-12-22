@@ -96,10 +96,10 @@ struct FirstLossCoverConfig {
     uint96 liquidityCap;
     // The max percent of pool assets that first loss cover can reach
     uint16 maxPercentOfPoolValueInBps;
-    // riskYieldMultiplier is used to adjust the yield of the first loss covers relative to each other.
+    // riskYieldMultiplierInBps is used to adjust the yield of the first loss covers relative to each other.
     // The higher the multiplier, the higher the yield the first loss cover will get during profit distribution
     // compared to other first loss covers.
-    uint16 riskYieldMultiplier;
+    uint16 riskYieldMultiplierInBps;
 }
 
 interface ITrancheVaultLike {
@@ -190,7 +190,7 @@ contract PoolConfig is AccessControl, Initializable {
         uint96 coverCap,
         uint96 liquidityCap,
         uint16 maxPercentOfPoolValueInBps,
-        uint16 riskYieldMultiplier,
+        uint16 riskYieldMultiplierInBps,
         address by
     );
     event CalendarChanged(address calendar, address by);
@@ -579,7 +579,7 @@ contract PoolConfig is AccessControl, Initializable {
             config.coverCap,
             config.liquidityCap,
             config.maxPercentOfPoolValueInBps,
-            config.riskYieldMultiplier,
+            config.riskYieldMultiplierInBps,
             msg.sender
         );
     }

@@ -111,7 +111,7 @@ const REWARD_RATE_IN_BPS_FOR_EA = 300;
 const LIQUIDITY_RATE_IN_BPS_FOR_POOL_OWNER = 50;
 const LIQUIDITY_RATE_IN_BPS_FOR_EA = 100;
 
-const ADMIN_FIRST_LOSS_COVER_RISK_YIELD_MULTIPLIER = 1;
+const ADMIN_FIRST_LOSS_COVER_RISK_YIELD_MULTIPLIER = 10000;
 
 const JUNIOR_LENDER_NUM = 3;
 const SENIOR_LENDER_NUM = 3;
@@ -183,7 +183,7 @@ async function configPool(lpConfig: Partial<LPConfigStructOutput>) {
                 coverCap: toToken(10000),
                 liquidityCap: 0,
                 maxPercentOfPoolValueInBps: 0,
-                riskYieldMultiplier: 0,
+                riskYieldMultiplierInBps: 0,
             },
         );
     await poolConfigContract
@@ -196,7 +196,7 @@ async function configPool(lpConfig: Partial<LPConfigStructOutput>) {
                 coverCap: toToken(30000),
                 liquidityCap: 0,
                 maxPercentOfPoolValueInBps: 0,
-                riskYieldMultiplier: ADMIN_FIRST_LOSS_COVER_RISK_YIELD_MULTIPLIER,
+                riskYieldMultiplierInBps: ADMIN_FIRST_LOSS_COVER_RISK_YIELD_MULTIPLIER,
             },
         );
 

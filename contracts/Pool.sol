@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import {Errors} from "./Errors.sol";
 import {PoolConfig, FirstLossCoverConfig} from "./PoolConfig.sol";
 import {PoolConfigCache} from "./PoolConfigCache.sol";
-import {JUNIOR_TRANCHE, SENIOR_TRANCHE} from "./SharedDefs.sol";
+import {JUNIOR_TRANCHE, SENIOR_TRANCHE, HUNDRED_PERCENT_IN_BPS} from "./SharedDefs.sol";
 import {IEpochManager} from "./interfaces/IEpochManager.sol";
 import {IFirstLossCover} from "./interfaces/IFirstLossCover.sol";
 import {IPool} from "./interfaces/IPool.sol";
@@ -239,7 +239,9 @@ contract Pool is PoolConfigCache, IPool {
             FirstLossCoverConfig memory config = poolConfig.getFirstLossCoverConfig(
                 address(cover)
             );
-            profitsForFirstLossCovers[i] = cover.totalAssets() * config.riskYieldMultiplier;
+            profitsForFirstLossCovers[i] =
+                (cover.totalAssets() * config.riskYieldMultiplierInBps) /
+                HUNDRED_PERCENT_IN_BPS;
             totalWeight += profitsForFirstLossCovers[i];
         }
         juniorProfit = profit;
