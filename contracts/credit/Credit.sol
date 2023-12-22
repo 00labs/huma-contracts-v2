@@ -594,27 +594,27 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
 
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = address(_poolConfig.humaConfig());
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         humaConfig = HumaConfig(addr);
 
         addr = _poolConfig.creditDueManager();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         feeManager = ICreditDueManager(addr);
 
         addr = _poolConfig.calendar();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         calendar = ICalendar(addr);
 
         addr = _poolConfig.poolSafe();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         poolSafe = IPoolSafe(addr);
 
         addr = _poolConfig.getFirstLossCover(BORROWER_FIRST_LOSS_COVER_INDEX);
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         firstLossCover = IFirstLossCover(addr);
 
         addr = _poolConfig.creditManager();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         creditManager = ICreditManager(addr);
     }
 }
