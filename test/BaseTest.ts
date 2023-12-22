@@ -37,7 +37,7 @@ import {
     CreditConfigStruct,
     CreditConfigStructOutput,
 } from "../typechain-types/contracts/credit/CreditManager";
-import { EpochInfoStruct } from "../typechain-types/contracts/interfaces/IEpoch";
+import { RedemptionSummaryStruct } from "../typechain-types/contracts/interfaces/IRedemptionHandler";
 import { maxBigNumber, minBigNumber, sumBNArray, toToken } from "./TestUtils";
 
 export type CreditContractType =
@@ -800,18 +800,18 @@ export class FeeCalculator {
     }
 }
 
-export function checkEpochInfo(
-    epochInfo: EpochInfoStruct,
+export function checkRedemptionSummary(
+    redemptionSummaryle: RedemptionSummaryStruct,
     epochId: BN,
     totalSharesRequested: BN,
     totalSharesProcessed: BN = BN.from(0),
     totalAmountProcessed: BN = BN.from(0),
     delta: number = 0,
 ): void {
-    expect(epochInfo.epochId).to.equal(epochId);
-    expect(epochInfo.totalSharesRequested).to.be.closeTo(totalSharesRequested, delta);
-    expect(epochInfo.totalSharesProcessed).to.be.closeTo(totalSharesProcessed, delta);
-    expect(epochInfo.totalAmountProcessed).to.be.closeTo(totalAmountProcessed, delta);
+    expect(redemptionSummaryle.epochId).to.equal(epochId);
+    expect(redemptionSummaryle.totalSharesRequested).to.be.closeTo(totalSharesRequested, delta);
+    expect(redemptionSummaryle.totalSharesProcessed).to.be.closeTo(totalSharesProcessed, delta);
+    expect(redemptionSummaryle.totalAmountProcessed).to.be.closeTo(totalAmountProcessed, delta);
 }
 
 export class EpochChecker {
@@ -837,13 +837,13 @@ export class EpochChecker {
         return await this.checkCurrentEpochEmpty(this.juniorTrancheVaultContract);
     }
 
-    async checkSeniorCurrentEpochInfo(
+    async checkSeniorCurrentRedemptionSummary(
         sharesRequested: BN = BN.from(0),
         sharesProcessed: BN = BN.from(0),
         amountProcessed: BN = BN.from(0),
         delta: number = 0,
     ) {
-        return await this.checkCurrentEpochInfo(
+        return await this.checkCurrentRedemptionSummary(
             this.seniorTrancheVaultContract,
             sharesRequested,
             sharesProcessed,
@@ -852,13 +852,13 @@ export class EpochChecker {
         );
     }
 
-    async checkJuniorCurrentEpochInfo(
+    async checkJuniorCurrentRedemptionSummary(
         sharesRequested: BN = BN.from(0),
         sharesProcessed: BN = BN.from(0),
         amountProcessed: BN = BN.from(0),
         delta: number = 0,
     ) {
-        return await this.checkCurrentEpochInfo(
+        return await this.checkCurrentRedemptionSummary(
             this.juniorTrancheVaultContract,
             sharesRequested,
             sharesProcessed,
@@ -867,14 +867,14 @@ export class EpochChecker {
         );
     }
 
-    async checkSeniorEpochInfoById(
+    async checkSeniorRedemptionSummaryById(
         epochId: BN,
         sharesRequested: BN = BN.from(0),
         sharesProcessed: BN = BN.from(0),
         amountProcessed: BN = BN.from(0),
         delta: number = 0,
     ) {
-        await this.checkEpochInfoById(
+        await this.checkRedemptionSummaryById(
             this.seniorTrancheVaultContract,
             epochId,
             sharesRequested,
@@ -884,14 +884,14 @@ export class EpochChecker {
         );
     }
 
-    async checkJuniorEpochInfoById(
+    async checkJuniorRedemptionSummaryById(
         epochId: BN,
         sharesRequested: BN = BN.from(0),
         sharesProcessed: BN = BN.from(0),
         amountProcessed: BN = BN.from(0),
         delta: number = 0,
     ) {
-        await this.checkEpochInfoById(
+        await this.checkRedemptionSummaryById(
             this.juniorTrancheVaultContract,
             epochId,
             sharesRequested,
@@ -904,11 +904,11 @@ export class EpochChecker {
     private async checkCurrentEpochEmpty(trancheContract: TrancheVault) {
         const epochId = await this.epochManagerContract.currentEpochId();
         const epoch = await trancheContract.epochInfoByEpochId(epochId);
-        checkEpochInfo(epoch, BN.from(0), BN.from(0), BN.from(0), BN.from(0));
+        checkRedemptionSummary(epoch, BN.from(0), BN.from(0), BN.from(0), BN.from(0));
         return epochId;
     }
 
-    private async checkCurrentEpochInfo(
+    private async checkCurrentRedemptionSummary(
         trancheContract: TrancheVault,
         sharesRequested: BN = BN.from(0),
         sharesProcessed: BN = BN.from(0),
@@ -917,11 +917,18 @@ export class EpochChecker {
     ) {
         const epochId = await this.epochManagerContract.currentEpochId();
         const epoch = await trancheContract.epochInfoByEpochId(epochId);
-        checkEpochInfo(epoch, epochId, sharesRequested, sharesProcessed, amountProcessed, delta);
+        checkRedemptionSummary(
+            epoch,
+            epochId,
+            sharesRequested,
+            sharesProcessed,
+            amountProcessed,
+            delta,
+        );
         return epochId;
     }
 
-    private async checkEpochInfoById(
+    private async checkRedemptionSummaryById(
         trancheContract: TrancheVault,
         epochId: BN,
         sharesRequested: BN = BN.from(0),
@@ -930,7 +937,14 @@ export class EpochChecker {
         delta: number = 0,
     ) {
         const epoch = await trancheContract.epochInfoByEpochId(epochId);
-        checkEpochInfo(epoch, epochId, sharesRequested, sharesProcessed, amountProcessed, delta);
+        checkRedemptionSummary(
+            epoch,
+            epochId,
+            sharesRequested,
+            sharesProcessed,
+            amountProcessed,
+            delta,
+        );
     }
 }
 

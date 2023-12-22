@@ -783,7 +783,7 @@ describe("TrancheVault Test", function () {
 
                     let epochId = await juniorTrancheVaultContract.epochIds(0);
                     expect(epochId).to.equal(currentEpochId);
-                    await epochChecker.checkJuniorEpochInfoById(epochId, shares);
+                    await epochChecker.checkJuniorRedemptionSummaryById(epochId, shares);
 
                     // Lender requests redemption again
                     balance = await juniorTrancheVaultContract.balanceOf(lender.address);
@@ -815,7 +815,10 @@ describe("TrancheVault Test", function () {
                         ),
                     ).to.equal(shares.mul(BN.from(2)));
 
-                    await epochChecker.checkJuniorEpochInfoById(epochId, shares.mul(BN.from(2)));
+                    await epochChecker.checkJuniorRedemptionSummaryById(
+                        epochId,
+                        shares.mul(BN.from(2)),
+                    );
 
                     // Lender2 requests redemption
                     balance = await juniorTrancheVaultContract.balanceOf(lender2.address);
@@ -854,7 +857,10 @@ describe("TrancheVault Test", function () {
                         ),
                     ).to.equal(shares);
 
-                    await epochChecker.checkJuniorEpochInfoById(epochId, shares.mul(BN.from(3)));
+                    await epochChecker.checkJuniorRedemptionSummaryById(
+                        epochId,
+                        shares.mul(BN.from(3)),
+                    );
                 });
 
                 it("Should allow lenders to request redemption in the next epoch", async function () {
@@ -885,7 +891,7 @@ describe("TrancheVault Test", function () {
 
                     let epochId = await juniorTrancheVaultContract.epochIds(0);
                     expect(epochId).to.equal(currentEpochId);
-                    await epochChecker.checkJuniorEpochInfoById(epochId, shares);
+                    await epochChecker.checkJuniorRedemptionSummaryById(epochId, shares);
 
                     expect(
                         await juniorTrancheVaultContract.cancellableRedemptionShares(
@@ -935,7 +941,7 @@ describe("TrancheVault Test", function () {
                     );
 
                     epochId = await juniorTrancheVaultContract.epochIds(1);
-                    await epochChecker.checkJuniorEpochInfoById(epochId, shares);
+                    await epochChecker.checkJuniorRedemptionSummaryById(epochId, shares);
 
                     expect(
                         await juniorTrancheVaultContract.cancellableRedemptionShares(
@@ -974,7 +980,10 @@ describe("TrancheVault Test", function () {
                         ),
                     ).to.equal(shares);
 
-                    await epochChecker.checkJuniorEpochInfoById(epochId, shares.mul(BN.from(2)));
+                    await epochChecker.checkJuniorRedemptionSummaryById(
+                        epochId,
+                        shares.mul(BN.from(2)),
+                    );
 
                     // Close current epoch while processing nothing
                     currentEpoch = await epochManagerContract.currentEpoch();
@@ -1017,7 +1026,10 @@ describe("TrancheVault Test", function () {
                     ).to.equal(shares.mul(BN.from(2)));
 
                     epochId = await juniorTrancheVaultContract.epochIds(2);
-                    await epochChecker.checkJuniorEpochInfoById(epochId, shares.mul(BN.from(3)));
+                    await epochChecker.checkJuniorRedemptionSummaryById(
+                        epochId,
+                        shares.mul(BN.from(3)),
+                    );
                 });
 
                 it("Should allow redemption requests from the pool owner treasury in the senior tranche w/o considering liquidity requirements", async function () {
@@ -1306,7 +1318,7 @@ describe("TrancheVault Test", function () {
                     expect(
                         cancellableRedemptionSharesBefore.sub(cancellableRedemptionSharesAfter),
                     ).to.equal(allShares);
-                    await epochChecker.checkJuniorEpochInfoById(currentEpochId);
+                    await epochChecker.checkJuniorRedemptionSummaryById(currentEpochId);
 
                     await checkRedemptionInfoByLender(juniorTrancheVaultContract, lender2, 2);
                 });
@@ -2051,7 +2063,7 @@ describe("TrancheVault Test", function () {
         describe("Process Epochs Tests", function () {
             it("Should not allow non-EpochManager to process epochs", async function () {
                 await expect(
-                    juniorTrancheVaultContract.executeEpoch({
+                    juniorTrancheVaultContract.executeRedemptionSummary({
                         epochId: 0,
                         totalSharesRequested: 0,
                         totalSharesProcessed: 0,
@@ -2083,7 +2095,12 @@ describe("TrancheVault Test", function () {
                     await mockTokenContract.balanceOf(seniorTrancheVaultContract.address),
                 ).to.equal(balance.add(shares));
 
-                await epochChecker.checkSeniorEpochInfoById(lastEpoch.id, shares, shares, shares);
+                await epochChecker.checkSeniorRedemptionSummaryById(
+                    lastEpoch.id,
+                    shares,
+                    shares,
+                    shares,
+                );
                 await epochChecker.checkSeniorCurrentEpochEmpty();
             });
 
@@ -2119,13 +2136,15 @@ describe("TrancheVault Test", function () {
                     await mockTokenContract.balanceOf(seniorTrancheVaultContract.address),
                 ).to.equal(balance.add(availableAmount));
 
-                await epochChecker.checkSeniorEpochInfoById(
+                await epochChecker.checkSeniorRedemptionSummaryById(
                     lastEpoch.id,
                     shares,
                     availableAmount,
                     availableAmount,
                 );
-                await epochChecker.checkSeniorCurrentEpochInfo(shares.sub(availableAmount));
+                await epochChecker.checkSeniorCurrentRedemptionSummary(
+                    shares.sub(availableAmount),
+                );
             });
         });
     });
