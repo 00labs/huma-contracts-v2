@@ -198,7 +198,7 @@ describe("Receivable Test", function () {
             expect(tokenDetails.paidAmount).to.equal(100);
         });
 
-        it("Should allow originator to declare payment", async function () {
+        it("Should allow the creator to declare payment", async function () {
             const tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
             await receivableContract
                 .connect(borrower)
