@@ -554,7 +554,10 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         uint256 periodStartDate = calendar.getStartDateOfPeriod(periodDuration, block.timestamp);
         uint256 daysSincePeriodStart = calendar.getDaysDiff(periodStartDate, block.timestamp);
         uint256 totalDaysInFullPeriod = calendar.getTotalDaysInFullPeriod(periodDuration);
-        // Note: the = in the >= is essential
+        // The `=` in the `>=` is crucial: `getDaysDiff` above calculates the number of days elapsed
+        // from `periodStartDate` to the **start** of the current day (as indicated by `block.timestamp`).
+        // Without the `=`, the default could no longer be triggered during the current day, but only after
+        // an additional full day has passed, which is incorrect.
         return
             (missedPeriods - 1) * totalDaysInFullPeriod + daysSincePeriodStart >=
             settings.defaultGracePeriodInDays;
