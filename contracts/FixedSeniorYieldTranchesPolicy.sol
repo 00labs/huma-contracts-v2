@@ -63,6 +63,12 @@ contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
         tracker.totalAssets = newAssets[SENIOR_TRANCHE];
         seniorYieldTracker = tracker;
 
+        emit YieldTrackerRefreshed(
+            tracker.totalAssets,
+            tracker.unpaidYield,
+            tracker.lastUpdatedDate
+        );
+
         return newAssets;
     }
 

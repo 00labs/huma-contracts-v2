@@ -191,7 +191,13 @@ describe("FixedSeniorYieldTranchePolicy Test", function () {
                 apy,
                 tracker,
             );
-            await tranchesPolicyContract.distProfitToTranches(profit, assets);
+            await expect(tranchesPolicyContract.distProfitToTranches(profit, assets))
+                .to.emit(tranchesPolicyContract, "YieldTrackerRefreshed")
+                .withArgs(
+                    newTracker.totalAssets,
+                    newTracker.unpaidYield,
+                    newTracker.lastUpdatedDate,
+                );
             const afterSeniorTracker = await tranchesPolicyContract.seniorYieldTracker();
             checkSeniorYieldTrackersMatch(afterSeniorTracker, newTracker);
             expect(afterSeniorTracker.unpaidYield).to.greaterThan(0);
@@ -246,7 +252,13 @@ describe("FixedSeniorYieldTranchePolicy Test", function () {
                 tracker,
             );
             // printSeniorData(newSeniorData);
-            await tranchesPolicyContract.distProfitToTranches(profit, assets);
+            await expect(tranchesPolicyContract.distProfitToTranches(profit, assets))
+                .to.emit(tranchesPolicyContract, "YieldTrackerRefreshed")
+                .withArgs(
+                    newTracker.totalAssets,
+                    newTracker.unpaidYield,
+                    newTracker.lastUpdatedDate,
+                );
             const afterTracker = await tranchesPolicyContract.seniorYieldTracker();
             checkSeniorYieldTrackersMatch(afterTracker, newTracker);
             expect(afterTracker.unpaidYield).to.equal(0);
