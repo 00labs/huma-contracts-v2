@@ -102,20 +102,20 @@ contract EpochManager is PoolConfigCache, IEpochManager {
             juniorTranche.totalSupply();
 
         // get unprocessed redemption requests
-        RedemptionSummary memory seniorBundle = seniorTranche.currentRedemptionSummary();
-        RedemptionSummary memory juniorBundle = juniorTranche.currentRedemptionSummary();
+        RedemptionSummary memory seniorSummary = seniorTranche.currentRedemptionSummary();
+        RedemptionSummary memory juniorSummary = juniorTranche.currentRedemptionSummary();
         uint256 unprocessedAmount;
 
-        if (seniorBundle.totalSharesRequested > 0 || juniorBundle.totalSharesRequested > 0) {
-            _processEpoch(tranchesAssets, seniorBundle, seniorPrice, juniorBundle, juniorPrice);
+        if (seniorSummary.totalSharesRequested > 0 || juniorSummary.totalSharesRequested > 0) {
+            _processEpoch(tranchesAssets, seniorSummary, seniorPrice, juniorSummary, juniorPrice);
 
-            seniorTranche.executeRedemptionSummary(seniorBundle);
-            juniorTranche.executeRedemptionSummary(juniorBundle);
+            seniorTranche.executeRedemptionSummary(seniorSummary);
+            juniorTranche.executeRedemptionSummary(juniorSummary);
 
             unprocessedAmount =
-                (((seniorBundle.totalSharesRequested - seniorBundle.totalSharesProcessed) *
+                (((seniorSummary.totalSharesRequested - seniorSummary.totalSharesProcessed) *
                     seniorPrice) +
-                    ((juniorBundle.totalSharesRequested - juniorBundle.totalSharesProcessed) *
+                    ((juniorSummary.totalSharesRequested - juniorSummary.totalSharesProcessed) *
                         juniorPrice)) /
                 DEFAULT_DECIMALS_FACTOR;
         }
@@ -166,21 +166,21 @@ contract EpochManager is PoolConfigCache, IEpochManager {
      * @notice Process previously unprocessed redemption requests
      * @param tranchesAssets tranches assets indexed by SENIOR_ or JUNIOR_TRANCHE, i.e. tranches[0] is the
      * senior tranche assets and tranches[1] is the junior tranche assets
-     * @param seniorBundle unprocessed/partially processed epoch for the senior tranche
+     * @param seniorSummary unprocessed/partially processed epoch for the senior tranche
      * @param seniorPrice the senior LP token price
-     * @param juniorBundle unprocessed/partially processed epoch for the junior tranche
+     * @param juniorSummary unprocessed/partially processed epoch for the junior tranche
      * @param juniorPrice the junior LP token price
      * @dev this function is side-effectual and mutates the following incoming params:
      * tranchesAssets: will be updated to reflect the remaining amount of assets in the tranches after fulfilling
      * redemption requests
-     * seniorBundle: will be updated to reflect the latest redemption request state for the senior tranche
-     * juniorBundle: will be updated to reflect the latest redemption request state for the junior tranche
+     * seniorSummary: will be updated to reflect the latest redemption request state for the senior tranche
+     * juniorSummary: will be updated to reflect the latest redemption request state for the junior tranche
      */
     function _processEpoch(
         uint96[2] memory tranchesAssets,
-        RedemptionSummary memory seniorBundle,
+        RedemptionSummary memory seniorSummary,
         uint256 seniorPrice,
-        RedemptionSummary memory juniorBundle,
+        RedemptionSummary memory juniorSummary,
         uint256 juniorPrice
     ) internal view {
         // get available underlying token amount
@@ -188,11 +188,11 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         if (availableAmount <= minAmountToProcessPerEpoch) return;
 
         // Process senior tranche redemption requests.
-        if (seniorBundle.totalSharesRequested > 0) {
+        if (seniorSummary.totalSharesRequested > 0) {
             availableAmount = _processSeniorRedemptionRequests(
                 tranchesAssets,
                 seniorPrice,
-                seniorBundle,
+                seniorSummary,
                 availableAmount
             );
 
@@ -204,12 +204,12 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         // Process junior tranche redemption requests.
         LPConfig memory lpConfig = poolConfig.getLPConfig();
         uint256 maxSeniorJuniorRatio = lpConfig.maxSeniorJuniorRatio;
-        if (juniorBundle.totalSharesRequested > 0) {
+        if (juniorSummary.totalSharesRequested > 0) {
             availableAmount = _processJuniorRedemptionRequests(
                 tranchesAssets,
                 juniorPrice,
                 maxSeniorJuniorRatio,
-                juniorBundle,
+                juniorSummary,
                 availableAmount
             );
         }

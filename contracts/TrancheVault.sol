@@ -126,10 +126,10 @@ contract TrancheVault is
         external
         view
         override
-        returns (RedemptionSummary memory epochInfo)
+        returns (RedemptionSummary memory redemptionSummary)
     {
         uint256 epochId = epochManager.currentEpochId();
-        epochInfo = epochInfoByEpochId[epochId];
+        redemptionSummary = redemptionSummaryByEpochId[epochId];
     }
 
     function decimals() public view override returns (uint8) {
@@ -141,37 +141,37 @@ contract TrancheVault is
     }
 
     /// @inheritdoc IRedemptionHandler
-    function executeRedemptionSummary(RedemptionSummary memory epochProcessed) external {
+    function executeRedemptionSummary(RedemptionSummary memory summaryProcessed) external {
         _onlyEpochManager(msg.sender);
 
-        if (epochProcessed.totalSharesProcessed > 0) {
-            epochInfoByEpochId[epochProcessed.epochId] = epochProcessed;
+        if (summaryProcessed.totalSharesProcessed > 0) {
+            redemptionSummaryByEpochId[summaryProcessed.epochId] = summaryProcessed;
             // Burn processed shares of LP tokens.
-            ERC20Upgradeable._burn(address(this), epochProcessed.totalSharesProcessed);
+            ERC20Upgradeable._burn(address(this), summaryProcessed.totalSharesProcessed);
             // Withdraw underlying tokens from the reserve so that LPs can redeem.
-            poolSafe.withdraw(address(this), epochProcessed.totalAmountProcessed);
+            poolSafe.withdraw(address(this), summaryProcessed.totalAmountProcessed);
         }
 
-        uint256 unprocessed = epochProcessed.totalSharesRequested -
-            epochProcessed.totalSharesProcessed;
+        uint256 unprocessed = summaryProcessed.totalSharesRequested -
+            summaryProcessed.totalSharesProcessed;
 
         if (unprocessed > 0) {
             // Move unprocessed redemption to next epoch
             RedemptionSummary memory nextRedemptionSummary = RedemptionSummary({
-                epochId: epochProcessed.epochId + 1,
+                epochId: summaryProcessed.epochId + 1,
                 totalSharesRequested: uint96(unprocessed),
                 totalSharesProcessed: 0,
                 totalAmountProcessed: 0
             });
-            epochInfoByEpochId[nextRedemptionSummary.epochId] = nextRedemptionSummary;
+            redemptionSummaryByEpochId[nextRedemptionSummary.epochId] = nextRedemptionSummary;
             epochIds.push(nextRedemptionSummary.epochId);
         }
 
         emit EpochProcessed(
-            epochProcessed.epochId,
-            epochProcessed.totalSharesRequested,
-            epochProcessed.totalSharesProcessed,
-            epochProcessed.totalAmountProcessed
+            summaryProcessed.epochId,
+            summaryProcessed.totalSharesRequested,
+            summaryProcessed.totalSharesProcessed,
+            summaryProcessed.totalAmountProcessed
         );
     }
 
@@ -268,7 +268,9 @@ contract TrancheVault is
         );
 
         uint256 currentEpochId = epochManager.currentEpochId();
-        RedemptionSummary memory currRedemptionSummary = epochInfoByEpochId[currentEpochId];
+        RedemptionSummary memory currRedemptionSummary = redemptionSummaryByEpochId[
+            currentEpochId
+        ];
         if (currRedemptionSummary.totalSharesRequested > 0) {
             // If the current epoch already has redemption requests, then add the new redemption request
             // to it.
@@ -280,7 +282,7 @@ contract TrancheVault is
             currRedemptionSummary.epochId = uint64(currentEpochId);
             currRedemptionSummary.totalSharesRequested = uint96(shares);
         }
-        epochInfoByEpochId[currentEpochId] = currRedemptionSummary;
+        redemptionSummaryByEpochId[currentEpochId] = currRedemptionSummary;
 
         RedemptionInfo memory lenderRedemptionInfo = _getLatestRedemptionInfo(
             msg.sender,
@@ -332,9 +334,11 @@ contract TrancheVault is
         lenderRedemptionInfo.numSharesRequested = newNumSharesRequested;
         redemptionInfoByLender[msg.sender] = lenderRedemptionInfo;
 
-        RedemptionSummary memory currRedemptionSummary = epochInfoByEpochId[currentEpochId];
+        RedemptionSummary memory currRedemptionSummary = redemptionSummaryByEpochId[
+            currentEpochId
+        ];
         currRedemptionSummary.totalSharesRequested -= uint96(shares);
-        epochInfoByEpochId[currentEpochId] = currRedemptionSummary;
+        redemptionSummaryByEpochId[currentEpochId] = currRedemptionSummary;
 
         ERC20Upgradeable._transfer(address(this), msg.sender, shares);
 
@@ -496,16 +500,17 @@ contract TrancheVault is
                 i++
             ) {
                 uint256 epochId = epochIds[i];
-                RedemptionSummary memory epoch = epochInfoByEpochId[epochId];
-                if (epoch.totalSharesProcessed > 0) {
+                RedemptionSummary memory summary = redemptionSummaryByEpochId[epochId];
+                if (summary.totalSharesProcessed > 0) {
                     // TODO Will there be one decimal unit of rounding error here if it can't be divisible?
                     newRedemptionInfo.totalAmountProcessed += uint96(
-                        (remainingShares * epoch.totalAmountProcessed) / epoch.totalSharesRequested
+                        (remainingShares * summary.totalAmountProcessed) /
+                            summary.totalSharesRequested
                     );
                     // TODO Round up here to be good for pool?
                     remainingShares -=
-                        (remainingShares * epoch.totalSharesProcessed) /
-                        epoch.totalSharesRequested;
+                        (remainingShares * summary.totalSharesProcessed) /
+                        summary.totalSharesRequested;
                 }
             }
             newRedemptionInfo.numSharesRequested = uint96(remainingShares);

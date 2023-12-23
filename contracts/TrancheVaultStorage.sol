@@ -41,7 +41,7 @@ contract TrancheVaultStorage {
     // Note that the index may not be contiguous: if there is no redemption request,
     // the ID won't be recorded in this array.
     uint256[] public epochIds;
-    mapping(uint256 => RedemptionSummary) public epochInfoByEpochId;
+    mapping(uint256 => RedemptionSummary) public redemptionSummaryByEpochId;
 
     mapping(address => RedemptionInfo) public redemptionInfoByLender;
 

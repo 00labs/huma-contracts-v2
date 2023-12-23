@@ -1174,7 +1174,9 @@ describe("TrancheVault Test", function () {
                     let currentEpochId = await epochManagerContract.currentEpochId();
                     let balance = await juniorTrancheVaultContract.balanceOf(lender.address);
                     let epochBefore =
-                        await juniorTrancheVaultContract.epochInfoByEpochId(currentEpochId);
+                        await juniorTrancheVaultContract.redemptionSummaryByEpochId(
+                            currentEpochId,
+                        );
                     let cancellableRedemptionSharesBefore =
                         await juniorTrancheVaultContract.cancellableRedemptionShares(
                             lender.address,
@@ -1187,7 +1189,9 @@ describe("TrancheVault Test", function () {
                         .to.emit(juniorTrancheVaultContract, "RedemptionRequestRemoved")
                         .withArgs(lender.address, shares, currentEpochId);
                     let epochAfter =
-                        await juniorTrancheVaultContract.epochInfoByEpochId(currentEpochId);
+                        await juniorTrancheVaultContract.redemptionSummaryByEpochId(
+                            currentEpochId,
+                        );
                     let cancellableRedemptionSharesAfter =
                         await juniorTrancheVaultContract.cancellableRedemptionShares(
                             lender.address,
@@ -1229,7 +1233,9 @@ describe("TrancheVault Test", function () {
                     // Lender removes redemption request
                     balance = await juniorTrancheVaultContract.balanceOf(lender.address);
                     epochBefore =
-                        await juniorTrancheVaultContract.epochInfoByEpochId(currentEpochId);
+                        await juniorTrancheVaultContract.redemptionSummaryByEpochId(
+                            currentEpochId,
+                        );
                     cancellableRedemptionSharesBefore =
                         await juniorTrancheVaultContract.cancellableRedemptionShares(
                             lender.address,
@@ -1242,7 +1248,9 @@ describe("TrancheVault Test", function () {
                         .to.emit(juniorTrancheVaultContract, "RedemptionRequestRemoved")
                         .withArgs(lender.address, shares, currentEpochId);
                     epochAfter =
-                        await juniorTrancheVaultContract.epochInfoByEpochId(currentEpochId);
+                        await juniorTrancheVaultContract.redemptionSummaryByEpochId(
+                            currentEpochId,
+                        );
                     cancellableRedemptionSharesAfter =
                         await juniorTrancheVaultContract.cancellableRedemptionShares(
                             lender.address,
@@ -1803,7 +1811,7 @@ describe("TrancheVault Test", function () {
 
                 lastEpoch = await epochManagerContract.currentEpoch();
                 let totalSharesRequested = (
-                    await seniorTrancheVaultContract.epochInfoByEpochId(lastEpoch.id)
+                    await seniorTrancheVaultContract.redemptionSummaryByEpochId(lastEpoch.id)
                 ).totalSharesRequested;
                 ts = lastEpoch.endTime.toNumber() + 60 * 5;
                 await setNextBlockTimestamp(ts);
