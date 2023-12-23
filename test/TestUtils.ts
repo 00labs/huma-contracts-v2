@@ -70,12 +70,13 @@ export function getStartOfDay(timestamp: number): number {
     return timestampToMoment(timestamp, "YYYY-MM-DD").unix();
 }
 
-export function getDateAfterMonths(timestamp: number, months: number): number {
-    return timestampToMoment(timestamp).add(months, "months").unix();
-}
-
-export function getDate(timestamp: number): number {
-    return timestampToMoment(timestamp).date();
+export async function getStartOfNextMonth() {
+    const block = await getLatestBlock();
+    return moment
+        .utc(block.timestamp * 1000)
+        .add(1, "month")
+        .startOf("month")
+        .unix();
 }
 
 export async function getLatestBlock() {
@@ -215,6 +216,19 @@ export async function borrowerLevelCreditHash(
         ethers.utils.defaultAbiCoder.encode(
             ["address", "address"],
             [creditContract.address, await borrower.getAddress()],
+        ),
+    );
+}
+
+export async function receivableLevelCreditHash(
+    creditContract: Contract,
+    nftContract: Contract,
+    tokenId: BN,
+) {
+    return ethers.utils.keccak256(
+        ethers.utils.defaultAbiCoder.encode(
+            ["address", "address", "uint256"],
+            [creditContract.address, nftContract.address, tokenId],
         ),
     );
 }

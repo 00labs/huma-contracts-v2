@@ -38,7 +38,7 @@ import {
     CreditConfigStructOutput,
 } from "../typechain-types/contracts/credit/CreditManager";
 import { RedemptionSummaryStruct } from "../typechain-types/contracts/interfaces/IRedemptionHandler";
-import { maxBigNumber, minBigNumber, sumBNArray, toToken } from "./TestUtils";
+import { getLatestBlock, maxBigNumber, minBigNumber, sumBNArray, toToken } from "./TestUtils";
 
 export type CreditContractType =
     | MockPoolCredit
@@ -280,7 +280,7 @@ export async function deployPoolContracts(
             coverCap: 0,
             liquidityCap: 0,
             maxPercentOfPoolValueInBps: 0,
-            riskYieldMultiplier: 0,
+            riskYieldMultiplierInBps: 0,
         },
     );
     await poolConfigContract.setFirstLossCover(
@@ -291,7 +291,7 @@ export async function deployPoolContracts(
             coverCap: 0,
             liquidityCap: 0,
             maxPercentOfPoolValueInBps: 0,
-            riskYieldMultiplier: 20000,
+            riskYieldMultiplierInBps: 20000,
         },
     );
 
@@ -408,7 +408,7 @@ export async function setupPoolContracts(
         .connect(evaluationAgent)
         .approve(poolSafeContract.address, ethers.constants.MaxUint256);
     await mockTokenContract.mint(evaluationAgent.getAddress(), toToken(1_000_000_000));
-    const evaluationAgentLiquidity = BN.from(adminRnR.liquidityRateInBpsByPoolOwner)
+    const evaluationAgentLiquidity = BN.from(adminRnR.liquidityRateInBpsByEA)
         .mul(poolLiquidityCap)
         .div(CONSTANTS.BP_FACTOR);
     await juniorTrancheVaultContract
@@ -620,7 +620,7 @@ async function calcProfitForFirstLossCovers(
 ): Promise<[BN, BN[]]> {
     const riskWeightedCoverTotalAssets = await Promise.all(
         firstLossCoverInfos.map(async (info, index) =>
-            info.asset.mul(await info.config.riskYieldMultiplier),
+            info.asset.mul(await info.config.riskYieldMultiplierInBps).div(CONSTANTS.BP_FACTOR),
         ),
     );
     const totalWeight = juniorTotalAssets.add(sumBNArray(riskWeightedCoverTotalAssets));
@@ -787,6 +787,34 @@ export class FeeCalculator {
         this.poolConfigContract = poolConfigContract;
     }
 
+    async calcPoolFeesForDrawdown(borrowedAmount: BN): Promise<BN[]> {
+        const [frontLoadingFeeFlat, frontLoadingFeeBps] =
+            await this.poolConfigContract.getFrontLoadingFees();
+        const profit = frontLoadingFeeFlat.add(
+            borrowedAmount.mul(frontLoadingFeeBps).div(CONSTANTS.BP_FACTOR),
+        );
+        const [protocolFee, poolOwnerFee, eaFee, poolProfit] =
+            await this.calcPoolFeesForProfit(profit);
+        const amountToBorrower = borrowedAmount.sub(profit);
+        return [protocolFee, poolOwnerFee, eaFee, poolProfit, amountToBorrower];
+    }
+
+    async calcPoolFeesForProfit(profit: BN): Promise<BN[]> {
+        const protocolFeeInBps = await this.humaConfigContract.protocolFeeInBps();
+        const adminRnR = await this.poolConfigContract.getAdminRnR();
+        const protocolFee = profit.mul(BN.from(protocolFeeInBps)).div(CONSTANTS.BP_FACTOR);
+        let remaining = profit.sub(protocolFee);
+        const poolOwnerFee = remaining
+            .mul(BN.from(adminRnR.rewardRateInBpsForPoolOwner))
+            .div(CONSTANTS.BP_FACTOR);
+        const eaFee = remaining
+            .mul(BN.from(adminRnR.rewardRateInBpsForEA))
+            .div(CONSTANTS.BP_FACTOR);
+        const poolProfit = remaining.sub(poolOwnerFee.add(eaFee));
+        return [protocolFee, poolOwnerFee, eaFee, poolProfit];
+    }
+
+    // TODO: try to deprecate this function later
     async calcPoolFeeDistribution(profit: BN): Promise<BN> {
         const protocolFeeInBps = await this.humaConfigContract.protocolFeeInBps();
         const adminRnR = await this.poolConfigContract.getAdminRnR();
@@ -797,6 +825,151 @@ export class FeeCalculator {
             adminRnR.rewardRateInBpsForEA,
         );
         return remaining;
+    }
+}
+
+export class ProfitAndLossCalculator {
+    poolConfigContract: PoolConfig;
+    poolContract: Pool;
+    firstLossCoverContracts: FirstLossCover[];
+
+    tranchesAssets: BN[] = [];
+    firstLossCoverInfos: FirstLossCoverInfo[] = [];
+
+    constructor(
+        poolConfigContract: PoolConfig,
+        poolContract: Pool,
+        firstLossCoverContracts: FirstLossCover[],
+    ) {
+        this.poolConfigContract = poolConfigContract;
+        this.poolContract = poolContract;
+        this.firstLossCoverContracts = firstLossCoverContracts;
+    }
+
+    async beginProfitCalculation() {
+        this.tranchesAssets = await this.poolContract.currentTranchesAssets();
+        this.firstLossCoverInfos = await Promise.all(
+            this.firstLossCoverContracts.map(async (firstLossCoverContract) => {
+                let asset = await firstLossCoverContract.totalAssets();
+                let coveredLoss = await firstLossCoverContract.coveredLoss();
+                let config = await this.poolConfigContract.getFirstLossCoverConfig(
+                    firstLossCoverContract.address,
+                );
+                return { asset, config, coveredLoss };
+            }),
+        );
+        await Promise.all(
+            this.firstLossCoverContracts.map(async (firstLossCoverContract, index) => {}),
+        );
+    }
+
+    async endRiskAdjustedProfitCalculation(profit: BN): Promise<[BN[], BN[], BN[]]> {
+        return await this._endRiskAdjustedProfitCalculation(profit);
+    }
+    async endRiskAdjustedProfitAndLossCalculation(
+        profit: BN,
+        loss: BN,
+    ): Promise<[BN[], BN[], BN[]]> {
+        let [assets, profitsForAssets, profitsForFirstLossCovers] =
+            await this._endRiskAdjustedProfitCalculation(profit);
+        this.firstLossCoverInfos.forEach((info, index) => {
+            info.asset = info.asset.add(profitsForFirstLossCovers[index]);
+        });
+
+        let [newAssets, lossesForAssets, lossesForFirstLossCovers] = await calcLoss(
+            loss,
+            assets,
+            this.firstLossCoverInfos,
+        );
+
+        return [
+            newAssets,
+            profitsForAssets.map((c, index) => c.sub(lossesForAssets[index])),
+            profitsForFirstLossCovers.map((c, index) => c.sub(lossesForFirstLossCovers[index])),
+        ];
+    }
+
+    async endFixedSeniorYieldProfitCalculation(
+        profit: BN,
+        tracker: SeniorYieldTracker,
+    ): Promise<[BN[], BN[], BN[], SeniorYieldTracker]> {
+        return await this._endFixedSeniorYieldProfitCalculation(profit, tracker);
+    }
+
+    async endFixedSeniorYieldProfitAndLossCalculation(
+        profit: BN,
+        tracker: SeniorYieldTracker,
+        loss: BN,
+    ): Promise<[BN[], BN[], BN[], SeniorYieldTracker]> {
+        let [assets, profitsForAssets, profitsForFirstLossCovers, newTracker] =
+            await this._endFixedSeniorYieldProfitCalculation(profit, tracker);
+        this.firstLossCoverInfos.forEach((info, index) => {
+            info.asset = info.asset.add(profitsForFirstLossCovers[index]);
+        });
+
+        let [newAssets, lossesForAssets, lossesForFirstLossCovers] = await calcLoss(
+            loss,
+            assets,
+            this.firstLossCoverInfos,
+        );
+
+        return [
+            newAssets,
+            profitsForAssets.map((c, index) => c.sub(lossesForAssets[index])),
+            profitsForFirstLossCovers.map((c, index) => c.sub(lossesForFirstLossCovers[index])),
+            newTracker,
+        ];
+    }
+
+    private async _endRiskAdjustedProfitCalculation(profit: BN): Promise<[BN[], BN[], BN[]]> {
+        let lpConfig = await this.poolConfigContract.getLPConfig();
+        let assets = await calcProfitForRiskAdjustedPolicy(
+            profit,
+            this.tranchesAssets,
+            BN.from(lpConfig.tranchesRiskAdjustmentInBps),
+        );
+        let [juniorProfit, firstLossCoverProfits] = await calcProfitForFirstLossCovers(
+            assets[CONSTANTS.JUNIOR_TRANCHE].sub(this.tranchesAssets[CONSTANTS.JUNIOR_TRANCHE]),
+            this.tranchesAssets[CONSTANTS.JUNIOR_TRANCHE],
+            this.firstLossCoverInfos,
+        );
+        assets[CONSTANTS.JUNIOR_TRANCHE] =
+            this.tranchesAssets[CONSTANTS.JUNIOR_TRANCHE].add(juniorProfit);
+        let trancheProfits = [
+            assets[CONSTANTS.SENIOR_TRANCHE].sub(this.tranchesAssets[CONSTANTS.SENIOR_TRANCHE]),
+            juniorProfit,
+        ];
+
+        return [assets, trancheProfits, firstLossCoverProfits];
+    }
+
+    private async _endFixedSeniorYieldProfitCalculation(
+        profit: BN,
+        tracker: SeniorYieldTracker,
+    ): Promise<[BN[], BN[], BN[], SeniorYieldTracker]> {
+        let lpConfig = await this.poolConfigContract.getLPConfig();
+        let block = await getLatestBlock();
+        let [newTracker, assets] = await calcProfitForFixedSeniorYieldPolicy(
+            profit,
+            this.tranchesAssets,
+            block.timestamp,
+            lpConfig.fixedSeniorYieldInBps,
+            tracker,
+        );
+
+        let [juniorProfit, firstLossCoverProfits] = await calcProfitForFirstLossCovers(
+            assets[CONSTANTS.JUNIOR_TRANCHE].sub(this.tranchesAssets[CONSTANTS.JUNIOR_TRANCHE]),
+            this.tranchesAssets[CONSTANTS.JUNIOR_TRANCHE],
+            this.firstLossCoverInfos,
+        );
+        assets[CONSTANTS.JUNIOR_TRANCHE] =
+            this.tranchesAssets[CONSTANTS.JUNIOR_TRANCHE].add(juniorProfit);
+        let trancheProfits = [
+            assets[CONSTANTS.SENIOR_TRANCHE].sub(this.tranchesAssets[CONSTANTS.SENIOR_TRANCHE]),
+            juniorProfit,
+        ];
+
+        return [assets, trancheProfits, firstLossCoverProfits, newTracker];
     }
 }
 
@@ -1295,12 +1468,10 @@ export async function calcLateFee(
     } else {
         lateFeeStartDate = dd.lateFeeUpdatedDate;
     }
-    let lateFeeUpdatedDate;
-    if (timestamp === 0) {
-        lateFeeUpdatedDate = await calendarContract.getStartOfTomorrow();
-    } else {
-        lateFeeUpdatedDate = await calendarContract.getStartOfNextDay(timestamp);
-    }
+    const currentTS = (await getLatestBlock()).timestamp;
+    const lateFeeUpdatedDate = await calendarContract.getStartOfNextDay(
+        timestamp === 0 ? currentTS : timestamp,
+    );
     const principal = getPrincipal(cr, dd);
     const lateFeeBasis = maxBigNumber(principal, BN.from(cc.committedAmount));
     const lateFeeDays = await calendarContract.getDaysDiff(lateFeeStartDate, lateFeeUpdatedDate);
@@ -1407,13 +1578,6 @@ export function getTotalDaysInPeriod(periodDuration: number) {
         default:
             throw Error("Invalid period duration");
     }
-}
-
-export function checkTwoCreditLosses() {
-    // preCreditLoss: CreditLossStructOutput,
-    // creditLoss: CreditLossStructOutput,
-    // expect(preCreditLoss.totalAccruedLoss).to.equal(creditLoss.totalAccruedLoss);
-    // expect(preCreditLoss.totalLossRecovery).to.equal(creditLoss.totalLossRecovery);
 }
 
 export function printCreditRecord(name: string, creditRecord: CreditRecordStruct) {
@@ -1539,4 +1703,50 @@ export function calcPoolFees(
         eaIncome,
     };
     return [accruedIncomes, remainingProfit.sub(poolOwnerIncome).sub(eaIncome)];
+}
+
+export async function checkRedemptionInfoByLender(
+    trancheVaultContract: TrancheVault,
+    lender: SignerWithAddress,
+    lastUpdatedEpochIndex: BN | number,
+    numSharesRequested: BN = BN.from(0),
+    principalRequested: BN = BN.from(0),
+    totalAmountProcessed: BN = BN.from(0),
+    totalAmountWithdrawn: BN = BN.from(0),
+    delta: number = 0,
+) {
+    const redemptionInfo = await trancheVaultContract.redemptionInfoByLender(lender.address);
+    checkRedemptionInfo(
+        redemptionInfo,
+        lastUpdatedEpochIndex,
+        numSharesRequested,
+        principalRequested,
+        totalAmountProcessed,
+        totalAmountWithdrawn,
+        delta,
+    );
+}
+
+type RedemptionInfoStructOutput = [BN, BN, BN, BN, BN] & {
+    lastUpdatedEpochIndex: BN;
+    numSharesRequested: BN;
+    principalRequested: BN;
+    totalAmountProcessed: BN;
+    totalAmountWithdrawn: BN;
+};
+
+export function checkRedemptionInfo(
+    redemptionInfo: RedemptionInfoStructOutput,
+    lastUpdatedEpochIndex: BN | number,
+    numSharesRequested: BN = BN.from(0),
+    principalRequested: BN = BN.from(0),
+    totalAmountProcessed: BN = BN.from(0),
+    totalAmountWithdrawn: BN = BN.from(0),
+    delta: number = 0,
+) {
+    expect(redemptionInfo.lastUpdatedEpochIndex).to.be.closeTo(lastUpdatedEpochIndex, delta);
+    expect(redemptionInfo.numSharesRequested).to.be.closeTo(numSharesRequested, delta);
+    expect(redemptionInfo.principalRequested).to.be.closeTo(principalRequested, delta);
+    expect(redemptionInfo.totalAmountProcessed).to.be.closeTo(totalAmountProcessed, delta);
+    expect(redemptionInfo.totalAmountWithdrawn).to.be.closeTo(totalAmountWithdrawn, delta);
 }

@@ -24,6 +24,7 @@ import {
     EpochChecker,
     FeeCalculator,
     PnLCalculator,
+    checkRedemptionInfoByLender,
     deployAndSetupPoolContracts,
     deployProtocolContracts,
 } from "./BaseTest";
@@ -68,52 +69,6 @@ let poolConfigContract: PoolConfig,
     creditDueManagerContract: CreditDueManager;
 
 let epochChecker: EpochChecker, feeCalculator: FeeCalculator;
-
-async function checkRedemptionInfoByLender(
-    trancheVaultContract: TrancheVault,
-    lender: SignerWithAddress,
-    lastUpdatedEpochIndex: BN | number,
-    numSharesRequested: BN = BN.from(0),
-    principalRequested: BN = BN.from(0),
-    totalAmountProcessed: BN = BN.from(0),
-    totalAmountWithdrawn: BN = BN.from(0),
-    delta: number = 0,
-) {
-    const redemptionInfo = await trancheVaultContract.redemptionInfoByLender(lender.address);
-    checkRedemptionInfo(
-        redemptionInfo,
-        lastUpdatedEpochIndex,
-        numSharesRequested,
-        principalRequested,
-        totalAmountProcessed,
-        totalAmountWithdrawn,
-        delta,
-    );
-}
-
-type RedemptionInfoStructOutput = [BN, BN, BN, BN, BN] & {
-    lastUpdatedEpochIndex: BN;
-    numSharesRequested: BN;
-    principalRequested: BN;
-    totalAmountProcessed: BN;
-    totalAmountWithdrawn: BN;
-};
-
-function checkRedemptionInfo(
-    redemptionInfo: RedemptionInfoStructOutput,
-    lastUpdatedEpochIndex: BN | number,
-    numSharesRequested: BN = BN.from(0),
-    principalRequested: BN = BN.from(0),
-    totalAmountProcessed: BN = BN.from(0),
-    totalAmountWithdrawn: BN = BN.from(0),
-    delta: number = 0,
-) {
-    expect(redemptionInfo.lastUpdatedEpochIndex).to.be.closeTo(lastUpdatedEpochIndex, delta);
-    expect(redemptionInfo.numSharesRequested).to.be.closeTo(numSharesRequested, delta);
-    expect(redemptionInfo.principalRequested).to.be.closeTo(principalRequested, delta);
-    expect(redemptionInfo.totalAmountProcessed).to.be.closeTo(totalAmountProcessed, delta);
-    expect(redemptionInfo.totalAmountWithdrawn).to.be.closeTo(totalAmountWithdrawn, delta);
-}
 
 type UserInfoStructOutput = [BN, boolean] & {
     principal: BN;
@@ -990,7 +945,7 @@ describe("TrancheVault Test", function () {
                     await mineNextBlockWithTimestamp(
                         currentEpoch.endTime.add(BN.from(60 * 5)).toNumber(),
                     );
-                    const availableAssets = await poolSafeContract.getPoolLiquidity();
+                    const availableAssets = await poolSafeContract.getAvailableBalanceForPool();
                     await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
                     await epochManagerContract.closeEpoch();
                     currentEpochId = await epochManagerContract.currentEpochId();
@@ -1283,7 +1238,7 @@ describe("TrancheVault Test", function () {
                     await mineNextBlockWithTimestamp(
                         currentEpoch.endTime.add(BN.from(60 * 5)).toNumber(),
                     );
-                    const availableAssets = await poolSafeContract.getPoolLiquidity();
+                    const availableAssets = await poolSafeContract.getAvailableBalanceForPool();
                     await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
                     await epochManagerContract.closeEpoch();
                     currentEpochId = await epochManagerContract.currentEpochId();
@@ -1420,7 +1375,7 @@ describe("TrancheVault Test", function () {
                     let amountProcessed = toToken(7000);
                     let sharesProcessed =
                         await juniorTrancheVaultContract.convertToShares(amountProcessed);
-                    const availableAssets = await poolSafeContract.getPoolLiquidity();
+                    const availableAssets = await poolSafeContract.getAvailableBalanceForPool();
                     await creditContract.drawdown(
                         ethers.constants.HashZero,
                         availableAssets.sub(amountProcessed),
@@ -1520,7 +1475,7 @@ describe("TrancheVault Test", function () {
                     let amountProcessed = toToken(6000);
                     let sharesProcessed =
                         await juniorTrancheVaultContract.convertToShares(amountProcessed);
-                    const availableAssets = await poolSafeContract.getPoolLiquidity();
+                    const availableAssets = await poolSafeContract.getAvailableBalanceForPool();
                     await creditContract.drawdown(
                         ethers.constants.HashZero,
                         availableAssets.sub(amountProcessed),
@@ -1728,7 +1683,7 @@ describe("TrancheVault Test", function () {
                 // Move assets out of pool safe for partial processing
 
                 let availableAmount = toToken(1000);
-                let availableAssets = await poolSafeContract.getPoolLiquidity();
+                let availableAssets = await poolSafeContract.getAvailableBalanceForPool();
                 await creditContract.drawdown(
                     ethers.constants.HashZero,
                     availableAssets.sub(availableAmount),
@@ -1963,7 +1918,7 @@ describe("TrancheVault Test", function () {
                     let amountProcessed = toToken(3000);
                     let sharesProcessed =
                         await juniorTrancheVaultContract.convertToShares(amountProcessed);
-                    const availableAssets = await poolSafeContract.getPoolLiquidity();
+                    const availableAssets = await poolSafeContract.getAvailableBalanceForPool();
                     await creditContract.drawdown(
                         ethers.constants.HashZero,
                         availableAssets.sub(amountProcessed),
@@ -2029,7 +1984,7 @@ describe("TrancheVault Test", function () {
                     let amountProcessed = toToken(5000);
                     let sharesProcessed =
                         await juniorTrancheVaultContract.convertToShares(amountProcessed);
-                    const availableAssets = await poolSafeContract.getPoolLiquidity();
+                    const availableAssets = await poolSafeContract.getAvailableBalanceForPool();
                     await creditContract.drawdown(
                         ethers.constants.HashZero,
                         availableAssets.sub(amountProcessed),
@@ -2119,7 +2074,7 @@ describe("TrancheVault Test", function () {
                 // Move assets out of pool safe for partial processing
 
                 let availableAmount = toToken(1000);
-                let availableAssets = await poolSafeContract.getPoolLiquidity();
+                let availableAssets = await poolSafeContract.getAvailableBalanceForPool();
                 await creditContract.drawdown(
                     ethers.constants.HashZero,
                     availableAssets.sub(availableAmount),
@@ -2236,7 +2191,7 @@ describe("TrancheVault Test", function () {
 
             // Introduce profit
             let totalAssets = await juniorTrancheVaultContract.totalAssets();
-            let profit = totalAssets.mul(BN.from(50));
+            let profit = totalAssets.div(10);
             await mockDistributePnL(profit, BN.from(0), BN.from(0));
             let totalSupply = await juniorTrancheVaultContract.totalSupply();
             totalAssets = await juniorTrancheVaultContract.totalAssets();
@@ -2278,7 +2233,7 @@ describe("TrancheVault Test", function () {
 
             // Introduce profit
             let totalAssets = await juniorTrancheVaultContract.totalAssets();
-            let profit = totalAssets.mul(BN.from(50));
+            let profit = totalAssets.div(10);
             await mockDistributePnL(profit, BN.from(0), BN.from(0));
             let totalSupply = await juniorTrancheVaultContract.totalSupply();
             totalAssets = await juniorTrancheVaultContract.totalAssets();
@@ -2325,7 +2280,7 @@ describe("TrancheVault Test", function () {
 
             // Introduce profit
             let totalAssets = await juniorTrancheVaultContract.totalAssets();
-            let profit = totalAssets.mul(BN.from(50));
+            let profit = totalAssets.div(10);
             await mockDistributePnL(profit, BN.from(0), BN.from(0));
             let totalSupply = await juniorTrancheVaultContract.totalSupply();
             totalAssets = await juniorTrancheVaultContract.totalAssets();

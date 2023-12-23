@@ -9,7 +9,7 @@ import {ICreditManager} from "./interfaces/ICreditManager.sol";
 import {PoolConfig, PoolSettings} from "../PoolConfig.sol";
 import {PoolConfigCache} from "../PoolConfigCache.sol";
 import {CreditManagerStorage} from "./CreditManagerStorage.sol";
-import {CreditClosureReason, CreditConfig, CreditLimit, CreditRecord, CreditState, DueDetail, PayPeriodDuration, CreditLoss} from "./CreditStructs.sol";
+import {CreditClosureReason, CreditConfig, CreditLimit, CreditRecord, CreditState, DueDetail, PayPeriodDuration} from "./CreditStructs.sol";
 import {Errors} from "../Errors.sol";
 import {DAYS_IN_A_MONTH, DAYS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS, SECONDS_IN_A_DAY} from "../SharedDefs.sol";
 import {ICreditDueManager} from "./utils/interfaces/ICreditDueManager.sol";
@@ -362,14 +362,8 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         yieldLoss = cr.yieldDue + dd.yieldPastDue;
         feesLoss = dd.lateFee;
 
-        CreditLoss memory cl = credit.getCreditLoss(creditHash);
-        cl.principalLoss = uint96(principalLoss);
-        cl.yieldLoss = uint96(yieldLoss);
-        cl.feesLoss = uint96(feesLoss);
-        credit.setCreditLoss(creditHash, cl);
-
-        IPool(poolConfig.pool()).distributeProfit(cl.yieldLoss + cl.feesLoss);
-        IPool(poolConfig.pool()).distributeLoss(cl.principalLoss + cl.yieldLoss + cl.feesLoss);
+        IPool(poolConfig.pool()).distributeProfit(yieldLoss + feesLoss);
+        IPool(poolConfig.pool()).distributeLoss(principalLoss + yieldLoss + feesLoss);
 
         cr.state = CreditState.Defaulted;
         credit.updateDueInfo(creditHash, cr, dd);
@@ -385,9 +379,15 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         // Although not essential to call getDueInfo() to extend the credit line duration,
         // it is still a good practice to bring the account current while we update one of the fields.
         CreditRecord memory cr = credit.getCreditRecord(creditHash);
+        if (cr.state != CreditState.GoodStanding) {
+            revert Errors.creditLineNotInStateForUpdate();
+        }
         CreditConfig memory cc = getCreditConfig(creditHash);
         DueDetail memory dd = credit.getDueDetail(creditHash);
         (cr, dd) = dueManager.getDueInfo(cr, cc, dd, block.timestamp);
+        if (cr.state != CreditState.GoodStanding) {
+            revert Errors.creditLineNotInStateForUpdate();
+        }
 
         cc.numOfPeriods += uint16(newNumOfPeriods);
         _setCreditConfig(creditHash, cc);
@@ -406,9 +406,15 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
 
     function _updateYield(bytes32 creditHash, uint256 yieldInBps) internal virtual {
         CreditRecord memory cr = credit.getCreditRecord(creditHash);
+        if (cr.state == CreditState.Approved || cr.state == CreditState.Deleted) {
+            revert Errors.creditLineNotInStateForUpdate();
+        }
         CreditConfig memory cc = getCreditConfig(creditHash);
         DueDetail memory dd = credit.getDueDetail(creditHash);
         (cr, dd) = dueManager.getDueInfo(cr, cc, dd, block.timestamp);
+        // No state check is needed after the bill is updated since it's impossible for a
+        // credit to go into the Approved or Deleted state if they weren't already in these
+        // states prior to the update.
 
         uint256 oldYieldInBps = cc.yieldInBps;
         cc.yieldInBps = uint16(yieldInBps);
@@ -420,8 +426,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         // 2. Incorporate the yield calculated with the new rate, also beginning tomorrow.
         dd.accrued = uint96(
             dueManager.computeUpdatedYieldDue(
-                cc,
-                cr,
+                cr.nextDueDate,
                 dd.accrued,
                 oldYieldInBps,
                 yieldInBps,
@@ -430,8 +435,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         );
         dd.committed = uint96(
             dueManager.computeUpdatedYieldDue(
-                cc,
-                cr,
+                cr.nextDueDate,
                 dd.committed,
                 oldYieldInBps,
                 yieldInBps,
@@ -467,9 +471,15 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         uint256 committedAmount
     ) internal virtual {
         CreditRecord memory cr = credit.getCreditRecord(creditHash);
+        if (cr.state == CreditState.Approved || cr.state == CreditState.Deleted) {
+            revert Errors.creditLineNotInStateForUpdate();
+        }
         CreditConfig memory cc = getCreditConfig(creditHash);
         DueDetail memory dd = credit.getDueDetail(creditHash);
         (cr, dd) = dueManager.getDueInfo(cr, cc, dd, block.timestamp);
+        // No state check is needed after the bill is updated since it's impossible for a
+        // credit to go into the Approved or Deleted state if they weren't already in these
+        // states prior to the update.
 
         uint256 oldCreditLimit = cc.creditLimit;
         cc.creditLimit = uint96(creditLimit);
@@ -479,8 +489,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
 
         dd.committed = uint96(
             dueManager.computeUpdatedYieldDue(
-                cc,
-                cr,
+                cr.nextDueDate,
                 dd.committed,
                 oldCommittedAmount,
                 committedAmount,
@@ -511,9 +520,15 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         uint256 amount
     ) internal returns (uint256 amountWaived) {
         CreditRecord memory cr = credit.getCreditRecord(creditHash);
+        if (cr.state == CreditState.Approved || cr.state == CreditState.Deleted) {
+            revert Errors.creditLineNotInStateForUpdate();
+        }
         CreditConfig memory cc = getCreditConfig(creditHash);
         DueDetail memory dd = credit.getDueDetail(creditHash);
         (cr, dd) = dueManager.getDueInfo(cr, cc, dd, block.timestamp);
+        // No state check is needed after the bill is updated since it's impossible for a
+        // credit to go into the Approved or Deleted state if they weren't already in these
+        // states prior to the update.
 
         uint256 oldLateFee = dd.lateFee;
         amountWaived = amount > dd.lateFee ? dd.lateFee : amount;

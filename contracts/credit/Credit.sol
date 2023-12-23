@@ -7,7 +7,7 @@ import {PoolConfig, PoolSettings} from "../PoolConfig.sol";
 import {IPool} from "../interfaces/IPool.sol";
 import {PoolConfigCache} from "../PoolConfigCache.sol";
 import {CreditStorage} from "./CreditStorage.sol";
-import {CreditConfig, CreditRecord, CreditLimit, CreditLoss, CreditState, DueDetail, CreditLoss, PayPeriodDuration} from "./CreditStructs.sol";
+import {CreditConfig, CreditRecord, CreditLimit, CreditState, DueDetail, PayPeriodDuration} from "./CreditStructs.sol";
 import {ICalendar} from "./interfaces/ICalendar.sol";
 import {IFirstLossCover} from "../interfaces/IFirstLossCover.sol";
 import {IPoolSafe} from "../interfaces/IPoolSafe.sol";
@@ -138,37 +138,6 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         _setCreditRecord(creditHash, cr);
     }
 
-    /// Shared setter to the DueDetail mapping for contract size consideration
-    function setDueDetail(bytes32 creditHash, DueDetail memory dd) external {
-        _onlyCreditManager();
-        _setDueDetail(creditHash, dd);
-    }
-
-    /// Shared setter to the CreditLoss mapping for contract size consideration
-    function setCreditLoss(bytes32 creditHash, CreditLoss memory cl) external {
-        _onlyCreditManager();
-        _setCreditLoss(creditHash, cl);
-    }
-
-    /**
-     * @notice checks if the credit line is behind in payments
-     * @dev When the account is in Approved state, there is no borrowing yet, being late
-     * does not apply.
-     * @dev After the bill is refreshed, the due date is updated, it is possible that the new due
-     * date is in the future, but if the bill refresh has set missedPeriods, the account is late.
-     */
-    function isLate(bytes32 creditHash) public view virtual returns (bool lateFlag) {
-        CreditRecord memory cr = getCreditRecord(creditHash);
-        // TODO(jiatu): we shouldn't rely on the ordering of enums since there is no semantic guarantee
-        // of the ordering.
-        return (cr.state > CreditState.Approved &&
-            (cr.missedPeriods > 0 ||
-                block.timestamp >
-                (cr.nextDueDate +
-                    poolConfig.getPoolSettings().latePaymentGracePeriodInDays *
-                    SECONDS_IN_A_DAY)));
-    }
-
     /// Shared accessor to the credit record mapping for contract size consideration
     function getCreditRecord(bytes32 creditHash) public view returns (CreditRecord memory) {
         return _creditRecordMap[creditHash];
@@ -177,11 +146,6 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
     /// Shared accessor to DueDetail for contract size consideration
     function getDueDetail(bytes32 creditHash) public view returns (DueDetail memory) {
         return _dueDetailMap[creditHash];
-    }
-
-    /// Shared accessor to CreditLoss for contract size consideration
-    function getCreditLoss(bytes32 creditHash) public view returns (CreditLoss memory) {
-        return _creditLossMap[creditHash];
     }
 
     function updateDueInfo(
@@ -203,9 +167,20 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         _dueDetailMap[creditHash] = dd;
     }
 
-    /// Shared setter to the CreditLoss mapping for contract size consideration
-    function _setCreditLoss(bytes32 creditHash, CreditLoss memory cl) internal {
-        _creditLossMap[creditHash] = cl;
+    function _getDueInfo(
+        bytes32 creditHash
+    ) internal view returns (CreditRecord memory cr, DueDetail memory dd) {
+        CreditConfig memory cc = creditManager.getCreditConfig(creditHash);
+        cr = getCreditRecord(creditHash);
+        dd = getDueDetail(creditHash);
+        return feeManager.getDueInfo(cr, cc, dd, block.timestamp);
+    }
+
+    function _getNextBillRefreshDate(
+        bytes32 creditHash
+    ) internal view returns (uint256 refreshDate) {
+        CreditRecord memory cr = getCreditRecord(creditHash);
+        return feeManager.getNextBillRefreshDate(cr);
     }
 
     /**
@@ -261,16 +236,13 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             ) revert Errors.creditLineExceeded();
 
             // Add the yield of new borrowAmount for the remainder of the period
-            (uint256 daysPassed, uint256 totalDays) = calendar.getDaysPassedInPeriod(
-                cc.periodDuration,
-                cr.nextDueDate
-            );
+            uint256 daysRemaining = calendar.getDaysRemainingInPeriod(cr.nextDueDate);
             // It's important to note that the yield calculation includes the day of the drawdown. For instance,
             // if the borrower draws down at 11:59 PM on October 30th, the yield for October 30th must be paid.
             uint256 additionalYieldAccrued = feeManager.computeYieldDue(
                 borrowAmount,
                 cc.yieldInBps,
-                totalDays - daysPassed
+                daysRemaining
             );
             dd.accrued += uint96(additionalYieldAccrued);
             if (dd.accrued > dd.committed) {
@@ -291,7 +263,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
                 uint256 additionalPrincipalDue = feeManager.computePrincipalDueForPartialPeriod(
                     borrowAmount,
                     principalRate,
-                    totalDays - daysPassed,
+                    daysRemaining,
                     cc.periodDuration
                 );
                 cr.unbilledPrincipal -= uint96(additionalPrincipalDue);
@@ -449,14 +421,6 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             cr.totalPastDue = 0;
             cr.missedPeriods = 0;
 
-            if (cr.state == CreditState.Defaulted) {
-                // Clear `CreditLoss` if recovered from default.
-                CreditLoss memory cl = getCreditLoss(creditHash);
-                cl.principalLoss = 0;
-                cl.yieldLoss = 0;
-                cl.feesLoss = 0;
-                _setCreditLoss(creditHash, cl);
-            }
             // Closes the credit line if it is in the final period
             if (cr.remainingPeriods == 0) {
                 cr.state = CreditState.Deleted;
@@ -545,12 +509,10 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             cr.unbilledPrincipal = uint96(cr.unbilledPrincipal - unbilledPrincipalPaid);
         }
 
-        // Adjust credit record status if needed. This happens when the next due happens to be 0.
-        if (cr.nextDue == 0) {
-            if (cr.unbilledPrincipal == 0 && cr.remainingPeriods == 0) {
-                cr.state = CreditState.Deleted;
-                emit CreditClosedAfterPayOff(creditHash, msg.sender);
-            } else cr.state = CreditState.GoodStanding;
+        if (cr.nextDue == 0 && cr.unbilledPrincipal == 0 && cr.remainingPeriods == 0) {
+            // Close the credit line if all outstanding balance has been paid off.
+            cr.state = CreditState.Deleted;
+            emit CreditClosedAfterPayOff(creditHash, msg.sender);
         }
 
         _updateDueInfo(creditHash, cr, dd);
@@ -607,6 +569,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             // Prevent drawdown if the credit is in good standing, but has due outstanding and is currently in the
             // late payment grace period or later. In this case, we want the borrower to pay off the due before being
             // able to make further drawdown.
+            // TODO(jiatu): this error name is misleading. Rename it.
             revert Errors.drawdownNotAllowedInLatePaymentGracePeriod();
         }
     }
@@ -626,32 +589,32 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
     }
 
     function _onlyCreditManager() internal view {
-        if (msg.sender != address(creditManager)) revert Errors.todo();
+        if (msg.sender != address(creditManager)) revert Errors.notAuthorizedCaller();
     }
 
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = address(_poolConfig.humaConfig());
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         humaConfig = HumaConfig(addr);
 
         addr = _poolConfig.creditDueManager();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         feeManager = ICreditDueManager(addr);
 
         addr = _poolConfig.calendar();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         calendar = ICalendar(addr);
 
         addr = _poolConfig.poolSafe();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         poolSafe = IPoolSafe(addr);
 
         addr = _poolConfig.getFirstLossCover(BORROWER_FIRST_LOSS_COVER_INDEX);
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         firstLossCover = IFirstLossCover(addr);
 
         addr = _poolConfig.creditManager();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         creditManager = ICreditManager(addr);
     }
 }

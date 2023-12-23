@@ -1,4 +1,6 @@
+import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { expect } from "chai";
 import { BigNumber as BN } from "ethers";
 import { ethers } from "hardhat";
 import {
@@ -21,15 +23,22 @@ import {
 } from "../../typechain-types";
 import {
     CONSTANTS,
+    CreditState,
     PayPeriodDuration,
+    calcYield,
+    checkCreditRecordsMatch,
+    checkDueDetailsMatch,
     deployAndSetupPoolContracts,
     deployProtocolContracts,
+    genDueDetail,
     printCreditRecord,
 } from "../BaseTest";
 import {
     evmRevert,
     evmSnapshot,
     getMinFirstLossCoverRequirement,
+    mineNextBlockWithTimestamp,
+    receivableLevelCreditHash,
     setNextBlockTimestamp,
     toToken,
 } from "../TestUtils";
@@ -65,6 +74,23 @@ let poolConfigContract: PoolConfig,
     nftContract: MockNFT;
 
 describe("ReceivableFactoringCredit Tests", function () {
+    before(async function () {
+        [
+            defaultDeployer,
+            protocolOwner,
+            treasury,
+            eaServiceAccount,
+            pdsServiceAccount,
+            poolOwner,
+            poolOwnerTreasury,
+            evaluationAgent,
+            poolOperator,
+            lender,
+            borrower,
+            payer,
+        ] = await ethers.getSigners();
+    });
+
     async function prepare() {
         [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
             protocolOwner,
@@ -142,21 +168,91 @@ describe("ReceivableFactoringCredit Tests", function () {
             .deposit(toToken(10_000_000), lender.address);
     }
 
-    before(async function () {
-        [
-            defaultDeployer,
-            protocolOwner,
-            treasury,
-            eaServiceAccount,
-            pdsServiceAccount,
-            poolOwner,
-            poolOwnerTreasury,
-            evaluationAgent,
-            poolOperator,
-            lender,
-            borrower,
-            payer,
-        ] = await ethers.getSigners();
+    describe("getDueInfo", function () {
+        const yieldInBps = 1217,
+            principalRate = 100,
+            lateFeeBps = 2400;
+        const latePaymentGracePeriodInDays = 5;
+        let creditLimit: BN, borrowAmount: BN, tokenId: BN;
+        let creditHash: string;
+
+        async function prepareForGetDueInfo() {
+            await poolConfigContract
+                .connect(poolOwner)
+                .setLatePaymentGracePeriodInDays(latePaymentGracePeriodInDays);
+            await poolConfigContract.connect(poolOwner).setFeeStructure({
+                yieldInBps,
+                minPrincipalRateInBps: principalRate,
+                lateFeeBps,
+            });
+
+            await nftContract.mintNFT(borrower.getAddress(), "");
+            tokenId = await nftContract.tokenOfOwnerByIndex(borrower.getAddress(), 0);
+
+            creditLimit = toToken(100_000);
+            borrowAmount = toToken(15_000);
+            creditHash = await receivableLevelCreditHash(creditContract, nftContract, tokenId);
+
+            await creditManagerContract
+                .connect(eaServiceAccount)
+                .approveReceivable(
+                    borrower.getAddress(),
+                    { receivableAmount: creditLimit, receivableId: tokenId },
+                    creditLimit,
+                    1,
+                    yieldInBps,
+                );
+            await nftContract.connect(borrower).approve(creditContract.address, tokenId);
+        }
+
+        beforeEach(async function () {
+            await loadFixture(prepare);
+            await loadFixture(prepareForGetDueInfo);
+        });
+
+        it("Should return the latest bill for the borrower", async function () {
+            await creditContract
+                .connect(borrower)
+                .drawdownWithReceivable(borrower.getAddress(), tokenId, borrowAmount);
+
+            const oldCR = await creditContract["getCreditRecord(bytes32)"](creditHash);
+            const viewTime =
+                oldCR.nextDueDate.toNumber() +
+                latePaymentGracePeriodInDays * CONSTANTS.SECONDS_IN_A_DAY +
+                100;
+            await mineNextBlockWithTimestamp(viewTime);
+
+            const cc = await creditManagerContract.getCreditConfig(creditHash);
+            const nextDueDate = await calendarContract.getStartDateOfNextPeriod(
+                cc.periodDuration,
+                viewTime,
+            );
+            const tomorrow = await calendarContract.getStartOfNextDay(viewTime);
+            const lateFee = calcYield(borrowAmount, lateFeeBps, latePaymentGracePeriodInDays + 1);
+            expect(lateFee).to.be.gt(0);
+
+            const [actualCR, actualDD] = await creditContract.getDueInfo(tokenId);
+            const expectedCR = {
+                unbilledPrincipal: 0,
+                nextDueDate,
+                nextDue: 0,
+                yieldDue: 0,
+                totalPastDue: borrowAmount.add(oldCR.yieldDue).add(lateFee),
+                missedPeriods: 1,
+                remainingPeriods: 0,
+                state: CreditState.Delayed,
+            };
+            checkCreditRecordsMatch(actualCR, expectedCR);
+            const expectedDD = genDueDetail({
+                lateFeeUpdatedDate: tomorrow,
+                lateFee: lateFee,
+                yieldPastDue: oldCR.yieldDue,
+                principalPastDue: borrowAmount,
+                accrued: 0,
+                committed: 0,
+            });
+            checkDueDetailsMatch(actualDD, expectedDD);
+        });
     });
 
     describe("Bulla case tests", function () {
@@ -193,19 +289,14 @@ describe("ReceivableFactoringCredit Tests", function () {
             await nftContract.mintNFT(borrower.address, "");
             tokenId = await nftContract.tokenOfOwnerByIndex(borrower.address, 0);
 
-            creditHash = ethers.utils.keccak256(
-                ethers.utils.defaultAbiCoder.encode(
-                    ["address", "address", "uint256"],
-                    [creditContract.address, nftContract.address, tokenId],
-                ),
-            );
+            creditHash = await receivableLevelCreditHash(creditContract, nftContract, tokenId);
         }
 
         let sId: unknown;
 
         before(async function () {
-            await prepare();
-            await prepareForBullaTests();
+            await loadFixture(prepare);
+            await loadFixture(prepareForBullaTests);
             sId = await evmSnapshot();
         });
 

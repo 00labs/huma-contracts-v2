@@ -14,66 +14,24 @@ import {Errors} from "../Errors.sol";
  */
 contract Calendar is ICalendar {
     /// @inheritdoc ICalendar
-    function getStartOfNextMonth() external view returns (uint256 startOfNextMonth) {
-        return _getStartOfNextMonth(block.timestamp);
-    }
-
-    /// @inheritdoc ICalendar
-    function getStartOfNextQuarter() external view returns (uint256 startOfNextQuarter) {
-        return _getStartOfNextQuarter(block.timestamp);
-    }
-
-    /// @inheritdoc ICalendar
-    function getStartOfNextHalfYear() external view returns (uint256 startOfNextHalfYear) {
-        return _getStartOfNextHalfYear(block.timestamp);
-    }
-
-    /// @inheritdoc ICalendar
-    function getStartOfTomorrow() external view returns (uint256 startOfTomorrow) {
-        return DTL.addDays(getStartOfToday(), 1);
-    }
-
-    /// @inheritdoc ICalendar
     function getStartOfNextDay(uint256 timestamp) external pure returns (uint256 startOfNextDay) {
         return DTL.addDays(_getStartOfDay(timestamp), 1);
     }
 
     /// @inheritdoc ICalendar
-    function getStartOfThisMonth() public view returns (uint256 startOfMonth) {
-        return _getStartOfMonth(block.timestamp);
-    }
-
-    /// @inheritdoc ICalendar
-    function getStartOfThisQuarter() public view returns (uint256 startOfQuarter) {
-        return _getStartOfQuarter(block.timestamp);
-    }
-
-    /// @inheritdoc ICalendar
-    function getStartOfThisHalfYear() public view returns (uint256 startOfHalfYear) {
-        return _getStartOfHalfYear(block.timestamp);
-    }
-
-    /// @inheritdoc ICalendar
-    function getStartOfToday() public view returns (uint256 startOfToday) {
-        return _getStartOfDay(block.timestamp);
-    }
-
-    /// @inheritdoc ICalendar
-    function getDaysPassedInPeriod(
-        PayPeriodDuration periodDuration,
-        uint256 nextDueDate
-    ) external view returns (uint256 daysPassed, uint256 totalDaysInPeriod) {
-        if (block.timestamp > nextDueDate) {
+    function getDaysRemainingInPeriod(
+        uint256 endDate
+    ) external view returns (uint256 daysRemaining) {
+        if (block.timestamp > endDate) {
             revert Errors.startDateLaterThanEndDate();
         }
         uint256 day = DTL.getDay(block.timestamp);
         // If the day falls on the 31st, move it back to the 30th.
         day = day > DAYS_IN_A_MONTH ? DAYS_IN_A_MONTH : day;
-        uint256 periodStartDate = getStartDateOfPeriod(periodDuration, block.timestamp);
-        uint256 numMonthsPassed = DTL.diffMonths(periodStartDate, block.timestamp);
-        // -1 here since we are using the beginning of the day.
-        daysPassed = numMonthsPassed * DAYS_IN_A_MONTH + day - 1;
-        return (daysPassed, getDaysDiff(periodStartDate, nextDueDate));
+        uint256 startDateOfMonth = _getStartOfMonth(block.timestamp);
+        uint256 numMonths = DTL.diffMonths(startDateOfMonth, endDate);
+        // +1 here since we are using the beginning of the day.
+        return numMonths * DAYS_IN_A_MONTH - day + 1;
     }
 
     /// @inheritdoc ICalendar
@@ -115,10 +73,7 @@ contract Calendar is ICalendar {
         if (periodDuration == PayPeriodDuration.Quarterly) {
             return _getStartOfQuarter(timestamp);
         }
-        if (periodDuration == PayPeriodDuration.SemiAnnually) {
-            return _getStartOfHalfYear(timestamp);
-        }
-        revert Errors.invalidPayPeriod();
+        return _getStartOfHalfYear(timestamp);
     }
 
     /// @inheritdoc ICalendar
@@ -148,15 +103,7 @@ contract Calendar is ICalendar {
         // a partial period or not, so push the start date to the beginning of the period
         // to simplify the calculation.
         startDate = getStartDateOfPeriod(periodDuration, startDate);
-        numPeriodsPassed =
-            getDaysDiff(startDate, endDate) /
-            getTotalDaysInFullPeriod(periodDuration);
-        if (endDate != getStartDateOfPeriod(periodDuration, endDate)) {
-            // If the end date is in the middle of a period, then we need to account for the
-            // last partial period.
-            ++numPeriodsPassed;
-        }
-        return numPeriodsPassed;
+        return getDaysDiff(startDate, endDate) / getTotalDaysInFullPeriod(periodDuration);
     }
 
     /// @inheritdoc ICalendar
@@ -187,10 +134,7 @@ contract Calendar is ICalendar {
         if (periodDuration == PayPeriodDuration.Quarterly) {
             return _getStartOfNextQuarter(timestamp);
         }
-        if (periodDuration == PayPeriodDuration.SemiAnnually) {
-            return _getStartOfNextHalfYear(timestamp);
-        }
-        revert Errors.invalidPayPeriod();
+        return _getStartOfNextHalfYear(timestamp);
     }
 
     /// @inheritdoc ICalendar
@@ -203,10 +147,7 @@ contract Calendar is ICalendar {
         if (periodDuration == PayPeriodDuration.Quarterly) {
             return DAYS_IN_A_QUARTER;
         }
-        if (periodDuration == PayPeriodDuration.SemiAnnually) {
-            return DAYS_IN_A_HALF_YEAR;
-        }
-        revert Errors.invalidPayPeriod();
+        return DAYS_IN_A_HALF_YEAR;
     }
 
     function _getStartOfDay(uint256 timestamp) internal pure returns (uint256 startOfDay) {
