@@ -141,9 +141,9 @@ describe("ReceivableBackedCreditLine Tests", function () {
         await receivableContract.deployed();
 
         await receivableContract.connect(poolOwner).initialize();
-        await receivableContract
-            .connect(poolOwner)
-            .grantRole(receivableContract.MINTER_ROLE(), borrower.address);
+        await receivableContract.connect(poolOwner).addAdmin(poolOwner.address);
+        await receivableContract.connect(poolOwner).addMinter(borrower.address);
+        await receivableContract.connect(poolOwner).addMinter(poolOwner.address);
         await poolConfigContract.connect(poolOwner).setReceivableAsset(receivableContract.address);
 
         await borrowerFirstLossCoverContract
