@@ -183,7 +183,7 @@ describe("Receivable Test", function () {
             expect(tokenDetails2.paidAmount).to.equal(0);
 
             const tokenURI2 = await receivableContract.tokenURI(tokenId2);
-            expect(tokenURI).to.equal("Test URI");
+            expect(tokenURI2).to.equal("Test URI");
         });
     });
 
@@ -215,7 +215,7 @@ describe("Receivable Test", function () {
             expect(tokenDetails.paidAmount).to.equal(100);
         });
 
-        it("Should revert declare payment when not called by token owner", async function () {
+        it("Should not allow non-token owner or non-creator to declare payment", async function () {
             const tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
 
             await expect(

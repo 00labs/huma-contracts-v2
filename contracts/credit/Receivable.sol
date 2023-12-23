@@ -84,13 +84,7 @@ contract Receivable is
         _grantRole(UPGRADER_ROLE, msg.sender);
     }
 
-    /**
-     * @dev Creates a new receivable token and assigns it to the recipient address
-     * @param currencyCode The ISO 4217 currency code that the receivable is denominated in
-     * @param receivableAmount The total amount of the receivable
-     * @param maturityDate The date at which the receivable becomes due
-     * @param uri The URI of the metadata associated with the receivable
-     */
+    /// @inheritdoc IReceivable
     function createReceivable(
         uint16 currencyCode,
         uint96 receivableAmount,
@@ -116,15 +110,7 @@ contract Receivable is
         emit ReceivableCreated(msg.sender, tokenId, receivableAmount, maturityDate, currencyCode);
     }
 
-    /**
-     * @dev Declares payment for a receivable.
-     * Only the owner of the token can declare a payment.
-     * The payment method for the receivable must be Declarative.
-     * The receivable must not already be paid in full.
-     * Emits a `PaymentDeclared` event.
-     * @param tokenId The ID of the receivable token.
-     * @param paymentAmount The amount of payment being declared.
-     */
+    /// @inheritdoc IReceivable
     function declarePayment(uint256 tokenId, uint96 paymentAmount) external {
         if (paymentAmount <= 0) revert Errors.todo();
         if (msg.sender != ownerOf(tokenId) && msg.sender != creators[tokenId])
@@ -160,14 +146,7 @@ contract Receivable is
         else revert Errors.todo();
     }
 
-    /**
-     * @dev Gets the payment status of a receivable.
-     * Returns `Status.Paid` if the receivable has been paid in full.
-     * Returns `Status.PartiallyPaid` if the receivable has been paid partially.
-     * Returns `Status.Unpaid` if the receivable has not been paid at all.
-     * @param tokenId The ID of the receivable token.
-     * @return The payment status of the receivable.
-     */
+    /// @inheritdoc IReceivable
     function getStatus(uint256 tokenId) public view returns (ReceivableState) {
         return receivableInfoMap[tokenId].state;
     }
