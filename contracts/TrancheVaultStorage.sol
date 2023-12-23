@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {EpochInfo} from "./interfaces/IEpoch.sol";
+import {RedemptionSummary} from "./interfaces/IRedemptionHandler.sol";
 import {IEpochManager} from "./interfaces/IEpochManager.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
@@ -41,7 +41,7 @@ contract TrancheVaultStorage {
     // Note that the index may not be contiguous: if there is no redemption request,
     // the ID won't be recorded in this array.
     uint256[] public epochIds;
-    mapping(uint256 => EpochInfo) public epochInfoByEpochId;
+    mapping(uint256 => RedemptionSummary) public redemptionSummaryByEpochId;
 
     mapping(address => RedemptionInfo) public redemptionInfoByLender;
 
