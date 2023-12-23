@@ -45,6 +45,20 @@ describe("Calendar Test", function () {
 
     describe("getDaysRemainingInPeriod", function () {
         describe("With monthly period duration", function () {
+            it("Should return 0 if the current timestamp and end date are on the same day", async function () {
+                const nextYear = moment.utc().year() + 1;
+                const nextBlockTime = moment.utc({
+                    year: nextYear,
+                    month: 1,
+                    day: 1,
+                });
+                await mineNextBlockWithTimestamp(nextBlockTime.unix());
+                const daysRemaining = await calendarContract.getDaysRemainingInPeriod(
+                    nextBlockTime.unix(),
+                );
+                expect(daysRemaining).to.equal(0);
+            });
+
             it("Should return the correct values if the day is the 1st", async function () {
                 const nextYear = moment.utc().year() + 1;
                 const nextBlockTime = moment.utc({
