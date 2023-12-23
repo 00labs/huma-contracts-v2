@@ -63,6 +63,23 @@ contract Calendar is ICalendar {
     }
 
     /// @inheritdoc ICalendar
+    function getDaysDiffSincePreviousPeriodStart(
+        PayPeriodDuration periodDuration,
+        uint256 numPeriodsPassed,
+        uint256 timestamp
+    ) external pure returns (uint256 daysDiff) {
+        uint256 periodStartDate = getStartDateOfPeriod(periodDuration, timestamp);
+        uint256 numMonths = numPeriodsPassed;
+        if (periodDuration == PayPeriodDuration.Quarterly) {
+            numMonths *= 3;
+        } else if (periodDuration == PayPeriodDuration.SemiAnnually) {
+            numMonths *= 6;
+        }
+        uint256 startDate = DTL.subMonths(periodStartDate, numMonths);
+        return DTL.diffDays(startDate, timestamp);
+    }
+
+    /// @inheritdoc ICalendar
     function getStartDateOfPeriod(
         PayPeriodDuration periodDuration,
         uint256 timestamp

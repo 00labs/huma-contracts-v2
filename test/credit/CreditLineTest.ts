@@ -8464,6 +8464,79 @@ describe("CreditLine Test", function () {
         });
     });
 
+    describe("isDefaultReady", function () {
+        let defaultGracePeriodInDays: number;
+        let creditHash: string;
+        let borrowAmount: BN;
+
+        async function prepare() {
+            borrowAmount = toToken(10_000);
+            creditHash = await borrowerLevelCreditHash(creditContract, borrower);
+
+            await poolConfigContract
+                .connect(poolOwner)
+                .setPoolDefaultGracePeriod(defaultGracePeriodInDays);
+            await creditManagerContract
+                .connect(eaServiceAccount)
+                .approveBorrower(borrower.address, toToken(100_000), 6, 1317, toToken(0), 0, true);
+            await creditContract.connect(borrower).drawdown(borrower.getAddress(), borrowAmount);
+        }
+
+        describe("If the default grace period is less than the number of days in a period", function () {
+            beforeEach(async function () {
+                defaultGracePeriodInDays = 10;
+                await loadFixture(prepare);
+            });
+
+            it("Should return false if default is ready to be triggered yet", async function () {
+                const cr = await creditContract.getCreditRecord(creditHash);
+                const triggerDefaultDate =
+                    cr.nextDueDate.toNumber() +
+                    (defaultGracePeriodInDays - 1) * CONSTANTS.SECONDS_IN_A_DAY;
+                await mineNextBlockWithTimestamp(triggerDefaultDate);
+
+                expect(await creditManagerContract.isDefaultReady(creditHash)).to.be.false;
+            });
+
+            it("Should return true if default is ready to be triggered", async function () {
+                const cr = await creditContract.getCreditRecord(creditHash);
+                const triggerDefaultDate =
+                    cr.nextDueDate.toNumber() +
+                    defaultGracePeriodInDays * CONSTANTS.SECONDS_IN_A_DAY;
+                await mineNextBlockWithTimestamp(triggerDefaultDate);
+
+                expect(await creditManagerContract.isDefaultReady(creditHash)).to.be.true;
+            });
+        });
+
+        describe("If the default grace period is more than the number of days in a period", function () {
+            beforeEach(async function () {
+                defaultGracePeriodInDays = 83;
+                await loadFixture(prepare);
+            });
+
+            it("Should return false if default is ready to be triggered yet", async function () {
+                const cr = await creditContract.getCreditRecord(creditHash);
+                const triggerDefaultDate =
+                    cr.nextDueDate.toNumber() +
+                    (defaultGracePeriodInDays - 1) * CONSTANTS.SECONDS_IN_A_DAY;
+                await mineNextBlockWithTimestamp(triggerDefaultDate);
+
+                expect(await creditManagerContract.isDefaultReady(creditHash)).to.be.false;
+            });
+
+            it("Should return true if default is ready to be triggered", async function () {
+                const cr = await creditContract.getCreditRecord(creditHash);
+                const triggerDefaultDate =
+                    cr.nextDueDate.toNumber() +
+                    defaultGracePeriodInDays * CONSTANTS.SECONDS_IN_A_DAY;
+                await mineNextBlockWithTimestamp(triggerDefaultDate);
+
+                expect(await creditManagerContract.isDefaultReady(creditHash)).to.be.true;
+            });
+        });
+    });
+
     describe("triggerDefault", function () {
         const defaultGracePeriodInDays = 10;
         const numOfPeriods = 6,
@@ -8495,6 +8568,7 @@ describe("CreditLine Test", function () {
                     0,
                     true,
                 );
+            await creditContract.connect(borrower).drawdown(borrower.getAddress(), borrowAmount);
         }
 
         beforeEach(async function () {

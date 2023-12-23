@@ -466,6 +466,116 @@ describe("Calendar Test", function () {
         });
     });
 
+    describe("getDaysDiffSincePreviousPeriodStart", function () {
+        describe("With monthly period duration", function () {
+            describe("If the number of periods passed is 0", function () {
+                it("Should return the correct number of days in between", async function () {
+                    const timestamp = moment.utc({
+                        year: 2024,
+                        month: 2,
+                        day: 10,
+                    });
+                    expect(
+                        await calendarContract.getDaysDiffSincePreviousPeriodStart(
+                            PayPeriodDuration.Monthly,
+                            0,
+                            timestamp.unix(),
+                        ),
+                    ).to.equal(9);
+                });
+            });
+
+            describe("If the number of periods passed is greater then 0", function () {
+                it("Should return the correct number of days in between", async function () {
+                    const timestamp = moment.utc({
+                        year: 2024,
+                        month: 2,
+                        day: 10,
+                    });
+                    expect(
+                        await calendarContract.getDaysDiffSincePreviousPeriodStart(
+                            PayPeriodDuration.Monthly,
+                            2,
+                            timestamp.unix(),
+                        ),
+                    ).to.equal(69);
+                });
+            });
+        });
+
+        describe("With quarterly period duration", function () {
+            describe("If the number of periods passed is 0", function () {
+                it("Should return the correct number of days in between", async function () {
+                    const timestamp = moment.utc({
+                        year: 2024,
+                        month: 2,
+                        day: 10,
+                    });
+                    expect(
+                        await calendarContract.getDaysDiffSincePreviousPeriodStart(
+                            PayPeriodDuration.Quarterly,
+                            0,
+                            timestamp.unix(),
+                        ),
+                    ).to.equal(69);
+                });
+            });
+
+            describe("If the number of periods passed is greater then 0", function () {
+                it("Should return the correct number of days in between", async function () {
+                    const timestamp = moment.utc({
+                        year: 2024,
+                        month: 2,
+                        day: 10,
+                    });
+                    expect(
+                        await calendarContract.getDaysDiffSincePreviousPeriodStart(
+                            PayPeriodDuration.Quarterly,
+                            2,
+                            timestamp.unix(),
+                        ),
+                    ).to.equal(253);
+                });
+            });
+        });
+
+        describe("With semi-annually period duration", function () {
+            describe("If the number of periods passed is 0", function () {
+                it("Should return the correct number of days in between", async function () {
+                    const timestamp = moment.utc({
+                        year: 2024,
+                        month: 2,
+                        day: 10,
+                    });
+                    expect(
+                        await calendarContract.getDaysDiffSincePreviousPeriodStart(
+                            PayPeriodDuration.SemiAnnually,
+                            0,
+                            timestamp.unix(),
+                        ),
+                    ).to.equal(69);
+                });
+            });
+
+            describe("If the number of periods passed is greater then 0", function () {
+                it("Should return the correct number of days in between", async function () {
+                    const timestamp = moment.utc({
+                        year: 2024,
+                        month: 2,
+                        day: 10,
+                    });
+                    expect(
+                        await calendarContract.getDaysDiffSincePreviousPeriodStart(
+                            PayPeriodDuration.SemiAnnually,
+                            2,
+                            timestamp.unix(),
+                        ),
+                    ).to.equal(434);
+                });
+            });
+        });
+    });
+
     describe("getStartDateOfNextPeriod", function () {
         describe("With monthly period duration", function () {
             it("Should return the start date of the immediate next period relative to the current block timestamp if timestamp is 0", async function () {
