@@ -112,27 +112,24 @@ contract Receivable is
 
     /// @inheritdoc IReceivable
     function declarePayment(uint256 tokenId, uint96 paymentAmount) external {
-        if (paymentAmount <= 0) revert Errors.todo();
+        if (paymentAmount == 0) revert Errors.zeroAmountProvided();
         if (msg.sender != ownerOf(tokenId) && msg.sender != creators[tokenId])
-            revert Errors.todo();
+            revert Errors.notReceivableOwnerOrCreator();
 
         ReceivableInfo storage receivableInfo = receivableInfoMap[tokenId];
         receivableInfo.paidAmount += paymentAmount;
 
         if (receivableInfo.paidAmount >= receivableInfo.receivableAmount) {
             receivableInfo.state = ReceivableState.Paid;
-        } else if (receivableInfo.paidAmount > 0) {
+        } else {
+            assert(receivableInfo.paidAmount > 0);
             receivableInfo.state = ReceivableState.PartiallyPaid;
         }
 
-        emit PaymentDeclared(
-            msg.sender,
-            tokenId,
-            receivableInfo.currencyCode,
-            uint256(paymentAmount)
-        );
+        emit PaymentDeclared(msg.sender, tokenId, receivableInfo.currencyCode, paymentAmount);
     }
 
+    /// @inheritdoc IReceivable
     function getReceivable(
         uint256 tokenId
     ) external view returns (ReceivableInfo memory receivable) {

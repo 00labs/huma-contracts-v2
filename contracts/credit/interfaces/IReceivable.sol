@@ -28,12 +28,19 @@ interface IReceivable {
     function declarePayment(uint256 tokenId, uint96 paymentAmount) external;
 
     /**
+     * @notice Returns the receivable associated with the given `tokenId`.
+     * @param tokenId The ID of the receivable token.
+     * @return receivable The receivable.
+     */
+    function getReceivable(uint256 tokenId) external returns (ReceivableInfo memory receivable);
+
+    /**
      * @notice Gets the payment status of a receivable.
      * Returns `Status.Paid` if the receivable has been paid in full.
      * Returns `Status.PartiallyPaid` if the receivable has been paid partially.
      * Returns `Status.Unpaid` if the receivable has not been paid at all.
      * @param tokenId The ID of the receivable token.
-     * @return The payment status of the receivable.
+     * @return state The payment status of the receivable.
      */
     function getStatus(uint256 tokenId) external returns (ReceivableState state);
 }

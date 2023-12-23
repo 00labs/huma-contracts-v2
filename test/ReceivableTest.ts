@@ -122,7 +122,7 @@ describe("Receivable Test", function () {
         await loadFixture(prepare);
     });
 
-    describe("createReceivable", function () {
+    describe("createReceivable and burn", function () {
         it("Should only allow the minter role to create receivable", async function () {
             await expect(
                 receivableContract.connect(eaServiceAccount).createReceivable(
@@ -158,32 +158,32 @@ describe("Receivable Test", function () {
                 5, // currencyCode
                 1000,
                 100,
-                "Test URI",
+                "Test URI2",
             );
 
             expect(await receivableContract.balanceOf(borrower.address)).to.equal(3);
 
             const tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 1);
-
             const tokenDetails = await receivableContract.receivableInfoMap(tokenId);
             expect(tokenDetails.currencyCode).to.equal(0);
             expect(tokenDetails.receivableAmount).to.equal(1000);
             expect(tokenDetails.maturityDate).to.equal(100);
             expect(tokenDetails.paidAmount).to.equal(0);
-
             const tokenURI = await receivableContract.tokenURI(tokenId);
             expect(tokenURI).to.equal("Test URI");
+            await receivableContract.connect(borrower).burn(tokenId);
+            expect(await receivableContract.balanceOf(borrower.getAddress())).to.equal(2);
 
-            const tokenId2 = await receivableContract.tokenOfOwnerByIndex(borrower.address, 2);
-
+            const tokenId2 = await receivableContract.tokenOfOwnerByIndex(borrower.address, 1);
             const tokenDetails2 = await receivableContract.receivableInfoMap(tokenId2);
             expect(tokenDetails2.currencyCode).to.equal(5);
             expect(tokenDetails2.receivableAmount).to.equal(1000);
             expect(tokenDetails2.maturityDate).to.equal(100);
             expect(tokenDetails2.paidAmount).to.equal(0);
-
             const tokenURI2 = await receivableContract.tokenURI(tokenId2);
-            expect(tokenURI2).to.equal("Test URI");
+            expect(tokenURI2).to.equal("Test URI2");
+            await receivableContract.connect(borrower).burn(tokenId2);
+            expect(await receivableContract.balanceOf(borrower.getAddress())).to.equal(1);
         });
     });
 
@@ -196,6 +196,7 @@ describe("Receivable Test", function () {
 
             const tokenDetails = await receivableContract.receivableInfoMap(tokenId);
             expect(tokenDetails.paidAmount).to.equal(100);
+            expect(tokenDetails.state).to.equal(ReceivableState.PartiallyPaid);
         });
 
         it("Should allow the creator to declare payment", async function () {
@@ -213,6 +214,7 @@ describe("Receivable Test", function () {
 
             const tokenDetails = await receivableContract.receivableInfoMap(tokenId);
             expect(tokenDetails.paidAmount).to.equal(100);
+            expect(tokenDetails.state).to.equal(ReceivableState.PartiallyPaid);
         });
 
         it("Should not allow non-token owner or non-creator to declare payment", async function () {
@@ -220,7 +222,25 @@ describe("Receivable Test", function () {
 
             await expect(
                 receivableContract.connect(poolOwner).declarePayment(tokenId, 1000),
-            ).to.be.revertedWithCustomError(receivableContract, "todo");
+            ).to.be.revertedWithCustomError(receivableContract, "notReceivableOwnerOrCreator");
+        });
+
+        it("Should not allow zero payment amount", async function () {
+            const tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
+
+            await expect(
+                receivableContract.connect(poolOwner).declarePayment(tokenId, 0),
+            ).to.be.revertedWithCustomError(receivableContract, "zeroAmountProvided");
+        });
+    });
+
+    describe("getReceivable", function () {
+        it("Should return the receivable", async function () {
+            const tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
+            const actualReceivable = await receivableContract.getReceivable(tokenId);
+            expect(actualReceivable.state).to.equal(ReceivableState.Minted);
+            expect(actualReceivable.receivableAmount).to.equal(1000);
+            expect(actualReceivable.paidAmount).to.equal(0);
         });
     });
 
