@@ -30,6 +30,10 @@ contract Calendar is ICalendar {
         day = day > DAYS_IN_A_MONTH ? DAYS_IN_A_MONTH : day;
         uint256 startDateOfMonth = _getStartOfMonth(block.timestamp);
         uint256 numMonths = DTL.diffMonths(startDateOfMonth, endDate);
+        if (numMonths == 0) {
+            // This happens if block.timestamp happens to be the same as the end date.
+            return 0;
+        }
         // +1 here since we are using the beginning of the day.
         return numMonths * DAYS_IN_A_MONTH - day + 1;
     }

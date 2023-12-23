@@ -8568,7 +8568,6 @@ describe("CreditLine Test", function () {
                     0,
                     true,
                 );
-            await creditContract.connect(borrower).drawdown(borrower.getAddress(), borrowAmount);
         }
 
         beforeEach(async function () {
