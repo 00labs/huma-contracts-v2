@@ -181,7 +181,7 @@ describe("FirstLossCover Tests", function () {
                     coverCap: 0,
                     liquidityCap: 0,
                     maxPercentOfPoolValueInBps: 0,
-                    riskYieldMultiplier: 20000,
+                    riskYieldMultiplierInBps: 20000,
                 },
             );
             await affiliateFirstLossCoverContract
@@ -977,12 +977,12 @@ describe("FirstLossCover Tests", function () {
                 const remainingLoss = loss.sub(amountLossCovered);
                 const oldCoveredLoss = await affiliateFirstLossCoverContract.coveredLoss();
                 const newCoveredLoss = oldCoveredLoss.add(amountLossCovered);
-                const oldPoolSafeAssets = await poolSafeContract.totalLiquidity();
+                const oldPoolSafeAssets = await poolSafeContract.totalBalance();
 
                 await expect(affiliateFirstLossCoverContract.coverLoss(loss))
                     .to.emit(affiliateFirstLossCoverContract, "LossCovered")
                     .withArgs(amountLossCovered, remainingLoss, newCoveredLoss);
-                expect(await poolSafeContract.totalLiquidity()).to.equal(
+                expect(await poolSafeContract.totalBalance()).to.equal(
                     oldPoolSafeAssets.add(amountLossCovered),
                 );
                 expect(await affiliateFirstLossCoverContract.coveredLoss()).to.equal(
@@ -1069,12 +1069,12 @@ describe("FirstLossCover Tests", function () {
                 const amountRecovered = minBigNumber(amountLossCovered, lossRecovery);
                 const oldCoveredLoss = await affiliateFirstLossCoverContract.coveredLoss();
                 const newCoveredLoss = oldCoveredLoss.sub(amountRecovered);
-                const oldPoolSafeAssets = await poolSafeContract.totalLiquidity();
+                const oldPoolSafeAssets = await poolSafeContract.totalBalance();
 
                 await expect(affiliateFirstLossCoverContract.recoverLoss(lossRecovery))
                     .to.emit(affiliateFirstLossCoverContract, "LossRecovered")
                     .withArgs(amountRecovered, newCoveredLoss);
-                expect(await poolSafeContract.totalLiquidity()).to.equal(
+                expect(await poolSafeContract.totalBalance()).to.equal(
                     oldPoolSafeAssets.sub(amountRecovered),
                 );
                 expect(await affiliateFirstLossCoverContract.coveredLoss()).to.equal(

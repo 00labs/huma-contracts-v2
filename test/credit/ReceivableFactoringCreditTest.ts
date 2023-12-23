@@ -227,7 +227,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                 cc.periodDuration,
                 viewTime,
             );
-            const tomorrow = await calendarContract.getStartOfTomorrow();
+            const tomorrow = await calendarContract.getStartOfNextDay(viewTime);
             const lateFee = calcYield(borrowAmount, lateFeeBps, latePaymentGracePeriodInDays + 1);
             expect(lateFee).to.be.gt(0);
 

@@ -8,11 +8,14 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IPoolFeeManager} from "./interfaces/IPoolFeeManager.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IFirstLossCover} from "./interfaces/IFirstLossCover.sol";
+import {ITranchesPolicy} from "./interfaces/ITranchesPolicy.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {AFFILIATE_FIRST_LOSS_COVER_INDEX, HUNDRED_PERCENT_IN_BPS, JUNIOR_TRANCHE, SENIOR_TRANCHE} from "./SharedDefs.sol";
 import {HumaConfig} from "./HumaConfig.sol";
 import {Errors} from "./Errors.sol";
 import {PayPeriodDuration} from "./credit/CreditStructs.sol";
+
+import "hardhat/console.sol";
 
 struct PoolSettings {
     // The maximum credit line for a borrower in terms of the amount of poolTokens
@@ -94,10 +97,8 @@ struct FirstLossCoverConfig {
     uint96 liquidityCap;
     // The max percent of pool assets that first loss cover can reach
     uint16 maxPercentOfPoolValueInBps;
-    // riskYieldMultiplier is used to adjust the yield of the first loss covers relative to each other.
-    // The higher the multiplier, the higher the yield the first loss cover will get during profit distribution
-    // compared to other first loss covers.
-    uint16 riskYieldMultiplier;
+    // riskYieldMultiplierInBps is used to adjust the yield of the first loss covers and junior tranche
+    uint16 riskYieldMultiplierInBps;
 }
 
 interface ITrancheVaultLike {
@@ -188,7 +189,7 @@ contract PoolConfig is AccessControl, Initializable, UUPSUpgradeable {
         uint96 coverCap,
         uint96 liquidityCap,
         uint16 maxPercentOfPoolValueInBps,
-        uint16 riskYieldMultiplier,
+        uint16 riskYieldMultiplierInBps,
         address by
     );
     event CalendarChanged(address calendar, address by);
@@ -579,7 +580,7 @@ contract PoolConfig is AccessControl, Initializable, UUPSUpgradeable {
             config.coverCap,
             config.liquidityCap,
             config.maxPercentOfPoolValueInBps,
-            config.riskYieldMultiplier,
+            config.riskYieldMultiplierInBps,
             msg.sender
         );
     }
@@ -644,6 +645,11 @@ contract PoolConfig is AccessControl, Initializable, UUPSUpgradeable {
 
     function setLPConfig(LPConfig calldata lpConfig) external {
         _onlyOwnerOrHumaMasterAdmin();
+        if (lpConfig.fixedSeniorYieldInBps != _lpConfig.fixedSeniorYieldInBps) {
+            ITranchesPolicy(tranchesPolicy).refreshYieldTracker(
+                IPool(pool).currentTranchesAssets()
+            );
+        }
         _lpConfig = lpConfig;
         emit LPConfigChanged(
             lpConfig.permissioned,

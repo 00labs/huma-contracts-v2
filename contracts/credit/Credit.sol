@@ -138,31 +138,6 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         _setCreditRecord(creditHash, cr);
     }
 
-    /// Shared setter to the DueDetail mapping for contract size consideration
-    function setDueDetail(bytes32 creditHash, DueDetail memory dd) external {
-        _onlyCreditManager();
-        _setDueDetail(creditHash, dd);
-    }
-
-    /**
-     * @notice checks if the credit line is behind in payments
-     * @dev When the account is in Approved state, there is no borrowing yet, being late
-     * does not apply.
-     * @dev After the bill is refreshed, the due date is updated, it is possible that the new due
-     * date is in the future, but if the bill refresh has set missedPeriods, the account is late.
-     */
-    function isLate(bytes32 creditHash) public view virtual returns (bool lateFlag) {
-        CreditRecord memory cr = getCreditRecord(creditHash);
-        // TODO(jiatu): we shouldn't rely on the ordering of enums since there is no semantic guarantee
-        // of the ordering.
-        return (cr.state > CreditState.Approved &&
-            (cr.missedPeriods > 0 ||
-                block.timestamp >
-                (cr.nextDueDate +
-                    poolConfig.getPoolSettings().latePaymentGracePeriodInDays *
-                    SECONDS_IN_A_DAY)));
-    }
-
     /// Shared accessor to the credit record mapping for contract size consideration
     function getCreditRecord(bytes32 creditHash) public view returns (CreditRecord memory) {
         return _creditRecordMap[creditHash];
@@ -534,12 +509,10 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             cr.unbilledPrincipal = uint96(cr.unbilledPrincipal - unbilledPrincipalPaid);
         }
 
-        // Adjust credit record status if needed. This happens when the next due happens to be 0.
-        if (cr.nextDue == 0) {
-            if (cr.unbilledPrincipal == 0 && cr.remainingPeriods == 0) {
-                cr.state = CreditState.Deleted;
-                emit CreditClosedAfterPayOff(creditHash, msg.sender);
-            } else cr.state = CreditState.GoodStanding;
+        if (cr.nextDue == 0 && cr.unbilledPrincipal == 0 && cr.remainingPeriods == 0) {
+            // Close the credit line if all outstanding balance has been paid off.
+            cr.state = CreditState.Deleted;
+            emit CreditClosedAfterPayOff(creditHash, msg.sender);
         }
 
         _updateDueInfo(creditHash, cr, dd);
@@ -596,6 +569,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             // Prevent drawdown if the credit is in good standing, but has due outstanding and is currently in the
             // late payment grace period or later. In this case, we want the borrower to pay off the due before being
             // able to make further drawdown.
+            // TODO(jiatu): this error name is misleading. Rename it.
             revert Errors.drawdownNotAllowedInLatePaymentGracePeriod();
         }
     }
@@ -615,32 +589,32 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
     }
 
     function _onlyCreditManager() internal view {
-        if (msg.sender != address(creditManager)) revert Errors.todo();
+        if (msg.sender != address(creditManager)) revert Errors.notAuthorizedCaller();
     }
 
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = address(_poolConfig.humaConfig());
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         humaConfig = HumaConfig(addr);
 
         addr = _poolConfig.creditDueManager();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         feeManager = ICreditDueManager(addr);
 
         addr = _poolConfig.calendar();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         calendar = ICalendar(addr);
 
         addr = _poolConfig.poolSafe();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         poolSafe = IPoolSafe(addr);
 
         addr = _poolConfig.getFirstLossCover(BORROWER_FIRST_LOSS_COVER_INDEX);
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         firstLossCover = IFirstLossCover(addr);
 
         addr = _poolConfig.creditManager();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         creditManager = ICreditManager(addr);
     }
 }

@@ -260,7 +260,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                 1,
             );
             const nextDue = accruedYieldDue.add(principalDue);
-            const tomorrow = await calendarContract.getStartOfTomorrow();
+            const tomorrow = await calendarContract.getStartOfNextDay(viewTime);
             const lateFee = calcYield(borrowAmount, lateFeeBps, latePaymentGracePeriodInDays + 1);
             expect(lateFee).to.be.gt(0);
 

@@ -1575,7 +1575,7 @@ describe("PoolConfig Tests", function () {
                     coverCap: toToken(1_000_000),
                     liquidityCap: toToken(2_000_000),
                     maxPercentOfPoolValueInBps: CONSTANTS.BP_FACTOR,
-                    riskYieldMultiplier: 10,
+                    riskYieldMultiplierInBps: 20000,
                 };
             });
 
@@ -1597,7 +1597,7 @@ describe("PoolConfig Tests", function () {
                         config.coverCap,
                         config.liquidityCap,
                         config.maxPercentOfPoolValueInBps,
-                        config.riskYieldMultiplier,
+                        config.riskYieldMultiplierInBps,
                         await actor.getAddress(),
                     );
 
@@ -1610,7 +1610,9 @@ describe("PoolConfig Tests", function () {
                 expect(coverConfig.maxPercentOfPoolValueInBps).to.equal(
                     config.maxPercentOfPoolValueInBps,
                 );
-                expect(coverConfig.riskYieldMultiplier).to.equal(config.riskYieldMultiplier);
+                expect(coverConfig.riskYieldMultiplierInBps).to.equal(
+                    config.riskYieldMultiplierInBps,
+                );
             }
 
             it("Should allow the pool owner to set the first loss cover", async function () {

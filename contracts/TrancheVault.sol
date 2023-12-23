@@ -287,7 +287,9 @@ contract TrancheVault is
         lenderRedemptionInfo.principalRequested += uint96(principalRequested);
         redemptionInfoByLender[msg.sender] = lenderRedemptionInfo;
         UserInfo memory userInfo = userInfos[msg.sender];
-        userInfo.principal -= uint96(principalRequested);
+        userInfo.principal = uint96(
+            userInfo.principal > principalRequested ? userInfo.principal - principalRequested : 0
+        );
         userInfos[msg.sender] = userInfo;
 
         ERC20Upgradeable._transfer(msg.sender, address(this), shares);

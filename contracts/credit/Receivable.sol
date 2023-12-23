@@ -115,6 +115,7 @@ contract Receivable is
             maturityDate,
             ReceivableState.Minted // Minted
         );
+        creators[tokenId] = msg.sender;
 
         _setTokenURI(tokenId, uri);
 
@@ -132,7 +133,8 @@ contract Receivable is
      */
     function declarePayment(uint256 tokenId, uint96 paymentAmount) external {
         if (paymentAmount <= 0) revert Errors.todo();
-        if (msg.sender != ownerOf(tokenId)) revert Errors.notNFTOwner();
+        if (msg.sender != ownerOf(tokenId) && msg.sender != creators[tokenId])
+            revert Errors.todo();
 
         ReceivableInfo storage receivableInfo = receivableInfoMap[tokenId];
         receivableInfo.paidAmount += paymentAmount;

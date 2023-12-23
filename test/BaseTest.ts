@@ -280,7 +280,7 @@ export async function deployPoolContracts(
             coverCap: 0,
             liquidityCap: 0,
             maxPercentOfPoolValueInBps: 0,
-            riskYieldMultiplier: 0,
+            riskYieldMultiplierInBps: 0,
         },
     );
     await poolConfigContract.setFirstLossCover(
@@ -291,7 +291,7 @@ export async function deployPoolContracts(
             coverCap: 0,
             liquidityCap: 0,
             maxPercentOfPoolValueInBps: 0,
-            riskYieldMultiplier: 20000,
+            riskYieldMultiplierInBps: 20000,
         },
     );
 
@@ -620,7 +620,7 @@ async function calcProfitForFirstLossCovers(
 ): Promise<[BN, BN[]]> {
     const riskWeightedCoverTotalAssets = await Promise.all(
         firstLossCoverInfos.map(async (info, index) =>
-            info.asset.mul(await info.config.riskYieldMultiplier),
+            info.asset.mul(await info.config.riskYieldMultiplierInBps).div(CONSTANTS.BP_FACTOR),
         ),
     );
     const totalWeight = juniorTotalAssets.add(sumBNArray(riskWeightedCoverTotalAssets));
@@ -1454,12 +1454,10 @@ export async function calcLateFee(
     } else {
         lateFeeStartDate = dd.lateFeeUpdatedDate;
     }
-    let lateFeeUpdatedDate;
-    if (timestamp === 0) {
-        lateFeeUpdatedDate = await calendarContract.getStartOfTomorrow();
-    } else {
-        lateFeeUpdatedDate = await calendarContract.getStartOfNextDay(timestamp);
-    }
+    const currentTS = (await getLatestBlock()).timestamp;
+    const lateFeeUpdatedDate = await calendarContract.getStartOfNextDay(
+        timestamp === 0 ? currentTS : timestamp,
+    );
     const principal = getPrincipal(cr, dd);
     const lateFeeBasis = maxBigNumber(principal, BN.from(cc.committedAmount));
     const lateFeeDays = await calendarContract.getDaysDiff(lateFeeStartDate, lateFeeUpdatedDate);

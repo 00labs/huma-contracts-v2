@@ -138,6 +138,12 @@ describe("FixedSeniorYieldTranchePolicy Test", function () {
         await loadFixture(prepare);
     });
 
+    it("Should not allow non-pool or non-poolConfig to call refreshSeniorYield", async function () {
+        await expect(
+            tranchesPolicyContract.refreshYieldTracker([0, 0]),
+        ).to.be.revertedWithCustomError(tranchesPolicyContract, "todo");
+    });
+
     describe("Distribution", function () {
         it("Profit is not enough for senior tranche", async function () {
             const deployedAssets = toToken(300_000);
@@ -185,7 +191,13 @@ describe("FixedSeniorYieldTranchePolicy Test", function () {
                 apy,
                 tracker,
             );
-            await tranchesPolicyContract.distProfitToTranches(profit, assets);
+            await expect(tranchesPolicyContract.distProfitToTranches(profit, assets))
+                .to.emit(tranchesPolicyContract, "YieldTrackerRefreshed")
+                .withArgs(
+                    newTracker.totalAssets,
+                    newTracker.unpaidYield,
+                    newTracker.lastUpdatedDate,
+                );
             const afterSeniorTracker = await tranchesPolicyContract.seniorYieldTracker();
             checkSeniorYieldTrackersMatch(afterSeniorTracker, newTracker);
             expect(afterSeniorTracker.unpaidYield).to.greaterThan(0);
@@ -240,7 +252,13 @@ describe("FixedSeniorYieldTranchePolicy Test", function () {
                 tracker,
             );
             // printSeniorData(newSeniorData);
-            await tranchesPolicyContract.distProfitToTranches(profit, assets);
+            await expect(tranchesPolicyContract.distProfitToTranches(profit, assets))
+                .to.emit(tranchesPolicyContract, "YieldTrackerRefreshed")
+                .withArgs(
+                    newTracker.totalAssets,
+                    newTracker.unpaidYield,
+                    newTracker.lastUpdatedDate,
+                );
             const afterTracker = await tranchesPolicyContract.seniorYieldTracker();
             checkSeniorYieldTrackersMatch(afterTracker, newTracker);
             expect(afterTracker.unpaidYield).to.equal(0);
@@ -294,7 +312,15 @@ describe("FixedSeniorYieldTranchePolicy Test", function () {
             let newTracker = PnLCalculator.calcLatestSeniorTracker(nextDate, apy, tracker);
             newTracker.totalAssets = tracker.totalAssets.add(amount);
 
-            await seniorTrancheVaultContract.connect(lender).deposit(amount, lender.address);
+            await expect(
+                seniorTrancheVaultContract.connect(lender).deposit(amount, lender.address),
+            )
+                .to.emit(tranchesPolicyContract, "YieldTrackerRefreshed")
+                .withArgs(
+                    newTracker.totalAssets,
+                    newTracker.unpaidYield,
+                    newTracker.lastUpdatedDate,
+                );
 
             tracker = await tranchesPolicyContract.seniorYieldTracker();
 
@@ -313,7 +339,15 @@ describe("FixedSeniorYieldTranchePolicy Test", function () {
             let newTracker = PnLCalculator.calcLatestSeniorTracker(nextDate, apy, tracker);
             newTracker.totalAssets = tracker.totalAssets;
 
-            await juniorTrancheVaultContract.connect(lender).deposit(amount, lender.address);
+            await expect(
+                juniorTrancheVaultContract.connect(lender).deposit(amount, lender.address),
+            )
+                .to.emit(tranchesPolicyContract, "YieldTrackerRefreshed")
+                .withArgs(
+                    newTracker.totalAssets,
+                    newTracker.unpaidYield,
+                    newTracker.lastUpdatedDate,
+                );
 
             tracker = await tranchesPolicyContract.seniorYieldTracker();
 
@@ -333,7 +367,13 @@ describe("FixedSeniorYieldTranchePolicy Test", function () {
             let newTracker = PnLCalculator.calcLatestSeniorTracker(ts, apy, tracker);
             newTracker.totalAssets = tracker.totalAssets.sub(shares);
 
-            await epochManagerContract.closeEpoch();
+            await expect(epochManagerContract.closeEpoch())
+                .to.emit(tranchesPolicyContract, "YieldTrackerRefreshed")
+                .withArgs(
+                    newTracker.totalAssets,
+                    newTracker.unpaidYield,
+                    newTracker.lastUpdatedDate,
+                );
 
             tracker = await tranchesPolicyContract.seniorYieldTracker();
             checkSeniorYieldTrackersMatch(tracker, newTracker);
@@ -352,9 +392,45 @@ describe("FixedSeniorYieldTranchePolicy Test", function () {
             let newTracker = PnLCalculator.calcLatestSeniorTracker(ts, apy, tracker);
             newTracker.totalAssets = tracker.totalAssets;
 
-            await epochManagerContract.closeEpoch();
+            await expect(epochManagerContract.closeEpoch())
+                .to.emit(tranchesPolicyContract, "YieldTrackerRefreshed")
+                .withArgs(
+                    newTracker.totalAssets,
+                    newTracker.unpaidYield,
+                    newTracker.lastUpdatedDate,
+                );
 
             tracker = await tranchesPolicyContract.seniorYieldTracker();
+            checkSeniorYieldTrackersMatch(tracker, newTracker);
+            expect(tracker.unpaidYield).to.greaterThan(0);
+        });
+    });
+
+    describe("Set fixedSeniorYieldInBps", function () {
+        it("Should refreshYieldTracker when fixedSeniorYieldInBps changes", async function () {
+            let newApy = 2000;
+            let lpConfig = await poolConfigContract.getLPConfig();
+            lpConfig = { ...lpConfig, ...{ fixedSeniorYieldInBps: newApy } };
+
+            const lastBlock = await getLatestBlock();
+            let nextDate = lastBlock.timestamp + 60 * 60;
+            await setNextBlockTimestamp(nextDate);
+
+            let tracker = await tranchesPolicyContract.seniorYieldTracker();
+            console.log(`tracker: ${tracker}`);
+
+            let newTracker = PnLCalculator.calcLatestSeniorTracker(nextDate, apy, tracker);
+
+            await expect(poolConfigContract.connect(poolOwner).setLPConfig(lpConfig))
+                .to.emit(tranchesPolicyContract, "YieldTrackerRefreshed")
+                .withArgs(
+                    newTracker.totalAssets,
+                    newTracker.unpaidYield,
+                    newTracker.lastUpdatedDate,
+                );
+
+            tracker = await tranchesPolicyContract.seniorYieldTracker();
+            // console.log(`tracker: ${tracker}`);
             checkSeniorYieldTrackersMatch(tracker, newTracker);
             expect(tracker.unpaidYield).to.greaterThan(0);
         });
