@@ -974,17 +974,17 @@ export class ProfitAndLossCalculator {
 }
 
 export function checkRedemptionSummary(
-    redemptionSummaryle: RedemptionSummaryStruct,
+    redemptionSummary: RedemptionSummaryStruct,
     epochId: BN,
     totalSharesRequested: BN,
     totalSharesProcessed: BN = BN.from(0),
     totalAmountProcessed: BN = BN.from(0),
     delta: number = 0,
 ): void {
-    expect(redemptionSummaryle.epochId).to.equal(epochId);
-    expect(redemptionSummaryle.totalSharesRequested).to.be.closeTo(totalSharesRequested, delta);
-    expect(redemptionSummaryle.totalSharesProcessed).to.be.closeTo(totalSharesProcessed, delta);
-    expect(redemptionSummaryle.totalAmountProcessed).to.be.closeTo(totalAmountProcessed, delta);
+    expect(redemptionSummary.epochId).to.equal(epochId);
+    expect(redemptionSummary.totalSharesRequested).to.be.closeTo(totalSharesRequested, delta);
+    expect(redemptionSummary.totalSharesProcessed).to.be.closeTo(totalSharesProcessed, delta);
+    expect(redemptionSummary.totalAmountProcessed).to.be.closeTo(totalAmountProcessed, delta);
 }
 
 export class EpochChecker {
