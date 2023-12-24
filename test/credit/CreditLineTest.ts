@@ -1343,6 +1343,27 @@ describe("CreditLine Test", function () {
                 );
             });
 
+            it("Should not allow drawdown if the borrow amount is greater than pool balance", async function () {
+                let poolBalance = await poolSafeContract.getAvailableBalanceForPool();
+                let amount = poolBalance.add(toToken(100));
+                await poolConfigContract.connect(poolOwner).setMaxCreditLine(amount);
+                await creditManagerContract
+                    .connect(eaServiceAccount)
+                    .approveBorrower(
+                        borrower.address,
+                        amount,
+                        numOfPeriods,
+                        yieldInBps,
+                        toToken(0),
+                        0,
+                        true,
+                    );
+
+                await expect(
+                    creditContract.connect(borrower).drawdown(borrower.address, amount),
+                ).to.be.revertedWithCustomError(creditContract, "todo");
+            });
+
             it("Should allow the borrower to borrow for the first time", async function () {
                 const frontLoadingFeeFlat = toToken(100);
                 const frontLoadingFeeBps = BN.from(100);

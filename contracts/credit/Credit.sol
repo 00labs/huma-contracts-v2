@@ -556,6 +556,8 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         if (!firstLossCover.isSufficient(borrower))
             revert Errors.insufficientBorrowerFirstLossCover();
 
+        if (borrowAmount > poolSafe.getAvailableBalanceForPool()) revert Errors.todo();
+
         if (cr.state == CreditState.Approved) {
             // After the credit approval, if the credit has commitment and a designated start date, then the
             // credit will kick start on that whether the borrower has initiated the drawdown or not.
