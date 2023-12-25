@@ -208,6 +208,8 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         bytes32 creditHash,
         uint256 borrowAmount
     ) internal virtual {
+        if (amount == 0) revert Errors.zeroAmountProvided();
+
         // todo need to add return values
         CreditRecord memory cr = getCreditRecord(creditHash);
         CreditConfig memory cc = _getCreditConfig(creditHash);
