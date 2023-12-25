@@ -45,6 +45,20 @@ describe("Calendar Test", function () {
 
     describe("getDaysRemainingInPeriod", function () {
         describe("With monthly period duration", function () {
+            it("Should return 0 if the current timestamp and end date are on the same day", async function () {
+                const nextYear = moment.utc().year() + 1;
+                const nextBlockTime = moment.utc({
+                    year: nextYear,
+                    month: 1,
+                    day: 1,
+                });
+                await mineNextBlockWithTimestamp(nextBlockTime.unix());
+                const daysRemaining = await calendarContract.getDaysRemainingInPeriod(
+                    nextBlockTime.unix(),
+                );
+                expect(daysRemaining).to.equal(0);
+            });
+
             it("Should return the correct values if the day is the 1st", async function () {
                 const nextYear = moment.utc().year() + 1;
                 const nextBlockTime = moment.utc({
@@ -462,6 +476,116 @@ describe("Calendar Test", function () {
                 await expect(
                     calendarContract.getDaysDiff(startDate.unix(), endDate.unix()),
                 ).to.be.revertedWithCustomError(calendarContract, "startDateLaterThanEndDate");
+            });
+        });
+    });
+
+    describe("getDaysDiffSincePreviousPeriodStart", function () {
+        describe("With monthly period duration", function () {
+            describe("If the number of periods passed is 0", function () {
+                it("Should return the correct number of days in between", async function () {
+                    const timestamp = moment.utc({
+                        year: 2024,
+                        month: 2,
+                        day: 10,
+                    });
+                    expect(
+                        await calendarContract.getDaysDiffSincePreviousPeriodStart(
+                            PayPeriodDuration.Monthly,
+                            0,
+                            timestamp.unix(),
+                        ),
+                    ).to.equal(9);
+                });
+            });
+
+            describe("If the number of periods passed is greater then 0", function () {
+                it("Should return the correct number of days in between", async function () {
+                    const timestamp = moment.utc({
+                        year: 2024,
+                        month: 2,
+                        day: 10,
+                    });
+                    expect(
+                        await calendarContract.getDaysDiffSincePreviousPeriodStart(
+                            PayPeriodDuration.Monthly,
+                            2,
+                            timestamp.unix(),
+                        ),
+                    ).to.equal(69);
+                });
+            });
+        });
+
+        describe("With quarterly period duration", function () {
+            describe("If the number of periods passed is 0", function () {
+                it("Should return the correct number of days in between", async function () {
+                    const timestamp = moment.utc({
+                        year: 2024,
+                        month: 2,
+                        day: 10,
+                    });
+                    expect(
+                        await calendarContract.getDaysDiffSincePreviousPeriodStart(
+                            PayPeriodDuration.Quarterly,
+                            0,
+                            timestamp.unix(),
+                        ),
+                    ).to.equal(69);
+                });
+            });
+
+            describe("If the number of periods passed is greater then 0", function () {
+                it("Should return the correct number of days in between", async function () {
+                    const timestamp = moment.utc({
+                        year: 2024,
+                        month: 2,
+                        day: 10,
+                    });
+                    expect(
+                        await calendarContract.getDaysDiffSincePreviousPeriodStart(
+                            PayPeriodDuration.Quarterly,
+                            2,
+                            timestamp.unix(),
+                        ),
+                    ).to.equal(253);
+                });
+            });
+        });
+
+        describe("With semi-annually period duration", function () {
+            describe("If the number of periods passed is 0", function () {
+                it("Should return the correct number of days in between", async function () {
+                    const timestamp = moment.utc({
+                        year: 2024,
+                        month: 2,
+                        day: 10,
+                    });
+                    expect(
+                        await calendarContract.getDaysDiffSincePreviousPeriodStart(
+                            PayPeriodDuration.SemiAnnually,
+                            0,
+                            timestamp.unix(),
+                        ),
+                    ).to.equal(69);
+                });
+            });
+
+            describe("If the number of periods passed is greater then 0", function () {
+                it("Should return the correct number of days in between", async function () {
+                    const timestamp = moment.utc({
+                        year: 2024,
+                        month: 2,
+                        day: 10,
+                    });
+                    expect(
+                        await calendarContract.getDaysDiffSincePreviousPeriodStart(
+                            PayPeriodDuration.SemiAnnually,
+                            2,
+                            timestamp.unix(),
+                        ),
+                    ).to.equal(434);
+                });
             });
         });
     });
