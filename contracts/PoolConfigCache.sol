@@ -18,6 +18,10 @@ abstract contract PoolConfigCache is Initializable, UUPSUpgradeable {
     event PoolConfigCacheUpdated(address indexed poolConfig);
     event PoolConfigChanged(address indexed newPoolConfig, address indexed oldPoolConfig);
 
+    constructor() {
+        _disableInitializers();
+    }
+
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual;
 
     function initialize(PoolConfig _poolConfig) public virtual initializer {

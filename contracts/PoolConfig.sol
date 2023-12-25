@@ -213,6 +213,7 @@ contract PoolConfig is AccessControl, Initializable, UUPSUpgradeable {
 
     constructor() {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _disableInitializers();
     }
 
     /**
