@@ -253,58 +253,26 @@ contract PoolConfig is AccessControl, Initializable {
 
         poolName = _poolName;
 
-        address addr = _contracts[0];
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
-        humaConfig = HumaConfig(addr);
+        for (uint256 i = 0; i < _contracts.length; i++) {
+            if (_contracts[i] == address(0)) revert Errors.zeroAddressProvided();
+        }
 
-        addr = _contracts[1];
+        humaConfig = HumaConfig(_contracts[0]);
+        address addr = _contracts[1];
         if (!humaConfig.isAssetValid(addr))
             revert Errors.underlyingTokenNotApprovedForHumaProtocol();
         underlyingToken = addr;
-
-        addr = _contracts[2];
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
-        calendar = addr;
-
-        addr = _contracts[3];
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
-        pool = addr;
-
-        addr = _contracts[4];
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
-        poolSafe = addr;
-
-        addr = _contracts[5];
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
-        poolFeeManager = addr;
-
-        addr = _contracts[6];
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
-        tranchesPolicy = addr;
-
-        addr = _contracts[7];
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
-        epochManager = addr;
-
-        addr = _contracts[8];
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
-        seniorTranche = addr;
-
-        addr = _contracts[9];
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
-        juniorTranche = addr;
-
-        addr = _contracts[10];
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
-        credit = addr;
-
-        addr = _contracts[11];
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
-        creditDueManager = addr;
-
-        addr = _contracts[12];
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
-        creditManager = addr;
+        calendar = _contracts[2];
+        pool = _contracts[3];
+        poolSafe = _contracts[4];
+        poolFeeManager = _contracts[5];
+        tranchesPolicy = _contracts[6];
+        epochManager = _contracts[7];
+        seniorTranche = _contracts[8];
+        juniorTranche = _contracts[9];
+        credit = _contracts[10];
+        creditDueManager = _contracts[11];
+        creditManager = _contracts[12];
 
         // Default values for the pool configurations. The pool owners are expected to reset
         // these values when setting up the pools. Setting these default values to avoid
