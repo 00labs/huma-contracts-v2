@@ -293,13 +293,15 @@ describe("Credit Line Integration Test", function () {
 
         creditHash = await borrowerLevelCreditHash(creditContract, borrower);
 
-        await poolConfigContract.connect(poolOwner).setPoolPayPeriod(payPeriodDuration);
-        await poolConfigContract
-            .connect(poolOwner)
-            .setLatePaymentGracePeriodInDays(latePaymentGracePeriodInDays);
-        await poolConfigContract
-            .connect(poolOwner)
-            .setPoolDefaultGracePeriod(defaultGracePeriodInDays);
+        let settings = await poolConfigContract.getPoolSettings();
+        await poolConfigContract.connect(poolOwner).setPoolSettings({
+            ...settings,
+            ...{
+                payPeriodDuration: payPeriodDuration,
+                latePaymentGracePeriodInDays: latePaymentGracePeriodInDays,
+                defaultGracePeriodInDays: defaultGracePeriodInDays,
+            },
+        });
         await poolConfigContract.connect(poolOwner).setFeeStructure({
             yieldInBps,
             minPrincipalRateInBps: principalRateInBps,
