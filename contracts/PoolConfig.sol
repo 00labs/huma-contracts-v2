@@ -21,21 +21,16 @@ struct PoolSettings {
     uint96 maxCreditLine;
     // The number of months in one pay period
     PayPeriodDuration payPeriodDuration;
-    // The duration of a credit line without an initial drawdown
-    uint16 creditApprovalExpirationInDays;
     // The grace period before a late fee can be charged, in the unit of number of days
     uint8 latePaymentGracePeriodInDays;
     // The grace period before a default can be triggered, in days. This can be 0.
     uint16 defaultGracePeriodInDays;
     // Percentage (in basis points) of the receivable amount applied towards available credit
+    // TODO same to advanceRateInBps?
     uint16 receivableRequiredInBps;
     // Specifies the max credit line as a percentage (in basis points) of the receivable amount.
     // E.g., for a receivable of $100 with an advance rate of 9000 bps, the credit line can be up to $90.
     uint16 advanceRateInBps;
-    // Whether the pool is exclusive to one borrower
-    bool singleBorrower;
-    // Whether the dues are combined into one credit if the borrower has multiple receivables
-    bool singleCreditPerBorrower;
     // TODO add comment here
     bool receivableAutoApproval;
 }
@@ -52,8 +47,6 @@ struct AdminRnR {
     uint16 liquidityRateInBpsByEA;
     // Percentage of the _liquidityCap to be contributed by Pool Owner
     uint16 liquidityRateInBpsByPoolOwner;
-    uint16 rewardRateInBpsForPoolCover;
-    uint16 liquidityRateInBpsByPoolCover;
 }
 
 struct LPConfig {
@@ -149,24 +142,16 @@ contract PoolConfig is AccessControl, Initializable {
 
     address public receivableAsset;
 
-    event YieldChanged(uint256 aprInBps, address by);
-    event CreditApprovalExpirationChanged(uint256 durationInDays, address by);
-    event LatePaymentGracePeriodChanged(uint256 gracePeriodInDays, address by);
     event EARewardsAndLiquidityChanged(
         uint256 rewardRate,
         uint256 liquidityRate,
         address indexed by
     );
     event EvaluationAgentChanged(address oldEA, address newEA, uint256 newEAId, address by);
-    event EvaluationAgentRewardsWithdrawn(address receiver, uint256 amount, address by);
     event PoolFeeManagerChanged(address poolFeeManager, address by);
     event HumaConfigChanged(address humaConfig, address by);
 
-    event MaxCreditLineChanged(uint256 maxCreditLine, address by);
     event PoolChanged(address pool, address by);
-    event PoolDefaultGracePeriodChanged(uint256 gracePeriodInDays, address by);
-    event PoolLiquidityCapChanged(uint256 liquidityCap, address by);
-    event PoolPayPeriodChanged(PayPeriodDuration payPeriodDuration, address by);
     event PoolNameChanged(string name, address by);
     event PoolOwnerRewardsAndLiquidityChanged(
         uint256 rewardRate,
@@ -174,7 +159,6 @@ contract PoolConfig is AccessControl, Initializable {
         address indexed by
     );
     event PoolOwnerTreasuryChanged(address treasury, address indexed by);
-    event PoolFlexCallChanged(bool enabled, uint256 windowInEpoch, address by);
     event PoolUnderlyingTokenChanged(address underlyingToken, address by);
     event TranchesChanged(address seniorTranche, address juniorTranche, address by);
     event PoolSafeChanged(address poolSafe, address by);
@@ -194,12 +178,16 @@ contract PoolConfig is AccessControl, Initializable {
     event CalendarChanged(address calendar, address by);
     event ReceivableAssetChanged(address receivableAsset, address by);
 
-    event PoolRewardsWithdrawn(address receiver, uint256 amount);
-    event ProtocolRewardsWithdrawn(address receiver, uint256 amount, address by);
-    event ReceivableRequiredInBpsChanged(uint256 receivableRequiredInBps, address by);
-    event AdvanceRateInBpsChanged(uint256 advanceRateInBps, address by);
-    event ReceivableAutoApproval(bool receivableAutoApproval, address by);
-    event WithdrawalLockoutPeriodChanged(uint256 lockoutPeriodInMonths, address by);
+    event PoolSettingsChanged(
+        uint96 maxCreditLine,
+        PayPeriodDuration payPeriodDuration,
+        uint8 latePaymentGracePeriodInDays,
+        uint16 defaultGracePeriodInDays,
+        uint16 receivableRequiredInBps,
+        uint16 advanceRateInBps,
+        bool receivableAutoApproval,
+        address by
+    );
 
     event LPConfigChanged(
         bool permissioned,
@@ -245,10 +233,7 @@ contract PoolConfig is AccessControl, Initializable {
      *   _contracts[12]: address of creditManager
      */
 
-    function initialize(
-        string memory _poolName,
-        address[] calldata _contracts
-    ) public initializer {
+    function initialize(string memory _poolName, address[] memory _contracts) public initializer {
         onlyPoolOwner(msg.sender);
 
         poolName = _poolName;
@@ -309,28 +294,6 @@ contract PoolConfig is AccessControl, Initializable {
             // We only have two tranches for now.
             assert(false);
         }
-    }
-
-    /**
-     * @notice change the default APR for the pool
-     * @param _yieldInBps expected yield in basis points, use 500 for 5%
-     */
-    function setYield(uint256 _yieldInBps) external {
-        _onlyOwnerOrHumaMasterAdmin();
-        _feeStructure.yieldInBps = uint16(_yieldInBps);
-        emit YieldChanged(_yieldInBps, msg.sender);
-    }
-
-    function setCreditApprovalExpiration(uint256 durationInDays) external {
-        _onlyOwnerOrHumaMasterAdmin();
-        _poolSettings.creditApprovalExpirationInDays = uint16(durationInDays);
-        emit CreditApprovalExpirationChanged(durationInDays, msg.sender);
-    }
-
-    function setLatePaymentGracePeriodInDays(uint256 gracePeriodInDays) external {
-        _onlyOwnerOrHumaMasterAdmin();
-        _poolSettings.latePaymentGracePeriodInDays = uint8(gracePeriodInDays);
-        emit LatePaymentGracePeriodChanged(gracePeriodInDays, msg.sender);
     }
 
     function setPoolOwnerRewardsAndLiquidity(uint256 rewardRate, uint256 liquidityRate) external {
@@ -420,52 +383,11 @@ contract PoolConfig is AccessControl, Initializable {
         emit HumaConfigChanged(_humaConfig, msg.sender);
     }
 
-    /**
-     * @notice Sets the min and max of each loan/credit allowed by the pool.
-     * @param creditLine the max amount of a credit line
-     */
-    function setMaxCreditLine(uint256 creditLine) external {
-        _onlyOwnerOrHumaMasterAdmin();
-        if (creditLine == 0) revert Errors.zeroAmountProvided();
-        if (creditLine >= 2 ** 96) revert Errors.creditLineTooHigh();
-        _poolSettings.maxCreditLine = uint96(creditLine);
-        emit MaxCreditLineChanged(creditLine, msg.sender);
-    }
-
     function setPool(address _pool) external {
         _onlyOwnerOrHumaMasterAdmin();
         if (_pool == address(0)) revert Errors.zeroAddressProvided();
         pool = _pool;
         emit PoolChanged(_pool, msg.sender);
-    }
-
-    /**
-     * Sets the default grace period for this pool.
-     * @param gracePeriod the desired grace period in days.
-     */
-    function setPoolDefaultGracePeriod(uint256 gracePeriod) external {
-        _onlyOwnerOrHumaMasterAdmin();
-        _poolSettings.defaultGracePeriodInDays = uint16(gracePeriod);
-        emit PoolDefaultGracePeriodChanged(gracePeriod, msg.sender);
-    }
-
-    /**
-     * @notice Sets the cap of the pool liquidity.
-     * @param liquidityCap the upper bound that the pool accepts liquidity from the depositors
-     */
-    function setPoolLiquidityCap(uint256 liquidityCap) external {
-        _onlyOwnerOrHumaMasterAdmin();
-        if (liquidityCap == 0) revert Errors.zeroAmountProvided();
-        _lpConfig.liquidityCap = uint96(liquidityCap);
-        emit PoolLiquidityCapChanged(liquidityCap, msg.sender);
-    }
-
-    function setPoolPayPeriod(PayPeriodDuration duration) external {
-        _onlyOwnerOrHumaMasterAdmin();
-        PoolSettings memory _settings = _poolSettings;
-        _settings.payPeriodDuration = duration;
-        _poolSettings = _settings;
-        emit PoolPayPeriodChanged(duration, msg.sender);
     }
 
     /**
@@ -564,51 +486,27 @@ contract PoolConfig is AccessControl, Initializable {
         emit ReceivableAssetChanged(_receivableAsset, msg.sender);
     }
 
-    /**
-     * @notice Set the receivable rate in terms of basis points.
-     * When the rate is higher than 10000, it means the backing is higher than the borrow amount,
-     * similar to an over-collateral situation.
-     * @param receivableRequiredInBps the percentage in basis points. A percentage over 10000 means over-receivablization.
-     */
-    function setReceivableRequiredInBps(uint256 receivableRequiredInBps) external {
+    function setPoolSettings(PoolSettings memory settings) external {
         _onlyOwnerOrHumaMasterAdmin();
-        // note: this rate can be over 10000 when it requires more backing than the credit limit
-        _poolSettings.receivableRequiredInBps = uint16(receivableRequiredInBps);
-        emit ReceivableRequiredInBpsChanged(receivableRequiredInBps, msg.sender);
-    }
-
-    /**
-     * @notice Set the advance rate in terms of basis points.
-     * The rate cannot exceed 10000 (100%).
-     * @param advanceRateInBps the percentage in basis points.
-     */
-    function setAdvanceRateInBps(uint256 advanceRateInBps) external {
-        _onlyOwnerOrHumaMasterAdmin();
-        if (advanceRateInBps > 10000) {
+        if (settings.maxCreditLine >= 2 ** 96) revert Errors.creditLineTooHigh();
+        if (settings.advanceRateInBps > 10000) {
             revert Errors.invalidBasisPointHigherThan10000();
         }
         // note: this rate can be over 10000 when it requires more backing than the credit limit
-        _poolSettings.advanceRateInBps = uint16(advanceRateInBps);
-        emit AdvanceRateInBpsChanged(advanceRateInBps, msg.sender);
+        _poolSettings = settings;
+        emit PoolSettingsChanged(
+            settings.maxCreditLine,
+            settings.payPeriodDuration,
+            settings.latePaymentGracePeriodInDays,
+            settings.defaultGracePeriodInDays,
+            settings.receivableRequiredInBps,
+            settings.advanceRateInBps,
+            settings.receivableAutoApproval,
+            msg.sender
+        );
     }
 
-    function setReceivableAutoApproval(bool autoApproval) external {
-        _onlyOwnerOrHumaMasterAdmin();
-        _poolSettings.receivableAutoApproval = autoApproval;
-        emit ReceivableAutoApproval(autoApproval, msg.sender);
-    }
-
-    /**
-     * Sets withdrawal lockout period after the lender makes the last deposit
-     * @param lockoutPeriodInDays the lockout period in terms of days
-     */
-    function setWithdrawalLockoutPeriod(uint256 lockoutPeriodInDays) external {
-        _onlyOwnerOrHumaMasterAdmin();
-        _lpConfig.withdrawalLockoutPeriodInDays = uint8(lockoutPeriodInDays);
-        emit WithdrawalLockoutPeriodChanged(lockoutPeriodInDays, msg.sender);
-    }
-
-    function setLPConfig(LPConfig calldata lpConfig) external {
+    function setLPConfig(LPConfig memory lpConfig) external {
         _onlyOwnerOrHumaMasterAdmin();
         if (lpConfig.fixedSeniorYieldInBps != _lpConfig.fixedSeniorYieldInBps) {
             ITranchesPolicy(tranchesPolicy).refreshYieldTracker(
@@ -627,7 +525,7 @@ contract PoolConfig is AccessControl, Initializable {
         );
     }
 
-    function setFrontLoadingFees(FrontLoadingFeesStructure calldata frontFees) external {
+    function setFrontLoadingFees(FrontLoadingFeesStructure memory frontFees) external {
         _onlyOwnerOrHumaMasterAdmin();
         _frontFees = frontFees;
         emit FrontLoadingFeesChanged(
@@ -637,7 +535,7 @@ contract PoolConfig is AccessControl, Initializable {
         );
     }
 
-    function setFeeStructure(FeeStructure calldata feeStructure) external {
+    function setFeeStructure(FeeStructure memory feeStructure) external {
         _onlyOwnerOrHumaMasterAdmin();
         _feeStructure = feeStructure;
         emit FeeStructureChanged(
@@ -715,50 +613,6 @@ contract PoolConfig is AccessControl, Initializable {
         }
     }
 
-    /**
-     * Returns a summary information of the pool.
-     * @return token the address of the pool token
-     * @return yieldInBps the default annual percentage yield of the pool, measured in basis points
-     * @return payPeriodDuration the pay period duration for the pool
-     * @return maxCreditAmount the max amount for the credit line
-     * @return liquidityCap The liquidity cap of the pool
-     * @return name The name of the pool
-     * @return symbol The symbol of the underlying token of the pool
-     * @return decimals The number of decimals of the underlying token of the pool
-     * @return eaId The tokenId of the EA NFT
-     * @return eaNFTAddress The contract address of the EA NFT
-     */
-    function getPoolSummary()
-        external
-        view
-        returns (
-            address token,
-            uint256 yieldInBps,
-            PayPeriodDuration payPeriodDuration,
-            uint256 maxCreditAmount,
-            uint256 liquidityCap,
-            string memory name,
-            string memory symbol,
-            uint8 decimals,
-            uint256 eaId,
-            address eaNFTAddress
-        )
-    {
-        IERC20Metadata erc20Contract = IERC20Metadata(address(underlyingToken));
-        return (
-            address(underlyingToken),
-            _feeStructure.yieldInBps,
-            _poolSettings.payPeriodDuration,
-            _poolSettings.maxCreditLine,
-            _lpConfig.liquidityCap,
-            erc20Contract.name(),
-            erc20Contract.symbol(),
-            erc20Contract.decimals(),
-            evaluationAgentId,
-            humaConfig.eaNFTContractAddress()
-        );
-    }
-
     function getLPConfig() external view returns (LPConfig memory) {
         return _lpConfig;
     }
@@ -797,15 +651,8 @@ contract PoolConfig is AccessControl, Initializable {
         return (_frontFees.frontLoadingFeeFlat, _frontFees.frontLoadingFeeBps);
     }
 
-    /**
-     * @notice Returns the late fee in bps setting.
-     */
-    function getLateFeeBps() external view virtual returns (uint256 lateFeeBps) {
-        return _feeStructure.lateFeeBps;
-    }
-
-    function getMinPrincipalRateInBps() external view virtual returns (uint256 _minPrincipalRate) {
-        return _feeStructure.minPrincipalRateInBps;
+    function getFeeStructure() external view returns (FeeStructure memory) {
+        return _feeStructure;
     }
 
     function onlyPoolOwner(address account) public view {
