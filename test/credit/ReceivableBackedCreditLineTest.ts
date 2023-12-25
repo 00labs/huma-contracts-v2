@@ -183,11 +183,15 @@ describe("ReceivableBackedCreditLine Tests", function () {
         let creditHash: string;
 
         async function prepareForGetDueInfo() {
-            await poolConfigContract
-                .connect(poolOwner)
-                .setLatePaymentGracePeriodInDays(latePaymentGracePeriodInDays);
-            await poolConfigContract.connect(poolOwner).setAdvanceRateInBps(CONSTANTS.BP_FACTOR);
-            await poolConfigContract.connect(poolOwner).setReceivableAutoApproval(true);
+            let settings = await poolConfigContract.getPoolSettings();
+            await poolConfigContract.connect(poolOwner).setPoolSettings({
+                ...settings,
+                ...{
+                    latePaymentGracePeriodInDays: latePaymentGracePeriodInDays,
+                    advanceRateInBps: CONSTANTS.BP_FACTOR,
+                    receivableAutoApproval: true,
+                },
+            });
             await poolConfigContract.connect(poolOwner).setFeeStructure({
                 yieldInBps,
                 minPrincipalRateInBps: principalRate,
@@ -309,14 +313,16 @@ describe("ReceivableBackedCreditLine Tests", function () {
                 .div(CONSTANTS.BP_FACTOR);
             advanceRate = CONSTANTS.BP_FACTOR;
 
-            await poolConfigContract
-                .connect(poolOwner)
-                .setPoolPayPeriod(PayPeriodDuration.Monthly);
-            await poolConfigContract
-                .connect(poolOwner)
-                .setLatePaymentGracePeriodInDays(lateGracePeriodInDays);
-            await poolConfigContract.connect(poolOwner).setAdvanceRateInBps(advanceRate);
-            await poolConfigContract.connect(poolOwner).setReceivableAutoApproval(true);
+            let settings = await poolConfigContract.getPoolSettings();
+            await poolConfigContract.connect(poolOwner).setPoolSettings({
+                ...settings,
+                ...{
+                    payPeriodDuration: PayPeriodDuration.Monthly,
+                    latePaymentGracePeriodInDays: lateGracePeriodInDays,
+                    advanceRateInBps: advanceRate,
+                    receivableAutoApproval: true,
+                },
+            });
 
             await poolConfigContract.connect(poolOwner).setFeeStructure({
                 yieldInBps,

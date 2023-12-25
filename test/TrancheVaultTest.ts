@@ -695,7 +695,11 @@ describe("TrancheVault Test", function () {
                 });
 
                 it("Should reject redemption requests that would breach the withdrawal lockout period", async function () {
-                    await poolConfigContract.connect(poolOwner).setWithdrawalLockoutPeriod(1);
+                    let lpConfig = await poolConfigContract.getLPConfig();
+                    await poolConfigContract.connect(poolOwner).setLPConfig({
+                        ...lpConfig,
+                        ...{ withdrawalLockoutPeriodInDays: 1 },
+                    });
 
                     await expect(
                         juniorTrancheVaultContract
@@ -861,9 +865,11 @@ describe("TrancheVault Test", function () {
                         .sub(block.timestamp)
                         .div(CONSTANTS.SECONDS_IN_A_DAY);
                     // console.log("lockout", lockout.toString());
-                    await poolConfigContract
-                        .connect(poolOwner)
-                        .setWithdrawalLockoutPeriod(lockout);
+                    let lpConfig = await poolConfigContract.getLPConfig();
+                    await poolConfigContract.connect(poolOwner).setLPConfig({
+                        ...lpConfig,
+                        ...{ withdrawalLockoutPeriodInDays: lockout },
+                    });
                     await mineNextBlockWithTimestamp(
                         currentEpoch.endTime.add(BN.from(60 * 5)).toNumber(),
                     );
