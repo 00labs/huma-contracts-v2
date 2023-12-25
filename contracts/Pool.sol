@@ -13,6 +13,7 @@ import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import {ITranchesPolicy} from "./interfaces/ITranchesPolicy.sol";
 import {ICreditManager} from "./credit/interfaces/ICreditManager.sol";
 import {ICredit} from "./credit/interfaces/ICredit.sol";
+import {IEpoch, EpochInfo} from "./interfaces/IEpoch.sol";
 
 /**
  * @title Pool

@@ -136,6 +136,15 @@ contract EpochManager is PoolConfigCache, IEpochManager {
     function startNewEpoch() external {
         poolConfig.onlyPool(msg.sender);
 
+        EpochInfo memory seniorEpoch = seniorTranche.currentEpochInfo();
+        if (seniorEpoch.totalSharesRequested > 0) {
+            seniorTranche.executeEpoch(seniorEpoch);
+        }
+        EpochInfo memory juniorEpoch = juniorTranche.currentEpochInfo();
+        if (juniorEpoch.totalSharesRequested > 0) {
+            juniorTranche.executeEpoch(juniorEpoch);
+        }
+
         CurrentEpoch memory ce = _currentEpoch;
         ce.endTime = 0;
         _createNextEpoch(ce);
