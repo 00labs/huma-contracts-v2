@@ -105,6 +105,7 @@ contract Errors {
     error receivableAssetParamMismatch(); // 0x1400a0b4
     error insufficientReceivableAmount(); // 0xf7f34854
     error zeroReceivableIdProvided(); // 0x7a7c1f4f
+    error notReceivableOwner();
     error notReceivableOwnerOrCreator();
 
     // superfluid
