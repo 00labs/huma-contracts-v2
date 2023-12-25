@@ -17,8 +17,12 @@ import {
     Receivable,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
-} from "../typechain-types";
-import { ReceivableState, deployAndSetupPoolContracts, deployProtocolContracts } from "./BaseTest";
+} from "../../typechain-types";
+import {
+    ReceivableState,
+    deployAndSetupPoolContracts,
+    deployProtocolContracts,
+} from "../BaseTest";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
