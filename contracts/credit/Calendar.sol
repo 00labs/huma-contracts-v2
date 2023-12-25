@@ -30,6 +30,10 @@ contract Calendar is ICalendar {
         day = day > DAYS_IN_A_MONTH ? DAYS_IN_A_MONTH : day;
         uint256 startDateOfMonth = _getStartOfMonth(block.timestamp);
         uint256 numMonths = DTL.diffMonths(startDateOfMonth, endDate);
+        if (numMonths == 0) {
+            // This happens if block.timestamp happens to be the same as the end date.
+            return 0;
+        }
         // +1 here since we are using the beginning of the day.
         return numMonths * DAYS_IN_A_MONTH - day + 1;
     }
@@ -60,6 +64,23 @@ contract Calendar is ICalendar {
         // 2. The number of days in whole months passed.
         // 3. The number of days between the start of the end month and the end date.
         return DAYS_IN_A_MONTH - startDay + (numMonthsPassed - 1) * DAYS_IN_A_MONTH + endDay;
+    }
+
+    /// @inheritdoc ICalendar
+    function getDaysDiffSincePreviousPeriodStart(
+        PayPeriodDuration periodDuration,
+        uint256 numPeriodsPassed,
+        uint256 timestamp
+    ) external pure returns (uint256 daysDiff) {
+        uint256 periodStartDate = getStartDateOfPeriod(periodDuration, timestamp);
+        uint256 numMonths = numPeriodsPassed;
+        if (periodDuration == PayPeriodDuration.Quarterly) {
+            numMonths *= 3;
+        } else if (periodDuration == PayPeriodDuration.SemiAnnually) {
+            numMonths *= 6;
+        }
+        uint256 startDate = DTL.subMonths(periodStartDate, numMonths);
+        return DTL.diffDays(startDate, timestamp);
     }
 
     /// @inheritdoc ICalendar

@@ -105,7 +105,7 @@ describe("Credit Line Integration Test", function () {
         coverRateInBps = 5_000;
     let payPeriodDuration: PayPeriodDuration;
     const latePaymentGracePeriodInDays = 5,
-        defaultGracePeriodInMonths = 1;
+        defaultGracePeriodInDays = 10;
     let snapshotId: unknown;
 
     async function getAssetsAfterPnLDistribution(
@@ -299,7 +299,7 @@ describe("Credit Line Integration Test", function () {
             .setLatePaymentGracePeriodInDays(latePaymentGracePeriodInDays);
         await poolConfigContract
             .connect(poolOwner)
-            .setPoolDefaultGracePeriod(defaultGracePeriodInMonths);
+            .setPoolDefaultGracePeriod(defaultGracePeriodInDays);
         await poolConfigContract.connect(poolOwner).setFeeStructure({
             yieldInBps,
             minPrincipalRateInBps: principalRateInBps,
