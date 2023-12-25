@@ -37,7 +37,7 @@ import {
     CreditConfigStruct,
     CreditConfigStructOutput,
 } from "../typechain-types/contracts/credit/CreditManager";
-import { EpochInfoStruct } from "../typechain-types/contracts/interfaces/IEpoch";
+import { RedemptionSummaryStruct } from "../typechain-types/contracts/interfaces/IRedemptionHandler";
 import { getLatestBlock, maxBigNumber, minBigNumber, sumBNArray, toToken } from "./TestUtils";
 
 export type CreditContractType =
@@ -372,8 +372,14 @@ export async function setupPoolContracts(
     accounts: SignerWithAddress[],
 ): Promise<void> {
     const poolLiquidityCap = toToken(1_000_000_000);
-    await poolConfigContract.connect(poolOwner).setPoolLiquidityCap(poolLiquidityCap);
-    await poolConfigContract.connect(poolOwner).setMaxCreditLine(toToken(10_000_000));
+    let settings = await poolConfigContract.getPoolSettings();
+    await poolConfigContract
+        .connect(poolOwner)
+        .setPoolSettings({ ...settings, ...{ maxCreditLine: toToken(10_000_000) } });
+    let lpConfig = await poolConfigContract.getLPConfig();
+    await poolConfigContract
+        .connect(poolOwner)
+        .setLPConfig({ ...lpConfig, ...{ liquidityCap: poolLiquidityCap } });
 
     await poolConfigContract
         .connect(poolOwner)
@@ -973,18 +979,18 @@ export class ProfitAndLossCalculator {
     }
 }
 
-export function checkEpochInfo(
-    epochInfo: EpochInfoStruct,
+export function checkRedemptionSummary(
+    redemptionSummary: RedemptionSummaryStruct,
     epochId: BN,
     totalSharesRequested: BN,
     totalSharesProcessed: BN = BN.from(0),
     totalAmountProcessed: BN = BN.from(0),
     delta: number = 0,
 ): void {
-    expect(epochInfo.epochId).to.equal(epochId);
-    expect(epochInfo.totalSharesRequested).to.be.closeTo(totalSharesRequested, delta);
-    expect(epochInfo.totalSharesProcessed).to.be.closeTo(totalSharesProcessed, delta);
-    expect(epochInfo.totalAmountProcessed).to.be.closeTo(totalAmountProcessed, delta);
+    expect(redemptionSummary.epochId).to.equal(epochId);
+    expect(redemptionSummary.totalSharesRequested).to.be.closeTo(totalSharesRequested, delta);
+    expect(redemptionSummary.totalSharesProcessed).to.be.closeTo(totalSharesProcessed, delta);
+    expect(redemptionSummary.totalAmountProcessed).to.be.closeTo(totalAmountProcessed, delta);
 }
 
 export class EpochChecker {
@@ -1010,13 +1016,13 @@ export class EpochChecker {
         return await this.checkCurrentEpochEmpty(this.juniorTrancheVaultContract);
     }
 
-    async checkSeniorCurrentEpochInfo(
+    async checkSeniorCurrentRedemptionSummary(
         sharesRequested: BN = BN.from(0),
         sharesProcessed: BN = BN.from(0),
         amountProcessed: BN = BN.from(0),
         delta: number = 0,
     ) {
-        return await this.checkCurrentEpochInfo(
+        return await this.checkCurrentRedemptionSummary(
             this.seniorTrancheVaultContract,
             sharesRequested,
             sharesProcessed,
@@ -1025,13 +1031,13 @@ export class EpochChecker {
         );
     }
 
-    async checkJuniorCurrentEpochInfo(
+    async checkJuniorCurrentRedemptionSummary(
         sharesRequested: BN = BN.from(0),
         sharesProcessed: BN = BN.from(0),
         amountProcessed: BN = BN.from(0),
         delta: number = 0,
     ) {
-        return await this.checkCurrentEpochInfo(
+        return await this.checkCurrentRedemptionSummary(
             this.juniorTrancheVaultContract,
             sharesRequested,
             sharesProcessed,
@@ -1040,14 +1046,14 @@ export class EpochChecker {
         );
     }
 
-    async checkSeniorEpochInfoById(
+    async checkSeniorRedemptionSummaryById(
         epochId: BN,
         sharesRequested: BN = BN.from(0),
         sharesProcessed: BN = BN.from(0),
         amountProcessed: BN = BN.from(0),
         delta: number = 0,
     ) {
-        await this.checkEpochInfoById(
+        await this.checkRedemptionSummaryById(
             this.seniorTrancheVaultContract,
             epochId,
             sharesRequested,
@@ -1057,14 +1063,14 @@ export class EpochChecker {
         );
     }
 
-    async checkJuniorEpochInfoById(
+    async checkJuniorRedemptionSummaryById(
         epochId: BN,
         sharesRequested: BN = BN.from(0),
         sharesProcessed: BN = BN.from(0),
         amountProcessed: BN = BN.from(0),
         delta: number = 0,
     ) {
-        await this.checkEpochInfoById(
+        await this.checkRedemptionSummaryById(
             this.juniorTrancheVaultContract,
             epochId,
             sharesRequested,
@@ -1076,12 +1082,12 @@ export class EpochChecker {
 
     private async checkCurrentEpochEmpty(trancheContract: TrancheVault) {
         const epochId = await this.epochManagerContract.currentEpochId();
-        const epoch = await trancheContract.epochInfoByEpochId(epochId);
-        checkEpochInfo(epoch, BN.from(0), BN.from(0), BN.from(0), BN.from(0));
+        const epoch = await trancheContract.redemptionSummaryByEpochId(epochId);
+        checkRedemptionSummary(epoch, BN.from(0), BN.from(0), BN.from(0), BN.from(0));
         return epochId;
     }
 
-    private async checkCurrentEpochInfo(
+    private async checkCurrentRedemptionSummary(
         trancheContract: TrancheVault,
         sharesRequested: BN = BN.from(0),
         sharesProcessed: BN = BN.from(0),
@@ -1089,12 +1095,19 @@ export class EpochChecker {
         delta: number = 0,
     ) {
         const epochId = await this.epochManagerContract.currentEpochId();
-        const epoch = await trancheContract.epochInfoByEpochId(epochId);
-        checkEpochInfo(epoch, epochId, sharesRequested, sharesProcessed, amountProcessed, delta);
+        const epoch = await trancheContract.redemptionSummaryByEpochId(epochId);
+        checkRedemptionSummary(
+            epoch,
+            epochId,
+            sharesRequested,
+            sharesProcessed,
+            amountProcessed,
+            delta,
+        );
         return epochId;
     }
 
-    private async checkEpochInfoById(
+    private async checkRedemptionSummaryById(
         trancheContract: TrancheVault,
         epochId: BN,
         sharesRequested: BN = BN.from(0),
@@ -1102,8 +1115,15 @@ export class EpochChecker {
         amountProcessed: BN = BN.from(0),
         delta: number = 0,
     ) {
-        const epoch = await trancheContract.epochInfoByEpochId(epochId);
-        checkEpochInfo(epoch, epochId, sharesRequested, sharesProcessed, amountProcessed, delta);
+        const epoch = await trancheContract.redemptionSummaryByEpochId(epochId);
+        checkRedemptionSummary(
+            epoch,
+            epochId,
+            sharesRequested,
+            sharesProcessed,
+            amountProcessed,
+            delta,
+        );
     }
 }
 
@@ -1440,7 +1460,7 @@ export async function calcLateFee(
     dd: DueDetailStruct,
     timestamp: number = 0,
 ): Promise<[BN, BN]> {
-    const lateFeeInBps = await poolConfigContract.getLateFeeBps();
+    const lateFeeInBps = (await poolConfigContract.getFeeStructure()).lateFeeBps;
     let lateFeeStartDate;
     if (cr.state == CreditState.GoodStanding) {
         if (BN.from(cr.nextDue).isZero()) {
@@ -1491,7 +1511,7 @@ export async function calcLateFeeNew(
     ) {
         return [dd.lateFeeUpdatedDate, dd.lateFee];
     }
-    const lateFeeInBps = await poolConfigContract.getLateFeeBps();
+    const lateFeeInBps = (await poolConfigContract.getFeeStructure()).lateFeeBps;
     let lateFeeStartDate;
     if (cr.state == CreditState.GoodStanding) {
         if (cr.nextDue.isZero()) {

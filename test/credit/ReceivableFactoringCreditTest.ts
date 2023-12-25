@@ -177,9 +177,11 @@ describe("ReceivableFactoringCredit Tests", function () {
         let creditHash: string;
 
         async function prepareForGetDueInfo() {
-            await poolConfigContract
-                .connect(poolOwner)
-                .setLatePaymentGracePeriodInDays(latePaymentGracePeriodInDays);
+            let settings = await poolConfigContract.getPoolSettings();
+            await poolConfigContract.connect(poolOwner).setPoolSettings({
+                ...settings,
+                ...{ latePaymentGracePeriodInDays: latePaymentGracePeriodInDays },
+            });
             await poolConfigContract.connect(poolOwner).setFeeStructure({
                 yieldInBps,
                 minPrincipalRateInBps: principalRate,
@@ -273,12 +275,14 @@ describe("ReceivableFactoringCredit Tests", function () {
                 .mul(CONSTANTS.BP_FACTOR.add(500))
                 .div(CONSTANTS.BP_FACTOR);
 
-            await poolConfigContract
-                .connect(poolOwner)
-                .setPoolPayPeriod(PayPeriodDuration.Monthly);
-            await poolConfigContract
-                .connect(poolOwner)
-                .setLatePaymentGracePeriodInDays(lateGracePeriodInDays);
+            let settings = await poolConfigContract.getPoolSettings();
+            await poolConfigContract.connect(poolOwner).setPoolSettings({
+                ...settings,
+                ...{
+                    payPeriodDuration: PayPeriodDuration.Monthly,
+                    latePaymentGracePeriodInDays: lateGracePeriodInDays,
+                },
+            });
 
             await poolConfigContract.connect(poolOwner).setFeeStructure({
                 yieldInBps,

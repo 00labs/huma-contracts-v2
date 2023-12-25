@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {Errors} from "../Errors.sol";
 import {HumaConfig} from "../HumaConfig.sol";
-import {PoolConfig, PoolSettings} from "../PoolConfig.sol";
+import {PoolConfig, PoolSettings, FeeStructure} from "../PoolConfig.sol";
 import {IPool} from "../interfaces/IPool.sol";
 import {PoolConfigCache} from "../PoolConfigCache.sol";
 import {CreditStorage} from "./CreditStorage.sol";
@@ -214,6 +214,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         DueDetail memory dd = getDueDetail(creditHash);
         _checkDrawdownEligibility(borrower, cr, borrowAmount, cc.creditLimit);
 
+        console.log("block.timestamp %d", block.timestamp);
         if (cr.state == CreditState.Approved) {
             // Flow for first drawdown.
             // Sets the principal, generates the first bill and sets credit status.
@@ -257,12 +258,12 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             }
             cr.unbilledPrincipal = uint96(cr.unbilledPrincipal + borrowAmount);
 
-            uint256 principalRate = poolConfig.getMinPrincipalRateInBps();
-            if (principalRate > 0) {
+            FeeStructure memory fees = poolConfig.getFeeStructure();
+            if (fees.minPrincipalRateInBps > 0) {
                 // Record the additional principal due generated from the drawdown.
                 uint256 additionalPrincipalDue = feeManager.computePrincipalDueForPartialPeriod(
                     borrowAmount,
-                    principalRate,
+                    fees.minPrincipalRateInBps,
                     daysRemaining,
                     cc.periodDuration
                 );
@@ -554,6 +555,8 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
     ) internal view {
         if (!firstLossCover.isSufficient(borrower))
             revert Errors.insufficientBorrowerFirstLossCover();
+
+        if (borrowAmount > poolSafe.getAvailableBalanceForPool()) revert Errors.todo();
 
         if (cr.state == CreditState.Approved) {
             // After the credit approval, if the credit has commitment and a designated start date, then the

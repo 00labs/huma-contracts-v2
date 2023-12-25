@@ -135,14 +135,16 @@ let jLenderWithdrawals: BN[] = Array(JUNIOR_LENDER_NUM).fill(BN.from(0)),
     sLenderWithdrawals: BN[] = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
 
 async function configPool(lpConfig: Partial<LPConfigStructOutput>) {
-    await poolConfigContract.connect(poolOwner).setPoolPayPeriod(POOL_PERIOD_DURATION);
-    await poolConfigContract.connect(poolOwner).setMaxCreditLine(POOL_LIQUDITY_CAP);
-    await poolConfigContract
-        .connect(poolOwner)
-        .setLatePaymentGracePeriodInDays(LATE_PAYMENT_GRACE_PERIOD_IN_DAYS);
-    await poolConfigContract
-        .connect(poolOwner)
-        .setPoolDefaultGracePeriod(DEFAULT_GRACE_PERIOD_IN_MONTHS);
+    let settings = await poolConfigContract.getPoolSettings();
+    await poolConfigContract.connect(poolOwner).setPoolSettings({
+        ...settings,
+        ...{
+            maxCreditLine: POOL_LIQUDITY_CAP,
+            payPeriodDuration: POOL_PERIOD_DURATION,
+            latePaymentGracePeriodInDays: LATE_PAYMENT_GRACE_PERIOD_IN_DAYS,
+            defaultGracePeriodInDays: DEFAULT_GRACE_PERIOD_IN_MONTHS,
+        },
+    });
 
     await overrideLPConfig(poolConfigContract, poolOwner, {
         liquidityCap: POOL_LIQUDITY_CAP,
@@ -537,7 +539,7 @@ async function testRedemptionRequest(jLenderRequests: BN[], sLenderRequests: BN[
             let userEpochId = await juniorTrancheVaultContract.epochIds(lastUpdatedEpochIndex);
             expect(userEpochId).to.equal(currentEpochId);
             juniorShareRequested = juniorShareRequested.add(jLenderRequests[i]);
-            await epochChecker.checkJuniorEpochInfoById(
+            await epochChecker.checkJuniorRedemptionSummaryById(
                 currentEpochId,
                 juniorShareRequested,
                 BN.from(0),
@@ -583,7 +585,10 @@ async function testRedemptionRequest(jLenderRequests: BN[], sLenderRequests: BN[
             let userEpochId = await seniorTrancheVaultContract.epochIds(lastUpdatedEpochIndex);
             expect(userEpochId).to.equal(currentEpochId);
             seniorShareRequested = seniorShareRequested.add(sLenderRequests[i]);
-            await epochChecker.checkSeniorEpochInfoById(currentEpochId, seniorShareRequested);
+            await epochChecker.checkSeniorRedemptionSummaryById(
+                currentEpochId,
+                seniorShareRequested,
+            );
         }
     }
 }
@@ -975,7 +980,7 @@ describe("Lender Integration Test", function () {
             expect(await mockTokenContract.balanceOf(juniorTrancheVaultContract.address)).to.equal(
                 juniorOldBalance.add(jAmountProcessed),
             );
-            await epochChecker.checkJuniorEpochInfoById(
+            await epochChecker.checkJuniorRedemptionSummaryById(
                 currentEpochId,
                 juniorShareRequested,
                 juniorShareRequested,
@@ -991,7 +996,7 @@ describe("Lender Integration Test", function () {
             expect(await mockTokenContract.balanceOf(seniorTrancheVaultContract.address)).to.equal(
                 seniorOldBalance.add(sAmountProcessed),
             );
-            await epochChecker.checkSeniorEpochInfoById(
+            await epochChecker.checkSeniorRedemptionSummaryById(
                 currentEpochId,
                 seniorShareRequested,
                 seniorShareRequested,
@@ -1271,7 +1276,7 @@ describe("Lender Integration Test", function () {
             expect(
                 await mockTokenContract.balanceOf(juniorTrancheVaultContract.address),
             ).to.closeTo(juniorOldBalance.add(jAmountProcessed), 1);
-            await epochChecker.checkJuniorEpochInfoById(
+            await epochChecker.checkJuniorRedemptionSummaryById(
                 currentEpochId,
                 juniorShareRequested,
                 jShareProcessed,
@@ -1401,7 +1406,7 @@ describe("Lender Integration Test", function () {
             expect(
                 await mockTokenContract.balanceOf(juniorTrancheVaultContract.address),
             ).to.closeTo(juniorOldBalance.add(jAmountProcessed), 2);
-            await epochChecker.checkJuniorEpochInfoById(
+            await epochChecker.checkJuniorRedemptionSummaryById(
                 currentEpochId,
                 juniorShareRequested,
                 juniorShareRequested,
@@ -1418,7 +1423,7 @@ describe("Lender Integration Test", function () {
             expect(await mockTokenContract.balanceOf(seniorTrancheVaultContract.address)).to.equal(
                 seniorOldBalance.add(sAmountProcessed),
             );
-            await epochChecker.checkSeniorEpochInfoById(
+            await epochChecker.checkSeniorRedemptionSummaryById(
                 currentEpochId,
                 seniorShareRequested,
                 seniorShareRequested,
@@ -1654,7 +1659,7 @@ describe("Lender Integration Test", function () {
             currentEpochId = newEpochId;
         });
 
-        it("Epoch 6, day 6: Late 1th payment", async function () {
+        it("Epoch 6, day 6: Late 1st payment", async function () {
             currentTS = currentTS + 5 * 24 * 3600 + 100;
             await setNextBlockTimestamp(currentTS);
 
@@ -1887,7 +1892,7 @@ describe("Lender Integration Test", function () {
             expect(
                 await mockTokenContract.balanceOf(juniorTrancheVaultContract.address),
             ).to.closeTo(juniorOldBalance.add(jAmountProcessed), 2);
-            await epochChecker.checkJuniorEpochInfoById(
+            await epochChecker.checkJuniorRedemptionSummaryById(
                 currentEpochId,
                 juniorShareRequested,
                 juniorShareRequested,
@@ -1905,7 +1910,7 @@ describe("Lender Integration Test", function () {
             expect(
                 await mockTokenContract.balanceOf(seniorTrancheVaultContract.address),
             ).to.closeTo(seniorOldBalance.add(sAmountProcessed), 1);
-            await epochChecker.checkSeniorEpochInfoById(
+            await epochChecker.checkSeniorRedemptionSummaryById(
                 currentEpochId,
                 seniorShareRequested,
                 seniorShareRequested,
@@ -2318,7 +2323,7 @@ describe("Lender Integration Test", function () {
             expect(await mockTokenContract.balanceOf(juniorTrancheVaultContract.address)).to.equal(
                 juniorOldBalance.add(jAmountProcessed),
             );
-            await epochChecker.checkJuniorEpochInfoById(
+            await epochChecker.checkJuniorRedemptionSummaryById(
                 currentEpochId,
                 juniorShareRequested,
                 juniorShareRequested,
@@ -2334,7 +2339,7 @@ describe("Lender Integration Test", function () {
             expect(await mockTokenContract.balanceOf(seniorTrancheVaultContract.address)).to.equal(
                 seniorOldBalance.add(sAmountProcessed),
             );
-            await epochChecker.checkSeniorEpochInfoById(
+            await epochChecker.checkSeniorRedemptionSummaryById(
                 currentEpochId,
                 seniorShareRequested,
                 seniorShareRequested,
@@ -2631,7 +2636,7 @@ describe("Lender Integration Test", function () {
             expect(
                 await mockTokenContract.balanceOf(juniorTrancheVaultContract.address),
             ).to.closeTo(juniorOldBalance.add(jAmountProcessed), 1);
-            await epochChecker.checkJuniorEpochInfoById(
+            await epochChecker.checkJuniorRedemptionSummaryById(
                 currentEpochId,
                 juniorShareRequested,
                 jShareProcessed,
@@ -2761,7 +2766,7 @@ describe("Lender Integration Test", function () {
             expect(
                 await mockTokenContract.balanceOf(juniorTrancheVaultContract.address),
             ).to.closeTo(juniorOldBalance.add(jAmountProcessed), 1);
-            await epochChecker.checkJuniorEpochInfoById(
+            await epochChecker.checkJuniorRedemptionSummaryById(
                 currentEpochId,
                 juniorShareRequested,
                 juniorShareRequested,
@@ -2778,7 +2783,7 @@ describe("Lender Integration Test", function () {
             expect(await mockTokenContract.balanceOf(seniorTrancheVaultContract.address)).to.equal(
                 seniorOldBalance.add(sAmountProcessed),
             );
-            await epochChecker.checkSeniorEpochInfoById(
+            await epochChecker.checkSeniorRedemptionSummaryById(
                 currentEpochId,
                 seniorShareRequested,
                 seniorShareRequested,
@@ -2991,7 +2996,7 @@ describe("Lender Integration Test", function () {
             expect(await mockTokenContract.balanceOf(seniorTrancheVaultContract.address)).to.equal(
                 seniorOldBalance.add(sAmountProcessed),
             );
-            await epochChecker.checkSeniorEpochInfoById(
+            await epochChecker.checkSeniorRedemptionSummaryById(
                 currentEpochId,
                 seniorShareRequested,
                 seniorShareRequested,
@@ -3021,7 +3026,7 @@ describe("Lender Integration Test", function () {
             currentEpochId = newEpochId;
         });
 
-        it("Epoch 6, day 6: Late 1th payment", async function () {
+        it("Epoch 6, day 6: Late 1st payment", async function () {
             currentTS = currentTS + 5 * 24 * 3600 + 100;
             await setNextBlockTimestamp(currentTS);
 
@@ -3266,7 +3271,7 @@ describe("Lender Integration Test", function () {
             expect(
                 await mockTokenContract.balanceOf(juniorTrancheVaultContract.address),
             ).to.closeTo(juniorOldBalance.add(jAmountProcessed), 2);
-            await epochChecker.checkJuniorEpochInfoById(
+            await epochChecker.checkJuniorRedemptionSummaryById(
                 currentEpochId,
                 juniorShareRequested,
                 juniorShareRequested,
@@ -3284,7 +3289,7 @@ describe("Lender Integration Test", function () {
             expect(
                 await mockTokenContract.balanceOf(seniorTrancheVaultContract.address),
             ).to.closeTo(seniorOldBalance.add(sAmountProcessed), 1);
-            await epochChecker.checkSeniorEpochInfoById(
+            await epochChecker.checkSeniorRedemptionSummaryById(
                 currentEpochId,
                 seniorShareRequested,
                 seniorShareRequested,
