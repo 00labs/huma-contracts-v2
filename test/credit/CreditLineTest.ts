@@ -1211,19 +1211,22 @@ describe("CreditLine Test", function () {
             });
 
             it("Should not allow drawdown if the credit is Defaulted", async function () {
-                const defaultGracePeriodInMonths = 1;
+                const defaultGracePeriodInDays = 10;
                 await poolConfigContract
                     .connect(poolOwner)
-                    .setPoolDefaultGracePeriod(defaultGracePeriodInMonths);
+                    .setPoolDefaultGracePeriod(defaultGracePeriodInDays);
 
                 await creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000));
                 const creditHash = await borrowerLevelCreditHash(creditContract, borrower);
                 const oldCR = await creditContract.getCreditRecord(creditHash);
-                // +2 because some months have more than 30 days.
+                const cc = await creditManagerContract.getCreditConfig(creditHash);
+                const startOfNextPeriod = await calendarContract.getStartDateOfNextPeriod(
+                    cc.periodDuration,
+                    oldCR.nextDueDate,
+                );
                 const triggerDefaultDate =
-                    oldCR.nextDueDate.toNumber() +
-                    (defaultGracePeriodInMonths * CONSTANTS.DAYS_IN_A_MONTH + 2) *
-                        CONSTANTS.SECONDS_IN_A_DAY;
+                    startOfNextPeriod.toNumber() +
+                    defaultGracePeriodInDays * CONSTANTS.SECONDS_IN_A_DAY;
                 await setNextBlockTimestamp(triggerDefaultDate);
                 await creditManagerContract
                     .connect(eaServiceAccount)
@@ -2308,17 +2311,20 @@ describe("CreditLine Test", function () {
                 });
 
                 it("Should not update anything if the credit state is Defaulted", async function () {
-                    const defaultGracePeriodInMonths = 1;
+                    const defaultGracePeriodInDays = 1;
                     await poolConfigContract
                         .connect(poolOwner)
-                        .setPoolDefaultGracePeriod(defaultGracePeriodInMonths);
+                        .setPoolDefaultGracePeriod(defaultGracePeriodInDays);
 
                     const oldCR = await creditContract.getCreditRecord(creditHash);
-                    // +2 because some months have more than 30 days.
+                    const cc = await creditManagerContract.getCreditConfig(creditHash);
+                    const startOfNextPeriod = await calendarContract.getStartDateOfNextPeriod(
+                        cc.periodDuration,
+                        oldCR.nextDueDate,
+                    );
                     const triggerDefaultDate =
-                        oldCR.nextDueDate.toNumber() +
-                        (defaultGracePeriodInMonths * CONSTANTS.DAYS_IN_A_MONTH + 2) *
-                            CONSTANTS.SECONDS_IN_A_DAY;
+                        startOfNextPeriod.toNumber() +
+                        defaultGracePeriodInDays * CONSTANTS.SECONDS_IN_A_DAY;
                     await setNextBlockTimestamp(triggerDefaultDate);
                     await creditManagerContract
                         .connect(eaServiceAccount)
@@ -5626,16 +5632,15 @@ describe("CreditLine Test", function () {
                     let triggerDefaultDate: moment.Moment;
 
                     async function prepareForDefaultedBillPayment() {
-                        const defaultGracePeriodInMonths = 1;
+                        const defaultGracePeriodInDays = 1;
                         await poolConfigContract
                             .connect(poolOwner)
-                            .setPoolDefaultGracePeriod(defaultGracePeriodInMonths);
+                            .setPoolDefaultGracePeriod(defaultGracePeriodInDays);
 
                         triggerDefaultDate = drawdownDate
                             .clone()
-                            .add(2, "months")
-                            .add(2, "days")
-                            .add(4, "hours");
+                            .add(1, "month")
+                            .add(defaultGracePeriodInDays, "days");
                         await setNextBlockTimestamp(triggerDefaultDate.unix());
                         await creditManagerContract
                             .connect(eaServiceAccount)
@@ -8168,17 +8173,20 @@ describe("CreditLine Test", function () {
                 });
 
                 it("Should not allow the borrower to make principal payment if the bill is defaulted", async function () {
-                    const defaultGracePeriodInMonths = 1;
+                    const defaultGracePeriodInDays = 1;
                     await poolConfigContract
                         .connect(poolOwner)
-                        .setPoolDefaultGracePeriod(defaultGracePeriodInMonths);
+                        .setPoolDefaultGracePeriod(defaultGracePeriodInDays);
 
                     const oldCR = await creditContract.getCreditRecord(creditHash);
-                    // +2 because some months have more than 30 days.
+                    const cc = await creditManagerContract.getCreditConfig(creditHash);
+                    const startOfNextPeriod = await calendarContract.getStartDateOfNextPeriod(
+                        cc.periodDuration,
+                        oldCR.nextDueDate,
+                    );
                     const triggerDefaultDate =
-                        oldCR.nextDueDate.toNumber() +
-                        (defaultGracePeriodInMonths * CONSTANTS.DAYS_IN_A_MONTH + 2) *
-                            CONSTANTS.SECONDS_IN_A_DAY;
+                        startOfNextPeriod.toNumber() +
+                        defaultGracePeriodInDays * CONSTANTS.SECONDS_IN_A_DAY;
                     await setNextBlockTimestamp(triggerDefaultDate);
                     await creditManagerContract
                         .connect(eaServiceAccount)
@@ -8477,8 +8485,81 @@ describe("CreditLine Test", function () {
         });
     });
 
+    describe("isDefaultReady", function () {
+        let defaultGracePeriodInDays: number;
+        let creditHash: string;
+        let borrowAmount: BN;
+
+        async function prepare() {
+            borrowAmount = toToken(10_000);
+            creditHash = await borrowerLevelCreditHash(creditContract, borrower);
+
+            await poolConfigContract
+                .connect(poolOwner)
+                .setPoolDefaultGracePeriod(defaultGracePeriodInDays);
+            await creditManagerContract
+                .connect(eaServiceAccount)
+                .approveBorrower(borrower.address, toToken(100_000), 6, 1317, toToken(0), 0, true);
+            await creditContract.connect(borrower).drawdown(borrower.getAddress(), borrowAmount);
+        }
+
+        describe("If the default grace period is less than the number of days in a period", function () {
+            beforeEach(async function () {
+                defaultGracePeriodInDays = 10;
+                await loadFixture(prepare);
+            });
+
+            it("Should return false if default is ready to be triggered yet", async function () {
+                const cr = await creditContract.getCreditRecord(creditHash);
+                const triggerDefaultDate =
+                    cr.nextDueDate.toNumber() +
+                    (defaultGracePeriodInDays - 1) * CONSTANTS.SECONDS_IN_A_DAY;
+                await mineNextBlockWithTimestamp(triggerDefaultDate);
+
+                expect(await creditManagerContract.isDefaultReady(creditHash)).to.be.false;
+            });
+
+            it("Should return true if default is ready to be triggered", async function () {
+                const cr = await creditContract.getCreditRecord(creditHash);
+                const triggerDefaultDate =
+                    cr.nextDueDate.toNumber() +
+                    defaultGracePeriodInDays * CONSTANTS.SECONDS_IN_A_DAY;
+                await mineNextBlockWithTimestamp(triggerDefaultDate);
+
+                expect(await creditManagerContract.isDefaultReady(creditHash)).to.be.true;
+            });
+        });
+
+        describe("If the default grace period is more than the number of days in a period", function () {
+            beforeEach(async function () {
+                defaultGracePeriodInDays = 83;
+                await loadFixture(prepare);
+            });
+
+            it("Should return false if default is ready to be triggered yet", async function () {
+                const cr = await creditContract.getCreditRecord(creditHash);
+                const triggerDefaultDate =
+                    cr.nextDueDate.toNumber() +
+                    (defaultGracePeriodInDays - 1) * CONSTANTS.SECONDS_IN_A_DAY;
+                await mineNextBlockWithTimestamp(triggerDefaultDate);
+
+                expect(await creditManagerContract.isDefaultReady(creditHash)).to.be.false;
+            });
+
+            it("Should return true if default is ready to be triggered", async function () {
+                const cr = await creditContract.getCreditRecord(creditHash);
+                const triggerDefaultDate =
+                    cr.nextDueDate.toNumber() +
+                    defaultGracePeriodInDays * CONSTANTS.SECONDS_IN_A_DAY;
+                await mineNextBlockWithTimestamp(triggerDefaultDate);
+
+                expect(await creditManagerContract.isDefaultReady(creditHash)).to.be.true;
+            });
+        });
+    });
+
     describe("triggerDefault", function () {
-        const defaultGracePeriodInMonths = 2;
+        const defaultGracePeriodInDays = 10;
         const numOfPeriods = 6,
             yieldInBps = 1217,
             lateFeeBps = 100;
@@ -8491,7 +8572,7 @@ describe("CreditLine Test", function () {
 
             await poolConfigContract
                 .connect(poolOwner)
-                .setPoolDefaultGracePeriod(defaultGracePeriodInMonths);
+                .setPoolDefaultGracePeriod(defaultGracePeriodInDays);
             await poolConfigContract.connect(poolOwner).setFeeStructure({
                 yieldInBps,
                 minPrincipalRateInBps: 50,
@@ -8519,17 +8600,20 @@ describe("CreditLine Test", function () {
             await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
 
             const oldCR = await creditContract.getCreditRecord(creditHash);
-            const defaultDate =
-                oldCR.nextDueDate.toNumber() +
-                (defaultGracePeriodInMonths * CONSTANTS.DAYS_IN_A_MONTH + 2) *
-                    CONSTANTS.SECONDS_IN_A_DAY;
-            await setNextBlockTimestamp(defaultDate);
-
             const cc = await creditManagerContract.getCreditConfig(creditHash);
+            const startOfNextPeriod = await calendarContract.getStartDateOfNextPeriod(
+                cc.periodDuration,
+                drawdownDate,
+            );
+            const triggerDefaultDate =
+                startOfNextPeriod.toNumber() +
+                defaultGracePeriodInDays * CONSTANTS.SECONDS_IN_A_DAY;
+            await setNextBlockTimestamp(triggerDefaultDate);
+
             const expectedPrincipalLoss = borrowAmount;
             const startOfDefaultPeriod = await calendarContract.getStartDateOfPeriod(
                 cc.periodDuration,
-                defaultDate,
+                triggerDefaultDate,
             );
             const daysPassed = await calendarContract.getDaysDiff(
                 oldCR.nextDueDate,
@@ -8550,8 +8634,9 @@ describe("CreditLine Test", function () {
                 .add(expectedYieldDue);
             // Late fee starts to accrue since the beginning of the second billing cycle until the start of tomorrow.
             const lateFeeDays =
-                (await calendarContract.getDaysDiff(oldCR.nextDueDate, defaultDate)).toNumber() +
-                1;
+                (
+                    await calendarContract.getDaysDiff(oldCR.nextDueDate, triggerDefaultDate)
+                ).toNumber() + 1;
             const expectedFeesLoss = await calcYield(borrowAmount, lateFeeBps, lateFeeDays);
             await expect(
                 creditManagerContract
@@ -8629,13 +8714,33 @@ describe("CreditLine Test", function () {
             );
         });
 
-        it("Should not allow default to be triggered if the default grace period hasn't passed", async function () {
+        it("Should not allow default to be triggered if the bill is not yet delayed", async function () {
             await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
 
             const drawdownDate = (await getLatestBlock()).timestamp;
-            const defaultDate =
-                drawdownDate + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
-            await setNextBlockTimestamp(defaultDate);
+            const triggerDefaultDate = drawdownDate + 100;
+            await setNextBlockTimestamp(triggerDefaultDate);
+
+            await expect(
+                creditManagerContract
+                    .connect(eaServiceAccount)
+                    .triggerDefault(borrower.getAddress()),
+            ).to.be.revertedWithCustomError(creditManagerContract, "defaultTriggeredTooEarly");
+        });
+
+        it("Should not allow default to be triggered if the bill is delayed, but has not passed the default grace period", async function () {
+            await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
+
+            const drawdownDate = (await getLatestBlock()).timestamp;
+            const cc = await creditManagerContract.getCreditConfig(creditHash);
+            const startOfNextPeriod = await calendarContract.getStartDateOfNextPeriod(
+                cc.periodDuration,
+                drawdownDate,
+            );
+            const triggerDefaultDate =
+                startOfNextPeriod.toNumber() +
+                (defaultGracePeriodInDays - 1) * CONSTANTS.SECONDS_IN_A_DAY;
+            await setNextBlockTimestamp(triggerDefaultDate);
 
             await expect(
                 creditManagerContract
@@ -8647,6 +8752,12 @@ describe("CreditLine Test", function () {
 
     describe("closeCredit", function () {
         describe("When the credit is not approved yet", function () {
+            it("Should not allow non-borrower or non-EA to close the credit", async function () {
+                await expect(
+                    creditManagerContract.connect(lender).closeCredit(borrower.getAddress()),
+                ).to.be.revertedWithCustomError(creditManagerContract, "notBorrowerOrEA");
+            });
+
             it("Should not be able to close a non-existent credit", async function () {
                 await expect(
                     creditManagerContract.connect(borrower).closeCredit(borrower.getAddress()),
@@ -9058,7 +9169,7 @@ describe("CreditLine Test", function () {
             const settings = await poolConfigContract.getPoolSettings();
             const refreshDate =
                 oldCR.nextDueDate.toNumber() +
-                (settings.defaultGracePeriodInMonths + 1) *
+                (settings.defaultGracePeriodInDays + 1) *
                     CONSTANTS.DAYS_IN_A_MONTH *
                     CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(refreshDate);
