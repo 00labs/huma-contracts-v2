@@ -62,14 +62,6 @@ contract ReceivableHandler is Test {
         receivable.declarePayment(tokenId, paymentAmount);
     }
 
-    function approveOrRejectReceivable(
-        uint256 tokenId,
-        bool approved,
-        uint256 actorIndexSeed
-    ) external useActor(actorIndexSeed) {
-        receivable.approveOrRejectReceivable(tokenId, approved);
-    }
-
     modifier useActor(uint256 actorIndexSeed) {
         currentActor = actors[bound(actorIndexSeed, 0, actors.length - 1)];
         vm.startPrank(currentActor);
