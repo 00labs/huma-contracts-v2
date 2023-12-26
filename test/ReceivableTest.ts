@@ -272,6 +272,12 @@ describe("Receivable Test", function () {
             ).to.emit(receivableContract, "ReceivableUpdateCreated");
         });
 
+        it("Should not allow for updates to be created for non-existant receivable", async function () {
+            await expect(
+                receivableContract.connect(borrower).createReceivableUpdate(123, "uri"),
+            ).to.be.revertedWith("ERC721: invalid token ID");
+        });
+
         it("Should correctly set the receievableUpdatesMap to point a receivable update to its associated receivable", async function () {
             const tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
             await receivableContract
