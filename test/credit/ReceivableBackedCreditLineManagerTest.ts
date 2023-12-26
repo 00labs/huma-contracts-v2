@@ -180,7 +180,13 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
             let creditHash: string;
 
             async function approveBorrower() {
-                await poolConfigContract.connect(poolOwner).setAdvanceRateInBps(advanceRateInBps);
+                const settings = await poolConfigContract.getPoolSettings();
+                await poolConfigContract.connect(poolOwner).setPoolSettings({
+                    ...settings,
+                    ...{
+                        advanceRateInBps: advanceRateInBps,
+                    },
+                });
                 await creditManagerContract
                     .connect(eaServiceAccount)
                     .approveBorrower(
@@ -324,7 +330,13 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
         async function prepareForDecreaseCreditLimit() {
             receivableAmount = toToken(10_000);
 
-            await poolConfigContract.connect(poolOwner).setAdvanceRateInBps(CONSTANTS.BP_FACTOR);
+            const settings = await poolConfigContract.getPoolSettings();
+            await poolConfigContract.connect(poolOwner).setPoolSettings({
+                ...settings,
+                ...{
+                    advanceRateInBps: CONSTANTS.BP_FACTOR,
+                },
+            });
             await creditManagerContract
                 .connect(eaServiceAccount)
                 .approveBorrower(
