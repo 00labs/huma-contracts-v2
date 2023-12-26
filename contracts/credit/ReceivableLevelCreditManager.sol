@@ -26,6 +26,10 @@ contract ReceivableLevelCreditManager is
         uint256 yieldInBps
     );
 
+    event PayerAdded(address indexed payer);
+
+    event PayerRemoved(address indexed payer);
+
     function initialize(PoolConfig _poolConfig) public virtual override initializer {
         __AccessControl_init();
         _initialize(_poolConfig);
@@ -35,12 +39,14 @@ contract ReceivableLevelCreditManager is
         poolConfig.onlyPoolOwner(msg.sender); // TODO operator?
         if (payer == address(0)) revert Errors.zeroAddressProvided();
         _grantRole(PAYER_ROLE, payer);
+        emit PayerAdded(payer);
     }
 
     function removePayer(address payer) external virtual {
         poolConfig.onlyPoolOwner(msg.sender); // TODO
         if (payer == address(0)) revert Errors.zeroAddressProvided();
         _revokeRole(PAYER_ROLE, payer);
+        emit PayerRemoved(payer);
     }
 
     /// @inheritdoc IReceivableLevelCreditManager
@@ -78,15 +84,6 @@ contract ReceivableLevelCreditManager is
             remainingPeriods,
             yieldInBps
         );
-    }
-
-    /// @inheritdoc IReceivableLevelCreditManager
-    function startCommittedCredit(uint256 receivableId) external virtual {
-        poolConfig.onlyProtocolAndPoolOn();
-        _onlyPoolOwnerOrPDSServiceAccount();
-
-        bytes32 creditHash = _getCreditHash(receivableId);
-        _startCommittedCredit(creditHash);
     }
 
     /// @inheritdoc IReceivableLevelCreditManager
@@ -144,19 +141,6 @@ contract ReceivableLevelCreditManager is
 
         bytes32 creditHash = _getCreditHash(receivableId);
         _updateYield(creditHash, yieldInBps);
-    }
-
-    /// @inheritdoc IReceivableLevelCreditManager
-    function updateLimitAndCommitment(
-        uint256 receivableId,
-        uint256 creditLimit,
-        uint256 committedAmount
-    ) external {
-        poolConfig.onlyProtocolAndPoolOn();
-        _onlyEAServiceAccount();
-
-        bytes32 creditHash = _getCreditHash(receivableId);
-        _updateLimitAndCommitment(creditHash, creditLimit, committedAmount);
     }
 
     /// @inheritdoc IReceivableLevelCreditManager
