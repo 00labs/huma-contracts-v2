@@ -62,7 +62,6 @@ contract ReceivableBackedCreditLineManager is
     }
 
     function validateReceivable(address borrower, uint256 receivableId) external view {
-        // TODO(jiatu): this error is misleading. Rename it.
         if (receivableBorrowerMap[receivableId] != borrower) revert Errors.receivableIdMismatch();
     }
 
