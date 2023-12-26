@@ -290,9 +290,11 @@ describe("CreditDueManager Tests", function () {
         const latePaymentGracePeriodInDays = 5;
 
         async function prepare() {
-            await poolConfigContract
-                .connect(poolOwner)
-                .setLatePaymentGracePeriodInDays(latePaymentGracePeriodInDays);
+            let settings = await poolConfigContract.getPoolSettings();
+            await poolConfigContract.connect(poolOwner).setPoolSettings({
+                ...settings,
+                ...{ latePaymentGracePeriodInDays: latePaymentGracePeriodInDays },
+            });
         }
 
         beforeEach(async function () {
@@ -504,9 +506,11 @@ describe("CreditDueManager Tests", function () {
                     const timestamp = await getFutureBlockTime(2);
 
                     const latePaymentGracePeriodInDays = 5;
-                    await poolConfigContract
-                        .connect(poolOwner)
-                        .setLatePaymentGracePeriodInDays(latePaymentGracePeriodInDays);
+                    let settings = await poolConfigContract.getPoolSettings();
+                    await poolConfigContract.connect(poolOwner).setPoolSettings({
+                        ...settings,
+                        ...{ latePaymentGracePeriodInDays: latePaymentGracePeriodInDays },
+                    });
 
                     // Set the due date so that the current block timestamp falls within the late payment
                     // grace period.

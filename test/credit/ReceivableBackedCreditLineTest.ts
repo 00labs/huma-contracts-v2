@@ -24,6 +24,7 @@ import {
 import {
     CONSTANTS,
     CreditState,
+    PayPeriodDuration,
     calcPrincipalDueForFullPeriods,
     calcPrincipalDueForPartialPeriod,
     calcYield,
@@ -185,11 +186,15 @@ describe("ReceivableBackedCreditLine Tests", function () {
         let creditHash: string;
 
         async function prepareForGetDueInfo() {
-            await poolConfigContract
-                .connect(poolOwner)
-                .setLatePaymentGracePeriodInDays(latePaymentGracePeriodInDays);
-            await poolConfigContract.connect(poolOwner).setAdvanceRateInBps(CONSTANTS.BP_FACTOR);
-            await poolConfigContract.connect(poolOwner).setReceivableAutoApproval(true);
+            const settings = await poolConfigContract.getPoolSettings();
+            await poolConfigContract.connect(poolOwner).setPoolSettings({
+                ...settings,
+                ...{
+                    latePaymentGracePeriodInDays: latePaymentGracePeriodInDays,
+                    advanceRateInBps: CONSTANTS.BP_FACTOR,
+                    receivableAutoApproval: true,
+                },
+            });
             await poolConfigContract.connect(poolOwner).setFeeStructure({
                 yieldInBps,
                 minPrincipalRateInBps: principalRate,
@@ -302,11 +307,17 @@ describe("ReceivableBackedCreditLine Tests", function () {
         let creditHash: string;
 
         async function prepareForDrawdown() {
-            await poolConfigContract
-                .connect(poolOwner)
-                .setLatePaymentGracePeriodInDays(latePaymentGracePeriodInDays);
-            await poolConfigContract.connect(poolOwner).setAdvanceRateInBps(CONSTANTS.BP_FACTOR);
-            await poolConfigContract.connect(poolOwner).setReceivableAutoApproval(true);
+            const settings = await poolConfigContract.getPoolSettings();
+            await poolConfigContract.connect(poolOwner).setPoolSettings({
+                ...settings,
+                ...{
+                    payPeriodDuration: PayPeriodDuration.Monthly,
+                    latePaymentGracePeriodInDays: latePaymentGracePeriodInDays,
+                    advanceRateInBps: CONSTANTS.BP_FACTOR,
+                    receivableAutoApproval: true,
+                },
+            });
+
             await poolConfigContract.connect(poolOwner).setFeeStructure({
                 yieldInBps,
                 minPrincipalRateInBps: principalRate,
@@ -541,7 +552,13 @@ describe("ReceivableBackedCreditLine Tests", function () {
             });
 
             it("Should not allow drawdown if the receivable is not approved", async function () {
-                await poolConfigContract.connect(poolOwner).setReceivableAutoApproval(false);
+                const settings = await poolConfigContract.getPoolSettings();
+                await poolConfigContract.connect(poolOwner).setPoolSettings({
+                    ...settings,
+                    ...{
+                        receivableAutoApproval: false,
+                    },
+                });
                 // Re-approve so that the auto approval is overwritten to be `false`.
                 await approveBorrower();
 
@@ -556,7 +573,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                     ),
                 ).to.be.revertedWithCustomError(creditManagerContract, "receivableIdMismatch");
 
-                await poolConfigContract.connect(poolOwner).setReceivableAutoApproval(true);
+                await poolConfigContract.connect(poolOwner).setPoolSettings(settings);
             });
         });
     });
@@ -572,11 +589,15 @@ describe("ReceivableBackedCreditLine Tests", function () {
         let creditHash: string;
 
         async function prepareForMakePayment() {
-            await poolConfigContract
-                .connect(poolOwner)
-                .setLatePaymentGracePeriodInDays(latePaymentGracePeriodInDays);
-            await poolConfigContract.connect(poolOwner).setAdvanceRateInBps(CONSTANTS.BP_FACTOR);
-            await poolConfigContract.connect(poolOwner).setReceivableAutoApproval(true);
+            const settings = await poolConfigContract.getPoolSettings();
+            await poolConfigContract.connect(poolOwner).setPoolSettings({
+                ...settings,
+                ...{
+                    latePaymentGracePeriodInDays: latePaymentGracePeriodInDays,
+                    advanceRateInBps: CONSTANTS.BP_FACTOR,
+                    receivableAutoApproval: true,
+                },
+            });
             await poolConfigContract.connect(poolOwner).setFeeStructure({
                 yieldInBps,
                 minPrincipalRateInBps: principalRate,
@@ -762,11 +783,15 @@ describe("ReceivableBackedCreditLine Tests", function () {
         let creditHash: string;
 
         async function prepareForMakePayment() {
-            await poolConfigContract
-                .connect(poolOwner)
-                .setLatePaymentGracePeriodInDays(latePaymentGracePeriodInDays);
-            await poolConfigContract.connect(poolOwner).setAdvanceRateInBps(CONSTANTS.BP_FACTOR);
-            await poolConfigContract.connect(poolOwner).setReceivableAutoApproval(true);
+            const settings = await poolConfigContract.getPoolSettings();
+            await poolConfigContract.connect(poolOwner).setPoolSettings({
+                ...settings,
+                ...{
+                    latePaymentGracePeriodInDays: latePaymentGracePeriodInDays,
+                    advanceRateInBps: CONSTANTS.BP_FACTOR,
+                    receivableAutoApproval: true,
+                },
+            });
             await poolConfigContract.connect(poolOwner).setFeeStructure({
                 yieldInBps,
                 minPrincipalRateInBps: principalRate,
@@ -979,11 +1004,15 @@ describe("ReceivableBackedCreditLine Tests", function () {
         let creditHash: string;
 
         async function prepareForMakePaymentAndDrawdown() {
-            await poolConfigContract
-                .connect(poolOwner)
-                .setLatePaymentGracePeriodInDays(latePaymentGracePeriodInDays);
-            await poolConfigContract.connect(poolOwner).setAdvanceRateInBps(CONSTANTS.BP_FACTOR);
-            await poolConfigContract.connect(poolOwner).setReceivableAutoApproval(true);
+            const settings = await poolConfigContract.getPoolSettings();
+            await poolConfigContract.connect(poolOwner).setPoolSettings({
+                ...settings,
+                ...{
+                    latePaymentGracePeriodInDays: latePaymentGracePeriodInDays,
+                    advanceRateInBps: CONSTANTS.BP_FACTOR,
+                    receivableAutoApproval: true,
+                },
+            });
             await poolConfigContract.connect(poolOwner).setFeeStructure({
                 yieldInBps,
                 minPrincipalRateInBps: principalRate,
@@ -1074,7 +1103,13 @@ describe("ReceivableBackedCreditLine Tests", function () {
             });
 
             it("Should not allow payment and drawdown if the receivable for drawdown is not approved", async function () {
-                await poolConfigContract.connect(poolOwner).setReceivableAutoApproval(false);
+                const settings = await poolConfigContract.getPoolSettings();
+                await poolConfigContract.connect(poolOwner).setPoolSettings({
+                    ...settings,
+                    ...{
+                        receivableAutoApproval: false,
+                    },
+                });
                 await approveBorrower();
                 // Manually approve the receivable for first drawdown.
                 await creditManagerContract
@@ -1108,7 +1143,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                         ),
                 ).to.be.revertedWithCustomError(creditManagerContract, "receivableIdMismatch");
 
-                await poolConfigContract.connect(poolOwner).setReceivableAutoApproval(true);
+                await poolConfigContract.connect(poolOwner).setPoolSettings(settings);
                 await receivableContract.connect(borrower).burn(drawdownTokenId2);
             });
         });

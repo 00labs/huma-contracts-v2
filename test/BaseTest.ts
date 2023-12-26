@@ -372,8 +372,14 @@ export async function setupPoolContracts(
     accounts: SignerWithAddress[],
 ): Promise<void> {
     const poolLiquidityCap = toToken(1_000_000_000);
-    await poolConfigContract.connect(poolOwner).setPoolLiquidityCap(poolLiquidityCap);
-    await poolConfigContract.connect(poolOwner).setMaxCreditLine(toToken(10_000_000));
+    let settings = await poolConfigContract.getPoolSettings();
+    await poolConfigContract
+        .connect(poolOwner)
+        .setPoolSettings({ ...settings, ...{ maxCreditLine: toToken(10_000_000) } });
+    let lpConfig = await poolConfigContract.getLPConfig();
+    await poolConfigContract
+        .connect(poolOwner)
+        .setLPConfig({ ...lpConfig, ...{ liquidityCap: poolLiquidityCap } });
 
     await poolConfigContract
         .connect(poolOwner)
@@ -1454,7 +1460,7 @@ export async function calcLateFee(
     dd: DueDetailStruct,
     timestamp: number = 0,
 ): Promise<[BN, BN]> {
-    const lateFeeInBps = await poolConfigContract.getLateFeeBps();
+    const lateFeeInBps = (await poolConfigContract.getFeeStructure()).lateFeeBps;
     let lateFeeStartDate;
     if (cr.state == CreditState.GoodStanding) {
         if (BN.from(cr.nextDue).isZero()) {
@@ -1505,7 +1511,7 @@ export async function calcLateFeeNew(
     ) {
         return [dd.lateFeeUpdatedDate, dd.lateFee];
     }
-    const lateFeeInBps = await poolConfigContract.getLateFeeBps();
+    const lateFeeInBps = (await poolConfigContract.getFeeStructure()).lateFeeBps;
     let lateFeeStartDate;
     if (cr.state == CreditState.GoodStanding) {
         if (cr.nextDue.isZero()) {
