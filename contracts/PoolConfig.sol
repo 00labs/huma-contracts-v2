@@ -557,20 +557,6 @@ contract PoolConfig is AccessControl, Initializable {
         if (!firstLossCover.isSufficient(evaluationAgent)) revert Errors.lessThanRequiredCover();
     }
 
-    /**
-     * @notice Checks whether the pool owner and EA has met their first loss cover liquidity requirements
-     * when they try to withdraw liquidity from other tranches.
-     * @param lender The lender address
-     */
-    function checkFirstLossCoverRequirementsForRedemption(address lender) public view {
-        if (lender == evaluationAgent || lender == poolOwnerTreasury) {
-            IFirstLossCover firstLossCover = IFirstLossCover(
-                _firstLossCovers[AFFILIATE_FIRST_LOSS_COVER_INDEX]
-            );
-            if (!firstLossCover.isSufficient(lender)) revert Errors.lessThanRequiredCover();
-        }
-    }
-
     function checkLiquidityRequirementForPoolOwner(uint256 balance) public view {
         if (balance < _getRequiredLiquidityForPoolOwner())
             revert Errors.poolOwnerNotEnoughLiquidity();
