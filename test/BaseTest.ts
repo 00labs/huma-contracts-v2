@@ -1441,10 +1441,15 @@ export async function calcPrincipalDueNew(
         currentDate.unix(),
     );
     const daysUntilNextDue = await calendarContract.getDaysDiff(periodStartDate, nextDueDate);
-    const principalNextDue = remainingPrincipal
-        .mul(principalRateInBps)
-        .mul(daysUntilNextDue)
-        .div(totalDaysInFullPeriod.mul(CONSTANTS.BP_FACTOR));
+    let principalNextDue;
+    if (nextDueDate.eq(maturityDate.unix())) {
+        principalNextDue = remainingPrincipal;
+    } else {
+        principalNextDue = remainingPrincipal
+            .mul(principalRateInBps)
+            .mul(daysUntilNextDue)
+            .div(totalDaysInFullPeriod.mul(CONSTANTS.BP_FACTOR));
+    }
     return [
         remainingPrincipal.sub(principalNextDue),
         principalPastDue.add(dd.principalPastDue).add(cr.nextDue.sub(cr.yieldDue)),

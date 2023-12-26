@@ -214,7 +214,6 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         DueDetail memory dd = getDueDetail(creditHash);
         _checkDrawdownEligibility(borrower, cr, borrowAmount, cc.creditLimit);
 
-        console.log("block.timestamp %d", block.timestamp);
         if (cr.state == CreditState.Approved) {
             // Flow for first drawdown.
             // Sets the principal, generates the first bill and sets credit status.
