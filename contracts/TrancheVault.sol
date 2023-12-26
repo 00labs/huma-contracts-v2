@@ -255,7 +255,6 @@ contract TrancheVault is
                 SECONDS_IN_A_DAY
         ) revert Errors.withdrawTooSoon();
 
-        poolConfig.checkFirstLossCoverRequirementsForRedemption(msg.sender);
         uint256 sharesBalance = ERC20Upgradeable.balanceOf(msg.sender);
         if (shares > sharesBalance) {
             revert Errors.insufficientSharesForRequest();
