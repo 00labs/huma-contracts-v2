@@ -6,6 +6,7 @@ import {ReceivableBackedCreditLineManagerStorage} from "./ReceivableBackedCredit
 import {ReceivableInput, CreditLimit} from "./CreditStructs.sol";
 import {Errors} from "../Errors.sol";
 import {IReceivableBackedCreditLineManager} from "./interfaces/IReceivableBackedCreditLineManager.sol";
+import {HUNDRED_PERCENT_IN_BPS} from "../SharedDefs.sol";
 
 contract ReceivableBackedCreditLineManager is
     IReceivableBackedCreditLineManager,
@@ -20,15 +21,11 @@ contract ReceivableBackedCreditLineManager is
         uint256 availableCredit
     );
 
-    /**
-     * @notice Approves a receivable, adjusts availableCredit by applying advantce ratio
-     * @dev Only when the protocol and pool are live.
-     * @dev only EA service account can call this function
-     */
+    /// @inheritdoc IReceivableBackedCreditLineManager
     function approveReceivable(address borrower, ReceivableInput memory receivableInput) external {
         poolConfig.onlyProtocolAndPoolOn();
         if (msg.sender != humaConfig.eaServiceAccount() && msg.sender != address(credit))
-            revert Errors.todo();
+            revert Errors.notAuthorizedCaller();
 
         if (receivableInput.receivableAmount == 0) revert Errors.zeroAmountProvided();
         if (receivableInput.receivableId == 0) revert Errors.zeroReceivableIdProvided();
@@ -44,9 +41,9 @@ contract ReceivableBackedCreditLineManager is
         bytes32 creditHash,
         ReceivableInput memory receivableInput
     ) internal {
-        uint256 incrementalCredit = getCreditConfig(creditHash).advanceRateInBps *
-            receivableInput.receivableAmount;
-        CreditLimit memory cl = _creditLimitMap[creditHash];
+        uint256 incrementalCredit = (getCreditConfig(creditHash).advanceRateInBps *
+            receivableInput.receivableAmount) / HUNDRED_PERCENT_IN_BPS;
+        CreditLimit memory cl = getCreditLimit(creditHash);
         cl.availableCredit += uint96(incrementalCredit);
         _creditLimitMap[creditHash] = cl;
 
@@ -61,15 +58,16 @@ contract ReceivableBackedCreditLineManager is
         );
     }
 
+    /// @inheritdoc IReceivableBackedCreditLineManager
     function validateReceivable(address borrower, uint256 receivableId) external view {
-        // TODO(jiatu): this error is misleading. Rename it.
         if (receivableBorrowerMap[receivableId] != borrower) revert Errors.receivableIdMismatch();
     }
 
+    /// @inheritdoc IReceivableBackedCreditLineManager
     function decreaseCreditLimit(bytes32 creditHash, uint256 amount) external {
-        if (msg.sender != address(credit)) revert Errors.todo();
-        CreditLimit memory cl = _creditLimitMap[creditHash];
-        if (amount > cl.availableCredit) revert Errors.todo();
+        if (msg.sender != address(credit)) revert Errors.notAuthorizedCaller();
+        CreditLimit memory cl = getCreditLimit(creditHash);
+        if (amount > cl.availableCredit) revert Errors.creditLineExceeded();
         cl.availableCredit -= uint96(amount);
         _creditLimitMap[creditHash] = cl;
     }

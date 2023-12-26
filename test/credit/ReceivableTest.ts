@@ -271,4 +271,16 @@ describe("Receivable Test", function () {
             expect(status).to.equal(ReceivableState.Paid);
         });
     });
+
+    describe("supportsInterface", function () {
+        it("Should support interfaces that the contract implements", async function () {
+            for (const interfaceId of ["0xd31a437e", "0x80ac58cd", "0x7965db0b"]) {
+                expect(await receivableContract.supportsInterface(interfaceId)).to.be.true;
+            }
+        });
+
+        it("Should not support interfaces that the contract doesn't implement", async function () {
+            expect(await receivableContract.supportsInterface("0x17ab19ef")).to.be.false;
+        });
+    });
 });

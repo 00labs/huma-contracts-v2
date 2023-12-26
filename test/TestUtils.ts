@@ -1,3 +1,4 @@
+import { Interface } from "@ethersproject/abi";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { BigNumber as BN, Contract } from "ethers";
 import { ethers, network } from "hardhat";
@@ -206,6 +207,15 @@ export function minBigNumber(...values: BN[]): BN {
     return values.reduce((acc, currentValue) => {
         return acc.lt(currentValue) ? acc : currentValue;
     }, BN.from(ethers.constants.MaxUint256));
+}
+
+export function getInterfaceID(contractInterface: Interface) {
+    let interfaceID = ethers.constants.Zero;
+    const functions: string[] = Object.keys(contractInterface.functions);
+    for (let i = 0; i < functions.length; i++) {
+        interfaceID = interfaceID.xor(contractInterface.getSighash(functions[i]));
+    }
+    return interfaceID;
 }
 
 export async function borrowerLevelCreditHash(
