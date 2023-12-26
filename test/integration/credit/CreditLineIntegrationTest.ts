@@ -2442,13 +2442,8 @@ describe("Credit Line Integration Test", function () {
             daysUntilNextDue,
         );
         expect(accruedYieldDue).to.be.gt(committedYieldDue);
-        const principalDue = calcPrincipalDueForFullPeriods(
-            oldCR.unbilledPrincipal,
-            principalRateInBps,
-            1,
-        );
-        expect(principalDue).to.be.gt(0);
-        const nextDue = accruedYieldDue.add(principalDue);
+        // This is the last period, so all principal is due.
+        const nextDue = accruedYieldDue.add(oldCR.unbilledPrincipal);
 
         await expect(creditManagerContract.refreshCredit(borrower.address))
             .to.emit(creditContract, "BillRefreshed")
@@ -2456,7 +2451,7 @@ describe("Credit Line Integration Test", function () {
 
         const actualCR = await creditContract.getCreditRecord(creditHash);
         const expectedCR = {
-            unbilledPrincipal: oldCR.unbilledPrincipal.sub(principalDue),
+            unbilledPrincipal: 0,
             nextDueDate: nextDueDate.unix(),
             nextDue: nextDue,
             yieldDue: accruedYieldDue,

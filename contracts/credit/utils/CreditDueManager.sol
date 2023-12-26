@@ -191,6 +191,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                 newCR,
                 totalPrincipal,
                 timestamp,
+                newCR.nextDueDate,
                 maturityDate,
                 isFirstPeriod
             );
@@ -402,6 +403,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         CreditRecord memory cr,
         uint256 totalPrincipal,
         uint256 timestamp,
+        uint256 nextDueDate,
         uint256 maturityDate,
         bool isFirstPeriod
     )
@@ -426,13 +428,14 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             totalPrincipal,
             daysUntilNextDue
         );
-
         FeeStructure memory fees = poolConfig.getFeeStructure();
-        uint256 principalRate = fees.minPrincipalRateInBps;
-        if (principalRate > 0) {
+        if (nextDueDate == maturityDate) {
+            // All principal is due in the last billing cycle.
+            principalDue = cr.unbilledPrincipal;
+        } else if (fees.minPrincipalRateInBps > 0) {
             principalDue = computePrincipalDueForPartialPeriod(
                 cr.unbilledPrincipal,
-                principalRate,
+                fees.minPrincipalRateInBps,
                 daysUntilNextDue,
                 cc.periodDuration
             );
