@@ -188,6 +188,6 @@ contract Receivable is
         return
             interfaceId == type(IReceivable).interfaceId ||
             ERC721Upgradeable.supportsInterface(interfaceId) ||
-            super.supportsInterface(interfaceId);
+            AccessControlUpgradeable.supportsInterface(interfaceId);
     }
 }

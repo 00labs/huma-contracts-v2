@@ -108,7 +108,6 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         uint256 amount
     ) public virtual returns (uint256 amountPaid, bool paidoff) {
         poolConfig.onlyProtocolAndPoolOn();
-        // TODO(jiatu): PDS account?
         if (msg.sender != borrower) revert Errors.notBorrower();
 
         bytes32 creditHash = getCreditHash(borrower);

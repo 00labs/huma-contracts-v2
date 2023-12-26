@@ -125,7 +125,10 @@ describe("Pool Test", function () {
             );
 
             // Set up first loss cover requirements.
-            await poolConfigContract.connect(poolOwner).setPoolLiquidityCap(toToken(1_000_000));
+            let lpConfig = await poolConfigContract.getLPConfig();
+            await poolConfigContract
+                .connect(poolOwner)
+                .setLPConfig({ ...lpConfig, ...{ liquidityCap: toToken(1_000_000) } });
             await poolConfigContract
                 .connect(poolOwner)
                 .setPoolOwnerTreasury(poolOwnerTreasury.address);
