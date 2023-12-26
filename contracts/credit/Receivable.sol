@@ -62,6 +62,18 @@ contract Receivable is
         uint16 currencyCode
     );
 
+    /**
+     * @dev Emitted when a receivable update is created
+     * @param owner The address of the owner of the receivable
+     * @param tokenId The ID of the newly created receivable update token
+     * @param originalReceivableTokenId The ID of the original receivable token which is being updated
+     */
+    event ReceivableUpdateCreated(
+        address indexed owner,
+        uint256 indexed tokenId,
+        uint256 indexed originalReceivableTokenId
+    );
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         // _disableInitializers();
@@ -111,12 +123,49 @@ contract Receivable is
     }
 
     /// @inheritdoc IReceivable
+    function createReceivableUpdate(
+        uint256 originalReceivableTokenId,
+        string memory uri
+    ) public onlyRole(MINTER_ROLE) returns (uint256 tokenId) {
+        if (
+            msg.sender != ownerOf(originalReceivableTokenId) &&
+            msg.sender != creators[originalReceivableTokenId]
+        ) revert Errors.notReceivableOwnerOrCreator();
+        ReceivableInfo storage originalReceivableInfo = receivableInfoMap[
+            originalReceivableTokenId
+        ];
+        // Only non-update receivable tokens can be updated
+        if (originalReceivableInfo.state == ReceivableState.Update) revert Errors.todo();
+
+        tokenId = _tokenIdCounter.current();
+        _tokenIdCounter.increment();
+        _safeMint(msg.sender, tokenId);
+
+        receivableInfoMap[tokenId] = ReceivableInfo(
+            0,
+            uint64(block.timestamp),
+            0, // paidAmount
+            0,
+            0,
+            ReceivableState.Update // All receivable updates use the Update state
+        );
+        receievableUpdatesMap[tokenId] = originalReceivableTokenId;
+        creators[tokenId] = msg.sender;
+
+        _setTokenURI(tokenId, uri);
+
+        emit ReceivableUpdateCreated(msg.sender, tokenId, originalReceivableTokenId);
+    }
+
+    /// @inheritdoc IReceivable
     function declarePayment(uint256 tokenId, uint96 paymentAmount) external {
         if (paymentAmount == 0) revert Errors.zeroAmountProvided();
         if (msg.sender != ownerOf(tokenId) && msg.sender != creators[tokenId])
             revert Errors.notReceivableOwnerOrCreator();
 
         ReceivableInfo storage receivableInfo = receivableInfoMap[tokenId];
+        if (receivableInfo.state == ReceivableState.Update) revert Errors.todo(); // Receivable updates cannot be paid
+
         receivableInfo.paidAmount += paymentAmount;
 
         if (receivableInfo.paidAmount >= receivableInfo.receivableAmount) {

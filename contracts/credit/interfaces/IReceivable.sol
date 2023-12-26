@@ -18,6 +18,20 @@ interface IReceivable {
     ) external returns (uint256 tokenId);
 
     /**
+     * @notice Creates a new receivable token which represents an important lifecycle update
+     * to an existing receivable and assigns it to the recipient address
+     * @dev The receivable created by this function should always have a `ReceivableState` of `Update`
+     * @param originalReceivableTokenId The tokenId of the original existing receivable that
+     * this update is associated with. This tokenId must exist and must be owner by or created
+     * by the caller.
+     * @param uri The URI of the metadata associated with the receivable update
+     */
+    function createReceivableUpdate(
+        uint256 originalReceivableTokenId,
+        string memory uri
+    ) external returns (uint256 tokenId);
+
+    /**
      * @notice Declares payment for a receivable.
      * The payment method for the receivable must be Declarative.
      * The receivable must not already be paid in full.

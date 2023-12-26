@@ -232,6 +232,26 @@ describe("Receivable Test", function () {
                 receivableContract.connect(poolOwner).declarePayment(tokenId, 0),
             ).to.be.revertedWithCustomError(receivableContract, "zeroAmountProvided");
         });
+
+        it("Cannot declare payment for receivable updates", async function () {
+            const tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
+
+            const tx = await receivableContract
+                .connect(borrower)
+                .createReceivableUpdate(tokenId, "uri");
+            const receipt = await tx.wait();
+
+            let updateTokenId;
+            for (const event of receipt.events!) {
+                // Grab the token Id returned from this event
+                if (event.event === "ReceivableUpdateCreated") {
+                    updateTokenId = event.args!.tokenId;
+                }
+            }
+            await expect(
+                receivableContract.connect(borrower).declarePayment(updateTokenId, 100),
+            ).to.be.revertedWithCustomError(receivableContract, "todo");
+        });
     });
 
     describe("getReceivable", function () {
@@ -241,6 +261,104 @@ describe("Receivable Test", function () {
             expect(actualReceivable.state).to.equal(ReceivableState.Minted);
             expect(actualReceivable.receivableAmount).to.equal(1000);
             expect(actualReceivable.paidAmount).to.equal(0);
+        });
+    });
+
+    describe("createReceivableUpdate", function () {
+        it("Should emit a ReceivableUpdateCreated event when creating a receivable update", async function () {
+            const tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
+            await expect(
+                receivableContract.connect(borrower).createReceivableUpdate(tokenId, "uri"),
+            ).to.emit(receivableContract, "ReceivableUpdateCreated");
+        });
+
+        it("Should correctly set the receievableUpdatesMap to point a receivable update to its associated receivable", async function () {
+            const tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
+            await receivableContract
+                .connect(borrower)
+                ["safeTransferFrom(address,address,uint256)"](
+                    borrower.address,
+                    lender.address,
+                    tokenId,
+                );
+
+            const tx = await receivableContract
+                .connect(borrower)
+                .createReceivableUpdate(tokenId, "uri");
+            const receipt = await tx.wait();
+
+            let updateTokenId;
+            for (const event of receipt.events!) {
+                // Grab the token Id returned from this event
+                if (event.event === "ReceivableUpdateCreated") {
+                    updateTokenId = event.args!.tokenId;
+                }
+            }
+
+            const associatedTokenId = await receivableContract.receievableUpdatesMap(tokenId);
+            expect(associatedTokenId).to.equal(tokenId);
+        });
+
+        it("Should allow the creator to create a receivable update even after the original receivable has been transferred", async function () {
+            const tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
+            await receivableContract
+                .connect(borrower)
+                ["safeTransferFrom(address,address,uint256)"](
+                    borrower.address,
+                    lender.address,
+                    tokenId,
+                );
+
+            const tx = await receivableContract
+                .connect(borrower)
+                .createReceivableUpdate(tokenId, "uri");
+            const receipt = await tx.wait();
+
+            let updateTokenId;
+            for (const event of receipt.events!) {
+                // Grab the token Id returned from this event
+                if (event.event === "ReceivableUpdateCreated") {
+                    updateTokenId = event.args!.tokenId;
+                }
+            }
+
+            const tokenDetails = await receivableContract.receivableInfoMap(updateTokenId);
+            expect(tokenDetails.state).to.equal(ReceivableState.Update);
+            expect(tokenDetails.receivableAmount).to.equal(0);
+            expect(tokenDetails.paidAmount).to.equal(0);
+        });
+
+        it("Should not allow a non-owner and non-creator to create a receivable update", async function () {
+            await receivableContract
+                .connect(poolOwner)
+                .grantRole(receivableContract.MINTER_ROLE(), poolOwner.address);
+            const tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
+
+            await expect(
+                receivableContract.connect(poolOwner).createReceivableUpdate(tokenId, "uri"),
+            ).to.be.revertedWithCustomError(receivableContract, "notReceivableOwnerOrCreator");
+        });
+
+        it("Should not allow updates to be created for other receivable updates", async function () {
+            const tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
+
+            const tx = await receivableContract
+                .connect(borrower)
+                .createReceivableUpdate(tokenId, "uri");
+            const receipt = await tx.wait();
+
+            let updateTokenId;
+            // Grab the token Id returned from this event
+            for (const event of receipt.events!) {
+                if (event.event === "ReceivableUpdateCreated") {
+                    updateTokenId = event.args!.tokenId;
+                }
+            }
+
+            expect(updateTokenId).to.not.be.undefined;
+            await expect(
+                receivableContract.connect(borrower).createReceivableUpdate(updateTokenId, "uri"),
+            ).to.be.revertedWithCustomError(receivableContract, "todo");
         });
     });
 
