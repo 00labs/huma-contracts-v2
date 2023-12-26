@@ -1589,9 +1589,7 @@ describe("Lender Integration Test", function () {
             let trancheOldBalance = await mockTokenContract.balanceOf(
                 juniorTrancheVaultContract.address,
             );
-            await juniorTrancheVaultContract
-                .connect(jActiveLenders[0])
-                .disburse(jActiveLenders[0].address);
+            await juniorTrancheVaultContract.connect(jActiveLenders[0]).disburse();
             expect(await mockTokenContract.balanceOf(jActiveLenders[0].address)).to.equal(
                 lenderOldBalance.add(amount),
             );
@@ -1607,9 +1605,7 @@ describe("Lender Integration Test", function () {
             trancheOldBalance = await mockTokenContract.balanceOf(
                 seniorTrancheVaultContract.address,
             );
-            await seniorTrancheVaultContract
-                .connect(sActiveLenders[0])
-                .disburse(sActiveLenders[0].address);
+            await seniorTrancheVaultContract.connect(sActiveLenders[0]).disburse();
             expect(await mockTokenContract.balanceOf(sActiveLenders[0].address)).to.equal(
                 lenderOldBalance.add(amount),
             );
