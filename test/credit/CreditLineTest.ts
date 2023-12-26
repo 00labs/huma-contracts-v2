@@ -207,7 +207,7 @@ describe("CreditLine Test", function () {
         let creditHash: string;
 
         async function prepare() {
-            let settings = await poolConfigContract.getPoolSettings();
+            const settings = await poolConfigContract.getPoolSettings();
             await poolConfigContract.connect(poolOwner).setPoolSettings({
                 ...settings,
                 ...{ latePaymentGracePeriodInDays: latePaymentGracePeriodInDays },
@@ -1170,7 +1170,7 @@ describe("CreditLine Test", function () {
                 await creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000));
                 const creditHash = await borrowerLevelCreditHash(creditContract, borrower);
                 let cr = await creditContract.getCreditRecord(creditHash);
-                let settings = await poolConfigContract.getPoolSettings();
+                const settings = await poolConfigContract.getPoolSettings();
                 let nextTime =
                     cr.nextDueDate.toNumber() +
                     settings.latePaymentGracePeriodInDays * CONSTANTS.SECONDS_IN_A_DAY +
@@ -1211,7 +1211,7 @@ describe("CreditLine Test", function () {
 
             it("Should not allow drawdown if the credit is Defaulted", async function () {
                 const defaultGracePeriodInDays = 10;
-                let settings = await poolConfigContract.getPoolSettings();
+                const settings = await poolConfigContract.getPoolSettings();
                 await poolConfigContract.connect(poolOwner).setPoolSettings({
                     ...settings,
                     ...{ defaultGracePeriodInDays: defaultGracePeriodInDays },
@@ -1262,27 +1262,27 @@ describe("CreditLine Test", function () {
             });
 
             it("Should not allow drawdown before the designated start date", async function () {
-                // const nextBlockTimestamp = await getFutureBlockTime(2);
-                // await setNextBlockTimestamp(nextBlockTimestamp);
-                // const designatedStartDate = moment
-                //     .utc(nextBlockTimestamp * 1000)
-                //     .add(5, "days")
-                //     .startOf("day");
-                // await poolConfigContract.connect(poolOwner).setCreditApprovalExpiration(1);
-                // await creditManagerContract
-                //     .connect(eaServiceAccount)
-                //     .approveBorrower(
-                //         borrower.address,
-                //         toToken(100_000),
-                //         1,
-                //         1217,
-                //         toToken(10_000),
-                //         designatedStartDate.unix(),
-                //         true,
-                //     );
-                // await expect(
-                //     creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
-                // ).to.be.revertedWithCustomError(creditContract, "firstDrawdownTooSoon");
+                const drawdownDate = await getFutureBlockTime(2);
+                const designatedStartDate = moment
+                    .utc(drawdownDate * 1000)
+                    .add(5, "days")
+                    .startOf("day");
+                await creditManagerContract
+                    .connect(eaServiceAccount)
+                    .approveBorrower(
+                        borrower.address,
+                        toToken(100_000),
+                        1,
+                        1217,
+                        toToken(10_000),
+                        designatedStartDate.unix(),
+                        true,
+                    );
+                await setNextBlockTimestamp(drawdownDate);
+
+                await expect(
+                    creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
+                ).to.be.revertedWithCustomError(creditContract, "firstDrawdownTooSoon");
             });
 
             it("Should not allow drawdown again if the credit line is non-revolving", async function () {
@@ -1345,7 +1345,7 @@ describe("CreditLine Test", function () {
             it("Should not allow drawdown if the borrow amount is greater than pool balance", async function () {
                 let poolBalance = await poolSafeContract.getAvailableBalanceForPool();
                 let amount = poolBalance.add(toToken(100));
-                let settings = await poolConfigContract.getPoolSettings();
+                const settings = await poolConfigContract.getPoolSettings();
                 await poolConfigContract
                     .connect(poolOwner)
                     .setPoolSettings({ ...settings, ...{ maxCreditLine: amount } });
@@ -2207,7 +2207,7 @@ describe("CreditLine Test", function () {
         let creditHash: string;
 
         async function prepareForTests() {
-            let settings = await poolConfigContract.getPoolSettings();
+            const settings = await poolConfigContract.getPoolSettings();
             await poolConfigContract.connect(poolOwner).setPoolSettings({
                 ...settings,
                 ...{ latePaymentGracePeriodInDays: latePaymentGracePeriodInDays },
@@ -2316,7 +2316,7 @@ describe("CreditLine Test", function () {
 
                 it("Should not update anything if the credit state is Defaulted", async function () {
                     const defaultGracePeriodInDays = 1;
-                    let settings = await poolConfigContract.getPoolSettings();
+                    const settings = await poolConfigContract.getPoolSettings();
                     await poolConfigContract.connect(poolOwner).setPoolSettings({
                         ...settings,
                         ...{ defaultGracePeriodInDays: defaultGracePeriodInDays },
@@ -3554,7 +3554,7 @@ describe("CreditLine Test", function () {
         });
 
         async function approveCredit() {
-            let settings = await poolConfigContract.getPoolSettings();
+            const settings = await poolConfigContract.getPoolSettings();
             await poolConfigContract
                 .connect(poolOwner)
                 .setPoolSettings({ ...settings, ...{ latePaymentGracePeriodInDays: 5 } });
@@ -5635,7 +5635,7 @@ describe("CreditLine Test", function () {
 
                     async function prepareForDefaultedBillPayment() {
                         const defaultGracePeriodInDays = 1;
-                        let settings = await poolConfigContract.getPoolSettings();
+                        const settings = await poolConfigContract.getPoolSettings();
                         await poolConfigContract.connect(poolOwner).setPoolSettings({
                             ...settings,
                             ...{ defaultGracePeriodInDays: defaultGracePeriodInDays },
@@ -7659,7 +7659,7 @@ describe("CreditLine Test", function () {
         });
 
         async function approveCredit() {
-            let settings = await poolConfigContract.getPoolSettings();
+            const settings = await poolConfigContract.getPoolSettings();
             await poolConfigContract
                 .connect(poolOwner)
                 .setPoolSettings({ ...settings, ...{ latePaymentGracePeriodInDays: 5 } });
@@ -8181,7 +8181,7 @@ describe("CreditLine Test", function () {
 
                 it("Should not allow the borrower to make principal payment if the bill is defaulted", async function () {
                     const defaultGracePeriodInDays = 1;
-                    let settings = await poolConfigContract.getPoolSettings();
+                    const settings = await poolConfigContract.getPoolSettings();
                     await poolConfigContract.connect(poolOwner).setPoolSettings({
                         ...settings,
                         ...{ defaultGracePeriodInDays: defaultGracePeriodInDays },
@@ -8499,7 +8499,7 @@ describe("CreditLine Test", function () {
             borrowAmount = toToken(10_000);
             creditHash = await borrowerLevelCreditHash(creditContract, borrower);
 
-            let settings = await poolConfigContract.getPoolSettings();
+            const settings = await poolConfigContract.getPoolSettings();
             await poolConfigContract.connect(poolOwner).setPoolSettings({
                 ...settings,
                 ...{ defaultGracePeriodInDays: defaultGracePeriodInDays },
@@ -8577,7 +8577,7 @@ describe("CreditLine Test", function () {
             borrowAmount = toToken(10_000);
             creditHash = await borrowerLevelCreditHash(creditContract, borrower);
 
-            let settings = await poolConfigContract.getPoolSettings();
+            const settings = await poolConfigContract.getPoolSettings();
             await poolConfigContract.connect(poolOwner).setPoolSettings({
                 ...settings,
                 ...{ defaultGracePeriodInDays: defaultGracePeriodInDays },
@@ -10263,7 +10263,7 @@ describe("CreditLine Test", function () {
         let creditHash: string;
 
         async function approveCredit() {
-            let settings = await poolConfigContract.getPoolSettings();
+            const settings = await poolConfigContract.getPoolSettings();
             await poolConfigContract.connect(poolOwner).setPoolSettings({
                 ...settings,
                 ...{ latePaymentGracePeriodInDays: latePaymentGracePeriodInDays },

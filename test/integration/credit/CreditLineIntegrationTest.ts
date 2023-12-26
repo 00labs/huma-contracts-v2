@@ -20,7 +20,7 @@ import {
     Receivable,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
-} from "../../typechain-types";
+} from "../../../typechain-types";
 import {
     CONSTANTS,
     CreditState,
@@ -41,7 +41,7 @@ import {
     deployProtocolContracts,
     genDueDetail,
     getPrincipal,
-} from "../BaseTest";
+} from "../../BaseTest";
 import {
     borrowerLevelCreditHash,
     evmRevert,
@@ -54,7 +54,7 @@ import {
     setNextBlockTimestamp,
     sumBNArray,
     toToken,
-} from "../TestUtils";
+} from "../../TestUtils";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,

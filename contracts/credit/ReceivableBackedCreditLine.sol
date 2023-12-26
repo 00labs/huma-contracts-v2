@@ -8,6 +8,8 @@ import {CreditRecord, CreditState, DueDetail} from "./CreditStructs.sol";
 import {Errors} from "../Errors.sol";
 import {IReceivableBackedCreditLineManager} from "./interfaces/IReceivableBackedCreditLineManager.sol";
 
+import "hardhat/console.sol";
+
 contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
     event PrincipalPaymentWithReceivableMade(
         address indexed borrower,
@@ -89,10 +91,8 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         bytes32 creditHash = getCreditHash(borrower);
         creditManager.onlyCreditBorrower(creditHash, borrower);
 
-        if (receivableId > 0) {
-            _prepareForPayment(borrower, IERC721(poolConfig.receivableAsset()), receivableId);
-            // todo update the receivable to indicate it is paid.
-        }
+        _prepareForPayment(borrower, IERC721(poolConfig.receivableAsset()), receivableId);
+        // todo update the receivable to indicate it is paid.
 
         (amountPaid, paidoff, ) = _makePayment(borrower, creditHash, amount);
 
@@ -100,7 +100,7 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
     }
 
     /**
-     * @notice Allows the borrower to payback and label it with a receivable
+     * @notice Allows the borrower to payback the principal and label it with a receivable
      */
     function makePrincipalPaymentWithReceivable(
         address borrower,
@@ -122,7 +122,8 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
     }
 
     /**
-     * @notice Allows the borrower to payback and label it with a receivable
+     * @notice Allows the borrower to payback the principal with a receivable and drawdown at the same time with
+     * another receivable
      */
     function makePrincipalPaymentAndDrawdownWithReceivable(
         address borrower,
@@ -137,7 +138,9 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         bytes32 creditHash = getCreditHash(borrower);
         creditManager.onlyCreditBorrower(creditHash, borrower);
         if (getCreditRecord(creditHash).state != CreditState.GoodStanding)
-            revert Errors.creditNotInStateForDrawdown();
+            revert Errors.creditLineNotInStateForMakingPrincipalPayment();
+
+        if (drawdownAmount == 0 || paymentAmount == 0) revert Errors.zeroAmountProvided();
 
         IERC721 receivableAsset = IERC721(poolConfig.receivableAsset());
         _prepareForPayment(borrower, receivableAsset, paymentReceivableId);
@@ -149,6 +152,7 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
             drawdownAmount
         );
 
+        // TODO(jiatu): What if there is no principal due in the first place?
         if (paymentAmount == drawdownAmount) {
             poolSafe.deposit(msg.sender, paymentAmount);
             poolSafe.withdraw(borrower, paymentAmount);
@@ -201,7 +205,8 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
             borrower,
             receivableId
         );
-        if (receivableAsset.ownerOf(receivableId) != address(this)) revert Errors.todo();
+        if (receivableAsset.ownerOf(receivableId) != address(this))
+            revert Errors.notReceivableOwner();
     }
 
     function _prepareForDrawdown(
@@ -211,11 +216,11 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         ReceivableInput memory receivableInput,
         uint256 amount
     ) internal {
+        // TODO: Check amount < receivable amount?
         if (receivableInput.receivableAmount == 0) revert Errors.zeroAmountProvided();
         if (receivableInput.receivableId == 0) revert Errors.zeroReceivableIdProvided();
-        if (amount == 0) revert Errors.zeroAmountProvided();
         if (receivableAsset.ownerOf(receivableInput.receivableId) != borrower)
-            revert Errors.todo();
+            revert Errors.notReceivableOwner();
 
         IReceivableBackedCreditLineManager rbclManager = IReceivableBackedCreditLineManager(
             address(creditManager)
