@@ -219,25 +219,14 @@ contract TrancheVault is
     }
 
     function _deposit(uint256 assets, address receiver) internal returns (uint256 shares) {
-        uint256 cap = poolConfig.getTrancheLiquidityCap(trancheIndex);
-        if (assets > cap) {
-            revert Errors.poolLiquidityCapExceeded();
-        }
-        uint96[2] memory tranches = pool.currentTranchesAssets();
-        uint256 trancheAssets = tranches[trancheIndex];
-        if (trancheAssets + assets > cap) {
-            revert Errors.poolLiquidityCapExceeded();
-        }
-
-        if (trancheIndex == SENIOR_TRANCHE) {
-            // Make sure that the max senior : junior asset ratio is still valid.
-            LPConfig memory lpConfig = poolConfig.getLPConfig();
-            if (
-                (trancheAssets + assets) > tranches[JUNIOR_TRANCHE] * lpConfig.maxSeniorJuniorRatio
-            ) revert Errors.maxSeniorJuniorRatioExceeded();
+        uint256 availableCap = pool.getTrancheAvailableCap(trancheIndex);
+        if (assets > availableCap) {
+            revert Errors.trancheLiquidityCapExceeded();
         }
 
         poolSafe.deposit(msg.sender, assets);
+        uint96[2] memory tranches = pool.currentTranchesAssets();
+        uint256 trancheAssets = tranches[trancheIndex];
         shares = _convertToShares(assets, trancheAssets);
         ERC20Upgradeable._mint(receiver, shares);
         DepositRecord memory depositRecord = depositRecords[receiver];

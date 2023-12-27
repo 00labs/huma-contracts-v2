@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {Errors} from "./Errors.sol";
-import {PoolConfig, FirstLossCoverConfig} from "./PoolConfig.sol";
+import {PoolConfig, FirstLossCoverConfig, LPConfig} from "./PoolConfig.sol";
 import {PoolConfigCache} from "./PoolConfigCache.sol";
 import {JUNIOR_TRANCHE, SENIOR_TRANCHE, HUNDRED_PERCENT_IN_BPS} from "./SharedDefs.sol";
 import {IEpochManager} from "./interfaces/IEpochManager.sol";
@@ -158,6 +158,22 @@ contract Pool is PoolConfigCache, IPool {
     /// Gets the on/off status of the pool
     function isPoolOn() external view returns (bool status) {
         return _status == PoolStatus.On;
+    }
+
+    function getTrancheAvailableCap(uint256 index) external view returns (uint256 availableCap) {
+        LPConfig memory config = poolConfig.getLPConfig();
+        uint96[2] memory assets = currentTranchesAssets();
+        if (index == SENIOR_TRANCHE) {
+            uint256 cap = assets[JUNIOR_TRANCHE] * config.maxSeniorJuniorRatio;
+            availableCap = cap > assets[SENIOR_TRANCHE] ? cap - assets[SENIOR_TRANCHE] : 0;
+        } else if (index == JUNIOR_TRANCHE) {
+            availableCap = config.liquidityCap > assets[SENIOR_TRANCHE]
+                ? config.liquidityCap - assets[JUNIOR_TRANCHE]
+                : 0;
+        } else {
+            // We only have two tranches for now.
+            assert(false);
+        }
     }
 
     /// custom:access only Credit or CreditManager contract can call this function.

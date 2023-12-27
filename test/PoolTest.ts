@@ -892,5 +892,31 @@ describe("Pool Test", function () {
                 });
             });
         });
+
+        describe("View functions", function () {
+            it("Should return correct tranche available caps", async function () {
+                const seniorAvailableCap = await poolContract.getTrancheAvailableCap(
+                    CONSTANTS.SENIOR_TRANCHE,
+                );
+                const juniorAvailableCap = await await poolContract.getTrancheAvailableCap(
+                    CONSTANTS.JUNIOR_TRANCHE,
+                );
+                console.log(
+                    `seniorAvailableCap: ${seniorAvailableCap}, juniorAvailableCap: ${juniorAvailableCap}`,
+                );
+                const lpConfig = await poolConfigContract.getLPConfig();
+                const tranchesAssets = await poolContract.currentTranchesAssets();
+                expect(seniorAvailableCap).to.greaterThan(0);
+                expect(juniorAvailableCap).to.greaterThan(0);
+                expect(juniorAvailableCap).to.equal(
+                    lpConfig.liquidityCap.sub(tranchesAssets[CONSTANTS.JUNIOR_TRANCHE]),
+                );
+                expect(seniorAvailableCap).to.equal(
+                    tranchesAssets[CONSTANTS.JUNIOR_TRANCHE]
+                        .mul(lpConfig.maxSeniorJuniorRatio)
+                        .sub(tranchesAssets[CONSTANTS.SENIOR_TRANCHE]),
+                );
+            });
+        });
     });
 });
