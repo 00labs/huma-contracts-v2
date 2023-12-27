@@ -63,15 +63,17 @@ contract Receivable is
     );
 
     /**
-     * @dev Emitted when a receivable update is created
+     * @dev Emitted when a receivable metadata URI is updated
      * @param owner The address of the owner of the receivable
      * @param tokenId The ID of the newly created receivable update token
-     * @param originalReceivableTokenId The ID of the original receivable token which is being updated
+     * @param oldTokenURI The old metadata URI of the receivable
+     * @param newTokenURI The new metadata URI of the receivable
      */
-    event ReceivableUpdateCreated(
+    event ReceivableMetadataUpdated(
         address indexed owner,
         uint256 indexed tokenId,
-        uint256 indexed originalReceivableTokenId
+        string oldTokenURI,
+        string newTokenURI
     );
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -123,48 +125,12 @@ contract Receivable is
     }
 
     /// @inheritdoc IReceivable
-    function createReceivableUpdate(
-        uint256 originalReceivableTokenId,
-        string memory uri
-    ) public onlyRole(MINTER_ROLE) returns (uint256 tokenId) {
-        if (
-            msg.sender != ownerOf(originalReceivableTokenId) &&
-            msg.sender != creators[originalReceivableTokenId]
-        ) revert Errors.notReceivableOwnerOrCreator();
-        ReceivableInfo storage originalReceivableInfo = receivableInfoMap[
-            originalReceivableTokenId
-        ];
-        // Only non-update receivable tokens can be updated
-        if (originalReceivableInfo.state == ReceivableState.Update) revert Errors.todo();
-
-        tokenId = _tokenIdCounter.current();
-        _tokenIdCounter.increment();
-        _safeMint(msg.sender, tokenId);
-
-        receivableInfoMap[tokenId] = ReceivableInfo(
-            0,
-            uint64(block.timestamp),
-            0, // paidAmount
-            0,
-            0,
-            ReceivableState.Update // All receivable updates use the Update state
-        );
-        receievableUpdatesMap[tokenId] = originalReceivableTokenId;
-        creators[tokenId] = msg.sender;
-
-        _setTokenURI(tokenId, uri);
-
-        emit ReceivableUpdateCreated(msg.sender, tokenId, originalReceivableTokenId);
-    }
-
-    /// @inheritdoc IReceivable
     function declarePayment(uint256 tokenId, uint96 paymentAmount) external {
         if (paymentAmount == 0) revert Errors.zeroAmountProvided();
         if (msg.sender != ownerOf(tokenId) && msg.sender != creators[tokenId])
             revert Errors.notReceivableOwnerOrCreator();
 
         ReceivableInfo storage receivableInfo = receivableInfoMap[tokenId];
-        if (receivableInfo.state == ReceivableState.Update) revert Errors.todo(); // Receivable updates cannot be paid
 
         receivableInfo.paidAmount += paymentAmount;
 
@@ -178,18 +144,34 @@ contract Receivable is
         emit PaymentDeclared(msg.sender, tokenId, receivableInfo.currencyCode, paymentAmount);
     }
 
-    /// @inheritdoc IReceivable
-    function getReceivable(
-        uint256 tokenId
-    ) external view returns (ReceivableInfo memory receivable) {
-        return receivableInfoMap[tokenId];
-    }
-
     function approveOrRejectReceivable(uint256 tokenId, bool approved) external {
         if (getStatus(tokenId) == ReceivableState.Minted)
             if (approved) receivableInfoMap[tokenId].state = ReceivableState.Approved;
             else receivableInfoMap[tokenId].state = ReceivableState.Rejected;
         else revert Errors.todo();
+    }
+
+    /**
+     * @notice Updates the metadata URI of a receivable
+     * @custom:access Only the owner or the original creator of the token can update the metadata URI
+     * @param tokenId The ID of the receivable token
+     * @param uri The new metadata URI of the receivable
+     */
+    function updateReceivableMetadata(uint256 tokenId, string memory uri) external {
+        if (msg.sender != ownerOf(tokenId) && msg.sender != creators[tokenId])
+            revert Errors.notReceivableOwnerOrCreator();
+
+        string memory oldTokenURI = tokenURI(tokenId);
+        _setTokenURI(tokenId, uri);
+
+        emit ReceivableMetadataUpdated(msg.sender, tokenId, oldTokenURI, uri);
+    }
+
+    /// @inheritdoc IReceivable
+    function getReceivable(
+        uint256 tokenId
+    ) external view returns (ReceivableInfo memory receivable) {
+        return receivableInfoMap[tokenId];
     }
 
     /// @inheritdoc IReceivable

@@ -88,8 +88,7 @@ enum ReceivableState {
     Paid,
     Rejected,
     Delayed,
-    Defaulted,
-    Update
+    Defaulted
 }
 
 enum PaymentStatus {
