@@ -76,6 +76,7 @@ contract SuperfluidProcessor is PoolConfigCache, SuperAppBase, SuperfluidProcess
             0,
             sfReceivableInfo.receivableAmount,
             0,
+            "",
             ""
         );
 

@@ -8,12 +8,14 @@ interface IReceivable {
      * @param currencyCode The ISO 4217 currency code that the receivable is denominated in
      * @param receivableAmount The total amount of the receivable
      * @param maturityDate The date at which the receivable becomes due
+     * @param referenceId A unique internal reference ID to be used for de-duping purposes for the creator
      * @param uri The URI of the metadata associated with the receivable
      */
     function createReceivable(
         uint16 currencyCode,
         uint96 receivableAmount,
         uint64 maturityDate,
+        string memory referenceId,
         string memory uri
     ) external returns (uint256 tokenId);
 
@@ -43,4 +45,15 @@ interface IReceivable {
      * @return state The payment status of the receivable.
      */
     function getStatus(uint256 tokenId) external returns (ReceivableState state);
+
+    /**
+     * @notice Helper function to get the reference id creator hash, which is a key
+     * for lookup in referenceIdCreatorHashToTokenIdMap. Helpful for minters
+     * who want to obtain the token id given their internal unique reference id.
+     * @return the hashed value of the referenceId and creator address.
+     */
+    function getReferenceIdCreatorHash(
+        string memory referenceId,
+        address creator
+    ) external returns (bytes32);
 }

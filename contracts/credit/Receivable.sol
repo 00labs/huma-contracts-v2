@@ -13,6 +13,7 @@ import {Errors} from "../Errors.sol";
 import {ReceivableStorage} from "./ReceivableStorage.sol";
 import {IReceivable} from "./interfaces/IReceivable.sol";
 import {ReceivableInfo, ReceivableState} from "./CreditStructs.sol";
+import "hardhat/console.sol";
 
 /**
  * @title RealWorldReceivable
@@ -95,6 +96,9 @@ contract Receivable is
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(MINTER_ROLE, msg.sender);
         _grantRole(UPGRADER_ROLE, msg.sender);
+
+        // Start the token counter at 1
+        _tokenIdCounter.increment();
     }
 
     /// @inheritdoc IReceivable
@@ -102,9 +106,20 @@ contract Receivable is
         uint16 currencyCode,
         uint96 receivableAmount,
         uint64 maturityDate,
+        string memory referenceId,
         string memory uri
     ) public onlyRole(MINTER_ROLE) returns (uint256 tokenId) {
         tokenId = _tokenIdCounter.current();
+
+        if (bytes(referenceId).length > 0) {
+            bytes32 referenceIdCreatorHash = getReferenceIdCreatorHash(referenceId, msg.sender);
+            uint256 existingTokenId = referenceIdCreatorHashToTokenIdMap[referenceIdCreatorHash];
+            if (_exists(existingTokenId))
+                revert Errors.receivableReferenceIdFromCreatorAlreadyExists(); // Receivable with this hashed reference id already exists
+
+            referenceIdCreatorHashToTokenIdMap[referenceIdCreatorHash] = tokenId;
+        }
+
         _tokenIdCounter.increment();
         _safeMint(msg.sender, tokenId);
 
@@ -168,6 +183,14 @@ contract Receivable is
     /// @inheritdoc IReceivable
     function getStatus(uint256 tokenId) public view returns (ReceivableState) {
         return receivableInfoMap[tokenId].state;
+    }
+
+    /// @inheritdoc IReceivable
+    function getReferenceIdCreatorHash(
+        string memory referenceId,
+        address creator
+    ) public pure returns (bytes32) {
+        return keccak256(abi.encodePacked(referenceId, creator));
     }
 
     function _authorizeUpgrade(
