@@ -37,7 +37,7 @@ import {
     CreditConfigStruct,
     CreditConfigStructOutput,
 } from "../typechain-types/contracts/credit/CreditManager";
-import { RedemptionSummaryStruct } from "../typechain-types/contracts/interfaces/IRedemptionHandler";
+import { EpochRedemptionSummaryStruct } from "../typechain-types/contracts/interfaces/IRedemptionHandler";
 import { getLatestBlock, maxBigNumber, minBigNumber, sumBNArray, toToken } from "./TestUtils";
 
 export type CreditContractType =
@@ -980,7 +980,7 @@ export class ProfitAndLossCalculator {
 }
 
 export function checkRedemptionSummary(
-    redemptionSummary: RedemptionSummaryStruct,
+    redemptionSummary: EpochRedemptionSummaryStruct,
     epochId: BN,
     totalSharesRequested: BN,
     totalSharesProcessed: BN = BN.from(0),
@@ -1082,7 +1082,7 @@ export class EpochChecker {
 
     private async checkCurrentEpochEmpty(trancheContract: TrancheVault) {
         const epochId = await this.epochManagerContract.currentEpochId();
-        const epoch = await trancheContract.redemptionSummaryByEpochId(epochId);
+        const epoch = await trancheContract.epochRedemptionSummaries(epochId);
         checkRedemptionSummary(epoch, BN.from(0), BN.from(0), BN.from(0), BN.from(0));
         return epochId;
     }
@@ -1095,7 +1095,7 @@ export class EpochChecker {
         delta: number = 0,
     ) {
         const epochId = await this.epochManagerContract.currentEpochId();
-        const epoch = await trancheContract.redemptionSummaryByEpochId(epochId);
+        const epoch = await trancheContract.epochRedemptionSummaries(epochId);
         checkRedemptionSummary(
             epoch,
             epochId,
@@ -1115,7 +1115,7 @@ export class EpochChecker {
         amountProcessed: BN = BN.from(0),
         delta: number = 0,
     ) {
-        const epoch = await trancheContract.redemptionSummaryByEpochId(epochId);
+        const epoch = await trancheContract.epochRedemptionSummaries(epochId);
         checkRedemptionSummary(
             epoch,
             epochId,
@@ -1717,7 +1717,7 @@ export function calcPoolFees(
     return [accruedIncomes, remainingProfit.sub(poolOwnerIncome).sub(eaIncome)];
 }
 
-export async function checkRedemptionInfoByLender(
+export async function checkRedemptionRecordByLender(
     trancheVaultContract: TrancheVault,
     lender: SignerWithAddress,
     lastUpdatedEpochIndex: BN | number,
@@ -1727,9 +1727,9 @@ export async function checkRedemptionInfoByLender(
     totalAmountWithdrawn: BN = BN.from(0),
     delta: number = 0,
 ) {
-    const redemptionInfo = await trancheVaultContract.redemptionInfoByLender(lender.address);
-    checkRedemptionInfo(
-        redemptionInfo,
+    const redemptionRecord = await trancheVaultContract.lenderRedemptionRecords(lender.address);
+    checkRedemptionRecord(
+        redemptionRecord,
         lastUpdatedEpochIndex,
         numSharesRequested,
         principalRequested,
@@ -1739,7 +1739,7 @@ export async function checkRedemptionInfoByLender(
     );
 }
 
-type RedemptionInfoStructOutput = [BN, BN, BN, BN, BN] & {
+type RedemptionRecordStructOutput = [BN, BN, BN, BN, BN] & {
     lastUpdatedEpochIndex: BN;
     numSharesRequested: BN;
     principalRequested: BN;
@@ -1747,8 +1747,8 @@ type RedemptionInfoStructOutput = [BN, BN, BN, BN, BN] & {
     totalAmountWithdrawn: BN;
 };
 
-export function checkRedemptionInfo(
-    redemptionInfo: RedemptionInfoStructOutput,
+export function checkRedemptionRecord(
+    redemptionRecord: RedemptionRecordStructOutput,
     lastUpdatedEpochIndex: BN | number,
     numSharesRequested: BN = BN.from(0),
     principalRequested: BN = BN.from(0),
@@ -1756,9 +1756,9 @@ export function checkRedemptionInfo(
     totalAmountWithdrawn: BN = BN.from(0),
     delta: number = 0,
 ) {
-    expect(redemptionInfo.lastUpdatedEpochIndex).to.be.closeTo(lastUpdatedEpochIndex, delta);
-    expect(redemptionInfo.numSharesRequested).to.be.closeTo(numSharesRequested, delta);
-    expect(redemptionInfo.principalRequested).to.be.closeTo(principalRequested, delta);
-    expect(redemptionInfo.totalAmountProcessed).to.be.closeTo(totalAmountProcessed, delta);
-    expect(redemptionInfo.totalAmountWithdrawn).to.be.closeTo(totalAmountWithdrawn, delta);
+    expect(redemptionRecord.lastUpdatedEpochIndex).to.be.closeTo(lastUpdatedEpochIndex, delta);
+    expect(redemptionRecord.numSharesRequested).to.be.closeTo(numSharesRequested, delta);
+    expect(redemptionRecord.principalRequested).to.be.closeTo(principalRequested, delta);
+    expect(redemptionRecord.totalAmountProcessed).to.be.closeTo(totalAmountProcessed, delta);
+    expect(redemptionRecord.totalAmountWithdrawn).to.be.closeTo(totalAmountWithdrawn, delta);
 }
