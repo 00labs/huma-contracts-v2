@@ -13,7 +13,6 @@ import {Errors} from "../Errors.sol";
 import {ReceivableStorage} from "./ReceivableStorage.sol";
 import {IReceivable} from "./interfaces/IReceivable.sol";
 import {ReceivableInfo, ReceivableState} from "./CreditStructs.sol";
-import "hardhat/console.sol";
 
 /**
  * @title RealWorldReceivable
@@ -136,13 +135,6 @@ contract Receivable is
         return receivableInfoMap[tokenId];
     }
 
-    function approveOrRejectReceivable(uint256 tokenId, bool approved) external {
-        if (getStatus(tokenId) == ReceivableState.Minted)
-            if (approved) receivableInfoMap[tokenId].state = ReceivableState.Approved;
-            else receivableInfoMap[tokenId].state = ReceivableState.Rejected;
-        else revert Errors.todo();
-    }
-
     /// @inheritdoc IReceivable
     function getStatus(uint256 tokenId) public view returns (ReceivableState) {
         return receivableInfoMap[tokenId].state;
@@ -193,6 +185,9 @@ contract Receivable is
         )
         returns (bool)
     {
-        return super.supportsInterface(interfaceId);
+        return
+            interfaceId == type(IReceivable).interfaceId ||
+            ERC721Upgradeable.supportsInterface(interfaceId) ||
+            AccessControlUpgradeable.supportsInterface(interfaceId);
     }
 }

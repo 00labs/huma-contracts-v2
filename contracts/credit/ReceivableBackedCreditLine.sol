@@ -152,7 +152,7 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
             drawdownAmount
         );
 
-        // TODO(jiatu): What if there is no principal due in the first place?
+        // TODO(jiatu): What if there is no principal in the first place?
         if (paymentAmount == drawdownAmount) {
             poolSafe.deposit(msg.sender, paymentAmount);
             poolSafe.withdraw(borrower, paymentAmount);

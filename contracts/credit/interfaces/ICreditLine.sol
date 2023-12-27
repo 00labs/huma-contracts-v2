@@ -42,11 +42,9 @@ interface ICreditLine {
     ) external returns (uint256 amountPaid, bool paidoff);
 
     /**
-     * @notice Makes a payment towards payment for the credit line. The payment is applied
-     * towards principal only. Even if there is additional amount remaining after the
-     * principal is mayff, this funtion will only accept the amount up to the total pirncipal due.
-     * This can be initiated by the borrower or by PDSServiceAccount with the allowance
-     * approval from the borrower.
+     * @notice Makes a payment towards the principal for the credit line. Even if there is additional amount remaining
+     * after the principal is paid off, this funtion will only accept the amount up to the total principal due.
+     * This can only be initiated by the borrower.
      * If this is the final payment, it automatically triggers the payoff process.
      * @return amountPaid the actual amount paid to the contract. When the tendered
      * amount is larger than the payoff amount, the contract only accepts the payoff amount.

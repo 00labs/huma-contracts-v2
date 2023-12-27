@@ -1135,6 +1135,7 @@ export function checkCreditConfigsMatch(
     expect(actualCC.committedAmount).to.equal(expectedCC.committedAmount);
     expect(actualCC.periodDuration).to.equal(expectedCC.periodDuration);
     expect(actualCC.numOfPeriods).to.equal(expectedCC.numOfPeriods);
+    expect(actualCC.revolving).to.equal(expectedCC.revolving);
     expect(actualCC.yieldInBps).to.equal(expectedCC.yieldInBps);
     expect(actualCC.advanceRateInBps).to.equal(expectedCC.advanceRateInBps);
     expect(actualCC.autoApproval).to.equal(expectedCC.autoApproval);
