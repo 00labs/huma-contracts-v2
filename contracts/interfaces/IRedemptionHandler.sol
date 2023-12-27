@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 /**
  * @notice RedemptionSummary is a summary of a group of redemption requests. It captures
- * the total number of shares requested, number of shoares actually redeemed and the
+ * the total number of shares requested, number of shares actually redeemed and the
  * associated amount.
  */
 

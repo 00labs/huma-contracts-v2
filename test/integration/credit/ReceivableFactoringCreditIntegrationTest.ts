@@ -187,7 +187,7 @@ describe("ReceivableFactoringCredit Integration Tests", function () {
                 ...settings,
                 ...{
                     payPeriodDuration: PayPeriodDuration.Monthly,
-                    latePaymentGracePeriodInDays: latePaymentGracePeriodInDays,
+                    latePaymentGracePeriodInDays,
                 },
             });
 
