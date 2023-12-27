@@ -170,10 +170,31 @@ describe("TrancheVault Test", function () {
             ).to.be.revertedWithCustomError(poolConfigContract, "poolOperatorRequired");
         });
 
+        it("Should not add empty address", async function () {
+            await expect(
+                juniorTrancheVaultContract
+                    .connect(poolOperator)
+                    .addApprovedLender(ethers.constants.AddressZero, false),
+            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "zeroAddressProvided");
+        });
+
+        it("Should not add a lender twice", async function () {
+            await juniorTrancheVaultContract
+                .connect(poolOperator)
+                .addApprovedLender(poolOwner.address, false);
+
+            await expect(
+                juniorTrancheVaultContract
+                    .connect(poolOperator)
+                    .addApprovedLender(poolOwner.address, false),
+            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "todo");
+        });
+
         it("Should allow Operator to add a lender", async function () {
             let role = await poolConfigContract.POOL_OPERATOR_ROLE();
             await poolConfigContract.connect(poolOwner).grantRole(role, defaultDeployer.address);
 
+            const beforeLenderCount = await juniorTrancheVaultContract.lenderCount();
             role = await juniorTrancheVaultContract.LENDER_ROLE();
             await expect(
                 juniorTrancheVaultContract
@@ -189,12 +210,36 @@ describe("TrancheVault Test", function () {
 
             let userInfo = await juniorTrancheVaultContract.userInfos(defaultDeployer.address);
             checkUserInfo(userInfo);
+
+            expect(await juniorTrancheVaultContract.lenderCount()).to.equal(
+                beforeLenderCount.add(1),
+            );
         });
 
         it("Should not allow non-Operator to remove a lender", async function () {
             await expect(
                 juniorTrancheVaultContract.removeApprovedLender(defaultDeployer.address),
             ).to.be.revertedWithCustomError(poolConfigContract, "poolOperatorRequired");
+        });
+
+        it("Should not remove empty address", async function () {
+            await expect(
+                juniorTrancheVaultContract
+                    .connect(poolOperator)
+                    .removeApprovedLender(ethers.constants.AddressZero),
+            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "zeroAddressProvided");
+        });
+
+        it("Should not remove a lender twice", async function () {
+            await juniorTrancheVaultContract
+                .connect(poolOperator)
+                .removeApprovedLender(lender4.address);
+
+            await expect(
+                juniorTrancheVaultContract
+                    .connect(poolOperator)
+                    .removeApprovedLender(lender4.address),
+            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "todo");
         });
 
         it("Should allow Operator to remove a lender", async function () {
@@ -207,6 +252,7 @@ describe("TrancheVault Test", function () {
             let userInfo = await juniorTrancheVaultContract.userInfos(defaultDeployer.address);
             checkUserInfo(userInfo, BN.from(0), true);
 
+            const beforeLenderCount = await juniorTrancheVaultContract.lenderCount();
             role = await juniorTrancheVaultContract.LENDER_ROLE();
             await expect(
                 juniorTrancheVaultContract
@@ -221,6 +267,10 @@ describe("TrancheVault Test", function () {
             ).to.equal(false);
             userInfo = await juniorTrancheVaultContract.userInfos(defaultDeployer.address);
             checkUserInfo(userInfo);
+
+            expect(await juniorTrancheVaultContract.lenderCount()).to.equal(
+                beforeLenderCount.sub(1),
+            );
         });
     });
 
@@ -2174,10 +2224,10 @@ describe("TrancheVault Test", function () {
         it("Should payout interests", async function () {
             await juniorTrancheVaultContract
                 .connect(poolOperator)
-                .addApprovedLender(lender.address, false);
+                .setReinvestYield(lender.address, false);
             await juniorTrancheVaultContract
                 .connect(poolOperator)
-                .addApprovedLender(lender2.address, false);
+                .setReinvestYield(lender2.address, false);
 
             let lenders = await prepareForInterestTests([lender, lender2]);
 
@@ -2263,10 +2313,10 @@ describe("TrancheVault Test", function () {
         it("Should payout interests and reinvest interests", async function () {
             await juniorTrancheVaultContract
                 .connect(poolOperator)
-                .addApprovedLender(lender.address, false);
+                .setReinvestYield(lender.address, false);
             await juniorTrancheVaultContract
                 .connect(poolOperator)
-                .addApprovedLender(lender2.address, false);
+                .setReinvestYield(lender2.address, false);
 
             let lenders = await prepareForInterestTests([lender, lender2, lender3, lender4]);
 
@@ -2336,10 +2386,10 @@ describe("TrancheVault Test", function () {
         it("Should do nothing when there is loss", async function () {
             await juniorTrancheVaultContract
                 .connect(poolOperator)
-                .addApprovedLender(lender.address, false);
+                .setReinvestYield(lender.address, false);
             await juniorTrancheVaultContract
                 .connect(poolOperator)
-                .addApprovedLender(lender2.address, false);
+                .setReinvestYield(lender2.address, false);
 
             let lenders = await prepareForInterestTests([lender, lender2, lender3, lender4]);
 
