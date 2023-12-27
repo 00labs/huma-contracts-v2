@@ -895,21 +895,33 @@ describe("Pool Test", function () {
 
         describe("View functions", function () {
             it("Should return correct tranche available caps", async function () {
+                await seniorTrancheVaultContract
+                    .connect(lender)
+                    .deposit(toToken(10000), lender.address);
+                await juniorTrancheVaultContract
+                    .connect(lender)
+                    .deposit(toToken(10000), lender.address);
+
                 const seniorAvailableCap = await poolContract.getTrancheAvailableCap(
                     CONSTANTS.SENIOR_TRANCHE,
                 );
                 const juniorAvailableCap = await await poolContract.getTrancheAvailableCap(
                     CONSTANTS.JUNIOR_TRANCHE,
                 );
-                console.log(
-                    `seniorAvailableCap: ${seniorAvailableCap}, juniorAvailableCap: ${juniorAvailableCap}`,
-                );
+                // console.log(
+                //     `seniorAvailableCap: ${seniorAvailableCap}, juniorAvailableCap: ${juniorAvailableCap}`,
+                // );
                 const lpConfig = await poolConfigContract.getLPConfig();
                 const tranchesAssets = await poolContract.currentTranchesAssets();
+                // console.log(`tranchesAssets: ${tranchesAssets}`);
                 expect(seniorAvailableCap).to.greaterThan(0);
                 expect(juniorAvailableCap).to.greaterThan(0);
                 expect(juniorAvailableCap).to.equal(
-                    lpConfig.liquidityCap.sub(tranchesAssets[CONSTANTS.JUNIOR_TRANCHE]),
+                    lpConfig.liquidityCap.sub(
+                        tranchesAssets[CONSTANTS.JUNIOR_TRANCHE].add(
+                            tranchesAssets[CONSTANTS.SENIOR_TRANCHE],
+                        ),
+                    ),
                 );
                 expect(seniorAvailableCap).to.equal(
                     tranchesAssets[CONSTANTS.JUNIOR_TRANCHE]

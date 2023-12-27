@@ -167,9 +167,8 @@ contract Pool is PoolConfigCache, IPool {
             uint256 cap = assets[JUNIOR_TRANCHE] * config.maxSeniorJuniorRatio;
             availableCap = cap > assets[SENIOR_TRANCHE] ? cap - assets[SENIOR_TRANCHE] : 0;
         } else if (index == JUNIOR_TRANCHE) {
-            availableCap = config.liquidityCap > assets[SENIOR_TRANCHE]
-                ? config.liquidityCap - assets[JUNIOR_TRANCHE]
-                : 0;
+            uint256 poolAssets = assets[SENIOR_TRANCHE] + assets[JUNIOR_TRANCHE];
+            availableCap = config.liquidityCap > poolAssets ? config.liquidityCap - poolAssets : 0;
         } else {
             // We only have two tranches for now.
             assert(false);
