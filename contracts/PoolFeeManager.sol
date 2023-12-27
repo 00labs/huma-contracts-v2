@@ -34,10 +34,13 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
     uint256 public eaIncomeWithdrawn;
 
     event IncomeDistributed(
-        uint256 protocolFee,
-        uint256 ownerIncome,
+        uint256 protocolIncome,
+        uint256 poolOwnerIncome,
         uint256 eaIncome,
-        uint256 poolIncome
+        uint256 remaining,
+        uint256 accruedProtocolIncome,
+        uint256 accruedPoolOwnerIncome,
+        uint256 accruedEAIncome
     );
 
     event PoolRewardsWithdrawn(address receiver, uint256 amount, address by);
@@ -89,7 +92,10 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
             incomes.protocolIncome,
             incomes.poolOwnerIncome,
             incomes.eaIncome,
-            remaining
+            remaining,
+            accruedIncomes.protocolIncome,
+            accruedIncomes.poolOwnerIncome,
+            accruedIncomes.eaIncome
         );
 
         return remaining;
