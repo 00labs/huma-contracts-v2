@@ -82,6 +82,11 @@ contract Pool is PoolConfigCache, IPool {
         uint256 juniorTotalLoss
     );
 
+    /**
+     * @notice Common function in Huma protocol to retrieve contract addresses from PoolConfig.
+     * Pool contract references PoolSafe, PoolFeeManager, TranchePolicy, EpochManager, Credit,
+     * CreditManager, and FirstLossCover.
+     */
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = _poolConfig.poolSafe();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
@@ -115,7 +120,9 @@ contract Pool is PoolConfigCache, IPool {
     }
 
     /**
-     * @notice turns on the pool. Only the pool owner or protocol owner can enable a pool.
+     * @notice Turns on the pool. Before a pool is turned on, the required First loss cover
+     * and liquidity must be deposited first.
+     * @custom:access Only the pool owner or protocol owner can enable a pool.
      */
     function enablePool() external {
         poolConfig.onlyOwnerOrHumaMasterAdmin(msg.sender);
@@ -128,7 +135,9 @@ contract Pool is PoolConfigCache, IPool {
     }
 
     /**
-     * @notice turns off the pool. Any pool operator can do so when they see abnormalities.
+     * @notice Disables the pool. Once a pool is disabled, no money moves in or out.
+     * @custom:accss Any pool operator can disable a pool. Only the pool owner or Huma protocol
+     * owner can enable it again.
      */
     function disablePool() external {
         poolConfig.onlyPoolOperator(msg.sender);
@@ -136,10 +145,14 @@ contract Pool is PoolConfigCache, IPool {
         emit PoolDisabled(msg.sender);
     }
 
-    function setReadyForFirstLossCoverWithdrawal(bool ready) external {
+    /**
+     * @notice Enables or disables the first loss cover investors to withdraw capital
+     * @custom:access Only pool owner or Huma protocol owner can call this function.
+     */
+    function setReadyForFirstLossCoverWithdrawal(bool isReady) external {
         poolConfig.onlyOwnerOrHumaMasterAdmin(msg.sender);
-        readyForFirstLossCoverWithdrawal = ready;
-        emit PoolReadyForFirstLossCoverWithdrawal(msg.sender, ready);
+        readyForFirstLossCoverWithdrawal = isReady;
+        emit PoolReadyForFirstLossCoverWithdrawal(msg.sender, isReady);
     }
 
     /// Gets the on/off status of the pool
@@ -147,6 +160,7 @@ contract Pool is PoolConfigCache, IPool {
         return _status == PoolStatus.On;
     }
 
+    /// custom:access only Credit or CreditManager contract can call this function.
     /// @inheritdoc IPool
     function distributeProfit(uint256 profit) external {
         // TODO(jiatu): add pool tests for non-authorized callers.
@@ -154,24 +168,38 @@ contract Pool is PoolConfigCache, IPool {
         _distributeProfit(profit);
     }
 
+    /// custom:access only Credit or CreditManager contract can call this function.
     /// @inheritdoc IPool
     function distributeLoss(uint256 loss) external {
+        // TODO: Check if there are tests for non-authorized callers.
         _onlyCreditOrCreditManager(msg.sender);
         _distributeLoss(loss);
     }
 
+    /// custom:access Only Credit contract can call this function
     /// @inheritdoc IPool
     function distributeLossRecovery(uint256 lossRecovery) external {
         if (msg.sender != address(credit)) revert Errors.notAuthorizedCaller();
         _distributeLossRecovery(lossRecovery);
     }
 
+    /**
+     * @notice Internal function that distributes profit to admins, senior and junior tranches,
+     * and first loss covers in this sequence.
+     * @param profit the amount of profit to be distributed
+     * @custom:access Internal function without access restriction. Caller needs to control access
+     */
     function _distributeProfit(uint256 profit) internal {
         TranchesAssets memory assets = tranchesAssets;
 
+        // distributes to pool admins first
         uint256 poolProfit = feeManager.distributePoolFees(profit);
 
         if (poolProfit > 0) {
+            // distributes to junior and senior tranches
+            // TODO It is confusing to allocate profits for FLCs and Junior to Junior tranche
+            // first, then distribute it to FLC and have the remainer for Junior. Prefer
+            // distProfitToTranches to return results for tranches and FLCs.
             uint96[2] memory newAssets = tranchesPolicy.distProfitToTranches(
                 poolProfit,
                 [assets.seniorTotalAssets, assets.juniorTotalAssets]
@@ -197,6 +225,8 @@ contract Pool is PoolConfigCache, IPool {
 
             // Don't call _updateTranchesAssets() here because yield tracker has already
             // been updated in distProfitToTranches().
+            // TODO Not sure if it is a good practice to update state in tranchesPolicy.
+            // Let us discuss we need to change it.
             tranchesAssets = TranchesAssets({
                 seniorTotalAssets: newAssets[SENIOR_TRANCHE],
                 juniorTotalAssets: newAssets[JUNIOR_TRANCHE]
@@ -205,15 +235,21 @@ contract Pool is PoolConfigCache, IPool {
         }
     }
 
+    /**
+     * @notice Internal function that distributes profit to first loss cover providers.
+     * @param nonSeniorProfit the amount of profit to be distributed between FLC and junior tranche
+     * @param juniorTotalAssets the total asset amount for junior tranche
+     * @custom:access Internal function without access restriction. Caller needs to control access
+     */
     function _distributeProfitForFirstLossCovers(
-        uint256 profit,
+        uint256 nonSeniorProfit,
         uint256 juniorTotalAssets
     ) internal returns (uint256 newJuniorTotalAssets) {
-        if (profit == 0) return juniorTotalAssets;
+        if (nonSeniorProfit == 0) return juniorTotalAssets;
         (
             uint256 juniorProfit,
             uint256[16] memory profitsForFirstLossCovers
-        ) = _calcProfitForFirstLossCovers(profit, juniorTotalAssets);
+        ) = _calcProfitForFirstLossCovers(nonSeniorProfit, juniorTotalAssets);
         uint256 len = _firstLossCovers.length;
         for (uint256 i = 0; i < len; i++) {
             if (profitsForFirstLossCovers[i] == 0) {
@@ -225,17 +261,31 @@ contract Pool is PoolConfigCache, IPool {
         newJuniorTotalAssets = juniorTotalAssets + juniorProfit;
     }
 
+    /**
+     * @notice Internal function that calculates profit to first loss cover (FLC) providers
+     * @dev There is a risk multiplier assigned to each first loss cover. To compute the profit
+     * for each PLCs, we first gets the product of the asset amount of each PLC and the risk
+     * multiplier, then add them together. We then proportionally allocate the profit to each
+     * PLC based on its product of asset amount and risk multiplier. The remainer is left
+     * for the junior tranche.
+     * @param nonSeniorProfit the amount of profit to be distributed between FLC and junior tranche
+     * @param juniorTotalAssets the total asset amount for junior tranche
+     * @custom:access Internal function without access restriction. Caller needs to control access
+     */
     function _calcProfitForFirstLossCovers(
-        uint256 profit,
+        uint256 nonSeniorProfit,
         uint256 juniorTotalAssets
     ) internal view returns (uint256 juniorProfit, uint256[16] memory profitsForFirstLossCovers) {
-        if (profit == 0) return (juniorProfit, profitsForFirstLossCovers);
+        if (nonSeniorProfit == 0) return (juniorProfit, profitsForFirstLossCovers);
         uint256 len = _firstLossCovers.length;
+
+        // TotalWeight is the sume of the product of asset amount and risk multiplier for each FLC
+        // and the junior tranche.
         uint256 totalWeight = juniorTotalAssets;
         for (uint256 i = 0; i < len; i++) {
             IFirstLossCover cover = _firstLossCovers[i];
-            // We use profitsForFirstLossCovers to store the effective amount of assets of first loss covers so that
-            // we don't have to create another array, which helps to save on gas.
+            // profitsForFirstLossCovers is re-used to store the product of asset amount and risk
+            // multiplier for each PLC for gas optimization by saving an array creation
             FirstLossCoverConfig memory config = poolConfig.getFirstLossCoverConfig(
                 address(cover)
             );
@@ -244,16 +294,25 @@ contract Pool is PoolConfigCache, IPool {
                 HUNDRED_PERCENT_IN_BPS;
             totalWeight += profitsForFirstLossCovers[i];
         }
-        juniorProfit = profit;
+
+        juniorProfit = nonSeniorProfit;
         for (uint256 i = 0; i < len; i++) {
-            profitsForFirstLossCovers[i] = (profit * profitsForFirstLossCovers[i]) / totalWeight;
-            // Note that juniorProfit is always positive because `totalWeight` consists both junior assets
-            // and risk adjusted assets from each first loss cover. Thus we don't need to check whether
-            // `juniorProfit` ever reaches 0.
+            profitsForFirstLossCovers[i] =
+                (nonSeniorProfit * profitsForFirstLossCovers[i]) /
+                totalWeight;
+            // Note since profitsForFirstLossCovers[i] is rounding down by default,
+            // it is guranteed that juniorProfit will not
             juniorProfit -= profitsForFirstLossCovers[i];
         }
+        return (juniorProfit, profitsForFirstLossCovers);
     }
 
+    /**
+     * @notice Utility function that distributes loss to different tranches。
+     * The loss is distributed to first loss cover first, then junior tranche, and senior tranche
+     * @param loss the amount of loss to be distributed
+     * @custom:access Internal function without access restriction. Caller needs to control access
+     */
     function _distributeLoss(uint256 loss) internal {
         if (loss > 0) {
             uint256 coverCount = _firstLossCovers.length;
@@ -287,6 +346,13 @@ contract Pool is PoolConfigCache, IPool {
         }
     }
 
+    /**
+     * @notice Utility function that distributes loss recovery to different tranches and
+     * First Loss Covers (FLCs). The distribution sequence is: senior tranche, junior tranche,
+     * followed by FLCs
+     * @param lossRecovery the amount of loss to be distributed
+     * @custom:access Internal function without access restriction. Caller needs to control access
+     */
     function _distributeLossRecovery(uint256 lossRecovery) internal {
         if (lossRecovery > 0) {
             TranchesAssets memory assets = tranchesAssets;
@@ -313,6 +379,7 @@ contract Pool is PoolConfigCache, IPool {
                 newLosses[JUNIOR_TRANCHE]
             );
 
+            // Distributes the remainder to First Loss Covers.
             uint256 numFirstLossCovers = _firstLossCovers.length;
             for (uint256 i = 0; i < numFirstLossCovers && remainingLossRecovery > 0; i++) {
                 IFirstLossCover cover = _firstLossCovers[numFirstLossCovers - i - 1];
@@ -321,21 +388,39 @@ contract Pool is PoolConfigCache, IPool {
         }
     }
 
+    /**
+     * @notice Gets the total asset of a tranche
+     * @param index the tranche index.
+     * @return the total asset of the tranche.
+     */
     function trancheTotalAssets(uint256 index) external view returns (uint256) {
         uint96[2] memory assets = currentTranchesAssets();
         return assets[index];
     }
 
+    /**
+     * @notice Gets the combined total asset of junior tranche and senior tranche.
+     * @return - the total asset of both junior and senior tranches
+     */
     function totalAssets() public view returns (uint256) {
         uint96[2] memory assets = currentTranchesAssets();
         return assets[SENIOR_TRANCHE] + assets[JUNIOR_TRANCHE];
     }
 
+    /**
+     * @notice Gets the assets for each tranch
+     * @return assets the tranche assets in an array.
+     */
     function currentTranchesAssets() public view returns (uint96[2] memory assets) {
         TranchesAssets memory tempTranchesAssets = tranchesAssets;
         return [tempTranchesAssets.seniorTotalAssets, tempTranchesAssets.juniorTotalAssets];
     }
 
+    /**
+     * @notice Updates the tranche assets with the given asset values
+     * @param assets an array that represents the tranche asset
+     * @custom:access Only TrancheVault or Epoch Manager can call this function
+     */
     function updateTranchesAssets(uint96[2] memory assets) external {
         _onlyTrancheVaultOrEpochManager(msg.sender);
         _updateTranchesAssets(assets);
@@ -345,6 +430,11 @@ contract Pool is PoolConfigCache, IPool {
         return _firstLossCovers;
     }
 
+    /**
+     * @notice Utility function to update tranche assets
+     * @param assets an array that represents the descired tranche asset
+     * @custom:access Internal function without access restriction. Caller needs to control access
+     */
     function _updateTranchesAssets(uint96[2] memory assets) internal {
         tranchesAssets = TranchesAssets({
             seniorTotalAssets: assets[SENIOR_TRANCHE],
@@ -359,13 +449,6 @@ contract Pool is PoolConfigCache, IPool {
         uint256 poolAssets
     ) external view returns (uint256 availableCap) {
         IFirstLossCover cover = IFirstLossCover(coverAddress);
-        return _getFirstLossCoverAvailableCap(cover, poolAssets);
-    }
-
-    function _getFirstLossCoverAvailableCap(
-        IFirstLossCover cover,
-        uint256 poolAssets
-    ) internal view returns (uint256 availableCap) {
         uint256 coverTotalAssets = cover.totalAssets();
         uint256 totalCap = cover.getCapacity(poolAssets);
         return totalCap > coverTotalAssets ? totalCap - coverTotalAssets : 0;
