@@ -353,7 +353,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                 )
                     .to.emit(creditContract, "DrawdownMade")
                     .withArgs(await borrower.getAddress(), borrowAmount, netBorrowAmount)
-                    .to.emit(creditContract, "DrawdownWithReceivableMade")
+                    .to.emit(creditContract, "DrawdownMadeWithReceivable")
                     .withArgs(
                         await borrower.getAddress(),
                         tokenId,
@@ -552,7 +552,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                         0,
                         await borrower.getAddress(),
                     )
-                    .to.emit(creditContract, "PaymentWithReceivableMade")
+                    .to.emit(creditContract, "PaymentMadeWithReceivable")
                     .withArgs(
                         await borrower.getAddress(),
                         tokenId,
@@ -589,13 +589,13 @@ describe("ReceivableFactoringCredit Tests", function () {
                 ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
                 await humaConfigContract.connect(protocolOwner).unpause();
 
-                await poolContract.connect(protocolOwner).disablePool();
+                await poolContract.connect(poolOwner).disablePool();
                 await expect(
                     creditContract
                         .connect(borrower)
                         .makePaymentWithReceivable(borrower.getAddress(), tokenId, borrowAmount),
                 ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
-                await poolContract.connect(protocolOwner).enablePool();
+                await poolContract.connect(poolOwner).enablePool();
             });
 
             it("Should not allow payment by non-borrower", async function () {
@@ -723,7 +723,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                         0,
                         await payer.getAddress(),
                     )
-                    .to.emit(creditContract, "PaymentWithReceivableMade")
+                    .to.emit(creditContract, "PaymentMadeWithReceivable")
                     .withArgs(
                         await borrower.getAddress(),
                         tokenId,
@@ -760,7 +760,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                 ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
                 await humaConfigContract.connect(protocolOwner).unpause();
 
-                await poolContract.connect(protocolOwner).disablePool();
+                await poolContract.connect(poolOwner).disablePool();
                 await expect(
                     creditContract
                         .connect(payer)

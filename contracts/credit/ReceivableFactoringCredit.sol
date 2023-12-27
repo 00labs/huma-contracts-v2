@@ -22,14 +22,14 @@ contract ReceivableFactoringCredit is
 
     event ExtraFundsDispersed(address indexed receiver, uint256 amount);
 
-    event DrawdownWithReceivableMade(
+    event DrawdownMadeWithReceivable(
         address indexed borrower,
         uint256 indexed receivableId,
         uint256 amount,
         address by
     );
 
-    event PaymentWithReceivableMade(
+    event PaymentMadeWithReceivable(
         address indexed borrower,
         uint256 indexed receivableId,
         uint256 amount,
@@ -73,7 +73,7 @@ contract ReceivableFactoringCredit is
 
         _drawdown(borrower, creditHash, amount);
 
-        emit DrawdownWithReceivableMade(borrower, receivableId, amount, msg.sender);
+        emit DrawdownMadeWithReceivable(borrower, receivableId, amount, msg.sender);
     }
 
     /// @inheritdoc IReceivableFactoringCredit
@@ -94,7 +94,7 @@ contract ReceivableFactoringCredit is
             revert Errors.notReceivableOwner();
 
         (amountPaid, paidoff) = _makePaymentWithReceivable(borrower, creditHash, amount);
-        emit PaymentWithReceivableMade(borrower, receivableId, amount, msg.sender);
+        emit PaymentMadeWithReceivable(borrower, receivableId, amount, msg.sender);
     }
 
     /// TODO(jiatu): rename this?
@@ -118,7 +118,7 @@ contract ReceivableFactoringCredit is
         );
 
         (amountPaid, paidoff) = _makePaymentWithReceivable(borrower, creditHash, amount);
-        emit PaymentWithReceivableMade(borrower, receivableId, amount, msg.sender);
+        emit PaymentMadeWithReceivable(borrower, receivableId, amount, msg.sender);
     }
 
     function _makePaymentWithReceivable(

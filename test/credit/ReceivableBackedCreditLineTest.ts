@@ -1194,8 +1194,8 @@ describe("ReceivableBackedCreditLine Tests", function () {
                             paymentAmount,
                         ),
                 )
-                    .not.to.emit(creditContract, "PrincipalPaymentWithReceivableMade")
-                    .not.to.emit(creditContract, "DrawdownWithReceivableMade");
+                    .not.to.emit(creditContract, "PrincipalPaymentMadeWithReceivable")
+                    .not.to.emit(creditContract, "DrawdownMadeWithReceivable");
                 const borrowerBalanceAfter = await mockTokenContract.balanceOf(
                     borrower.getAddress(),
                 );
