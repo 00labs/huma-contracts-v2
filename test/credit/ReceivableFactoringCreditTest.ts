@@ -580,7 +580,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                 checkDueDetailsMatch(actualDD, expectedDD);
             });
 
-            it("Should not allow payment when the protocol is paused", async function () {
+            it("Should not allow payment when the protocol is paused or the pool is not on", async function () {
                 await humaConfigContract.connect(protocolOwner).pause();
                 await expect(
                     creditContract
@@ -588,6 +588,14 @@ describe("ReceivableFactoringCredit Tests", function () {
                         .makePaymentWithReceivable(borrower.getAddress(), tokenId, borrowAmount),
                 ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
                 await humaConfigContract.connect(protocolOwner).unpause();
+
+                await poolContract.connect(protocolOwner).disablePool();
+                await expect(
+                    creditContract
+                        .connect(borrower)
+                        .makePaymentWithReceivable(borrower.getAddress(), tokenId, borrowAmount),
+                ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+                await poolContract.connect(protocolOwner).enablePool();
             });
 
             it("Should not allow payment by non-borrower", async function () {
@@ -743,7 +751,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                 checkDueDetailsMatch(actualDD, expectedDD);
             });
 
-            it("Should not allow payment when the protocol is paused", async function () {
+            it("Should not allow payment when the protocol is paused or the pool is not on", async function () {
                 await humaConfigContract.connect(protocolOwner).pause();
                 await expect(
                     creditContract
@@ -751,6 +759,14 @@ describe("ReceivableFactoringCredit Tests", function () {
                         .makePaymentWithReceivableForContract(tokenId, borrowAmount),
                 ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
                 await humaConfigContract.connect(protocolOwner).unpause();
+
+                await poolContract.connect(protocolOwner).disablePool();
+                await expect(
+                    creditContract
+                        .connect(payer)
+                        .makePaymentWithReceivableForContract(tokenId, borrowAmount),
+                ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+                await poolContract.connect(poolOwner).enablePool();
             });
 
             it("Should not allow payment by non-payer", async function () {

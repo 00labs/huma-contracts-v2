@@ -43,7 +43,7 @@ contract CreditLine is Credit, ICreditLine {
         address borrower,
         uint256 amount
     ) external virtual override returns (uint256 amountPaid, bool paidoff) {
-        poolConfig.onlyProtocolOn();
+        poolConfig.onlyProtocolAndPoolOn();
         if (msg.sender != borrower) _onlyPDSServiceAccount();
 
         bytes32 creditHash = getCreditHash(borrower);

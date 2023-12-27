@@ -7609,12 +7609,18 @@ describe("CreditLine Test", function () {
                     });
                 });
 
-                it("Should not allow payment when the protocol is paused", async function () {
+                it("Should not allow payment when the protocol is paused or the pool is not on", async function () {
                     await humaConfigContract.connect(protocolOwner).pause();
                     await expect(
                         creditContract.makePayment(borrower.getAddress(), toToken(1)),
                     ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
                     await humaConfigContract.connect(protocolOwner).unpause();
+
+                    await poolContract.connect(poolOwner).disablePool();
+                    await expect(
+                        creditContract.makePayment(borrower.getAddress(), toToken(1)),
+                    ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+                    await poolContract.connect(poolOwner).enablePool();
                 });
 
                 it("Should not allow non-borrower or non-PDS service account to make payment", async function () {

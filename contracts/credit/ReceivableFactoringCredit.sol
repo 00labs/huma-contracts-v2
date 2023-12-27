@@ -82,7 +82,7 @@ contract ReceivableFactoringCredit is
         uint256 receivableId,
         uint256 amount
     ) public virtual returns (uint256 amountPaid, bool paidoff) {
-        poolConfig.onlyProtocolOn();
+        poolConfig.onlyProtocolAndPoolOn();
         if (msg.sender != borrower) revert Errors.notBorrower();
         if (receivableId == 0) revert Errors.zeroReceivableIdProvided();
 
@@ -103,7 +103,7 @@ contract ReceivableFactoringCredit is
         uint256 receivableId,
         uint256 amount
     ) external returns (uint256 amountPaid, bool paidoff) {
-        poolConfig.onlyProtocolOn();
+        poolConfig.onlyProtocolAndPoolOn();
         if (receivableId == 0) revert Errors.zeroReceivableIdProvided();
 
         IERC721 receivableAsset = IERC721(poolConfig.receivableAsset());
