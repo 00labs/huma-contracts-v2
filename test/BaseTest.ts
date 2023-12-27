@@ -104,7 +104,6 @@ export enum ReceivableState {
     Rejected,
     Delayed,
     Defaulted,
-    Update,
 }
 
 export enum CreditClosureReason {

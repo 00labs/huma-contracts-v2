@@ -131,7 +131,6 @@ contract Receivable is
             revert Errors.notReceivableOwnerOrCreator();
 
         ReceivableInfo storage receivableInfo = receivableInfoMap[tokenId];
-
         receivableInfo.paidAmount += paymentAmount;
 
         if (receivableInfo.paidAmount >= receivableInfo.receivableAmount) {
