@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 /**
- * @notice IPool is a core contract that connects the lender lender side (via tranches)
+ * @notice IPool is a core contract that connects the lender side (via tranches)
  * and the borrower side (via Credit).
  */
 interface IPool {
@@ -18,17 +18,22 @@ interface IPool {
     function currentTranchesAssets() external view returns (uint96[2] memory assets);
 
     /**
-     * @notice Distributes profit to admins, tranches and first loss covers
+     * @notice Distributes profit to admins, senior and junior tranches, and first loss covers
+     * @param profit the amount of profit to be distributed
      */
     function distributeProfit(uint256 profit) external;
 
     /**
      * @notice Distributes loss to first loss covers, junior tranche and senior tranche
+     * @param loss the amount of loss to be distributed
      */
     function distributeLoss(uint256 loss) external;
 
     /**
      * @notice Distributes loss recovery to senior tranche, junior tranche and first loss covers
+     * @param lossRecovery the amount that was deemed as losses before and has been receovered.
+     * This amount shall be distributed to senior tranche, junior tranche, and first loss covers
+     * in this sequenence to offset the losses that they have experienced before.
      */
     function distributeLossRecovery(uint256 lossRecovery) external;
 

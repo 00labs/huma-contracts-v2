@@ -11,21 +11,21 @@ import {IReceivableBackedCreditLineManager} from "./interfaces/IReceivableBacked
 import "hardhat/console.sol";
 
 contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
-    event PrincipalPaymentWithReceivableMade(
+    event PrincipalPaymentMadeWithReceivable(
         address indexed borrower,
         uint256 indexed receivableId,
         uint256 amount,
         address by
     );
 
-    event PaymentWithReceivableMade(
+    event PaymentMadeWithReceivable(
         address indexed borrower,
         uint256 indexed receivableId,
         uint256 amount,
         address by
     );
 
-    event DrawdownWithReceivableMade(
+    event DrawdownMadeWithReceivable(
         address indexed borrower,
         uint256 indexed receivableId,
         uint256 receivableAmount,
@@ -68,7 +68,7 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         );
         _drawdown(borrower, creditHash, amount);
 
-        emit DrawdownWithReceivableMade(
+        emit DrawdownMadeWithReceivable(
             borrower,
             receivableInput.receivableId,
             receivableInput.receivableAmount,
@@ -96,7 +96,7 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
 
         (amountPaid, paidoff, ) = _makePayment(borrower, creditHash, amount);
 
-        emit PaymentWithReceivableMade(borrower, receivableId, amount, msg.sender);
+        emit PaymentMadeWithReceivable(borrower, receivableId, amount, msg.sender);
     }
 
     /**
@@ -118,7 +118,7 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
 
         (amountPaid, paidoff) = _makePrincipalPayment(borrower, creditHash, amount);
 
-        emit PrincipalPaymentWithReceivableMade(borrower, receivableId, amount, msg.sender);
+        emit PrincipalPaymentMadeWithReceivable(borrower, receivableId, amount, msg.sender);
     }
 
     /**
@@ -170,14 +170,14 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
             _drawdown(borrower, creditHash, amount);
         }
 
-        emit PrincipalPaymentWithReceivableMade(
+        emit PrincipalPaymentMadeWithReceivable(
             borrower,
             paymentReceivableId,
             paymentAmount,
             msg.sender
         );
 
-        emit DrawdownWithReceivableMade(
+        emit DrawdownMadeWithReceivable(
             borrower,
             drawdownReceivableInput.receivableId,
             drawdownReceivableInput.receivableAmount,
