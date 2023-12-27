@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {Errors} from "../Errors.sol";
 import {HumaConfig} from "../HumaConfig.sol";
-import {PoolConfig, PoolSettings} from "../PoolConfig.sol";
+import {PoolConfig, PoolSettings, FeeStructure} from "../PoolConfig.sol";
 import {IPool} from "../interfaces/IPool.sol";
 import {PoolConfigCache} from "../PoolConfigCache.sol";
 import {CreditStorage} from "./CreditStorage.sol";
@@ -208,6 +208,8 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         bytes32 creditHash,
         uint256 borrowAmount
     ) internal virtual {
+        if (borrowAmount == 0) revert Errors.zeroAmountProvided();
+
         // todo need to add return values
         CreditRecord memory cr = getCreditRecord(creditHash);
         CreditConfig memory cc = _getCreditConfig(creditHash);
@@ -257,12 +259,12 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             }
             cr.unbilledPrincipal = uint96(cr.unbilledPrincipal + borrowAmount);
 
-            uint256 principalRate = poolConfig.getMinPrincipalRateInBps();
-            if (principalRate > 0) {
+            FeeStructure memory fees = poolConfig.getFeeStructure();
+            if (fees.minPrincipalRateInBps > 0) {
                 // Record the additional principal due generated from the drawdown.
                 uint256 additionalPrincipalDue = feeManager.computePrincipalDueForPartialPeriod(
                     borrowAmount,
-                    principalRate,
+                    fees.minPrincipalRateInBps,
                     daysRemaining,
                     cc.periodDuration
                 );

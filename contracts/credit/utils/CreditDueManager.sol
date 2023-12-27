@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {ICreditDueManager} from "./interfaces/ICreditDueManager.sol";
 import {CreditConfig, CreditRecord, CreditState, DueDetail, PayPeriodDuration} from "../CreditStructs.sol";
-import {PoolConfig, PoolSettings} from "../../PoolConfig.sol";
+import {PoolConfig, PoolSettings, FeeStructure} from "../../PoolConfig.sol";
 import {ICalendar} from "../interfaces/ICalendar.sol";
 import {DAYS_IN_A_MONTH, DAYS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS, MONTHS_IN_A_YEAR, SECONDS_IN_A_DAY, SECONDS_IN_A_YEAR} from "../../SharedDefs.sol";
 import {Errors} from "../../Errors.sol";
@@ -74,7 +74,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         uint256 timestamp
     ) public view override returns (uint64 lateFeeUpdatedDate, uint96 lateFee) {
         lateFeeUpdatedDate = uint64(calendar.getStartOfNextDay(timestamp));
-        uint256 lateFeeInBps = poolConfig.getLateFeeBps();
+        FeeStructure memory fees = poolConfig.getFeeStructure();
         // If the credit state is good-standing, then the bill is late for the first time.
         // We need to charge the late fee from the last due date onwards.
         uint256 lateFeeStartDate;
@@ -106,7 +106,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         uint256 lateFeeBasis = totalPrincipal > committedAmount ? totalPrincipal : committedAmount;
         lateFee = uint96(
             _dd.lateFee +
-                (lateFeeInBps *
+                (fees.lateFeeBps *
                     lateFeeBasis *
                     calendar.getDaysDiff(lateFeeStartDate, lateFeeUpdatedDate)) /
                 (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR)
@@ -191,6 +191,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                 newCR,
                 totalPrincipal,
                 timestamp,
+                newCR.nextDueDate,
                 maturityDate,
                 isFirstPeriod
             );
@@ -376,7 +377,8 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         );
 
         if (timestamp <= maturityDate) {
-            uint256 principalRate = poolConfig.getMinPrincipalRateInBps();
+            FeeStructure memory fees = poolConfig.getFeeStructure();
+            uint256 principalRate = fees.minPrincipalRateInBps;
             if (principalRate > 0) {
                 uint256 periodsOverdue = calendar.getNumPeriodsPassed(
                     cc.periodDuration,
@@ -401,6 +403,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         CreditRecord memory cr,
         uint256 totalPrincipal,
         uint256 timestamp,
+        uint256 nextDueDate,
         uint256 maturityDate,
         bool isFirstPeriod
     )
@@ -425,12 +428,14 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             totalPrincipal,
             daysUntilNextDue
         );
-
-        uint256 principalRate = poolConfig.getMinPrincipalRateInBps();
-        if (principalRate > 0) {
+        FeeStructure memory fees = poolConfig.getFeeStructure();
+        if (nextDueDate == maturityDate) {
+            // All principal is due in the last billing cycle.
+            principalDue = cr.unbilledPrincipal;
+        } else if (fees.minPrincipalRateInBps > 0) {
             principalDue = computePrincipalDueForPartialPeriod(
                 cr.unbilledPrincipal,
-                principalRate,
+                fees.minPrincipalRateInBps,
                 daysUntilNextDue,
                 cc.periodDuration
             );

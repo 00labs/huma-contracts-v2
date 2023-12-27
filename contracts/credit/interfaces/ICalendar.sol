@@ -31,6 +31,18 @@ interface ICalendar {
     ) external view returns (uint256 daysDiff);
 
     /**
+     * @notice Returns the exact number of days between the start of the previous period given by `numPeriodsPassed`
+     * and the given timestamp.
+     * @notice This function counts the number of days as-is instead of using the 30/360 convention.
+     * @dev The result should exclude the end date, e.g. the number of days between 1/1 and 1/2 is 1, not 2.
+     */
+    function getDaysDiffSincePreviousPeriodStart(
+        PayPeriodDuration periodDuration,
+        uint256 numPeriodsPassed,
+        uint256 timestamp
+    ) external pure returns (uint256 daysDiff);
+
+    /**
      * @notice Returns the number of periods passed between the two given dates.
      * @notice This function returns whole periods passed. However, if the first period is
      * a partial period, it is counted as a whole period as well.

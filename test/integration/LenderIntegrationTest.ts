@@ -135,14 +135,16 @@ let jLenderWithdrawals: BN[] = Array(JUNIOR_LENDER_NUM).fill(BN.from(0)),
     sLenderWithdrawals: BN[] = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
 
 async function configPool(lpConfig: Partial<LPConfigStructOutput>) {
-    await poolConfigContract.connect(poolOwner).setPoolPayPeriod(POOL_PERIOD_DURATION);
-    await poolConfigContract.connect(poolOwner).setMaxCreditLine(POOL_LIQUDITY_CAP);
-    await poolConfigContract
-        .connect(poolOwner)
-        .setLatePaymentGracePeriodInDays(LATE_PAYMENT_GRACE_PERIOD_IN_DAYS);
-    await poolConfigContract
-        .connect(poolOwner)
-        .setPoolDefaultGracePeriod(DEFAULT_GRACE_PERIOD_IN_MONTHS);
+    let settings = await poolConfigContract.getPoolSettings();
+    await poolConfigContract.connect(poolOwner).setPoolSettings({
+        ...settings,
+        ...{
+            maxCreditLine: POOL_LIQUDITY_CAP,
+            payPeriodDuration: POOL_PERIOD_DURATION,
+            latePaymentGracePeriodInDays: LATE_PAYMENT_GRACE_PERIOD_IN_DAYS,
+            defaultGracePeriodInDays: DEFAULT_GRACE_PERIOD_IN_MONTHS,
+        },
+    });
 
     await overrideLPConfig(poolConfigContract, poolOwner, {
         liquidityCap: POOL_LIQUDITY_CAP,
@@ -1587,9 +1589,7 @@ describe("Lender Integration Test", function () {
             let trancheOldBalance = await mockTokenContract.balanceOf(
                 juniorTrancheVaultContract.address,
             );
-            await juniorTrancheVaultContract
-                .connect(jActiveLenders[0])
-                .disburse(jActiveLenders[0].address);
+            await juniorTrancheVaultContract.connect(jActiveLenders[0]).disburse();
             expect(await mockTokenContract.balanceOf(jActiveLenders[0].address)).to.equal(
                 lenderOldBalance.add(amount),
             );
@@ -1605,9 +1605,7 @@ describe("Lender Integration Test", function () {
             trancheOldBalance = await mockTokenContract.balanceOf(
                 seniorTrancheVaultContract.address,
             );
-            await seniorTrancheVaultContract
-                .connect(sActiveLenders[0])
-                .disburse(sActiveLenders[0].address);
+            await seniorTrancheVaultContract.connect(sActiveLenders[0]).disburse();
             expect(await mockTokenContract.balanceOf(sActiveLenders[0].address)).to.equal(
                 lenderOldBalance.add(amount),
             );
@@ -1657,7 +1655,7 @@ describe("Lender Integration Test", function () {
             currentEpochId = newEpochId;
         });
 
-        it("Epoch 6, day 6: Late 1th payment", async function () {
+        it("Epoch 6, day 6: Late 1st payment", async function () {
             currentTS = currentTS + 5 * 24 * 3600 + 100;
             await setNextBlockTimestamp(currentTS);
 
@@ -3024,7 +3022,7 @@ describe("Lender Integration Test", function () {
             currentEpochId = newEpochId;
         });
 
-        it("Epoch 6, day 6: Late 1th payment", async function () {
+        it("Epoch 6, day 6: Late 1st payment", async function () {
             currentTS = currentTS + 5 * 24 * 3600 + 100;
             await setNextBlockTimestamp(currentTS);
 

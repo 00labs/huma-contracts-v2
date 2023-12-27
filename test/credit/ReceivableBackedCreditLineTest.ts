@@ -25,28 +25,24 @@ import {
     CONSTANTS,
     CreditState,
     PayPeriodDuration,
-    calcLateFeeNew,
     calcPrincipalDueForFullPeriods,
+    calcPrincipalDueForPartialPeriod,
     calcYield,
     calcYieldDue,
-    checkCreditConfig,
     checkCreditRecord,
     checkCreditRecordsMatch,
     checkDueDetailsMatch,
     deployAndSetupPoolContracts,
     deployProtocolContracts,
     genDueDetail,
-    printCreditRecord,
 } from "../BaseTest";
 import {
     borrowerLevelCreditHash,
-    evmRevert,
-    evmSnapshot,
+    getFutureBlockTime,
     getLatestBlock,
     getMinFirstLossCoverRequirement,
     mineNextBlockWithTimestamp,
     setNextBlockTimestamp,
-    timestampToMoment,
     toToken,
 } from "../TestUtils";
 
@@ -144,6 +140,9 @@ describe("ReceivableBackedCreditLine Tests", function () {
         await receivableContract
             .connect(poolOwner)
             .grantRole(receivableContract.MINTER_ROLE(), borrower.address);
+        await receivableContract
+            .connect(poolOwner)
+            .grantRole(receivableContract.MINTER_ROLE(), lender.address);
         await poolConfigContract.connect(poolOwner).setReceivableAsset(receivableContract.address);
 
         await borrowerFirstLossCoverContract
@@ -173,7 +172,11 @@ describe("ReceivableBackedCreditLine Tests", function () {
             .deposit(toToken(10_000_000), lender.address);
     }
 
-    describe("getDueInfo", function () {
+    beforeEach(async function () {
+        await loadFixture(prepare);
+    });
+
+    describe("getNextBillRefreshDate and getDueInfo", function () {
         const yieldInBps = 1217,
             principalRate = 100,
             lateFeeBps = 2400;
@@ -183,11 +186,15 @@ describe("ReceivableBackedCreditLine Tests", function () {
         let creditHash: string;
 
         async function prepareForGetDueInfo() {
-            await poolConfigContract
-                .connect(poolOwner)
-                .setLatePaymentGracePeriodInDays(latePaymentGracePeriodInDays);
-            await poolConfigContract.connect(poolOwner).setAdvanceRateInBps(CONSTANTS.BP_FACTOR);
-            await poolConfigContract.connect(poolOwner).setReceivableAutoApproval(true);
+            const settings = await poolConfigContract.getPoolSettings();
+            await poolConfigContract.connect(poolOwner).setPoolSettings({
+                ...settings,
+                ...{
+                    latePaymentGracePeriodInDays: latePaymentGracePeriodInDays,
+                    advanceRateInBps: CONSTANTS.BP_FACTOR,
+                    receivableAutoApproval: true,
+                },
+            });
             await poolConfigContract.connect(poolOwner).setFeeStructure({
                 yieldInBps,
                 minPrincipalRateInBps: principalRate,
@@ -223,7 +230,6 @@ describe("ReceivableBackedCreditLine Tests", function () {
         }
 
         beforeEach(async function () {
-            await loadFixture(prepare);
             await loadFixture(prepareForGetDueInfo);
         });
 
@@ -231,16 +237,16 @@ describe("ReceivableBackedCreditLine Tests", function () {
             await creditContract
                 .connect(borrower)
                 .drawdownWithReceivable(
-                    borrower.address,
+                    borrower.getAddress(),
                     { receivableAmount: borrowAmount, receivableId: tokenId },
                     borrowAmount,
                 );
 
             const oldCR = await creditContract.getCreditRecord(creditHash);
-            const viewTime =
+            const latePaymentDeadline =
                 oldCR.nextDueDate.toNumber() +
-                latePaymentGracePeriodInDays * CONSTANTS.SECONDS_IN_A_DAY +
-                100;
+                latePaymentGracePeriodInDays * CONSTANTS.SECONDS_IN_A_DAY;
+            const viewTime = latePaymentDeadline + 100;
             await mineNextBlockWithTimestamp(viewTime);
 
             const cc = await creditManagerContract.getCreditConfig(creditHash);
@@ -264,6 +270,8 @@ describe("ReceivableBackedCreditLine Tests", function () {
             const lateFee = calcYield(borrowAmount, lateFeeBps, latePaymentGracePeriodInDays + 1);
             expect(lateFee).to.be.gt(0);
 
+            const refreshDate = await creditContract.getNextBillRefreshDate(borrower.getAddress());
+            expect(refreshDate).to.equal(latePaymentDeadline);
             const [actualCR, actualDD] = await creditContract.getDueInfo(borrower.getAddress());
             const expectedCR = {
                 unbilledPrincipal: oldCR.unbilledPrincipal.sub(principalDue),
@@ -288,477 +296,1269 @@ describe("ReceivableBackedCreditLine Tests", function () {
         });
     });
 
-    describe("Arf case tests", function () {
+    describe("drawdownWithReceivable", function () {
+        const yieldInBps = 1217,
+            principalRate = 100,
+            lateFeeBps = 2400;
+        const numOfPeriods = 3,
+            latePaymentGracePeriodInDays = 5;
+        let maturityDate: number;
+        let committedAmount: BN, borrowAmount: BN, tokenId: BN;
         let creditHash: string;
-        let borrowAmount: BN, paymentAmount: BN;
-        let creditLimit: BN;
-        const yieldInBps = 1200;
-        const lateFeeBps = 2400;
-        const principalRate = 0;
-        const lateGracePeriodInDays = 5;
-        let advanceRate: BN;
 
-        async function prepareForArfTests() {
-            creditHash = await borrowerLevelCreditHash(creditContract, borrower);
-
-            borrowAmount = toToken(1_000_000);
-            paymentAmount = borrowAmount;
-            creditLimit = borrowAmount
-                .mul(5)
-                .mul(CONSTANTS.BP_FACTOR.add(500))
-                .div(CONSTANTS.BP_FACTOR);
-            advanceRate = CONSTANTS.BP_FACTOR;
-
-            await poolConfigContract
-                .connect(poolOwner)
-                .setPoolPayPeriod(PayPeriodDuration.Monthly);
-            await poolConfigContract
-                .connect(poolOwner)
-                .setLatePaymentGracePeriodInDays(lateGracePeriodInDays);
-            await poolConfigContract.connect(poolOwner).setAdvanceRateInBps(advanceRate);
-            await poolConfigContract.connect(poolOwner).setReceivableAutoApproval(true);
+        async function prepareForDrawdown() {
+            const settings = await poolConfigContract.getPoolSettings();
+            await poolConfigContract.connect(poolOwner).setPoolSettings({
+                ...settings,
+                ...{
+                    payPeriodDuration: PayPeriodDuration.Monthly,
+                    latePaymentGracePeriodInDays: latePaymentGracePeriodInDays,
+                    advanceRateInBps: CONSTANTS.BP_FACTOR,
+                    receivableAutoApproval: true,
+                },
+            });
 
             await poolConfigContract.connect(poolOwner).setFeeStructure({
                 yieldInBps,
                 minPrincipalRateInBps: principalRate,
                 lateFeeBps,
             });
-        }
 
-        let sId: unknown;
+            committedAmount = toToken(10_000);
+            borrowAmount = toToken(15_000);
+            creditHash = await borrowerLevelCreditHash(creditContract, borrower);
 
-        before(async function () {
-            await loadFixture(prepare);
-            await loadFixture(prepareForArfTests);
-            sId = await evmSnapshot();
-        });
-
-        after(async function () {
-            if (sId) {
-                await evmRevert(sId);
-            }
-        });
-
-        let nextTime: number;
-        it("approve borrower credit", async function () {
-            const poolSettings = await poolConfigContract.getPoolSettings();
-
-            await creditManagerContract
-                .connect(eaServiceAccount)
-                .approveBorrower(
-                    borrower.address,
-                    creditLimit,
-                    24,
-                    yieldInBps,
-                    borrowAmount,
-                    0,
-                    true,
-                );
-
-            const cc = await creditManagerContract.getCreditConfig(creditHash);
-            checkCreditConfig(
-                cc,
-                creditLimit,
-                borrowAmount,
-                poolSettings.payPeriodDuration,
-                24,
-                yieldInBps,
-                true,
-                advanceRate.toNumber(),
-                true,
-            );
-
-            const cr = await creditContract.getCreditRecord(creditHash);
-            checkCreditRecord(
-                cr,
-                BN.from(0),
-                0,
-                BN.from(0),
-                BN.from(0),
-                BN.from(0),
-                0,
-                24,
-                CreditState.Approved,
-            );
-            expect(await creditManagerContract.getCreditBorrower(creditHash)).to.equal(
-                await borrower.getAddress(),
-            );
-        });
-
-        it("Month1 - Day1 ~ Day5: drawdown in the first week", async function () {
+            const currentTS = (await getLatestBlock()).timestamp;
+            maturityDate = currentTS + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
+            // Throw-away receivable to get around the tokenId != 0 check.
             await receivableContract.connect(poolOwner).createReceivable(1, 0, 0, "");
-            let block = await getLatestBlock();
-            nextTime =
-                (
-                    await calendarContract.getStartDateOfNextPeriod(
-                        PayPeriodDuration.Monthly,
-                        block.timestamp,
-                    )
-                ).toNumber() -
-                CONSTANTS.SECONDS_IN_A_DAY +
-                100;
-
-            // Day1 - Day5 loop
-            for (let i = 0; i < 5; i++) {
-                // move forward 1 day
-                nextTime += CONSTANTS.SECONDS_IN_A_DAY;
-                await setNextBlockTimestamp(nextTime);
-
-                let maturityDate =
-                    nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
-                await receivableContract
-                    .connect(borrower)
-                    .createReceivable(1, borrowAmount, maturityDate, "");
-                let tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
-                console.log(`tokenId: ${tokenId}`);
-                await receivableContract
-                    .connect(borrower)
-                    .approve(creditContract.address, tokenId);
-                await creditContract
-                    .connect(borrower)
-                    .drawdownWithReceivable(
-                        borrower.address,
-                        { receivableAmount: borrowAmount, receivableId: tokenId },
-                        borrowAmount,
-                    );
-            }
-        });
-
-        it("Month1 - Day6 ~ Day7: adjust committed to borrowAmount * 5", async function () {
-            // Day6
-            nextTime += CONSTANTS.SECONDS_IN_A_DAY;
-            await setNextBlockTimestamp(nextTime);
-
-            await creditManagerContract
-                .connect(eaServiceAccount)
-                .updateLimitAndCommitment(borrower.address, creditLimit, borrowAmount.mul(5));
-
-            // Day7
-            nextTime += CONSTANTS.SECONDS_IN_A_DAY;
-            await mineNextBlockWithTimestamp(nextTime);
-        });
-
-        it("Month1 - Day8 ~ Day14: make payment and drawdown together", async function () {
-            // Day8 - Day12 loop
-            for (let i = 0; i < 5; i++) {
-                // move forward 1 day
-                nextTime += CONSTANTS.SECONDS_IN_A_DAY;
-                await setNextBlockTimestamp(nextTime);
-
-                let maturityDate =
-                    nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
-                await receivableContract
-                    .connect(borrower)
-                    .createReceivable(1, borrowAmount, maturityDate, "");
-                let tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
-                console.log(`tokenId: ${tokenId}`);
-                await receivableContract
-                    .connect(borrower)
-                    .approve(creditContract.address, tokenId);
-
-                await creditContract
-                    .connect(borrower)
-                    .makePrincipalPaymentAndDrawdownWithReceivable(
-                        borrower.address,
-                        tokenId.sub(5),
-                        paymentAmount,
-                        { receivableAmount: borrowAmount, receivableId: tokenId },
-                        borrowAmount,
-                    );
-            }
-
-            // Day13, Day14
-            nextTime += CONSTANTS.SECONDS_IN_A_DAY * 2;
-            await mineNextBlockWithTimestamp(nextTime);
-        });
-
-        it("Month1 - Day15 ~ Day21: make payment and drawdown together", async function () {
-            // Day15 - Day20 loop
-            for (let i = 0; i < 5; i++) {
-                // move forward 1 day
-                nextTime += CONSTANTS.SECONDS_IN_A_DAY;
-                await setNextBlockTimestamp(nextTime);
-
-                let maturityDate =
-                    nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
-                await receivableContract
-                    .connect(borrower)
-                    .createReceivable(1, borrowAmount, maturityDate, "");
-                let tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
-                console.log(`tokenId: ${tokenId}`);
-                await receivableContract
-                    .connect(borrower)
-                    .approve(creditContract.address, tokenId);
-
-                await creditContract
-                    .connect(borrower)
-                    .makePrincipalPaymentAndDrawdownWithReceivable(
-                        borrower.address,
-                        tokenId.sub(5),
-                        paymentAmount,
-                        { receivableAmount: borrowAmount, receivableId: tokenId },
-                        borrowAmount,
-                    );
-            }
-
-            // Day21, Day22
-            nextTime += CONSTANTS.SECONDS_IN_A_DAY * 2;
-            await mineNextBlockWithTimestamp(nextTime);
-        });
-
-        it("Month1 - Day22 ~ Day28: make payment and drawdown together", async function () {
-            // Day22 - Day26 loop
-            for (let i = 0; i < 5; i++) {
-                // move forward 1 day
-                nextTime += CONSTANTS.SECONDS_IN_A_DAY;
-                await setNextBlockTimestamp(nextTime);
-
-                let maturityDate =
-                    nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
-                await receivableContract
-                    .connect(borrower)
-                    .createReceivable(1, borrowAmount, maturityDate, "");
-                let tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
-                console.log(`tokenId: ${tokenId}`);
-                await receivableContract
-                    .connect(borrower)
-                    .approve(creditContract.address, tokenId);
-
-                await creditContract
-                    .connect(borrower)
-                    .makePrincipalPaymentAndDrawdownWithReceivable(
-                        borrower.address,
-                        tokenId.sub(5),
-                        paymentAmount,
-                        { receivableAmount: borrowAmount, receivableId: tokenId },
-                        borrowAmount,
-                    );
-            }
-
-            // Day27, Day28
-            nextTime += CONSTANTS.SECONDS_IN_A_DAY * 2;
-            await mineNextBlockWithTimestamp(nextTime);
-        });
-
-        it("Month2 - Day1: pay Month1's yield", async function () {
-            // Day1
-            nextTime =
-                (
-                    await calendarContract.getStartDateOfNextPeriod(
-                        PayPeriodDuration.Monthly,
-                        nextTime,
-                    )
-                ).toNumber() + 100;
-            await setNextBlockTimestamp(nextTime);
-
-            let cr = await creditContract.getCreditRecord(creditHash);
-            await creditContract
-                .connect(borrower)
-                .makePaymentWithReceivable(borrower.address, 0, cr.nextDue);
-        });
-
-        it("Month2 - Day1 ~ Day7: make payment and drawdown together", async function () {
-            let block = await getLatestBlock();
-            nextTime = block.timestamp - CONSTANTS.SECONDS_IN_A_DAY + 100;
-
-            // Day1 - Day5 loop
-            for (let i = 0; i < 5; i++) {
-                // move forward 1 day
-                nextTime += CONSTANTS.SECONDS_IN_A_DAY;
-                await setNextBlockTimestamp(nextTime);
-
-                let maturityDate =
-                    nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
-                await receivableContract
-                    .connect(borrower)
-                    .createReceivable(1, borrowAmount, maturityDate, "");
-                let tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
-                console.log(`tokenId: ${tokenId}`);
-                await receivableContract
-                    .connect(borrower)
-                    .approve(creditContract.address, tokenId);
-
-                await creditContract
-                    .connect(borrower)
-                    .makePrincipalPaymentAndDrawdownWithReceivable(
-                        borrower.address,
-                        tokenId.sub(5),
-                        paymentAmount,
-                        { receivableAmount: borrowAmount, receivableId: tokenId },
-                        borrowAmount,
-                    );
-            }
-
-            // Day6, Day7
-            nextTime += CONSTANTS.SECONDS_IN_A_DAY * 2;
-            await mineNextBlockWithTimestamp(nextTime);
-        });
-
-        it("Month2 - Day8 ~ Day12: make payment and drawdown together", async function () {
-            // Day8 - Day12 loop
-            for (let i = 0; i < 5; i++) {
-                // move forward 1 day
-                nextTime += CONSTANTS.SECONDS_IN_A_DAY;
-                await setNextBlockTimestamp(nextTime);
-
-                let maturityDate =
-                    nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
-                await receivableContract
-                    .connect(borrower)
-                    .createReceivable(1, borrowAmount, maturityDate, "");
-                let tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
-                console.log(`tokenId: ${tokenId}`);
-                await receivableContract
-                    .connect(borrower)
-                    .approve(creditContract.address, tokenId);
-
-                await creditContract
-                    .connect(borrower)
-                    .makePrincipalPaymentAndDrawdownWithReceivable(
-                        borrower.address,
-                        tokenId.sub(5),
-                        paymentAmount,
-                        { receivableAmount: borrowAmount, receivableId: tokenId },
-                        borrowAmount,
-                    );
-            }
-        });
-
-        it("Month2 - Day13 ~ Day14: adjust committed to borrowAmount * 10", async function () {
-            // Day6
-            nextTime += CONSTANTS.SECONDS_IN_A_DAY;
-            await setNextBlockTimestamp(nextTime);
-
-            borrowAmount = borrowAmount.mul(2);
-            creditLimit = borrowAmount
-                .mul(5)
-                .mul(CONSTANTS.BP_FACTOR.add(500))
-                .div(CONSTANTS.BP_FACTOR);
-            await creditManagerContract
-                .connect(eaServiceAccount)
-                .updateLimitAndCommitment(borrower.address, creditLimit, borrowAmount.mul(5));
-
-            // Day7
-            nextTime += CONSTANTS.SECONDS_IN_A_DAY;
-            await mineNextBlockWithTimestamp(nextTime);
-        });
-
-        it("Month2 - Day15 ~ Day21: make payment and drawdown together", async function () {
-            // Day15 - Day20 loop
-            for (let i = 0; i < 5; i++) {
-                // move forward 1 day
-                nextTime += CONSTANTS.SECONDS_IN_A_DAY;
-                await setNextBlockTimestamp(nextTime);
-
-                let maturityDate =
-                    nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
-                await receivableContract
-                    .connect(borrower)
-                    .createReceivable(1, borrowAmount, maturityDate, "");
-                let tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
-                console.log(`tokenId: ${tokenId}`);
-                await receivableContract
-                    .connect(borrower)
-                    .approve(creditContract.address, tokenId);
-
-                await creditContract
-                    .connect(borrower)
-                    .makePrincipalPaymentAndDrawdownWithReceivable(
-                        borrower.address,
-                        tokenId.sub(5),
-                        paymentAmount,
-                        { receivableAmount: borrowAmount, receivableId: tokenId },
-                        borrowAmount,
-                    );
-            }
-
-            // Day21, Day22
-            nextTime += CONSTANTS.SECONDS_IN_A_DAY * 2;
-            await mineNextBlockWithTimestamp(nextTime);
-
-            paymentAmount = borrowAmount;
-        });
-
-        it("Month3 - Day6: refresh credit and credit state becomes Delayed", async function () {
-            // Day6
-            nextTime =
-                (
-                    await calendarContract.getStartDateOfNextPeriod(
-                        PayPeriodDuration.Monthly,
-                        nextTime,
-                    )
-                ).toNumber() +
-                CONSTANTS.SECONDS_IN_A_DAY * 6 +
-                100;
-            await setNextBlockTimestamp(nextTime);
-
-            await creditManagerContract.refreshCredit(borrower.address);
-            let cr = await creditContract.getCreditRecord(creditHash);
-            printCreditRecord("cr", cr);
-
-            // Calling makePrincipalPaymentAndDrawdownWithReceivable fails
-            let maturityDate = nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
             await receivableContract
                 .connect(borrower)
                 .createReceivable(1, borrowAmount, maturityDate, "");
-            let tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
-            console.log(`tokenId: ${tokenId}`);
+            tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.getAddress(), 0);
             await receivableContract.connect(borrower).approve(creditContract.address, tokenId);
+        }
 
-            await expect(
-                creditContract
-                    .connect(borrower)
-                    .makePrincipalPaymentAndDrawdownWithReceivable(
-                        borrower.address,
-                        tokenId.sub(5),
-                        paymentAmount,
-                        { receivableAmount: borrowAmount, receivableId: tokenId },
+        async function approveBorrower() {
+            await creditManagerContract
+                .connect(eaServiceAccount)
+                .approveBorrower(
+                    borrower.getAddress(),
+                    toToken(100_000),
+                    numOfPeriods,
+                    yieldInBps,
+                    committedAmount,
+                    0,
+                    true,
+                );
+        }
+
+        beforeEach(async function () {
+            await loadFixture(prepareForDrawdown);
+        });
+
+        describe("Without credit approval", function () {
+            it("Should not allow drawdown by the borrower", async function () {
+                await expect(
+                    creditContract.connect(borrower).drawdownWithReceivable(
+                        borrower.getAddress(),
+                        {
+                            receivableAmount: borrowAmount,
+                            receivableId: tokenId,
+                        },
                         borrowAmount,
                     ),
-            ).to.be.revertedWithCustomError(creditContract, "creditNotInStateForDrawdown");
+                ).to.be.revertedWithCustomError(creditManagerContract, "notBorrower");
+            });
         });
 
-        it("Month3 - Day7: pay yield including late fee", async function () {
-            // Day7
-            nextTime += CONSTANTS.SECONDS_IN_A_DAY;
-            await setNextBlockTimestamp(nextTime);
+        describe("With credit approval", function () {
+            beforeEach(async function () {
+                await loadFixture(approveBorrower);
+            });
 
-            const cc = await creditManagerContract.getCreditConfig(creditHash);
-            let cr = await creditContract.getCreditRecord(creditHash);
-            let dd = await creditContract.getDueDetail(creditHash);
-            let [, lateFee] = await calcLateFeeNew(
-                poolConfigContract,
-                calendarContract,
-                cc,
-                cr,
-                dd,
-                timestampToMoment(nextTime),
-                5,
-            );
-            await creditContract
-                .connect(borrower)
-                .makePaymentWithReceivable(
-                    borrower.address,
-                    0,
-                    cr.nextDue.add(cr.totalPastDue.sub(dd.lateFee)).add(lateFee),
+            it("Should allow the borrower to drawdown", async function () {
+                const borrowAmount = toToken(50_000);
+                const netBorrowAmount = borrowAmount;
+                const drawdownDate = await getFutureBlockTime(3);
+                await setNextBlockTimestamp(drawdownDate);
+
+                const cc = await creditManagerContract.getCreditConfig(creditHash);
+                const nextDueDate = await calendarContract.getStartDateOfNextPeriod(
+                    cc.periodDuration,
+                    drawdownDate,
                 );
-            cr = await creditContract.getCreditRecord(creditHash);
-            printCreditRecord("cr", cr);
-        });
-
-        it("Month3 - Day7: make payment and drawdown together", async function () {
-            let tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
-            console.log(`tokenId: ${tokenId}`);
-
-            await creditContract
-                .connect(borrower)
-                .makePrincipalPaymentAndDrawdownWithReceivable(
-                    borrower.address,
-                    tokenId.sub(5),
-                    paymentAmount,
-                    { receivableAmount: borrowAmount, receivableId: tokenId },
+                const daysRemainingInPeriod = (
+                    await calendarContract.getDaysDiff(drawdownDate, nextDueDate)
+                ).toNumber();
+                const [accruedYieldDue, committedYieldDue] = calcYieldDue(
+                    cc,
                     borrowAmount,
+                    daysRemainingInPeriod,
                 );
+                const principalDue = calcPrincipalDueForPartialPeriod(
+                    borrowAmount,
+                    principalRate,
+                    daysRemainingInPeriod,
+                    CONSTANTS.DAYS_IN_A_MONTH,
+                );
+                const nextDue = accruedYieldDue.add(principalDue);
+
+                const borrowerOldBalance = await mockTokenContract.balanceOf(
+                    borrower.getAddress(),
+                );
+                await expect(
+                    creditContract
+                        .connect(borrower)
+                        .drawdownWithReceivable(
+                            borrower.getAddress(),
+                            { receivableAmount: borrowAmount, receivableId: tokenId },
+                            borrowAmount,
+                        ),
+                )
+                    .to.emit(creditContract, "DrawdownMade")
+                    .withArgs(await borrower.getAddress(), borrowAmount, netBorrowAmount)
+                    .to.emit(creditContract, "DrawdownWithReceivableMade")
+                    .withArgs(
+                        await borrower.getAddress(),
+                        tokenId,
+                        borrowAmount,
+                        borrowAmount,
+                        await borrower.getAddress(),
+                    )
+                    .to.emit(creditContract, "BillRefreshed")
+                    .withArgs(creditHash, nextDueDate, nextDue);
+                const borrowerNewBalance = await mockTokenContract.balanceOf(
+                    borrower.getAddress(),
+                );
+                expect(borrowerNewBalance.sub(borrowerOldBalance)).to.equal(netBorrowAmount);
+
+                const actualCR = await creditContract.getCreditRecord(creditHash);
+                checkCreditRecord(
+                    actualCR,
+                    borrowAmount.sub(principalDue),
+                    nextDueDate,
+                    nextDue,
+                    accruedYieldDue,
+                    BN.from(0),
+                    0,
+                    numOfPeriods - 1,
+                    CreditState.GoodStanding,
+                );
+
+                const actualDD = await creditContract.getDueDetail(creditHash);
+                checkDueDetailsMatch(
+                    actualDD,
+                    genDueDetail({ accrued: accruedYieldDue, committed: committedYieldDue }),
+                );
+            });
+
+            it("Should not allow drawdown when the protocol is paused or pool is not on", async function () {
+                await humaConfigContract.connect(protocolOwner).pause();
+                await expect(
+                    creditContract.drawdownWithReceivable(
+                        borrower.getAddress(),
+                        { receivableAmount: borrowAmount, receivableId: 1 },
+                        borrowAmount,
+                    ),
+                ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+                await humaConfigContract.connect(protocolOwner).unpause();
+
+                await poolContract.connect(poolOwner).disablePool();
+                await expect(
+                    creditContract.drawdownWithReceivable(
+                        borrower.getAddress(),
+                        { receivableAmount: borrowAmount, receivableId: 1 },
+                        borrowAmount,
+                    ),
+                ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+                await poolContract.connect(poolOwner).enablePool();
+            });
+
+            it("Should not allow drawdown by non-borrowers", async function () {
+                await expect(
+                    creditContract.connect(lender).drawdownWithReceivable(
+                        borrower.getAddress(),
+                        {
+                            receivableAmount: borrowAmount,
+                            receivableId: tokenId,
+                        },
+                        borrowAmount,
+                    ),
+                ).to.be.revertedWithCustomError(creditContract, "notBorrower");
+            });
+
+            it("Should not allow drawdown with 0 receivable amount", async function () {
+                await expect(
+                    creditContract.connect(borrower).drawdownWithReceivable(
+                        borrower.getAddress(),
+                        {
+                            receivableAmount: 0,
+                            receivableId: tokenId,
+                        },
+                        borrowAmount,
+                    ),
+                ).to.be.revertedWithCustomError(creditContract, "zeroAmountProvided");
+            });
+
+            it("Should not allow drawdown with 0 receivable ID", async function () {
+                await expect(
+                    creditContract.connect(borrower).drawdownWithReceivable(
+                        borrower.getAddress(),
+                        {
+                            receivableAmount: borrowAmount,
+                            receivableId: 0,
+                        },
+                        borrowAmount,
+                    ),
+                ).to.be.revertedWithCustomError(creditContract, "zeroReceivableIdProvided");
+            });
+
+            it("Should not allow drawdown with 0 borrow amount", async function () {
+                await expect(
+                    creditContract.connect(borrower).drawdownWithReceivable(
+                        borrower.getAddress(),
+                        {
+                            receivableAmount: borrowAmount,
+                            receivableId: tokenId,
+                        },
+                        0,
+                    ),
+                ).to.be.revertedWithCustomError(creditContract, "zeroAmountProvided");
+            });
+
+            it("Should not allow drawdown if the borrower does not own the receivable", async function () {
+                await receivableContract
+                    .connect(lender)
+                    .createReceivable(1, borrowAmount, maturityDate, "");
+                const tokenId2 = await receivableContract.tokenOfOwnerByIndex(
+                    lender.getAddress(),
+                    0,
+                );
+                await receivableContract.connect(lender).approve(creditContract.address, tokenId2);
+
+                await expect(
+                    creditContract.connect(borrower).drawdownWithReceivable(
+                        borrower.getAddress(),
+                        {
+                            receivableAmount: borrowAmount,
+                            receivableId: tokenId2,
+                        },
+                        borrowAmount,
+                    ),
+                ).to.be.revertedWithCustomError(creditContract, "notReceivableOwner");
+
+                await receivableContract.connect(lender).burn(tokenId2);
+            });
+
+            it("Should not allow drawdown if the receivable is not approved", async function () {
+                const settings = await poolConfigContract.getPoolSettings();
+                await poolConfigContract.connect(poolOwner).setPoolSettings({
+                    ...settings,
+                    ...{
+                        receivableAutoApproval: false,
+                    },
+                });
+                // Re-approve so that the auto approval is overwritten to be `false`.
+                await approveBorrower();
+
+                await expect(
+                    creditContract.connect(borrower).drawdownWithReceivable(
+                        borrower.getAddress(),
+                        {
+                            receivableAmount: borrowAmount,
+                            receivableId: tokenId,
+                        },
+                        borrowAmount,
+                    ),
+                ).to.be.revertedWithCustomError(creditManagerContract, "receivableIdMismatch");
+
+                await poolConfigContract.connect(poolOwner).setPoolSettings(settings);
+            });
+        });
+    });
+
+    describe("makePaymentWithReceivable", function () {
+        const yieldInBps = 1217,
+            principalRate = 100,
+            lateFeeBps = 2400;
+        const numOfPeriods = 3,
+            latePaymentGracePeriodInDays = 5;
+        let maturityDate: number;
+        let committedAmount: BN, borrowAmount: BN, tokenId: BN;
+        let creditHash: string;
+
+        async function prepareForMakePayment() {
+            const settings = await poolConfigContract.getPoolSettings();
+            await poolConfigContract.connect(poolOwner).setPoolSettings({
+                ...settings,
+                ...{
+                    latePaymentGracePeriodInDays: latePaymentGracePeriodInDays,
+                    advanceRateInBps: CONSTANTS.BP_FACTOR,
+                    receivableAutoApproval: true,
+                },
+            });
+            await poolConfigContract.connect(poolOwner).setFeeStructure({
+                yieldInBps,
+                minPrincipalRateInBps: principalRate,
+                lateFeeBps,
+            });
+
+            committedAmount = toToken(10_000);
+            borrowAmount = toToken(15_000);
+            creditHash = await borrowerLevelCreditHash(creditContract, borrower);
+
+            const currentTS = (await getLatestBlock()).timestamp;
+            maturityDate = currentTS + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
+            // Throw-away receivable to get around the tokenId != 0 check.
+            await receivableContract.connect(poolOwner).createReceivable(1, 0, 0, "");
+            await receivableContract
+                .connect(borrower)
+                .createReceivable(1, borrowAmount, maturityDate, "");
+            tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.getAddress(), 0);
+            await receivableContract.connect(borrower).approve(creditContract.address, tokenId);
+        }
+
+        async function approveAndDrawdown() {
+            await creditManagerContract
+                .connect(eaServiceAccount)
+                .approveBorrower(
+                    borrower.getAddress(),
+                    toToken(100_000),
+                    numOfPeriods,
+                    yieldInBps,
+                    committedAmount,
+                    0,
+                    true,
+                );
+            await creditContract.connect(borrower).drawdownWithReceivable(
+                borrower.getAddress(),
+                {
+                    receivableAmount: borrowAmount,
+                    receivableId: tokenId,
+                },
+                borrowAmount,
+            );
+        }
+
+        beforeEach(async function () {
+            await loadFixture(prepareForMakePayment);
+        });
+
+        describe("Without credit approval", function () {
+            it("Should not allow payment on a non-existent credit", async function () {
+                await expect(
+                    creditContract
+                        .connect(borrower)
+                        .makePaymentWithReceivable(borrower.getAddress(), tokenId, borrowAmount),
+                ).to.be.revertedWithCustomError(creditManagerContract, "notBorrower");
+            });
+        });
+
+        describe("With credit approval", function () {
+            beforeEach(async function () {
+                await loadFixture(approveAndDrawdown);
+            });
+
+            it("Should allow the borrower to make payment", async function () {
+                const oldCR = await creditContract.getCreditRecord(creditHash);
+                const oldDD = await creditContract.getDueDetail(creditHash);
+                const paymentAmount = oldCR.yieldDue;
+
+                await expect(
+                    creditContract
+                        .connect(borrower)
+                        .makePaymentWithReceivable(borrower.getAddress(), tokenId, paymentAmount),
+                )
+                    .to.emit(creditContract, "PaymentMade")
+                    .withArgs(
+                        await borrower.getAddress(),
+                        await borrower.getAddress(),
+                        paymentAmount,
+                        oldCR.yieldDue,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        await borrower.getAddress(),
+                    )
+                    .to.emit(creditContract, "PaymentWithReceivableMade")
+                    .withArgs(
+                        await borrower.getAddress(),
+                        tokenId,
+                        paymentAmount,
+                        await borrower.getAddress(),
+                    );
+
+                const actualCR = await creditContract.getCreditRecord(creditHash);
+                const expectedCR = {
+                    ...oldCR,
+                    ...{
+                        nextDue: oldCR.nextDue.sub(oldCR.yieldDue),
+                        yieldDue: 0,
+                    },
+                };
+                checkCreditRecordsMatch(actualCR, expectedCR);
+
+                const actualDD = await creditContract.getDueDetail(creditHash);
+                const expectedDD = {
+                    ...oldDD,
+                    ...{
+                        paid: paymentAmount,
+                    },
+                };
+                checkDueDetailsMatch(actualDD, expectedDD);
+            });
+
+            it("Should not allow payment when the protocol is paused", async function () {
+                await humaConfigContract.connect(protocolOwner).pause();
+                await expect(
+                    creditContract
+                        .connect(borrower)
+                        .makePaymentWithReceivable(borrower.getAddress(), tokenId, borrowAmount),
+                ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+                await humaConfigContract.connect(protocolOwner).unpause();
+            });
+
+            it("Should not allow payment by non-borrower or non-PDS account", async function () {
+                await expect(
+                    creditContract
+                        .connect(lender)
+                        .makePaymentWithReceivable(borrower.getAddress(), tokenId, borrowAmount),
+                ).to.be.revertedWithCustomError(
+                    creditContract,
+                    "paymentDetectionServiceAccountRequired",
+                );
+            });
+
+            it("Should not allow payment with 0 receivable ID", async function () {
+                await expect(
+                    creditContract
+                        .connect(borrower)
+                        .makePaymentWithReceivable(borrower.getAddress(), 0, borrowAmount),
+                ).to.be.revertedWithCustomError(creditContract, "zeroReceivableIdProvided");
+            });
+
+            it("Should not allow payment if the receivable wasn't transferred to the contract", async function () {
+                // Create another receivable that wasn't used for drawdown, hence not transferred to the contract.
+                await receivableContract
+                    .connect(borrower)
+                    .createReceivable(2, borrowAmount, maturityDate, "");
+                const balance = await receivableContract.balanceOf(borrower.getAddress());
+                expect(balance).to.equal(1);
+                const tokenId2 = await receivableContract.tokenOfOwnerByIndex(
+                    borrower.getAddress(),
+                    0,
+                );
+                await receivableContract
+                    .connect(borrower)
+                    .approve(creditContract.address, tokenId2);
+                await creditManagerContract
+                    .connect(eaServiceAccount)
+                    .approveReceivable(borrower.getAddress(), {
+                        receivableAmount: borrowAmount,
+                        receivableId: tokenId2,
+                    });
+
+                await expect(
+                    creditContract
+                        .connect(borrower)
+                        .makePaymentWithReceivable(borrower.getAddress(), tokenId2, borrowAmount),
+                ).to.be.revertedWithCustomError(creditContract, "notReceivableOwner");
+
+                await receivableContract.connect(borrower).burn(tokenId2);
+            });
+        });
+    });
+
+    describe("makePrincipalPaymentWithReceivable", function () {
+        const yieldInBps = 1217,
+            principalRate = 100,
+            lateFeeBps = 2400;
+        const numOfPeriods = 3,
+            latePaymentGracePeriodInDays = 5;
+        let maturityDate: number;
+        let committedAmount: BN, borrowAmount: BN, tokenId: BN;
+        let creditHash: string;
+
+        async function prepareForMakePayment() {
+            const settings = await poolConfigContract.getPoolSettings();
+            await poolConfigContract.connect(poolOwner).setPoolSettings({
+                ...settings,
+                ...{
+                    latePaymentGracePeriodInDays: latePaymentGracePeriodInDays,
+                    advanceRateInBps: CONSTANTS.BP_FACTOR,
+                    receivableAutoApproval: true,
+                },
+            });
+            await poolConfigContract.connect(poolOwner).setFeeStructure({
+                yieldInBps,
+                minPrincipalRateInBps: principalRate,
+                lateFeeBps,
+            });
+
+            committedAmount = toToken(10_000);
+            borrowAmount = toToken(15_000);
+            creditHash = await borrowerLevelCreditHash(creditContract, borrower);
+
+            const currentTS = (await getLatestBlock()).timestamp;
+            maturityDate = currentTS + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
+            // Throw-away receivable to get around the tokenId != 0 check.
+            await receivableContract.connect(poolOwner).createReceivable(1, 0, 0, "");
+            await receivableContract
+                .connect(borrower)
+                .createReceivable(1, borrowAmount, maturityDate, "");
+            tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.getAddress(), 0);
+            await receivableContract.connect(borrower).approve(creditContract.address, tokenId);
+        }
+
+        async function approveBorrowerAndDrawdown() {
+            await creditManagerContract
+                .connect(eaServiceAccount)
+                .approveBorrower(
+                    borrower.getAddress(),
+                    toToken(100_000),
+                    numOfPeriods,
+                    yieldInBps,
+                    committedAmount,
+                    0,
+                    true,
+                );
+            await creditContract.connect(borrower).drawdownWithReceivable(
+                borrower.getAddress(),
+                {
+                    receivableAmount: borrowAmount,
+                    receivableId: tokenId,
+                },
+                borrowAmount,
+            );
+        }
+
+        beforeEach(async function () {
+            await loadFixture(prepareForMakePayment);
+        });
+
+        describe("Without credit approval", function () {
+            it("Should not allow payment on a non-existent credit", async function () {
+                await expect(
+                    creditContract
+                        .connect(borrower)
+                        .makePrincipalPaymentWithReceivable(
+                            borrower.getAddress(),
+                            tokenId,
+                            borrowAmount,
+                        ),
+                ).to.be.revertedWithCustomError(creditManagerContract, "notBorrower");
+            });
+        });
+
+        describe("With credit approval", function () {
+            beforeEach(async function () {
+                await loadFixture(approveBorrowerAndDrawdown);
+            });
+
+            it("Should allow the borrower to make payment", async function () {
+                const oldCR = await creditContract.getCreditRecord(creditHash);
+                const oldDD = await creditContract.getDueDetail(creditHash);
+                const paymentAmount = oldCR.nextDue.sub(oldCR.yieldDue);
+
+                await expect(
+                    creditContract
+                        .connect(borrower)
+                        .makePrincipalPaymentWithReceivable(
+                            borrower.getAddress(),
+                            tokenId,
+                            paymentAmount,
+                        ),
+                )
+                    .to.emit(creditContract, "PrincipalPaymentMade")
+                    .withArgs(
+                        await borrower.getAddress(),
+                        await borrower.getAddress(),
+                        paymentAmount,
+                        oldCR.nextDueDate,
+                        0,
+                        oldCR.unbilledPrincipal,
+                        paymentAmount,
+                        0,
+                        await borrower.getAddress(),
+                    )
+                    .to.emit(creditContract, "PrincipalPaymentWithReceivableMade")
+                    .withArgs(
+                        await borrower.getAddress(),
+                        tokenId,
+                        paymentAmount,
+                        await borrower.getAddress(),
+                    );
+
+                const actualCR = await creditContract.getCreditRecord(creditHash);
+                const expectedCR = {
+                    ...oldCR,
+                    ...{
+                        nextDue: oldCR.yieldDue,
+                        yieldDue: oldCR.yieldDue,
+                    },
+                };
+                checkCreditRecordsMatch(actualCR, expectedCR);
+
+                const actualDD = await creditContract.getDueDetail(creditHash);
+                const expectedDD = oldDD;
+                checkDueDetailsMatch(actualDD, expectedDD);
+            });
+
+            it("Should not allow payment when the protocol is paused or pool is not on", async function () {
+                await humaConfigContract.connect(protocolOwner).pause();
+                await expect(
+                    creditContract
+                        .connect(borrower)
+                        .makePrincipalPaymentWithReceivable(
+                            borrower.getAddress(),
+                            tokenId,
+                            borrowAmount,
+                        ),
+                ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+                await humaConfigContract.connect(protocolOwner).unpause();
+
+                await poolContract.connect(poolOwner).disablePool();
+                await expect(
+                    creditContract
+                        .connect(borrower)
+                        .makePrincipalPaymentWithReceivable(
+                            borrower.getAddress(),
+                            tokenId,
+                            borrowAmount,
+                        ),
+                ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+                await poolContract.connect(poolOwner).enablePool();
+            });
+
+            it("Should not allow payment by non-borrower", async function () {
+                await expect(
+                    creditContract
+                        .connect(lender)
+                        .makePrincipalPaymentWithReceivable(
+                            borrower.getAddress(),
+                            tokenId,
+                            borrowAmount,
+                        ),
+                ).to.be.revertedWithCustomError(creditContract, "notBorrower");
+            });
+
+            it("Should not allow payment with 0 receivable ID", async function () {
+                await expect(
+                    creditContract
+                        .connect(borrower)
+                        .makePrincipalPaymentWithReceivable(
+                            borrower.getAddress(),
+                            0,
+                            borrowAmount,
+                        ),
+                ).to.be.revertedWithCustomError(creditContract, "zeroReceivableIdProvided");
+            });
+
+            it("Should not allow payment if the receivable wasn't transferred to the contract", async function () {
+                // Create another receivable that wasn't used for drawdown, hence not transferred to the contract.
+                await receivableContract
+                    .connect(borrower)
+                    .createReceivable(2, borrowAmount, maturityDate, "");
+                const balance = await receivableContract.balanceOf(borrower.getAddress());
+                expect(balance).to.equal(1);
+                const tokenId2 = await receivableContract.tokenOfOwnerByIndex(
+                    borrower.getAddress(),
+                    0,
+                );
+                await receivableContract
+                    .connect(borrower)
+                    .approve(creditContract.address, tokenId2);
+                await creditManagerContract
+                    .connect(eaServiceAccount)
+                    .approveReceivable(borrower.getAddress(), {
+                        receivableAmount: borrowAmount,
+                        receivableId: tokenId2,
+                    });
+
+                await expect(
+                    creditContract
+                        .connect(borrower)
+                        .makePrincipalPaymentWithReceivable(
+                            borrower.getAddress(),
+                            tokenId2,
+                            borrowAmount,
+                        ),
+                ).to.be.revertedWithCustomError(creditContract, "notReceivableOwner");
+
+                await receivableContract.connect(borrower).burn(tokenId2);
+            });
+        });
+    });
+
+    describe("makePrincipalPaymentAndDrawdownWithReceivable", function () {
+        const yieldInBps = 1217,
+            principalRate = 100,
+            lateFeeBps = 2400;
+        const numOfPeriods = 3,
+            latePaymentGracePeriodInDays = 5;
+        let paymentReceivableMaturityDate: number, drawdownReceivableMaturityDate: number;
+        let paymentAmount: BN, drawdownAmount: BN, paymentTokenId: BN, drawdownTokenId: BN;
+        let creditHash: string;
+
+        async function prepareForMakePaymentAndDrawdown() {
+            const settings = await poolConfigContract.getPoolSettings();
+            await poolConfigContract.connect(poolOwner).setPoolSettings({
+                ...settings,
+                ...{
+                    latePaymentGracePeriodInDays: latePaymentGracePeriodInDays,
+                    advanceRateInBps: CONSTANTS.BP_FACTOR,
+                    receivableAutoApproval: true,
+                },
+            });
+            await poolConfigContract.connect(poolOwner).setFeeStructure({
+                yieldInBps,
+                minPrincipalRateInBps: principalRate,
+                lateFeeBps,
+            });
+
+            paymentAmount = toToken(15_000);
+            creditHash = await borrowerLevelCreditHash(creditContract, borrower);
+
+            const currentTS = (await getLatestBlock()).timestamp;
+            paymentReceivableMaturityDate =
+                currentTS + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
+            drawdownReceivableMaturityDate =
+                paymentReceivableMaturityDate +
+                CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
+            // Throw-away receivable to get around the tokenId != 0 check.
+            await receivableContract.connect(poolOwner).createReceivable(1, 0, 0, "");
+            // Create two receivables, one ce payment and another one for drawdown.
+            await receivableContract
+                .connect(borrower)
+                .createReceivable(1, paymentAmount, paymentReceivableMaturityDate, "");
+            paymentTokenId = await receivableContract.tokenOfOwnerByIndex(
+                borrower.getAddress(),
+                0,
+            );
+            await receivableContract
+                .connect(borrower)
+                .approve(creditContract.address, paymentTokenId);
+            await receivableContract
+                .connect(borrower)
+                .createReceivable(
+                    1,
+                    paymentAmount.add(toToken(5_000)),
+                    drawdownReceivableMaturityDate,
+                    "",
+                );
+            drawdownTokenId = await receivableContract.tokenOfOwnerByIndex(
+                borrower.getAddress(),
+                1,
+            );
+            await receivableContract
+                .connect(borrower)
+                .approve(creditContract.address, drawdownTokenId);
+        }
+
+        async function approveBorrower() {
+            await creditManagerContract
+                .connect(eaServiceAccount)
+                .approveBorrower(
+                    borrower.getAddress(),
+                    toToken(100_000),
+                    numOfPeriods,
+                    yieldInBps,
+                    0,
+                    0,
+                    true,
+                );
+        }
+
+        async function initialDrawdown() {
+            await creditContract.connect(borrower).drawdownWithReceivable(
+                borrower.getAddress(),
+                {
+                    receivableAmount: paymentAmount,
+                    receivableId: paymentTokenId,
+                },
+                paymentAmount,
+            );
+        }
+
+        beforeEach(async function () {
+            await loadFixture(prepareForMakePaymentAndDrawdown);
+        });
+
+        describe("Without credit approval", function () {
+            it("Should not allow payment on a non-existent credit", async function () {
+                await expect(
+                    creditContract
+                        .connect(borrower)
+                        .makePrincipalPaymentAndDrawdownWithReceivable(
+                            borrower.getAddress(),
+                            paymentTokenId,
+                            paymentAmount,
+                            { receivableAmount: paymentAmount, receivableId: drawdownTokenId },
+                            paymentAmount,
+                        ),
+                ).to.be.revertedWithCustomError(creditManagerContract, "notBorrower");
+            });
+
+            it("Should not allow payment and drawdown if the receivable for drawdown is not approved", async function () {
+                const settings = await poolConfigContract.getPoolSettings();
+                await poolConfigContract.connect(poolOwner).setPoolSettings({
+                    ...settings,
+                    ...{
+                        receivableAutoApproval: false,
+                    },
+                });
+                await approveBorrower();
+                // Manually approve the receivable for first drawdown.
+                await creditManagerContract
+                    .connect(eaServiceAccount)
+                    .approveReceivable(borrower.getAddress(), {
+                        receivableAmount: paymentAmount,
+                        receivableId: paymentTokenId,
+                    });
+                await initialDrawdown();
+                // Create another receivable for second drawdown, but this receivable won't be approved.
+                await receivableContract
+                    .connect(borrower)
+                    .createReceivable(1, paymentAmount, drawdownReceivableMaturityDate, "");
+                const drawdownTokenId2 = await receivableContract.tokenOfOwnerByIndex(
+                    borrower.getAddress(),
+                    1,
+                );
+                await receivableContract
+                    .connect(borrower)
+                    .approve(creditContract.address, drawdownTokenId2);
+
+                await expect(
+                    creditContract
+                        .connect(borrower)
+                        .makePrincipalPaymentAndDrawdownWithReceivable(
+                            borrower.getAddress(),
+                            paymentTokenId,
+                            paymentAmount,
+                            { receivableAmount: paymentAmount, receivableId: drawdownTokenId2 },
+                            paymentAmount,
+                        ),
+                ).to.be.revertedWithCustomError(creditManagerContract, "receivableIdMismatch");
+
+                await poolConfigContract.connect(poolOwner).setPoolSettings(settings);
+                await receivableContract.connect(borrower).burn(drawdownTokenId2);
+            });
+        });
+
+        describe("With credit approval and initial drawdown", function () {
+            beforeEach(async function () {
+                await loadFixture(approveBorrower);
+                await loadFixture(initialDrawdown);
+            });
+
+            describe("When payment and drawdown amounts are the same", function () {
+                it("Should allow payment and drawdown without affecting the pool balance", async function () {
+                    const oldCR = await creditContract.getCreditRecord(creditHash);
+                    const oldDD = await creditContract.getDueDetail(creditHash);
+                    drawdownAmount = paymentAmount;
+
+                    const borrowerBalanceBefore = await mockTokenContract.balanceOf(
+                        borrower.getAddress(),
+                    );
+                    const poolSafeBalanceBefore = await mockTokenContract.balanceOf(
+                        poolSafeContract.address,
+                    );
+                    await expect(
+                        creditContract
+                            .connect(borrower)
+                            .makePrincipalPaymentAndDrawdownWithReceivable(
+                                borrower.getAddress(),
+                                paymentTokenId,
+                                paymentAmount,
+                                {
+                                    receivableAmount: drawdownAmount,
+                                    receivableId: drawdownTokenId,
+                                },
+                                drawdownAmount,
+                            ),
+                    )
+                        .to.emit(creditContract, "PrincipalPaymentWithReceivableMade")
+                        .withArgs(
+                            await borrower.getAddress(),
+                            paymentTokenId,
+                            paymentAmount,
+                            await borrower.getAddress(),
+                        )
+                        .to.emit(creditContract, "DrawdownWithReceivableMade")
+                        .withArgs(
+                            await borrower.getAddress(),
+                            drawdownTokenId,
+                            drawdownAmount,
+                            drawdownAmount,
+                            await borrower.getAddress(),
+                        );
+                    const borrowerBalanceAfter = await mockTokenContract.balanceOf(
+                        borrower.getAddress(),
+                    );
+                    expect(borrowerBalanceBefore.sub(borrowerBalanceAfter)).to.equal(0);
+                    const poolSafeBalanceAfter = await mockTokenContract.balanceOf(
+                        poolSafeContract.address,
+                    );
+                    expect(poolSafeBalanceAfter.sub(poolSafeBalanceBefore)).to.equal(0);
+
+                    const actualCR = await creditContract.getCreditRecord(creditHash);
+                    checkCreditRecordsMatch(actualCR, oldCR);
+
+                    const actualDD = await creditContract.getDueDetail(creditHash);
+                    checkDueDetailsMatch(actualDD, oldDD);
+                });
+            });
+
+            describe("When the payment amount is higher than the drawdown amount", function () {
+                it("Should allow the borrower to make extra payment towards the pool", async function () {
+                    const oldCR = await creditContract.getCreditRecord(creditHash);
+                    const oldDD = await creditContract.getDueDetail(creditHash);
+                    // The difference is payment and drawdown amount is the amount of principal due in the billing cycle.
+                    const amountDiff = oldCR.nextDue.sub(oldCR.yieldDue);
+                    drawdownAmount = paymentAmount.sub(amountDiff);
+
+                    const borrowerBalanceBefore = await mockTokenContract.balanceOf(
+                        borrower.getAddress(),
+                    );
+                    const poolSafeBalanceBefore = await mockTokenContract.balanceOf(
+                        poolSafeContract.address,
+                    );
+                    await expect(
+                        creditContract
+                            .connect(borrower)
+                            .makePrincipalPaymentAndDrawdownWithReceivable(
+                                borrower.getAddress(),
+                                paymentTokenId,
+                                paymentAmount,
+                                {
+                                    receivableAmount: drawdownAmount,
+                                    receivableId: drawdownTokenId,
+                                },
+                                drawdownAmount,
+                            ),
+                    )
+                        .to.emit(creditContract, "PrincipalPaymentWithReceivableMade")
+                        .withArgs(
+                            await borrower.getAddress(),
+                            paymentTokenId,
+                            paymentAmount,
+                            await borrower.getAddress(),
+                        )
+                        .to.emit(creditContract, "DrawdownWithReceivableMade")
+                        .withArgs(
+                            await borrower.getAddress(),
+                            drawdownTokenId,
+                            drawdownAmount,
+                            drawdownAmount,
+                            await borrower.getAddress(),
+                        )
+                        .to.emit(creditContract, "PrincipalPaymentMade")
+                        .withArgs(
+                            await borrower.getAddress(),
+                            await borrower.getAddress(),
+                            amountDiff,
+                            oldCR.nextDueDate,
+                            0,
+                            oldCR.unbilledPrincipal,
+                            amountDiff,
+                            0,
+                            await borrower.getAddress(),
+                        );
+                    const borrowerBalanceAfter = await mockTokenContract.balanceOf(
+                        borrower.getAddress(),
+                    );
+                    expect(borrowerBalanceBefore.sub(borrowerBalanceAfter)).to.equal(amountDiff);
+                    const poolSafeBalanceAfter = await mockTokenContract.balanceOf(
+                        poolSafeContract.address,
+                    );
+                    expect(poolSafeBalanceAfter.sub(poolSafeBalanceBefore)).to.equal(amountDiff);
+
+                    const actualCR = await creditContract.getCreditRecord(creditHash);
+                    const expectedCR = {
+                        ...oldCR,
+                        ...{
+                            nextDue: oldCR.yieldDue,
+                        },
+                    };
+                    checkCreditRecordsMatch(actualCR, expectedCR);
+
+                    const actualDD = await creditContract.getDueDetail(creditHash);
+                    checkDueDetailsMatch(actualDD, oldDD);
+                });
+            });
+
+            describe("When the payment amount is lower than the drawdown amount", function () {
+                it("Should allow the borrower to drawdown additional capital from the pool", async function () {
+                    const oldCR = await creditContract.getCreditRecord(creditHash);
+                    const oldDD = await creditContract.getDueDetail(creditHash);
+                    // The difference is payment and drawdown amount is the amount of principal due in the billing cycle.
+                    const amountDiff = toToken(5_000);
+                    drawdownAmount = paymentAmount.add(amountDiff);
+                    const actionDate = await getFutureBlockTime(1);
+                    const daysRemainingInPeriod = (
+                        await calendarContract.getDaysDiff(actionDate, oldCR.nextDueDate)
+                    ).toNumber();
+                    const additionalYieldAccrued = calcYield(
+                        amountDiff,
+                        yieldInBps,
+                        daysRemainingInPeriod,
+                    );
+                    const additionalPrincipalDue = calcPrincipalDueForPartialPeriod(
+                        amountDiff,
+                        principalRate,
+                        daysRemainingInPeriod,
+                        CONSTANTS.DAYS_IN_A_MONTH,
+                    );
+
+                    const borrowerBalanceBefore = await mockTokenContract.balanceOf(
+                        borrower.getAddress(),
+                    );
+                    const poolSafeBalanceBefore = await mockTokenContract.balanceOf(
+                        poolSafeContract.address,
+                    );
+                    await expect(
+                        creditContract
+                            .connect(borrower)
+                            .makePrincipalPaymentAndDrawdownWithReceivable(
+                                borrower.getAddress(),
+                                paymentTokenId,
+                                paymentAmount,
+                                {
+                                    receivableAmount: drawdownAmount,
+                                    receivableId: drawdownTokenId,
+                                },
+                                drawdownAmount,
+                            ),
+                    )
+                        .to.emit(creditContract, "PrincipalPaymentWithReceivableMade")
+                        .withArgs(
+                            await borrower.getAddress(),
+                            paymentTokenId,
+                            paymentAmount,
+                            await borrower.getAddress(),
+                        )
+                        .to.emit(creditContract, "DrawdownWithReceivableMade")
+                        .withArgs(
+                            await borrower.getAddress(),
+                            drawdownTokenId,
+                            drawdownAmount,
+                            drawdownAmount,
+                            await borrower.getAddress(),
+                        )
+                        .to.emit(creditContract, "DrawdownMade")
+                        .withArgs(await borrower.getAddress(), amountDiff, amountDiff);
+                    const borrowerBalanceAfter = await mockTokenContract.balanceOf(
+                        borrower.getAddress(),
+                    );
+                    expect(borrowerBalanceAfter.sub(borrowerBalanceBefore)).to.equal(amountDiff);
+                    const poolSafeBalanceAfter = await mockTokenContract.balanceOf(
+                        poolSafeContract.address,
+                    );
+                    expect(poolSafeBalanceBefore.sub(poolSafeBalanceAfter)).to.equal(amountDiff);
+
+                    const actualCR = await creditContract.getCreditRecord(creditHash);
+                    const expectedCR = {
+                        ...oldCR,
+                        ...{
+                            unbilledPrincipal: oldCR.unbilledPrincipal
+                                .add(amountDiff)
+                                .sub(additionalPrincipalDue),
+                            nextDue: oldCR.nextDue
+                                .add(additionalYieldAccrued)
+                                .add(additionalPrincipalDue),
+                            yieldDue: oldCR.yieldDue.add(additionalYieldAccrued),
+                        },
+                    };
+                    checkCreditRecordsMatch(actualCR, expectedCR);
+
+                    const actualDD = await creditContract.getDueDetail(creditHash);
+                    const expectedDD = {
+                        ...oldDD,
+                        ...{
+                            accrued: oldDD.accrued.add(additionalYieldAccrued),
+                        },
+                    };
+                    checkDueDetailsMatch(actualDD, expectedDD);
+                });
+            });
+
+            it("Should not allow payment and drawdown when the protocol is paused or the pool is not on", async function () {
+                await humaConfigContract.connect(protocolOwner).pause();
+                await expect(
+                    creditContract
+                        .connect(borrower)
+                        .makePrincipalPaymentAndDrawdownWithReceivable(
+                            borrower.getAddress(),
+                            paymentTokenId,
+                            paymentAmount,
+                            { receivableAmount: paymentAmount, receivableId: drawdownTokenId },
+                            paymentAmount,
+                        ),
+                ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+                await humaConfigContract.connect(protocolOwner).unpause();
+
+                await poolContract.connect(poolOwner).disablePool();
+                await expect(
+                    creditContract.makePrincipalPaymentAndDrawdownWithReceivable(
+                        borrower.getAddress(),
+                        paymentTokenId,
+                        paymentAmount,
+                        { receivableAmount: paymentAmount, receivableId: drawdownTokenId },
+                        paymentAmount,
+                    ),
+                ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+                await poolContract.connect(poolOwner).enablePool();
+            });
+
+            it("Should not allow payment and drawdown by non-borrower", async function () {
+                await expect(
+                    creditContract
+                        .connect(lender)
+                        .makePrincipalPaymentAndDrawdownWithReceivable(
+                            borrower.getAddress(),
+                            paymentTokenId,
+                            paymentAmount,
+                            { receivableAmount: paymentAmount, receivableId: drawdownTokenId },
+                            paymentAmount,
+                        ),
+                ).to.be.revertedWithCustomError(creditContract, "notBorrower");
+            });
+
+            it("Should not allow payment and drawdown if the payment amount is 0", async function () {
+                await expect(
+                    creditContract
+                        .connect(borrower)
+                        .makePrincipalPaymentAndDrawdownWithReceivable(
+                            borrower.getAddress(),
+                            paymentTokenId,
+                            0,
+                            { receivableAmount: paymentAmount, receivableId: drawdownTokenId },
+                            paymentAmount,
+                        ),
+                ).to.be.revertedWithCustomError(creditContract, "zeroAmountProvided");
+            });
+
+            it("Should not allow payment and drawdown if the borrow amount is 0", async function () {
+                await expect(
+                    creditContract
+                        .connect(borrower)
+                        .makePrincipalPaymentAndDrawdownWithReceivable(
+                            borrower.getAddress(),
+                            paymentTokenId,
+                            paymentAmount,
+                            { receivableAmount: paymentAmount, receivableId: drawdownTokenId },
+                            0,
+                        ),
+                ).to.be.revertedWithCustomError(creditContract, "zeroAmountProvided");
+            });
+
+            it("Should not allow payment and drawdown with 0 receivable ID for the payment receivable", async function () {
+                await expect(
+                    creditContract
+                        .connect(borrower)
+                        .makePrincipalPaymentAndDrawdownWithReceivable(
+                            borrower.getAddress(),
+                            paymentTokenId,
+                            paymentAmount,
+                            { receivableAmount: paymentAmount, receivableId: 0 },
+                            paymentAmount,
+                        ),
+                ).to.be.revertedWithCustomError(creditContract, "zeroReceivableIdProvided");
+            });
+
+            it("Should not allow payment and drawdown if the receivable to be paid for wasn't transferred to the contract", async function () {
+                // Create another receivable that wasn't used for drawdown, hence not transferred to the contract.
+                await receivableContract
+                    .connect(borrower)
+                    .createReceivable(2, paymentAmount, paymentTokenId, "");
+                const balance = await receivableContract.balanceOf(borrower.getAddress());
+                expect(balance).to.equal(2);
+                const tokenId2 = await receivableContract.tokenOfOwnerByIndex(
+                    borrower.getAddress(),
+                    1,
+                );
+                await receivableContract
+                    .connect(borrower)
+                    .approve(creditContract.address, tokenId2);
+                await creditManagerContract
+                    .connect(eaServiceAccount)
+                    .approveReceivable(borrower.getAddress(), {
+                        receivableAmount: paymentAmount,
+                        receivableId: tokenId2,
+                    });
+
+                await expect(
+                    creditContract
+                        .connect(borrower)
+                        .makePrincipalPaymentAndDrawdownWithReceivable(
+                            borrower.getAddress(),
+                            tokenId2,
+                            paymentAmount,
+                            { receivableAmount: paymentAmount, receivableId: drawdownTokenId },
+                            paymentAmount,
+                        ),
+                ).to.be.revertedWithCustomError(creditContract, "notReceivableOwner");
+
+                await receivableContract.connect(borrower).burn(tokenId2);
+            });
+
+            it("Should not allow payment and drawdown with 0 receivable amount", async function () {
+                await expect(
+                    creditContract
+                        .connect(borrower)
+                        .makePrincipalPaymentAndDrawdownWithReceivable(
+                            borrower.getAddress(),
+                            paymentTokenId,
+                            paymentAmount,
+                            { receivableAmount: 0, receivableId: drawdownTokenId },
+                            paymentAmount,
+                        ),
+                ).to.be.revertedWithCustomError(creditContract, "zeroAmountProvided");
+            });
+
+            it("Should not allow payment and drawdown with 0 receivable ID for the drawdown receivable", async function () {
+                await expect(
+                    creditContract
+                        .connect(borrower)
+                        .makePrincipalPaymentAndDrawdownWithReceivable(
+                            borrower.getAddress(),
+                            paymentTokenId,
+                            paymentAmount,
+                            { receivableAmount: paymentAmount, receivableId: 0 },
+                            paymentAmount,
+                        ),
+                ).to.be.revertedWithCustomError(creditContract, "zeroReceivableIdProvided");
+            });
+
+            it("Should not allow payment and drawdown if the borrower does not own the receivable that will be drawndown from", async function () {
+                await receivableContract
+                    .connect(lender)
+                    .createReceivable(1, paymentAmount, drawdownReceivableMaturityDate, "");
+                const balance = await receivableContract.balanceOf(borrower.getAddress());
+                expect(balance).to.equal(1);
+                const tokenId2 = await receivableContract.tokenOfOwnerByIndex(
+                    lender.getAddress(),
+                    0,
+                );
+                await receivableContract.connect(lender).approve(creditContract.address, tokenId2);
+
+                await expect(
+                    creditContract
+                        .connect(borrower)
+                        .makePrincipalPaymentAndDrawdownWithReceivable(
+                            borrower.getAddress(),
+                            paymentTokenId,
+                            paymentAmount,
+                            { receivableAmount: paymentAmount, receivableId: tokenId2 },
+                            paymentAmount,
+                        ),
+                ).to.be.revertedWithCustomError(creditContract, "notReceivableOwner");
+
+                await receivableContract.connect(lender).burn(tokenId2);
+            });
         });
     });
 });

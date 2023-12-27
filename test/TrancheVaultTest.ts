@@ -695,7 +695,11 @@ describe("TrancheVault Test", function () {
                 });
 
                 it("Should reject redemption requests that would breach the withdrawal lockout period", async function () {
-                    await poolConfigContract.connect(poolOwner).setWithdrawalLockoutPeriod(1);
+                    let lpConfig = await poolConfigContract.getLPConfig();
+                    await poolConfigContract.connect(poolOwner).setLPConfig({
+                        ...lpConfig,
+                        ...{ withdrawalLockoutPeriodInDays: 1 },
+                    });
 
                     await expect(
                         juniorTrancheVaultContract
@@ -861,9 +865,11 @@ describe("TrancheVault Test", function () {
                         .sub(block.timestamp)
                         .div(CONSTANTS.SECONDS_IN_A_DAY);
                     // console.log("lockout", lockout.toString());
-                    await poolConfigContract
-                        .connect(poolOwner)
-                        .setWithdrawalLockoutPeriod(lockout);
+                    let lpConfig = await poolConfigContract.getLPConfig();
+                    await poolConfigContract.connect(poolOwner).setLPConfig({
+                        ...lpConfig,
+                        ...{ withdrawalLockoutPeriodInDays: lockout },
+                    });
                     await mineNextBlockWithTimestamp(
                         currentEpoch.endTime.add(BN.from(60 * 5)).toNumber(),
                     );
@@ -1580,13 +1586,13 @@ describe("TrancheVault Test", function () {
             it("Should not disburse when protocol is paused or pool is not on", async function () {
                 await humaConfigContract.connect(protocolOwner).pause();
                 await expect(
-                    juniorTrancheVaultContract.connect(lender).disburse(lender.address),
+                    juniorTrancheVaultContract.connect(lender).disburse(),
                 ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
                 await humaConfigContract.connect(protocolOwner).unpause();
 
                 await poolContract.connect(poolOwner).disablePool();
                 await expect(
-                    juniorTrancheVaultContract.connect(lender).disburse(lender.address),
+                    juniorTrancheVaultContract.connect(lender).disburse(),
                 ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
                 await poolContract.connect(poolOwner).enablePool();
             });
@@ -1612,7 +1618,7 @@ describe("TrancheVault Test", function () {
                 let balanceBefore = await mockTokenContract.balanceOf(lender.address);
                 let principal = (await seniorTrancheVaultContract.userInfos(lender.address))
                     .principal;
-                await expect(seniorTrancheVaultContract.connect(lender).disburse(lender.address))
+                await expect(seniorTrancheVaultContract.connect(lender).disburse())
                     .to.emit(seniorTrancheVaultContract, "LenderFundDisbursed")
                     .withArgs(lender.address, lender.address, shares);
                 expect(await mockTokenContract.balanceOf(lender.address)).to.equal(
@@ -1631,15 +1637,13 @@ describe("TrancheVault Test", function () {
                     shares,
                 );
 
-                balanceBefore = await mockTokenContract.balanceOf(defaultDeployer.address);
+                balanceBefore = await mockTokenContract.balanceOf(lender2.address);
                 principal = (await seniorTrancheVaultContract.userInfos(lender2.address))
                     .principal;
-                await expect(
-                    seniorTrancheVaultContract.connect(lender2).disburse(defaultDeployer.address),
-                )
+                await expect(seniorTrancheVaultContract.connect(lender2).disburse())
                     .to.emit(seniorTrancheVaultContract, "LenderFundDisbursed")
-                    .withArgs(lender2.address, defaultDeployer.address, shares);
-                expect(await mockTokenContract.balanceOf(defaultDeployer.address)).to.equal(
+                    .withArgs(lender2.address, lender2.address, shares);
+                expect(await mockTokenContract.balanceOf(lender2.address)).to.equal(
                     balanceBefore.add(shares),
                 );
                 expect(
@@ -1662,14 +1666,12 @@ describe("TrancheVault Test", function () {
                     await seniorTrancheVaultContract.withdrawableAssets(lender2.address),
                 ).to.equal(BN.from(0));
 
-                balanceBefore = await mockTokenContract.balanceOf(defaultDeployer.address);
-                await seniorTrancheVaultContract.connect(lender).disburse(defaultDeployer.address);
-                expect(await mockTokenContract.balanceOf(defaultDeployer.address)).to.equal(
-                    balanceBefore,
-                );
+                balanceBefore = await mockTokenContract.balanceOf(lender.address);
+                await seniorTrancheVaultContract.connect(lender).disburse();
+                expect(await mockTokenContract.balanceOf(lender.address)).to.equal(balanceBefore);
 
                 balanceBefore = await mockTokenContract.balanceOf(lender2.address);
-                await seniorTrancheVaultContract.connect(lender2).disburse(lender2.address);
+                await seniorTrancheVaultContract.connect(lender2).disburse();
                 expect(await mockTokenContract.balanceOf(lender2.address)).to.equal(balanceBefore);
             });
 
@@ -1705,13 +1707,11 @@ describe("TrancheVault Test", function () {
                     await seniorTrancheVaultContract.withdrawableAssets(lender2.address),
                 ).to.equal(withdrawable2);
 
-                let balanceBefore = await mockTokenContract.balanceOf(defaultDeployer.address);
-                await expect(
-                    seniorTrancheVaultContract.connect(lender).disburse(defaultDeployer.address),
-                )
+                let balanceBefore = await mockTokenContract.balanceOf(lender.address);
+                await expect(seniorTrancheVaultContract.connect(lender).disburse())
                     .to.emit(seniorTrancheVaultContract, "LenderFundDisbursed")
-                    .withArgs(lender.address, defaultDeployer.address, withdrawable);
-                expect(await mockTokenContract.balanceOf(defaultDeployer.address)).to.equal(
+                    .withArgs(lender.address, lender.address, withdrawable);
+                expect(await mockTokenContract.balanceOf(lender.address)).to.equal(
                     balanceBefore.add(withdrawable),
                 );
                 let allWithdrawable = withdrawable;
@@ -1726,7 +1726,7 @@ describe("TrancheVault Test", function () {
                 );
 
                 balanceBefore = await mockTokenContract.balanceOf(lender2.address);
-                await expect(seniorTrancheVaultContract.connect(lender2).disburse(lender2.address))
+                await expect(seniorTrancheVaultContract.connect(lender2).disburse())
                     .to.emit(seniorTrancheVaultContract, "LenderFundDisbursed")
                     .withArgs(lender2.address, lender2.address, withdrawable2);
                 expect(await mockTokenContract.balanceOf(lender2.address)).to.equal(
@@ -1781,13 +1781,11 @@ describe("TrancheVault Test", function () {
                     await seniorTrancheVaultContract.withdrawableAssets(lender2.address),
                 ).to.equal(withdrawable2);
 
-                balanceBefore = await mockTokenContract.balanceOf(defaultDeployer.address);
-                await expect(
-                    seniorTrancheVaultContract.connect(lender).disburse(defaultDeployer.address),
-                )
+                balanceBefore = await mockTokenContract.balanceOf(lender.address);
+                await expect(seniorTrancheVaultContract.connect(lender).disburse())
                     .to.emit(seniorTrancheVaultContract, "LenderFundDisbursed")
-                    .withArgs(lender.address, defaultDeployer.address, withdrawable);
-                expect(await mockTokenContract.balanceOf(defaultDeployer.address)).to.equal(
+                    .withArgs(lender.address, lender.address, withdrawable);
+                expect(await mockTokenContract.balanceOf(lender.address)).to.equal(
                     balanceBefore.add(withdrawable),
                 );
                 allWithdrawable = allWithdrawable.add(withdrawable);
@@ -1802,7 +1800,7 @@ describe("TrancheVault Test", function () {
                 );
 
                 balanceBefore = await mockTokenContract.balanceOf(lender2.address);
-                await expect(seniorTrancheVaultContract.connect(lender2).disburse(lender2.address))
+                await expect(seniorTrancheVaultContract.connect(lender2).disburse())
                     .to.emit(seniorTrancheVaultContract, "LenderFundDisbursed")
                     .withArgs(lender2.address, lender2.address, withdrawable2);
                 expect(await mockTokenContract.balanceOf(lender2.address)).to.equal(
@@ -1844,7 +1842,7 @@ describe("TrancheVault Test", function () {
                 ).to.equal(allShares2);
 
                 balanceBefore = await mockTokenContract.balanceOf(lender.address);
-                await expect(seniorTrancheVaultContract.connect(lender).disburse(lender.address))
+                await expect(seniorTrancheVaultContract.connect(lender).disburse())
                     .to.emit(seniorTrancheVaultContract, "LenderFundDisbursed")
                     .withArgs(lender.address, lender.address, allShares);
                 expect(await mockTokenContract.balanceOf(lender.address)).to.equal(
@@ -1861,13 +1859,11 @@ describe("TrancheVault Test", function () {
                     allWithdrawable,
                 );
 
-                balanceBefore = await mockTokenContract.balanceOf(defaultDeployer.address);
-                await expect(
-                    seniorTrancheVaultContract.connect(lender2).disburse(defaultDeployer.address),
-                )
+                balanceBefore = await mockTokenContract.balanceOf(lender2.address);
+                await expect(seniorTrancheVaultContract.connect(lender2).disburse())
                     .to.emit(seniorTrancheVaultContract, "LenderFundDisbursed")
-                    .withArgs(lender2.address, defaultDeployer.address, allShares2);
-                expect(await mockTokenContract.balanceOf(defaultDeployer.address)).to.equal(
+                    .withArgs(lender2.address, lender2.address, allShares2);
+                expect(await mockTokenContract.balanceOf(lender2.address)).to.equal(
                     balanceBefore.add(allShares2),
                 );
                 allWithdrawable2 = allWithdrawable2.add(allShares2);
@@ -1936,9 +1932,7 @@ describe("TrancheVault Test", function () {
 
                     // Lender disbures processed redemption
                     let balance = await mockTokenContract.balanceOf(lender.address);
-                    await expect(
-                        juniorTrancheVaultContract.connect(lender).disburse(lender.address),
-                    )
+                    await expect(juniorTrancheVaultContract.connect(lender).disburse())
                         .to.emit(juniorTrancheVaultContract, "LenderFundDisbursed")
                         .withArgs(lender.address, lender.address, amountProcessed);
                     expect(await mockTokenContract.balanceOf(lender.address)).to.equal(
@@ -2002,9 +1996,7 @@ describe("TrancheVault Test", function () {
 
                     // Lender disbures processed redemption
                     let balance = await mockTokenContract.balanceOf(lender.address);
-                    await expect(
-                        juniorTrancheVaultContract.connect(lender).disburse(lender.address),
-                    )
+                    await expect(juniorTrancheVaultContract.connect(lender).disburse())
                         .to.emit(juniorTrancheVaultContract, "LenderFundDisbursed")
                         .withArgs(lender.address, lender.address, amountProcessed);
                     expect(await mockTokenContract.balanceOf(lender.address)).to.equal(

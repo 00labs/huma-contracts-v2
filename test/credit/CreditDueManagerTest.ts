@@ -290,9 +290,11 @@ describe("CreditDueManager Tests", function () {
         const latePaymentGracePeriodInDays = 5;
 
         async function prepare() {
-            await poolConfigContract
-                .connect(poolOwner)
-                .setLatePaymentGracePeriodInDays(latePaymentGracePeriodInDays);
+            let settings = await poolConfigContract.getPoolSettings();
+            await poolConfigContract.connect(poolOwner).setPoolSettings({
+                ...settings,
+                ...{ latePaymentGracePeriodInDays: latePaymentGracePeriodInDays },
+            });
         }
 
         beforeEach(async function () {
@@ -504,9 +506,11 @@ describe("CreditDueManager Tests", function () {
                     const timestamp = await getFutureBlockTime(2);
 
                     const latePaymentGracePeriodInDays = 5;
-                    await poolConfigContract
-                        .connect(poolOwner)
-                        .setLatePaymentGracePeriodInDays(latePaymentGracePeriodInDays);
+                    let settings = await poolConfigContract.getPoolSettings();
+                    await poolConfigContract.connect(poolOwner).setPoolSettings({
+                        ...settings,
+                        ...{ latePaymentGracePeriodInDays: latePaymentGracePeriodInDays },
+                    });
 
                     // Set the due date so that the current block timestamp falls within the late payment
                     // grace period.
@@ -744,18 +748,16 @@ describe("CreditDueManager Tests", function () {
                                 committedYieldNextDue,
                             );
                             const expectedNewCR = {
-                                ...cr,
-                                ...{
-                                    nextDueDate: nextDueDate.unix(),
-                                    nextDue: expectedYieldNextDue,
-                                    yieldDue: expectedYieldNextDue,
-                                    totalPastDue: BN.from(cr.nextDue)
-                                        .add(expectedYieldPastDue)
-                                        .add(expectedLateFee),
-                                    missedPeriods: 3,
-                                    remainingPeriods: BN.from(cr.remainingPeriods).sub(3),
-                                    state: CreditState.Delayed,
-                                },
+                                unbilledPrincipal: 0,
+                                nextDueDate: nextDueDate.unix(),
+                                nextDue: expectedYieldNextDue.add(BN.from(cr.unbilledPrincipal)),
+                                yieldDue: expectedYieldNextDue,
+                                totalPastDue: BN.from(cr.nextDue)
+                                    .add(expectedYieldPastDue)
+                                    .add(expectedLateFee),
+                                missedPeriods: 3,
+                                remainingPeriods: BN.from(cr.remainingPeriods).sub(3),
+                                state: CreditState.Delayed,
                             };
                             const expectedNewDD = {
                                 ...dd,
@@ -862,20 +864,19 @@ describe("CreditDueManager Tests", function () {
                                 principalRateInBps,
                             );
                             const expectedNewCR = {
-                                ...cr,
-                                ...{
-                                    unbilledPrincipal: unbilledPrincipal,
-                                    nextDueDate: nextDueDate.unix(),
-                                    nextDue: expectedYieldNextDue.add(expectedPrincipalNextDue),
-                                    yieldDue: expectedYieldNextDue,
-                                    totalPastDue: BN.from(cr.nextDue)
-                                        .add(expectedPrincipalPastDue)
-                                        .add(expectedYieldPastDue)
-                                        .add(expectedLateFee),
-                                    missedPeriods: 3,
-                                    remainingPeriods: BN.from(cr.remainingPeriods).sub(3),
-                                    state: CreditState.Delayed,
-                                },
+                                unbilledPrincipal: toToken(0),
+                                nextDueDate: nextDueDate.unix(),
+                                nextDue: expectedYieldNextDue
+                                    .add(expectedPrincipalNextDue)
+                                    .add(unbilledPrincipal),
+                                yieldDue: expectedYieldNextDue,
+                                totalPastDue: BN.from(cr.nextDue)
+                                    .add(expectedPrincipalPastDue)
+                                    .add(expectedYieldPastDue)
+                                    .add(expectedLateFee),
+                                missedPeriods: 3,
+                                remainingPeriods: BN.from(cr.remainingPeriods).sub(3),
+                                state: CreditState.Delayed,
                             };
                             const expectedNewDD = {
                                 ...dd,
@@ -973,19 +974,17 @@ describe("CreditDueManager Tests", function () {
                                 committedYieldNextDue,
                             );
                             const expectedNewCR = {
-                                ...cr,
-                                ...{
-                                    nextDueDate: nextDueDate.unix(),
-                                    nextDue: expectedYieldNextDue,
-                                    yieldDue: expectedYieldNextDue,
-                                    totalPastDue: BN.from(cr.totalPastDue)
-                                        .add(BN.from(cr.nextDue))
-                                        .add(expectedYieldPastDue)
-                                        .add(expectedLateFee),
-                                    missedPeriods: 3,
-                                    remainingPeriods: BN.from(cr.remainingPeriods).sub(2),
-                                    state: CreditState.Delayed,
-                                },
+                                unbilledPrincipal: 0,
+                                nextDueDate: nextDueDate.unix(),
+                                nextDue: expectedYieldNextDue.add(BN.from(cr.unbilledPrincipal)),
+                                yieldDue: expectedYieldNextDue,
+                                totalPastDue: BN.from(cr.totalPastDue)
+                                    .add(BN.from(cr.nextDue))
+                                    .add(expectedYieldPastDue)
+                                    .add(expectedLateFee),
+                                missedPeriods: 3,
+                                remainingPeriods: BN.from(cr.remainingPeriods).sub(2),
+                                state: CreditState.Delayed,
                             };
                             const expectedNewDD = {
                                 ...dd,
@@ -1101,21 +1100,20 @@ describe("CreditDueManager Tests", function () {
                                 principalRateInBps,
                             );
                             const expectedNewCR = {
-                                ...cr,
-                                ...{
-                                    unbilledPrincipal: unbilledPrincipal,
-                                    nextDueDate: nextDueDate.unix(),
-                                    nextDue: expectedYieldNextDue.add(expectedPrincipalNextDue),
-                                    yieldDue: expectedYieldNextDue,
-                                    totalPastDue: BN.from(cr.totalPastDue)
-                                        .add(BN.from(cr.nextDue))
-                                        .add(expectedPrincipalPastDue)
-                                        .add(expectedYieldPastDue)
-                                        .add(expectedLateFee),
-                                    missedPeriods: 3,
-                                    remainingPeriods: BN.from(cr.remainingPeriods).sub(2),
-                                    state: CreditState.Delayed,
-                                },
+                                unbilledPrincipal: toToken(0),
+                                nextDueDate: nextDueDate.unix(),
+                                nextDue: expectedYieldNextDue
+                                    .add(expectedPrincipalNextDue)
+                                    .add(unbilledPrincipal),
+                                yieldDue: expectedYieldNextDue,
+                                totalPastDue: BN.from(cr.totalPastDue)
+                                    .add(BN.from(cr.nextDue))
+                                    .add(expectedPrincipalPastDue)
+                                    .add(expectedYieldPastDue)
+                                    .add(expectedLateFee),
+                                missedPeriods: 3,
+                                remainingPeriods: BN.from(cr.remainingPeriods).sub(2),
+                                state: CreditState.Delayed,
                             };
                             const expectedNewDD = {
                                 ...dd,
@@ -1201,43 +1199,39 @@ describe("CreditDueManager Tests", function () {
                         );
 
                         // Calculate principal due.
-                        const [unbilledPrincipal, expectedPrincipalPastDue] =
-                            await calcPrincipalDue(
-                                calendarContract,
-                                BN.from(cr.unbilledPrincipal),
-                                timestamp.unix(),
-                                Number(cr.nextDueDate),
-                                moment
-                                    .utc({
-                                        year: nextYear,
-                                        month: 5,
-                                        day: 1,
-                                    })
-                                    .unix(),
-                                PayPeriodDuration.Monthly,
-                                principalRateInBps,
-                            );
+                        const [, expectedPrincipalPastDue] = await calcPrincipalDue(
+                            calendarContract,
+                            BN.from(cr.unbilledPrincipal),
+                            timestamp.unix(),
+                            Number(cr.nextDueDate),
+                            moment
+                                .utc({
+                                    year: nextYear,
+                                    month: 5,
+                                    day: 1,
+                                })
+                                .unix(),
+                            PayPeriodDuration.Monthly,
+                            principalRateInBps,
+                        );
                         const expectedNewCR = {
-                            ...cr,
-                            ...{
-                                unbilledPrincipal: unbilledPrincipal,
-                                nextDueDate: moment
-                                    .utc({
-                                        year: nextYear,
-                                        month: 6,
-                                        day: 1,
-                                    })
-                                    .unix(),
-                                nextDue: 0,
-                                yieldDue: 0,
-                                totalPastDue: BN.from(cr.nextDue)
-                                    .add(expectedPrincipalPastDue)
-                                    .add(expectedYieldPastDue)
-                                    .add(expectedLateFee),
-                                missedPeriods: 5,
-                                remainingPeriods: 0,
-                                state: CreditState.Delayed,
-                            },
+                            unbilledPrincipal: toToken(0),
+                            nextDueDate: moment
+                                .utc({
+                                    year: nextYear,
+                                    month: 6,
+                                    day: 1,
+                                })
+                                .unix(),
+                            nextDue: 0,
+                            yieldDue: 0,
+                            totalPastDue: BN.from(cr.nextDue)
+                                .add(expectedPrincipalPastDue)
+                                .add(expectedYieldPastDue)
+                                .add(expectedLateFee),
+                            missedPeriods: 5,
+                            remainingPeriods: 0,
+                            state: CreditState.Delayed,
                         };
                         const expectedNewDD = {
                             ...dd,

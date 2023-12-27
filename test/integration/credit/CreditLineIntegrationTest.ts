@@ -20,7 +20,7 @@ import {
     Receivable,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
-} from "../../typechain-types";
+} from "../../../typechain-types";
 import {
     CONSTANTS,
     CreditState,
@@ -41,7 +41,7 @@ import {
     deployProtocolContracts,
     genDueDetail,
     getPrincipal,
-} from "../BaseTest";
+} from "../../BaseTest";
 import {
     borrowerLevelCreditHash,
     evmRevert,
@@ -54,7 +54,7 @@ import {
     setNextBlockTimestamp,
     sumBNArray,
     toToken,
-} from "../TestUtils";
+} from "../../TestUtils";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
@@ -105,7 +105,7 @@ describe("Credit Line Integration Test", function () {
         coverRateInBps = 5_000;
     let payPeriodDuration: PayPeriodDuration;
     const latePaymentGracePeriodInDays = 5,
-        defaultGracePeriodInMonths = 1;
+        defaultGracePeriodInDays = 10;
     let snapshotId: unknown;
 
     async function getAssetsAfterPnLDistribution(
@@ -293,13 +293,15 @@ describe("Credit Line Integration Test", function () {
 
         creditHash = await borrowerLevelCreditHash(creditContract, borrower);
 
-        await poolConfigContract.connect(poolOwner).setPoolPayPeriod(payPeriodDuration);
-        await poolConfigContract
-            .connect(poolOwner)
-            .setLatePaymentGracePeriodInDays(latePaymentGracePeriodInDays);
-        await poolConfigContract
-            .connect(poolOwner)
-            .setPoolDefaultGracePeriod(defaultGracePeriodInMonths);
+        let settings = await poolConfigContract.getPoolSettings();
+        await poolConfigContract.connect(poolOwner).setPoolSettings({
+            ...settings,
+            ...{
+                payPeriodDuration: payPeriodDuration,
+                latePaymentGracePeriodInDays: latePaymentGracePeriodInDays,
+                defaultGracePeriodInDays: defaultGracePeriodInDays,
+            },
+        });
         await poolConfigContract.connect(poolOwner).setFeeStructure({
             yieldInBps,
             minPrincipalRateInBps: principalRateInBps,
@@ -2440,13 +2442,8 @@ describe("Credit Line Integration Test", function () {
             daysUntilNextDue,
         );
         expect(accruedYieldDue).to.be.gt(committedYieldDue);
-        const principalDue = calcPrincipalDueForFullPeriods(
-            oldCR.unbilledPrincipal,
-            principalRateInBps,
-            1,
-        );
-        expect(principalDue).to.be.gt(0);
-        const nextDue = accruedYieldDue.add(principalDue);
+        // This is the last period, so all principal is due.
+        const nextDue = accruedYieldDue.add(oldCR.unbilledPrincipal);
 
         await expect(creditManagerContract.refreshCredit(borrower.address))
             .to.emit(creditContract, "BillRefreshed")
@@ -2454,7 +2451,7 @@ describe("Credit Line Integration Test", function () {
 
         const actualCR = await creditContract.getCreditRecord(creditHash);
         const expectedCR = {
-            unbilledPrincipal: oldCR.unbilledPrincipal.sub(principalDue),
+            unbilledPrincipal: 0,
             nextDueDate: nextDueDate.unix(),
             nextDue: nextDue,
             yieldDue: accruedYieldDue,

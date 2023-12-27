@@ -372,8 +372,14 @@ export async function setupPoolContracts(
     accounts: SignerWithAddress[],
 ): Promise<void> {
     const poolLiquidityCap = toToken(1_000_000_000);
-    await poolConfigContract.connect(poolOwner).setPoolLiquidityCap(poolLiquidityCap);
-    await poolConfigContract.connect(poolOwner).setMaxCreditLine(toToken(10_000_000));
+    let settings = await poolConfigContract.getPoolSettings();
+    await poolConfigContract
+        .connect(poolOwner)
+        .setPoolSettings({ ...settings, ...{ maxCreditLine: toToken(10_000_000) } });
+    let lpConfig = await poolConfigContract.getLPConfig();
+    await poolConfigContract
+        .connect(poolOwner)
+        .setLPConfig({ ...lpConfig, ...{ liquidityCap: poolLiquidityCap } });
 
     await poolConfigContract
         .connect(poolOwner)
@@ -1435,10 +1441,15 @@ export async function calcPrincipalDueNew(
         currentDate.unix(),
     );
     const daysUntilNextDue = await calendarContract.getDaysDiff(periodStartDate, nextDueDate);
-    const principalNextDue = remainingPrincipal
-        .mul(principalRateInBps)
-        .mul(daysUntilNextDue)
-        .div(totalDaysInFullPeriod.mul(CONSTANTS.BP_FACTOR));
+    let principalNextDue;
+    if (nextDueDate.eq(maturityDate.unix())) {
+        principalNextDue = remainingPrincipal;
+    } else {
+        principalNextDue = remainingPrincipal
+            .mul(principalRateInBps)
+            .mul(daysUntilNextDue)
+            .div(totalDaysInFullPeriod.mul(CONSTANTS.BP_FACTOR));
+    }
     return [
         remainingPrincipal.sub(principalNextDue),
         principalPastDue.add(dd.principalPastDue).add(cr.nextDue.sub(cr.yieldDue)),
@@ -1454,7 +1465,7 @@ export async function calcLateFee(
     dd: DueDetailStruct,
     timestamp: number = 0,
 ): Promise<[BN, BN]> {
-    const lateFeeInBps = await poolConfigContract.getLateFeeBps();
+    const lateFeeInBps = (await poolConfigContract.getFeeStructure()).lateFeeBps;
     let lateFeeStartDate;
     if (cr.state == CreditState.GoodStanding) {
         if (BN.from(cr.nextDue).isZero()) {
@@ -1505,7 +1516,7 @@ export async function calcLateFeeNew(
     ) {
         return [dd.lateFeeUpdatedDate, dd.lateFee];
     }
-    const lateFeeInBps = await poolConfigContract.getLateFeeBps();
+    const lateFeeInBps = (await poolConfigContract.getFeeStructure()).lateFeeBps;
     let lateFeeStartDate;
     if (cr.state == CreditState.GoodStanding) {
         if (cr.nextDue.isZero()) {
