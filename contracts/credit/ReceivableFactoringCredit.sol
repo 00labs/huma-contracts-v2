@@ -22,7 +22,19 @@ contract ReceivableFactoringCredit is
 
     event ExtraFundsDispersed(address indexed receiver, uint256 amount);
 
-    //TODO add events
+    event DrawdownWithReceivableMade(
+        address indexed borrower,
+        uint256 indexed receivableId,
+        uint256 amount,
+        address by
+    );
+
+    event PaymentWithReceivableMade(
+        address indexed borrower,
+        uint256 indexed receivableId,
+        uint256 amount,
+        address by
+    );
 
     /// @inheritdoc IReceivableFactoringCredit
     function getNextBillRefreshDate(
@@ -40,6 +52,7 @@ contract ReceivableFactoringCredit is
         return _getDueInfo(creditHash);
     }
 
+    /// @inheritdoc IReceivableFactoringCredit
     function drawdownWithReceivable(
         address borrower,
         uint256 receivableId,
@@ -49,10 +62,9 @@ contract ReceivableFactoringCredit is
 
         if (msg.sender != borrower) revert Errors.notBorrower();
         if (receivableId == 0) revert Errors.zeroReceivableIdProvided();
-        if (amount == 0) revert Errors.zeroAmountProvided();
 
         IERC721 receivableAsset = IERC721(poolConfig.receivableAsset());
-        if (receivableAsset.ownerOf(receivableId) != borrower) revert Errors.todo();
+        if (receivableAsset.ownerOf(receivableId) != borrower) revert Errors.notReceivableOwner();
 
         bytes32 creditHash = _getCreditHash(receivableId);
         creditManager.onlyCreditBorrower(creditHash, borrower);
@@ -60,8 +72,11 @@ contract ReceivableFactoringCredit is
         receivableAsset.safeTransferFrom(borrower, address(this), receivableId);
 
         _drawdown(borrower, creditHash, amount);
+
+        emit DrawdownWithReceivableMade(borrower, receivableId, amount, msg.sender);
     }
 
+    /// @inheritdoc IReceivableFactoringCredit
     function makePaymentWithReceivable(
         address borrower,
         uint256 receivableId,
@@ -70,36 +85,40 @@ contract ReceivableFactoringCredit is
         poolConfig.onlyProtocolAndPoolOn();
         if (msg.sender != borrower) revert Errors.notBorrower();
         if (receivableId == 0) revert Errors.zeroReceivableIdProvided();
-        if (amount == 0) revert Errors.zeroAmountProvided();
 
         bytes32 creditHash = _getCreditHash(receivableId);
         creditManager.onlyCreditBorrower(creditHash, borrower);
 
         IERC721 receivableAsset = IERC721(poolConfig.receivableAsset());
-        if (receivableAsset.ownerOf(receivableId) != address(this)) revert Errors.todo();
+        if (receivableAsset.ownerOf(receivableId) != address(this))
+            revert Errors.notReceivableOwner();
 
-        return _makePaymentWithReceivable(borrower, creditHash, amount);
+        (amountPaid, paidoff) = _makePaymentWithReceivable(borrower, creditHash, amount);
+        emit PaymentWithReceivableMade(borrower, receivableId, amount, msg.sender);
     }
 
+    /// TODO(jiatu): rename this?
+    /// @inheritdoc IReceivableFactoringCreditForContract
     function makePaymentWithReceivableForContract(
         uint256 receivableId,
         uint256 amount
     ) external returns (uint256 amountPaid, bool paidoff) {
         poolConfig.onlyProtocolAndPoolOn();
         if (receivableId == 0) revert Errors.zeroReceivableIdProvided();
-        if (amount == 0) revert Errors.zeroAmountProvided();
 
         IERC721 receivableAsset = IERC721(poolConfig.receivableAsset());
-        if (receivableAsset.ownerOf(receivableId) != address(this)) revert Errors.todo();
+        if (receivableAsset.ownerOf(receivableId) != address(this))
+            revert Errors.notReceivableOwner();
 
         bytes32 creditHash = _getCreditHash(receivableId);
-        // only payer access control to prevent money laundering
+        // Restrict access to only payers to prevent money laundering.
         address borrower = IReceivableLevelCreditManager(address(creditManager)).onlyPayer(
             msg.sender,
             creditHash
         );
 
-        return _makePaymentWithReceivable(borrower, creditHash, amount);
+        (amountPaid, paidoff) = _makePaymentWithReceivable(borrower, creditHash, amount);
+        emit PaymentWithReceivableMade(borrower, receivableId, amount, msg.sender);
     }
 
     function _makePaymentWithReceivable(
@@ -118,6 +137,7 @@ contract ReceivableFactoringCredit is
         // Don't delete paid receivable
     }
 
+    /// @inheritdoc IReceivableFactoringCredit
     function getCreditRecord(uint256 receivableId) external view returns (CreditRecord memory) {
         bytes32 creditHash = _getCreditHash(receivableId);
         return getCreditRecord(creditHash);

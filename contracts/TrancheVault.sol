@@ -255,7 +255,6 @@ contract TrancheVault is
                 SECONDS_IN_A_DAY
         ) revert Errors.withdrawTooSoon();
 
-        poolConfig.checkFirstLossCoverRequirementsForRedemption(msg.sender);
         uint256 sharesBalance = ERC20Upgradeable.balanceOf(msg.sender);
         if (shares > sharesBalance) {
             revert Errors.insufficientSharesForRequest();
@@ -350,7 +349,7 @@ contract TrancheVault is
     /**
      * @notice Transfers the full redeemable amount to the lender
      */
-    function disburse(address receiver) external {
+    function disburse() external {
         poolConfig.onlyProtocolAndPoolOn();
 
         RedemptionInfo memory info = _getLatestRedemptionInfoFor(msg.sender);
@@ -358,8 +357,8 @@ contract TrancheVault is
         if (withdrawable > 0) {
             info.totalAmountWithdrawn += uint96(withdrawable);
             redemptionInfoByLender[msg.sender] = info;
-            underlyingToken.transfer(receiver, withdrawable);
-            emit LenderFundDisbursed(msg.sender, receiver, withdrawable);
+            underlyingToken.transfer(msg.sender, withdrawable);
+            emit LenderFundDisbursed(msg.sender, msg.sender, withdrawable);
         }
     }
 

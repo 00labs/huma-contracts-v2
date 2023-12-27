@@ -29,6 +29,7 @@ import {
 } from "./BaseTest";
 import {
     getFirstLossCoverInfo,
+    getLatestBlock,
     mineNextBlockWithTimestamp,
     overrideLPConfig,
     setNextBlockTimestamp,
@@ -205,6 +206,53 @@ describe("EpochManager Test", function () {
         await expect(poolContract.connect(poolOwner).enablePool())
             .to.emit(epochManagerContract, "NewEpochStarted")
             .withArgs(lastEpoch.id.toNumber() + 1, endTime);
+    });
+
+    it("Should start a new epoch while there is redemption request", async function () {
+        await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(toToken(1000));
+        await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(toToken(2000));
+        await await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(toToken(1500));
+        await await juniorTrancheVaultContract
+            .connect(lender2)
+            .addRedemptionRequest(toToken(2500));
+
+        await poolContract.connect(poolOwner).disablePool();
+
+        let oldSeniorRedemptionSummary =
+            await seniorTrancheVaultContract.currentRedemptionSummary();
+        let oldJuniorRedemptionSummary =
+            await juniorTrancheVaultContract.currentRedemptionSummary();
+        let epoch = await epochManagerContract.currentEpoch();
+        // console.log(`epoch: ${epoch}`);
+
+        let block = await getLatestBlock();
+        let ts = block.timestamp + 365 * 24 * 60 * 60;
+        await mineNextBlockWithTimestamp(ts);
+
+        await poolContract.connect(poolOwner).enablePool();
+
+        epoch = await epochManagerContract.currentEpoch();
+        // console.log(`epoch: ${epoch}`);
+
+        let newSeniorRedemptionSummary =
+            await seniorTrancheVaultContract.currentRedemptionSummary();
+        let newJuniorRedemptionSummary =
+            await juniorTrancheVaultContract.currentRedemptionSummary();
+
+        // console.log(
+        //     `oldJuniorRedemptionSummary: ${oldJuniorRedemptionSummary}, newJuniorRedemptionSummary: ${newJuniorRedemptionSummary}`,
+        // );
+        // console.log(
+        //     `oldSeniorRedemptionSummary: ${oldSeniorRedemptionSummary}, newSeniorRedemptionSummary: ${newSeniorRedemptionSummary}`,
+        // );
+        expect(oldJuniorRedemptionSummary.totalSharesRequested).to.greaterThan(0);
+        expect(oldJuniorRedemptionSummary.totalSharesRequested).to.equal(
+            newJuniorRedemptionSummary.totalSharesRequested,
+        );
+        expect(oldSeniorRedemptionSummary.totalSharesRequested).to.greaterThan(0);
+        expect(oldSeniorRedemptionSummary.totalSharesRequested).to.equal(
+            newSeniorRedemptionSummary.totalSharesRequested,
+        );
     });
 
     it("Should not close an epoch when the protocol is paused or the pool is off", async function () {
