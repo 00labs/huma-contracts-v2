@@ -13,7 +13,6 @@ import {Errors} from "../Errors.sol";
 import {ReceivableStorage} from "./ReceivableStorage.sol";
 import {IReceivable} from "./interfaces/IReceivable.sol";
 import {ReceivableInfo, ReceivableState} from "./CreditStructs.sol";
-import "hardhat/console.sol";
 
 /**
  * @title RealWorldReceivable
