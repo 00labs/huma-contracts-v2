@@ -22,10 +22,14 @@ import {
 } from "../../../typechain-types";
 import {
     CONSTANTS,
+    CreditState,
     PayPeriodDuration,
+    calcYield,
+    checkCreditRecordsMatch,
+    checkDueDetailsMatch,
     deployAndSetupPoolContracts,
     deployProtocolContracts,
-    printCreditRecord,
+    genDueDetail,
 } from "../../BaseTest";
 import {
     evmRevert,
@@ -163,17 +167,16 @@ describe("ReceivableFactoringCredit Integration Tests", function () {
 
     describe("Bulla case tests", function () {
         let creditHash: string;
-        let borrowAmount: BN, paymentAmount: BN;
-        let creditLimit: BN;
+        let borrowAmount: BN, creditLimit: BN;
         const yieldInBps = 1200;
         const lateFeeBps = 2400;
         const principalRate = 0;
-        const lateGracePeriodInDays = 5;
+        const latePaymentGracePeriodInDays = 5;
         let tokenId: BN;
+        let nextTimestamp: number;
 
         async function prepareForBullaTests() {
             borrowAmount = toToken(1_000_000);
-            paymentAmount = borrowAmount;
             creditLimit = borrowAmount
                 .mul(5)
                 .mul(CONSTANTS.BP_FACTOR.add(500))
@@ -184,7 +187,7 @@ describe("ReceivableFactoringCredit Integration Tests", function () {
                 ...settings,
                 ...{
                     payPeriodDuration: PayPeriodDuration.Monthly,
-                    latePaymentGracePeriodInDays: lateGracePeriodInDays,
+                    latePaymentGracePeriodInDays: latePaymentGracePeriodInDays,
                 },
             });
 
@@ -214,8 +217,7 @@ describe("ReceivableFactoringCredit Integration Tests", function () {
             }
         });
 
-        let nextTime: number;
-        it("approve borrower credit", async function () {
+        it("Approves borrower credit", async function () {
             await creditManagerContract
                 .connect(eaServiceAccount)
                 .approveReceivable(
@@ -227,7 +229,7 @@ describe("ReceivableFactoringCredit Integration Tests", function () {
                 );
         });
 
-        it("payee draws down with receivable", async function () {
+        it("Payee draws down with receivable", async function () {
             await nftContract.connect(borrower).approve(creditContract.address, tokenId);
 
             await creditContract
@@ -235,33 +237,90 @@ describe("ReceivableFactoringCredit Integration Tests", function () {
                 .drawdownWithReceivable(borrower.address, tokenId, borrowAmount);
         });
 
-        it("payee pays for half of the amount due", async function () {
-            let cr = await creditContract["getCreditRecord(bytes32)"](creditHash);
-            printCreditRecord("cr", cr);
-
+        it("Payee pays for the yield due due", async function () {
+            const oldCR = await creditContract["getCreditRecord(bytes32)"](creditHash);
             await creditContract
                 .connect(borrower)
-                .makePaymentWithReceivable(borrower.address, tokenId, cr.nextDue.div(2));
+                .makePaymentWithReceivable(borrower.address, tokenId, oldCR.yieldDue);
+
+            const actualCR = await creditContract["getCreditRecord(bytes32)"](creditHash);
+            const expectedCR = {
+                unbilledPrincipal: 0,
+                nextDueDate: oldCR.nextDueDate,
+                nextDue: borrowAmount,
+                yieldDue: 0,
+                totalPastDue: 0,
+                missedPeriods: 0,
+                remainingPeriods: 0,
+                state: CreditState.GoodStanding,
+            };
+            checkCreditRecordsMatch(actualCR, expectedCR);
         });
 
-        it("refresh credit after late payment grace period", async function () {
-            let cr = await creditContract["getCreditRecord(bytes32)"](creditHash);
-            nextTime =
-                cr.nextDueDate.toNumber() +
-                CONSTANTS.SECONDS_IN_A_DAY * lateGracePeriodInDays +
+        it("Refreshes credit after late payment grace period", async function () {
+            const oldCR = await creditContract["getCreditRecord(bytes32)"](creditHash);
+            nextTimestamp =
+                oldCR.nextDueDate.toNumber() +
+                CONSTANTS.SECONDS_IN_A_DAY * latePaymentGracePeriodInDays +
                 100;
-            await setNextBlockTimestamp(nextTime);
+            await setNextBlockTimestamp(nextTimestamp);
 
-            await creditManagerContract.refreshCredit(borrower.address);
-            cr = await creditContract["getCreditRecord(bytes32)"](creditHash);
-            printCreditRecord("cr", cr);
+            await creditManagerContract.refreshCredit(tokenId);
+
+            const cc = await creditManagerContract.getCreditConfig(creditHash);
+            const nextDueDate = await calendarContract.getStartDateOfNextPeriod(
+                cc.periodDuration,
+                nextTimestamp,
+            );
+            const lateFeeUpdatedDate = await calendarContract.getStartOfNextDay(nextTimestamp);
+            const daysPassed = await calendarContract.getDaysDiff(
+                oldCR.nextDueDate,
+                lateFeeUpdatedDate,
+            );
+            const lateFee = calcYield(borrowAmount, lateFeeBps, daysPassed.toNumber());
+            const actualCR = await creditContract["getCreditRecord(bytes32)"](creditHash);
+            const expectedCR = {
+                unbilledPrincipal: 0,
+                nextDueDate,
+                nextDue: 0,
+                yieldDue: 0,
+                totalPastDue: borrowAmount.add(lateFee),
+                missedPeriods: 1,
+                remainingPeriods: 0,
+                state: CreditState.Delayed,
+            };
+            checkCreditRecordsMatch(actualCR, expectedCR);
+
+            const actualDD = await creditContract.getDueDetail(creditHash);
+            const expectedDD = genDueDetail({
+                lateFeeUpdatedDate,
+                lateFee,
+                principalPastDue: borrowAmount,
+            });
+            checkDueDetailsMatch(actualDD, expectedDD);
         });
 
-        it("payer pays the receivable", async function () {
+        it("Payer pays for the receivable in full", async function () {
+            const oldCR = await creditContract["getCreditRecord(bytes32)"](creditHash);
+
             await nftContract.connect(payer).payOwner(tokenId, creditLimit);
 
-            let cr = await creditContract["getCreditRecord(bytes32)"](creditHash);
-            printCreditRecord("cr", cr);
+            const actualCR = await creditContract["getCreditRecord(bytes32)"](creditHash);
+            const expectedCR = {
+                unbilledPrincipal: 0,
+                nextDueDate: oldCR.nextDueDate,
+                nextDue: 0,
+                yieldDue: 0,
+                totalPastDue: 0,
+                missedPeriods: 0,
+                remainingPeriods: 0,
+                state: CreditState.Deleted,
+            };
+            checkCreditRecordsMatch(actualCR, expectedCR);
+
+            const actualDD = await creditContract.getDueDetail(creditHash);
+            const expectedDD = genDueDetail({});
+            checkDueDetailsMatch(actualDD, expectedDD);
         });
     });
 });

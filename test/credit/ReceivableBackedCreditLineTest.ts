@@ -220,8 +220,6 @@ describe("ReceivableBackedCreditLine Tests", function () {
             const currentTS = (await getLatestBlock()).timestamp;
             const maturityDate =
                 currentTS + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
-            // Throw-away receivable to get around the tokenId != 0 check.
-            await receivableContract.connect(poolOwner).createReceivable(1, 0, 0, "");
             await receivableContract
                 .connect(borrower)
                 .createReceivable(1, borrowAmount, maturityDate, "");
@@ -330,8 +328,6 @@ describe("ReceivableBackedCreditLine Tests", function () {
 
             const currentTS = (await getLatestBlock()).timestamp;
             maturityDate = currentTS + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
-            // Throw-away receivable to get around the tokenId != 0 check.
-            await receivableContract.connect(poolOwner).createReceivable(1, 0, 0, "");
             await receivableContract
                 .connect(borrower)
                 .createReceivable(1, borrowAmount, maturityDate, "");
@@ -514,6 +510,19 @@ describe("ReceivableBackedCreditLine Tests", function () {
                 ).to.be.revertedWithCustomError(creditContract, "zeroReceivableIdProvided");
             });
 
+            it("Should not allow drawdown if the amount exceeds the receivable amount", async function () {
+                await expect(
+                    creditContract.connect(borrower).drawdownWithReceivable(
+                        borrower.getAddress(),
+                        {
+                            receivableAmount: borrowAmount.sub(toToken(1)),
+                            receivableId: tokenId,
+                        },
+                        borrowAmount,
+                    ),
+                ).to.be.revertedWithCustomError(creditContract, "insufficientReceivableAmount");
+            });
+
             it("Should not allow drawdown with 0 borrow amount", async function () {
                 await expect(
                     creditContract.connect(borrower).drawdownWithReceivable(
@@ -610,8 +619,6 @@ describe("ReceivableBackedCreditLine Tests", function () {
 
             const currentTS = (await getLatestBlock()).timestamp;
             maturityDate = currentTS + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
-            // Throw-away receivable to get around the tokenId != 0 check.
-            await receivableContract.connect(poolOwner).createReceivable(1, 0, 0, "");
             await receivableContract
                 .connect(borrower)
                 .createReceivable(1, borrowAmount, maturityDate, "");
@@ -804,8 +811,6 @@ describe("ReceivableBackedCreditLine Tests", function () {
 
             const currentTS = (await getLatestBlock()).timestamp;
             maturityDate = currentTS + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
-            // Throw-away receivable to get around the tokenId != 0 check.
-            await receivableContract.connect(poolOwner).createReceivable(1, 0, 0, "");
             await receivableContract
                 .connect(borrower)
                 .createReceivable(1, borrowAmount, maturityDate, "");
@@ -999,7 +1004,9 @@ describe("ReceivableBackedCreditLine Tests", function () {
             lateFeeBps = 2400;
         const numOfPeriods = 3,
             latePaymentGracePeriodInDays = 5;
-        let paymentReceivableMaturityDate: number, drawdownReceivableMaturityDate: number;
+        let paymentReceivableMaturityDate: number,
+            drawdownReceivableMaturityDate: number,
+            designatedStartDate: number;
         let paymentAmount: BN, drawdownAmount: BN, paymentTokenId: BN, drawdownTokenId: BN;
         let creditHash: string;
 
@@ -1028,8 +1035,6 @@ describe("ReceivableBackedCreditLine Tests", function () {
             drawdownReceivableMaturityDate =
                 paymentReceivableMaturityDate +
                 CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
-            // Throw-away receivable to get around the tokenId != 0 check.
-            await receivableContract.connect(poolOwner).createReceivable(1, 0, 0, "");
             // Create two receivables, one ce payment and another one for drawdown.
             await receivableContract
                 .connect(borrower)
@@ -1059,6 +1064,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
         }
 
         async function approveBorrower() {
+            designatedStartDate = await getFutureBlockTime(2);
             await creditManagerContract
                 .connect(eaServiceAccount)
                 .approveBorrower(
@@ -1066,8 +1072,8 @@ describe("ReceivableBackedCreditLine Tests", function () {
                     toToken(100_000),
                     numOfPeriods,
                     yieldInBps,
-                    0,
-                    0,
+                    toToken(5_000),
+                    designatedStartDate,
                     true,
                 );
         }
@@ -1145,6 +1151,57 @@ describe("ReceivableBackedCreditLine Tests", function () {
 
                 await poolConfigContract.connect(poolOwner).setPoolSettings(settings);
                 await receivableContract.connect(borrower).burn(drawdownTokenId2);
+            });
+        });
+
+        describe("With credit approval but no initial drawdown", function () {
+            beforeEach(async function () {
+                await loadFixture(approveBorrower);
+            });
+
+            it("Should allow a no-op payment", async function () {
+                // Start committed credit so that there is commitment outstanding, but no principal outstanding.
+                await creditManagerContract
+                    .connect(poolOwner)
+                    .startCommittedCredit(borrower.getAddress());
+
+                const oldCR = await creditContract.getCreditRecord(creditHash);
+                const oldDD = await creditContract.getDueDetail(creditHash);
+                drawdownAmount = paymentAmount;
+
+                const borrowerBalanceBefore = await mockTokenContract.balanceOf(
+                    borrower.getAddress(),
+                );
+                const poolSafeBalanceBefore = await mockTokenContract.balanceOf(
+                    poolSafeContract.address,
+                );
+                await expect(
+                    creditContract
+                        .connect(borrower)
+                        .makePrincipalPaymentAndDrawdownWithReceivable(
+                            borrower.getAddress(),
+                            paymentTokenId,
+                            paymentAmount,
+                            { receivableAmount: paymentAmount, receivableId: drawdownTokenId },
+                            paymentAmount,
+                        ),
+                )
+                    .not.to.emit(creditContract, "PrincipalPaymentWithReceivableMade")
+                    .not.to.emit(creditContract, "DrawdownWithReceivableMade");
+                const borrowerBalanceAfter = await mockTokenContract.balanceOf(
+                    borrower.getAddress(),
+                );
+                expect(borrowerBalanceBefore.sub(borrowerBalanceAfter)).to.equal(0);
+                const poolSafeBalanceAfter = await mockTokenContract.balanceOf(
+                    poolSafeContract.address,
+                );
+                expect(poolSafeBalanceAfter.sub(poolSafeBalanceBefore)).to.equal(0);
+
+                const actualCR = await creditContract.getCreditRecord(creditHash);
+                checkCreditRecordsMatch(actualCR, oldCR);
+
+                const actualDD = await creditContract.getDueDetail(creditHash);
+                checkDueDetailsMatch(actualDD, oldDD);
             });
         });
 

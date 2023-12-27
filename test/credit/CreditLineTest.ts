@@ -7609,18 +7609,12 @@ describe("CreditLine Test", function () {
                     });
                 });
 
-                it("Should not allow payment when the protocol is paused or pool is not on", async function () {
+                it("Should not allow payment when the protocol is paused", async function () {
                     await humaConfigContract.connect(protocolOwner).pause();
                     await expect(
                         creditContract.makePayment(borrower.getAddress(), toToken(1)),
                     ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
                     await humaConfigContract.connect(protocolOwner).unpause();
-
-                    await poolContract.connect(poolOwner).disablePool();
-                    await expect(
-                        creditContract.makePayment(borrower.getAddress(), toToken(1)),
-                    ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
-                    await poolContract.connect(poolOwner).enablePool();
                 });
 
                 it("Should not allow non-borrower or non-PDS service account to make payment", async function () {
@@ -8951,18 +8945,21 @@ describe("CreditLine Test", function () {
             });
 
             it("Should not allow the borrower to close a credit that has outstanding unbilled principal", async function () {
+                // Close the approved credit then open a new one with a different committed amount.
+                await creditManagerContract.connect(borrower).closeCredit(borrower.getAddress());
                 const amount = toToken(1_000);
+                await approveCredit(3, toToken(100_000));
                 await creditContract.connect(borrower).drawdown(borrower.getAddress(), amount);
                 // Only pay back the yield next due and have principal due outstanding.
                 const oldCR = await creditContract.getCreditRecord(creditHash);
                 await creditContract
                     .connect(borrower)
-                    .makePayment(borrower.getAddress(), oldCR.yieldDue);
+                    .makePayment(borrower.getAddress(), oldCR.nextDue);
 
                 const newCR = await creditContract.getCreditRecord(creditHash);
-                expect(newCR.nextDue.sub(oldCR.yieldDue)).to.be.gt(0);
+                expect(newCR.nextDue).to.equal(0);
                 expect(newCR.totalPastDue).to.equal(0);
-                expect(newCR.unbilledPrincipal).to.equal(0);
+                expect(newCR.unbilledPrincipal).to.be.gt(0);
                 await testCloseCreditReversion(borrower, "creditLineHasOutstandingBalance");
             });
 
@@ -9186,9 +9183,12 @@ describe("CreditLine Test", function () {
         it("Should not allow extension on a credit line that becomes delayed after refresh", async function () {
             await creditContract.connect(borrower).drawdown(borrower.address, toToken(5_000));
             const oldCR = await creditContract.getCreditRecord(creditHash);
+            // All principal and yield is due in the first period since there is only 1 period,
+            // so pay slightly less than the amount next due so that the bill can become past due
+            // when refreshed.
             await creditContract
                 .connect(borrower)
-                .makePayment(borrower.getAddress(), oldCR.nextDue);
+                .makePayment(borrower.getAddress(), oldCR.nextDue.sub(toToken(1)));
 
             const extensionDate =
                 oldCR.nextDueDate.toNumber() +

@@ -32,7 +32,6 @@ contract CreditLine is Credit, ICreditLine {
     function drawdown(address borrower, uint256 borrowAmount) external virtual override {
         poolConfig.onlyProtocolAndPoolOn();
         if (borrower != msg.sender) revert Errors.notBorrower();
-        if (borrowAmount == 0) revert Errors.zeroAmountProvided();
 
         bytes32 creditHash = getCreditHash(borrower);
         creditManager.onlyCreditBorrower(creditHash, borrower);
@@ -44,7 +43,7 @@ contract CreditLine is Credit, ICreditLine {
         address borrower,
         uint256 amount
     ) external virtual override returns (uint256 amountPaid, bool paidoff) {
-        poolConfig.onlyProtocolAndPoolOn();
+        poolConfig.onlyProtocolOn();
         if (msg.sender != borrower) _onlyPDSServiceAccount();
 
         bytes32 creditHash = getCreditHash(borrower);

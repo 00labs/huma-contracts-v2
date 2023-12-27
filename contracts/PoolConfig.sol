@@ -695,6 +695,10 @@ contract PoolConfig is AccessControl, Initializable {
         if (account != pool) revert Errors.notPool();
     }
 
+    function onlyProtocolOn() external view {
+        if (humaConfig.paused()) revert Errors.protocolIsPaused();
+    }
+
     function onlyProtocolAndPoolOn() external view {
         if (humaConfig.paused()) revert Errors.protocolIsPaused();
         if (!IPool(pool).isPoolOn()) revert Errors.poolIsNotOn();

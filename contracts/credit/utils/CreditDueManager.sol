@@ -16,7 +16,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
 
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = _poolConfig.calendar();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         calendar = ICalendar(addr);
     }
 
@@ -261,9 +261,6 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         uint256 principal,
         uint256 daysPassed
     ) internal pure returns (uint96 accrued, uint96 committed) {
-        if (daysPassed == 0) {
-            return (0, 0);
-        }
         accrued = computeYieldDue(principal, cc.yieldInBps, daysPassed);
         committed = computeYieldDue(cc.committedAmount, cc.yieldInBps, daysPassed);
         return (accrued, committed);
