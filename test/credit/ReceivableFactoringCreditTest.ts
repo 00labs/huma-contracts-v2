@@ -594,7 +594,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                     creditContract
                         .connect(borrower)
                         .makePaymentWithReceivable(borrower.getAddress(), tokenId, borrowAmount),
-                ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+                ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
                 await poolContract.connect(poolOwner).enablePool();
             });
 
@@ -765,7 +765,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                     creditContract
                         .connect(payer)
                         .makePaymentWithReceivableForContract(tokenId, borrowAmount),
-                ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+                ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
                 await poolContract.connect(poolOwner).enablePool();
             });
 
