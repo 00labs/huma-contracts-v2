@@ -215,17 +215,21 @@ async function deployPool(
     });
 
     if (poolName === "ArfV2") {
-        const lateGracePeriodInDays = 5;
-        const advanceRate = CONSTANTS.BP_FACTOR;
+        const latePaymentGracePeriodInDays = 5;
         const yieldInBps = 1200;
         const lateFeeBps = 2400;
         const principalRate = 0;
-        await poolConfigContract.connect(poolOwner).setPoolPayPeriod(PayPeriodDuration.Monthly);
-        await poolConfigContract
-            .connect(poolOwner)
-            .setLatePaymentGracePeriodInDays(lateGracePeriodInDays);
-        await poolConfigContract.connect(poolOwner).setAdvanceRateInBps(advanceRate);
-        await poolConfigContract.connect(poolOwner).setReceivableAutoApproval(true);
+
+        const settings = await poolConfigContract.getPoolSettings();
+        await poolConfigContract.connect(poolOwner).setPoolSettings({
+            ...settings,
+            ...{
+                payPeriodDuration: PayPeriodDuration.Monthly,
+                latePaymentGracePeriodInDays: latePaymentGracePeriodInDays,
+                advanceRateInBps: CONSTANTS.BP_FACTOR,
+                receivableAutoApproval: true,
+            },
+        });
 
         await poolConfigContract.connect(poolOwner).setFeeStructure({
             yieldInBps,
