@@ -418,7 +418,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                 )
                     .to.emit(creditContract, "DrawdownMade")
                     .withArgs(await borrower.getAddress(), borrowAmount, netBorrowAmount)
-                    .to.emit(creditContract, "DrawdownWithReceivableMade")
+                    .to.emit(creditContract, "DrawdownMadeWithReceivable")
                     .withArgs(
                         await borrower.getAddress(),
                         tokenId,
@@ -683,7 +683,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                         0,
                         await borrower.getAddress(),
                     )
-                    .to.emit(creditContract, "PaymentWithReceivableMade")
+                    .to.emit(creditContract, "PaymentMadeWithReceivable")
                     .withArgs(
                         await borrower.getAddress(),
                         tokenId,
@@ -884,7 +884,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                         0,
                         await borrower.getAddress(),
                     )
-                    .to.emit(creditContract, "PrincipalPaymentWithReceivableMade")
+                    .to.emit(creditContract, "PrincipalPaymentMadeWithReceivable")
                     .withArgs(
                         await borrower.getAddress(),
                         tokenId,
@@ -1180,14 +1180,14 @@ describe("ReceivableBackedCreditLine Tests", function () {
                                 drawdownAmount,
                             ),
                     )
-                        .to.emit(creditContract, "PrincipalPaymentWithReceivableMade")
+                        .to.emit(creditContract, "PrincipalPaymentMadeWithReceivable")
                         .withArgs(
                             await borrower.getAddress(),
                             paymentTokenId,
                             paymentAmount,
                             await borrower.getAddress(),
                         )
-                        .to.emit(creditContract, "DrawdownWithReceivableMade")
+                        .to.emit(creditContract, "DrawdownMadeWithReceivable")
                         .withArgs(
                             await borrower.getAddress(),
                             drawdownTokenId,
@@ -1240,14 +1240,14 @@ describe("ReceivableBackedCreditLine Tests", function () {
                                 drawdownAmount,
                             ),
                     )
-                        .to.emit(creditContract, "PrincipalPaymentWithReceivableMade")
+                        .to.emit(creditContract, "PrincipalPaymentMadeWithReceivable")
                         .withArgs(
                             await borrower.getAddress(),
                             paymentTokenId,
                             paymentAmount,
                             await borrower.getAddress(),
                         )
-                        .to.emit(creditContract, "DrawdownWithReceivableMade")
+                        .to.emit(creditContract, "DrawdownMadeWithReceivable")
                         .withArgs(
                             await borrower.getAddress(),
                             drawdownTokenId,
@@ -1333,14 +1333,14 @@ describe("ReceivableBackedCreditLine Tests", function () {
                                 drawdownAmount,
                             ),
                     )
-                        .to.emit(creditContract, "PrincipalPaymentWithReceivableMade")
+                        .to.emit(creditContract, "PrincipalPaymentMadeWithReceivable")
                         .withArgs(
                             await borrower.getAddress(),
                             paymentTokenId,
                             paymentAmount,
                             await borrower.getAddress(),
                         )
-                        .to.emit(creditContract, "DrawdownWithReceivableMade")
+                        .to.emit(creditContract, "DrawdownMadeWithReceivable")
                         .withArgs(
                             await borrower.getAddress(),
                             drawdownTokenId,
