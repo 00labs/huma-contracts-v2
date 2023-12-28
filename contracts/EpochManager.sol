@@ -37,6 +37,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
 
     // It is used to avoid tiny amount to be processed, e.g. 1 amount = 0.0000001 USDC remaining in the pool caused
     // by rounding down in the last epoch
+    // TODO constant?
     uint256 public minAmountToProcessPerEpoch;
 
     event EpochClosed(
@@ -136,13 +137,13 @@ contract EpochManager is PoolConfigCache, IEpochManager {
     function startNewEpoch() external {
         poolConfig.onlyPool(msg.sender);
 
-        EpochRedemptionSummary memory seniorEpoch = seniorTranche.currentRedemptionSummary();
-        if (seniorEpoch.totalSharesRequested > 0) {
-            seniorTranche.executeRedemptionSummary(seniorEpoch);
+        EpochRedemptionSummary memory seniorSummary = seniorTranche.currentRedemptionSummary();
+        if (seniorSummary.totalSharesRequested > 0) {
+            seniorTranche.executeRedemptionSummary(seniorSummary);
         }
-        EpochRedemptionSummary memory juniorEpoch = juniorTranche.currentRedemptionSummary();
-        if (juniorEpoch.totalSharesRequested > 0) {
-            juniorTranche.executeRedemptionSummary(juniorEpoch);
+        EpochRedemptionSummary memory juniorSummary = juniorTranche.currentRedemptionSummary();
+        if (juniorSummary.totalSharesRequested > 0) {
+            juniorTranche.executeRedemptionSummary(juniorSummary);
         }
 
         CurrentEpoch memory ce = _currentEpoch;
@@ -175,9 +176,9 @@ contract EpochManager is PoolConfigCache, IEpochManager {
      * @notice Process previously unprocessed redemption requests
      * @param tranchesAssets tranches assets indexed by SENIOR_ or JUNIOR_TRANCHE, i.e. tranches[0] is the
      * senior tranche assets and tranches[1] is the junior tranche assets
-     * @param seniorSummary unprocessed/partially processed epoch for the senior tranche
+     * @param seniorSummary unprocessed/partially processed redemption summary for the senior tranche
      * @param seniorPrice the senior LP token price
-     * @param juniorSummary unprocessed/partially processed epoch for the junior tranche
+     * @param juniorSummary unprocessed/partially processed redemption summary for the junior tranche
      * @param juniorPrice the junior LP token price
      * @dev this function is side-effectual and mutates the following incoming params:
      * tranchesAssets: will be updated to reflect the remaining amount of assets in the tranches after fulfilling
@@ -228,7 +229,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
      * @notice Processes redemption requests for the senior tranche
      * @param tranchesAssets tranches assets indexed by SENIOR_TRANCHE or JUNIOR_TRANCHE
      * @param lpTokenPrice the price of the senior LP tokens
-     * @param redemptionSummary epoch info for the senior tranche
+     * @param redemptionSummary redemption summary for the senior tranche
      * @param availableAmount the total amount available for redemption
      * @dev this function is side-effectual and mutates the following incoming params:
      * tranchesAssets: will be updated to reflect the remaining amount of assets in the senior tranche
@@ -262,7 +263,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
      * @param tranchesAssets tranches assets indexed by SENIOR_ or JUNIOR_TRANCHE, i.e. tranches[0] is the
      * senior tranche assets and tranches[1] is the junior tranche assets
      * @param lpTokenPrice the price of the junior LP tokens
-     * @param redemptionSummary the list of epoch infos in each epoch for the junior tranche
+     * @param redemptionSummary redemption summary for the junior tranche
      * @param availableAmount the total amount available for redemption
      * @dev this function is side-effectual and mutates the following incoming params:
      * tranchesAssets: will be updated to reflect the remaining amount of assets in the junior tranche
