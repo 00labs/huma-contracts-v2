@@ -321,14 +321,22 @@ async function configPool(lpConfig: Partial<LPConfigStructOutput>) {
     // console.log(`evaluationAgent: ${evaluationAgent.address}`);
 
     for (let i = 0; i < jLenders.length; i++) {
-        await juniorTrancheVaultContract
-            .connect(poolOperator)
-            .setReinvestYield(jLenders[i].address, jLenderReinvests[i]);
+        let reinvestYield = (await juniorTrancheVaultContract.depositRecords(jLenders[i].address))
+            .reinvestYield;
+        if (reinvestYield != jLenderReinvests[i]) {
+            await juniorTrancheVaultContract
+                .connect(poolOperator)
+                .setReinvestYield(jLenders[i].address, jLenderReinvests[i]);
+        }
     }
     for (let i = 0; i < sLenders.length; i++) {
-        await seniorTrancheVaultContract
-            .connect(poolOperator)
-            .setReinvestYield(sLenders[i].address, sLenderReinvests[i]);
+        let reinvestYield = (await seniorTrancheVaultContract.depositRecords(sLenders[i].address))
+            .reinvestYield;
+        if (reinvestYield != sLenderReinvests[i]) {
+            await seniorTrancheVaultContract
+                .connect(poolOperator)
+                .setReinvestYield(sLenders[i].address, sLenderReinvests[i]);
+        }
     }
 
     feeCalculator = new FeeCalculator(humaConfigContract, poolConfigContract);
@@ -436,7 +444,7 @@ async function testYieldPayout() {
         ).sub(jLenderPrincipals[i]);
         oldBalances[i] = await mockTokenContract.balanceOf(jActiveLenders[i].address);
     }
-    await juniorTrancheVaultContract.processYieldForLenders(jActiveLenders.map((l) => l.address));
+    await juniorTrancheVaultContract.processYieldForLenders();
     for (let i = 0; i < jActiveLenders.length; i++) {
         if (interests[i].gt(0)) {
             if (!jLenderReinvests[i]) {
@@ -453,13 +461,10 @@ async function testYieldPayout() {
                 expect(await mockTokenContract.balanceOf(jActiveLenders[i].address)).to.equal(
                     oldBalances[i],
                 );
-                let [newPrincipal] = await juniorTrancheVaultContract.depositRecords(
-                    jActiveLenders[i].address,
-                );
-                expect(newPrincipal).greaterThan(jLenderPrincipals[i]);
-                expect(
-                    await juniorTrancheVaultContract.totalAssetsOf(jActiveLenders[i].address),
-                ).to.closeTo(newPrincipal, 1);
+                let newPrincipal = (
+                    await juniorTrancheVaultContract.depositRecords(jActiveLenders[i].address)
+                ).principal;
+                expect(newPrincipal).to.equal(jLenderPrincipals[i]);
                 jLenderPrincipals[i] = newPrincipal;
             }
         }
@@ -471,7 +476,7 @@ async function testYieldPayout() {
         ).sub(sLenderPrincipals[i]);
         oldBalances[i] = await mockTokenContract.balanceOf(sActiveLenders[i].address);
     }
-    await seniorTrancheVaultContract.processYieldForLenders(sActiveLenders.map((l) => l.address));
+    await seniorTrancheVaultContract.processYieldForLenders();
     for (let i = 0; i < sActiveLenders.length; i++) {
         if (interests[i].gt(0)) {
             if (!sLenderReinvests[i]) {
@@ -491,10 +496,7 @@ async function testYieldPayout() {
                 let [newPrincipal] = await seniorTrancheVaultContract.depositRecords(
                     sActiveLenders[i].address,
                 );
-                expect(newPrincipal).greaterThan(sLenderPrincipals[i]);
-                expect(
-                    await seniorTrancheVaultContract.totalAssetsOf(sActiveLenders[i].address),
-                ).to.closeTo(newPrincipal, 1);
+                expect(newPrincipal).to.equal(sLenderPrincipals[i]);
                 sLenderPrincipals[i] = newPrincipal;
             }
         }
@@ -515,10 +517,12 @@ async function testRedemptionRequest(jLenderRequests: BN[], sLenderRequests: BN[
             let [newPrincipal] = await juniorTrancheVaultContract.depositRecords(
                 jLenders[i].address,
             );
-            let principalRequested = await juniorTrancheVaultContract.convertToAssets(
-                jLenderRequests[i],
-            );
-            expect(newPrincipal).to.equal(jLenderPrincipals[i].sub(principalRequested));
+            let principalRequested = jLenderPrincipals[i].mul(jLenderRequests[i]).div(oldShares);
+            // console.log(
+            //     `newPrincipal: ${newPrincipal}, principalRequested: ${principalRequested}, jLenderPrincipals[i]: ${jLenderPrincipals[i]}`,
+            // );
+            let expectedNewPrincipal = jLenderPrincipals[i].sub(principalRequested);
+            expect(newPrincipal).to.equal(expectedNewPrincipal);
             jLenderShareRequests[i] = jLenderShareRequests[i].add(jLenderRequests[i]);
             jLenderPrincipalRequests[i] = jLenderPrincipalRequests[i].add(principalRequested);
             jLenderPrincipals[i] = newPrincipal;
@@ -564,10 +568,9 @@ async function testRedemptionRequest(jLenderRequests: BN[], sLenderRequests: BN[
             let [newPrincipal] = await seniorTrancheVaultContract.depositRecords(
                 sLenders[i].address,
             );
-            let principalRequested = await seniorTrancheVaultContract.convertToAssets(
-                sLenderRequests[i],
-            );
-            expect(newPrincipal).to.closeTo(sLenderPrincipals[i].sub(principalRequested), 1);
+            let principalRequested = sLenderPrincipals[i].mul(sLenderRequests[i]).div(oldShares);
+            let expectedNewPrincipal = sLenderPrincipals[i].sub(principalRequested);
+            expect(newPrincipal).to.closeTo(expectedNewPrincipal, 1);
             sLenderShareRequests[i] = sLenderShareRequests[i].add(sLenderRequests[i]);
             sLenderPrincipalRequests[i] = sLenderPrincipalRequests[i].add(principalRequested);
             sLenderPrincipals[i] = newPrincipal;
@@ -1124,12 +1127,8 @@ describe("Lender Integration Test", function () {
             currentTS = cr.nextDueDate.toNumber() + 100;
             await setNextBlockTimestamp(currentTS);
 
-            await juniorTrancheVaultContract.processYieldForLenders(
-                jActiveLenders.map((l) => l.address),
-            );
-            await seniorTrancheVaultContract.processYieldForLenders(
-                sActiveLenders.map((l) => l.address),
-            );
+            await juniorTrancheVaultContract.processYieldForLenders();
+            await seniorTrancheVaultContract.processYieldForLenders();
 
             let juniorOldAssets = await juniorTrancheVaultContract.totalAssets();
             let juniorOldShares = await juniorTrancheVaultContract.totalSupply();
@@ -1369,12 +1368,8 @@ describe("Lender Integration Test", function () {
 
             // console.log(`currentTS: ${currentTS}`);
 
-            await juniorTrancheVaultContract.processYieldForLenders(
-                jActiveLenders.map((l) => l.address),
-            );
-            await seniorTrancheVaultContract.processYieldForLenders(
-                sActiveLenders.map((l) => l.address),
-            );
+            await juniorTrancheVaultContract.processYieldForLenders();
+            await seniorTrancheVaultContract.processYieldForLenders();
 
             // let epoch = await juniorTrancheVaultContract.epochInfoByEpochId(currentEpochId);
             // console.log(`junior epoch: ${epoch}`);
@@ -2472,12 +2467,8 @@ describe("Lender Integration Test", function () {
             currentTS = cr.nextDueDate.toNumber() + 100;
             await setNextBlockTimestamp(currentTS);
 
-            await juniorTrancheVaultContract.processYieldForLenders(
-                jActiveLenders.map((l) => l.address),
-            );
-            await seniorTrancheVaultContract.processYieldForLenders(
-                sActiveLenders.map((l) => l.address),
-            );
+            await juniorTrancheVaultContract.processYieldForLenders();
+            await seniorTrancheVaultContract.processYieldForLenders();
 
             let juniorOldAssets = await juniorTrancheVaultContract.totalAssets();
             let juniorOldShares = await juniorTrancheVaultContract.totalSupply();
@@ -2725,12 +2716,8 @@ describe("Lender Integration Test", function () {
 
             // console.log(`currentTS: ${currentTS}`);
 
-            await juniorTrancheVaultContract.processYieldForLenders(
-                jActiveLenders.map((l) => l.address),
-            );
-            await seniorTrancheVaultContract.processYieldForLenders(
-                sActiveLenders.map((l) => l.address),
-            );
+            await juniorTrancheVaultContract.processYieldForLenders();
+            await seniorTrancheVaultContract.processYieldForLenders();
 
             // let epoch = await juniorTrancheVaultContract.epochInfoByEpochId(currentEpochId);
             // console.log(`junior epoch: ${epoch}`);
