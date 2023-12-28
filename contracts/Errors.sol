@@ -56,9 +56,8 @@ contract Errors {
     error poolIsNotReadyForFirstLossCoverWithdrawal(); // 0x20b8b473
 
     // tranche operation
-    error poolLiquidityCapExceeded(); // 0xdea32e48
+    error trancheLiquidityCapExceeded(); // 0xdea32e48
     error withdrawTooSoon(); // 0x67982472
-    error maxSeniorJuniorRatioExceeded(); // 0x52fc3aa4
     error invalidTrancheIndex(); // 0xa82f3ece
     error closeTooSoon(); // 0xa38d0553
 

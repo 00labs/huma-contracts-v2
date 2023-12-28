@@ -42,7 +42,7 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
 
     /// @inheritdoc IPoolSafe
     function deposit(address from, uint256 amount) external virtual {
-        _onlyCustodian(msg.sender);
+        _onlySystemMoneyMover(msg.sender);
 
         underlyingToken.safeTransferFrom(from, address(this), amount);
     }
@@ -50,7 +50,7 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
     /// @inheritdoc IPoolSafe
     function withdraw(address to, uint256 amount) external virtual {
         if (to == address(0)) revert Errors.zeroAddressProvided();
-        _onlyCustodian(msg.sender);
+        _onlySystemMoneyMover(msg.sender);
 
         underlyingToken.safeTransfer(to, amount);
     }
@@ -100,7 +100,9 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
         availableBalance = balance > reserved ? balance - reserved : 0;
     }
 
-    function _onlyCustodian(address account) internal view {
+    function _onlySystemMoneyMover(address account) internal view {
+        // Account is a contract address, pass only when it is a tranche contract, pool fee manager contract,
+        // credit contract or first loss cover contract.
         if (
             account != poolConfig.seniorTranche() &&
             account != poolConfig.juniorTranche() &&

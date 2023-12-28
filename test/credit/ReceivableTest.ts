@@ -121,6 +121,9 @@ describe("Receivable Test", function () {
             "referenceId",
             "Test URI",
         );
+
+        const tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
+        expect(tokenId).to.equal(1); // tokenId should start at 1
     }
 
     beforeEach(async function () {

@@ -33,7 +33,7 @@ import {
     ProfitAndLossCalculator,
     SeniorYieldTracker,
     calcLateFee,
-    checkRedemptionInfoByLender,
+    checkRedemptionRecordByLender,
     checkSeniorYieldTrackersMatch,
     deployPoolContracts,
     deployProtocolContracts,
@@ -323,12 +323,12 @@ async function configPool(lpConfig: Partial<LPConfigStructOutput>) {
     for (let i = 0; i < jLenders.length; i++) {
         await juniorTrancheVaultContract
             .connect(poolOperator)
-            .addApprovedLender(jLenders[i].address, jLenderReinvests[i]);
+            .setReinvestYield(jLenders[i].address, jLenderReinvests[i]);
     }
     for (let i = 0; i < sLenders.length; i++) {
         await seniorTrancheVaultContract
             .connect(poolOperator)
-            .addApprovedLender(sLenders[i].address, sLenderReinvests[i]);
+            .setReinvestYield(sLenders[i].address, sLenderReinvests[i]);
     }
 
     feeCalculator = new FeeCalculator(humaConfigContract, poolConfigContract);
@@ -447,13 +447,13 @@ async function testYieldPayout() {
                     oldBalances[i].add(interests[i]),
                 );
                 jLenderPrincipals[i] = (
-                    await juniorTrancheVaultContract.userInfos(jActiveLenders[i].address)
+                    await juniorTrancheVaultContract.depositRecords(jActiveLenders[i].address)
                 ).principal;
             } else {
                 expect(await mockTokenContract.balanceOf(jActiveLenders[i].address)).to.equal(
                     oldBalances[i],
                 );
-                let [newPrincipal] = await juniorTrancheVaultContract.userInfos(
+                let [newPrincipal] = await juniorTrancheVaultContract.depositRecords(
                     jActiveLenders[i].address,
                 );
                 expect(newPrincipal).greaterThan(jLenderPrincipals[i]);
@@ -482,13 +482,13 @@ async function testYieldPayout() {
                     oldBalances[i].add(interests[i]),
                 );
                 sLenderPrincipals[i] = (
-                    await seniorTrancheVaultContract.userInfos(sActiveLenders[i].address)
+                    await seniorTrancheVaultContract.depositRecords(sActiveLenders[i].address)
                 ).principal;
             } else {
                 expect(await mockTokenContract.balanceOf(sActiveLenders[i].address)).to.equal(
                     oldBalances[i],
                 );
-                let [newPrincipal] = await seniorTrancheVaultContract.userInfos(
+                let [newPrincipal] = await seniorTrancheVaultContract.depositRecords(
                     sActiveLenders[i].address,
                 );
                 expect(newPrincipal).greaterThan(sLenderPrincipals[i]);
@@ -512,7 +512,9 @@ async function testRedemptionRequest(jLenderRequests: BN[], sLenderRequests: BN[
             expect(await juniorTrancheVaultContract.balanceOf(jLenders[i].address)).to.equal(
                 oldShares.sub(jLenderRequests[i]),
             );
-            let [newPrincipal] = await juniorTrancheVaultContract.userInfos(jLenders[i].address);
+            let [newPrincipal] = await juniorTrancheVaultContract.depositRecords(
+                jLenders[i].address,
+            );
             let principalRequested = await juniorTrancheVaultContract.convertToAssets(
                 jLenderRequests[i],
             );
@@ -521,9 +523,9 @@ async function testRedemptionRequest(jLenderRequests: BN[], sLenderRequests: BN[
             jLenderPrincipalRequests[i] = jLenderPrincipalRequests[i].add(principalRequested);
             jLenderPrincipals[i] = newPrincipal;
             let lastUpdatedEpochIndex = (
-                await juniorTrancheVaultContract.redemptionInfoByLender(jLenders[i].address)
+                await juniorTrancheVaultContract.lenderRedemptionRecords(jLenders[i].address)
             ).lastUpdatedEpochIndex;
-            await checkRedemptionInfoByLender(
+            await checkRedemptionRecordByLender(
                 juniorTrancheVaultContract,
                 jLenders[i],
                 lastUpdatedEpochIndex,
@@ -559,7 +561,9 @@ async function testRedemptionRequest(jLenderRequests: BN[], sLenderRequests: BN[
             expect(await seniorTrancheVaultContract.balanceOf(sLenders[i].address)).to.equal(
                 oldShares.sub(sLenderRequests[i]),
             );
-            let [newPrincipal] = await seniorTrancheVaultContract.userInfos(sLenders[i].address);
+            let [newPrincipal] = await seniorTrancheVaultContract.depositRecords(
+                sLenders[i].address,
+            );
             let principalRequested = await seniorTrancheVaultContract.convertToAssets(
                 sLenderRequests[i],
             );
@@ -568,9 +572,9 @@ async function testRedemptionRequest(jLenderRequests: BN[], sLenderRequests: BN[
             sLenderPrincipalRequests[i] = sLenderPrincipalRequests[i].add(principalRequested);
             sLenderPrincipals[i] = newPrincipal;
             let lastUpdatedEpochIndex = (
-                await seniorTrancheVaultContract.redemptionInfoByLender(sLenders[i].address)
+                await seniorTrancheVaultContract.lenderRedemptionRecords(sLenders[i].address)
             ).lastUpdatedEpochIndex;
-            await checkRedemptionInfoByLender(
+            await checkRedemptionRecordByLender(
                 seniorTrancheVaultContract,
                 sLenders[i],
                 lastUpdatedEpochIndex,
@@ -1069,7 +1073,7 @@ describe("Lender Integration Test", function () {
                     .deposit(toToken(600_000), sLenders[2].address),
             ).to.be.revertedWithCustomError(
                 juniorTrancheVaultContract,
-                "maxSeniorJuniorRatioExceeded",
+                "trancheLiquidityCapExceeded",
             );
         });
 
@@ -2417,7 +2421,7 @@ describe("Lender Integration Test", function () {
                     .deposit(toToken(600_000), sLenders[2].address),
             ).to.be.revertedWithCustomError(
                 juniorTrancheVaultContract,
-                "maxSeniorJuniorRatioExceeded",
+                "trancheLiquidityCapExceeded",
             );
         });
 

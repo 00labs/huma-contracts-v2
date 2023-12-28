@@ -47,6 +47,8 @@ interface IPool {
 
     function isPoolOn() external view returns (bool status);
 
+    function getTrancheAvailableCap(uint256 index) external view returns (uint256 availableCap);
+
     function readyForFirstLossCoverWithdrawal() external view returns (bool ready);
 
     /**
