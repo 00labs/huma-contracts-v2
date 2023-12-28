@@ -267,7 +267,6 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
         });
 
         it("Month1 - Day1 ~ Day5: drawdown in the first week", async function () {
-            await receivableContract.connect(poolOwner).createReceivable(1, 0, 0, "");
             let block = await getLatestBlock();
             nextTime =
                 (

@@ -6,7 +6,6 @@ import {ERC721EnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/t
 import {ERC721URIStorageUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721URIStorageUpgradeable.sol";
 import {ERC721BurnableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721BurnableUpgradeable.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {CountersUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/CountersUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {Errors} from "../Errors.sol";
@@ -21,7 +20,6 @@ import {ReceivableInfo, ReceivableState} from "./CreditStructs.sol";
 contract Receivable is
     IReceivable,
     ReceivableStorage,
-    Initializable,
     ERC721Upgradeable,
     ERC721EnumerableUpgradeable,
     ERC721URIStorageUpgradeable,
@@ -61,6 +59,20 @@ contract Receivable is
         uint16 currencyCode
     );
 
+    /**
+     * @dev Emitted when a receivable metadata URI is updated
+     * @param owner The address of the owner of the receivable
+     * @param tokenId The ID of the newly created receivable update token
+     * @param oldTokenURI The old metadata URI of the receivable
+     * @param newTokenURI The new metadata URI of the receivable
+     */
+    event ReceivableMetadataUpdated(
+        address indexed owner,
+        uint256 indexed tokenId,
+        string oldTokenURI,
+        string newTokenURI
+    );
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         // _disableInitializers();
@@ -90,8 +102,7 @@ contract Receivable is
         uint64 maturityDate,
         string memory uri
     ) public onlyRole(MINTER_ROLE) returns (uint256 tokenId) {
-        tokenId = _tokenIdCounter.current();
-        _tokenIdCounter.increment();
+        tokenId = _getNewTokenId();
         _safeMint(msg.sender, tokenId);
 
         receivableInfoMap[tokenId] = ReceivableInfo(
@@ -128,6 +139,22 @@ contract Receivable is
         emit PaymentDeclared(msg.sender, tokenId, receivableInfo.currencyCode, paymentAmount);
     }
 
+    /**
+     * @notice Updates the metadata URI of a receivable
+     * @custom:access Only the owner or the original creator of the token can update the metadata URI
+     * @param tokenId The ID of the receivable token
+     * @param uri The new metadata URI of the receivable
+     */
+    function updateReceivableMetadata(uint256 tokenId, string memory uri) external {
+        if (msg.sender != ownerOf(tokenId) && msg.sender != creators[tokenId])
+            revert Errors.notReceivableOwnerOrCreator();
+
+        string memory oldTokenURI = tokenURI(tokenId);
+        _setTokenURI(tokenId, uri);
+
+        emit ReceivableMetadataUpdated(msg.sender, tokenId, oldTokenURI, uri);
+    }
+
     /// @inheritdoc IReceivable
     function getReceivable(
         uint256 tokenId
@@ -159,6 +186,13 @@ contract Receivable is
         uint256 tokenId
     ) internal override(ERC721Upgradeable, ERC721URIStorageUpgradeable) {
         super._burn(tokenId);
+    }
+
+    function _getNewTokenId() internal returns (uint256) {
+        // Increment the counter first before assigning a new ID so that the ID starts at 1
+        // instead of 0.
+        _tokenIdCounter.increment();
+        return _tokenIdCounter.current();
     }
 
     function tokenURI(

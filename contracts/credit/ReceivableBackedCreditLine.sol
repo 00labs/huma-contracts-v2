@@ -137,10 +137,17 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
 
         bytes32 creditHash = getCreditHash(borrower);
         creditManager.onlyCreditBorrower(creditHash, borrower);
-        if (getCreditRecord(creditHash).state != CreditState.GoodStanding)
+        CreditRecord memory cr = getCreditRecord(creditHash);
+        if (cr.state != CreditState.GoodStanding)
             revert Errors.creditLineNotInStateForMakingPrincipalPayment();
 
         if (drawdownAmount == 0 || paymentAmount == 0) revert Errors.zeroAmountProvided();
+
+        uint256 principalOutstanding = cr.unbilledPrincipal + cr.nextDue - cr.yieldDue;
+        if (principalOutstanding == 0) {
+            // No principal payment is needed when there is no principal outstanding.
+            return (0, false);
+        }
 
         IERC721 receivableAsset = IERC721(poolConfig.receivableAsset());
         _prepareForPayment(borrower, receivableAsset, paymentReceivableId);
@@ -152,7 +159,6 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
             drawdownAmount
         );
 
-        // TODO(jiatu): What if there is no principal in the first place?
         if (paymentAmount == drawdownAmount) {
             poolSafe.deposit(msg.sender, paymentAmount);
             poolSafe.withdraw(borrower, paymentAmount);
@@ -216,9 +222,10 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         ReceivableInput memory receivableInput,
         uint256 amount
     ) internal {
-        // TODO: Check amount < receivable amount?
         if (receivableInput.receivableAmount == 0) revert Errors.zeroAmountProvided();
         if (receivableInput.receivableId == 0) revert Errors.zeroReceivableIdProvided();
+        if (amount > receivableInput.receivableAmount)
+            revert Errors.insufficientReceivableAmount();
         if (receivableAsset.ownerOf(receivableInput.receivableId) != borrower)
             revert Errors.notReceivableOwner();
 
