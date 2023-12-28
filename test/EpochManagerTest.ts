@@ -350,18 +350,8 @@ describe("EpochManager Test", function () {
         );
 
         await creditContract.mockDistributePnL(profit, loss, lossRecovery);
-        await juniorTrancheVaultContract.processYieldForLenders([
-            lender.address,
-            lender2.address,
-            poolOwnerTreasury.address,
-            evaluationAgent.address,
-        ]);
-        await seniorTrancheVaultContract.processYieldForLenders([
-            lender.address,
-            lender2.address,
-            poolOwnerTreasury.address,
-            evaluationAgent.address,
-        ]);
+        await juniorTrancheVaultContract.processYieldForLenders();
+        await seniorTrancheVaultContract.processYieldForLenders();
         await expect(epochManagerContract.closeEpoch())
             .to.emit(epochManagerContract, "EpochClosed")
             .to.emit(epochManagerContract, "NewEpochStarted")

@@ -50,8 +50,7 @@ contract TrancheVaultStorage {
     // This mapping contains the amount of underlying tokens deposited by lenders
     mapping(address => DepositRecord) public depositRecords;
 
-    // The approved lender number
-    uint256 public lenderCount;
+    address[] public nonReinvestingLenders;
 
     /**
      * @dev This empty reserved space is put in place to allow future versions to add new
