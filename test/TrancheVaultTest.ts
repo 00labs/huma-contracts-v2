@@ -777,7 +777,7 @@ describe("TrancheVault Test", function () {
                     let lpConfig = await poolConfigContract.getLPConfig();
                     await poolConfigContract.connect(poolOwner).setLPConfig({
                         ...lpConfig,
-                        ...{ withdrawalLockoutPeriodInDays: 1 },
+                        ...{ withdrawalLockoutPeriodInDays: 90 },
                     });
 
                     await expect(
