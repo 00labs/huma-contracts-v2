@@ -1501,12 +1501,12 @@ describe("TrancheVault Test", function () {
 
                     // lender adds redemption request
                     let shares = toToken(10_000);
-                    let principal = await juniorTrancheVaultContract.convertToAssets(shares);
                     let currentEpochId = await epochManagerContract.currentEpochId();
                     let balance = await juniorTrancheVaultContract.balanceOf(lender.address);
                     let allPrincipal = (
                         await juniorTrancheVaultContract.depositRecords(lender.address)
                     ).principal;
+                    let principal = allPrincipal.mul(shares).div(balance);
                     await expect(
                         juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares),
                     )
@@ -1541,11 +1541,11 @@ describe("TrancheVault Test", function () {
                     // lender adds redemption request again
 
                     shares = toToken(13_000);
-                    principal = await juniorTrancheVaultContract.convertToAssets(shares);
                     balance = await juniorTrancheVaultContract.balanceOf(lender.address);
                     allPrincipal = (
                         await juniorTrancheVaultContract.depositRecords(lender.address)
                     ).principal;
+                    principal = allPrincipal.mul(shares).div(balance);
                     await expect(
                         juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares),
                     )
@@ -1644,12 +1644,12 @@ describe("TrancheVault Test", function () {
 
                     // lender adds redemption request
                     let shares = toToken(9_000);
-                    let principal = await juniorTrancheVaultContract.convertToAssets(shares);
                     let currentEpochId = await epochManagerContract.currentEpochId();
                     let balance = await juniorTrancheVaultContract.balanceOf(lender.address);
                     let allPrincipal = (
                         await juniorTrancheVaultContract.depositRecords(lender.address)
                     ).principal;
+                    let principal = allPrincipal.mul(shares).div(balance);
                     await expect(
                         juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares),
                     )
@@ -1718,12 +1718,12 @@ describe("TrancheVault Test", function () {
 
                     // lender adds redemption request
                     shares = toToken(11_000);
-                    principal = await juniorTrancheVaultContract.convertToAssets(shares);
                     currentEpochId = await epochManagerContract.currentEpochId();
                     balance = await juniorTrancheVaultContract.balanceOf(lender.address);
                     allPrincipal = (
                         await juniorTrancheVaultContract.depositRecords(lender.address)
                     ).principal;
+                    principal = allPrincipal.mul(shares).div(balance);
                     await expect(
                         juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares),
                     )
@@ -2098,7 +2098,11 @@ describe("TrancheVault Test", function () {
 
                     // lender adds redemption request
                     let shares = toToken(10_000);
-                    let principal = await juniorTrancheVaultContract.convertToAssets(shares);
+                    let allShares = await juniorTrancheVaultContract.balanceOf(lender.address);
+                    let allPrincipal = (
+                        await juniorTrancheVaultContract.depositRecords(lender.address)
+                    ).principal;
+                    let principal = allPrincipal.mul(shares).div(allShares);
                     let currentEpochId = await epochManagerContract.currentEpochId();
                     await expect(
                         juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares),
@@ -2168,7 +2172,11 @@ describe("TrancheVault Test", function () {
 
                     // lender adds redemption request
                     let shares = toToken(10_000);
-                    let principal = await juniorTrancheVaultContract.convertToAssets(shares);
+                    let allShares = await juniorTrancheVaultContract.balanceOf(lender.address);
+                    let allPrincipal = (
+                        await juniorTrancheVaultContract.depositRecords(lender.address)
+                    ).principal;
+                    let principal = allPrincipal.mul(shares).div(allShares);
                     let currentEpochId = await epochManagerContract.currentEpochId();
                     await expect(
                         juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares),

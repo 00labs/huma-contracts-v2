@@ -302,7 +302,7 @@ contract TrancheVault is
             currentEpochId
         );
         lenderRedemptionRecord.numSharesRequested += uint96(shares);
-        uint256 principalRequested = convertToAssets(shares);
+        uint256 principalRequested = (depositRecord.principal * shares) / sharesBalance;
         lenderRedemptionRecord.principalRequested += uint96(principalRequested);
         lenderRedemptionRecords[msg.sender] = lenderRedemptionRecord;
         depositRecord.principal = uint96(

@@ -517,15 +517,11 @@ async function testRedemptionRequest(jLenderRequests: BN[], sLenderRequests: BN[
             let [newPrincipal] = await juniorTrancheVaultContract.depositRecords(
                 jLenders[i].address,
             );
-            let principalRequested = await juniorTrancheVaultContract.convertToAssets(
-                jLenderRequests[i],
-            );
+            let principalRequested = jLenderPrincipals[i].mul(jLenderRequests[i]).div(oldShares);
             // console.log(
             //     `newPrincipal: ${newPrincipal}, principalRequested: ${principalRequested}, jLenderPrincipals[i]: ${jLenderPrincipals[i]}`,
             // );
-            let expectedNewPrincipal = jLenderPrincipals[i].gt(principalRequested)
-                ? jLenderPrincipals[i].sub(principalRequested)
-                : 0;
+            let expectedNewPrincipal = jLenderPrincipals[i].sub(principalRequested);
             expect(newPrincipal).to.equal(expectedNewPrincipal);
             jLenderShareRequests[i] = jLenderShareRequests[i].add(jLenderRequests[i]);
             jLenderPrincipalRequests[i] = jLenderPrincipalRequests[i].add(principalRequested);
@@ -572,12 +568,8 @@ async function testRedemptionRequest(jLenderRequests: BN[], sLenderRequests: BN[
             let [newPrincipal] = await seniorTrancheVaultContract.depositRecords(
                 sLenders[i].address,
             );
-            let principalRequested = await seniorTrancheVaultContract.convertToAssets(
-                sLenderRequests[i],
-            );
-            let expectedNewPrincipal = sLenderPrincipals[i].gt(principalRequested)
-                ? sLenderPrincipals[i].sub(principalRequested)
-                : 0;
+            let principalRequested = sLenderPrincipals[i].mul(sLenderRequests[i]).div(oldShares);
+            let expectedNewPrincipal = sLenderPrincipals[i].sub(principalRequested);
             expect(newPrincipal).to.closeTo(expectedNewPrincipal, 1);
             sLenderShareRequests[i] = sLenderShareRequests[i].add(sLenderRequests[i]);
             sLenderPrincipalRequests[i] = sLenderPrincipalRequests[i].add(principalRequested);
