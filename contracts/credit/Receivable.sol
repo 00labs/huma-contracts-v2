@@ -59,6 +59,20 @@ contract Receivable is
         uint16 currencyCode
     );
 
+    /**
+     * @dev Emitted when a receivable metadata URI is updated
+     * @param owner The address of the owner of the receivable
+     * @param tokenId The ID of the newly created receivable update token
+     * @param oldTokenURI The old metadata URI of the receivable
+     * @param newTokenURI The new metadata URI of the receivable
+     */
+    event ReceivableMetadataUpdated(
+        address indexed owner,
+        uint256 indexed tokenId,
+        string oldTokenURI,
+        string newTokenURI
+    );
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         // _disableInitializers();
@@ -123,6 +137,22 @@ contract Receivable is
         }
 
         emit PaymentDeclared(msg.sender, tokenId, receivableInfo.currencyCode, paymentAmount);
+    }
+
+    /**
+     * @notice Updates the metadata URI of a receivable
+     * @custom:access Only the owner or the original creator of the token can update the metadata URI
+     * @param tokenId The ID of the receivable token
+     * @param uri The new metadata URI of the receivable
+     */
+    function updateReceivableMetadata(uint256 tokenId, string memory uri) external {
+        if (msg.sender != ownerOf(tokenId) && msg.sender != creators[tokenId])
+            revert Errors.notReceivableOwnerOrCreator();
+
+        string memory oldTokenURI = tokenURI(tokenId);
+        _setTokenURI(tokenId, uri);
+
+        emit ReceivableMetadataUpdated(msg.sender, tokenId, oldTokenURI, uri);
     }
 
     /// @inheritdoc IReceivable

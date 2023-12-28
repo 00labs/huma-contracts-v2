@@ -248,6 +248,45 @@ describe("Receivable Test", function () {
         });
     });
 
+    describe("updateReceivableMetadata", function () {
+        it("Should emit a ReceivableMetadataUpdated event when creating a receivable update", async function () {
+            const tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
+            await expect(
+                receivableContract.connect(borrower).updateReceivableMetadata(tokenId, "uri2"),
+            ).to.emit(receivableContract, "ReceivableMetadataUpdated");
+        });
+
+        it("Should not allow for updates to be created for non-existant receivable", async function () {
+            await expect(
+                receivableContract.connect(borrower).updateReceivableMetadata(123, "uri2"),
+            ).to.be.revertedWith("ERC721: invalid token ID");
+        });
+
+        it("Should allow the creator to create a receivable update even after the original receivable has been transferred", async function () {
+            const tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
+            await receivableContract
+                .connect(borrower)
+                ["safeTransferFrom(address,address,uint256)"](
+                    borrower.address,
+                    lender.address,
+                    tokenId,
+                );
+
+            await receivableContract.connect(borrower).updateReceivableMetadata(tokenId, "uri2");
+
+            const tokenURI = await receivableContract.tokenURI(tokenId);
+            expect(tokenURI).to.equal("uri2");
+        });
+
+        it("Should not allow a non-owner and non-creator to create a receivable update", async function () {
+            const tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
+
+            await expect(
+                receivableContract.connect(poolOwner).updateReceivableMetadata(tokenId, "uri2"),
+            ).to.be.revertedWithCustomError(receivableContract, "notReceivableOwnerOrCreator");
+        });
+    });
+
     describe("getStatus", function () {
         it("Should return the correct status if a receivable is unpaid", async function () {
             const tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
