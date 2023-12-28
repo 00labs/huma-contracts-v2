@@ -288,7 +288,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                     nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
                 await receivableContract
                     .connect(borrower)
-                    .createReceivable(1, borrowAmount, maturityDate, "");
+                    .createReceivable(1, borrowAmount, maturityDate, "", "");
                 let tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
                 console.log(`tokenId: ${tokenId}`);
                 await receivableContract
@@ -329,7 +329,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                     nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
                 await receivableContract
                     .connect(borrower)
-                    .createReceivable(1, borrowAmount, maturityDate, "");
+                    .createReceivable(1, borrowAmount, maturityDate, "", "");
                 let tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
                 console.log(`tokenId: ${tokenId}`);
                 await receivableContract
@@ -363,7 +363,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                     nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
                 await receivableContract
                     .connect(borrower)
-                    .createReceivable(1, borrowAmount, maturityDate, "");
+                    .createReceivable(1, borrowAmount, maturityDate, "", "");
                 let tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
                 console.log(`tokenId: ${tokenId}`);
                 await receivableContract
@@ -397,7 +397,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                     nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
                 await receivableContract
                     .connect(borrower)
-                    .createReceivable(1, borrowAmount, maturityDate, "");
+                    .createReceivable(1, borrowAmount, maturityDate, "", "");
                 let tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
                 console.log(`tokenId: ${tokenId}`);
                 await receivableContract
@@ -451,7 +451,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                     nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
                 await receivableContract
                     .connect(borrower)
-                    .createReceivable(1, borrowAmount, maturityDate, "");
+                    .createReceivable(1, borrowAmount, maturityDate, "", "");
                 let tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
                 console.log(`tokenId: ${tokenId}`);
                 await receivableContract
@@ -485,7 +485,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                     nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
                 await receivableContract
                     .connect(borrower)
-                    .createReceivable(1, borrowAmount, maturityDate, "");
+                    .createReceivable(1, borrowAmount, maturityDate, "", "");
                 let tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
                 console.log(`tokenId: ${tokenId}`);
                 await receivableContract
@@ -534,7 +534,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                     nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
                 await receivableContract
                     .connect(borrower)
-                    .createReceivable(1, borrowAmount, maturityDate, "");
+                    .createReceivable(1, borrowAmount, maturityDate, "", "");
                 let tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
                 console.log(`tokenId: ${tokenId}`);
                 await receivableContract
@@ -580,7 +580,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
             let maturityDate = nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
             await receivableContract
                 .connect(borrower)
-                .createReceivable(1, borrowAmount, maturityDate, "");
+                .createReceivable(1, borrowAmount, maturityDate, "", "");
             let tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
             console.log(`tokenId: ${tokenId}`);
             await receivableContract.connect(borrower).approve(creditContract.address, tokenId);
