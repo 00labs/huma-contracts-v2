@@ -1073,7 +1073,7 @@ describe("Lender Integration Test", function () {
                     .deposit(toToken(600_000), sLenders[2].address),
             ).to.be.revertedWithCustomError(
                 juniorTrancheVaultContract,
-                "maxSeniorJuniorRatioExceeded",
+                "trancheLiquidityCapExceeded",
             );
         });
 
@@ -2421,7 +2421,7 @@ describe("Lender Integration Test", function () {
                     .deposit(toToken(600_000), sLenders[2].address),
             ).to.be.revertedWithCustomError(
                 juniorTrancheVaultContract,
-                "maxSeniorJuniorRatioExceeded",
+                "trancheLiquidityCapExceeded",
             );
         });
 

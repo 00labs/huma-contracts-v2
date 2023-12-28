@@ -282,20 +282,6 @@ contract PoolConfig is AccessControl, Initializable {
         _lpConfig = config;
     }
 
-    function getTrancheLiquidityCap(uint256 index) external view returns (uint256 cap) {
-        LPConfig memory config = _lpConfig;
-        if (index == SENIOR_TRANCHE) {
-            cap =
-                (config.liquidityCap * config.maxSeniorJuniorRatio) /
-                (config.maxSeniorJuniorRatio + 1);
-        } else if (index == JUNIOR_TRANCHE) {
-            cap = config.liquidityCap / (config.maxSeniorJuniorRatio + 1);
-        } else {
-            // We only have two tranches for now.
-            assert(false);
-        }
-    }
-
     function setPoolOwnerRewardsAndLiquidity(uint256 rewardRate, uint256 liquidityRate) external {
         _onlyOwnerOrHumaMasterAdmin();
         if (rewardRate > HUNDRED_PERCENT_IN_BPS || liquidityRate > HUNDRED_PERCENT_IN_BPS)

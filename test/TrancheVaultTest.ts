@@ -382,7 +382,7 @@ describe("TrancheVault Test", function () {
                     .deposit(lpConfig.liquidityCap.add(BN.from(1)), lender.address),
             ).to.be.revertedWithCustomError(
                 juniorTrancheVaultContract,
-                "poolLiquidityCapExceeded",
+                "trancheLiquidityCapExceeded",
             );
         });
 
@@ -396,7 +396,7 @@ describe("TrancheVault Test", function () {
                     .deposit(seniorDepositAmount, lender.address),
             ).to.be.revertedWithCustomError(
                 seniorTrancheVaultContract,
-                "maxSeniorJuniorRatioExceeded",
+                "trancheLiquidityCapExceeded",
             );
         });
 
