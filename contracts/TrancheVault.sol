@@ -2,12 +2,13 @@
 pragma solidity ^0.8.0;
 
 import {Errors} from "./Errors.sol";
-import {PoolConfig, LPConfig} from "./PoolConfig.sol";
+import {PoolConfig, LPConfig, PoolSettings} from "./PoolConfig.sol";
 import {PoolConfigCache} from "./PoolConfigCache.sol";
 import {JUNIOR_TRANCHE, SENIOR_TRANCHE, DEFAULT_DECIMALS_FACTOR, SECONDS_IN_A_DAY} from "./SharedDefs.sol";
 import {TrancheVaultStorage, IERC20} from "./TrancheVaultStorage.sol";
 import {IRedemptionHandler, EpochRedemptionSummary} from "./interfaces/IRedemptionHandler.sol";
 import {IEpochManager} from "./interfaces/IEpochManager.sol";
+import {ICalendar} from "./credit/interfaces/ICalendar.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
@@ -89,6 +90,10 @@ contract TrancheVault is
         addr = _poolConfig.epochManager();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         epochManager = IEpochManager(addr);
+
+        addr = _poolConfig.calendar();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        calendar = ICalendar(addr);
     }
 
     /**
@@ -263,9 +268,14 @@ contract TrancheVault is
         if (shares == 0) revert Errors.zeroAmountProvided();
         poolConfig.onlyProtocolAndPoolOn();
 
+        PoolSettings memory poolSettings = poolConfig.getPoolSettings();
+        uint256 nextEpochStartTime = calendar.getStartDateOfNextPeriod(
+            poolSettings.payPeriodDuration,
+            block.timestamp
+        );
         DepositRecord memory depositRecord = depositRecords[msg.sender];
         if (
-            block.timestamp <
+            nextEpochStartTime <
             depositRecord.lastDepositTime +
                 poolConfig.getLPConfig().withdrawalLockoutPeriodInDays *
                 SECONDS_IN_A_DAY
