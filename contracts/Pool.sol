@@ -161,17 +161,16 @@ contract Pool is PoolConfigCache, IPool {
     }
 
     function getTrancheAvailableCap(uint256 index) external view returns (uint256 availableCap) {
+        if (index != SENIOR_TRANCHE && index != JUNIOR_TRANCHE) return 0;
         LPConfig memory config = poolConfig.getLPConfig();
         uint96[2] memory assets = currentTranchesAssets();
+        uint256 poolAssets = assets[SENIOR_TRANCHE] + assets[JUNIOR_TRANCHE];
+        availableCap = config.liquidityCap > poolAssets ? config.liquidityCap - poolAssets : 0;
         if (index == SENIOR_TRANCHE) {
-            uint256 cap = assets[JUNIOR_TRANCHE] * config.maxSeniorJuniorRatio;
-            availableCap = cap > assets[SENIOR_TRANCHE] ? cap - assets[SENIOR_TRANCHE] : 0;
-        } else if (index == JUNIOR_TRANCHE) {
-            uint256 poolAssets = assets[SENIOR_TRANCHE] + assets[JUNIOR_TRANCHE];
-            availableCap = config.liquidityCap > poolAssets ? config.liquidityCap - poolAssets : 0;
-        } else {
-            // We only have two tranches for now.
-            assert(false);
+            uint256 seniorAvailableCap = assets[JUNIOR_TRANCHE] *
+                config.maxSeniorJuniorRatio -
+                assets[SENIOR_TRANCHE];
+            availableCap = availableCap > seniorAvailableCap ? seniorAvailableCap : availableCap;
         }
     }
 
