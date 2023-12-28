@@ -323,12 +323,12 @@ async function configPool(lpConfig: Partial<LPConfigStructOutput>) {
     for (let i = 0; i < jLenders.length; i++) {
         await juniorTrancheVaultContract
             .connect(poolOperator)
-            .addApprovedLender(jLenders[i].address, jLenderReinvests[i]);
+            .setReinvestYield(jLenders[i].address, jLenderReinvests[i]);
     }
     for (let i = 0; i < sLenders.length; i++) {
         await seniorTrancheVaultContract
             .connect(poolOperator)
-            .addApprovedLender(sLenders[i].address, sLenderReinvests[i]);
+            .setReinvestYield(sLenders[i].address, sLenderReinvests[i]);
     }
 
     feeCalculator = new FeeCalculator(humaConfigContract, poolConfigContract);

@@ -13,6 +13,8 @@ import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {IERC20MetadataUpgradeable, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 
+import "hardhat/console.sol";
+
 contract TrancheVault is
     AccessControlUpgradeable,
     ERC20Upgradeable,
@@ -97,8 +99,12 @@ contract TrancheVault is
     function addApprovedLender(address lender, bool reinvestYield) external {
         poolConfig.onlyPoolOperator(msg.sender);
         if (lender == address(0)) revert Errors.zeroAddressProvided();
+        if (hasRole(LENDER_ROLE, lender)) revert Errors.todo();
+        // console.log("lender: %s, hasRole: %s", lender, hasRole(LENDER_ROLE, lender));
+        if (lenderCount >= MAX_ALLOWED_NUM_LENDERS) revert Errors.todo();
         _grantRole(LENDER_ROLE, lender);
         userInfos[lender] = UserInfo({principal: 0, reinvestYield: reinvestYield});
+        ++lenderCount;
     }
 
     /**
@@ -108,8 +114,10 @@ contract TrancheVault is
     function removeApprovedLender(address lender) external {
         poolConfig.onlyPoolOperator(msg.sender);
         if (lender == address(0)) revert Errors.zeroAddressProvided();
+        if (!hasRole(LENDER_ROLE, lender)) revert Errors.todo();
         _revokeRole(LENDER_ROLE, lender);
         delete userInfos[lender];
+        --lenderCount;
     }
 
     /**
@@ -367,10 +375,12 @@ contract TrancheVault is
      * reinvest yield for lenders who want to reinvest. Expects to be called by a cron-like mechanism like autotask.
      */
     function processYieldForLenders(address[] calldata lenders) external {
-        uint256 price = convertToAssets(DEFAULT_DECIMALS_FACTOR);
         uint256 len = lenders.length;
+        if (len > MAX_ALLOWED_NUM_LENDERS) revert Errors.todo();
+
+        uint256 price = convertToAssets(DEFAULT_DECIMALS_FACTOR);
         uint96[2] memory tranchesAssets = pool.currentTranchesAssets();
-        for (uint256 i; i < len && i < MAX_ALLOWED_NUM_LENDERS; i++) {
+        for (uint256 i; i < len; i++) {
             address lender = lenders[i];
             uint256 shares = ERC20Upgradeable.balanceOf(lender);
             uint256 assets = (shares * price) / DEFAULT_DECIMALS_FACTOR;

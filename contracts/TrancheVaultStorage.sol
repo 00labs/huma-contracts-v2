@@ -51,6 +51,9 @@ contract TrancheVaultStorage {
     // Tracks the last deposit time for each lender in this pool
     mapping(address => uint256) public lastDepositTime;
 
+    // The approved lender number
+    uint256 public lenderCount;
+
     /**
      * @dev This empty reserved space is put in place to allow future versions to add new
      * variables without shifting down storage in the inheritance chain.
