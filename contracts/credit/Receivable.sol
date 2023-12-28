@@ -6,7 +6,6 @@ import {ERC721EnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/t
 import {ERC721URIStorageUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721URIStorageUpgradeable.sol";
 import {ERC721BurnableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721BurnableUpgradeable.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {CountersUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/CountersUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {Errors} from "../Errors.sol";
@@ -21,7 +20,6 @@ import {ReceivableInfo, ReceivableState} from "./CreditStructs.sol";
 contract Receivable is
     IReceivable,
     ReceivableStorage,
-    Initializable,
     ERC721Upgradeable,
     ERC721EnumerableUpgradeable,
     ERC721URIStorageUpgradeable,
@@ -104,8 +102,7 @@ contract Receivable is
         uint64 maturityDate,
         string memory uri
     ) public onlyRole(MINTER_ROLE) returns (uint256 tokenId) {
-        tokenId = _tokenIdCounter.current();
-        _tokenIdCounter.increment();
+        tokenId = _getNewTokenId();
         _safeMint(msg.sender, tokenId);
 
         receivableInfoMap[tokenId] = ReceivableInfo(
@@ -189,6 +186,13 @@ contract Receivable is
         uint256 tokenId
     ) internal override(ERC721Upgradeable, ERC721URIStorageUpgradeable) {
         super._burn(tokenId);
+    }
+
+    function _getNewTokenId() internal returns (uint256) {
+        // Increment the counter first before assigning a new ID so that the ID starts at 1
+        // instead of 0.
+        _tokenIdCounter.increment();
+        return _tokenIdCounter.current();
     }
 
     function tokenURI(
