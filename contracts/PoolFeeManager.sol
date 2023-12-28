@@ -260,6 +260,7 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
             availableIncomes.eaIncome;
         incomes = _accruedIncomes;
 
+        // TODO: should round down to favor the protocol over pool and EA (correct).
         uint256 poolOwnerFees = (availableIncomes.poolOwnerIncome * feesLiquidity) /
             totalAvailableFees;
         firstLossCover.depositCoverFor(poolOwnerFees, poolConfig.poolOwnerTreasury());
@@ -308,6 +309,8 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
     ) internal view returns (AccruedIncomes memory incomes, uint256 remaining) {
         AdminRnR memory adminRnR = poolConfig.getAdminRnR();
 
+        // TODO: should round up to consistently favor the protocol over the pool and EA? Not a big deal.
+        // This does favor the pool fee earners than FLC + LPs.
         uint256 income = (humaConfig.protocolFeeInBps() * profit) / HUNDRED_PERCENT_IN_BPS;
         incomes.protocolIncome = uint96(income);
 

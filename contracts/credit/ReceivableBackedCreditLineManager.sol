@@ -41,6 +41,7 @@ contract ReceivableBackedCreditLineManager is
         bytes32 creditHash,
         ReceivableInput memory receivableInput
     ) internal {
+        // TODO: either way is ok
         uint256 incrementalCredit = (getCreditConfig(creditHash).advanceRateInBps *
             receivableInput.receivableAmount) / HUNDRED_PERCENT_IN_BPS;
         CreditLimit memory cl = getCreditLimit(creditHash);

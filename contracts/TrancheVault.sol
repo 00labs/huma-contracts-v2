@@ -226,6 +226,7 @@ contract TrancheVault is
         }
 
         poolSafe.deposit(msg.sender, assets);
+        // TODO: should round down (correct)
         shares = _convertToShares(assets, trancheAssets);
         ERC20Upgradeable._mint(receiver, shares);
         UserInfo memory userInfo = userInfos[receiver];
@@ -259,6 +260,7 @@ contract TrancheVault is
         if (shares > sharesBalance) {
             revert Errors.insufficientSharesForRequest();
         }
+        // TODO: should round down (correct)
         uint256 assetsAfterRedemption = convertToAssets(sharesBalance - shares);
         poolConfig.checkLiquidityRequirementForRedemption(
             msg.sender,
@@ -288,6 +290,7 @@ contract TrancheVault is
             currentEpochId
         );
         lenderRedemptionInfo.numSharesRequested += uint96(shares);
+        // TODO: should round down (correct)
         uint256 principalRequested = convertToAssets(shares);
         lenderRedemptionInfo.principalRequested += uint96(principalRequested);
         redemptionInfoByLender[msg.sender] = lenderRedemptionInfo;
@@ -321,14 +324,18 @@ contract TrancheVault is
         }
 
         UserInfo memory userInfo = userInfos[msg.sender];
-        // TODO rounding error?
+        // TODO Is this implementation correct? What happens if the share price changes
+        // between redemption request addition and cancellation?
+        // Rounding down should be correct, but there will always be precision issues regardless,
+        // i.e. the user may end up with less principal than they initially had by successively cancelling
+        // redemption requests. However, this does favor the pool.
         userInfo.principal +=
             (lenderRedemptionInfo.principalRequested * uint96(shares)) /
             lenderRedemptionInfo.numSharesRequested;
         userInfos[msg.sender] = userInfo;
 
         uint96 newNumSharesRequested = lenderRedemptionInfo.numSharesRequested - uint96(shares);
-        // TODO rounding error?
+        // TODO why recalculate instead of subtracting the amount that has been canceled?
         lenderRedemptionInfo.principalRequested =
             (lenderRedemptionInfo.principalRequested * newNumSharesRequested) /
             lenderRedemptionInfo.numSharesRequested;
@@ -367,6 +374,7 @@ contract TrancheVault is
      * reinvest yield for lenders who want to reinvest. Expects to be called by a cron-like mechanism like autotask.
      */
     function processYieldForLenders(address[] calldata lenders) external {
+        // TODO: doesn't this cause more precision issues than necessary since we are rounding twice?
         uint256 price = convertToAssets(DEFAULT_DECIMALS_FACTOR);
         uint256 len = lenders.length;
         uint96[2] memory tranchesAssets = pool.currentTranchesAssets();
@@ -382,7 +390,7 @@ contract TrancheVault is
                     userInfos[lender] = userInfo;
                     emit YieldReinvested(lender, yield);
                 } else {
-                    // TODO rounding up?
+                    // TODO should round up (incorrect)
                     shares = (yield * DEFAULT_DECIMALS_FACTOR) / price;
                     ERC20Upgradeable._burn(lender, shares);
                     poolSafe.withdraw(lender, yield);
@@ -490,6 +498,7 @@ contract TrancheVault is
     function _updateRedemptionInfo(
         RedemptionInfo memory redemptionInfo
     ) internal view returns (RedemptionInfo memory newRedemptionInfo) {
+        // TODO: deep copy here? Otherwise the assignment is meaningless.
         newRedemptionInfo = redemptionInfo;
         uint256 numEpochIds = epochIds.length;
         uint256 remainingShares = newRedemptionInfo.numSharesRequested;
@@ -503,12 +512,14 @@ contract TrancheVault is
                 uint256 epochId = epochIds[i];
                 RedemptionSummary memory summary = redemptionSummaryByEpochId[epochId];
                 if (summary.totalSharesProcessed > 0) {
-                    // TODO Will there be one decimal unit of rounding error here if it can't be divisible?
+                    // TODO should round down (correct)
                     newRedemptionInfo.totalAmountProcessed += uint96(
                         (remainingShares * summary.totalAmountProcessed) /
                             summary.totalSharesRequested
                     );
-                    // TODO Round up here to be good for pool?
+                    // TODO should round up (incorrect), since otherwise the lender could end up
+                    // with more amount than they requested. Although there will be precision issues
+                    // no matter how we round.
                     remainingShares -=
                         (remainingShares * summary.totalSharesProcessed) /
                         summary.totalSharesRequested;

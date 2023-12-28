@@ -96,6 +96,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         uint96[2] memory tranchesAssets = pool.currentTranchesAssets();
 
         // calculate senior/junior LP token prices
+        // TODO: should round down (correct) so that the amount lenders get is rounded down.
         uint256 seniorPrice = (tranchesAssets[SENIOR_TRANCHE] * DEFAULT_DECIMALS_FACTOR) /
             seniorTranche.totalSupply();
         uint256 juniorPrice = (tranchesAssets[JUNIOR_TRANCHE] * DEFAULT_DECIMALS_FACTOR) /
@@ -112,6 +113,9 @@ contract EpochManager is PoolConfigCache, IEpochManager {
             seniorTranche.executeRedemptionSummary(seniorSummary);
             juniorTranche.executeRedemptionSummary(juniorSummary);
 
+            // TODO: should round down (correct) since it's mostly just for display purposes. Although
+            // there are probably precision issues since the amount may not be exactly equal to the
+            // senior unprocessed amount + junior unprocessed amount calculated in the respective summaries.
             unprocessedAmount =
                 (((seniorSummary.totalSharesRequested - seniorSummary.totalSharesProcessed) *
                     seniorPrice) +
@@ -241,10 +245,11 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         uint256 availableAmount
     ) internal pure returns (uint256 remainingAmount) {
         uint256 sharesToRedeem = epochInfo.totalSharesRequested;
+        // TODO should round down (correct)
         uint256 redemptionAmount = (sharesToRedeem * lpTokenPrice) / DEFAULT_DECIMALS_FACTOR;
         if (availableAmount < redemptionAmount) {
             redemptionAmount = availableAmount;
-            // TODO rounding error?
+            // TODO should round up to favor the pool (incorrect)
             sharesToRedeem = (redemptionAmount * DEFAULT_DECIMALS_FACTOR) / lpTokenPrice;
         }
         epochInfo.totalSharesProcessed = uint96(sharesToRedeem);
@@ -277,6 +282,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
     ) internal pure returns (uint256 remainingAmount) {
         // Calculate the minimum amount of junior assets required to maintain the senior : junior ratio.
         // Since integer division rounds down, add 1 to minJuniorAmount in order to maintain the ratio.
+        // TODO: should round up (correct)
         uint256 minJuniorAmount = tranchesAssets[SENIOR_TRANCHE] / maxSeniorJuniorRatio;
         if (minJuniorAmount * maxSeniorJuniorRatio < tranchesAssets[SENIOR_TRANCHE])
             minJuniorAmount += 1;
@@ -287,14 +293,16 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         if (maxRedeemableAmount <= 0) return availableAmount;
 
         uint256 sharesToRedeem = epochInfo.totalSharesRequested;
+        // TODO should round down (correct)
         uint256 redemptionAmount = (sharesToRedeem * lpTokenPrice) / DEFAULT_DECIMALS_FACTOR;
         if (availableAmount < redemptionAmount) {
             redemptionAmount = availableAmount;
-            // TODO rounding error?
+            // TODO should round up to favor the pool (incorrect)
             sharesToRedeem = (redemptionAmount * DEFAULT_DECIMALS_FACTOR) / lpTokenPrice;
         }
         if (maxRedeemableAmount < redemptionAmount) {
             redemptionAmount = maxRedeemableAmount;
+            // TODO should round up to favor the pool (incorrect)
             sharesToRedeem = (redemptionAmount * DEFAULT_DECIMALS_FACTOR) / lpTokenPrice;
         }
 
