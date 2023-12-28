@@ -34,10 +34,17 @@ contract ReceivableHandler is Test {
         uint16 currencyCode,
         uint96 receivableAmount,
         uint64 maturityDate,
+        string memory referenceId,
         string memory uri,
         uint256 actorIndexSeed
     ) external useActor(actorIndexSeed) {
-        receivable.createReceivable(currencyCode, receivableAmount, maturityDate, uri);
+        receivable.createReceivable(
+            currencyCode,
+            receivableAmount,
+            maturityDate,
+            referenceId,
+            uri
+        );
         receivableCount++;
     }
 
@@ -51,7 +58,14 @@ contract ReceivableHandler is Test {
         receivableAmount = uint96(bound(receivableAmount, 0, 2 ** 96 - 1));
         maturityDate = uint64(bound(maturityDate, 0, 2 ** 64 - 1));
 
-        this.createReceivable(currencyCode, receivableAmount, maturityDate, "uri", actorIndexSeed);
+        this.createReceivable(
+            currencyCode,
+            receivableAmount,
+            maturityDate,
+            "",
+            "uri",
+            actorIndexSeed
+        );
     }
 
     function declarePayment(
