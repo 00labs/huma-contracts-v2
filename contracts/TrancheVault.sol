@@ -23,7 +23,7 @@ contract TrancheVault is
     IRedemptionHandler
 {
     bytes32 public constant LENDER_ROLE = keccak256("LENDER");
-    uint256 private constant MAX_ALLOWED_NUM_LENDERS = 100;
+    uint256 private constant MAX_ALLOWED_NUM_NON_REINVESTING_LENDERS = 100;
 
     event EpochProcessed(
         uint256 indexed epochId,
@@ -108,7 +108,8 @@ contract TrancheVault is
             lastDepositTime: 0
         });
         if (!reinvestYield) {
-            if (nonReinvestingLenders.length >= MAX_ALLOWED_NUM_LENDERS) revert Errors.todo();
+            if (nonReinvestingLenders.length >= MAX_ALLOWED_NUM_NON_REINVESTING_LENDERS)
+                revert Errors.todo();
             nonReinvestingLenders.push(lender);
         }
     }
@@ -138,7 +139,8 @@ contract TrancheVault is
         if (!depositRecord.reinvestYield && reinvestYield) {
             _removeLenderFromNonReinvestingLenders(lender);
         } else if (depositRecord.reinvestYield && !reinvestYield) {
-            if (nonReinvestingLenders.length >= MAX_ALLOWED_NUM_LENDERS) revert Errors.todo();
+            if (nonReinvestingLenders.length >= MAX_ALLOWED_NUM_NON_REINVESTING_LENDERS)
+                revert Errors.todo();
             nonReinvestingLenders.push(lender);
         }
         depositRecord.reinvestYield = reinvestYield;
