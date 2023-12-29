@@ -26,7 +26,6 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
     ) public view virtual override returns (uint256 fees) {
         uint256 frontLoadingFeeBps;
         (fees, frontLoadingFeeBps) = poolConfig.getFrontLoadingFees();
-        // TODO: can round up to favor the pool, but doesn't really matter.
         if (frontLoadingFeeBps > 0)
             fees += (_amount * frontLoadingFeeBps) / HUNDRED_PERCENT_IN_BPS;
         return fees;
@@ -105,7 +104,6 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             _cr.yieldDue +
             _dd.principalPastDue;
         uint256 lateFeeBasis = totalPrincipal > committedAmount ? totalPrincipal : committedAmount;
-        // TODO: can round up to favor the pool, but doesn't really matter.
         lateFee = uint96(
             _dd.lateFee +
                 (fees.lateFeeBps *
@@ -290,7 +288,6 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         int256 valueDiff = int256(newValue) - int256(oldValue);
         // -1 since the new value takes effect the next day.
         int256 yieldDiff = (int256((daysRemaining - 1) * principal) * valueDiff);
-        // TODO: can round up to favor the pool, but doesn't really matter.
         return
             uint256(int256(oldYield * HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR) + yieldDiff) /
             (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR);
@@ -301,8 +298,6 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         uint256 principalRateInBps,
         uint256 numPeriods
     ) public pure returns (uint256 principalDue) {
-        // TODO: can round up to favor the pool so that we get principal back earlier, although that means
-        // we'll get less yield. But doesn't really matter.
         return
             ((HUNDRED_PERCENT_IN_BPS ** numPeriods -
                 (HUNDRED_PERCENT_IN_BPS - principalRateInBps) ** numPeriods) * unbilledPrincipal) /
@@ -317,8 +312,6 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         PayPeriodDuration periodDuration
     ) public view returns (uint256 principalDue) {
         uint256 totalDaysInFullPeriod = calendar.getTotalDaysInFullPeriod(periodDuration);
-        // TODO: can round up to favor the pool so that we get principal back earlier, although that means
-        // we'll get less yield. But doesn't really matter.
         return
             (unbilledPrincipal * principalRateInBps * numDays) /
             (HUNDRED_PERCENT_IN_BPS * totalDaysInFullPeriod);

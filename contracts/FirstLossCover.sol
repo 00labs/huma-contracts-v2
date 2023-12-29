@@ -135,7 +135,6 @@ contract FirstLossCover is
             revert Errors.poolIsNotReadyForFirstLossCoverWithdrawal();
 
         if (shares > balanceOf(msg.sender)) revert Errors.insufficientSharesForRequest();
-        // TODO: should round down (correct)
         assets = convertToAssets(shares);
         // Revert if the pool is not ready and the assets to be withdrawn is more than the available value.
         if (!ready && assets > currTotalAssets - cap) revert Errors.insufficientAmountForRequest();
@@ -200,7 +199,6 @@ contract FirstLossCover is
         uint256 currTotalSupply = totalSupply();
         uint256 currTotalAssets = totalAssets();
 
-        // TODO: should round down (correct)
         return currTotalSupply == 0 ? assets : (assets * currTotalSupply) / currTotalAssets;
     }
 
@@ -208,12 +206,10 @@ contract FirstLossCover is
         uint256 currTotalSupply = totalSupply();
         uint256 currTotalAssets = totalAssets();
 
-        // TODO: should round down (correct)
         return currTotalSupply == 0 ? shares : (shares * currTotalAssets) / currTotalSupply;
     }
 
     function totalAssetsOf(address account) external view returns (uint256 assets) {
-        // TODO: should round down (correct)
         return convertToAssets(ERC20Upgradeable.balanceOf(account));
     }
 
@@ -235,7 +231,6 @@ contract FirstLossCover is
             uint256 shares = balanceOf(provider);
             if (shares == 0) continue;
 
-            // TODO should round down (correct)
             uint256 payout = (yield * shares) / totalShares;
             underlyingToken.safeTransfer(provider, payout);
             remainingShares -= shares;
@@ -248,7 +243,6 @@ contract FirstLossCover is
 
     function isSufficient(address account) external view returns (bool) {
         _onlyCoverProvider(account);
-        // TODO: should round down (correct)
         uint256 balance = convertToAssets(balanceOf(account));
         uint256 min = _getMinCoverAmount(account);
         return balance >= min;
@@ -258,7 +252,6 @@ contract FirstLossCover is
         FirstLossCoverConfig memory lossCoverConfig = poolConfig.getFirstLossCoverConfig(
             address(this)
         );
-        // TODO: round up to favor the pool since we'll get more cover? Doesn't seem like a big deal though.
         uint256 capFromPoolAssets = (poolAssets * lossCoverConfig.maxPercentOfPoolValueInBps) /
             HUNDRED_PERCENT_IN_BPS;
         return
@@ -301,7 +294,6 @@ contract FirstLossCover is
     }
 
     function _deposit(uint256 assets, address account) internal returns (uint256 shares) {
-        // TODO: should round down (correct).
         shares = convertToShares(assets);
         ERC20Upgradeable._mint(account, shares);
 
@@ -313,7 +305,6 @@ contract FirstLossCover is
     ) internal view returns (uint256 remainingLoss, uint256 coveredAmount) {
         FirstLossCoverConfig memory config = poolConfig.getFirstLossCoverConfig(address(this));
 
-        // TODO: round up to favor tranches since the FLC will cover slightly more? Probably not a big deal either.
         uint256 availableAmount = (loss * config.coverRateInBps) / HUNDRED_PERCENT_IN_BPS;
         if (availableAmount >= config.coverCap) {
             availableAmount = config.coverCap;
@@ -340,11 +331,9 @@ contract FirstLossCover is
         LossCoverProviderConfig memory providerConfig = providerConfigs[account];
         LPConfig memory lpConfig = poolConfig.getLPConfig();
         uint256 poolCap = lpConfig.liquidityCap;
-        // TODO: round up to get more cover?
         uint256 minFromPoolCap = (poolCap * providerConfig.poolCapCoverageInBps) /
             HUNDRED_PERCENT_IN_BPS;
         uint256 poolValue = pool.totalAssets();
-        // TODO: round up to get more cover?
         uint256 minFromPoolValue = (poolValue * providerConfig.poolValueCoverageInBps) /
             HUNDRED_PERCENT_IN_BPS;
         // We use the larger of the two values as the minimum cover amount.

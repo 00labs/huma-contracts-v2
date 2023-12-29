@@ -13,8 +13,7 @@ import {IPool} from "./interfaces/IPool.sol";
 import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {IERC20MetadataUpgradeable, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-
-import "hardhat/console.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract TrancheVault is
     AccessControlUpgradeable,
@@ -285,7 +284,6 @@ contract TrancheVault is
         if (shares > sharesBalance) {
             revert Errors.insufficientSharesForRequest();
         }
-        // TODO: should round down (correct)
         uint256 assetsAfterRedemption = convertToAssets(sharesBalance - shares);
         poolConfig.checkLiquidityRequirementForRedemption(
             msg.sender,
@@ -349,14 +347,12 @@ contract TrancheVault is
         }
 
         DepositRecord memory depositRecord = depositRecords[msg.sender];
-        // TODO rounding error?
         depositRecord.principal +=
             (lenderRedemptionRecord.principalRequested * uint96(shares)) /
             lenderRedemptionRecord.numSharesRequested;
         depositRecords[msg.sender] = depositRecord;
 
         uint96 newNumSharesRequested = lenderRedemptionRecord.numSharesRequested - uint96(shares);
-        // TODO rounding error?
         lenderRedemptionRecord.principalRequested =
             (lenderRedemptionRecord.principalRequested * newNumSharesRequested) /
             lenderRedemptionRecord.numSharesRequested;
@@ -391,8 +387,8 @@ contract TrancheVault is
     }
 
     /**
-     * @notice Process yield of lenders, pay out yield to lenders who want to withdraw
-     * reinvest yield for lenders who want to reinvest. Expects to be called by a cron-like mechanism like autotask.
+     * @notice Processes yield of lenders. Pays out yield to lenders who are not reinvesting their yield.
+     * @dev This function is expected to be called by a cron-like mechanism like autotask.
      */
     function processYieldForLenders() external {
         uint256 len = nonReinvestingLenders.length;
@@ -406,14 +402,13 @@ contract TrancheVault is
             DepositRecord memory depositRecord = depositRecords[lender];
             if (assets > depositRecord.principal) {
                 uint256 yield = assets - depositRecord.principal;
-                // TODO should round up (incorrect)
-                shares = (yield * DEFAULT_DECIMALS_FACTOR) / price;
-                if (shares > 0) {
-                    ERC20Upgradeable._burn(lender, shares);
-                    poolSafe.withdraw(lender, yield);
-                    tranchesAssets[trancheIndex] -= uint96(yield);
-                    emit YieldPaidout(lender, yield, shares);
-                }
+                // Round up the number of shares the lender has to burn in order to receive
+                // the given amount of yield. The result favors the pool.
+                shares = Math.ceilDiv(yield * DEFAULT_DECIMALS_FACTOR, price);
+                ERC20Upgradeable._burn(lender, shares);
+                poolSafe.withdraw(lender, yield);
+                tranchesAssets[trancheIndex] -= uint96(yield);
+                emit YieldPaidout(lender, yield, shares);
             }
         }
         poolSafe.resetUnprocessedProfit();
@@ -537,17 +532,17 @@ contract TrancheVault is
                 uint256 epochId = epochIds[i];
                 EpochRedemptionSummary memory summary = epochRedemptionSummaries[epochId];
                 if (summary.totalSharesProcessed > 0) {
-                    // TODO should round down (correct)
                     newRedemptionRecord.totalAmountProcessed += uint96(
                         (remainingShares * summary.totalAmountProcessed) /
                             summary.totalSharesRequested
                     );
-                    // TODO should round up (incorrect), since otherwise the lender could end up
-                    // with more amount than they requested. Although there will be precision issues
-                    // no matter how we round.
-                    remainingShares -=
-                        (remainingShares * summary.totalSharesProcessed) /
-                        summary.totalSharesRequested;
+                    // Round up the number of shares the lender burned for the redemption requests that
+                    // have been processed, so that the remaining number of shares is rounded down.
+                    // The result favors the pool.
+                    remainingShares -= Math.ceilDiv(
+                        remainingShares * summary.totalSharesProcessed,
+                        summary.totalSharesRequested
+                    );
                 }
             }
             newRedemptionRecord.numSharesRequested = uint96(remainingShares);

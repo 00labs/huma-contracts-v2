@@ -124,7 +124,6 @@ contract Calendar is ICalendar {
         // a partial period or not, so push the start date to the beginning of the period
         // to simplify the calculation.
         startDate = getStartDateOfPeriod(periodDuration, startDate);
-        // TODO: should round down since we want to get an integer anyways (correct)
         return getDaysDiff(startDate, endDate) / getTotalDaysInFullPeriod(periodDuration);
     }
 

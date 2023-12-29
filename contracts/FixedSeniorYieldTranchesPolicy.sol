@@ -82,7 +82,6 @@ contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
         SeniorYieldTracker memory tracker = seniorYieldTracker;
         if (block.timestamp > tracker.lastUpdatedDate) {
             LPConfig memory lpConfig = poolConfig.getLPConfig();
-            // TODO: should round down (correct).
             tracker.unpaidYield += uint96(
                 (tracker.totalAssets *
                     lpConfig.fixedSeniorYieldInBps *

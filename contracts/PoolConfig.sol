@@ -684,16 +684,12 @@ contract PoolConfig is AccessControl, Initializable {
     }
 
     function _getRequiredLiquidityForPoolOwner() internal view returns (uint256 amount) {
-        // TODO: round up to require more liquidity from the pool owner? It does mean that other junior
-        // LPs will need deposit less. At the end it shouldn't affect the pool as long as there is enough
-        // total liquidity.
         return
             (_lpConfig.liquidityCap * _adminRnR.liquidityRateInBpsByPoolOwner) /
             HUNDRED_PERCENT_IN_BPS;
     }
 
     function _getRequiredLiquidityForEA() internal view returns (uint256 amount) {
-        // TODO: round up to require more liquidity?
         return
             (_lpConfig.liquidityCap * _adminRnR.liquidityRateInBpsByEA) / HUNDRED_PERCENT_IN_BPS;
     }

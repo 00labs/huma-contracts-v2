@@ -12,6 +12,7 @@ import {IEpochManager} from "./interfaces/IEpochManager.sol";
 import {Errors} from "./Errors.sol";
 import {ICalendar} from "./credit/interfaces/ICalendar.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 interface ITrancheVaultLike is IRedemptionHandler {
     function totalSupply() external view returns (uint256);
@@ -97,7 +98,6 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         uint96[2] memory tranchesAssets = pool.currentTranchesAssets();
 
         // calculate senior/junior LP token prices
-        // TODO: should round down (correct) so that the amount lenders get is rounded down.
         uint256 seniorPrice = (tranchesAssets[SENIOR_TRANCHE] * DEFAULT_DECIMALS_FACTOR) /
             seniorTranche.totalSupply();
         uint256 juniorPrice = (tranchesAssets[JUNIOR_TRANCHE] * DEFAULT_DECIMALS_FACTOR) /
@@ -114,9 +114,6 @@ contract EpochManager is PoolConfigCache, IEpochManager {
             seniorTranche.executeRedemptionSummary(seniorSummary);
             juniorTranche.executeRedemptionSummary(juniorSummary);
 
-            // TODO: should round down (correct) since it's mostly just for display purposes. Although
-            // there are probably precision issues since the amount may not be exactly equal to the
-            // senior unprocessed amount + junior unprocessed amount calculated in the respective summaries.
             unprocessedAmount =
                 (((seniorSummary.totalSharesRequested - seniorSummary.totalSharesProcessed) *
                     seniorPrice) +
@@ -249,8 +246,12 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         uint256 redemptionAmount = (sharesToRedeem * lpTokenPrice) / DEFAULT_DECIMALS_FACTOR;
         if (availableAmount < redemptionAmount) {
             redemptionAmount = availableAmount;
-            // TODO should round up to favor the pool (incorrect)
-            sharesToRedeem = (redemptionAmount * DEFAULT_DECIMALS_FACTOR) / lpTokenPrice;
+            // Round up the number of shares the lender has to burn in order to receive
+            // the amount redeemable. The result favors the pool.
+            sharesToRedeem = Math.ceilDiv(
+                redemptionAmount * DEFAULT_DECIMALS_FACTOR,
+                lpTokenPrice
+            );
         }
         redemptionSummary.totalSharesProcessed = uint96(sharesToRedeem);
         redemptionSummary.totalAmountProcessed = uint96(redemptionAmount);
@@ -282,7 +283,6 @@ contract EpochManager is PoolConfigCache, IEpochManager {
     ) internal pure returns (uint256 remainingAmount) {
         // Calculate the minimum amount of junior assets required to maintain the senior : junior ratio.
         // Since integer division rounds down, add 1 to minJuniorAmount in order to maintain the ratio.
-        // TODO: should round up (correct)
         uint256 minJuniorAmount = tranchesAssets[SENIOR_TRANCHE] / maxSeniorJuniorRatio;
         if (minJuniorAmount * maxSeniorJuniorRatio < tranchesAssets[SENIOR_TRANCHE])
             minJuniorAmount += 1;
@@ -296,13 +296,21 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         uint256 redemptionAmount = (sharesToRedeem * lpTokenPrice) / DEFAULT_DECIMALS_FACTOR;
         if (availableAmount < redemptionAmount) {
             redemptionAmount = availableAmount;
-            // TODO should round up to favor the pool (incorrect)
-            sharesToRedeem = (redemptionAmount * DEFAULT_DECIMALS_FACTOR) / lpTokenPrice;
+            // Round up the number of shares the lender has to burn in order to receive
+            // the amount redeemable. The result favors the pool.
+            sharesToRedeem = Math.ceilDiv(
+                redemptionAmount * DEFAULT_DECIMALS_FACTOR,
+                lpTokenPrice
+            );
         }
         if (maxRedeemableAmount < redemptionAmount) {
             redemptionAmount = maxRedeemableAmount;
-            // TODO should round up to favor the pool (incorrect)
-            sharesToRedeem = (redemptionAmount * DEFAULT_DECIMALS_FACTOR) / lpTokenPrice;
+            // Round up the number of shares the lender has to burn in order to receive
+            // the amount redeemable. The result favors the pool.
+            sharesToRedeem = Math.ceilDiv(
+                redemptionAmount * DEFAULT_DECIMALS_FACTOR,
+                lpTokenPrice
+            );
         }
 
         redemptionSummary.totalSharesProcessed = uint96(sharesToRedeem);

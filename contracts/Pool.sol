@@ -303,8 +303,6 @@ contract Pool is PoolConfigCache, IPool {
             FirstLossCoverConfig memory config = poolConfig.getFirstLossCoverConfig(
                 address(cover)
             );
-            // TODO: should round down so that (1) juniorProfit is never negative below (2) we favor
-            // the junior tranche over FLC (correct)
             profitsForFirstLossCovers[i] =
                 (cover.totalAssets() * config.riskYieldMultiplierInBps) /
                 HUNDRED_PERCENT_IN_BPS;
@@ -313,13 +311,11 @@ contract Pool is PoolConfigCache, IPool {
 
         juniorProfit = nonSeniorProfit;
         for (uint256 i = 0; i < len; i++) {
-            // TODO: should round down so that (1) juniorProfit is never negative below (2) we favor
-            // the junior tranche over FLC (correct). Plus the comment below is incomplete.
             profitsForFirstLossCovers[i] =
                 (nonSeniorProfit * profitsForFirstLossCovers[i]) /
                 totalWeight;
-            // Note since profitsForFirstLossCovers[i] is rounding down by default,
-            // it is guranteed that juniorProfit will not
+            // Note since profitsForFirstLossCovers[i] is rounded down by default,
+            // it is guaranteed that juniorProfit will not be negative.
             juniorProfit -= profitsForFirstLossCovers[i];
         }
         return (juniorProfit, profitsForFirstLossCovers);

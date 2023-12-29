@@ -22,6 +22,14 @@ export function sumBNArray(arr: BN[]): BN {
     return arr.reduce((acc, curValue) => acc.add(curValue), BN.from(0));
 }
 
+// Calculates x / y with the result rounded up.
+export function ceilDiv(x: BN, y: BN): BN {
+    if (y.eq(0)) {
+        return x.div(y);
+    }
+    return x.eq(0) ? BN.from(0) : x.sub(1).div(y).add(1);
+}
+
 export function isCloseTo(actualValue: BN, expectedValue: BN, delta: BN): boolean {
     return actualValue.sub(expectedValue).abs().lte(delta);
 }

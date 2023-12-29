@@ -29,6 +29,7 @@ import {
     deployProtocolContracts,
 } from "./BaseTest";
 import {
+    ceilDiv,
     getFirstLossCoverInfo,
     getLatestBlock,
     mineNextBlockWithTimestamp,
@@ -1062,7 +1063,6 @@ describe("TrancheVault Test", function () {
                     let lockout = currentEpoch.endTime
                         .sub(block.timestamp)
                         .div(CONSTANTS.SECONDS_IN_A_DAY);
-                    // console.log("lockout", lockout.toString());
                     let lpConfig = await poolConfigContract.getLPConfig();
                     await poolConfigContract.connect(poolOwner).setLPConfig({
                         ...lpConfig,
@@ -1449,7 +1449,6 @@ describe("TrancheVault Test", function () {
                     currentEpochId = await epochManagerContract.currentEpochId();
 
                     // Lender2 requests redemption in next epoch
-                    balance = await juniorTrancheVaultContract.balanceOf(lender2.address);
                     await expect(
                         juniorTrancheVaultContract.connect(lender2).addRedemptionRequest(shares),
                     )
@@ -1539,7 +1538,6 @@ describe("TrancheVault Test", function () {
                     await mockDistributePnL(profit, BN.from(0), BN.from(0));
 
                     // lender adds redemption request again
-
                     shares = toToken(13_000);
                     balance = await juniorTrancheVaultContract.balanceOf(lender.address);
                     allPrincipal = (
@@ -1634,7 +1632,7 @@ describe("TrancheVault Test", function () {
                         await juniorTrancheVaultContract.cancellableRedemptionShares(
                             lender.address,
                         ),
-                    ).to.equal(sharesRequested.sub(shares));
+                    ).to.equal(sharesRequested.sub(shares).sub(1));
                 });
 
                 it("Should allow lenders to request redemption and cancel redemption request when there is loss", async function () {
@@ -1695,22 +1693,10 @@ describe("TrancheVault Test", function () {
                         availableAssets.sub(amountProcessed),
                     );
                     await epochManagerContract.closeEpoch();
-                    currentEpochId = await epochManagerContract.currentEpochId();
                     principalRequested = principalRequested
                         .mul(sharesRequested.sub(sharesProcessed))
                         .div(sharesRequested);
                     sharesRequested = sharesRequested.sub(sharesProcessed);
-
-                    // console.log(
-                    //     `borrowerFirstLossCoverContract.getFirstLossCoverConfig: ${await poolConfigContract.getFirstLossCoverConfig(
-                    //         borrowerFirstLossCoverContract.address,
-                    //     )}`,
-                    // );
-                    // console.log(
-                    //     `affiliateFirstLossCoverContract.getFirstLossCoverConfig: ${await poolConfigContract.getFirstLossCoverConfig(
-                    //         affiliateFirstLossCoverContract.address,
-                    //     )}`,
-                    // );
 
                     // Introduce loss
                     let loss = toToken(37_000);
@@ -1743,12 +1729,14 @@ describe("TrancheVault Test", function () {
                         sharesRequested.add(shares),
                         principalRequested.add(principal),
                         amountProcessed,
+                        BN.from(0),
+                        1,
                     );
                     expect(
                         await juniorTrancheVaultContract.cancellableRedemptionShares(
                             lender.address,
                         ),
-                    ).to.equal(sharesRequested.add(shares));
+                    ).to.equal(sharesRequested.add(shares).sub(1));
                     sharesRequested = sharesRequested.add(shares);
                     principalRequested = principalRequested.add(principal);
 
@@ -1789,7 +1777,7 @@ describe("TrancheVault Test", function () {
                         await juniorTrancheVaultContract.cancellableRedemptionShares(
                             lender.address,
                         ),
-                    ).to.equal(sharesRequested.sub(shares));
+                    ).to.equal(sharesRequested.sub(shares).sub(1));
                 });
             });
         });
@@ -1887,7 +1875,7 @@ describe("TrancheVault Test", function () {
                 expect(await mockTokenContract.balanceOf(lender2.address)).to.equal(balanceBefore);
             });
 
-            it("Should disbuse when epochs was partially processed", async function () {
+            it("Should disburse when epochs were partially processed", async function () {
                 let shares = toToken(1000);
                 let shares2 = toToken(2000);
 
@@ -1910,53 +1898,55 @@ describe("TrancheVault Test", function () {
                 await setNextBlockTimestamp(ts);
                 await epochManagerContract.closeEpoch();
 
-                let withdrawable = shares.mul(availableAmount).div(shares.add(shares2));
+                let withdrawableAmount = shares.mul(availableAmount).div(shares.add(shares2));
                 expect(
                     await seniorTrancheVaultContract.withdrawableAssets(lender.address),
-                ).to.equal(withdrawable);
-                let withdrawable2 = shares2.mul(availableAmount).div(shares.add(shares2));
+                ).to.equal(withdrawableAmount);
+                let withdrawableAmount2 = shares2.mul(availableAmount).div(shares.add(shares2));
                 expect(
                     await seniorTrancheVaultContract.withdrawableAssets(lender2.address),
-                ).to.equal(withdrawable2);
+                ).to.equal(withdrawableAmount2);
 
                 let balanceBefore = await mockTokenContract.balanceOf(lender.address);
                 await expect(seniorTrancheVaultContract.connect(lender).disburse())
                     .to.emit(seniorTrancheVaultContract, "LenderFundDisbursed")
-                    .withArgs(lender.address, lender.address, withdrawable);
+                    .withArgs(lender.address, lender.address, withdrawableAmount);
                 expect(await mockTokenContract.balanceOf(lender.address)).to.equal(
-                    balanceBefore.add(withdrawable),
+                    balanceBefore.add(withdrawableAmount),
                 );
-                let allWithdrawable = withdrawable;
+                let allWithdrawableAmount = withdrawableAmount;
                 await checkRedemptionRecordByLender(
                     seniorTrancheVaultContract,
                     lender,
                     1,
-                    shares.sub(withdrawable),
-                    shares.sub(withdrawable),
-                    allWithdrawable,
-                    allWithdrawable,
+                    shares.sub(withdrawableAmount),
+                    shares.sub(withdrawableAmount),
+                    allWithdrawableAmount,
+                    allWithdrawableAmount,
+                    1,
                 );
 
                 balanceBefore = await mockTokenContract.balanceOf(lender2.address);
                 await expect(seniorTrancheVaultContract.connect(lender2).disburse())
                     .to.emit(seniorTrancheVaultContract, "LenderFundDisbursed")
-                    .withArgs(lender2.address, lender2.address, withdrawable2);
+                    .withArgs(lender2.address, lender2.address, withdrawableAmount2);
                 expect(await mockTokenContract.balanceOf(lender2.address)).to.equal(
-                    balanceBefore.add(withdrawable2),
+                    balanceBefore.add(withdrawableAmount2),
                 );
-                let allWithdrawable2 = withdrawable2;
+                let allWithdrawableAmount2 = withdrawableAmount2;
                 await checkRedemptionRecordByLender(
                     seniorTrancheVaultContract,
                     lender2,
                     1,
-                    shares2.sub(withdrawable2),
-                    shares2.sub(withdrawable2),
-                    allWithdrawable2,
-                    allWithdrawable2,
+                    shares2.sub(withdrawableAmount2),
+                    shares2.sub(withdrawableAmount2),
+                    allWithdrawableAmount2,
+                    allWithdrawableAmount2,
+                    1,
                 );
 
-                let allShares = shares.sub(withdrawable);
-                let allShares2 = shares2.sub(withdrawable2);
+                let allShares = shares.sub(withdrawableAmount);
+                let allShares2 = shares2.sub(withdrawableAmount2);
                 let allAvailableAmount = shares.add(shares2).sub(availableAmount);
 
                 shares = toToken(4000);
@@ -1984,53 +1974,61 @@ describe("TrancheVault Test", function () {
                 await setNextBlockTimestamp(ts);
                 await epochManagerContract.closeEpoch();
 
-                withdrawable = allShares.mul(allAvailableAmount).div(totalSharesRequested);
+                withdrawableAmount = allShares
+                    .mul(allAvailableAmount)
+                    .div(totalSharesRequested)
+                    .sub(1);
                 expect(
                     await seniorTrancheVaultContract.withdrawableAssets(lender.address),
-                ).to.equal(withdrawable);
-                withdrawable2 = allShares2.mul(allAvailableAmount).div(totalSharesRequested);
+                ).to.equal(withdrawableAmount);
+                withdrawableAmount2 = allShares2
+                    .mul(allAvailableAmount)
+                    .div(totalSharesRequested)
+                    .sub(1);
                 expect(
                     await seniorTrancheVaultContract.withdrawableAssets(lender2.address),
-                ).to.equal(withdrawable2);
+                ).to.equal(withdrawableAmount2);
 
                 balanceBefore = await mockTokenContract.balanceOf(lender.address);
                 await expect(seniorTrancheVaultContract.connect(lender).disburse())
                     .to.emit(seniorTrancheVaultContract, "LenderFundDisbursed")
-                    .withArgs(lender.address, lender.address, withdrawable);
+                    .withArgs(lender.address, lender.address, withdrawableAmount);
                 expect(await mockTokenContract.balanceOf(lender.address)).to.equal(
-                    balanceBefore.add(withdrawable),
+                    balanceBefore.add(withdrawableAmount),
                 );
-                allWithdrawable = allWithdrawable.add(withdrawable);
+                allWithdrawableAmount = allWithdrawableAmount.add(withdrawableAmount);
                 await checkRedemptionRecordByLender(
                     seniorTrancheVaultContract,
                     lender,
                     2,
-                    allShares.sub(withdrawable),
-                    allShares.sub(withdrawable),
-                    allWithdrawable,
-                    allWithdrawable,
+                    allShares.sub(withdrawableAmount),
+                    allShares.sub(withdrawableAmount),
+                    allWithdrawableAmount,
+                    allWithdrawableAmount,
+                    2,
                 );
 
                 balanceBefore = await mockTokenContract.balanceOf(lender2.address);
                 await expect(seniorTrancheVaultContract.connect(lender2).disburse())
                     .to.emit(seniorTrancheVaultContract, "LenderFundDisbursed")
-                    .withArgs(lender2.address, lender2.address, withdrawable2);
+                    .withArgs(lender2.address, lender2.address, withdrawableAmount2);
                 expect(await mockTokenContract.balanceOf(lender2.address)).to.equal(
-                    balanceBefore.add(withdrawable2),
+                    balanceBefore.add(withdrawableAmount2),
                 );
-                allWithdrawable2 = allWithdrawable2.add(withdrawable2);
+                allWithdrawableAmount2 = allWithdrawableAmount2.add(withdrawableAmount2);
                 await checkRedemptionRecordByLender(
                     seniorTrancheVaultContract,
                     lender2,
                     2,
-                    allShares2.sub(withdrawable2),
-                    allShares2.sub(withdrawable2),
-                    allWithdrawable2,
-                    allWithdrawable2,
+                    allShares2.sub(withdrawableAmount2),
+                    allShares2.sub(withdrawableAmount2),
+                    allWithdrawableAmount2,
+                    allWithdrawableAmount2,
+                    2,
                 );
 
-                allShares = allShares.sub(withdrawable);
-                allShares2 = allShares2.sub(withdrawable2);
+                allShares = allShares.sub(withdrawableAmount);
+                allShares2 = allShares2.sub(withdrawableAmount2);
 
                 // Move assets into pool safe for partial processing
 
@@ -2048,50 +2046,54 @@ describe("TrancheVault Test", function () {
 
                 expect(
                     await seniorTrancheVaultContract.withdrawableAssets(lender.address),
-                ).to.equal(allShares);
+                ).to.be.closeTo(allShares, 2);
                 expect(
                     await seniorTrancheVaultContract.withdrawableAssets(lender2.address),
-                ).to.equal(allShares2);
+                ).to.be.closeTo(allShares2, 2);
 
                 balanceBefore = await mockTokenContract.balanceOf(lender.address);
                 await expect(seniorTrancheVaultContract.connect(lender).disburse())
                     .to.emit(seniorTrancheVaultContract, "LenderFundDisbursed")
-                    .withArgs(lender.address, lender.address, allShares);
-                expect(await mockTokenContract.balanceOf(lender.address)).to.equal(
+                    .withArgs(lender.address, lender.address, allShares.sub(2));
+                expect(await mockTokenContract.balanceOf(lender.address)).to.be.closeTo(
                     balanceBefore.add(allShares),
+                    2,
                 );
-                allWithdrawable = allWithdrawable.add(allShares);
+                allWithdrawableAmount = allWithdrawableAmount.add(allShares);
                 await checkRedemptionRecordByLender(
                     seniorTrancheVaultContract,
                     lender,
                     2,
                     BN.from(0),
                     BN.from(0),
-                    allWithdrawable,
-                    allWithdrawable,
+                    allWithdrawableAmount,
+                    allWithdrawableAmount,
+                    2,
                 );
 
                 balanceBefore = await mockTokenContract.balanceOf(lender2.address);
                 await expect(seniorTrancheVaultContract.connect(lender2).disburse())
                     .to.emit(seniorTrancheVaultContract, "LenderFundDisbursed")
-                    .withArgs(lender2.address, lender2.address, allShares2);
-                expect(await mockTokenContract.balanceOf(lender2.address)).to.equal(
+                    .withArgs(lender2.address, lender2.address, allShares2.sub(2));
+                expect(await mockTokenContract.balanceOf(lender2.address)).to.be.closeTo(
                     balanceBefore.add(allShares2),
+                    2,
                 );
-                allWithdrawable2 = allWithdrawable2.add(allShares2);
+                allWithdrawableAmount2 = allWithdrawableAmount2.add(allShares2);
                 await checkRedemptionRecordByLender(
                     seniorTrancheVaultContract,
                     lender2,
                     2,
                     BN.from(0),
                     BN.from(0),
-                    allWithdrawable2,
-                    allWithdrawable2,
+                    allWithdrawableAmount2,
+                    allWithdrawableAmount2,
+                    2,
                 );
             });
 
             describe("When there is PnL", function () {
-                it("Should disbuse when there is profit", async function () {
+                it("Should disburse when there is profit", async function () {
                     // Introduce profit
                     let profit = toToken(10_000);
                     await mockDistributePnL(profit, BN.from(0), BN.from(0));
@@ -2114,13 +2116,7 @@ describe("TrancheVault Test", function () {
 
                     // Introduce loss
                     let loss = toToken(17_000);
-                    // console.log(
-                    //     `price: ${await juniorTrancheVaultContract.convertToAssets(toToken(1))}`,
-                    // );
                     await creditContract.mockDistributePnL(BN.from(0), loss, BN.from(0));
-                    // console.log(
-                    //     `price: ${await juniorTrancheVaultContract.convertToAssets(toToken(1))}`,
-                    // );
 
                     // Close current epoch while processing partially
                     let currentEpoch = await epochManagerContract.currentEpoch();
@@ -2136,7 +2132,6 @@ describe("TrancheVault Test", function () {
                         availableAssets.sub(amountProcessed),
                     );
                     await epochManagerContract.closeEpoch();
-                    currentEpochId = await epochManagerContract.currentEpochId();
                     principalRequested = principalRequested
                         .mul(sharesRequested.sub(sharesProcessed))
                         .div(sharesRequested);
@@ -2146,7 +2141,7 @@ describe("TrancheVault Test", function () {
                     profit = toToken(30_000);
                     await mockDistributePnL(profit, BN.from(0), BN.from(0));
 
-                    // Lender disbures processed redemption
+                    // Lender disburses processed redemption
                     let balance = await mockTokenContract.balanceOf(lender.address);
                     await expect(juniorTrancheVaultContract.connect(lender).disburse())
                         .to.emit(juniorTrancheVaultContract, "LenderFundDisbursed")
@@ -2162,10 +2157,11 @@ describe("TrancheVault Test", function () {
                         principalRequested,
                         amountProcessed,
                         amountProcessed,
+                        1,
                     );
                 });
 
-                it("Should disbuse when there is loss", async function () {
+                it("Should disburse when there is loss", async function () {
                     // Introduce loss
                     let loss = toToken(17_000);
                     await creditContract.mockDistributePnL(BN.from(0), loss, BN.from(0));
@@ -2204,7 +2200,6 @@ describe("TrancheVault Test", function () {
                         availableAssets.sub(amountProcessed),
                     );
                     await epochManagerContract.closeEpoch();
-                    currentEpochId = await epochManagerContract.currentEpochId();
                     principalRequested = principalRequested
                         .mul(sharesRequested.sub(sharesProcessed))
                         .div(sharesRequested);
@@ -2214,7 +2209,7 @@ describe("TrancheVault Test", function () {
                     let profit = toToken(10_000);
                     await mockDistributePnL(profit, BN.from(0), BN.from(0));
 
-                    // Lender disbures processed redemption
+                    // Lender disburses processed redemption
                     let balance = await mockTokenContract.balanceOf(lender.address);
                     await expect(juniorTrancheVaultContract.connect(lender).disburse())
                         .to.emit(juniorTrancheVaultContract, "LenderFundDisbursed")
@@ -2230,6 +2225,7 @@ describe("TrancheVault Test", function () {
                         principalRequested,
                         amountProcessed,
                         amountProcessed,
+                        1,
                     );
                 });
             });
@@ -2324,17 +2320,17 @@ describe("TrancheVault Test", function () {
         });
     });
 
-    describe("Handle Interests Tests", function () {
+    describe("Handle Yields Tests", function () {
         class Lender {
             lender: Signer;
             principal: BN;
             shares: BN;
-            interest: BN;
+            yield: BN;
 
             constructor(lender: Signer) {
                 this.lender = lender;
                 this.principal = BN.from(0);
-                this.interest = BN.from(0);
+                this.yield = BN.from(0);
                 this.shares = BN.from(0);
             }
 
@@ -2346,15 +2342,9 @@ describe("TrancheVault Test", function () {
                 this.shares = shares;
             }
 
-            setInterest(totalSupply: BN, totalAssets: BN) {
+            setYield(totalSupply: BN, totalAssets: BN) {
                 let assets = this.shares.mul(totalAssets).div(totalSupply);
-                this.interest = assets.sub(this.principal);
-            }
-
-            async syncPrincipal(trancheVaultContract: TrancheVault) {
-                this.principal = (
-                    await trancheVaultContract.depositRecords(this.lender.getAddress())
-                )[0];
+                this.yield = assets.sub(this.principal);
             }
         }
 
@@ -2364,14 +2354,13 @@ describe("TrancheVault Test", function () {
             return BN.from(Math.ceil(Math.random() * max));
         }
 
-        async function prepareForInterestTests(lenderAddrs: Signer[]): Promise<Lender[]> {
+        async function prepareForYieldTests(lenderAddrs: Signer[]): Promise<Lender[]> {
             totalJuniorPrincipal = BN.from(0);
 
-            let lenders: Lender[] = [];
+            const lenders: Lender[] = [];
 
             for (let i = 0; i < lenderAddrs.length; i++) {
-                let lender = new Lender(lenderAddrs[i]);
-                // let rand = getRandomInt(lenderAddrs.length);
+                const lender = new Lender(lenderAddrs[i]);
                 let amount = toToken(100_000).mul(BN.from(2));
                 await juniorTrancheVaultContract
                     .connect(lender.lender)
@@ -2391,7 +2380,7 @@ describe("TrancheVault Test", function () {
             return lenders;
         }
 
-        it("Should payout interests", async function () {
+        it("Should payout yields", async function () {
             await juniorTrancheVaultContract
                 .connect(poolOperator)
                 .setReinvestYield(lender.address, false);
@@ -2399,7 +2388,7 @@ describe("TrancheVault Test", function () {
                 .connect(poolOperator)
                 .setReinvestYield(lender2.address, false);
 
-            let lenders = await prepareForInterestTests([lender, lender2]);
+            const lenders = await prepareForYieldTests([lender, lender2]);
 
             // Introduce profit
             let totalAssets = await juniorTrancheVaultContract.totalAssets();
@@ -2407,30 +2396,67 @@ describe("TrancheVault Test", function () {
             await mockDistributePnL(profit, BN.from(0), BN.from(0));
             let totalSupply = await juniorTrancheVaultContract.totalSupply();
             totalAssets = await juniorTrancheVaultContract.totalAssets();
-            lenders[0].setInterest(totalSupply, totalAssets);
-            lenders[1].setInterest(totalSupply, totalAssets);
+            lenders[0].setYield(totalSupply, totalAssets);
+            const expectedLenderSharesToBurn = ceilDiv(
+                lenders[0].yield.mul(totalSupply),
+                totalAssets,
+            );
+            const lender1SharesRoundedDown = lenders[0].yield.mul(totalSupply).div(totalAssets);
+            expect(expectedLenderSharesToBurn).to.be.gt(lender1SharesRoundedDown);
+            lenders[1].setYield(totalSupply, totalAssets);
+            const expectedLender2SharesToBurn = ceilDiv(
+                lenders[1].yield.mul(totalSupply),
+                totalAssets,
+            );
+            const lender2SharesRoundedDown = lenders[1].yield.mul(totalSupply).div(totalAssets);
+            expect(expectedLender2SharesToBurn).to.be.gt(lender2SharesRoundedDown);
 
-            // Pay out interests
-            let lenderAssets = await mockTokenContract.balanceOf(lender.address);
-            let lender2Assets = await mockTokenContract.balanceOf(lender2.address);
-            await expect(juniorTrancheVaultContract.processYieldForLenders()).to.emit(
-                juniorTrancheVaultContract,
-                "YieldPaidout",
+            // Pay out yields
+            const oldLenderAssets = await mockTokenContract.balanceOf(lender.getAddress());
+            const oldLenderShares = await juniorTrancheVaultContract.balanceOf(
+                lender.getAddress(),
             );
-            expect(await mockTokenContract.balanceOf(lender.address)).to.equal(
-                lenderAssets.add(lenders[0].interest),
+            const oldLender2Assets = await mockTokenContract.balanceOf(lender2.getAddress());
+            const oldLender2Shares = await juniorTrancheVaultContract.balanceOf(
+                lender2.getAddress(),
             );
-            expect(await mockTokenContract.balanceOf(lender2.address)).to.equal(
-                lender2Assets.add(lenders[1].interest),
+
+            await expect(juniorTrancheVaultContract.processYieldForLenders())
+                .to.emit(juniorTrancheVaultContract, "YieldPaidout")
+                .withArgs(
+                    await lenders[0].lender.getAddress(),
+                    lenders[0].yield,
+                    expectedLenderSharesToBurn,
+                )
+                .to.emit(juniorTrancheVaultContract, "YieldPaidout")
+                .withArgs(
+                    await lenders[1].lender.getAddress(),
+                    lenders[1].yield,
+                    expectedLender2SharesToBurn,
+                );
+
+            // Make sure the remaining numbers of shares and assets for lenders are correct.
+            expect(await juniorTrancheVaultContract.balanceOf(lender.getAddress())).to.equal(
+                oldLenderShares.sub(expectedLenderSharesToBurn),
             );
-            expect(await juniorTrancheVaultContract.totalAssetsOf(lender.address)).to.be.closeTo(
-                lenders[0].principal,
-                1,
+            expect(await juniorTrancheVaultContract.balanceOf(lender2.getAddress())).to.equal(
+                oldLender2Shares.sub(expectedLender2SharesToBurn),
             );
-            expect(await juniorTrancheVaultContract.totalAssetsOf(lender2.address)).to.be.closeTo(
-                lenders[1].principal,
-                1,
+            expect(await mockTokenContract.balanceOf(lender2.getAddress())).to.equal(
+                oldLender2Assets.add(lenders[1].yield),
             );
+            expect(await mockTokenContract.balanceOf(lender.getAddress())).to.equal(
+                oldLenderAssets.add(lenders[0].yield),
+            );
+            expect(await mockTokenContract.balanceOf(lender2.getAddress())).to.equal(
+                oldLender2Assets.add(lenders[1].yield),
+            );
+            expect(
+                await juniorTrancheVaultContract.totalAssetsOf(lender.getAddress()),
+            ).to.be.closeTo(lenders[0].principal, 1);
+            expect(
+                await juniorTrancheVaultContract.totalAssetsOf(lender2.getAddress()),
+            ).to.be.closeTo(lenders[1].principal, 1);
             expect(
                 await poolSafeContract.unprocessedTrancheProfit(
                     juniorTrancheVaultContract.address,
@@ -2438,24 +2464,41 @@ describe("TrancheVault Test", function () {
             ).to.equal(0);
         });
 
-        it("Should reinvest interests", async function () {
-            let lenders = await prepareForInterestTests([lender, lender2]);
+        it("Should reinvest yields", async function () {
+            const lenders = await prepareForYieldTests([lender, lender2]);
 
             // Introduce profit
             let totalAssets = await juniorTrancheVaultContract.totalAssets();
             let profit = totalAssets.div(10);
             await mockDistributePnL(profit, BN.from(0), BN.from(0));
-            let totalSupply = await juniorTrancheVaultContract.totalSupply();
+            const totalSupply = await juniorTrancheVaultContract.totalSupply();
             totalAssets = await juniorTrancheVaultContract.totalAssets();
-            lenders[0].setInterest(totalSupply, totalAssets);
-            lenders[1].setInterest(totalSupply, totalAssets);
+            lenders[0].setYield(totalSupply, totalAssets);
+            lenders[1].setYield(totalSupply, totalAssets);
 
-            // Pay out interests
-            let lenderAssets = await mockTokenContract.balanceOf(lender.address);
-            let lender2Assets = await mockTokenContract.balanceOf(lender2.address);
-            await juniorTrancheVaultContract.processYieldForLenders();
-            expect(await mockTokenContract.balanceOf(lender.address)).to.equal(lenderAssets);
-            expect(await mockTokenContract.balanceOf(lender2.address)).to.equal(lender2Assets);
+            // Pay out yields
+            const oldLenderAssets = await mockTokenContract.balanceOf(lender.getAddress());
+            const oldLenderShares = await juniorTrancheVaultContract.balanceOf(
+                lender.getAddress(),
+            );
+            const oldLender2Assets = await mockTokenContract.balanceOf(lender2.getAddress());
+            const oldLender2Shares = await juniorTrancheVaultContract.balanceOf(
+                lender2.getAddress(),
+            );
+
+            await expect(juniorTrancheVaultContract.processYieldForLenders()).not.to.emit(
+                juniorTrancheVaultContract,
+                "YieldPaidout",
+            );
+
+            expect(await juniorTrancheVaultContract.balanceOf(lender.getAddress())).to.equal(
+                oldLenderShares,
+            );
+            expect(await juniorTrancheVaultContract.balanceOf(lender2.getAddress())).to.equal(
+                oldLender2Shares,
+            );
+            expect(await mockTokenContract.balanceOf(lender.address)).to.equal(oldLenderAssets);
+            expect(await mockTokenContract.balanceOf(lender2.address)).to.equal(oldLender2Assets);
             expect(
                 (await juniorTrancheVaultContract.depositRecords(lender.address)).principal,
             ).to.be.closeTo(lenders[0].principal, 1);
@@ -2469,7 +2512,7 @@ describe("TrancheVault Test", function () {
             ).to.equal(0);
         });
 
-        it("Should payout interests and reinvest interests", async function () {
+        it("Should payout yields and reinvest yields", async function () {
             await juniorTrancheVaultContract
                 .connect(poolOperator)
                 .setReinvestYield(lender.address, false);
@@ -2477,7 +2520,7 @@ describe("TrancheVault Test", function () {
                 .connect(poolOperator)
                 .setReinvestYield(lender2.address, false);
 
-            let lenders = await prepareForInterestTests([lender, lender2, lender3, lender4]);
+            const lenders = await prepareForYieldTests([lender, lender2, lender3, lender4]);
 
             // Introduce profit
             let totalAssets = await juniorTrancheVaultContract.totalAssets();
@@ -2485,26 +2528,27 @@ describe("TrancheVault Test", function () {
             await mockDistributePnL(profit, BN.from(0), BN.from(0));
             let totalSupply = await juniorTrancheVaultContract.totalSupply();
             totalAssets = await juniorTrancheVaultContract.totalAssets();
-            lenders[0].setInterest(totalSupply, totalAssets);
-            lenders[1].setInterest(totalSupply, totalAssets);
-            lenders[2].setInterest(totalSupply, totalAssets);
-            lenders[3].setInterest(totalSupply, totalAssets);
+            lenders[0].setYield(totalSupply, totalAssets);
+            lenders[1].setYield(totalSupply, totalAssets);
+            lenders[2].setYield(totalSupply, totalAssets);
+            lenders[3].setYield(totalSupply, totalAssets);
 
-            // Pay out interests
+            // Pay out yields
             let lenderAssets = await mockTokenContract.balanceOf(lender.address);
             let lender2Assets = await mockTokenContract.balanceOf(lender2.address);
             let lender3Assets = await mockTokenContract.balanceOf(lender3.address);
             let lender4Assets = await mockTokenContract.balanceOf(lender4.address);
+
             await expect(juniorTrancheVaultContract.processYieldForLenders()).to.emit(
                 juniorTrancheVaultContract,
                 "YieldPaidout",
             );
 
             expect(await mockTokenContract.balanceOf(lender.address)).to.equal(
-                lenderAssets.add(lenders[0].interest),
+                lenderAssets.add(lenders[0].yield),
             );
             expect(await mockTokenContract.balanceOf(lender2.address)).to.equal(
-                lender2Assets.add(lenders[1].interest),
+                lender2Assets.add(lenders[1].yield),
             );
             expect(await juniorTrancheVaultContract.totalAssetsOf(lender.address)).to.be.closeTo(
                 lenders[0].principal,
@@ -2539,13 +2583,13 @@ describe("TrancheVault Test", function () {
                 .connect(poolOperator)
                 .setReinvestYield(lender2.address, false);
 
-            let lenders = await prepareForInterestTests([lender, lender2, lender3, lender4]);
+            const lenders = await prepareForYieldTests([lender, lender2, lender3, lender4]);
 
             // Introduce loss
             let loss = toToken(10_000);
             await creditContract.mockDistributePnL(BN.from(0), loss, BN.from(0));
 
-            // Pay out interests
+            // Pay out yields
             let lenderAssets = await mockTokenContract.balanceOf(lender.address);
             let lender2Assets = await mockTokenContract.balanceOf(lender2.address);
             let lender3Assets = await mockTokenContract.balanceOf(lender3.address);
@@ -2578,8 +2622,7 @@ describe("TrancheVault Test", function () {
         });
 
         it.skip("Performance testing", async function () {
-            let lenders: Signer[] = [];
-            let addresses: string[] = [];
+            const lenders: Signer[] = [];
 
             for (let i = 0; i < 50; i++) {
                 let lender = ethers.Wallet.createRandom();
@@ -2600,10 +2643,9 @@ describe("TrancheVault Test", function () {
                 await mockTokenContract.mint(lender.getAddress(), toToken(1_000_000_000));
 
                 lenders.push(lender);
-                addresses.push(lender.address);
             }
 
-            await prepareForInterestTests(lenders);
+            await prepareForYieldTests(lenders);
 
             // Introduce profit
             let totalAssets = await juniorTrancheVaultContract.totalAssets();
@@ -2612,7 +2654,7 @@ describe("TrancheVault Test", function () {
 
             await expect(juniorTrancheVaultContract.processYieldForLenders()).to.emit(
                 juniorTrancheVaultContract,
-                "InterestPaidout",
+                "YieldPaidout",
             );
         });
     });

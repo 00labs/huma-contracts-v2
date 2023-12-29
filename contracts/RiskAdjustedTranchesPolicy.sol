@@ -21,8 +21,6 @@ contract RiskAdjustedTranchesPolicy is BaseTranchesPolicy {
         uint256 seniorAssets = assets[SENIOR_TRANCHE];
         uint256 juniorAssets = assets[JUNIOR_TRANCHE];
 
-        // TODO: either rounding direction should be OK. It'll just make one tranche earn
-        // slightly more profit than the other, and has nothing to do with the pool itself.
         uint256 seniorProfit = (profit * seniorAssets) / (seniorAssets + juniorAssets);
 
         LPConfig memory lpConfig = poolConfig.getLPConfig();
