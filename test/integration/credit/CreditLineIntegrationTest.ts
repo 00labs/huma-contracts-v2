@@ -1541,6 +1541,33 @@ describe("Credit Line Integration Test", function () {
     });
 
     it("7/20: Pay off. Bill back to good standing", async function () {
+        // Turn off the pool first so that we can adjust the pool cap, then turn the pool back on
+        // to allow payment.
+        const dateOfPoolCapAdjustment = moment.utc({
+            year: nextYear + 1,
+            month: 6,
+            day: 20,
+            hour: 10,
+        });
+        await setNextBlockTimestamp(dateOfPoolCapAdjustment.unix());
+        await poolContract.connect(poolOwner).disablePool();
+        const existingLpConfig = await poolConfigContract.getLPConfig();
+        await poolConfigContract.connect(poolOwner).setLPConfig({
+            ...existingLpConfig,
+            ...{
+                liquidityCap: 0,
+            },
+        });
+        await poolContract.connect(poolOwner).enablePool();
+
+        // Any further deposit attempts by lenders should fail.
+        await expect(
+            juniorTrancheVaultContract
+                .connect(juniorLender)
+                .deposit(toToken(1), juniorLender.getAddress()),
+        ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "trancheLiquidityCapExceeded");
+
+        // Allow payment to go through.
         const dateOfPayment = moment.utc({
             year: nextYear + 1,
             month: 6,
@@ -1623,6 +1650,18 @@ describe("Credit Line Integration Test", function () {
             [BN.from(0), BN.from(0)],
             lossesRecoveredByFirstLossCovers,
         );
+
+        const dateOfPoolCapRestoration = moment.utc({
+            year: nextYear + 1,
+            month: 6,
+            day: 20,
+            hour: 12,
+        });
+        await setNextBlockTimestamp(dateOfPoolCapRestoration.unix());
+        // Adjust the liquidity cap back to normal.
+        await poolContract.connect(poolOwner).disablePool();
+        await poolConfigContract.connect(poolOwner).setLPConfig(existingLpConfig);
+        await poolContract.connect(poolOwner).enablePool();
     });
 
     it("8/1: 8th bill generated because of outstanding commitment", async function () {
