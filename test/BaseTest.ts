@@ -283,6 +283,7 @@ export async function deployPoolContracts(
             riskYieldMultiplierInBps: 0,
         },
     );
+    await poolConfigContract.setReceivableAsset(receivableContract.address);
     await poolConfigContract.setFirstLossCover(
         AFFILIATE_FIRST_LOSS_COVER_INDEX,
         affiliateFirstLossCoverContract.address,
