@@ -9,7 +9,6 @@ import {
     Calendar,
     CreditDueManager,
     CreditLine,
-    ERC1967Proxy,
     EpochManager,
     EvaluationAgentNFT,
     FirstLossCover,
@@ -56,8 +55,8 @@ export type PoolContracts = [
     PoolFeeManager,
     PoolSafe,
     Calendar,
-    ERC1967Proxy,
-    ERC1967Proxy,
+    FirstLossCover,
+    FirstLossCover,
     BaseTranchesPolicy,
     Pool,
     EpochManager,
@@ -215,10 +214,10 @@ export async function deployPoolContracts(
         "BFLC",
         poolConfigContract.address,
     ]);
-    const borrowerFirstLossCoverContract = await Proxy.deploy(
+    const borrowerFirstLossCoverContract = (await Proxy.deploy(
         FirstLossCoverImpl.address,
         calldata,
-    );
+    )) as FirstLossCover;
 
     fragment = FirstLossCover.interface.getFunction("initializer");
     calldata = FirstLossCover.interface.encodeFunctionData(fragment, [
@@ -226,10 +225,10 @@ export async function deployPoolContracts(
         "AFLC",
         poolConfigContract.address,
     ]);
-    const affiliateFirstLossCoverContract = await Proxy.deploy(
+    const affiliateFirstLossCoverContract = (await Proxy.deploy(
         FirstLossCoverImpl.address,
         calldata,
-    );
+    )) as FirstLossCover;
 
     const TranchesPolicy = await getTranchesPolicyContractFactory(tranchesPolicyContractName);
     const tranchesPolicyContract = await TranchesPolicy.deploy();
