@@ -168,7 +168,7 @@ describe("Receivable Test", function () {
                 ),
             ).to.be.revertedWithCustomError(
                 receivableContract,
-                "receivableReferenceIdFromCreatorAlreadyExists",
+                "receivableReferenceIdAlreadyExists",
             );
 
             const tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
@@ -182,16 +182,14 @@ describe("Receivable Test", function () {
             );
         });
 
-        it("Should correctly map reference id to the token id in referenceIdCreatorHashToTokenIdMap", async function () {
+        it("Should correctly map reference id to the token id in referenceIdHashToTokenIdMap", async function () {
             const tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
-            const receivableIdCreatorHash = await receivableContract.getReferenceIdCreatorHash(
+            const receivableIdCreatorHash = await receivableContract.getReferenceIdHash(
                 "referenceId",
                 borrower.address,
             );
             const lookupTokenId =
-                await receivableContract.referenceIdCreatorHashToTokenIdMap(
-                    receivableIdCreatorHash,
-                );
+                await receivableContract.referenceIdHashToTokenId(receivableIdCreatorHash);
 
             expect(lookupTokenId).to.equal(tokenId);
         });
@@ -360,7 +358,7 @@ describe("Receivable Test", function () {
 
     describe("supportsInterface", function () {
         it("Should support interfaces that the contract implements", async function () {
-            for (const interfaceId of ["0x7dbf5c36", "0x80ac58cd", "0x7965db0b"]) {
+            for (const interfaceId of ["0x6921aa19", "0x80ac58cd", "0x7965db0b"]) {
                 expect(await receivableContract.supportsInterface(interfaceId)).to.be.true;
             }
         });

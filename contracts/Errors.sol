@@ -106,7 +106,7 @@ contract Errors {
     error zeroReceivableIdProvided(); // 0x7a7c1f4f
     error notReceivableOwner(); // 0x828f434d
     error notReceivableOwnerOrCreator(); // 0xc7fb4427
-    error receivableReferenceIdFromCreatorAlreadyExists(); // 0xe53f9f6e
+    error receivableReferenceIdAlreadyExists(); // 0x09ab3996
 
     // superfluid
     error durationTooLong(); // 0xf1dd53a8

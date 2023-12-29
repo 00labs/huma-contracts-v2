@@ -47,12 +47,12 @@ interface IReceivable {
     function getStatus(uint256 tokenId) external returns (ReceivableState state);
 
     /**
-     * @notice Helper function to get the reference id creator hash, which is a key
-     * for lookup in referenceIdCreatorHashToTokenIdMap. Helpful for minters
+     * @notice Helper function to get the reference id hash, which is a key
+     * for lookup in referenceIdHashToTokenId mapping. Helpful for minters
      * who want to obtain the token id given their internal unique reference id.
      * @return the hashed value of the referenceId and creator address.
      */
-    function getReferenceIdCreatorHash(
+    function getReferenceIdHash(
         string memory referenceId,
         address creator
     ) external returns (bytes32);

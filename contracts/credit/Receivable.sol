@@ -109,12 +109,11 @@ contract Receivable is
         tokenId = _tokenIdCounter.current();
 
         if (bytes(referenceId).length > 0) {
-            bytes32 referenceIdCreatorHash = getReferenceIdCreatorHash(referenceId, msg.sender);
-            uint256 existingTokenId = referenceIdCreatorHashToTokenIdMap[referenceIdCreatorHash];
-            if (_exists(existingTokenId))
-                revert Errors.receivableReferenceIdFromCreatorAlreadyExists(); // Receivable with this hashed reference id already exists
+            bytes32 referenceIdCreatorHash = getReferenceIdHash(referenceId, msg.sender);
+            uint256 existingTokenId = referenceIdHashToTokenId[referenceIdCreatorHash];
+            if (_exists(existingTokenId)) revert Errors.receivableReferenceIdAlreadyExists();
 
-            referenceIdCreatorHashToTokenIdMap[referenceIdCreatorHash] = tokenId;
+            referenceIdHashToTokenId[referenceIdCreatorHash] = tokenId;
         }
 
         _safeMint(msg.sender, tokenId);
@@ -184,11 +183,11 @@ contract Receivable is
     }
 
     /// @inheritdoc IReceivable
-    function getReferenceIdCreatorHash(
+    function getReferenceIdHash(
         string memory referenceId,
         address creator
-    ) public pure returns (bytes32) {
-        return keccak256(abi.encodePacked(referenceId, creator));
+    ) public view returns (bytes32) {
+        return keccak256(abi.encodePacked(referenceId, creator, address(this)));
     }
 
     function _authorizeUpgrade(
