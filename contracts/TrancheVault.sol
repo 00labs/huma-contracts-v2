@@ -2,12 +2,13 @@
 pragma solidity ^0.8.0;
 
 import {Errors} from "./Errors.sol";
-import {PoolConfig, LPConfig} from "./PoolConfig.sol";
+import {PoolConfig, LPConfig, PoolSettings} from "./PoolConfig.sol";
 import {PoolConfigCache} from "./PoolConfigCache.sol";
 import {JUNIOR_TRANCHE, SENIOR_TRANCHE, DEFAULT_DECIMALS_FACTOR, SECONDS_IN_A_DAY} from "./SharedDefs.sol";
 import {TrancheVaultStorage, IERC20} from "./TrancheVaultStorage.sol";
 import {IRedemptionHandler, EpochRedemptionSummary} from "./interfaces/IRedemptionHandler.sol";
 import {IEpochManager} from "./interfaces/IEpochManager.sol";
+import {ICalendar} from "./credit/interfaces/ICalendar.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
@@ -23,7 +24,7 @@ contract TrancheVault is
     IRedemptionHandler
 {
     bytes32 public constant LENDER_ROLE = keccak256("LENDER");
-    uint256 private constant MAX_ALLOWED_NUM_LENDERS = 100;
+    uint256 private constant MAX_ALLOWED_NUM_NON_REINVESTING_LENDERS = 100;
 
     event EpochProcessed(
         uint256 indexed epochId,
@@ -89,6 +90,10 @@ contract TrancheVault is
         addr = _poolConfig.epochManager();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         epochManager = IEpochManager(addr);
+
+        addr = _poolConfig.calendar();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        calendar = ICalendar(addr);
     }
 
     /**
@@ -100,15 +105,18 @@ contract TrancheVault is
         poolConfig.onlyPoolOperator(msg.sender);
         if (lender == address(0)) revert Errors.zeroAddressProvided();
         if (hasRole(LENDER_ROLE, lender)) revert Errors.todo();
-        // console.log("lender: %s, hasRole: %s", lender, hasRole(LENDER_ROLE, lender));
-        if (lenderCount >= MAX_ALLOWED_NUM_LENDERS) revert Errors.todo();
+
         _grantRole(LENDER_ROLE, lender);
         depositRecords[lender] = DepositRecord({
             principal: 0,
             reinvestYield: reinvestYield,
             lastDepositTime: 0
         });
-        ++lenderCount;
+        if (!reinvestYield) {
+            if (nonReinvestingLenders.length >= MAX_ALLOWED_NUM_NON_REINVESTING_LENDERS)
+                revert Errors.todo();
+            nonReinvestingLenders.push(lender);
+        }
     }
 
     /**
@@ -120,8 +128,10 @@ contract TrancheVault is
         if (lender == address(0)) revert Errors.zeroAddressProvided();
         if (!hasRole(LENDER_ROLE, lender)) revert Errors.todo();
         _revokeRole(LENDER_ROLE, lender);
+        if (!depositRecords[lender].reinvestYield) {
+            _removeLenderFromNonReinvestingLenders(lender);
+        }
         delete depositRecords[lender];
-        --lenderCount;
     }
 
     /**
@@ -129,7 +139,17 @@ contract TrancheVault is
      */
     function setReinvestYield(address lender, bool reinvestYield) external {
         poolConfig.onlyPoolOperator(msg.sender);
-        depositRecords[lender].reinvestYield = reinvestYield;
+        DepositRecord memory depositRecord = depositRecords[lender];
+        if (depositRecord.reinvestYield == reinvestYield) revert Errors.todo();
+        if (!depositRecord.reinvestYield && reinvestYield) {
+            _removeLenderFromNonReinvestingLenders(lender);
+        } else if (depositRecord.reinvestYield && !reinvestYield) {
+            if (nonReinvestingLenders.length >= MAX_ALLOWED_NUM_NON_REINVESTING_LENDERS)
+                revert Errors.todo();
+            nonReinvestingLenders.push(lender);
+        }
+        depositRecord.reinvestYield = reinvestYield;
+        depositRecords[lender] = depositRecord;
         emit ReinvestYieldConfigSet(lender, reinvestYield, msg.sender);
     }
 
@@ -248,9 +268,14 @@ contract TrancheVault is
         if (shares == 0) revert Errors.zeroAmountProvided();
         poolConfig.onlyProtocolAndPoolOn();
 
+        PoolSettings memory poolSettings = poolConfig.getPoolSettings();
+        uint256 nextEpochStartTime = calendar.getStartDateOfNextPeriod(
+            poolSettings.payPeriodDuration,
+            block.timestamp
+        );
         DepositRecord memory depositRecord = depositRecords[msg.sender];
         if (
-            block.timestamp <
+            nextEpochStartTime <
             depositRecord.lastDepositTime +
                 poolConfig.getLPConfig().withdrawalLockoutPeriodInDays *
                 SECONDS_IN_A_DAY
@@ -289,7 +314,7 @@ contract TrancheVault is
             currentEpochId
         );
         lenderRedemptionRecord.numSharesRequested += uint96(shares);
-        uint256 principalRequested = convertToAssets(shares);
+        uint256 principalRequested = (depositRecord.principal * shares) / sharesBalance;
         lenderRedemptionRecord.principalRequested += uint96(principalRequested);
         lenderRedemptionRecords[msg.sender] = lenderRedemptionRecord;
         depositRecord.principal = uint96(
@@ -368,26 +393,21 @@ contract TrancheVault is
      * @notice Process yield of lenders, pay out yield to lenders who want to withdraw
      * reinvest yield for lenders who want to reinvest. Expects to be called by a cron-like mechanism like autotask.
      */
-    function processYieldForLenders(address[] calldata lenders) external {
-        uint256 len = lenders.length;
-        if (len > MAX_ALLOWED_NUM_LENDERS) revert Errors.todo();
+    function processYieldForLenders() external {
+        uint256 len = nonReinvestingLenders.length;
 
         uint256 price = convertToAssets(DEFAULT_DECIMALS_FACTOR);
         uint96[2] memory tranchesAssets = pool.currentTranchesAssets();
         for (uint256 i; i < len; i++) {
-            address lender = lenders[i];
+            address lender = nonReinvestingLenders[i];
             uint256 shares = ERC20Upgradeable.balanceOf(lender);
             uint256 assets = (shares * price) / DEFAULT_DECIMALS_FACTOR;
             DepositRecord memory depositRecord = depositRecords[lender];
             if (assets > depositRecord.principal) {
                 uint256 yield = assets - depositRecord.principal;
-                if (depositRecord.reinvestYield) {
-                    depositRecord.principal += uint96(yield);
-                    depositRecords[lender] = depositRecord;
-                    emit YieldReinvested(lender, yield);
-                } else {
-                    // TODO rounding up?
-                    shares = (yield * DEFAULT_DECIMALS_FACTOR) / price;
+                // TODO rounding up?
+                shares = (yield * DEFAULT_DECIMALS_FACTOR) / price;
+                if (shares > 0) {
                     ERC20Upgradeable._burn(lender, shares);
                     poolSafe.withdraw(lender, yield);
                     tranchesAssets[trancheIndex] -= uint96(yield);
@@ -450,6 +470,10 @@ contract TrancheVault is
 
     function getNumEpochsWithRedemption() external view returns (uint256) {
         return epochIds.length;
+    }
+
+    function getNonReinvestingLendersLength() external view returns (uint256) {
+        return nonReinvestingLenders.length;
     }
 
     function _convertToShares(
@@ -531,6 +555,17 @@ contract TrancheVault is
             }
         }
         newRedemptionRecord.lastUpdatedEpochIndex = uint64(numEpochIds - 1);
+    }
+
+    function _removeLenderFromNonReinvestingLenders(address lender) internal {
+        uint256 len = nonReinvestingLenders.length;
+        for (uint256 i; i < len; i++) {
+            if (nonReinvestingLenders[i] == lender) {
+                if (i != len - 1) nonReinvestingLenders[i] = nonReinvestingLenders[len - 1];
+                nonReinvestingLenders.pop();
+                break;
+            }
+        }
     }
 
     function _onlyEpochManager(address account) internal view {

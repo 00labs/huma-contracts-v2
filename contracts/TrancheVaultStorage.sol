@@ -5,6 +5,7 @@ import {EpochRedemptionSummary} from "./interfaces/IRedemptionHandler.sol";
 import {IEpochManager} from "./interfaces/IEpochManager.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
+import {ICalendar} from "./credit/interfaces/ICalendar.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract TrancheVaultStorage {
@@ -38,6 +39,7 @@ contract TrancheVaultStorage {
     IPool public pool;
     IPoolSafe public poolSafe;
     IEpochManager public epochManager;
+    ICalendar public calendar;
 
     // The IDs of all epochs where there is at least one redemption request.
     // Note that the index may not be contiguous: if there is no redemption request,
@@ -50,8 +52,7 @@ contract TrancheVaultStorage {
     // This mapping contains the amount of underlying tokens deposited by lenders
     mapping(address => DepositRecord) public depositRecords;
 
-    // The approved lender number
-    uint256 public lenderCount;
+    address[] public nonReinvestingLenders;
 
     /**
      * @dev This empty reserved space is put in place to allow future versions to add new
