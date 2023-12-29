@@ -518,7 +518,6 @@ contract TrancheVault is
     function _updateLenderRedemptionRecord(
         LenderRedemptionRecord memory redemptionRecord
     ) internal view returns (LenderRedemptionRecord memory newRedemptionRecord) {
-        // TODO: deep copy here? Otherwise the assignment is meaningless.
         newRedemptionRecord = redemptionRecord;
         uint256 numEpochIds = epochIds.length;
         uint256 remainingShares = newRedemptionRecord.numSharesRequested;
