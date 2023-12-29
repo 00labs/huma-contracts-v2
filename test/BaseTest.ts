@@ -1721,7 +1721,7 @@ export function calcPoolFees(
 export async function checkRedemptionRecordByLender(
     trancheVaultContract: TrancheVault,
     lender: SignerWithAddress,
-    lastUpdatedEpochIndex: BN | number,
+    nextEpochIdToProcess: BN | number,
     numSharesRequested: BN = BN.from(0),
     principalRequested: BN = BN.from(0),
     totalAmountProcessed: BN = BN.from(0),
@@ -1731,7 +1731,7 @@ export async function checkRedemptionRecordByLender(
     const redemptionRecord = await trancheVaultContract.lenderRedemptionRecords(lender.address);
     checkRedemptionRecord(
         redemptionRecord,
-        lastUpdatedEpochIndex,
+        nextEpochIdToProcess,
         numSharesRequested,
         principalRequested,
         totalAmountProcessed,
@@ -1741,7 +1741,7 @@ export async function checkRedemptionRecordByLender(
 }
 
 type RedemptionRecordStructOutput = [BN, BN, BN, BN, BN] & {
-    lastUpdatedEpochIndex: BN;
+    nextEpochIdToProcess: BN;
     numSharesRequested: BN;
     principalRequested: BN;
     totalAmountProcessed: BN;
@@ -1750,14 +1750,14 @@ type RedemptionRecordStructOutput = [BN, BN, BN, BN, BN] & {
 
 export function checkRedemptionRecord(
     redemptionRecord: RedemptionRecordStructOutput,
-    lastUpdatedEpochIndex: BN | number,
+    nextEpochIdToProcess: BN | number,
     numSharesRequested: BN = BN.from(0),
     principalRequested: BN = BN.from(0),
     totalAmountProcessed: BN = BN.from(0),
     totalAmountWithdrawn: BN = BN.from(0),
     delta: number = 0,
 ) {
-    expect(redemptionRecord.lastUpdatedEpochIndex).to.be.closeTo(lastUpdatedEpochIndex, delta);
+    expect(redemptionRecord.nextEpochIdToProcess).to.be.closeTo(nextEpochIdToProcess, delta);
     expect(redemptionRecord.numSharesRequested).to.be.closeTo(numSharesRequested, delta);
     expect(redemptionRecord.principalRequested).to.be.closeTo(principalRequested, delta);
     expect(redemptionRecord.totalAmountProcessed).to.be.closeTo(totalAmountProcessed, delta);
