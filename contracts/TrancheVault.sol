@@ -2,16 +2,19 @@
 pragma solidity ^0.8.0;
 
 import {Errors} from "./Errors.sol";
-import {PoolConfig, LPConfig} from "./PoolConfig.sol";
+import {PoolConfig, LPConfig, PoolSettings} from "./PoolConfig.sol";
 import {PoolConfigCache} from "./PoolConfigCache.sol";
 import {JUNIOR_TRANCHE, SENIOR_TRANCHE, DEFAULT_DECIMALS_FACTOR, SECONDS_IN_A_DAY} from "./SharedDefs.sol";
 import {TrancheVaultStorage, IERC20} from "./TrancheVaultStorage.sol";
-import {IRedemptionHandler, RedemptionSummary} from "./interfaces/IRedemptionHandler.sol";
+import {IRedemptionHandler, EpochRedemptionSummary} from "./interfaces/IRedemptionHandler.sol";
 import {IEpochManager} from "./interfaces/IEpochManager.sol";
+import {ICalendar} from "./credit/interfaces/ICalendar.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {IERC20MetadataUpgradeable, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+
+import "hardhat/console.sol";
 
 contract TrancheVault is
     AccessControlUpgradeable,
@@ -21,7 +24,7 @@ contract TrancheVault is
     IRedemptionHandler
 {
     bytes32 public constant LENDER_ROLE = keccak256("LENDER");
-    uint256 private constant MAX_ALLOWED_NUM_LENDERS = 100;
+    uint256 private constant MAX_ALLOWED_NUM_NON_REINVESTING_LENDERS = 100;
 
     event EpochProcessed(
         uint256 indexed epochId,
@@ -87,6 +90,10 @@ contract TrancheVault is
         addr = _poolConfig.epochManager();
         if (addr == address(0)) revert Errors.zeroAddressProvided();
         epochManager = IEpochManager(addr);
+
+        addr = _poolConfig.calendar();
+        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        calendar = ICalendar(addr);
     }
 
     /**
@@ -97,8 +104,19 @@ contract TrancheVault is
     function addApprovedLender(address lender, bool reinvestYield) external {
         poolConfig.onlyPoolOperator(msg.sender);
         if (lender == address(0)) revert Errors.zeroAddressProvided();
+        if (hasRole(LENDER_ROLE, lender)) revert Errors.todo();
+
         _grantRole(LENDER_ROLE, lender);
-        userInfos[lender] = UserInfo({principal: 0, reinvestYield: reinvestYield});
+        depositRecords[lender] = DepositRecord({
+            principal: 0,
+            reinvestYield: reinvestYield,
+            lastDepositTime: 0
+        });
+        if (!reinvestYield) {
+            if (nonReinvestingLenders.length >= MAX_ALLOWED_NUM_NON_REINVESTING_LENDERS)
+                revert Errors.todo();
+            nonReinvestingLenders.push(lender);
+        }
     }
 
     /**
@@ -108,8 +126,12 @@ contract TrancheVault is
     function removeApprovedLender(address lender) external {
         poolConfig.onlyPoolOperator(msg.sender);
         if (lender == address(0)) revert Errors.zeroAddressProvided();
+        if (!hasRole(LENDER_ROLE, lender)) revert Errors.todo();
         _revokeRole(LENDER_ROLE, lender);
-        delete userInfos[lender];
+        if (!depositRecords[lender].reinvestYield) {
+            _removeLenderFromNonReinvestingLenders(lender);
+        }
+        delete depositRecords[lender];
     }
 
     /**
@@ -117,7 +139,17 @@ contract TrancheVault is
      */
     function setReinvestYield(address lender, bool reinvestYield) external {
         poolConfig.onlyPoolOperator(msg.sender);
-        userInfos[lender].reinvestYield = reinvestYield;
+        DepositRecord memory depositRecord = depositRecords[lender];
+        if (depositRecord.reinvestYield == reinvestYield) revert Errors.todo();
+        if (!depositRecord.reinvestYield && reinvestYield) {
+            _removeLenderFromNonReinvestingLenders(lender);
+        } else if (depositRecord.reinvestYield && !reinvestYield) {
+            if (nonReinvestingLenders.length >= MAX_ALLOWED_NUM_NON_REINVESTING_LENDERS)
+                revert Errors.todo();
+            nonReinvestingLenders.push(lender);
+        }
+        depositRecord.reinvestYield = reinvestYield;
+        depositRecords[lender] = depositRecord;
         emit ReinvestYieldConfigSet(lender, reinvestYield, msg.sender);
     }
 
@@ -126,10 +158,10 @@ contract TrancheVault is
         external
         view
         override
-        returns (RedemptionSummary memory redemptionSummary)
+        returns (EpochRedemptionSummary memory redemptionSummary)
     {
         uint256 epochId = epochManager.currentEpochId();
-        redemptionSummary = redemptionSummaryByEpochId[epochId];
+        redemptionSummary = epochRedemptionSummaries[epochId];
     }
 
     function decimals() public view override returns (uint8) {
@@ -141,11 +173,11 @@ contract TrancheVault is
     }
 
     /// @inheritdoc IRedemptionHandler
-    function executeRedemptionSummary(RedemptionSummary memory summaryProcessed) external {
+    function executeRedemptionSummary(EpochRedemptionSummary memory summaryProcessed) external {
         _onlyEpochManager(msg.sender);
 
         if (summaryProcessed.totalSharesProcessed > 0) {
-            redemptionSummaryByEpochId[summaryProcessed.epochId] = summaryProcessed;
+            epochRedemptionSummaries[summaryProcessed.epochId] = summaryProcessed;
             // Burn processed shares of LP tokens.
             ERC20Upgradeable._burn(address(this), summaryProcessed.totalSharesProcessed);
             // Withdraw underlying tokens from the reserve so that LPs can redeem.
@@ -157,13 +189,13 @@ contract TrancheVault is
 
         if (unprocessed > 0) {
             // Move unprocessed redemption to next epoch
-            RedemptionSummary memory nextRedemptionSummary = RedemptionSummary({
+            EpochRedemptionSummary memory nextRedemptionSummary = EpochRedemptionSummary({
                 epochId: summaryProcessed.epochId + 1,
                 totalSharesRequested: uint96(unprocessed),
                 totalSharesProcessed: 0,
                 totalAmountProcessed: 0
             });
-            redemptionSummaryByEpochId[nextRedemptionSummary.epochId] = nextRedemptionSummary;
+            epochRedemptionSummaries[nextRedemptionSummary.epochId] = nextRedemptionSummary;
             epochIds.push(nextRedemptionSummary.epochId);
         }
 
@@ -207,36 +239,23 @@ contract TrancheVault is
     }
 
     function _deposit(uint256 assets, address receiver) internal returns (uint256 shares) {
-        uint256 cap = poolConfig.getTrancheLiquidityCap(trancheIndex);
-        if (assets > cap) {
-            revert Errors.poolLiquidityCapExceeded();
-        }
-        uint96[2] memory tranches = pool.currentTranchesAssets();
-        uint256 trancheAssets = tranches[trancheIndex];
-        if (trancheAssets + assets > cap) {
-            revert Errors.poolLiquidityCapExceeded();
-        }
-
-        if (trancheIndex == SENIOR_TRANCHE) {
-            // Make sure that the max senior : junior asset ratio is still valid.
-            LPConfig memory lpConfig = poolConfig.getLPConfig();
-            if (
-                (trancheAssets + assets) > tranches[JUNIOR_TRANCHE] * lpConfig.maxSeniorJuniorRatio
-            ) revert Errors.maxSeniorJuniorRatioExceeded();
+        uint256 availableCap = pool.getTrancheAvailableCap(trancheIndex);
+        if (assets > availableCap) {
+            revert Errors.trancheLiquidityCapExceeded();
         }
 
         poolSafe.deposit(msg.sender, assets);
-        // TODO: should round down (correct)
+        uint96[2] memory tranches = pool.currentTranchesAssets();
+        uint256 trancheAssets = tranches[trancheIndex];
         shares = _convertToShares(assets, trancheAssets);
         ERC20Upgradeable._mint(receiver, shares);
-        UserInfo memory userInfo = userInfos[receiver];
-        userInfo.principal += uint96(assets);
-        userInfos[receiver] = userInfo;
+        DepositRecord memory depositRecord = depositRecords[receiver];
+        depositRecord.principal += uint96(assets);
+        depositRecord.lastDepositTime = uint64(block.timestamp);
+        depositRecords[receiver] = depositRecord;
 
         tranches[trancheIndex] += uint96(assets);
         pool.updateTranchesAssets(tranches);
-
-        lastDepositTime[receiver] = block.timestamp;
 
         emit LiquidityDeposited(msg.sender, receiver, assets, shares);
     }
@@ -249,9 +268,15 @@ contract TrancheVault is
         if (shares == 0) revert Errors.zeroAmountProvided();
         poolConfig.onlyProtocolAndPoolOn();
 
+        PoolSettings memory poolSettings = poolConfig.getPoolSettings();
+        uint256 nextEpochStartTime = calendar.getStartDateOfNextPeriod(
+            poolSettings.payPeriodDuration,
+            block.timestamp
+        );
+        DepositRecord memory depositRecord = depositRecords[msg.sender];
         if (
-            block.timestamp <
-            lastDepositTime[msg.sender] +
+            nextEpochStartTime <
+            depositRecord.lastDepositTime +
                 poolConfig.getLPConfig().withdrawalLockoutPeriodInDays *
                 SECONDS_IN_A_DAY
         ) revert Errors.withdrawTooSoon();
@@ -269,7 +294,7 @@ contract TrancheVault is
         );
 
         uint256 currentEpochId = epochManager.currentEpochId();
-        RedemptionSummary memory currRedemptionSummary = redemptionSummaryByEpochId[
+        EpochRedemptionSummary memory currRedemptionSummary = epochRedemptionSummaries[
             currentEpochId
         ];
         if (currRedemptionSummary.totalSharesRequested > 0) {
@@ -283,22 +308,22 @@ contract TrancheVault is
             currRedemptionSummary.epochId = uint64(currentEpochId);
             currRedemptionSummary.totalSharesRequested = uint96(shares);
         }
-        redemptionSummaryByEpochId[currentEpochId] = currRedemptionSummary;
+        epochRedemptionSummaries[currentEpochId] = currRedemptionSummary;
 
-        RedemptionInfo memory lenderRedemptionInfo = _getLatestRedemptionInfo(
+        LenderRedemptionRecord memory lenderRedemptionRecord = _getLatestLenderRedemptionRecord(
             msg.sender,
             currentEpochId
         );
-        lenderRedemptionInfo.numSharesRequested += uint96(shares);
-        // TODO: should round down (correct)
-        uint256 principalRequested = convertToAssets(shares);
-        lenderRedemptionInfo.principalRequested += uint96(principalRequested);
-        redemptionInfoByLender[msg.sender] = lenderRedemptionInfo;
-        UserInfo memory userInfo = userInfos[msg.sender];
-        userInfo.principal = uint96(
-            userInfo.principal > principalRequested ? userInfo.principal - principalRequested : 0
+        lenderRedemptionRecord.numSharesRequested += uint96(shares);
+        uint256 principalRequested = (depositRecord.principal * shares) / sharesBalance;
+        lenderRedemptionRecord.principalRequested += uint96(principalRequested);
+        lenderRedemptionRecords[msg.sender] = lenderRedemptionRecord;
+        depositRecord.principal = uint96(
+            depositRecord.principal > principalRequested
+                ? depositRecord.principal - principalRequested
+                : 0
         );
-        userInfos[msg.sender] = userInfo;
+        depositRecords[msg.sender] = depositRecord;
 
         ERC20Upgradeable._transfer(msg.sender, address(this), shares);
 
@@ -314,39 +339,35 @@ contract TrancheVault is
         poolConfig.onlyProtocolAndPoolOn();
 
         uint256 currentEpochId = epochManager.currentEpochId();
-        RedemptionInfo memory lenderRedemptionInfo = _getLatestRedemptionInfo(
+        LenderRedemptionRecord memory lenderRedemptionRecord = _getLatestLenderRedemptionRecord(
             msg.sender,
             currentEpochId
         );
 
-        if (lenderRedemptionInfo.numSharesRequested < shares) {
+        if (lenderRedemptionRecord.numSharesRequested < shares) {
             revert Errors.insufficientSharesForRequest();
         }
 
-        UserInfo memory userInfo = userInfos[msg.sender];
-        // TODO Is this implementation correct? What happens if the share price changes
-        // between redemption request addition and cancellation?
-        // Rounding down should be correct, but there will always be precision issues regardless,
-        // i.e. the user may end up with less principal than they initially had by successively cancelling
-        // redemption requests. However, this does favor the pool.
-        userInfo.principal +=
-            (lenderRedemptionInfo.principalRequested * uint96(shares)) /
-            lenderRedemptionInfo.numSharesRequested;
-        userInfos[msg.sender] = userInfo;
+        DepositRecord memory depositRecord = depositRecords[msg.sender];
+        // TODO rounding error?
+        depositRecord.principal +=
+            (lenderRedemptionRecord.principalRequested * uint96(shares)) /
+            lenderRedemptionRecord.numSharesRequested;
+        depositRecords[msg.sender] = depositRecord;
 
-        uint96 newNumSharesRequested = lenderRedemptionInfo.numSharesRequested - uint96(shares);
-        // TODO why recalculate instead of subtracting the amount that has been canceled?
-        lenderRedemptionInfo.principalRequested =
-            (lenderRedemptionInfo.principalRequested * newNumSharesRequested) /
-            lenderRedemptionInfo.numSharesRequested;
-        lenderRedemptionInfo.numSharesRequested = newNumSharesRequested;
-        redemptionInfoByLender[msg.sender] = lenderRedemptionInfo;
+        uint96 newNumSharesRequested = lenderRedemptionRecord.numSharesRequested - uint96(shares);
+        // TODO rounding error?
+        lenderRedemptionRecord.principalRequested =
+            (lenderRedemptionRecord.principalRequested * newNumSharesRequested) /
+            lenderRedemptionRecord.numSharesRequested;
+        lenderRedemptionRecord.numSharesRequested = newNumSharesRequested;
+        lenderRedemptionRecords[msg.sender] = lenderRedemptionRecord;
 
-        RedemptionSummary memory currRedemptionSummary = redemptionSummaryByEpochId[
+        EpochRedemptionSummary memory currRedemptionSummary = epochRedemptionSummaries[
             currentEpochId
         ];
         currRedemptionSummary.totalSharesRequested -= uint96(shares);
-        redemptionSummaryByEpochId[currentEpochId] = currRedemptionSummary;
+        epochRedemptionSummaries[currentEpochId] = currRedemptionSummary;
 
         ERC20Upgradeable._transfer(address(this), msg.sender, shares);
 
@@ -359,11 +380,11 @@ contract TrancheVault is
     function disburse() external {
         poolConfig.onlyProtocolAndPoolOn();
 
-        RedemptionInfo memory info = _getLatestRedemptionInfoFor(msg.sender);
-        uint256 withdrawable = info.totalAmountProcessed - info.totalAmountWithdrawn;
+        LenderRedemptionRecord memory record = _getLatestLenderRedemptionRecordFor(msg.sender);
+        uint256 withdrawable = record.totalAmountProcessed - record.totalAmountWithdrawn;
         if (withdrawable > 0) {
-            info.totalAmountWithdrawn += uint96(withdrawable);
-            redemptionInfoByLender[msg.sender] = info;
+            record.totalAmountWithdrawn += uint96(withdrawable);
+            lenderRedemptionRecords[msg.sender] = record;
             underlyingToken.transfer(msg.sender, withdrawable);
             emit LenderFundDisbursed(msg.sender, msg.sender, withdrawable);
         }
@@ -373,25 +394,21 @@ contract TrancheVault is
      * @notice Process yield of lenders, pay out yield to lenders who want to withdraw
      * reinvest yield for lenders who want to reinvest. Expects to be called by a cron-like mechanism like autotask.
      */
-    function processYieldForLenders(address[] calldata lenders) external {
-        // TODO: doesn't this cause more precision issues than necessary since we are rounding twice?
+    function processYieldForLenders() external {
+        uint256 len = nonReinvestingLenders.length;
+
         uint256 price = convertToAssets(DEFAULT_DECIMALS_FACTOR);
-        uint256 len = lenders.length;
         uint96[2] memory tranchesAssets = pool.currentTranchesAssets();
-        for (uint256 i; i < len && i < MAX_ALLOWED_NUM_LENDERS; i++) {
-            address lender = lenders[i];
+        for (uint256 i; i < len; i++) {
+            address lender = nonReinvestingLenders[i];
             uint256 shares = ERC20Upgradeable.balanceOf(lender);
             uint256 assets = (shares * price) / DEFAULT_DECIMALS_FACTOR;
-            UserInfo memory userInfo = userInfos[lender];
-            if (assets > userInfo.principal) {
-                uint256 yield = assets - userInfo.principal;
-                if (userInfo.reinvestYield) {
-                    userInfo.principal += uint96(yield);
-                    userInfos[lender] = userInfo;
-                    emit YieldReinvested(lender, yield);
-                } else {
-                    // TODO should round up (incorrect)
-                    shares = (yield * DEFAULT_DECIMALS_FACTOR) / price;
+            DepositRecord memory depositRecord = depositRecords[lender];
+            if (assets > depositRecord.principal) {
+                uint256 yield = assets - depositRecord.principal;
+                // TODO should round up (incorrect)
+                shares = (yield * DEFAULT_DECIMALS_FACTOR) / price;
+                if (shares > 0) {
                     ERC20Upgradeable._burn(lender, shares);
                     poolSafe.withdraw(lender, yield);
                     tranchesAssets[trancheIndex] -= uint96(yield);
@@ -415,10 +432,12 @@ contract TrancheVault is
      * @notice Returns the withdrawable assets value of the given account
      */
     function withdrawableAssets(address account) external view returns (uint256 assets) {
-        RedemptionInfo memory lenderRedemptionInfo = _getLatestRedemptionInfoFor(account);
+        LenderRedemptionRecord memory lenderRedemptionRecord = _getLatestLenderRedemptionRecordFor(
+            account
+        );
         assets =
-            lenderRedemptionInfo.totalAmountProcessed -
-            lenderRedemptionInfo.totalAmountWithdrawn;
+            lenderRedemptionRecord.totalAmountProcessed -
+            lenderRedemptionRecord.totalAmountWithdrawn;
     }
 
     /**
@@ -426,8 +445,10 @@ contract TrancheVault is
      * @param account The lender's account
      */
     function cancellableRedemptionShares(address account) external view returns (uint256 shares) {
-        RedemptionInfo memory lenderRedemptionInfo = _getLatestRedemptionInfoFor(account);
-        shares = lenderRedemptionInfo.numSharesRequested;
+        LenderRedemptionRecord memory lenderRedemptionRecord = _getLatestLenderRedemptionRecordFor(
+            account
+        );
+        shares = lenderRedemptionRecord.numSharesRequested;
     }
 
     function totalAssets() public view returns (uint256) {
@@ -452,6 +473,10 @@ contract TrancheVault is
         return epochIds.length;
     }
 
+    function getNonReinvestingLendersLength() external view returns (uint256) {
+        return nonReinvestingLenders.length;
+    }
+
     function _convertToShares(
         uint256 _assets,
         uint256 _totalAssets
@@ -465,55 +490,55 @@ contract TrancheVault is
 
     function _updateUserWithdrawable(address user) internal returns (uint256 withdrawableAmount) {}
 
-    function _getLatestRedemptionInfoFor(
+    function _getLatestLenderRedemptionRecordFor(
         address account
-    ) internal view returns (RedemptionInfo memory lenderRedemptionInfo) {
+    ) internal view returns (LenderRedemptionRecord memory lenderRedemptionRecord) {
         uint256 currentEpochId = epochManager.currentEpochId();
-        lenderRedemptionInfo = _getLatestRedemptionInfo(account, currentEpochId);
+        lenderRedemptionRecord = _getLatestLenderRedemptionRecord(account, currentEpochId);
     }
 
-    function _getLatestRedemptionInfo(
+    function _getLatestLenderRedemptionRecord(
         address account,
         uint256 currentEpochId
-    ) internal view returns (RedemptionInfo memory lenderRedemptionInfo) {
-        lenderRedemptionInfo = redemptionInfoByLender[account];
-        if (lenderRedemptionInfo.lastUpdatedEpochIndex < epochIds.length) {
-            uint256 epochId = epochIds[lenderRedemptionInfo.lastUpdatedEpochIndex];
+    ) internal view returns (LenderRedemptionRecord memory lenderRedemptionRecord) {
+        lenderRedemptionRecord = lenderRedemptionRecords[account];
+        if (lenderRedemptionRecord.lastUpdatedEpochIndex < epochIds.length) {
+            uint256 epochId = epochIds[lenderRedemptionRecord.lastUpdatedEpochIndex];
             if (epochId < currentEpochId) {
-                lenderRedemptionInfo = _updateRedemptionInfo(lenderRedemptionInfo);
+                lenderRedemptionRecord = _updateLenderRedemptionRecord(lenderRedemptionRecord);
             }
         }
     }
 
     /**
-     * @notice Brings the redemption information for a lender up-to-date.
-     * @dev Prior to invoking this function, the lender's redemption info may be outdated, not accurately reflecting
+     * @notice Brings the redemption record for a lender up-to-date.
+     * @dev Prior to invoking this function, the lender's redemption record may be outdated, not accurately reflecting
      * the amount of withdrawable funds. This is due to the potential passage of additional epochs and the
      * processing of further redemption requests since the lender's last update. This function addresses this
-     * by iterating through all epochs executed since the last update, ensuring the redemption info is current
+     * by iterating through all epochs executed since the last update, ensuring the redemption record is current
      * and accurate.
-     * @param redemptionInfo The lender's current processed redemption request information.
-     * @return newRedemptionInfo The lender's updated processed redemption request information.
+     * @param redemptionRecord The lender's current processed redemption request record.
+     * @return newRedemptionRecord The lender's updated processed redemption request record.
      */
-    function _updateRedemptionInfo(
-        RedemptionInfo memory redemptionInfo
-    ) internal view returns (RedemptionInfo memory newRedemptionInfo) {
+    function _updateLenderRedemptionRecord(
+        LenderRedemptionRecord memory redemptionRecord
+    ) internal view returns (LenderRedemptionRecord memory newRedemptionRecord) {
         // TODO: deep copy here? Otherwise the assignment is meaningless.
-        newRedemptionInfo = redemptionInfo;
+        newRedemptionRecord = redemptionRecord;
         uint256 numEpochIds = epochIds.length;
-        uint256 remainingShares = newRedemptionInfo.numSharesRequested;
+        uint256 remainingShares = newRedemptionRecord.numSharesRequested;
         if (remainingShares > 0) {
             uint256 totalShares = remainingShares;
             for (
-                uint256 i = newRedemptionInfo.lastUpdatedEpochIndex;
+                uint256 i = newRedemptionRecord.lastUpdatedEpochIndex;
                 i < numEpochIds && remainingShares > 0;
                 i++
             ) {
                 uint256 epochId = epochIds[i];
-                RedemptionSummary memory summary = redemptionSummaryByEpochId[epochId];
+                EpochRedemptionSummary memory summary = epochRedemptionSummaries[epochId];
                 if (summary.totalSharesProcessed > 0) {
                     // TODO should round down (correct)
-                    newRedemptionInfo.totalAmountProcessed += uint96(
+                    newRedemptionRecord.totalAmountProcessed += uint96(
                         (remainingShares * summary.totalAmountProcessed) /
                             summary.totalSharesRequested
                     );
@@ -525,15 +550,26 @@ contract TrancheVault is
                         summary.totalSharesRequested;
                 }
             }
-            newRedemptionInfo.numSharesRequested = uint96(remainingShares);
+            newRedemptionRecord.numSharesRequested = uint96(remainingShares);
             if (remainingShares < totalShares) {
                 // Some shares are processed, so the principal requested is reduced proportionally.
-                newRedemptionInfo.principalRequested = uint96(
-                    (remainingShares * newRedemptionInfo.principalRequested) / totalShares
+                newRedemptionRecord.principalRequested = uint96(
+                    (remainingShares * newRedemptionRecord.principalRequested) / totalShares
                 );
             }
         }
-        newRedemptionInfo.lastUpdatedEpochIndex = uint64(numEpochIds - 1);
+        newRedemptionRecord.lastUpdatedEpochIndex = uint64(numEpochIds - 1);
+    }
+
+    function _removeLenderFromNonReinvestingLenders(address lender) internal {
+        uint256 len = nonReinvestingLenders.length;
+        for (uint256 i; i < len; i++) {
+            if (nonReinvestingLenders[i] == lender) {
+                if (i != len - 1) nonReinvestingLenders[i] = nonReinvestingLenders[len - 1];
+                nonReinvestingLenders.pop();
+                break;
+            }
+        }
     }
 
     function _onlyEpochManager(address account) internal view {

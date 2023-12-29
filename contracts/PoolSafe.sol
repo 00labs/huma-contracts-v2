@@ -101,6 +101,8 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
     }
 
     function _onlySystemMoneyMover(address account) internal view {
+        // Account is a contract address, pass only when it is a tranche contract, pool fee manager contract,
+        // credit contract or first loss cover contract.
         if (
             account != poolConfig.seniorTranche() &&
             account != poolConfig.juniorTranche() &&
