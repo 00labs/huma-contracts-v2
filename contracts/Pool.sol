@@ -299,7 +299,7 @@ contract Pool is PoolConfigCache, IPool {
         for (uint256 i = 0; i < len; i++) {
             IFirstLossCover cover = _firstLossCovers[i];
             // profitsForFirstLossCovers is re-used to store the product of asset amount and risk
-            // multiplier for each PLC for gas optimization by saving an array creation
+            // multiplier for each FLC for gas optimization by saving an array creation
             FirstLossCoverConfig memory config = poolConfig.getFirstLossCoverConfig(
                 address(cover)
             );
@@ -314,8 +314,8 @@ contract Pool is PoolConfigCache, IPool {
             profitsForFirstLossCovers[i] =
                 (nonSeniorProfit * profitsForFirstLossCovers[i]) /
                 totalWeight;
-            // Note since profitsForFirstLossCovers[i] is rounding down by default,
-            // it is guranteed that juniorProfit will not
+            // Note since profitsForFirstLossCovers[i] is rounded down by default,
+            // it is guaranteed that juniorProfit will not be negative.
             juniorProfit -= profitsForFirstLossCovers[i];
         }
         return (juniorProfit, profitsForFirstLossCovers);

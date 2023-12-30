@@ -231,7 +231,6 @@ contract FirstLossCover is
             uint256 shares = balanceOf(provider);
             if (shares == 0) continue;
 
-            // TODO rounding error?
             uint256 payout = (yield * shares) / totalShares;
             underlyingToken.safeTransfer(provider, payout);
             remainingShares -= shares;

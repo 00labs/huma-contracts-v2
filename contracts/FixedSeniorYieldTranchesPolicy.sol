@@ -86,8 +86,7 @@ contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
                 (tracker.totalAssets *
                     lpConfig.fixedSeniorYieldInBps *
                     (block.timestamp - tracker.lastUpdatedDate)) /
-                    SECONDS_IN_A_YEAR /
-                    HUNDRED_PERCENT_IN_BPS
+                    (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
             );
             tracker.lastUpdatedDate = uint64(block.timestamp);
             updated = true;
