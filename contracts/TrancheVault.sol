@@ -195,7 +195,6 @@ contract TrancheVault is
                 totalAmountProcessed: 0
             });
             epochRedemptionSummaries[nextRedemptionSummary.epochId] = nextRedemptionSummary;
-            epochIds.push(nextRedemptionSummary.epochId);
         }
 
         emit EpochProcessed(
@@ -300,9 +299,7 @@ contract TrancheVault is
             // to it.
             currRedemptionSummary.totalSharesRequested += uint96(shares);
         } else {
-            // Otherwise, record the current epoch ID in `epochIds` since there are now redemption requests,
-            // and record the redemption request data in the global registry.
-            epochIds.push(currentEpochId);
+            // Otherwise, record the redemption request data in the global registry.
             currRedemptionSummary.epochId = uint64(currentEpochId);
             currRedemptionSummary.totalSharesRequested = uint96(shares);
         }
@@ -464,10 +461,6 @@ contract TrancheVault is
         return convertToAssets(ERC20Upgradeable.balanceOf(account));
     }
 
-    function getNumEpochsWithRedemption() external view returns (uint256) {
-        return epochIds.length;
-    }
-
     function getNonReinvestingLendersLength() external view returns (uint256) {
         return nonReinvestingLenders.length;
     }
@@ -492,19 +485,6 @@ contract TrancheVault is
         lenderRedemptionRecord = _getLatestLenderRedemptionRecord(account, currentEpochId);
     }
 
-    function _getLatestLenderRedemptionRecord(
-        address account,
-        uint256 currentEpochId
-    ) internal view returns (LenderRedemptionRecord memory lenderRedemptionRecord) {
-        lenderRedemptionRecord = lenderRedemptionRecords[account];
-        if (lenderRedemptionRecord.lastUpdatedEpochIndex < epochIds.length) {
-            uint256 epochId = epochIds[lenderRedemptionRecord.lastUpdatedEpochIndex];
-            if (epochId < currentEpochId) {
-                lenderRedemptionRecord = _updateLenderRedemptionRecord(lenderRedemptionRecord);
-            }
-        }
-    }
-
     /**
      * @notice Brings the redemption record for a lender up-to-date.
      * @dev Prior to invoking this function, the lender's redemption record may be outdated, not accurately reflecting
@@ -512,26 +492,24 @@ contract TrancheVault is
      * processing of further redemption requests since the lender's last update. This function addresses this
      * by iterating through all epochs executed since the last update, ensuring the redemption record is current
      * and accurate.
-     * @param redemptionRecord The lender's current processed redemption request record.
-     * @return newRedemptionRecord The lender's updated processed redemption request record.
+     * @return lenderRedemptionRecord The lender's updated processed redemption request record.
      */
-    function _updateLenderRedemptionRecord(
-        LenderRedemptionRecord memory redemptionRecord
-    ) internal view returns (LenderRedemptionRecord memory newRedemptionRecord) {
-        newRedemptionRecord = redemptionRecord;
-        uint256 numEpochIds = epochIds.length;
-        uint256 remainingShares = newRedemptionRecord.numSharesRequested;
-        if (remainingShares > 0) {
-            uint256 totalShares = remainingShares;
+    function _getLatestLenderRedemptionRecord(
+        address account,
+        uint256 currentEpochId
+    ) internal view returns (LenderRedemptionRecord memory lenderRedemptionRecord) {
+        lenderRedemptionRecord = lenderRedemptionRecords[account];
+        uint256 totalShares = lenderRedemptionRecord.numSharesRequested;
+        if (totalShares > 0 && lenderRedemptionRecord.nextEpochIdToProcess < currentEpochId) {
+            uint256 remainingShares = totalShares;
             for (
-                uint256 i = newRedemptionRecord.lastUpdatedEpochIndex;
-                i < numEpochIds && remainingShares > 0;
-                i++
+                uint256 epochId = lenderRedemptionRecord.nextEpochIdToProcess;
+                epochId < currentEpochId && remainingShares > 0;
+                ++epochId
             ) {
-                uint256 epochId = epochIds[i];
                 EpochRedemptionSummary memory summary = epochRedemptionSummaries[epochId];
                 if (summary.totalSharesProcessed > 0) {
-                    newRedemptionRecord.totalAmountProcessed += uint96(
+                    lenderRedemptionRecord.totalAmountProcessed += uint96(
                         (remainingShares * summary.totalAmountProcessed) /
                             summary.totalSharesRequested
                     );
@@ -544,15 +522,15 @@ contract TrancheVault is
                     );
                 }
             }
-            newRedemptionRecord.numSharesRequested = uint96(remainingShares);
+            lenderRedemptionRecord.numSharesRequested = uint96(remainingShares);
             if (remainingShares < totalShares) {
                 // Some shares are processed, so the principal requested is reduced proportionally.
-                newRedemptionRecord.principalRequested = uint96(
-                    (remainingShares * newRedemptionRecord.principalRequested) / totalShares
+                lenderRedemptionRecord.principalRequested = uint96(
+                    (remainingShares * lenderRedemptionRecord.principalRequested) / totalShares
                 );
             }
         }
-        newRedemptionRecord.lastUpdatedEpochIndex = uint64(numEpochIds - 1);
+        lenderRedemptionRecord.nextEpochIdToProcess = uint64(currentEpochId);
     }
 
     function _removeLenderFromNonReinvestingLenders(address lender) internal {

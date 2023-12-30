@@ -821,14 +821,6 @@ describe("TrancheVault Test", function () {
         });
 
         describe("Redemption Tests", function () {
-            describe("When there is no redemption request", function () {
-                it("getNumEpochsWithRedemption should return 0", async function () {
-                    expect(await juniorTrancheVaultContract.getNumEpochsWithRedemption()).to.equal(
-                        0,
-                    );
-                });
-            });
-
             describe("addRedemptionRequest", function () {
                 it("Should reject redemption requests with 0 shares", async function () {
                     await expect(
@@ -924,7 +916,7 @@ describe("TrancheVault Test", function () {
                     await checkRedemptionRecordByLender(
                         juniorTrancheVaultContract,
                         lender,
-                        0,
+                        currentEpochId,
                         shares,
                         shares,
                     );
@@ -935,9 +927,7 @@ describe("TrancheVault Test", function () {
                         ),
                     ).to.equal(shares);
 
-                    let epochId = await juniorTrancheVaultContract.epochIds(0);
-                    expect(epochId).to.equal(currentEpochId);
-                    await epochChecker.checkJuniorRedemptionSummaryById(epochId, shares);
+                    await epochChecker.checkJuniorRedemptionSummaryById(currentEpochId, shares);
 
                     // Lender requests redemption again
                     balance = await juniorTrancheVaultContract.balanceOf(lender.address);
@@ -959,7 +949,7 @@ describe("TrancheVault Test", function () {
                     await checkRedemptionRecordByLender(
                         juniorTrancheVaultContract,
                         lender,
-                        0,
+                        currentEpochId,
                         shares.mul(BN.from(2)),
                         shares.mul(BN.from(2)),
                     );
@@ -971,7 +961,7 @@ describe("TrancheVault Test", function () {
                     ).to.equal(shares.mul(BN.from(2)));
 
                     await epochChecker.checkJuniorRedemptionSummaryById(
-                        epochId,
+                        currentEpochId,
                         shares.mul(BN.from(2)),
                     );
 
@@ -995,14 +985,14 @@ describe("TrancheVault Test", function () {
                     await checkRedemptionRecordByLender(
                         juniorTrancheVaultContract,
                         lender2,
-                        0,
+                        currentEpochId,
                         shares,
                         shares,
                     );
                     await checkRedemptionRecordByLender(
                         juniorTrancheVaultContract,
                         lender,
-                        0,
+                        currentEpochId,
                         shares.mul(BN.from(2)),
                         shares.mul(BN.from(2)),
                     );
@@ -1014,7 +1004,7 @@ describe("TrancheVault Test", function () {
                     ).to.equal(shares);
 
                     await epochChecker.checkJuniorRedemptionSummaryById(
-                        epochId,
+                        currentEpochId,
                         shares.mul(BN.from(3)),
                     );
                 });
@@ -1042,14 +1032,12 @@ describe("TrancheVault Test", function () {
                     await checkRedemptionRecordByLender(
                         juniorTrancheVaultContract,
                         lender,
-                        0,
+                        currentEpochId,
                         shares,
                         shares,
                     );
 
-                    let epochId = await juniorTrancheVaultContract.epochIds(0);
-                    expect(epochId).to.equal(currentEpochId);
-                    await epochChecker.checkJuniorRedemptionSummaryById(epochId, shares);
+                    await epochChecker.checkJuniorRedemptionSummaryById(currentEpochId, shares);
 
                     expect(
                         await juniorTrancheVaultContract.cancellableRedemptionShares(
@@ -1094,14 +1082,13 @@ describe("TrancheVault Test", function () {
                     await checkRedemptionRecordByLender(
                         juniorTrancheVaultContract,
                         lender,
-                        1,
+                        currentEpochId,
                         shares,
                         shares,
                         shares,
                     );
 
-                    epochId = await juniorTrancheVaultContract.epochIds(1);
-                    await epochChecker.checkJuniorRedemptionSummaryById(epochId, shares);
+                    await epochChecker.checkJuniorRedemptionSummaryById(currentEpochId, shares);
 
                     expect(
                         await juniorTrancheVaultContract.cancellableRedemptionShares(
@@ -1130,7 +1117,7 @@ describe("TrancheVault Test", function () {
                     await checkRedemptionRecordByLender(
                         juniorTrancheVaultContract,
                         lender2,
-                        1,
+                        currentEpochId,
                         shares,
                         shares,
                     );
@@ -1142,7 +1129,7 @@ describe("TrancheVault Test", function () {
                     ).to.equal(shares);
 
                     await epochChecker.checkJuniorRedemptionSummaryById(
-                        epochId,
+                        currentEpochId,
                         shares.mul(BN.from(2)),
                     );
 
@@ -1176,7 +1163,7 @@ describe("TrancheVault Test", function () {
                     await checkRedemptionRecordByLender(
                         juniorTrancheVaultContract,
                         lender2,
-                        2,
+                        currentEpochId,
                         shares.mul(BN.from(2)),
                         shares.mul(BN.from(2)),
                     );
@@ -1187,9 +1174,8 @@ describe("TrancheVault Test", function () {
                         ),
                     ).to.equal(shares.mul(BN.from(2)));
 
-                    epochId = await juniorTrancheVaultContract.epochIds(2);
                     await epochChecker.checkJuniorRedemptionSummaryById(
-                        epochId,
+                        currentEpochId,
                         shares.mul(BN.from(3)),
                     );
                 });
@@ -1229,7 +1215,7 @@ describe("TrancheVault Test", function () {
                     await checkRedemptionRecordByLender(
                         seniorTrancheVaultContract,
                         poolOwnerTreasury,
-                        0,
+                        currentEpochId,
                         sharesRequested,
                         sharesRequested,
                     );
@@ -1267,7 +1253,7 @@ describe("TrancheVault Test", function () {
                     await checkRedemptionRecordByLender(
                         seniorTrancheVaultContract,
                         evaluationAgent,
-                        0,
+                        currentEpochId,
                         sharesRequested,
                         sharesRequested,
                     );
@@ -1375,7 +1361,7 @@ describe("TrancheVault Test", function () {
                     await checkRedemptionRecordByLender(
                         juniorTrancheVaultContract,
                         lender,
-                        0,
+                        currentEpochId,
                         lenderShares,
                         lenderShares,
                     );
@@ -1432,7 +1418,7 @@ describe("TrancheVault Test", function () {
                     await checkRedemptionRecordByLender(
                         juniorTrancheVaultContract,
                         lender,
-                        1,
+                        currentEpochId,
                         BN.from(0),
                         BN.from(0),
                         lenderShares,
@@ -1488,7 +1474,11 @@ describe("TrancheVault Test", function () {
                     ).to.equal(allShares);
                     await epochChecker.checkJuniorRedemptionSummaryById(currentEpochId);
 
-                    await checkRedemptionRecordByLender(juniorTrancheVaultContract, lender2, 2);
+                    await checkRedemptionRecordByLender(
+                        juniorTrancheVaultContract,
+                        lender2,
+                        currentEpochId,
+                    );
                 });
             });
 
@@ -1521,7 +1511,7 @@ describe("TrancheVault Test", function () {
                     await checkRedemptionRecordByLender(
                         juniorTrancheVaultContract,
                         lender,
-                        0,
+                        currentEpochId,
                         shares,
                         principal,
                     );
@@ -1559,7 +1549,7 @@ describe("TrancheVault Test", function () {
                     await checkRedemptionRecordByLender(
                         juniorTrancheVaultContract,
                         lender,
-                        0,
+                        currentEpochId,
                         sharesRequested.add(shares),
                         principalRequested.add(principal),
                     );
@@ -1621,7 +1611,7 @@ describe("TrancheVault Test", function () {
                     await checkRedemptionRecordByLender(
                         juniorTrancheVaultContract,
                         lender,
-                        1,
+                        currentEpochId,
                         sharesRequested.sub(shares),
                         principalRequested.sub(principal),
                         amountProcessed,
@@ -1663,7 +1653,7 @@ describe("TrancheVault Test", function () {
                     await checkRedemptionRecordByLender(
                         juniorTrancheVaultContract,
                         lender,
-                        0,
+                        currentEpochId,
                         shares,
                         principal,
                     );
@@ -1725,7 +1715,7 @@ describe("TrancheVault Test", function () {
                     await checkRedemptionRecordByLender(
                         juniorTrancheVaultContract,
                         lender,
-                        1,
+                        currentEpochId,
                         sharesRequested.add(shares),
                         principalRequested.add(principal),
                         amountProcessed,
@@ -1766,7 +1756,7 @@ describe("TrancheVault Test", function () {
                     await checkRedemptionRecordByLender(
                         juniorTrancheVaultContract,
                         lender,
-                        1,
+                        currentEpochId,
                         sharesRequested.sub(shares),
                         principalRequested.sub(principal),
                         amountProcessed,
@@ -1807,6 +1797,7 @@ describe("TrancheVault Test", function () {
                 let ts = lastEpoch.endTime.toNumber() + 60 * 5;
                 await mineNextBlockWithTimestamp(ts);
                 await epochManagerContract.closeEpoch();
+                let currentEpochId = await epochManagerContract.currentEpochId();
 
                 expect(
                     await seniorTrancheVaultContract.withdrawableAssets(lender.address),
@@ -1830,7 +1821,7 @@ describe("TrancheVault Test", function () {
                 await checkRedemptionRecordByLender(
                     seniorTrancheVaultContract,
                     lender,
-                    0,
+                    currentEpochId,
                     BN.from(0),
                     BN.from(0),
                     shares,
@@ -1852,7 +1843,7 @@ describe("TrancheVault Test", function () {
                 await checkRedemptionRecordByLender(
                     seniorTrancheVaultContract,
                     lender2,
-                    0,
+                    currentEpochId,
                     BN.from(0),
                     BN.from(0),
                     shares,
@@ -1897,6 +1888,7 @@ describe("TrancheVault Test", function () {
                 let ts = lastEpoch.endTime.toNumber() + 60 * 5;
                 await setNextBlockTimestamp(ts);
                 await epochManagerContract.closeEpoch();
+                let currentEpochId = await epochManagerContract.currentEpochId();
 
                 let withdrawableAmount = shares.mul(availableAmount).div(shares.add(shares2));
                 expect(
@@ -1918,7 +1910,7 @@ describe("TrancheVault Test", function () {
                 await checkRedemptionRecordByLender(
                     seniorTrancheVaultContract,
                     lender,
-                    1,
+                    currentEpochId,
                     shares.sub(withdrawableAmount),
                     shares.sub(withdrawableAmount),
                     allWithdrawableAmount,
@@ -1937,7 +1929,7 @@ describe("TrancheVault Test", function () {
                 await checkRedemptionRecordByLender(
                     seniorTrancheVaultContract,
                     lender2,
-                    1,
+                    currentEpochId,
                     shares2.sub(withdrawableAmount2),
                     shares2.sub(withdrawableAmount2),
                     allWithdrawableAmount2,
@@ -1973,6 +1965,7 @@ describe("TrancheVault Test", function () {
                 ts = lastEpoch.endTime.toNumber() + 60 * 5;
                 await setNextBlockTimestamp(ts);
                 await epochManagerContract.closeEpoch();
+                currentEpochId = await epochManagerContract.currentEpochId();
 
                 withdrawableAmount = allShares
                     .mul(allAvailableAmount)
@@ -2000,7 +1993,7 @@ describe("TrancheVault Test", function () {
                 await checkRedemptionRecordByLender(
                     seniorTrancheVaultContract,
                     lender,
-                    2,
+                    currentEpochId,
                     allShares.sub(withdrawableAmount),
                     allShares.sub(withdrawableAmount),
                     allWithdrawableAmount,
@@ -2019,7 +2012,7 @@ describe("TrancheVault Test", function () {
                 await checkRedemptionRecordByLender(
                     seniorTrancheVaultContract,
                     lender2,
-                    2,
+                    currentEpochId,
                     allShares2.sub(withdrawableAmount2),
                     allShares2.sub(withdrawableAmount2),
                     allWithdrawableAmount2,
@@ -2043,6 +2036,7 @@ describe("TrancheVault Test", function () {
                 ts = lastEpoch.endTime.toNumber() + 60 * 5;
                 await setNextBlockTimestamp(ts);
                 await epochManagerContract.closeEpoch();
+                currentEpochId = await epochManagerContract.currentEpochId();
 
                 expect(
                     await seniorTrancheVaultContract.withdrawableAssets(lender.address),
@@ -2063,7 +2057,7 @@ describe("TrancheVault Test", function () {
                 await checkRedemptionRecordByLender(
                     seniorTrancheVaultContract,
                     lender,
-                    2,
+                    currentEpochId,
                     BN.from(0),
                     BN.from(0),
                     allWithdrawableAmount,
@@ -2083,7 +2077,7 @@ describe("TrancheVault Test", function () {
                 await checkRedemptionRecordByLender(
                     seniorTrancheVaultContract,
                     lender2,
-                    2,
+                    currentEpochId,
                     BN.from(0),
                     BN.from(0),
                     allWithdrawableAmount2,
@@ -2152,7 +2146,7 @@ describe("TrancheVault Test", function () {
                     await checkRedemptionRecordByLender(
                         juniorTrancheVaultContract,
                         lender,
-                        1,
+                        currentEpochId,
                         sharesRequested,
                         principalRequested,
                         amountProcessed,
@@ -2220,7 +2214,7 @@ describe("TrancheVault Test", function () {
                     await checkRedemptionRecordByLender(
                         juniorTrancheVaultContract,
                         lender,
-                        1,
+                        currentEpochId,
                         sharesRequested,
                         principalRequested,
                         amountProcessed,
