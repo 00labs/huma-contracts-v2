@@ -9,7 +9,6 @@ import {
     Calendar,
     CreditDueManager,
     CreditLine,
-    ERC1967Proxy,
     EpochManager,
     EvaluationAgentNFT,
     FirstLossCover,
@@ -56,8 +55,8 @@ export type PoolContracts = [
     PoolFeeManager,
     PoolSafe,
     Calendar,
-    ERC1967Proxy,
-    ERC1967Proxy,
+    FirstLossCover,
+    FirstLossCover,
     BaseTranchesPolicy,
     Pool,
     EpochManager,
@@ -193,8 +192,12 @@ export async function deployPoolContracts(
     creditContractName: CreditContractName,
     creditManagerContractName: CreditManagerContractName,
 ): Promise<PoolContracts> {
+    const Proxy = await ethers.getContractFactory("ERC1967Proxy");
+
     const PoolConfig = await ethers.getContractFactory("PoolConfig");
-    const poolConfigContract = await PoolConfig.deploy();
+    const poolConfigImpl = await PoolConfig.deploy();
+
+    const poolConfigContract = (await Proxy.deploy(poolConfigImpl.address, "0x")) as PoolConfig;
     await poolConfigContract.deployed();
 
     const PoolFeeManager = await ethers.getContractFactory("PoolFeeManager");
@@ -205,31 +208,30 @@ export async function deployPoolContracts(
     const poolSafeContract = await PoolSafe.deploy();
     await poolSafeContract.deployed();
 
-    const Proxy = await ethers.getContractFactory("ERC1967Proxy");
     const FirstLossCover = await ethers.getContractFactory("FirstLossCover");
     const FirstLossCoverImpl = await FirstLossCover.deploy();
 
-    var fragment = FirstLossCover.interface.getFunction("initializer");
-    var calldata = FirstLossCover.interface.encodeFunctionData(fragment, [
+    let fragment = FirstLossCover.interface.getFunction("initialize");
+    let calldata = FirstLossCover.interface.encodeFunctionData(fragment, [
         "Borrower First Loss Cover",
         "BFLC",
         poolConfigContract.address,
     ]);
-    const borrowerFirstLossCoverContract = await Proxy.deploy(
+    const borrowerFirstLossCoverContract = (await Proxy.deploy(
         FirstLossCoverImpl.address,
         calldata,
-    );
+    )) as FirstLossCover;
 
-    fragment = FirstLossCover.interface.getFunction("initializer");
+    fragment = FirstLossCover.interface.getFunction("initialize");
     calldata = FirstLossCover.interface.encodeFunctionData(fragment, [
         "Affiliate First Loss Cover",
         "AFLC",
         poolConfigContract.address,
     ]);
-    const affiliateFirstLossCoverContract = await Proxy.deploy(
+    const affiliateFirstLossCoverContract = (await Proxy.deploy(
         FirstLossCoverImpl.address,
         calldata,
-    );
+    )) as FirstLossCover;
 
     const TranchesPolicy = await getTranchesPolicyContractFactory(tranchesPolicyContractName);
     const tranchesPolicyContract = await TranchesPolicy.deploy();
@@ -278,7 +280,7 @@ export async function deployPoolContracts(
         deployer.getAddress(),
     );
 
-    await poolConfigContract.initialize("Test Pool", [
+    await poolConfigContract["initialize(string,address[])"]("Test Pool", [
         humaConfigContract.address,
         mockTokenContract.address,
         calendarContract.address,
