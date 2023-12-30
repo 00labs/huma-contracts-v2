@@ -8,8 +8,6 @@ import {LPConfig} from "./PoolConfig.sol";
 import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import {SENIOR_TRANCHE, JUNIOR_TRANCHE, SECONDS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS} from "./SharedDefs.sol";
 
-import "hardhat/console.sol";
-
 /**
  * @notice Tranche policy when the yield for the senior tranche is fixed as long as
  * the risk loss does not make it impossible.
@@ -46,21 +44,18 @@ contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
         }
     }
 
-    function distProfitToTranches(
+    function _distributeProfitForSeniorTranche(
         uint256 profit,
         uint96[2] memory assets
-    ) external returns (uint96[2] memory newAssets) {
+    ) internal virtual override returns (uint256 seniorProfit, uint256 remainingProfit) {
         // Accrues senior tranches yield to the current block timestamp first
         (SeniorYieldTracker memory tracker, ) = _getYieldTracker();
 
-        uint256 seniorProfit = tracker.unpaidYield > profit ? profit : tracker.unpaidYield;
-        uint256 juniorProfit = profit - seniorProfit;
-
-        newAssets[SENIOR_TRANCHE] = assets[SENIOR_TRANCHE] + uint96(seniorProfit);
-        newAssets[JUNIOR_TRANCHE] = assets[JUNIOR_TRANCHE] + uint96(juniorProfit);
+        seniorProfit = tracker.unpaidYield > profit ? profit : tracker.unpaidYield;
+        remainingProfit = profit - seniorProfit;
 
         tracker.unpaidYield -= uint96(seniorProfit);
-        tracker.totalAssets = newAssets[SENIOR_TRANCHE];
+        tracker.totalAssets = uint96(assets[SENIOR_TRANCHE] + seniorProfit);
         seniorYieldTracker = tracker;
 
         emit YieldTrackerRefreshed(
@@ -69,10 +64,11 @@ contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
             tracker.lastUpdatedDate
         );
 
-        return newAssets;
+        return (seniorProfit, remainingProfit);
     }
 
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
+        super._updatePoolConfigData(_poolConfig);
         address addr = _poolConfig.pool();
         assert(addr != address(0));
         pool = addr;
@@ -86,8 +82,7 @@ contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
                 (tracker.totalAssets *
                     lpConfig.fixedSeniorYieldInBps *
                     (block.timestamp - tracker.lastUpdatedDate)) /
-                    SECONDS_IN_A_YEAR /
-                    HUNDRED_PERCENT_IN_BPS
+                    (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
             );
             tracker.lastUpdatedDate = uint64(block.timestamp);
             updated = true;

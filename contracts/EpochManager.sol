@@ -12,6 +12,7 @@ import {IEpochManager} from "./interfaces/IEpochManager.sol";
 import {Errors} from "./Errors.sol";
 import {ICalendar} from "./credit/interfaces/ICalendar.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 interface ITrancheVaultLike is IRedemptionHandler {
     function totalSupply() external view returns (uint256);
@@ -245,8 +246,12 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         uint256 redemptionAmount = (sharesToRedeem * lpTokenPrice) / DEFAULT_DECIMALS_FACTOR;
         if (availableAmount < redemptionAmount) {
             redemptionAmount = availableAmount;
-            // TODO rounding error?
-            sharesToRedeem = (redemptionAmount * DEFAULT_DECIMALS_FACTOR) / lpTokenPrice;
+            // Round up the number of shares the lender has to burn in order to receive
+            // the amount redeemable. The result favors the pool.
+            sharesToRedeem = Math.ceilDiv(
+                redemptionAmount * DEFAULT_DECIMALS_FACTOR,
+                lpTokenPrice
+            );
         }
         redemptionSummary.totalSharesProcessed = uint96(sharesToRedeem);
         redemptionSummary.totalAmountProcessed = uint96(redemptionAmount);
@@ -291,12 +296,21 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         uint256 redemptionAmount = (sharesToRedeem * lpTokenPrice) / DEFAULT_DECIMALS_FACTOR;
         if (availableAmount < redemptionAmount) {
             redemptionAmount = availableAmount;
-            // TODO rounding error?
-            sharesToRedeem = (redemptionAmount * DEFAULT_DECIMALS_FACTOR) / lpTokenPrice;
+            // Round up the number of shares the lender has to burn in order to receive
+            // the amount redeemable. The result favors the pool.
+            sharesToRedeem = Math.ceilDiv(
+                redemptionAmount * DEFAULT_DECIMALS_FACTOR,
+                lpTokenPrice
+            );
         }
         if (maxRedeemableAmount < redemptionAmount) {
             redemptionAmount = maxRedeemableAmount;
-            sharesToRedeem = (redemptionAmount * DEFAULT_DECIMALS_FACTOR) / lpTokenPrice;
+            // Round up the number of shares the lender has to burn in order to receive
+            // the amount redeemable. The result favors the pool.
+            sharesToRedeem = Math.ceilDiv(
+                redemptionAmount * DEFAULT_DECIMALS_FACTOR,
+                lpTokenPrice
+            );
         }
 
         redemptionSummary.totalSharesProcessed = uint96(sharesToRedeem);
