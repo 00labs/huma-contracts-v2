@@ -28,11 +28,7 @@ contract FirstLossCover is
 
     using SafeERC20 for IERC20;
 
-    event CoverProviderSet(
-        address indexed account,
-        uint256 poolCapCoverageInBps,
-        uint256 poolValueCoverageInBps
-    );
+    event CoverProviderAdded(address indexed account);
 
     event LossCovered(uint256 covered, uint256 remaining, uint256 coveredLoss);
     event LossRecovered(uint256 recovered, uint256 coveredLoss);
@@ -79,12 +75,11 @@ contract FirstLossCover is
         pool = IPool(addr);
     }
 
-    function setCoverProvider(address account, LossCoverProviderConfig memory config) external {
+    function addCoverProvider(address account) external {
         poolConfig.onlyPoolOwner(msg.sender);
         if (account == address(0)) revert Errors.zeroAddressProvided();
-        providerConfigs[account] = config;
-
-        emit CoverProviderSet(account, config.poolCapCoverageInBps, config.poolValueCoverageInBps);
+        _coverProviders.push(account);
+        emit CoverProviderAdded(account);
     }
 
     /// @inheritdoc IFirstLossCover
@@ -125,19 +120,21 @@ contract FirstLossCover is
         if (shares == 0) revert Errors.zeroAmountProvided();
         if (receiver == address(0)) revert Errors.zeroAddressProvided();
 
-        uint256 cap = getCapacity(pool.totalAssets());
+        uint256 minLiquidity = _getMinLiquidity();
         uint256 currTotalAssets = totalAssets();
 
         //: todo pool.readyForFirstLossCoverWithdrawal() is a tricky design.
         bool ready = pool.readyForFirstLossCoverWithdrawal();
-        // If ready, all assets can be withdrawn. Otherwise, only the excessive assets over the cap can be withdrawn.
-        if (!ready && currTotalAssets <= cap)
+        // If ready, all assets can be withdrawn. Otherwise, only the excessive assets over the minimum
+        // liquidity requirement can be withdrawn.
+        if (!ready && currTotalAssets <= minLiquidity)
             revert Errors.poolIsNotReadyForFirstLossCoverWithdrawal();
 
         if (shares > balanceOf(msg.sender)) revert Errors.insufficientSharesForRequest();
         assets = convertToAssets(shares);
         // Revert if the pool is not ready and the assets to be withdrawn is more than the available value.
-        if (!ready && assets > currTotalAssets - cap) revert Errors.insufficientAmountForRequest();
+        if (!ready && assets > currTotalAssets - minLiquidity)
+            revert Errors.insufficientAmountForRequest();
 
         ERC20Upgradeable._burn(msg.sender, shares);
         underlyingToken.safeTransfer(receiver, assets);
@@ -218,9 +215,9 @@ contract FirstLossCover is
      * @param providers All first loss cover providers
      */
     function payoutYield(address[] calldata providers) external {
-        uint256 cap = getCapacity(pool.totalAssets());
+        uint256 minLiquidity = _getMinLiquidity();
         uint256 assets = totalAssets();
-        if (assets <= cap) return;
+        if (assets <= minLiquidity) return;
 
         uint256 yield = assets - cap;
         uint256 totalShares = totalSupply();
@@ -244,26 +241,25 @@ contract FirstLossCover is
     function isSufficient(address account) external view returns (bool) {
         _onlyCoverProvider(account);
         uint256 balance = convertToAssets(balanceOf(account));
-        uint256 min = _getMinCoverAmount(account);
-        return balance >= min;
+        uint256 minLiquidity = _getMinLiquidity();
+        return balance >= minLiquidity;
     }
 
-    function getCapacity(uint256 poolAssets) public view returns (uint256) {
-        FirstLossCoverConfig memory lossCoverConfig = poolConfig.getFirstLossCoverConfig(
-            address(this)
-        );
-        uint256 capFromPoolAssets = (poolAssets * lossCoverConfig.maxPercentOfPoolValueInBps) /
-            HUNDRED_PERCENT_IN_BPS;
-        return
-            lossCoverConfig.liquidityCap > capFromPoolAssets
-                ? lossCoverConfig.liquidityCap
-                : capFromPoolAssets;
+    /// @inheritdoc IFirstLossCover
+    function getAvailableCap() public view returns (uint256 availableCap) {
+        uint256 coverTotalAssets = totalAssets();
+        uint256 maxLiquidity = _getMaxLiquidity();
+        return maxLiquidity > coverTotalAssets ? maxLiquidity - coverTotalAssets : 0;
     }
 
-    function getCoverProviderConfig(
-        address account
-    ) external view returns (LossCoverProviderConfig memory) {
-        return providerConfigs[account];
+    function _getMaxLiquidity() internal view returns (uint256 maxLiquidity) {
+        FirstLossCoverConfig memory config = poolConfig.getFirstLossCoverConfig(address(this));
+        return config.maxLiquidity;
+    }
+
+    function _getMinLiquidity() internal view returns (uint256 maxLiquidity) {
+        FirstLossCoverConfig memory config = poolConfig.getFirstLossCoverConfig(address(this));
+        return config.minLiquidity;
     }
 
     /**
@@ -294,6 +290,10 @@ contract FirstLossCover is
     }
 
     function _deposit(uint256 assets, address account) internal returns (uint256 shares) {
+        if (assets > getAvailableCap()) {
+            revert Errors.firstLossCoverLiquidityCapExceeded();
+        }
+
         shares = convertToShares(assets);
         ERC20Upgradeable._mint(account, shares);
 
@@ -305,9 +305,9 @@ contract FirstLossCover is
     ) internal view returns (uint256 remainingLoss, uint256 coveredAmount) {
         FirstLossCoverConfig memory config = poolConfig.getFirstLossCoverConfig(address(this));
 
-        uint256 availableAmount = (loss * config.coverRateInBps) / HUNDRED_PERCENT_IN_BPS;
-        if (availableAmount >= config.coverCap) {
-            availableAmount = config.coverCap;
+        uint256 availableAmount = (loss * config.coverRatePerLossInBps) / HUNDRED_PERCENT_IN_BPS;
+        if (availableAmount >= config.coverCapPerLoss) {
+            availableAmount = config.coverCapPerLoss;
         }
 
         uint256 currTotalAssets = totalAssets();
@@ -327,23 +327,12 @@ contract FirstLossCover is
         remainingRecovery = recoveryAmount - recoveredAmount;
     }
 
-    function _getMinCoverAmount(address account) internal view returns (uint256 minCoverAmount) {
-        LossCoverProviderConfig memory providerConfig = providerConfigs[account];
-        LPConfig memory lpConfig = poolConfig.getLPConfig();
-        uint256 poolCap = lpConfig.liquidityCap;
-        uint256 minFromPoolCap = (poolCap * providerConfig.poolCapCoverageInBps) /
-            HUNDRED_PERCENT_IN_BPS;
-        uint256 poolValue = pool.totalAssets();
-        uint256 minFromPoolValue = (poolValue * providerConfig.poolValueCoverageInBps) /
-            HUNDRED_PERCENT_IN_BPS;
-        // We use the larger of the two values as the minimum cover amount.
-        return minFromPoolCap > minFromPoolValue ? minFromPoolCap : minFromPoolValue;
-    }
-
     function _onlyCoverProvider(address account) internal view {
-        LossCoverProviderConfig memory config = providerConfigs[account];
-        if (config.poolCapCoverageInBps == 0 && config.poolValueCoverageInBps == 0)
-            revert Errors.notCoverProvider();
+        address[] memory providers = _coverProviders;
+        for (uint256 i; i < providers.length; ++i) {
+            if (account == providers[i]) return;
+        }
+        revert Errors.notCoverProvider();
     }
 
     function _onlyPoolFeeManager(address account) internal view {

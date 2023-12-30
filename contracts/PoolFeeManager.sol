@@ -201,7 +201,7 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
      * @notice PoolOwner can call this function to know if there are some available fees to be able to invested in FirstLossCover.
      */
     function getAvailableFeesToInvestInFirstLossCover() external view returns (uint256 fees) {
-        (fees, ) = _getAvailableFeesToInvestInFirstLossCover(pool.totalAssets());
+        (fees, ) = _getAvailableFeesToInvestInFirstLossCover();
     }
 
     /**
@@ -249,7 +249,7 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         (
             uint256 feesLiquidity,
             AccruedIncomes memory availableIncomes
-        ) = _getAvailableFeesToInvestInFirstLossCover(pool.totalAssets());
+        ) = _getAvailableFeesToInvestInFirstLossCover();
         if (feesLiquidity == 0) return _accruedIncomes;
 
         // Transfers tokens from PoolSafe to this contract, firstLossCover will transfer token from this contract
@@ -283,17 +283,16 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
      *   3. the available value of _accruedIncomes
      * @return availableIncomes The available incomes of the Huma protocol, pool owner and EA.
      */
-    function _getAvailableFeesToInvestInFirstLossCover(
-        uint256 poolAssets
-    ) internal view returns (uint256 availableFees, AccruedIncomes memory availableIncomes) {
+    function _getAvailableFeesToInvestInFirstLossCover()
+        internal
+        view
+        returns (uint256 availableFees, AccruedIncomes memory availableIncomes)
+    {
         availableIncomes = _getAvailableIncomes();
         uint256 availableTotalFees = availableIncomes.protocolIncome +
             availableIncomes.poolOwnerIncome +
             availableIncomes.eaIncome;
-        uint256 availableCap = pool.getFirstLossCoverAvailableCap(
-            address(firstLossCover),
-            poolAssets
-        );
+        uint256 availableCap = firstLossCover.getAvailableCap();
         availableFees = availableTotalFees > availableCap ? availableCap : availableTotalFees;
         uint256 availableBalance = poolSafe.getAvailableBalanceForFees();
         availableFees = availableFees > availableBalance ? availableBalance : availableFees;

@@ -51,5 +51,8 @@ interface IFirstLossCover {
 
     function isSufficient(address account) external view returns (bool sufficient);
 
-    function getCapacity(uint256 poolAssets) external view returns (uint256);
+    /**
+     * @notice Returns the available capacity of the given first loss cover.
+     */
+    function getAvailableCap() external view returns (uint256 availableCap);
 }

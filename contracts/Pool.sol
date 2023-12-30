@@ -457,17 +457,6 @@ contract Pool is PoolConfigCache, IPool {
         tranchesPolicy.refreshYieldTracker(assets);
     }
 
-    /// @inheritdoc IPool
-    function getFirstLossCoverAvailableCap(
-        address coverAddress,
-        uint256 poolAssets
-    ) external view returns (uint256 availableCap) {
-        IFirstLossCover cover = IFirstLossCover(coverAddress);
-        uint256 coverTotalAssets = cover.totalAssets();
-        uint256 totalCap = cover.getCapacity(poolAssets);
-        return totalCap > coverTotalAssets ? totalCap - coverTotalAssets : 0;
-    }
-
     function _onlyTrancheVaultOrEpochManager(address account) internal view {
         if (
             account != poolConfig.juniorTranche() &&
