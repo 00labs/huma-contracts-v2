@@ -526,13 +526,10 @@ async function testRedemptionRequest(jLenderRequests: BN[], sLenderRequests: BN[
             jLenderShareRequests[i] = jLenderShareRequests[i].add(jLenderRequests[i]);
             jLenderPrincipalRequests[i] = jLenderPrincipalRequests[i].add(principalRequested);
             jLenderPrincipals[i] = newPrincipal;
-            let lastUpdatedEpochIndex = (
-                await juniorTrancheVaultContract.lenderRedemptionRecords(jLenders[i].address)
-            ).lastUpdatedEpochIndex;
             await checkRedemptionRecordByLender(
                 juniorTrancheVaultContract,
                 jLenders[i],
-                lastUpdatedEpochIndex,
+                currentEpochId,
                 jLenderShareRequests[i],
                 jLenderPrincipalRequests[i],
                 jLenderAmountsProcessed[i],
@@ -542,8 +539,6 @@ async function testRedemptionRequest(jLenderRequests: BN[], sLenderRequests: BN[
             expect(
                 await juniorTrancheVaultContract.cancellableRedemptionShares(jLenders[i].address),
             ).to.closeTo(jLenderShareRequests[i], 1);
-            let userEpochId = await juniorTrancheVaultContract.epochIds(lastUpdatedEpochIndex);
-            expect(userEpochId).to.equal(currentEpochId);
             juniorShareRequested = juniorShareRequested.add(jLenderRequests[i]);
             await epochChecker.checkJuniorRedemptionSummaryById(
                 currentEpochId,
@@ -574,13 +569,10 @@ async function testRedemptionRequest(jLenderRequests: BN[], sLenderRequests: BN[
             sLenderShareRequests[i] = sLenderShareRequests[i].add(sLenderRequests[i]);
             sLenderPrincipalRequests[i] = sLenderPrincipalRequests[i].add(principalRequested);
             sLenderPrincipals[i] = newPrincipal;
-            let lastUpdatedEpochIndex = (
-                await seniorTrancheVaultContract.lenderRedemptionRecords(sLenders[i].address)
-            ).lastUpdatedEpochIndex;
             await checkRedemptionRecordByLender(
                 seniorTrancheVaultContract,
                 sLenders[i],
-                lastUpdatedEpochIndex,
+                currentEpochId,
                 sLenderShareRequests[i],
                 sLenderPrincipalRequests[i],
                 sLenderAmountsProcessed[i],
@@ -589,8 +581,6 @@ async function testRedemptionRequest(jLenderRequests: BN[], sLenderRequests: BN[
             expect(
                 await seniorTrancheVaultContract.cancellableRedemptionShares(sLenders[i].address),
             ).to.equal(sLenderShareRequests[i]);
-            let userEpochId = await seniorTrancheVaultContract.epochIds(lastUpdatedEpochIndex);
-            expect(userEpochId).to.equal(currentEpochId);
             seniorShareRequested = seniorShareRequested.add(sLenderRequests[i]);
             await epochChecker.checkSeniorRedemptionSummaryById(
                 currentEpochId,

@@ -10,8 +10,8 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract TrancheVaultStorage {
     struct LenderRedemptionRecord {
-        // The index of the epoch ID in the epochIds array when the redemption info was last updated.
-        uint64 lastUpdatedEpochIndex;
+        // The next epoch ID fro redemption processing
+        uint64 nextEpochIdToProcess;
         // The number of shares requested for redemption in this epoch
         uint96 numSharesRequested;
         // The principal amount included in the redemption request
@@ -41,10 +41,6 @@ contract TrancheVaultStorage {
     IEpochManager public epochManager;
     ICalendar public calendar;
 
-    // The IDs of all epochs where there is at least one redemption request.
-    // Note that the index may not be contiguous: if there is no redemption request,
-    // the ID won't be recorded in this array.
-    uint256[] public epochIds;
     mapping(uint256 => EpochRedemptionSummary) public epochRedemptionSummaries;
 
     mapping(address => LenderRedemptionRecord) public lenderRedemptionRecords;
