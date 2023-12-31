@@ -90,14 +90,7 @@ async function depositFirstLossCover(
     await coverContract
         .connect(account)
         .depositCover(
-            (
-                await getMinFirstLossCoverRequirement(
-                    coverContract,
-                    fetchPoolConfigContract,
-                    poolContract,
-                    account.address,
-                )
-            ).mul(2),
+            (await getMinFirstLossCoverRequirement(coverContract, fetchPoolConfigContract)).mul(2),
         );
 }
 

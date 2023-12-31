@@ -88,7 +88,7 @@ struct FirstLossCoverConfig {
     // The max liquidity allowed for the first loss cover
     uint96 maxLiquidity;
     // The min liquidity required for the first loss cover
-    uint16 minLiquidity;
+    uint96 minLiquidity;
     // Adjusts the yield of the first loss covers and junior tranche
     uint16 riskYieldMultiplierInBps;
 }
@@ -171,7 +171,7 @@ contract PoolConfig is AccessControl, Initializable {
         uint16 coverRatePerLossInBps,
         uint96 coverCapPerLoss,
         uint96 maxLiquidity,
-        uint16 minLiquidity,
+        uint96 minLiquidity,
         uint16 riskYieldMultiplierInBps,
         address by
     );
@@ -336,12 +336,10 @@ contract PoolConfig is AccessControl, Initializable {
             feeManager.withdrawEAFee(eaWithdrawable);
         }
 
-        // Make sure the new EA has met the liquidity requirements.
+        // Make sure the affiliate first loss cover still meets liquidity requirements with the new EA.
         if (IPool(pool).isPoolOn()) {
             if (
-                !IFirstLossCover(_firstLossCovers[AFFILIATE_FIRST_LOSS_COVER_INDEX]).isSufficient(
-                    agent
-                )
+                !IFirstLossCover(_firstLossCovers[AFFILIATE_FIRST_LOSS_COVER_INDEX]).isSufficient()
             ) {
                 revert Errors.lessThanRequiredCover();
             }
@@ -533,14 +531,13 @@ contract PoolConfig is AccessControl, Initializable {
     }
 
     /**
-     * @notice Checks to make sure both EA and pool owner treasury meet the pool's first loss cover requirements
+     * @notice Checks whether the affiliate first loss cover has met the liquidity requirements.
      */
     function checkFirstLossCoverRequirementsForAdmin() public view {
         IFirstLossCover firstLossCover = IFirstLossCover(
             _firstLossCovers[AFFILIATE_FIRST_LOSS_COVER_INDEX]
         );
-        if (!firstLossCover.isSufficient(poolOwnerTreasury)) revert Errors.lessThanRequiredCover();
-        if (!firstLossCover.isSufficient(evaluationAgent)) revert Errors.lessThanRequiredCover();
+        if (!firstLossCover.isSufficient()) revert Errors.lessThanRequiredCover();
     }
 
     function checkLiquidityRequirementForPoolOwner(uint256 balance) public view {

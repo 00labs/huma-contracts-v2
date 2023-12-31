@@ -1,9 +1,8 @@
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { BigNumber as BN, Contract } from "ethers";
+import { BigNumber, BigNumber as BN, Contract } from "ethers";
 import { ethers, network } from "hardhat";
 import moment from "moment";
-import { FirstLossCover, Pool, PoolConfig } from "../typechain-types";
-import { FirstLossCoverStorage } from "../typechain-types/contracts/FirstLossCover";
+import { FirstLossCover, PoolConfig } from "../typechain-types";
 import {
     FirstLossCoverConfigStruct,
     LPConfigStructOutput,
@@ -119,20 +118,11 @@ export async function overrideLPConfig(
 export async function getMinFirstLossCoverRequirement(
     firstLossCoverContract: FirstLossCover,
     poolConfigContract: PoolConfig,
-    poolContract: Pool,
-    account: string,
-): Promise<BN> {
-    const lossCoverProviderConfig = await firstLossCoverContract.getCoverProviderConfig(account);
-    const lpConfig = await poolConfigContract.getLPConfig();
-    const poolCap = lpConfig.liquidityCap;
-    const minFromPoolCap = poolCap
-        .mul(lossCoverProviderConfig.poolCapCoverageInBps)
-        .div(CONSTANTS.BP_FACTOR);
-    const poolValue = await poolContract.totalAssets();
-    const minFromPoolValue = poolValue
-        .mul(lossCoverProviderConfig.poolValueCoverageInBps)
-        .div(CONSTANTS.BP_FACTOR);
-    return minFromPoolCap.gt(minFromPoolValue) ? minFromPoolCap : minFromPoolValue;
+): Promise<BigNumber> {
+    const poolConfig = await poolConfigContract.getFirstLossCoverConfig(
+        firstLossCoverContract.address,
+    );
+    return poolConfig.minLiquidity;
 }
 
 export async function getMinLiquidityRequirementForPoolOwner(
@@ -167,22 +157,6 @@ export async function getFirstLossCoverInfo(
         asset: totalAssets,
         coveredLoss,
     };
-}
-
-export async function overrideLossCoverProviderConfig(
-    firstLossCoverContract: FirstLossCover,
-    provider: SignerWithAddress,
-    poolOwner: SignerWithAddress,
-    override: Partial<FirstLossCoverStorage.LossCoverProviderConfigStruct>,
-) {
-    const config = await firstLossCoverContract.getCoverProviderConfig(provider.getAddress());
-    const newConfig = {
-        ...config,
-        ...override,
-    };
-    await firstLossCoverContract
-        .connect(poolOwner)
-        .setCoverProvider(provider.getAddress(), newConfig);
 }
 
 export async function overrideFirstLossCoverConfig(

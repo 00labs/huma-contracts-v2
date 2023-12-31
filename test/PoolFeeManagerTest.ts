@@ -21,12 +21,7 @@ import {
     TrancheVault,
 } from "../typechain-types";
 import { CONSTANTS, deployAndSetupPoolContracts, deployProtocolContracts } from "./BaseTest";
-import {
-    overrideFirstLossCoverConfig,
-    overrideLPConfig,
-    overrideLossCoverProviderConfig,
-    toToken,
-} from "./TestUtils";
+import { overrideFirstLossCoverConfig, toToken } from "./TestUtils";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
@@ -145,7 +140,7 @@ describe("PoolFeeManager Tests", function () {
                 poolConfigContract,
                 poolOwner,
                 {
-                    liquidityCap: toToken(1_000_000_000),
+                    maxLiquidity: toToken(1_000_000_000),
                 },
             );
 
@@ -192,10 +187,10 @@ describe("PoolFeeManager Tests", function () {
                 CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
                 newFirstLossCoverContract.address,
                 {
-                    coverRateInBps: 0,
-                    coverCap: 0,
-                    liquidityCap: 0,
-                    maxPercentOfPoolValueInBps: 0,
+                    coverRatePerLossInBps: 0,
+                    coverCapPerLoss: 0,
+                    maxLiquidity: 0,
+                    minLiquidity: 0,
                     riskYieldMultiplierInBps: 20000,
                 },
             );
@@ -349,8 +344,8 @@ describe("PoolFeeManager Tests", function () {
                 poolConfigContract,
                 poolOwner,
                 {
-                    liquidityCap: 0,
-                    maxPercentOfPoolValueInBps: 0,
+                    maxLiquidity: 0,
+                    minLiquidity: 0,
                 },
             );
             // Make sure the pool safe has enough liquidity for withdrawal.
@@ -418,8 +413,8 @@ describe("PoolFeeManager Tests", function () {
                 poolConfigContract,
                 poolOwner,
                 {
-                    liquidityCap: 0,
-                    maxPercentOfPoolValueInBps: 0,
+                    maxLiquidity: 0,
+                    minLiquidity: 0,
                 },
             );
             // Make sure the pool safe has enough liquidity for withdrawal.
@@ -465,16 +460,14 @@ describe("PoolFeeManager Tests", function () {
             "Should disallow the pool owner treasury to withdraw pool owner fees" +
                 " if the first loss cover is insufficient",
             async function () {
-                // Set the min cover amount to be large enough so that the cover can't be possibly enough.
-                await overrideLPConfig(poolConfigContract, poolOwner, {
-                    liquidityCap: toToken(1_000_000_000),
-                });
-                await overrideLossCoverProviderConfig(
+                const coverTotalAssets = await affiliateFirstLossCoverContract.totalAssets();
+                await overrideFirstLossCoverConfig(
                     affiliateFirstLossCoverContract,
-                    poolOwnerTreasury,
+                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                    poolConfigContract,
                     poolOwner,
                     {
-                        poolCapCoverageInBps: CONSTANTS.BP_FACTOR,
+                        minLiquidity: coverTotalAssets.add(toToken(1)),
                     },
                 );
                 await expect(
@@ -513,8 +506,8 @@ describe("PoolFeeManager Tests", function () {
                 poolConfigContract,
                 poolOwner,
                 {
-                    liquidityCap: 0,
-                    maxPercentOfPoolValueInBps: 0,
+                    maxLiquidity: 0,
+                    minLiquidity: 0,
                 },
             );
             // Make sure the pool safe has enough liquidity for withdrawal.
@@ -543,16 +536,14 @@ describe("PoolFeeManager Tests", function () {
         });
 
         it("Should disallow the EA to withdraw EA fees if the first loss cover is insufficient", async function () {
-            // Set the min cover amount to be large enough so that the cover can't be possibly enough.
-            await overrideLPConfig(poolConfigContract, poolOwner, {
-                liquidityCap: toToken(1_000_000_000),
-            });
-            await overrideLossCoverProviderConfig(
+            const coverTotalAssets = await affiliateFirstLossCoverContract.totalAssets();
+            await overrideFirstLossCoverConfig(
                 affiliateFirstLossCoverContract,
-                evaluationAgent,
+                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                poolConfigContract,
                 poolOwner,
                 {
-                    poolCapCoverageInBps: CONSTANTS.BP_FACTOR,
+                    minLiquidity: coverTotalAssets.add(toToken(1)),
                 },
             );
             await expect(
@@ -599,8 +590,8 @@ describe("PoolFeeManager Tests", function () {
                 poolConfigContract,
                 poolOwner,
                 {
-                    liquidityCap: 0,
-                    maxPercentOfPoolValueInBps: 0,
+                    maxLiquidity: 0,
+                    minLiquidity: 0,
                 },
             );
             await poolFeeManagerContract.distributePoolFees(profit);
@@ -635,8 +626,8 @@ describe("PoolFeeManager Tests", function () {
                     poolConfigContract,
                     poolOwner,
                     {
-                        liquidityCap: toToken(1_000_000_000),
-                        maxPercentOfPoolValueInBps: 0,
+                        maxLiquidity: toToken(1_000_000_000),
+                        minLiquidity: 0,
                     },
                 );
                 await poolFeeManagerContract.distributePoolFees(profit);
@@ -684,8 +675,8 @@ describe("PoolFeeManager Tests", function () {
                     poolConfigContract,
                     poolOwner,
                     {
-                        liquidityCap: coverTotalAssets.add(feesLiquidity),
-                        maxPercentOfPoolValueInBps: 0,
+                        maxLiquidity: coverTotalAssets.add(feesLiquidity),
+                        minLiquidity: 0,
                     },
                 );
                 mockTokenContract.mint(poolSafeContract.address, totalAvailableFees);
@@ -754,8 +745,8 @@ describe("PoolFeeManager Tests", function () {
                 poolConfigContract,
                 poolOwner,
                 {
-                    liquidityCap: coverTotalAssets.add(feesLiquidity),
-                    maxPercentOfPoolValueInBps: 0,
+                    maxLiquidity: coverTotalAssets.add(feesLiquidity),
+                    minLiquidity: 0,
                 },
             );
             mockTokenContract.mint(poolSafeContract.address, totalAvailableFees);
@@ -815,6 +806,16 @@ describe("PoolFeeManager Tests", function () {
         });
 
         it("Should return the remaining amount after withdrawal", async function () {
+            // Set the max liquidity to be 0 so that admins can withdraw however much they want.
+            await overrideFirstLossCoverConfig(
+                affiliateFirstLossCoverContract,
+                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                poolConfigContract,
+                poolOwner,
+                {
+                    maxLiquidity: 0,
+                },
+            );
             const expectedFees = {
                 protocolIncome: toToken(100),
                 poolOwnerIncome: toToken(18),
@@ -867,8 +868,8 @@ describe("PoolFeeManager Tests", function () {
                     poolConfigContract,
                     poolOwner,
                     {
-                        liquidityCap: toToken(1_000_000_000),
-                        maxPercentOfPoolValueInBps: 0,
+                        maxLiquidity: toToken(1_000_000_000),
+                        minLiquidity: 0,
                     },
                 );
                 // Make sure the pool has more than enough liquidity.
@@ -895,8 +896,8 @@ describe("PoolFeeManager Tests", function () {
                     poolConfigContract,
                     poolOwner,
                     {
-                        liquidityCap: 0,
-                        maxPercentOfPoolValueInBps: 0,
+                        maxLiquidity: 0,
+                        minLiquidity: 0,
                     },
                 );
                 // Make sure the pool has more than enough liquidity.
@@ -930,8 +931,8 @@ describe("PoolFeeManager Tests", function () {
                     poolConfigContract,
                     poolOwner,
                     {
-                        liquidityCap: toToken(1_000_000_000),
-                        maxPercentOfPoolValueInBps: 0,
+                        maxLiquidity: toToken(1_000_000_000),
+                        minLiquidity: 0,
                     },
                 );
 

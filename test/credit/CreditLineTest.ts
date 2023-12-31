@@ -51,13 +51,13 @@ import {
     borrowerLevelCreditHash,
     getFutureBlockTime,
     getLatestBlock,
-    getMinFirstLossCoverRequirement,
     getStartOfDay,
     getStartOfNextMonth,
     isCloseTo,
     maxBigNumber,
     minBigNumber,
     mineNextBlockWithTimestamp,
+    overrideFirstLossCoverConfig,
     setNextBlockTimestamp,
     toToken,
 } from "../TestUtils";
@@ -148,49 +148,17 @@ describe("CreditLine Test", function () {
             [lender, borrower, borrower2],
         );
 
-        await borrowerFirstLossCoverContract
-            .connect(poolOwner)
-            .setCoverProvider(borrower.address, {
-                poolCapCoverageInBps: 1,
-                poolValueCoverageInBps: 100,
-            });
+        await borrowerFirstLossCoverContract.connect(poolOwner).addCoverProvider(borrower.address);
         await mockTokenContract
             .connect(borrower)
             .approve(borrowerFirstLossCoverContract.address, ethers.constants.MaxUint256);
-        await borrowerFirstLossCoverContract
-            .connect(borrower)
-            .depositCover(
-                (
-                    await getMinFirstLossCoverRequirement(
-                        borrowerFirstLossCoverContract,
-                        poolConfigContract,
-                        poolContract,
-                        borrower.address,
-                    )
-                ).mul(2),
-            );
 
         await borrowerFirstLossCoverContract
             .connect(poolOwner)
-            .setCoverProvider(borrower2.address, {
-                poolCapCoverageInBps: 1,
-                poolValueCoverageInBps: 100,
-            });
+            .addCoverProvider(borrower2.address);
         await mockTokenContract
             .connect(borrower2)
             .approve(borrowerFirstLossCoverContract.address, ethers.constants.MaxUint256);
-        await borrowerFirstLossCoverContract
-            .connect(borrower2)
-            .depositCover(
-                (
-                    await getMinFirstLossCoverRequirement(
-                        borrowerFirstLossCoverContract,
-                        poolConfigContract,
-                        poolContract,
-                        borrower2.address,
-                    )
-                ).mul(2),
-            );
     }
 
     beforeEach(async function () {
@@ -1245,13 +1213,21 @@ describe("CreditLine Test", function () {
                 checkDueDetailsMatch(actualDD, expectedDD);
             });
 
-            it("Should not allow drawdown when the borrower doesn't meet the first loss cover requirement", async function () {
+            it("Should not allow drawdown if the borrower doesn't meet the first loss cover requirement", async function () {
                 await borrowerFirstLossCoverContract
                     .connect(poolOwner)
-                    .setCoverProvider(borrower.address, {
-                        poolCapCoverageInBps: 5,
-                        poolValueCoverageInBps: 500,
-                    });
+                    .addCoverProvider(borrower.address);
+
+                const coverTotalAssets = await affiliateFirstLossCoverContract.totalAssets();
+                await overrideFirstLossCoverConfig(
+                    borrowerFirstLossCoverContract,
+                    CONSTANTS.BORROWER_FIRST_LOSS_COVER_INDEX,
+                    poolConfigContract,
+                    poolOwner,
+                    {
+                        minLiquidity: coverTotalAssets.add(toToken(1)),
+                    },
+                );
 
                 await expect(
                     creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
@@ -3573,19 +3549,6 @@ describe("CreditLine Test", function () {
         }
 
         async function drawdown() {
-            // Make sure the borrower has enough first loss cover so that they
-            // can drawdown.
-            await borrowerFirstLossCoverContract
-                .connect(borrower)
-                .depositCover(
-                    await getMinFirstLossCoverRequirement(
-                        borrowerFirstLossCoverContract,
-                        poolConfigContract,
-                        poolContract,
-                        await borrower.getAddress(),
-                    ),
-                );
-
             const currentTS = (await getLatestBlock()).timestamp;
             drawdownDate = moment.utc(
                 (
@@ -7678,19 +7641,6 @@ describe("CreditLine Test", function () {
         }
 
         async function drawdown() {
-            // Make sure the borrower has enough first loss cover so that they
-            // can drawdown.
-            await borrowerFirstLossCoverContract
-                .connect(borrower)
-                .depositCover(
-                    await getMinFirstLossCoverRequirement(
-                        borrowerFirstLossCoverContract,
-                        poolConfigContract,
-                        poolContract,
-                        await borrower.getAddress(),
-                    ),
-                );
-
             const currentTS = (await getLatestBlock()).timestamp;
             drawdownDate = moment.utc(
                 (

@@ -126,7 +126,7 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         // Invests available fees in FirstLossCover first
         AccruedIncomes memory incomes = _investFeesInFirstLossCover();
         // Checks if the required cover is sufficient
-        if (!firstLossCover.isSufficient(poolOwnerTreasury)) revert Errors.lessThanRequiredCover();
+        if (!firstLossCover.isSufficient()) revert Errors.lessThanRequiredCover();
 
         uint256 incomeWithdrawn = poolOwnerIncomeWithdrawn;
         if (incomeWithdrawn + amount > incomes.poolOwnerIncome)
@@ -144,7 +144,7 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         // Invests available fees in FirstLossCover first
         AccruedIncomes memory incomes = _investFeesInFirstLossCover();
         // Checks if the required cover is sufficient
-        if (!firstLossCover.isSufficient(ea)) revert Errors.lessThanRequiredCover();
+        if (!firstLossCover.isSufficient()) revert Errors.lessThanRequiredCover();
 
         uint256 incomeWithdrawn = eaIncomeWithdrawn;
         if (incomeWithdrawn + amount > incomes.eaIncome)

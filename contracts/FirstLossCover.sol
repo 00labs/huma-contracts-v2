@@ -75,6 +75,10 @@ contract FirstLossCover is
         pool = IPool(addr);
     }
 
+    function getCoverProviders() external view returns (address[] memory providers) {
+        return _coverProviders;
+    }
+
     function addCoverProvider(address account) external {
         poolConfig.onlyPoolOwner(msg.sender);
         if (account == address(0)) revert Errors.zeroAddressProvided();
@@ -120,7 +124,7 @@ contract FirstLossCover is
         if (shares == 0) revert Errors.zeroAmountProvided();
         if (receiver == address(0)) revert Errors.zeroAddressProvided();
 
-        uint256 minLiquidity = _getMinLiquidity();
+        uint256 minLiquidity = getMinLiquidity();
         uint256 currTotalAssets = totalAssets();
 
         //: todo pool.readyForFirstLossCoverWithdrawal() is a tricky design.
@@ -215,11 +219,11 @@ contract FirstLossCover is
      * @param providers All first loss cover providers
      */
     function payoutYield(address[] calldata providers) external {
-        uint256 minLiquidity = _getMinLiquidity();
+        uint256 maxLiquidity = getMaxLiquidity();
         uint256 assets = totalAssets();
-        if (assets <= minLiquidity) return;
+        if (assets <= maxLiquidity) return;
 
-        uint256 yield = assets - cap;
+        uint256 yield = assets - maxLiquidity;
         uint256 totalShares = totalSupply();
         uint256 len = providers.length;
         uint256 remainingShares = totalShares;
@@ -238,26 +242,23 @@ contract FirstLossCover is
         if (remainingShares > 0) revert Errors.notAllProvidersPaidOut();
     }
 
-    function isSufficient(address account) external view returns (bool) {
-        _onlyCoverProvider(account);
-        uint256 balance = convertToAssets(balanceOf(account));
-        uint256 minLiquidity = _getMinLiquidity();
-        return balance >= minLiquidity;
+    function isSufficient() external view returns (bool sufficient) {
+        return totalAssets() >= getMinLiquidity();
     }
 
     /// @inheritdoc IFirstLossCover
     function getAvailableCap() public view returns (uint256 availableCap) {
         uint256 coverTotalAssets = totalAssets();
-        uint256 maxLiquidity = _getMaxLiquidity();
+        uint256 maxLiquidity = getMaxLiquidity();
         return maxLiquidity > coverTotalAssets ? maxLiquidity - coverTotalAssets : 0;
     }
 
-    function _getMaxLiquidity() internal view returns (uint256 maxLiquidity) {
+    function getMaxLiquidity() public view returns (uint256 maxLiquidity) {
         FirstLossCoverConfig memory config = poolConfig.getFirstLossCoverConfig(address(this));
         return config.maxLiquidity;
     }
 
-    function _getMinLiquidity() internal view returns (uint256 maxLiquidity) {
+    function getMinLiquidity() public view returns (uint256 minLiquidity) {
         FirstLossCoverConfig memory config = poolConfig.getFirstLossCoverConfig(address(this));
         return config.minLiquidity;
     }

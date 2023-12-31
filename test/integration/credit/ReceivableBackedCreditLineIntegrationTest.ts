@@ -37,7 +37,6 @@ import {
     evmRevert,
     evmSnapshot,
     getLatestBlock,
-    getMinFirstLossCoverRequirement,
     mineNextBlockWithTimestamp,
     setNextBlockTimestamp,
     timestampToMoment,
@@ -140,27 +139,10 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
             .grantRole(receivableContract.MINTER_ROLE(), borrower.address);
         await poolConfigContract.connect(poolOwner).setReceivableAsset(receivableContract.address);
 
-        await borrowerFirstLossCoverContract
-            .connect(poolOwner)
-            .setCoverProvider(borrower.address, {
-                poolCapCoverageInBps: 1,
-                poolValueCoverageInBps: 100,
-            });
+        await borrowerFirstLossCoverContract.connect(poolOwner).addCoverProvider(borrower.address);
         await mockTokenContract
             .connect(borrower)
             .approve(borrowerFirstLossCoverContract.address, ethers.constants.MaxUint256);
-        await borrowerFirstLossCoverContract
-            .connect(borrower)
-            .depositCover(
-                (
-                    await getMinFirstLossCoverRequirement(
-                        borrowerFirstLossCoverContract,
-                        poolConfigContract,
-                        poolContract,
-                        borrower.address,
-                    )
-                ).mul(2),
-            );
 
         await juniorTrancheVaultContract
             .connect(lender)

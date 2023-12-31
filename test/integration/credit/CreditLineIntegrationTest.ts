@@ -47,7 +47,6 @@ import {
     evmRevert,
     evmSnapshot,
     getFirstLossCoverInfo,
-    getMinFirstLossCoverRequirement,
     isCloseTo,
     overrideFirstLossCoverConfig,
     overrideLPConfig,
@@ -94,7 +93,7 @@ describe("Credit Line Integration Test", function () {
         committedAmount: BN,
         newCommittedAmount: BN,
         frontLoadingFeeFlat: BN,
-        coverCap: BN;
+        coverCapPerLoss: BN;
     let nextYear: number, designatedStartDate: moment.Moment;
     const yieldInBps = 1200,
         newYieldInBps = 600,
@@ -102,7 +101,7 @@ describe("Credit Line Integration Test", function () {
         principalRateInBps = 200,
         numPeriods = 12,
         riskAdjustment = 8000,
-        coverRateInBps = 5_000;
+        coverRatePerLossInBps = 5_000;
     let payPeriodDuration: PayPeriodDuration;
     const latePaymentGracePeriodInDays = 5,
         defaultGracePeriodInDays = 10;
@@ -249,38 +248,22 @@ describe("Credit Line Integration Test", function () {
             day: 2,
         });
         payPeriodDuration = PayPeriodDuration.Monthly;
-        coverCap = toToken(3_000_000);
+        coverCapPerLoss = toToken(3_000_000);
         feeCalculator = new FeeCalculator(humaConfigContract, poolConfigContract);
 
-        await borrowerFirstLossCoverContract
-            .connect(poolOwner)
-            .setCoverProvider(borrower.address, {
-                poolCapCoverageInBps: 1,
-                poolValueCoverageInBps: 100,
-            });
+        await borrowerFirstLossCoverContract.connect(poolOwner).addCoverProvider(borrower.address);
         await mockTokenContract
             .connect(borrower)
             .approve(borrowerFirstLossCoverContract.address, ethers.constants.MaxUint256);
-        await borrowerFirstLossCoverContract
-            .connect(borrower)
-            .depositCover(
-                (
-                    await getMinFirstLossCoverRequirement(
-                        borrowerFirstLossCoverContract,
-                        poolConfigContract,
-                        poolContract,
-                        await borrower.getAddress(),
-                    )
-                ).mul(2),
-            );
+
         await overrideFirstLossCoverConfig(
             borrowerFirstLossCoverContract,
             CONSTANTS.BORROWER_FIRST_LOSS_COVER_INDEX,
             poolConfigContract,
             poolOwner,
             {
-                coverRateInBps: coverRateInBps,
-                coverCap: coverCap,
+                coverRatePerLossInBps,
+                coverCapPerLoss,
             },
         );
 

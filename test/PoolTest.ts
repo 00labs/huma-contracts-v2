@@ -31,7 +31,6 @@ import {
 import {
     getFirstLossCoverInfo,
     getLatestBlock,
-    getMinFirstLossCoverRequirement,
     getMinLiquidityRequirementForEA,
     getMinLiquidityRequirementForPoolOwner,
     overrideFirstLossCoverConfig,
@@ -88,7 +87,6 @@ describe("Pool Test", function () {
     });
 
     describe("Before the pool is enabled", function () {
-        let minPoolOwnerFirstLossCover: BN, minEAFirstLossCover: BN;
         let minPoolOwnerLiquidity: BN, minEALiquidity: BN;
 
         async function prepare() {
@@ -134,10 +132,7 @@ describe("Pool Test", function () {
                 .setPoolOwnerTreasury(poolOwnerTreasury.address);
             await affiliateFirstLossCoverContract
                 .connect(poolOwner)
-                .setCoverProvider(poolOwnerTreasury.address, {
-                    poolCapCoverageInBps: 1000,
-                    poolValueCoverageInBps: 1000,
-                });
+                .addCoverProvider(poolOwnerTreasury.address);
 
             let eaNFTTokenId;
             const tx = await eaNFTContract.mintNFT(evaluationAgent.address);
@@ -152,23 +147,8 @@ describe("Pool Test", function () {
                 .setEvaluationAgent(eaNFTTokenId, evaluationAgent.address);
             await affiliateFirstLossCoverContract
                 .connect(poolOwner)
-                .setCoverProvider(evaluationAgent.address, {
-                    poolCapCoverageInBps: 1000,
-                    poolValueCoverageInBps: 1000,
-                });
+                .addCoverProvider(poolOwnerTreasury.address);
 
-            minPoolOwnerFirstLossCover = await getMinFirstLossCoverRequirement(
-                affiliateFirstLossCoverContract,
-                poolConfigContract,
-                poolContract,
-                poolOwnerTreasury.address,
-            );
-            minEAFirstLossCover = await getMinFirstLossCoverRequirement(
-                affiliateFirstLossCoverContract,
-                poolConfigContract,
-                poolContract,
-                evaluationAgent.address,
-            );
             minPoolOwnerLiquidity =
                 await getMinLiquidityRequirementForPoolOwner(poolConfigContract);
             minEALiquidity = await getMinLiquidityRequirementForEA(poolConfigContract);
@@ -177,22 +157,6 @@ describe("Pool Test", function () {
         beforeEach(async function () {
             await loadFixture(prepare);
         });
-
-        async function addFirstLossCover(poolOwnerAmount: BN, eaAmount: BN) {
-            await mockTokenContract
-                .connect(poolOwnerTreasury)
-                .approve(affiliateFirstLossCoverContract.address, ethers.constants.MaxUint256);
-            await mockTokenContract.mint(poolOwnerTreasury.address, toToken(10_000_000));
-            await affiliateFirstLossCoverContract
-                .connect(poolOwnerTreasury)
-                .depositCover(poolOwnerAmount);
-
-            await mockTokenContract
-                .connect(evaluationAgent)
-                .approve(affiliateFirstLossCoverContract.address, ethers.constants.MaxUint256);
-            await mockTokenContract.mint(evaluationAgent.address, toToken(10_000_000));
-            await affiliateFirstLossCoverContract.connect(evaluationAgent).depositCover(eaAmount);
-        }
 
         async function addLiquidity(poolOwnerAmount: BN, eaAmount: BN) {
             await mockTokenContract
@@ -220,7 +184,16 @@ describe("Pool Test", function () {
         });
 
         it("Should not enable a pool when there is not enough first loss cover for the pool owner", async function () {
-            await addFirstLossCover(minPoolOwnerFirstLossCover.sub(1), minEAFirstLossCover);
+            const coverTotalAssets = await affiliateFirstLossCoverContract.totalAssets();
+            await overrideFirstLossCoverConfig(
+                affiliateFirstLossCoverContract,
+                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                poolConfigContract,
+                poolOwner,
+                {
+                    minLiquidity: coverTotalAssets.add(toToken(1)),
+                },
+            );
 
             await expect(
                 poolContract.connect(protocolOwner).enablePool(),
@@ -230,7 +203,16 @@ describe("Pool Test", function () {
         });
 
         it("Should not enable a pool when there is not enough first loss cover for the EA", async function () {
-            await addFirstLossCover(minPoolOwnerFirstLossCover, minEAFirstLossCover.sub(1));
+            const coverTotalAssets = await affiliateFirstLossCoverContract.totalAssets();
+            await overrideFirstLossCoverConfig(
+                affiliateFirstLossCoverContract,
+                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                poolConfigContract,
+                poolOwner,
+                {
+                    minLiquidity: coverTotalAssets.add(toToken(1)),
+                },
+            );
 
             await expect(
                 poolContract.connect(protocolOwner).enablePool(),
@@ -240,7 +222,6 @@ describe("Pool Test", function () {
         });
 
         it("Should not enable a pool when there is not enough liquidity for the pool owner", async function () {
-            await addFirstLossCover(minPoolOwnerFirstLossCover, minEAFirstLossCover);
             await addLiquidity(minPoolOwnerLiquidity.sub(1), minEALiquidity);
 
             await expect(
@@ -251,7 +232,6 @@ describe("Pool Test", function () {
         });
 
         it("Should not enable a pool when there is not enough liquidity for the EA", async function () {
-            await addFirstLossCover(minPoolOwnerFirstLossCover, minEAFirstLossCover);
             await addLiquidity(minPoolOwnerLiquidity, minEALiquidity.sub(1));
 
             await expect(
@@ -265,7 +245,6 @@ describe("Pool Test", function () {
         });
 
         it("Should allow the pool owner to enable a pool when conditions are met", async function () {
-            await addFirstLossCover(minPoolOwnerFirstLossCover, minEAFirstLossCover);
             await addLiquidity(minPoolOwnerLiquidity, minEALiquidity);
 
             await expect(poolContract.connect(protocolOwner).enablePool())
@@ -363,8 +342,8 @@ describe("Pool Test", function () {
                         poolConfigContract,
                         poolOwner,
                         {
-                            coverRateInBps: CONSTANTS.BP_FACTOR,
-                            coverCap: coverTotalAssets,
+                            coverRatePerLossInBps: CONSTANTS.BP_FACTOR,
+                            coverCapPerLoss: coverTotalAssets,
                         },
                     );
                 }
@@ -828,69 +807,6 @@ describe("Pool Test", function () {
                     await testAssetCalculation(profit, loss, recovery);
                 });
             });
-
-            describe("getFirstLossCoverAvailableCap", function () {
-                it(
-                    "Should return the difference between the cover capacity and its total assets" +
-                        " if the capacity exceeds the assets",
-                    async function () {
-                        const tranchesAssets = await poolContract.tranchesAssets();
-                        const totalTrancheAssets = tranchesAssets.seniorTotalAssets.add(
-                            tranchesAssets.juniorTotalAssets,
-                        );
-                        // Deposit the amount of the cap into the first loss cover contract to make sure there
-                        // is no availability.
-                        const coverTotalAssets =
-                            await affiliateFirstLossCoverContract.totalAssets();
-                        const coverCap = coverTotalAssets.add(1);
-                        await overrideFirstLossCoverConfig(
-                            affiliateFirstLossCoverContract,
-                            CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
-                            poolConfigContract,
-                            poolOwner,
-                            {
-                                liquidityCap: coverCap,
-                                maxPercentOfPoolValueInBps: 0,
-                            },
-                        );
-
-                        const availableCap = await poolContract.getFirstLossCoverAvailableCap(
-                            affiliateFirstLossCoverContract.address,
-                            totalTrancheAssets,
-                        );
-                        expect(availableCap).to.equal(coverCap.sub(coverTotalAssets));
-                    },
-                );
-
-                it("Should return 0 if there is no room left from the cover's capacity", async function () {
-                    const tranchesAssets = await poolContract.tranchesAssets();
-                    const totalTrancheAssets = tranchesAssets.seniorTotalAssets.add(
-                        tranchesAssets.juniorTotalAssets,
-                    );
-                    // Deposit the amount of the cap into the first loss cover contract to make sure there
-                    // is no availability.
-                    await overrideFirstLossCoverConfig(
-                        affiliateFirstLossCoverContract,
-                        CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
-                        poolConfigContract,
-                        poolOwner,
-                        {
-                            liquidityCap: toToken(1_000_000),
-                        },
-                    );
-                    const coverCap =
-                        await affiliateFirstLossCoverContract.getCapacity(totalTrancheAssets);
-                    await affiliateFirstLossCoverContract
-                        .connect(evaluationAgent)
-                        .depositCover(coverCap);
-
-                    const availableCap = await poolContract.getFirstLossCoverAvailableCap(
-                        affiliateFirstLossCoverContract.address,
-                        totalTrancheAssets,
-                    );
-                    expect(availableCap).to.equal(ethers.constants.Zero);
-                });
-            });
         });
 
         describe("View functions", function () {
@@ -908,12 +824,8 @@ describe("Pool Test", function () {
                 const juniorAvailableCap = await await poolContract.getTrancheAvailableCap(
                     CONSTANTS.JUNIOR_TRANCHE,
                 );
-                // console.log(
-                //     `seniorAvailableCap: ${seniorAvailableCap}, juniorAvailableCap: ${juniorAvailableCap}`,
-                // );
                 const lpConfig = await poolConfigContract.getLPConfig();
                 const tranchesAssets = await poolContract.currentTranchesAssets();
-                // console.log(`tranchesAssets: ${tranchesAssets}`);
                 expect(seniorAvailableCap).to.greaterThan(0);
                 expect(juniorAvailableCap).to.greaterThan(0);
                 expect(juniorAvailableCap).to.equal(

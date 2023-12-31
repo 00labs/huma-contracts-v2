@@ -36,6 +36,7 @@ import {
     getMinFirstLossCoverRequirement,
     getMinLiquidityRequirementForEA,
     getMinLiquidityRequirementForPoolOwner,
+    overrideFirstLossCoverConfig,
     toToken,
 } from "./TestUtils";
 
@@ -817,7 +818,7 @@ describe("PoolConfig Tests", function () {
 
         describe("setEvaluationAgent", function () {
             let newNFTTokenId: string;
-            let firstLossCoverAmount: BN, minLiquidity: BN;
+            let minFirstLossCoverRequirement: BN, minLiquidity: BN;
 
             beforeEach(async function () {
                 const tx = await eaNFTContract.mintNFT(evaluationAgent2.address);
@@ -831,16 +832,11 @@ describe("PoolConfig Tests", function () {
                 // Set the EA to be an operator.
                 await affiliateFirstLossCoverContract
                     .connect(poolOwner)
-                    .setCoverProvider(evaluationAgent2.getAddress(), {
-                        poolCapCoverageInBps: 100,
-                        poolValueCoverageInBps: 100,
-                    });
+                    .addCoverProvider(evaluationAgent2.getAddress());
 
-                firstLossCoverAmount = await getMinFirstLossCoverRequirement(
+                minFirstLossCoverRequirement = await getMinFirstLossCoverRequirement(
                     affiliateFirstLossCoverContract,
                     poolConfigContract,
-                    poolContract,
-                    evaluationAgent2.address,
                 );
                 minLiquidity = await getMinLiquidityRequirementForEA(poolConfigContract);
             });
@@ -849,17 +845,14 @@ describe("PoolConfig Tests", function () {
                 // Give the new EA some tokens to use as the first loss cover and junior tranche liquidity.
                 await mockTokenContract.mint(
                     evaluationAgent2.address,
-                    firstLossCoverAmount.add(minLiquidity),
+                    minFirstLossCoverRequirement.add(minLiquidity),
                 );
                 await mockTokenContract
                     .connect(evaluationAgent2)
                     .approve(
                         affiliateFirstLossCoverContract.address,
-                        firstLossCoverAmount.add(minLiquidity),
+                        minFirstLossCoverRequirement.add(minLiquidity),
                     );
-                await affiliateFirstLossCoverContract
-                    .connect(evaluationAgent2)
-                    .depositCover(firstLossCoverAmount);
                 await juniorTrancheVaultContract
                     .connect(evaluationAgent2)
                     .deposit(minLiquidity, evaluationAgent2.address);
@@ -908,13 +901,6 @@ describe("PoolConfig Tests", function () {
                     }
                 }
 
-                await mockTokenContract.mint(evaluationAgent2.address, firstLossCoverAmount);
-                await mockTokenContract
-                    .connect(evaluationAgent2)
-                    .approve(affiliateFirstLossCoverContract.address, firstLossCoverAmount);
-                await affiliateFirstLossCoverContract
-                    .connect(evaluationAgent2)
-                    .depositCover(firstLossCoverAmount);
                 await expect(
                     poolConfigContract
                         .connect(poolOwner)
@@ -926,6 +912,31 @@ describe("PoolConfig Tests", function () {
             });
 
             it("Should reject when the new evaluation agent has not met the first loss cover requirement", async function () {
+                const coverTotalAssets = await affiliateFirstLossCoverContract.totalAssets();
+                await overrideFirstLossCoverConfig(
+                    affiliateFirstLossCoverContract,
+                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                    poolConfigContract,
+                    poolOwner,
+                    {
+                        minLiquidity: coverTotalAssets.add(toToken(1)),
+                    },
+                );
+
+                await mockTokenContract.mint(
+                    evaluationAgent2.address,
+                    minFirstLossCoverRequirement.add(minLiquidity),
+                );
+                await mockTokenContract
+                    .connect(evaluationAgent2)
+                    .approve(
+                        affiliateFirstLossCoverContract.address,
+                        minFirstLossCoverRequirement.add(minLiquidity),
+                    );
+                await juniorTrancheVaultContract
+                    .connect(evaluationAgent2)
+                    .deposit(minLiquidity, evaluationAgent2.address);
+
                 await expect(
                     poolConfigContract
                         .connect(poolOwner)
@@ -934,14 +945,6 @@ describe("PoolConfig Tests", function () {
             });
 
             it("Should reject when the new evaluation agent has not met the liquidity requirement", async function () {
-                await mockTokenContract.mint(evaluationAgent2.address, firstLossCoverAmount);
-                await mockTokenContract
-                    .connect(evaluationAgent2)
-                    .approve(affiliateFirstLossCoverContract.address, firstLossCoverAmount);
-                await affiliateFirstLossCoverContract
-                    .connect(evaluationAgent2)
-                    .depositCover(firstLossCoverAmount);
-
                 await expect(
                     poolConfigContract
                         .connect(poolOwner)
@@ -1535,10 +1538,10 @@ describe("PoolConfig Tests", function () {
 
             before(function () {
                 config = {
-                    coverRateInBps: 1_000,
-                    coverCap: toToken(1_000_000),
-                    liquidityCap: toToken(2_000_000),
-                    maxPercentOfPoolValueInBps: CONSTANTS.BP_FACTOR,
+                    coverRatePerLossInBps: 1_000,
+                    coverCapPerLoss: toToken(1_000_000),
+                    maxLiquidity: toToken(2_000_000),
+                    minLiquidity: 0,
                     riskYieldMultiplierInBps: 20000,
                 };
             });
@@ -1557,10 +1560,10 @@ describe("PoolConfig Tests", function () {
                     .withArgs(
                         CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
                         affiliateFirstLossCoverContract.address,
-                        config.coverRateInBps,
-                        config.coverCap,
-                        config.liquidityCap,
-                        config.maxPercentOfPoolValueInBps,
+                        config.coverRatePerLossInBps,
+                        config.coverCapPerLoss,
+                        config.maxLiquidity,
+                        config.minLiquidity,
                         config.riskYieldMultiplierInBps,
                         await actor.getAddress(),
                     );
@@ -1568,12 +1571,10 @@ describe("PoolConfig Tests", function () {
                 const coverConfig = await poolConfigContract.getFirstLossCoverConfig(
                     affiliateFirstLossCoverContract.address,
                 );
-                expect(coverConfig.coverRateInBps).to.equal(config.coverRateInBps);
-                expect(coverConfig.coverCap).to.equal(config.coverCap);
-                expect(coverConfig.liquidityCap).to.equal(config.liquidityCap);
-                expect(coverConfig.maxPercentOfPoolValueInBps).to.equal(
-                    config.maxPercentOfPoolValueInBps,
-                );
+                expect(coverConfig.coverRatePerLossInBps).to.equal(config.coverRatePerLossInBps);
+                expect(coverConfig.coverCapPerLoss).to.equal(config.coverCapPerLoss);
+                expect(coverConfig.maxLiquidity).to.equal(config.maxLiquidity);
+                expect(coverConfig.minLiquidity).to.equal(config.minLiquidity);
                 expect(coverConfig.riskYieldMultiplierInBps).to.equal(
                     config.riskYieldMultiplierInBps,
                 );
