@@ -11,25 +11,23 @@ import {SENIOR_TRANCHE, JUNIOR_TRANCHE, HUNDRED_PERCENT_IN_BPS} from "./SharedDe
  */
 contract RiskAdjustedTranchesPolicy is BaseTranchesPolicy {
     /**
-     * @notice Distributes profit between tranches.
      * @dev Ignores solhint warning, it can't be view function because it implements ITranchesPolicy's disProfitToTranches.
      */
-    function distProfitToTranches(
+    function _distributeProfitForSeniorTranche(
         uint256 profit,
         uint96[2] memory assets
-    ) external override returns (uint96[2] memory newAssets) {
+    ) internal virtual override returns (uint256 seniorProfit, uint256 remainingProfit) {
         uint256 seniorAssets = assets[SENIOR_TRANCHE];
         uint256 juniorAssets = assets[JUNIOR_TRANCHE];
 
-        uint256 seniorProfit = (profit * seniorAssets) / (seniorAssets + juniorAssets);
+        seniorProfit = (profit * seniorAssets) / (seniorAssets + juniorAssets);
 
         LPConfig memory lpConfig = poolConfig.getLPConfig();
         uint256 profitAdjustment = (seniorProfit * lpConfig.tranchesRiskAdjustmentInBps) /
             HUNDRED_PERCENT_IN_BPS;
         seniorProfit = seniorProfit - profitAdjustment;
+        remainingProfit = profit - seniorProfit;
 
-        newAssets[SENIOR_TRANCHE] = uint96(seniorAssets + seniorProfit);
-        newAssets[JUNIOR_TRANCHE] = uint96(juniorAssets + profit - seniorProfit);
-        return newAssets;
+        return (seniorProfit, remainingProfit);
     }
 }
