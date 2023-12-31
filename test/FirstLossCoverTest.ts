@@ -119,6 +119,13 @@ describe("FirstLossCover Tests", function () {
         await loadFixture(prepare);
     });
 
+    describe("decimals", function () {
+        it("Should return the correct number of decimals of the underlying token", async function () {
+            const tokenDecimals = await mockTokenContract.decimals();
+            expect(await affiliateFirstLossCoverContract.decimals()).to.equal(tokenDecimals);
+        });
+    });
+
     describe("updatePoolConfigData", function () {
         async function spendAllowance() {
             // Spend some of the allowance by covering loss in the pool.
@@ -402,6 +409,27 @@ describe("FirstLossCover Tests", function () {
                 affiliateFirstLossCoverContract.connect(lender).depositCover(assets),
             ).to.be.revertedWithCustomError(affiliateFirstLossCoverContract, "notCoverProvider");
         });
+
+        it("Should disallow deposits that exceed the max liquidity requirement", async function () {
+            const maxLiquidity = await affiliateFirstLossCoverContract.getMaxLiquidity();
+            const depositAmount = maxLiquidity.add(toToken(1));
+            await affiliateFirstLossCoverContract
+                .connect(poolOwner)
+                .addCoverProvider(evaluationAgent.getAddress());
+            await mockTokenContract.mint(evaluationAgent.getAddress(), depositAmount);
+            await mockTokenContract
+                .connect(evaluationAgent)
+                .approve(affiliateFirstLossCoverContract.address, depositAmount);
+
+            await expect(
+                affiliateFirstLossCoverContract
+                    .connect(evaluationAgent)
+                    .depositCover(depositAmount),
+            ).to.be.revertedWithCustomError(
+                affiliateFirstLossCoverContract,
+                "firstLossCoverLiquidityCapExceeded",
+            );
+        });
     });
 
     describe("depositCoverFor", function () {
@@ -525,6 +553,78 @@ describe("FirstLossCover Tests", function () {
         });
     });
 
+    describe("convertToShares", function () {
+        let assets: BN;
+
+        beforeEach(async function () {
+            assets = toToken(100);
+        });
+
+        it("Should return the number of shares as the amount of assets if the current total supply is 0", async function () {
+            expect(await affiliateFirstLossCoverContract.convertToShares(assets)).to.equal(assets);
+        });
+
+        it("Should return the correct amount of assets otherwise", async function () {
+            const depositAmount = toToken(5_000);
+            await affiliateFirstLossCoverContract
+                .connect(poolOwner)
+                .addCoverProvider(evaluationAgent.getAddress());
+            await mockTokenContract.mint(evaluationAgent.getAddress(), depositAmount);
+            await mockTokenContract
+                .connect(evaluationAgent)
+                .approve(affiliateFirstLossCoverContract.address, depositAmount);
+            await affiliateFirstLossCoverContract
+                .connect(evaluationAgent)
+                .depositCover(depositAmount);
+
+            const currSupply = await affiliateFirstLossCoverContract.totalSupply();
+            const currAssets = await affiliateFirstLossCoverContract.totalAssets();
+            expect(await affiliateFirstLossCoverContract.convertToShares(assets)).to.equal(
+                assets.mul(currSupply).div(currAssets),
+            );
+        });
+    });
+
+    describe("covertToAssets", function () {
+        let shares: BN;
+
+        beforeEach(async function () {
+            shares = toToken(100);
+        });
+
+        it("Should return the number of shares as the amount of assets if the current total supply is 0", async function () {
+            expect(await affiliateFirstLossCoverContract.convertToAssets(shares)).to.equal(shares);
+        });
+
+        it("Should return the correct amount of assets otherwise", async function () {
+            const depositAmount = toToken(5_000);
+            await affiliateFirstLossCoverContract
+                .connect(poolOwner)
+                .addCoverProvider(evaluationAgent.getAddress());
+            await mockTokenContract.mint(evaluationAgent.getAddress(), depositAmount);
+            await mockTokenContract
+                .connect(evaluationAgent)
+                .approve(affiliateFirstLossCoverContract.address, depositAmount);
+            await affiliateFirstLossCoverContract
+                .connect(evaluationAgent)
+                .depositCover(depositAmount);
+
+            const supply = await affiliateFirstLossCoverContract.totalSupply();
+            const assets = await affiliateFirstLossCoverContract.totalAssets();
+            expect(await affiliateFirstLossCoverContract.convertToAssets(shares)).to.equal(
+                shares.mul(assets).div(supply),
+            );
+        });
+    });
+
+    describe("totalAssetsOf", function () {
+        it("Should return the total assets of the account", async function () {
+            expect(
+                await affiliateFirstLossCoverContract.totalAssetsOf(lender.getAddress()),
+            ).to.equal(0);
+        });
+    });
+
     describe("redeemCover", function () {
         async function depositCover(
             assets: BN,
@@ -541,10 +641,6 @@ describe("FirstLossCover Tests", function () {
             await mockTokenContract
                 .connect(evaluationAgent)
                 .approve(affiliateFirstLossCoverContract.address, assets);
-
-            let oldSupply = await affiliateFirstLossCoverContract.totalSupply();
-            let oldAssets = await affiliateFirstLossCoverContract.totalAssets();
-            console.log(`oldSupply: ${oldSupply}, oldAssets: ${oldAssets}`);
 
             // Distribute PnL so that the LP token isn't always 1:1 with the asset
             // when PnL is non-zero.
@@ -633,7 +729,6 @@ describe("FirstLossCover Tests", function () {
                 await testRedeemCover(assetsToRedeem);
             });
 
-            // TODO: Jiatu This test doesn't work as imagined before, it works as expected now but failed, need to solve it.
             it("Should allow the cover provider to redeem excessive assets over the cover cap when there is more profit than loss", async function () {
                 const assetsToRedeem = toToken(5_000);
                 const profit = toToken(178),
@@ -1089,7 +1184,10 @@ describe("FirstLossCover Tests", function () {
             );
 
             await expect(
-                affiliateFirstLossCoverContract.payoutYield([poolOwnerTreasury.address]),
+                affiliateFirstLossCoverContract.payoutYield([
+                    poolOwnerTreasury.address,
+                    await lender.getAddress(),
+                ]),
             ).to.be.revertedWithCustomError(
                 affiliateFirstLossCoverContract,
                 "notAllProvidersPaidOut",
