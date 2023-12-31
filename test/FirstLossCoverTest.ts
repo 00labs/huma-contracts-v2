@@ -35,6 +35,7 @@ let defaultDeployer: SignerWithAddress,
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
     evaluationAgent: SignerWithAddress,
+    evaluationAgent2: SignerWithAddress,
     poolOperator: SignerWithAddress,
     protocolTreasury: SignerWithAddress,
     lender: SignerWithAddress;
@@ -68,6 +69,7 @@ describe("FirstLossCover Tests", function () {
             poolOwner,
             poolOwnerTreasury,
             evaluationAgent,
+            evaluationAgent2,
             poolOperator,
             lender,
         ] = await ethers.getSigners();
@@ -303,17 +305,23 @@ describe("FirstLossCover Tests", function () {
             await expect(
                 affiliateFirstLossCoverContract
                     .connect(poolOwner)
-                    .addCoverProvider(evaluationAgent.address),
+                    .addCoverProvider(evaluationAgent2.address),
             )
                 .to.emit(affiliateFirstLossCoverContract, "CoverProviderAdded")
-                .withArgs(evaluationAgent.address);
+                .withArgs(evaluationAgent2.address);
+            // Adding twice should not cause errors, neither should it emit events.
+            expect(
+                affiliateFirstLossCoverContract
+                    .connect(poolOwner)
+                    .addCoverProvider(evaluationAgent2.address),
+            ).to.not.emit(affiliateFirstLossCoverContract, "CoverProviderAdded");
             const providers = await affiliateFirstLossCoverContract.getCoverProviders();
-            expect(providers.includes(await evaluationAgent.getAddress())).to.be.true;
+            expect(providers.includes(await evaluationAgent2.getAddress())).to.be.true;
         });
 
         it("Should disallow non-pool owners to set cover provider", async function () {
             await expect(
-                affiliateFirstLossCoverContract.addCoverProvider(evaluationAgent.address),
+                affiliateFirstLossCoverContract.addCoverProvider(evaluationAgent2.address),
             ).to.be.revertedWithCustomError(poolConfigContract, "notPoolOwner");
         });
 

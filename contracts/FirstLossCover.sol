@@ -82,6 +82,14 @@ contract FirstLossCover is
     function addCoverProvider(address account) external {
         poolConfig.onlyPoolOwner(msg.sender);
         if (account == address(0)) revert Errors.zeroAddressProvided();
+
+        address[] memory providers = _coverProviders;
+        for (uint256 i; i < providers.length; ++i) {
+            if (providers[i] == account) {
+                // No-op if the provider has been added before.
+                return;
+            }
+        }
         _coverProviders.push(account);
         emit CoverProviderAdded(account);
     }
