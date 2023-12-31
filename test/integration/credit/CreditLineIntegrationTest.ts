@@ -256,6 +256,7 @@ describe("Credit Line Integration Test", function () {
             .connect(borrower)
             .approve(borrowerFirstLossCoverContract.address, ethers.constants.MaxUint256);
 
+        const firstLossCoverMaxLiquidity = toToken(1_000_000);
         await overrideFirstLossCoverConfig(
             borrowerFirstLossCoverContract,
             CONSTANTS.BORROWER_FIRST_LOSS_COVER_INDEX,
@@ -264,8 +265,12 @@ describe("Credit Line Integration Test", function () {
             {
                 coverRatePerLossInBps,
                 coverCapPerLoss,
+                maxLiquidity: firstLossCoverMaxLiquidity,
             },
         );
+        await borrowerFirstLossCoverContract
+            .connect(borrower)
+            .depositCover(firstLossCoverMaxLiquidity);
 
         await juniorTrancheVaultContract
             .connect(juniorLender)

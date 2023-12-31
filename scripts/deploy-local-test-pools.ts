@@ -72,7 +72,7 @@ async function depositFirstLossCover(coverContract: FirstLossCover, account: Sig
     await mockTokenContract
         .connect(account)
         .approve(coverContract.address, ethers.constants.MaxUint256);
-    await coverContract.connect(account).depositCover(toToken(1_000));
+    await coverContract.connect(account).depositCover(toToken(20_000));
 }
 
 async function deployPool(
@@ -160,7 +160,7 @@ async function deployPool(
         poolConfigContract,
         poolOwner,
         {
-            maxLiquidity: totalAssetsBorrowerFLC.sub(yieldAmount),
+            maxLiquidity: totalAssetsBorrowerFLC.add(yieldAmount),
         },
     );
     await overrideFirstLossCoverConfig(
@@ -169,7 +169,7 @@ async function deployPool(
         poolConfigContract,
         poolOwner,
         {
-            maxLiquidity: totalAssetsAffiliateFLC.sub(yieldAmount),
+            maxLiquidity: totalAssetsAffiliateFLC.add(yieldAmount),
         },
     );
 
