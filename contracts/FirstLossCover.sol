@@ -60,18 +60,18 @@ contract FirstLossCover is
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address oldUnderlyingToken = address(underlyingToken);
         address newUnderlyingToken = _poolConfig.underlyingToken();
-        if (newUnderlyingToken == address(0)) revert Errors.zeroAddressProvided();
+        assert(newUnderlyingToken != address(0));
         underlyingToken = IERC20(newUnderlyingToken);
         _decimals = IERC20MetadataUpgradeable(newUnderlyingToken).decimals();
 
         address oldPoolSafe = address(poolSafe);
         address addr = _poolConfig.poolSafe();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         poolSafe = IPoolSafe(addr);
         _resetPoolSafeAllowance(oldPoolSafe, addr, oldUnderlyingToken, newUnderlyingToken);
 
         addr = _poolConfig.pool();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         pool = IPool(addr);
     }
 

@@ -89,33 +89,32 @@ contract Pool is PoolConfigCache, IPool {
      */
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = _poolConfig.poolSafe();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         poolSafe = IPoolSafe(addr);
 
         addr = _poolConfig.tranchesPolicy();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         tranchesPolicy = ITranchesPolicy(addr);
 
         addr = _poolConfig.poolFeeManager();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         feeManager = IPoolFeeManager(addr);
 
         addr = _poolConfig.epochManager();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         epochManager = IEpochManager(addr);
 
         addr = _poolConfig.credit();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         credit = ICredit(addr);
 
         addr = _poolConfig.creditManager();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         creditManager = ICreditManager(addr);
 
         address[16] memory covers = _poolConfig.getFirstLossCovers();
-        for (uint256 i = 0; i < covers.length; i++) {
-            if (covers[i] != address(0)) _firstLossCovers.push(IFirstLossCover(covers[i]));
-            else break;
+        for (uint256 i = 0; i < covers.length && covers[i] != address(0); i++) {
+            _firstLossCovers.push(IFirstLossCover(covers[i]));
         }
     }
 
@@ -136,7 +135,7 @@ contract Pool is PoolConfigCache, IPool {
 
     /**
      * @notice Disables the pool. Once a pool is disabled, no money moves in or out.
-     * @custom:accss Any pool operator can disable a pool. Only the pool owner or Huma protocol
+     * @custom:access Any pool operator can disable a pool. Only the pool owner or Huma protocol
      * owner can enable it again.
      */
     function disablePool() external {
@@ -210,10 +209,6 @@ contract Pool is PoolConfigCache, IPool {
         uint256 poolProfit = feeManager.distributePoolFees(profit);
 
         if (poolProfit > 0) {
-            // distributes to junior and senior tranches
-            // TODO It is confusing to allocate profits for FLCs and Junior to Junior tranche
-            // first, then distribute it to FLC and have the remainer for Junior. Prefer
-            // distProfitToTranches to return results for tranches and FLCs.
             (
                 uint256[2] memory profitsForTrancheVaults,
                 uint256[] memory profitsForFirstLossCovers
@@ -390,7 +385,7 @@ contract Pool is PoolConfigCache, IPool {
     }
 
     /**
-     * @notice Gets the assets for each tranch
+     * @notice Gets the assets for each tranche
      * @return assets the tranche assets in an array.
      */
     function currentTranchesAssets() public view returns (uint96[2] memory assets) {
@@ -414,7 +409,7 @@ contract Pool is PoolConfigCache, IPool {
 
     /**
      * @notice Utility function to update tranche assets
-     * @param assets an array that represents the descired tranche asset
+     * @param assets an array that represents the desired tranche asset
      * @custom:access Internal function without access restriction. Caller needs to control access
      */
     function _updateTranchesAssets(uint96[2] memory assets) internal {
