@@ -74,24 +74,24 @@ contract TrancheVault is
      */
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = _poolConfig.underlyingToken();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         underlyingToken = IERC20(addr);
         _decimals = IERC20MetadataUpgradeable(addr).decimals();
 
         addr = _poolConfig.pool();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         pool = IPool(addr);
 
         addr = _poolConfig.poolSafe();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         poolSafe = IPoolSafe(addr);
 
         addr = _poolConfig.epochManager();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         epochManager = IEpochManager(addr);
 
         addr = _poolConfig.calendar();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         calendar = ICalendar(addr);
     }
 
@@ -103,7 +103,7 @@ contract TrancheVault is
     function addApprovedLender(address lender, bool reinvestYield) external {
         poolConfig.onlyPoolOperator(msg.sender);
         if (lender == address(0)) revert Errors.zeroAddressProvided();
-        if (hasRole(LENDER_ROLE, lender)) revert Errors.todo();
+        if (hasRole(LENDER_ROLE, lender)) revert Errors.alreadyLender();
 
         _grantRole(LENDER_ROLE, lender);
         depositRecords[lender] = DepositRecord({
@@ -113,7 +113,7 @@ contract TrancheVault is
         });
         if (!reinvestYield) {
             if (nonReinvestingLenders.length >= MAX_ALLOWED_NUM_NON_REINVESTING_LENDERS)
-                revert Errors.todo();
+                revert Errors.nonReinvestYieldLenderCapacityReached();
             nonReinvestingLenders.push(lender);
         }
     }
@@ -125,7 +125,7 @@ contract TrancheVault is
     function removeApprovedLender(address lender) external {
         poolConfig.onlyPoolOperator(msg.sender);
         if (lender == address(0)) revert Errors.zeroAddressProvided();
-        if (!hasRole(LENDER_ROLE, lender)) revert Errors.todo();
+        if (!hasRole(LENDER_ROLE, lender)) revert Errors.notLender();
         _revokeRole(LENDER_ROLE, lender);
         if (!depositRecords[lender].reinvestYield) {
             _removeLenderFromNonReinvestingLenders(lender);
@@ -142,9 +142,9 @@ contract TrancheVault is
         if (depositRecord.reinvestYield == reinvestYield) revert Errors.todo();
         if (!depositRecord.reinvestYield && reinvestYield) {
             _removeLenderFromNonReinvestingLenders(lender);
-        } else if (depositRecord.reinvestYield && !reinvestYield) {
+        } else {
             if (nonReinvestingLenders.length >= MAX_ALLOWED_NUM_NON_REINVESTING_LENDERS)
-                revert Errors.todo();
+                revert Errors.nonReinvestYieldLenderCapacityReached();
             nonReinvestingLenders.push(lender);
         }
         depositRecord.reinvestYield = reinvestYield;
@@ -475,8 +475,6 @@ contract TrancheVault is
 
         return supply == 0 ? _assets : (_assets * supply) / _totalAssets;
     }
-
-    function _updateUserWithdrawable(address user) internal returns (uint256 withdrawableAmount) {}
 
     function _getLatestLenderRedemptionRecordFor(
         address account
