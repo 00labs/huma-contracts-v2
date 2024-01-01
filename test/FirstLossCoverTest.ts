@@ -592,7 +592,7 @@ describe("FirstLossCover Tests", function () {
             shares = toToken(100);
         });
 
-        it.only("Should return the number of shares as the amount of assets if the current total supply is 0", async function () {
+        it("Should return the number of shares as the amount of assets if the current total supply is 0", async function () {
             expect(await borrowerFirstLossCoverContract.totalSupply()).to.equal(0);
             expect(await borrowerFirstLossCoverContract.convertToAssets(shares)).to.equal(shares);
         });
