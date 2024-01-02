@@ -16,7 +16,7 @@ contract ReceivableTest is StdInvariant, Test {
     }
 
     function testCreate() public {
-        receivableHandler.createReceivable(1, 1, 1, "uri", 0);
+        receivableHandler.createReceivable(1, 1, 1, "", "uri", 0);
         assertEq(receivableHandler.receivable().totalSupply(), 1);
     }
 
