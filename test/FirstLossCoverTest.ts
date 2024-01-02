@@ -326,7 +326,7 @@ describe("FirstLossCover Tests", function () {
             expect(providers.includes(await evaluationAgent2.getAddress())).to.be.true;
         });
 
-        it("Should disallow non-pool owners to set cover provider", async function () {
+        it("Should disallow non-pool owners to add cover providers", async function () {
             await expect(
                 affiliateFirstLossCoverContract.addCoverProvider(evaluationAgent2.address),
             ).to.be.revertedWithCustomError(poolConfigContract, "notPoolOwner");
@@ -340,6 +340,26 @@ describe("FirstLossCover Tests", function () {
             ).to.be.revertedWithCustomError(
                 affiliateFirstLossCoverContract,
                 "zeroAddressProvided",
+            );
+        });
+
+        it("Should disallow cover providers to be added if the number of providers has reached capacity", async function () {
+            const numExistingProviders = (
+                await affiliateFirstLossCoverContract.getCoverProviders()
+            ).length;
+            for (let i = 0; i < 100 - numExistingProviders; ++i) {
+                const provider = ethers.Wallet.createRandom();
+                await affiliateFirstLossCoverContract
+                    .connect(poolOwner)
+                    .addCoverProvider(provider.getAddress());
+            }
+            await expect(
+                affiliateFirstLossCoverContract
+                    .connect(poolOwner)
+                    .addCoverProvider(evaluationAgent2.getAddress()),
+            ).to.be.revertedWithCustomError(
+                affiliateFirstLossCoverContract,
+                "tooManyCoverProviders",
             );
         });
     });
@@ -1171,7 +1191,24 @@ describe("FirstLossCover Tests", function () {
     });
 
     describe("payoutYield", function () {
-        it("Should revert if yield isn't paid out to all providers", async function () {
+        it("Should do nothing if the yield is 0", async function () {
+            const totalAssets = await affiliateFirstLossCoverContract.totalAssets();
+            await overrideFirstLossCoverConfig(
+                affiliateFirstLossCoverContract,
+                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                poolConfigContract,
+                poolOwner,
+                {
+                    maxLiquidity: totalAssets,
+                },
+            );
+
+            await affiliateFirstLossCoverContract.payoutYield();
+
+            expect(await affiliateFirstLossCoverContract.totalAssets()).to.equal(totalAssets);
+        });
+
+        it("Should pay out yield to all providers ", async function () {
             const totalAssets = await affiliateFirstLossCoverContract.totalAssets();
             const yieldAmount = toToken(8273);
 
@@ -1185,71 +1222,21 @@ describe("FirstLossCover Tests", function () {
                 },
             );
 
-            await expect(
-                affiliateFirstLossCoverContract.payoutYield([
-                    poolOwnerTreasury.address,
-                    await lender.getAddress(),
-                ]),
-            ).to.be.revertedWithCustomError(
-                affiliateFirstLossCoverContract,
-                "notAllProvidersPaidOut",
-            );
-        });
-
-        it("Should do nothing if the yield is 0", async function () {
-            const totalAssets = await affiliateFirstLossCoverContract.totalAssets();
-            await overrideFirstLossCoverConfig(
-                affiliateFirstLossCoverContract,
-                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
-                poolConfigContract,
-                poolOwner,
-                {
-                    maxLiquidity: totalAssets,
-                },
-            );
-
-            await affiliateFirstLossCoverContract.payoutYield([
-                poolOwnerTreasury.address,
-                evaluationAgent.address,
-            ]);
-
-            expect(await affiliateFirstLossCoverContract.totalAssets()).to.equal(totalAssets);
-        });
-
-        it("Should pay out yield to all providers ", async function () {
-            let totalAssets = await affiliateFirstLossCoverContract.totalAssets();
-            let yieldAmount = toToken(8273);
-
-            await overrideFirstLossCoverConfig(
-                affiliateFirstLossCoverContract,
-                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
-                poolConfigContract,
-                poolOwner,
-                {
-                    maxLiquidity: totalAssets.sub(yieldAmount),
-                },
-            );
-
-            let poolOwnerTreasuryBalance = await mockTokenContract.balanceOf(
+            const poolOwnerTreasuryBalance = await mockTokenContract.balanceOf(
                 poolOwnerTreasury.address,
             );
-            let evaluationAgentBalance = await mockTokenContract.balanceOf(
+            const evaluationAgentBalance = await mockTokenContract.balanceOf(
                 evaluationAgent.address,
             );
-            let totalShares = await affiliateFirstLossCoverContract.totalSupply();
-            let poolOwnerTreasuryShares = await affiliateFirstLossCoverContract.balanceOf(
+            const totalShares = await affiliateFirstLossCoverContract.totalSupply();
+            const poolOwnerTreasuryShares = await affiliateFirstLossCoverContract.balanceOf(
                 poolOwnerTreasury.address,
             );
-            let evaluationAgentShares = await affiliateFirstLossCoverContract.balanceOf(
+            const evaluationAgentShares = await affiliateFirstLossCoverContract.balanceOf(
                 evaluationAgent.address,
             );
 
-            await expect(
-                affiliateFirstLossCoverContract.payoutYield([
-                    poolOwnerTreasury.address,
-                    evaluationAgent.address,
-                ]),
-            )
+            await expect(affiliateFirstLossCoverContract.payoutYield())
                 .to.emit(affiliateFirstLossCoverContract, "YieldPaidout")
                 .withArgs(
                     poolOwnerTreasury.address,
