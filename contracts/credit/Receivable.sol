@@ -187,7 +187,7 @@ contract Receivable is
         string memory referenceId,
         address creator
     ) public view returns (bytes32) {
-        return keccak256(abi.encodePacked(referenceId, creator, address(this)));
+        return keccak256(abi.encodePacked(address(this), referenceId, creator));
     }
 
     function _authorizeUpgrade(
