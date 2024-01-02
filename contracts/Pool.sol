@@ -113,8 +113,10 @@ contract Pool is PoolConfigCache, IPool {
         creditManager = ICreditManager(addr);
 
         address[16] memory covers = _poolConfig.getFirstLossCovers();
-        for (uint256 i = 0; i < covers.length && covers[i] != address(0); i++) {
-            _firstLossCovers.push(IFirstLossCover(covers[i]));
+        for (uint256 i = 0; i < covers.length; i++) {
+            if (covers[i] != address(0)) {
+                _firstLossCovers.push(IFirstLossCover(covers[i]));
+            }
         }
     }
 
@@ -173,24 +175,22 @@ contract Pool is PoolConfigCache, IPool {
         }
     }
 
-    /// custom:access only Credit or CreditManager contract can call this function.
     /// @inheritdoc IPool
+    /// @custom:access Only Credit or CreditManager contract can call this function.
     function distributeProfit(uint256 profit) external {
-        // TODO(jiatu): add pool tests for non-authorized callers.
         _onlyCreditOrCreditManager(msg.sender);
         _distributeProfit(profit);
     }
 
-    /// custom:access only Credit or CreditManager contract can call this function.
     /// @inheritdoc IPool
+    /// @custom:access Only Credit or CreditManager contract can call this function.
     function distributeLoss(uint256 loss) external {
-        // TODO: Check if there are tests for non-authorized callers.
         _onlyCreditOrCreditManager(msg.sender);
         _distributeLoss(loss);
     }
 
-    /// custom:access Only Credit contract can call this function
     /// @inheritdoc IPool
+    /// @custom:access Only Credit contract can call this function
     function distributeLossRecovery(uint256 lossRecovery) external {
         if (msg.sender != address(credit)) revert Errors.notAuthorizedCaller();
         _distributeLossRecovery(lossRecovery);

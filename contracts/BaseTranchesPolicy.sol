@@ -21,7 +21,7 @@ abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
         for (uint256 i = 0; i < covers.length; i++) {
             if (covers[i] != address(0)) {
                 _firstLossCovers.push(IFirstLossCover(covers[i]));
-            } else break;
+            }
         }
     }
 
