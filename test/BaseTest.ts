@@ -148,8 +148,39 @@ export async function deployProxyContract(Contract: ContractFactory) {
     const contractImpl = await Contract.deploy();
     await contractImpl.deployed();
 
-    const Proxy = await ethers.getContractFactory("ERC1967Proxy");
+    const Proxy = await ethers.getContractFactory("ERC1967ProxyAccessControl");
     const contractProxy = await Proxy.deploy(contractImpl.address, "0x");
+    await contractProxy.deployed();
+    const contract = await Contract.attach(contractProxy.address);
+    return contract;
+}
+
+export async function deployProxyContractUpgradeable(Contract: ContractFactory) {
+    // const Contract = await ethers.getContractFactory(ContractFactory);
+    const contractImpl = await Contract.deploy();
+    await contractImpl.deployed();
+
+    const Proxy = await ethers.getContractFactory("ERC1967Proxy");
+    const calldata = "0x";
+    const contractProxy = await Proxy.deploy(contractImpl.address, calldata);
+    await contractProxy.deployed();
+    const contract = await Contract.attach(contractProxy.address);
+    return contract;
+}
+
+export async function deployProxyContractUpgradeableInitialized(
+    Contract: ContractFactory,
+    initFunction: string = "initialize",
+    initParams?: unknown[],
+) {
+    // const Contract = await ethers.getContractFactory(ContractFactory);
+    const contractImpl = await Contract.deploy();
+    await contractImpl.deployed();
+
+    const Proxy = await ethers.getContractFactory("ERC1967Proxy");
+    let fragment = await Contract.interface.getFunction(initFunction);
+    let calldata = await Contract.interface.encodeFunctionData(fragment, initParams);
+    const contractProxy = await Proxy.deploy(contractImpl.address, calldata);
     await contractProxy.deployed();
     const contract = await Contract.attach(contractProxy.address);
     return contract;
@@ -222,8 +253,9 @@ export async function deployPoolContracts(
     )) as FirstLossCover;
 
     const TranchesPolicy = await getTranchesPolicyContractFactory(tranchesPolicyContractName);
-    const tranchesPolicyContract = await TranchesPolicy.deploy();
-    await tranchesPolicyContract.deployed();
+    const tranchesPolicyContract = (await deployProxyContract(
+        TranchesPolicy,
+    )) as BaseTranchesPolicy;
 
     const Pool = await ethers.getContractFactory("Pool");
     const poolContract = (await deployProxyContract(Pool)) as Pool;
@@ -232,8 +264,12 @@ export async function deployPoolContracts(
     const epochManagerContract = (await deployProxyContract(EpochManager)) as EpochManager;
 
     const TrancheVault = await ethers.getContractFactory("TrancheVault");
-    const seniorTrancheVaultContract = (await deployProxyContract(TrancheVault)) as TrancheVault;
-    const juniorTrancheVaultContract = (await deployProxyContract(TrancheVault)) as TrancheVault;
+    const seniorTrancheVaultContract = (await deployProxyContractUpgradeable(
+        TrancheVault,
+    )) as TrancheVault;
+    const juniorTrancheVaultContract = (await deployProxyContractUpgradeable(
+        TrancheVault,
+    )) as TrancheVault;
 
     const Calendar = await ethers.getContractFactory("Calendar");
     const calendarContract = await Calendar.deploy();
@@ -253,9 +289,11 @@ export async function deployPoolContracts(
     )) as CreditManagerContractType;
 
     const Receivable = await ethers.getContractFactory("Receivable");
-    const receivableContract = (await deployProxyContract(Receivable)) as Receivable;
+    const receivableContract = (await deployProxyContractUpgradeableInitialized(
+        Receivable,
+    )) as Receivable;
 
-    await receivableContract.initialize();
+    // await receivableContract.initialize();
     await receivableContract.grantRole(
         receivableContract.DEFAULT_ADMIN_ROLE(),
         poolOwner.getAddress(),

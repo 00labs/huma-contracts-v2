@@ -121,6 +121,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
             creditContract as unknown,
             creditDueManagerContract,
             creditManagerContract as unknown,
+            receivableContract,
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
@@ -136,14 +137,14 @@ describe("ReceivableBackedCreditLine Tests", function () {
             [lender, borrower],
         );
 
-        const Receivable = await ethers.getContractFactory("Receivable");
-        receivableContract = await Receivable.deploy();
-        await receivableContract.deployed();
+        await receivableContract
+            .connect(poolOwner)
+            .grantRole(receivableContract.MINTER_ROLE(), poolOwner.address);
 
-        await receivableContract.connect(poolOwner).initialize();
-        await receivableContract.connect(poolOwner).addAdmin(poolOwner.address);
-        await receivableContract.connect(poolOwner).addMinter(borrower.address);
-        await receivableContract.connect(poolOwner).addMinter(poolOwner.address);
+        await receivableContract
+            .connect(poolOwner)
+            .grantRole(receivableContract.MINTER_ROLE(), borrower.address);
+
         await poolConfigContract.connect(poolOwner).setReceivableAsset(receivableContract.address);
 
         await borrowerFirstLossCoverContract

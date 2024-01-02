@@ -105,11 +105,15 @@ describe("Receivable Test", function () {
             poolOperator,
             [lender],
         );
-
         await receivableContract
             .connect(poolOwner)
             .grantRole(receivableContract.MINTER_ROLE(), borrower.address);
 
+        console.log("borrower", borrower.address);
+        console.log(await receivableContract.MINTER_ROLE());
+        console.log(
+            await receivableContract.hasRole(receivableContract.MINTER_ROLE(), borrower.address),
+        );
         await receivableContract.connect(borrower).createReceivable(
             0, // currencyCode
             1000,
