@@ -12,6 +12,7 @@ import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20MetadataUpgradeable, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 import "hardhat/console.sol";
 
@@ -27,6 +28,7 @@ contract FirstLossCover is
     uint256 private constant MAX_ALLOWED_NUM_PROVIDERS = 100;
 
     using SafeERC20 for IERC20;
+    using EnumerableSet for EnumerableSet.AddressSet;
 
     event CoverProviderAdded(address indexed account);
 
@@ -76,21 +78,17 @@ contract FirstLossCover is
     }
 
     function getCoverProviders() external view returns (address[] memory providers) {
-        return _coverProviders;
+        providers = _coverProviders.values();
     }
 
     function addCoverProvider(address account) external {
         poolConfig.onlyPoolOwner(msg.sender);
         if (account == address(0)) revert Errors.zeroAddressProvided();
 
-        address[] memory providers = _coverProviders;
-        for (uint256 i; i < providers.length; ++i) {
-            if (providers[i] == account) {
-                // No-op if the provider has been added before.
-                return;
-            }
+        if (_coverProviders.length() >= MAX_ALLOWED_NUM_PROVIDERS) {
+            revert Errors.tooManyCoverProviders();
         }
-        _coverProviders.push(account);
+        _coverProviders.add(account);
         emit CoverProviderAdded(account);
     }
 
@@ -224,18 +222,17 @@ contract FirstLossCover is
 
     /**
      * @notice Pay out yield above the cap to providers. Expects to be called by a cron-like mechanism like autotask.
-     * @param providers All first loss cover providers
      */
-    function payoutYield(address[] calldata providers) external {
+    function payoutYield() external {
         uint256 maxLiquidity = getMaxLiquidity();
         uint256 assets = totalAssets();
         if (assets <= maxLiquidity) return;
 
         uint256 yield = assets - maxLiquidity;
         uint256 totalShares = totalSupply();
-        uint256 len = providers.length;
+        address[] memory providers = _coverProviders.values();
         uint256 remainingShares = totalShares;
-        for (uint256 i; i < len && i < MAX_ALLOWED_NUM_PROVIDERS; i++) {
+        for (uint256 i; i < providers.length; i++) {
             address provider = providers[i];
             uint256 shares = balanceOf(provider);
             if (shares == 0) continue;
@@ -245,9 +242,6 @@ contract FirstLossCover is
             remainingShares -= shares;
             emit YieldPaidout(provider, payout);
         }
-
-        // Reverts this transaction if only partial providers are paid out.
-        if (remainingShares > 0) revert Errors.notAllProvidersPaidOut();
     }
 
     function isSufficient() external view returns (bool sufficient) {
@@ -337,11 +331,9 @@ contract FirstLossCover is
     }
 
     function _onlyCoverProvider(address account) internal view {
-        address[] memory providers = _coverProviders;
-        for (uint256 i; i < providers.length; ++i) {
-            if (account == providers[i]) return;
+        if (!_coverProviders.contains(account)) {
+            revert Errors.notCoverProvider();
         }
-        revert Errors.notCoverProvider();
     }
 
     function _onlyPoolFeeManager(address account) internal view {
