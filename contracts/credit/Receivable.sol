@@ -63,11 +63,11 @@ contract Receivable is
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
-        // _disableInitializers();
+        _disableInitializers();
     }
 
     /**
-     * @dev Initializer that sets the default admin and minter roles
+     * @dev Initializer
      */
     function initialize() public initializer {
         __ERC721_init("Receivable", "REC");
@@ -78,16 +78,6 @@ contract Receivable is
         __UUPSUpgradeable_init();
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-    }
-
-    function addMinter(address minterAddress) external onlyRole(ADMIN_ROLE) {
-        if (minterAddress == address(0)) revert Errors.zeroAddressProvided();
-        _grantRole(MINTER_ROLE, minterAddress);
-    }
-
-    function addAdmin(address adminAddress) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (adminAddress == address(0)) revert Errors.zeroAddressProvided();
-        _grantRole(ADMIN_ROLE, adminAddress);
     }
 
     /// @inheritdoc IReceivable

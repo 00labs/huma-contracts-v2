@@ -49,10 +49,6 @@ contract TrancheVault is
 
     event ReinvestYieldConfigSet(address indexed account, bool reinvestYield, address by);
 
-    constructor() {
-        // _disableInitializers();
-    }
-
     function initialize(
         string memory name,
         string memory symbol,

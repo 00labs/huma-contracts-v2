@@ -20,7 +20,12 @@ import {
     RiskAdjustedTranchesPolicy,
     TrancheVault,
 } from "../typechain-types";
-import { CONSTANTS, deployAndSetupPoolContracts, deployProtocolContracts } from "./BaseTest";
+import {
+    CONSTANTS,
+    deployAndSetupPoolContracts,
+    deployProtocolContracts,
+    deployProxyContract,
+} from "./BaseTest";
 import {
     overrideFirstLossCoverConfig,
     overrideLPConfig,
@@ -169,8 +174,7 @@ describe("PoolFeeManager Tests", function () {
         ) {
             await spendAllowance();
             const PoolConfig = await ethers.getContractFactory("PoolConfig");
-            const newPoolConfigContract = await PoolConfig.deploy();
-            await newPoolConfigContract.deployed();
+            const newPoolConfigContract = (await deployProxyContract(PoolConfig)) as PoolConfig;
 
             // Update the contract addresses.
             await newPoolConfigContract.initialize("Test Pool", [
@@ -207,8 +211,9 @@ describe("PoolFeeManager Tests", function () {
         describe("When both the first loss cover and the underlying token contracts are updated", function () {
             it("Should reset the allowance of the first loss cover contract", async function () {
                 const FirstLossCover = await ethers.getContractFactory("FirstLossCover");
-                const newFirstLossCoverContract = await FirstLossCover.deploy();
-                await newFirstLossCoverContract.deployed();
+                const newFirstLossCoverContract = (await deployProxyContract(
+                    FirstLossCover,
+                )) as FirstLossCover;
                 const MockToken = await ethers.getContractFactory("MockToken");
                 const newMockTokenContract = await MockToken.deploy();
                 await newMockTokenContract.deployed();
@@ -250,8 +255,9 @@ describe("PoolFeeManager Tests", function () {
         describe("When only the first loss cover contract is updated", function () {
             it("Should reset the allowance of the first loss cover contract", async function () {
                 const FirstLossCover = await ethers.getContractFactory("FirstLossCover");
-                const newFirstLossCoverContract = await FirstLossCover.deploy();
-                await newFirstLossCoverContract.deployed();
+                const newFirstLossCoverContract = (await deployProxyContract(
+                    FirstLossCover,
+                )) as FirstLossCover;
                 await performUpdate(newFirstLossCoverContract, mockTokenContract);
 
                 // Make sure the old allowance has been reduced to 0, and the new allowance has been increase to uint256.max.

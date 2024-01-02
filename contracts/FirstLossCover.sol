@@ -48,10 +48,6 @@ contract FirstLossCover is
 
     event YieldPaidout(address indexed account, uint256 yields);
 
-    constructor() {
-        // _disableInitializers();
-    }
-
     function initialize(
         string memory name,
         string memory symbol,

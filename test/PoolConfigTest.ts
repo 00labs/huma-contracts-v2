@@ -31,6 +31,7 @@ import {
     PayPeriodDuration,
     deployAndSetupPoolContracts,
     deployProtocolContracts,
+    deployProxyContract,
 } from "./BaseTest";
 import {
     getMinFirstLossCoverRequirement,
@@ -96,60 +97,58 @@ describe("PoolConfig Tests", function () {
                 poolOwner,
             );
             const PoolConfig = await ethers.getContractFactory("PoolConfig");
-            poolConfigContract = await PoolConfig.deploy();
-            await poolConfigContract.deployed();
+            poolConfigContract = (await deployProxyContract(PoolConfig)) as PoolConfig;
             await poolConfigContract.grantRole(
                 await poolConfigContract.DEFAULT_ADMIN_ROLE(),
                 poolOwner.address,
             );
 
             const PoolFeeManager = await ethers.getContractFactory("PoolFeeManager");
-            poolFeeManagerContract = await PoolFeeManager.deploy();
-            await poolFeeManagerContract.deployed();
+            poolFeeManagerContract = (await deployProxyContract(PoolFeeManager)) as PoolFeeManager;
 
             const PoolSafe = await ethers.getContractFactory("PoolSafe");
-            poolSafeContract = await PoolSafe.deploy();
-            await poolSafeContract.deployed();
+            poolSafeContract = (await deployProxyContract(PoolSafe)) as PoolSafe;
 
             const FirstLossCover = await ethers.getContractFactory("FirstLossCover");
-            borrowerFirstLossCoverContract = await FirstLossCover.deploy();
-            await borrowerFirstLossCoverContract.deployed();
-            affiliateFirstLossCoverContract = await FirstLossCover.deploy();
-            await affiliateFirstLossCoverContract.deployed();
+            borrowerFirstLossCoverContract = (await deployProxyContract(
+                FirstLossCover,
+            )) as FirstLossCover;
+            affiliateFirstLossCoverContract = (await deployProxyContract(
+                FirstLossCover,
+            )) as FirstLossCover;
 
             const TranchesPolicy = await ethers.getContractFactory("RiskAdjustedTranchesPolicy");
-            tranchesPolicyContract = await TranchesPolicy.deploy();
-            await tranchesPolicyContract.deployed();
+            tranchesPolicyContract = (await deployProxyContract(
+                TranchesPolicy,
+            )) as RiskAdjustedTranchesPolicy;
 
             const Pool = await ethers.getContractFactory("Pool");
-            poolContract = await Pool.deploy();
-            await poolContract.deployed();
+            poolContract = (await deployProxyContract(Pool)) as Pool;
 
             const EpochManager = await ethers.getContractFactory("EpochManager");
             epochManagerContract = await EpochManager.deploy();
             await epochManagerContract.deployed();
 
             const TrancheVault = await ethers.getContractFactory("TrancheVault");
-            seniorTrancheVaultContract = await TrancheVault.deploy();
-            await seniorTrancheVaultContract.deployed();
-            juniorTrancheVaultContract = await TrancheVault.deploy();
-            await juniorTrancheVaultContract.deployed();
+            seniorTrancheVaultContract = (await deployProxyContract(TrancheVault)) as TrancheVault;
+            juniorTrancheVaultContract = (await deployProxyContract(TrancheVault)) as TrancheVault;
 
             const Calendar = await ethers.getContractFactory("Calendar");
             calendarContract = await Calendar.deploy();
             await calendarContract.deployed();
 
             const Credit = await ethers.getContractFactory("MockPoolCredit");
-            creditContract = await Credit.deploy();
-            await creditContract.deployed();
+            creditContract = (await deployProxyContract(Credit)) as MockPoolCredit;
 
             const CreditDueManager = await ethers.getContractFactory("CreditDueManager");
-            creditDueManagerContract = await CreditDueManager.deploy();
-            await creditDueManagerContract.deployed();
+            creditDueManagerContract = (await deployProxyContract(
+                CreditDueManager,
+            )) as CreditDueManager;
 
             const CreditManager = await ethers.getContractFactory("BorrowerLevelCreditManager");
-            creditManagerContract = await CreditManager.deploy();
-            await creditManagerContract.deployed();
+            creditManagerContract = (await deployProxyContract(
+                CreditManager,
+            )) as BorrowerLevelCreditManager;
         }
 
         beforeEach(async function () {
