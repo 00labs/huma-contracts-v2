@@ -214,27 +214,37 @@ contract Pool is PoolConfigCache, IPool {
             // TODO It is confusing to allocate profits for FLCs and Junior to Junior tranche
             // first, then distribute it to FLC and have the remainer for Junior. Prefer
             // distProfitToTranches to return results for tranches and FLCs.
-            uint96[2] memory newAssets = tranchesPolicy.distProfitToTranches(
-                poolProfit,
-                [assets.seniorTotalAssets, assets.juniorTotalAssets]
-            );
+            (
+                uint256[2] memory profitsForTrancheVaults,
+                uint256[] memory profitsForFirstLossCovers
+            ) = tranchesPolicy.distProfitToTranches(
+                    poolProfit,
+                    [assets.seniorTotalAssets, assets.juniorTotalAssets]
+                );
+            uint256[2] memory newAssets;
+            newAssets[SENIOR_TRANCHE] =
+                assets.seniorTotalAssets +
+                profitsForTrancheVaults[SENIOR_TRANCHE];
             poolSafe.addUnprocessedProfit(
                 poolConfig.seniorTranche(),
-                newAssets[SENIOR_TRANCHE] - assets.seniorTotalAssets
+                profitsForTrancheVaults[SENIOR_TRANCHE]
             );
-
-            // Distribute profit to first loss covers using profits in the junior tranche.
-            if (newAssets[JUNIOR_TRANCHE] > assets.juniorTotalAssets) {
-                newAssets[JUNIOR_TRANCHE] = uint96(
-                    _distributeProfitForFirstLossCovers(
-                        newAssets[JUNIOR_TRANCHE] - assets.juniorTotalAssets,
-                        assets.juniorTotalAssets
-                    )
-                );
+            newAssets[JUNIOR_TRANCHE] = assets.juniorTotalAssets;
+            if (profitsForTrancheVaults[JUNIOR_TRANCHE] > 0) {
+                newAssets[JUNIOR_TRANCHE] += profitsForTrancheVaults[JUNIOR_TRANCHE];
                 poolSafe.addUnprocessedProfit(
                     poolConfig.juniorTranche(),
-                    newAssets[JUNIOR_TRANCHE] - assets.juniorTotalAssets
+                    profitsForTrancheVaults[JUNIOR_TRANCHE]
                 );
+            }
+
+            uint256 len = profitsForFirstLossCovers.length;
+            for (uint256 i = 0; i < len; i++) {
+                if (profitsForFirstLossCovers[i] == 0) {
+                    continue;
+                }
+                IFirstLossCover cover = _firstLossCovers[i];
+                cover.addCoverAssets(profitsForFirstLossCovers[i]);
             }
 
             // Don't call _updateTranchesAssets() here because yield tracker has already
@@ -242,83 +252,11 @@ contract Pool is PoolConfigCache, IPool {
             // TODO Not sure if it is a good practice to update state in tranchesPolicy.
             // Let us discuss we need to change it.
             tranchesAssets = TranchesAssets({
-                seniorTotalAssets: newAssets[SENIOR_TRANCHE],
-                juniorTotalAssets: newAssets[JUNIOR_TRANCHE]
+                seniorTotalAssets: uint96(newAssets[SENIOR_TRANCHE]),
+                juniorTotalAssets: uint96(newAssets[JUNIOR_TRANCHE])
             });
             emit ProfitDistributed(profit, newAssets[SENIOR_TRANCHE], newAssets[JUNIOR_TRANCHE]);
         }
-    }
-
-    /**
-     * @notice Internal function that distributes profit to first loss cover providers.
-     * @param nonSeniorProfit the amount of profit to be distributed between FLC and junior tranche
-     * @param juniorTotalAssets the total asset amount for junior tranche
-     * @custom:access Internal function without access restriction. Caller needs to control access
-     */
-    function _distributeProfitForFirstLossCovers(
-        uint256 nonSeniorProfit,
-        uint256 juniorTotalAssets
-    ) internal returns (uint256 newJuniorTotalAssets) {
-        if (nonSeniorProfit == 0) return juniorTotalAssets;
-        (
-            uint256 juniorProfit,
-            uint256[16] memory profitsForFirstLossCovers
-        ) = _calcProfitForFirstLossCovers(nonSeniorProfit, juniorTotalAssets);
-        uint256 len = _firstLossCovers.length;
-        for (uint256 i = 0; i < len; i++) {
-            if (profitsForFirstLossCovers[i] == 0) {
-                continue;
-            }
-            IFirstLossCover cover = _firstLossCovers[i];
-            cover.addCoverAssets(profitsForFirstLossCovers[i]);
-        }
-        newJuniorTotalAssets = juniorTotalAssets + juniorProfit;
-    }
-
-    /**
-     * @notice Internal function that calculates profit to first loss cover (FLC) providers
-     * @dev There is a risk multiplier assigned to each first loss cover. To compute the profit
-     * for each PLCs, we first gets the product of the asset amount of each PLC and the risk
-     * multiplier, then add them together. We then proportionally allocate the profit to each
-     * PLC based on its product of asset amount and risk multiplier. The remainer is left
-     * for the junior tranche.
-     * @param nonSeniorProfit the amount of profit to be distributed between FLC and junior tranche
-     * @param juniorTotalAssets the total asset amount for junior tranche
-     * @custom:access Internal function without access restriction. Caller needs to control access
-     */
-    function _calcProfitForFirstLossCovers(
-        uint256 nonSeniorProfit,
-        uint256 juniorTotalAssets
-    ) internal view returns (uint256 juniorProfit, uint256[16] memory profitsForFirstLossCovers) {
-        if (nonSeniorProfit == 0) return (juniorProfit, profitsForFirstLossCovers);
-        uint256 len = _firstLossCovers.length;
-
-        // TotalWeight is the sume of the product of asset amount and risk multiplier for each FLC
-        // and the junior tranche.
-        uint256 totalWeight = juniorTotalAssets;
-        for (uint256 i = 0; i < len; i++) {
-            IFirstLossCover cover = _firstLossCovers[i];
-            // profitsForFirstLossCovers is re-used to store the product of asset amount and risk
-            // multiplier for each PLC for gas optimization by saving an array creation
-            FirstLossCoverConfig memory config = poolConfig.getFirstLossCoverConfig(
-                address(cover)
-            );
-            profitsForFirstLossCovers[i] =
-                (cover.totalAssets() * config.riskYieldMultiplierInBps) /
-                HUNDRED_PERCENT_IN_BPS;
-            totalWeight += profitsForFirstLossCovers[i];
-        }
-
-        juniorProfit = nonSeniorProfit;
-        for (uint256 i = 0; i < len; i++) {
-            profitsForFirstLossCovers[i] =
-                (nonSeniorProfit * profitsForFirstLossCovers[i]) /
-                totalWeight;
-            // Note since profitsForFirstLossCovers[i] is rounding down by default,
-            // it is guranteed that juniorProfit will not
-            juniorProfit -= profitsForFirstLossCovers[i];
-        }
-        return (juniorProfit, profitsForFirstLossCovers);
     }
 
     /**
@@ -336,28 +274,37 @@ contract Pool is PoolConfigCache, IPool {
 
             if (loss > 0) {
                 // If there are losses remaining, let the junior and senior tranches cover the losses.
-                TranchesAssets memory assets = tranchesAssets;
-                (uint96[2] memory newAssets, uint96[2] memory lossesDelta) = tranchesPolicy
-                    .distLossToTranches(
-                        loss,
-                        [assets.seniorTotalAssets, assets.juniorTotalAssets]
-                    );
-                _updateTranchesAssets(newAssets);
-
-                TranchesLosses memory losses = tranchesLosses;
-                losses.seniorLoss += lossesDelta[SENIOR_TRANCHE];
-                losses.juniorLoss += lossesDelta[JUNIOR_TRANCHE];
-                tranchesLosses = losses;
-
-                emit LossDistributed(
-                    loss,
-                    newAssets[SENIOR_TRANCHE],
-                    newAssets[JUNIOR_TRANCHE],
-                    losses.seniorLoss,
-                    losses.juniorLoss
-                );
+                _distLossToTranches(loss);
             }
         }
+    }
+
+    /**
+     * @notice Distributes loss to tranches
+     * @param loss the loss amount
+     */
+    function _distLossToTranches(uint256 loss) internal {
+        TranchesAssets memory assets = tranchesAssets;
+        uint256 juniorTotalAssets = assets.juniorTotalAssets;
+        // Distribute losses to junior tranche up to the total junior asset
+        uint256 juniorLoss = juniorTotalAssets >= loss ? loss : juniorTotalAssets;
+        uint256 seniorLoss = loss - juniorLoss;
+
+        assets.seniorTotalAssets -= uint96(seniorLoss);
+        assets.juniorTotalAssets -= uint96(juniorLoss);
+        _updateTranchesAssets([assets.seniorTotalAssets, assets.juniorTotalAssets]);
+        TranchesLosses memory losses = tranchesLosses;
+        losses.seniorLoss += uint96(seniorLoss);
+        losses.juniorLoss += uint96(juniorLoss);
+        tranchesLosses = losses;
+
+        emit LossDistributed(
+            loss,
+            assets.seniorTotalAssets,
+            assets.juniorTotalAssets,
+            losses.seniorLoss,
+            losses.juniorLoss
+        );
     }
 
     /**
@@ -369,29 +316,7 @@ contract Pool is PoolConfigCache, IPool {
      */
     function _distributeLossRecovery(uint256 lossRecovery) internal {
         if (lossRecovery > 0) {
-            TranchesAssets memory assets = tranchesAssets;
-            TranchesLosses memory losses = tranchesLosses;
-            (
-                uint256 remainingLossRecovery,
-                uint96[2] memory newAssets,
-                uint96[2] memory newLosses
-            ) = tranchesPolicy.distLossRecoveryToTranches(
-                    lossRecovery,
-                    [assets.seniorTotalAssets, assets.juniorTotalAssets],
-                    [losses.seniorLoss, losses.juniorLoss]
-                );
-            _updateTranchesAssets(newAssets);
-            tranchesLosses = TranchesLosses({
-                seniorLoss: newLosses[SENIOR_TRANCHE],
-                juniorLoss: newLosses[JUNIOR_TRANCHE]
-            });
-            emit LossRecoveryDistributed(
-                lossRecovery - remainingLossRecovery,
-                newAssets[SENIOR_TRANCHE],
-                newAssets[JUNIOR_TRANCHE],
-                newLosses[SENIOR_TRANCHE],
-                newLosses[JUNIOR_TRANCHE]
-            );
+            uint256 remainingLossRecovery = _distLossRecoveryToTranches(lossRecovery);
 
             // Distributes the remainder to First Loss Covers.
             uint256 numFirstLossCovers = _firstLossCovers.length;
@@ -400,6 +325,49 @@ contract Pool is PoolConfigCache, IPool {
                 remainingLossRecovery = cover.recoverLoss(remainingLossRecovery);
             }
         }
+    }
+
+    /**
+     * @notice Distributes loss recovery to tranches
+     * @param lossRecovery the loss recovery amount
+     * @return remainingLossRecovery the remaining loss recovery after distributing among tranches
+     */
+    function _distLossRecoveryToTranches(
+        uint256 lossRecovery
+    ) internal returns (uint256 remainingLossRecovery) {
+        TranchesAssets memory assets = tranchesAssets;
+        TranchesLosses memory losses = tranchesLosses;
+        uint96 seniorLoss = losses.seniorLoss;
+        // Allocates recovery to senior first, up to the total senior losses
+        uint256 seniorLossRecovery = lossRecovery >= seniorLoss ? seniorLoss : lossRecovery;
+        if (seniorLossRecovery > 0) {
+            assets.seniorTotalAssets += uint96(seniorLossRecovery);
+            losses.seniorLoss -= uint96(seniorLossRecovery);
+        }
+
+        remainingLossRecovery = lossRecovery - seniorLossRecovery;
+        if (remainingLossRecovery > 0) {
+            uint96 juniorLoss = losses.juniorLoss;
+            uint256 juniorLossRecovery = remainingLossRecovery >= juniorLoss
+                ? juniorLoss
+                : remainingLossRecovery;
+            assets.juniorTotalAssets += uint96(juniorLossRecovery);
+            losses.juniorLoss -= uint96(juniorLossRecovery);
+            remainingLossRecovery = remainingLossRecovery - juniorLossRecovery;
+        }
+
+        _updateTranchesAssets([assets.seniorTotalAssets, assets.juniorTotalAssets]);
+        tranchesLosses = losses;
+
+        emit LossRecoveryDistributed(
+            lossRecovery - remainingLossRecovery,
+            assets.seniorTotalAssets,
+            assets.juniorTotalAssets,
+            losses.seniorLoss,
+            losses.juniorLoss
+        );
+
+        return remainingLossRecovery;
     }
 
     /**

@@ -1,10 +1,16 @@
 import "@nomicfoundation/hardhat-toolbox";
+import "dotenv/config";
 import "hardhat-abi-exporter";
 import "hardhat-contract-sizer";
 
 import { HardhatUserConfig } from "hardhat/types";
 
 const config: HardhatUserConfig = {
+    networks: {
+        hardhat: {
+            chainId: Number(process.env.LOCALHOST_CHAIN_ID ?? 31337),
+        },
+    },
     solidity: {
         compilers: [
             {

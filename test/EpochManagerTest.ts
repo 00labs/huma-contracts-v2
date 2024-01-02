@@ -28,6 +28,7 @@ import {
     deployProtocolContracts,
 } from "./BaseTest";
 import {
+    ceilDiv,
     getFirstLossCoverInfo,
     getLatestBlock,
     mineNextBlockWithTimestamp,
@@ -222,8 +223,6 @@ describe("EpochManager Test", function () {
             await seniorTrancheVaultContract.currentRedemptionSummary();
         let oldJuniorRedemptionSummary =
             await juniorTrancheVaultContract.currentRedemptionSummary();
-        let epoch = await epochManagerContract.currentEpoch();
-        // console.log(`epoch: ${epoch}`);
 
         let block = await getLatestBlock();
         let ts = block.timestamp + 365 * 24 * 60 * 60;
@@ -231,20 +230,11 @@ describe("EpochManager Test", function () {
 
         await poolContract.connect(poolOwner).enablePool();
 
-        epoch = await epochManagerContract.currentEpoch();
-        // console.log(`epoch: ${epoch}`);
-
         let newSeniorRedemptionSummary =
             await seniorTrancheVaultContract.currentRedemptionSummary();
         let newJuniorRedemptionSummary =
             await juniorTrancheVaultContract.currentRedemptionSummary();
 
-        // console.log(
-        //     `oldJuniorRedemptionSummary: ${oldJuniorRedemptionSummary}, newJuniorRedemptionSummary: ${newJuniorRedemptionSummary}`,
-        // );
-        // console.log(
-        //     `oldSeniorRedemptionSummary: ${oldSeniorRedemptionSummary}, newSeniorRedemptionSummary: ${newSeniorRedemptionSummary}`,
-        // );
         expect(oldJuniorRedemptionSummary.totalSharesRequested).to.greaterThan(0);
         expect(oldJuniorRedemptionSummary.totalSharesRequested).to.equal(
             newJuniorRedemptionSummary.totalSharesRequested,
@@ -814,9 +804,7 @@ describe("EpochManager Test", function () {
                     epochId,
                     totalJuniorSharesToRedeem,
                 );
-                epochId = await epochChecker.checkSeniorCurrentRedemptionSummary(
-                    totalSeniorSharesToRedeem,
-                );
+                await epochChecker.checkSeniorCurrentRedemptionSummary(totalSeniorSharesToRedeem);
                 epochId = await epochChecker.checkJuniorCurrentRedemptionSummary(
                     totalJuniorSharesToRedeem,
                 );
@@ -970,6 +958,56 @@ describe("EpochManager Test", function () {
             await epochChecker.checkSeniorCurrentEpochEmpty();
         });
 
+        it("Should close an epoch successfully after processing one senior redemption request partially due to available amount lower than requested amount", async function () {
+            // Distribute PnL so that the share price is not exactly $1 and consequently division is not exact.
+            const profit = toToken(2_153);
+            await creditContract.mockDistributePnL(profit, 0, 0);
+
+            // Move some assets out of the pool so that the redemption request can only be processed partially.
+            const totalAssets = await poolSafeContract.getAvailableBalanceForPool();
+            const remainingAmount = toToken(100);
+            await creditContract.drawdown(
+                ethers.constants.HashZero,
+                totalAssets.sub(remainingAmount),
+            );
+
+            const sharesToRedeem = toToken(2539);
+            await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(sharesToRedeem);
+            const seniorTotalAssets = await seniorTrancheVaultContract.totalAssets();
+            const seniorTotalSupply = await seniorTrancheVaultContract.totalSupply();
+            // Since all lenders are configured to re-invest their yield in this test, we need to take into account
+            // the unprocessed profit as part of the amount available for redemption.
+            const unprocessedProfit = (
+                await poolSafeContract.unprocessedTrancheProfit(seniorTrancheVaultContract.address)
+            ).add(
+                await poolSafeContract.unprocessedTrancheProfit(
+                    juniorTrancheVaultContract.address,
+                ),
+            );
+            const amountRedeemable = remainingAmount.add(unprocessedProfit);
+            const sharesRedeemable = ceilDiv(
+                amountRedeemable.mul(seniorTotalSupply),
+                seniorTotalAssets,
+            );
+            expect(sharesRedeemable).to.be.lt(sharesToRedeem);
+            const sharesRedeemableRoundedDown = amountRedeemable
+                .mul(seniorTotalSupply)
+                .div(seniorTotalAssets);
+            expect(sharesRedeemable).to.be.gt(sharesRedeemableRoundedDown);
+
+            const oldEpochId = await epochManagerContract.currentEpochId();
+            await testCloseEpoch(sharesRedeemable, BN.from(0));
+            await epochChecker.checkSeniorRedemptionSummaryById(
+                oldEpochId,
+                sharesToRedeem,
+                sharesRedeemable,
+                amountRedeemable,
+            );
+            await epochChecker.checkSeniorCurrentRedemptionSummary(
+                sharesToRedeem.sub(sharesRedeemable),
+            );
+        });
+
         it("Should close epochs with the correct LP token prices after processing multiple senior redemption requests fully", async function () {
             // Move all assets out of pool safe so that no redemption request can be fulfilled initially.
             const availableAssets = await poolSafeContract.getAvailableBalanceForPool();
@@ -1099,6 +1137,56 @@ describe("EpochManager Test", function () {
             await epochChecker.checkJuniorCurrentEpochEmpty();
         });
 
+        it("Should close an epoch successfully after processing one junior redemption request partially due to available amount lower than requested amount", async function () {
+            // Distribute PnL so that the share price is not exactly $1 and consequently division is not exact.
+            const profit = toToken(2_153);
+            await creditContract.mockDistributePnL(profit, 0, 0);
+
+            // Move some assets out of the pool so that the redemption request can only be processed partially.
+            const totalAssets = await poolSafeContract.getAvailableBalanceForPool();
+            const remainingAmount = toToken(100);
+            await creditContract.drawdown(
+                ethers.constants.HashZero,
+                totalAssets.sub(remainingAmount),
+            );
+
+            const sharesToRedeem = toToken(2539);
+            await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(sharesToRedeem);
+            const juniorTotalAssets = await juniorTrancheVaultContract.totalAssets();
+            const juniorTotalSupply = await juniorTrancheVaultContract.totalSupply();
+            // Since all lenders are configured to re-invest their yield in this test, we need to take into account
+            // the unprocessed profit as part of the amount available for redemption.
+            const unprocessedProfit = (
+                await poolSafeContract.unprocessedTrancheProfit(seniorTrancheVaultContract.address)
+            ).add(
+                await poolSafeContract.unprocessedTrancheProfit(
+                    juniorTrancheVaultContract.address,
+                ),
+            );
+            const amountRedeemable = remainingAmount.add(unprocessedProfit);
+            const sharesRedeemable = ceilDiv(
+                amountRedeemable.mul(juniorTotalSupply),
+                juniorTotalAssets,
+            );
+            expect(sharesRedeemable).to.be.lt(sharesToRedeem);
+            const sharesRedeemableRoundedDown = amountRedeemable
+                .mul(juniorTotalSupply)
+                .div(juniorTotalAssets);
+            expect(sharesRedeemable).to.be.gt(sharesRedeemableRoundedDown);
+
+            const oldEpochId = await epochManagerContract.currentEpochId();
+            await testCloseEpoch(BN.from(0), sharesRedeemable);
+            await epochChecker.checkJuniorRedemptionSummaryById(
+                oldEpochId,
+                sharesToRedeem,
+                sharesRedeemable,
+                amountRedeemable,
+            );
+            await epochChecker.checkJuniorCurrentRedemptionSummary(
+                sharesToRedeem.sub(sharesRedeemable),
+            );
+        });
+
         it("Should close epochs with the correct LP token prices successfully after processing multiple junior redemption requests fully", async function () {
             const availableAssets = await poolSafeContract.getAvailableBalanceForPool();
             await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
@@ -1210,6 +1298,9 @@ describe("EpochManager Test", function () {
                 );
                 await epochChecker.checkJuniorCurrentRedemptionSummary(
                     allShares.sub(sharesProcessable),
+                    BN.from(0),
+                    BN.from(0),
+                    1,
                 );
             },
         );
@@ -1374,6 +1465,9 @@ describe("EpochManager Test", function () {
                 await epochChecker.checkSeniorCurrentEpochEmpty();
                 epochId = await epochChecker.checkJuniorCurrentRedemptionSummary(
                     totalJuniorSharesToRedeem.sub(juniorSharesRedeemable),
+                    BN.from(0),
+                    BN.from(0),
+                    1,
                 );
 
                 totalSeniorSharesToRedeem = totalSeniorSharesToRedeem.sub(seniorSharesRedeemable);
@@ -1412,11 +1506,11 @@ describe("EpochManager Test", function () {
                     totalJuniorSharesToRedeem,
                     totalJuniorSharesToRedeem,
                     juniorAmountProcessed,
+                    1,
                 );
-                epochId = await epochChecker.checkSeniorCurrentEpochEmpty();
+                await epochChecker.checkSeniorCurrentEpochEmpty();
                 epochId = await epochChecker.checkJuniorCurrentEpochEmpty();
 
-                totalSeniorSharesToRedeem = totalSeniorSharesToRedeem.sub(seniorSharesRedeemable);
                 totalJuniorSharesToRedeem = totalJuniorSharesToRedeem.sub(juniorSharesRedeemable);
 
                 // Epoch 3

@@ -13,8 +13,7 @@ import {IPool} from "./interfaces/IPool.sol";
 import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {IERC20MetadataUpgradeable, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-
-import "hardhat/console.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract TrancheVault is
     AccessControlUpgradeable,
@@ -196,7 +195,6 @@ contract TrancheVault is
                 totalAmountProcessed: 0
             });
             epochRedemptionSummaries[nextRedemptionSummary.epochId] = nextRedemptionSummary;
-            epochIds.push(nextRedemptionSummary.epochId);
         }
 
         emit EpochProcessed(
@@ -301,9 +299,7 @@ contract TrancheVault is
             // to it.
             currRedemptionSummary.totalSharesRequested += uint96(shares);
         } else {
-            // Otherwise, record the current epoch ID in `epochIds` since there are now redemption requests,
-            // and record the redemption request data in the global registry.
-            epochIds.push(currentEpochId);
+            // Otherwise, record the redemption request data in the global registry.
             currRedemptionSummary.epochId = uint64(currentEpochId);
             currRedemptionSummary.totalSharesRequested = uint96(shares);
         }
@@ -348,14 +344,12 @@ contract TrancheVault is
         }
 
         DepositRecord memory depositRecord = depositRecords[msg.sender];
-        // TODO rounding error?
         depositRecord.principal +=
             (lenderRedemptionRecord.principalRequested * uint96(shares)) /
             lenderRedemptionRecord.numSharesRequested;
         depositRecords[msg.sender] = depositRecord;
 
         uint96 newNumSharesRequested = lenderRedemptionRecord.numSharesRequested - uint96(shares);
-        // TODO rounding error?
         lenderRedemptionRecord.principalRequested =
             (lenderRedemptionRecord.principalRequested * newNumSharesRequested) /
             lenderRedemptionRecord.numSharesRequested;
@@ -390,8 +384,8 @@ contract TrancheVault is
     }
 
     /**
-     * @notice Process yield of lenders, pay out yield to lenders who want to withdraw
-     * reinvest yield for lenders who want to reinvest. Expects to be called by a cron-like mechanism like autotask.
+     * @notice Processes yield of lenders. Pays out yield to lenders who are not reinvesting their yield.
+     * @dev This function is expected to be called by a cron-like mechanism like autotask.
      */
     function processYieldForLenders() external {
         uint256 len = nonReinvestingLenders.length;
@@ -405,14 +399,13 @@ contract TrancheVault is
             DepositRecord memory depositRecord = depositRecords[lender];
             if (assets > depositRecord.principal) {
                 uint256 yield = assets - depositRecord.principal;
-                // TODO rounding up?
-                shares = (yield * DEFAULT_DECIMALS_FACTOR) / price;
-                if (shares > 0) {
-                    ERC20Upgradeable._burn(lender, shares);
-                    poolSafe.withdraw(lender, yield);
-                    tranchesAssets[trancheIndex] -= uint96(yield);
-                    emit YieldPaidout(lender, yield, shares);
-                }
+                // Round up the number of shares the lender has to burn in order to receive
+                // the given amount of yield. The result favors the pool.
+                shares = Math.ceilDiv(yield * DEFAULT_DECIMALS_FACTOR, price);
+                ERC20Upgradeable._burn(lender, shares);
+                poolSafe.withdraw(lender, yield);
+                tranchesAssets[trancheIndex] -= uint96(yield);
+                emit YieldPaidout(lender, yield, shares);
             }
         }
         poolSafe.resetUnprocessedProfit();
@@ -468,10 +461,6 @@ contract TrancheVault is
         return convertToAssets(ERC20Upgradeable.balanceOf(account));
     }
 
-    function getNumEpochsWithRedemption() external view returns (uint256) {
-        return epochIds.length;
-    }
-
     function getNonReinvestingLendersLength() external view returns (uint256) {
         return nonReinvestingLenders.length;
     }
@@ -496,19 +485,6 @@ contract TrancheVault is
         lenderRedemptionRecord = _getLatestLenderRedemptionRecord(account, currentEpochId);
     }
 
-    function _getLatestLenderRedemptionRecord(
-        address account,
-        uint256 currentEpochId
-    ) internal view returns (LenderRedemptionRecord memory lenderRedemptionRecord) {
-        lenderRedemptionRecord = lenderRedemptionRecords[account];
-        if (lenderRedemptionRecord.lastUpdatedEpochIndex < epochIds.length) {
-            uint256 epochId = epochIds[lenderRedemptionRecord.lastUpdatedEpochIndex];
-            if (epochId < currentEpochId) {
-                lenderRedemptionRecord = _updateLenderRedemptionRecord(lenderRedemptionRecord);
-            }
-        }
-    }
-
     /**
      * @notice Brings the redemption record for a lender up-to-date.
      * @dev Prior to invoking this function, the lender's redemption record may be outdated, not accurately reflecting
@@ -516,45 +492,45 @@ contract TrancheVault is
      * processing of further redemption requests since the lender's last update. This function addresses this
      * by iterating through all epochs executed since the last update, ensuring the redemption record is current
      * and accurate.
-     * @param redemptionRecord The lender's current processed redemption request record.
-     * @return newRedemptionRecord The lender's updated processed redemption request record.
+     * @return lenderRedemptionRecord The lender's updated processed redemption request record.
      */
-    function _updateLenderRedemptionRecord(
-        LenderRedemptionRecord memory redemptionRecord
-    ) internal view returns (LenderRedemptionRecord memory newRedemptionRecord) {
-        newRedemptionRecord = redemptionRecord;
-        uint256 numEpochIds = epochIds.length;
-        uint256 remainingShares = newRedemptionRecord.numSharesRequested;
-        if (remainingShares > 0) {
-            uint256 totalShares = remainingShares;
+    function _getLatestLenderRedemptionRecord(
+        address account,
+        uint256 currentEpochId
+    ) internal view returns (LenderRedemptionRecord memory lenderRedemptionRecord) {
+        lenderRedemptionRecord = lenderRedemptionRecords[account];
+        uint256 totalShares = lenderRedemptionRecord.numSharesRequested;
+        if (totalShares > 0 && lenderRedemptionRecord.nextEpochIdToProcess < currentEpochId) {
+            uint256 remainingShares = totalShares;
             for (
-                uint256 i = newRedemptionRecord.lastUpdatedEpochIndex;
-                i < numEpochIds && remainingShares > 0;
-                i++
+                uint256 epochId = lenderRedemptionRecord.nextEpochIdToProcess;
+                epochId < currentEpochId && remainingShares > 0;
+                ++epochId
             ) {
-                uint256 epochId = epochIds[i];
                 EpochRedemptionSummary memory summary = epochRedemptionSummaries[epochId];
                 if (summary.totalSharesProcessed > 0) {
-                    // TODO Will there be one decimal unit of rounding error here if it can't be divisible?
-                    newRedemptionRecord.totalAmountProcessed += uint96(
+                    lenderRedemptionRecord.totalAmountProcessed += uint96(
                         (remainingShares * summary.totalAmountProcessed) /
                             summary.totalSharesRequested
                     );
-                    // TODO Round up here to be good for pool?
-                    remainingShares -=
-                        (remainingShares * summary.totalSharesProcessed) /
-                        summary.totalSharesRequested;
+                    // Round up the number of shares the lender burned for the redemption requests that
+                    // have been processed, so that the remaining number of shares is rounded down.
+                    // The result favors the pool.
+                    remainingShares -= Math.ceilDiv(
+                        remainingShares * summary.totalSharesProcessed,
+                        summary.totalSharesRequested
+                    );
                 }
             }
-            newRedemptionRecord.numSharesRequested = uint96(remainingShares);
+            lenderRedemptionRecord.numSharesRequested = uint96(remainingShares);
             if (remainingShares < totalShares) {
                 // Some shares are processed, so the principal requested is reduced proportionally.
-                newRedemptionRecord.principalRequested = uint96(
-                    (remainingShares * newRedemptionRecord.principalRequested) / totalShares
+                lenderRedemptionRecord.principalRequested = uint96(
+                    (remainingShares * lenderRedemptionRecord.principalRequested) / totalShares
                 );
             }
         }
-        newRedemptionRecord.lastUpdatedEpochIndex = uint64(numEpochIds - 1);
+        lenderRedemptionRecord.nextEpochIdToProcess = uint64(currentEpochId);
     }
 
     function _removeLenderFromNonReinvestingLenders(address lender) internal {

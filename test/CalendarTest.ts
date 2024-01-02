@@ -4,12 +4,7 @@ import { ethers } from "hardhat";
 import moment from "moment";
 import { Calendar } from "../typechain-types";
 import { CONSTANTS, PayPeriodDuration } from "./BaseTest";
-import {
-    evmRevert,
-    evmSnapshot,
-    getFutureBlockTime,
-    mineNextBlockWithTimestamp,
-} from "./TestUtils";
+import { evmRevert, evmSnapshot, mineNextBlockWithTimestamp } from "./TestUtils";
 
 let calendarContract: Calendar;
 
@@ -306,10 +301,32 @@ describe("Calendar Test", function () {
 
     describe("getDaysDiff", function () {
         describe("When the start and end dates fall within the same month", function () {
-            it("Should use the current block timestamp if the start date is 0", async function () {
-                const nextBlockTS = await getFutureBlockTime(2);
-                const endDate = nextBlockTS + CONSTANTS.SECONDS_IN_A_DAY;
-                expect(await calendarContract.getDaysDiff(0, endDate)).to.equal(1);
+            describe("When the start date is 0", function () {
+                let endDate: moment.Moment;
+
+                async function setCurrentBlockTS() {
+                    const nextYear = moment.utc().year() + 1;
+                    const startDate = moment.utc({
+                        year: nextYear,
+                        month: 0,
+                        day: 29,
+                    });
+                    await mineNextBlockWithTimestamp(startDate.unix());
+
+                    endDate = moment.utc({
+                        year: nextYear,
+                        month: 0,
+                        day: 30,
+                    });
+                }
+
+                beforeEach(async function () {
+                    await loadFixture(setCurrentBlockTS);
+                });
+
+                it("Should use the current block timestamp as the start date", async function () {
+                    expect(await calendarContract.getDaysDiff(0, endDate.unix())).to.equal(1);
+                });
             });
 
             it("Should return 0 if the start and end dates are the same", async function () {
