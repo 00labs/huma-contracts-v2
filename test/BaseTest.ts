@@ -695,12 +695,12 @@ async function calcLossRecovery(
     lossRecovery = lossRecovery.sub(juniorRecovery);
     const lossRecoveredInFirstLossCovers = [];
     let recoveredAmount;
-    for (const coveredLoss of lossesCoveredByFirstLossCovers) {
+    for (const coveredLoss of lossesCoveredByFirstLossCovers.slice().reverse()) {
         [lossRecovery, recoveredAmount] = calcLossRecoveryForFirstLossCover(
             coveredLoss,
             lossRecovery,
         );
-        lossRecoveredInFirstLossCovers.push(recoveredAmount);
+        lossRecoveredInFirstLossCovers.unshift(recoveredAmount);
     }
 
     return [
