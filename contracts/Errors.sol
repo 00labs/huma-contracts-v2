@@ -100,7 +100,10 @@ contract Errors {
     // first loss cover operation
     error notAllProvidersPaidOut(); // 0xf878b213
     error firstLossCoverLiquidityCapExceeded();
-    error tooManyCoverProviders();
+    error tooManyProviders();
+    error alreadyProvider();
+    error providerHasOutstandingAssets();
+    error notProvider();
 
     // receivable operation
     error receivableAssetMismatch(); // 0x41dbeec1
