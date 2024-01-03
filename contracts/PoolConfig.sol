@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IPoolFeeManager} from "./interfaces/IPoolFeeManager.sol";
@@ -98,7 +98,7 @@ interface ITrancheVaultLike {
     function totalAssetsOf(address account) external view returns (uint256 assets);
 }
 
-contract PoolConfig is AccessControl, Initializable, UUPSUpgradeable {
+contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable {
     bytes32 public constant POOL_OPERATOR_ROLE = keccak256("POOL_OPERATOR");
 
     //using SafeERC20 for IERC20;
@@ -212,7 +212,6 @@ contract PoolConfig is AccessControl, Initializable, UUPSUpgradeable {
     );
 
     constructor() {
-        // _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _disableInitializers();
     }
 
@@ -236,7 +235,7 @@ contract PoolConfig is AccessControl, Initializable, UUPSUpgradeable {
      */
 
     function initialize(string memory _poolName, address[] memory _contracts) public initializer {
-        onlyPoolOwner(msg.sender);
+        // onlyPoolOwner(msg.sender);
 
         poolName = _poolName;
 
@@ -282,8 +281,9 @@ contract PoolConfig is AccessControl, Initializable, UUPSUpgradeable {
         LPConfig memory config = _lpConfig;
         config.maxSeniorJuniorRatio = 4; // senior : junior = 4:1
         _lpConfig = config;
-
+        __AccessControl_init();
         __UUPSUpgradeable_init();
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
     function getTrancheLiquidityCap(uint256 index) external view returns (uint256 cap) {
