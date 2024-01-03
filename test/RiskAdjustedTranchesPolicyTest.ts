@@ -140,7 +140,16 @@ describe("RiskAdjustedTranchesPolicy Test", function () {
         const result = await tranchesPolicyContract.callStatic.distProfitToTranches(profit, [
             ...assets,
         ]);
-        expect(result[CONSTANTS.SENIOR_TRANCHE]).to.equal(newAssets[CONSTANTS.SENIOR_TRANCHE]);
-        expect(result[CONSTANTS.JUNIOR_TRANCHE]).to.equal(newAssets[CONSTANTS.JUNIOR_TRANCHE]);
+        console.log(result);
+        expect(result.profitsForTrancheVault[CONSTANTS.SENIOR_TRANCHE]).to.equal(
+            newAssets[CONSTANTS.SENIOR_TRANCHE].sub(assets[CONSTANTS.SENIOR_TRANCHE]),
+        );
+        let allProfit = result.profitsForTrancheVault[CONSTANTS.SENIOR_TRANCHE].add(
+            result.profitsForTrancheVault[CONSTANTS.JUNIOR_TRANCHE],
+        );
+        result.profitsForFirstLossCover.forEach((profit) => {
+            allProfit = allProfit.add(profit);
+        });
+        expect(allProfit).to.equal(profit);
     });
 });
