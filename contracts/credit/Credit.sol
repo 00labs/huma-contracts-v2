@@ -8,7 +8,6 @@ import {IPool} from "../interfaces/IPool.sol";
 import {PoolConfigCache} from "../PoolConfigCache.sol";
 import {CreditStorage} from "./CreditStorage.sol";
 import {CreditConfig, CreditRecord, CreditLimit, CreditState, DueDetail, PayPeriodDuration} from "./CreditStructs.sol";
-import {ICalendar} from "./interfaces/ICalendar.sol";
 import {IFirstLossCover} from "../interfaces/IFirstLossCover.sol";
 import {IPoolSafe} from "../interfaces/IPoolSafe.sol";
 import {ICredit} from "./interfaces/ICredit.sol";
@@ -240,14 +239,13 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             ) revert Errors.creditLineExceeded();
 
             // Add the yield of new borrowAmount for the remainder of the period
-            uint256 daysRemaining = calendar.getDaysRemainingInPeriod(cr.nextDueDate);
-            // It's important to note that the yield calculation includes the day of the drawdown. For instance,
-            // if the borrower draws down at 11:59 PM on October 30th, the yield for October 30th must be paid.
-            uint256 additionalYieldAccrued = dueManager.computeYieldDue(
-                borrowAmount,
-                cc.yieldInBps,
-                daysRemaining
-            );
+            (uint256 additionalYieldAccrued, uint256 additionalPrincipalDue) = dueManager
+                .computeAdditionalYieldAccruedAndPrincipalDueForDrawdown(
+                    cc.periodDuration,
+                    borrowAmount,
+                    cr.nextDueDate,
+                    cc.yieldInBps
+                );
             dd.accrued += uint96(additionalYieldAccrued);
             if (dd.accrued > dd.committed) {
                 // 1. If `dd.committed` was higher than `dd.accrued` before the drawdown but lower afterwards,
@@ -261,15 +259,8 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             }
             cr.unbilledPrincipal = uint96(cr.unbilledPrincipal + borrowAmount);
 
-            FeeStructure memory fees = poolConfig.getFeeStructure();
-            if (fees.minPrincipalRateInBps > 0) {
+            if (additionalPrincipalDue > 0) {
                 // Record the additional principal due generated from the drawdown.
-                uint256 additionalPrincipalDue = dueManager.computePrincipalDueForPartialPeriod(
-                    borrowAmount,
-                    fees.minPrincipalRateInBps,
-                    daysRemaining,
-                    cc.periodDuration
-                );
                 cr.unbilledPrincipal -= uint96(additionalPrincipalDue);
                 cr.nextDue += uint96(additionalPrincipalDue);
             }
@@ -605,10 +596,6 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         addr = _poolConfig.creditDueManager();
         assert(addr != address(0));
         dueManager = ICreditDueManager(addr);
-
-        addr = _poolConfig.calendar();
-        assert(addr != address(0));
-        calendar = ICalendar(addr);
 
         addr = _poolConfig.poolSafe();
         assert(addr != address(0));
