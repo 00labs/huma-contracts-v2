@@ -9,7 +9,7 @@ import {DAYS_IN_A_MONTH, DAYS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS, MONTHS_IN_A_YEA
 import {Errors} from "../../Errors.sol";
 import {PoolConfigCache} from "../../PoolConfigCache.sol";
 
-import "hardhat/console.sol";
+// import "hardhat/console.sol";
 
 contract CreditDueManager is PoolConfigCache, ICreditDueManager {
     ICalendar public calendar;
@@ -124,128 +124,188 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         // Do not update due info for accounts already in default state.
         if (cr.state == CreditState.Defaulted) return (cr, dd);
 
+        bool needNextPeriod = false;
+        bool isLate = false;
+
+        {
+            uint256 nextBillRefreshDate = getNextBillRefreshDate(cr);
+            if (cr.state == CreditState.Approved || timestamp > nextBillRefreshDate) {
+                needNextPeriod = true;
+            }
+            if (
+                cr.state == CreditState.Delayed ||
+                /* The last due was not paid off */
+                (cr.state == CreditState.GoodStanding &&
+                    cr.nextDue > 0 &&
+                    timestamp > nextBillRefreshDate) ||
+                /* The last due was paid off, but next due wan't refreshed */
+                (cr.state == CreditState.GoodStanding &&
+                    cr.nextDue == 0 &&
+                    cr.unbilledPrincipal > 0 &&
+                    timestamp >
+                    calendar.getStartDateOfNextPeriod(cc.periodDuration, cr.nextDueDate)) ||
+                /* Outstanding commitment */
+                (cr.state == CreditState.GoodStanding &&
+                    cr.nextDue + cr.unbilledPrincipal == 0 &&
+                    cc.committedAmount > 0 &&
+                    cr.remainingPeriods > 0 &&
+                    timestamp >
+                    calendar.getStartDateOfNextPeriod(cc.periodDuration, cr.nextDueDate))
+            ) {
+                isLate = true;
+            }
+        }
+
+        if (!needNextPeriod && !isLate) return (cr, dd);
+
         newCR = _deepCopyCreditRecord(cr);
         newDD = _deepCopyDueDetail(dd);
+        newCR.state = CreditState.GoodStanding;
 
-        bool isFirstPeriod = cr.state == CreditState.Approved;
-        // If the current timestamp has not yet reached the bill refresh date, then all the amount due is up-to-date
-        // except possibly the late fee. So we only need to update the late fee if it is already late.
-        if (!isFirstPeriod && timestamp <= getNextBillRefreshDate(cr)) {
-            if (cr.missedPeriods == 0) return (newCR, newDD);
-            else {
-                newCR.totalPastDue -= dd.lateFee;
-                (newDD.lateFeeUpdatedDate, newDD.lateFee) = refreshLateFee(
-                    cr,
-                    dd,
-                    cc.periodDuration,
-                    cc.committedAmount,
-                    timestamp
-                );
-                newCR.totalPastDue += newDD.lateFee;
-                return (newCR, newDD);
+        // console.log("isLate: %s, needNextPeriod: %s", isLate, needNextPeriod);
+
+        if (isLate) {
+            if (timestamp > cr.nextDueDate) {
+                // console.log("0-0");
+                uint256 periodsPassedForBillProcessing = 0;
+                {
+                    // console.log("cr.nextDueDate: %s, timestamp: %s", cr.nextDueDate, timestamp);
+                    uint256 periodsPassed = calendar.getNumPeriodsPassed(
+                        cc.periodDuration,
+                        cr.nextDueDate,
+                        timestamp
+                    );
+
+                    // console.log(
+                    //     "newCR.missedPeriods: %s, cr.remainingPeriods: %s, periodsPassed: %s",
+                    //     newCR.missedPeriods,
+                    //     cr.remainingPeriods,
+                    //     periodsPassed
+                    // );
+                    newCR.missedPeriods += uint16(
+                        cr.nextDue + cr.totalPastDue == 0 &&
+                            (cr.unbilledPrincipal > 0 || cc.committedAmount > 0)
+                            ? periodsPassed // last due was paid off
+                            : periodsPassed + 1 // last due was not paid off
+                    );
+
+                    if (cr.remainingPeriods > 0) {
+                        periodsPassedForBillProcessing = periodsPassed > cr.remainingPeriods
+                            ? cr.remainingPeriods
+                            : periodsPassed;
+                        // console.log(
+                        //     "periodsPassed: %s, periodsPassedForBillProcessing: %s",
+                        //     periodsPassed,
+                        //     periodsPassedForBillProcessing
+                        // );
+
+                        newCR.remainingPeriods = uint16(
+                            cr.remainingPeriods - periodsPassedForBillProcessing
+                        );
+                    }
+
+                    newDD.yieldPastDue += cr.yieldDue;
+                    newDD.principalPastDue += cr.nextDue - cr.yieldDue;
+                }
+
+                if (periodsPassedForBillProcessing > 0) {
+                    // console.log("0-1");
+                    (
+                        uint256 accruedYieldPastDue,
+                        uint256 committedYieldPastDue
+                    ) = computeAccruedAndCommittedYieldDue(
+                            cc,
+                            cr.unbilledPrincipal + cr.nextDue - cr.yieldDue + dd.principalPastDue,
+                            periodsPassedForBillProcessing *
+                                calendar.getTotalDaysInFullPeriod(cc.periodDuration)
+                        );
+                    newDD.yieldPastDue += uint96(
+                        accruedYieldPastDue > committedYieldPastDue
+                            ? accruedYieldPastDue
+                            : committedYieldPastDue
+                    );
+
+                    // console.log("0-2");
+                    FeeStructure memory fees = poolConfig.getFeeStructure();
+                    uint256 principalRate = fees.minPrincipalRateInBps;
+                    if (principalRate > 0) {
+                        uint256 principalPastDue = computePrincipalDueForFullPeriods(
+                            cr.unbilledPrincipal,
+                            principalRate,
+                            periodsPassedForBillProcessing
+                        );
+                        newDD.principalPastDue += uint96(principalPastDue);
+                        newCR.unbilledPrincipal = uint96(cr.unbilledPrincipal - principalPastDue);
+                    }
+
+                    // console.log("0-3");
+
+                    if (newCR.remainingPeriods == 0) {
+                        newDD.principalPastDue += newCR.unbilledPrincipal;
+                        newCR.unbilledPrincipal = 0;
+                    }
+                }
             }
-        }
 
-        // Update the due date.
-        newCR.nextDueDate = uint64(
-            calendar.getStartDateOfNextPeriod(cc.periodDuration, timestamp)
-        );
-
-        // At this point, the bill has gone past the refresh date. Any unpaid next due is now overdue.
-        if (cr.nextDue > 0) {
-            newDD.yieldPastDue += cr.yieldDue;
-            newDD.principalPastDue += cr.nextDue - cr.yieldDue;
-        }
-
-        uint256 principalDue = 0;
-        if (cr.remainingPeriods != 0) {
-            uint256 totalPrincipal = cr.unbilledPrincipal +
-                cr.nextDue -
-                cr.yieldDue +
-                dd.principalPastDue;
-            uint256 maturityDate = calendar.getMaturityDate(
-                cc.periodDuration,
-                cr.remainingPeriods,
-                isFirstPeriod ? timestamp : cr.nextDueDate
-            );
-
-            // Compute amounts overdue. Note that there is no past due if this is the first period of the credit.
-            if (!isFirstPeriod) {
-                (
-                    uint256 accruedYieldPastDue,
-                    uint256 committedYieldPastDue,
-                    uint256 principalPastDue
-                ) = _computePastDue(cc, cr, totalPrincipal, timestamp, maturityDate);
-                newDD.yieldPastDue += uint96(
-                    accruedYieldPastDue > committedYieldPastDue
-                        ? accruedYieldPastDue
-                        : committedYieldPastDue
-                );
-                newDD.principalPastDue += uint96(principalPastDue);
-                newCR.unbilledPrincipal = uint96(cr.unbilledPrincipal - principalPastDue);
-            }
-
-            // Compute next due. There is only next due if the bill has not gone past the maturity date yet.
-            (newDD.accrued, newDD.committed, principalDue) = _computeNextDue(
-                cc,
-                newCR,
-                totalPrincipal,
-                timestamp,
-                newCR.nextDueDate,
-                maturityDate,
-                isFirstPeriod
-            );
-            newCR.unbilledPrincipal -= uint96(principalDue);
-        } else {
-            newDD.principalPastDue += cr.unbilledPrincipal;
-            newDD.accrued = 0;
-            newDD.committed = 0;
-            newCR.unbilledPrincipal = 0;
-        }
-
-        newDD.paid = 0;
-        newCR.yieldDue = newDD.committed > newDD.accrued ? newDD.committed : newDD.accrued;
-        // Note that any non-zero existing next due should have been moved to past due already.
-        // Only the newly generated next due needs to be recorded.
-        newCR.nextDue = uint96(newCR.yieldDue + principalDue);
-
-        // +1 to account for the first period:
-        // 1. If this is the first period, 1 represents the first partial period.
-        // 2. Otherwise, since we start counting the number of periods passed with `cr.nextDueDate`
-        //    as the start date, 1 represents the period that ends on `cr.nextDueDate`.
-        uint256 periodsPassed = 1 +
-            calendar.getNumPeriodsPassed(
-                cc.periodDuration,
-                isFirstPeriod ? timestamp : cr.nextDueDate,
-                timestamp
-            );
-        // Adjusts remainingPeriods. Sets remainingPeriods to 0 if the credit line has reached maturity.
-        newCR.remainingPeriods = cr.remainingPeriods > periodsPassed
-            ? uint16(cr.remainingPeriods - periodsPassed)
-            : 0;
-
-        if (newDD.yieldPastDue > 0 || newDD.principalPastDue > 0) {
-            // Make sure the late fee is up-to-date if there is past due.
+            // console.log("done1");
             (newDD.lateFeeUpdatedDate, newDD.lateFee) = refreshLateFee(
                 cr,
                 dd,
                 cc.periodDuration,
                 cc.committedAmount,
                 timestamp
-            );
-            if (cr.state == CreditState.GoodStanding && cr.nextDue == 0) {
-                // If the amount due is paid off in the previous billing cycle, then that billing cycle
-                // is not missed even if the bill is late now, hence the -1.
-                newCR.missedPeriods = uint16(cr.missedPeriods + periodsPassed - 1);
-            } else {
-                newCR.missedPeriods = uint16(cr.missedPeriods + periodsPassed);
-            }
+            ); // refactor refreshLateFee
+
+            // console.log("done2");
+            newCR.totalPastDue = newDD.lateFee + newDD.yieldPastDue + newDD.principalPastDue;
             newCR.state = CreditState.Delayed;
-        } else {
-            newCR.missedPeriods = 0;
-            newCR.state = CreditState.GoodStanding;
         }
-        newCR.totalPastDue = newDD.lateFee + newDD.yieldPastDue + newDD.principalPastDue;
+
+        if (needNextPeriod) {
+            newCR.nextDueDate = uint64(
+                calendar.getStartDateOfNextPeriod(cc.periodDuration, timestamp)
+            );
+            newCR.nextDue = 0;
+            newCR.yieldDue = 0;
+            newDD.paid = 0;
+            newDD.accrued = 0;
+            newDD.committed = 0;
+            // console.log("newCR.remainingPeriods: %s", newCR.remainingPeriods);
+            if (newCR.remainingPeriods > 0) {
+                uint256 daysUntilNextDue;
+                if (cr.state == CreditState.Approved) {
+                    daysUntilNextDue = calendar.getDaysDiff(timestamp, newCR.nextDueDate);
+                } else {
+                    daysUntilNextDue = calendar.getTotalDaysInFullPeriod(cc.periodDuration);
+                }
+                (newDD.accrued, newDD.committed) = computeAccruedAndCommittedYieldDue(
+                    cc,
+                    cr.unbilledPrincipal + cr.nextDue - cr.yieldDue + dd.principalPastDue,
+                    daysUntilNextDue
+                ); // refactor computeAccruedAndCommittedYieldDue
+                newCR.yieldDue = newDD.committed > newDD.accrued ? newDD.committed : newDD.accrued;
+                newCR.nextDue = newCR.yieldDue;
+
+                FeeStructure memory fees = poolConfig.getFeeStructure();
+                uint256 principalRate = fees.minPrincipalRateInBps;
+                // console.log("principalRate: %s", principalRate);
+                if (principalRate > 0) {
+                    uint256 principalDue = computePrincipalDueForPartialPeriod(
+                        newCR.unbilledPrincipal,
+                        principalRate,
+                        daysUntilNextDue,
+                        cc.periodDuration
+                    );
+                    newCR.unbilledPrincipal -= uint96(principalDue);
+                    newCR.nextDue += uint96(principalDue);
+                }
+                newCR.remainingPeriods -= 1;
+                if (newCR.remainingPeriods == 0) {
+                    newCR.nextDue += newCR.unbilledPrincipal;
+                    newCR.unbilledPrincipal = 0;
+                }
+            }
+        }
 
         return (newCR, newDD);
     }
@@ -365,101 +425,5 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         newDD.accrued = dd.accrued;
         newDD.paid = dd.paid;
         return newDD;
-    }
-
-    function _computePastDue(
-        CreditConfig memory cc,
-        CreditRecord memory cr,
-        uint256 totalPrincipal,
-        uint256 timestamp,
-        uint256 maturityDate
-    )
-        internal
-        view
-        returns (uint256 accruedYieldDue, uint256 committedYieldDue, uint256 principalDue)
-    {
-        uint256 periodStartDate = calendar.getStartDateOfPeriod(cc.periodDuration, timestamp);
-        // Since the bill could have gone past the maturity date for many periods, we need to make sure
-        // that the amount overdue is only calculated up until the maturity date.
-        periodStartDate = periodStartDate > maturityDate ? maturityDate : periodStartDate;
-        assert(cr.nextDueDate <= periodStartDate);
-        if (cr.nextDueDate == periodStartDate) {
-            // In this scenario, the timestamp is one period after the previous billing cycle, so there is
-            // no additional yield or principal overdue.
-            return (0, 0, 0);
-        }
-
-        uint256 daysOverdue = calendar.getDaysDiff(cr.nextDueDate, periodStartDate);
-        (accruedYieldDue, committedYieldDue) = computeAccruedAndCommittedYieldDue(
-            cc,
-            totalPrincipal,
-            daysOverdue
-        );
-
-        if (timestamp <= maturityDate) {
-            FeeStructure memory fees = poolConfig.getFeeStructure();
-            uint256 principalRate = fees.minPrincipalRateInBps;
-            if (principalRate > 0) {
-                uint256 periodsOverdue = calendar.getNumPeriodsPassed(
-                    cc.periodDuration,
-                    cr.nextDueDate,
-                    periodStartDate
-                );
-                principalDue = computePrincipalDueForFullPeriods(
-                    cr.unbilledPrincipal,
-                    principalRate,
-                    periodsOverdue
-                );
-            }
-        } else {
-            // All principal is overdue if the bill has gone past the maturity date.
-            principalDue = cr.unbilledPrincipal;
-        }
-        return (accruedYieldDue, committedYieldDue, principalDue);
-    }
-
-    function _computeNextDue(
-        CreditConfig memory cc,
-        CreditRecord memory cr,
-        uint256 totalPrincipal,
-        uint256 timestamp,
-        uint256 nextDueDate,
-        uint256 maturityDate,
-        bool isFirstPeriod
-    )
-        internal
-        view
-        returns (uint96 accruedYieldDue, uint96 committedYieldDue, uint256 principalDue)
-    {
-        if (timestamp > maturityDate) {
-            // Everything is overdue if the timestamp has gone past the maturity date, hence there is no next due.
-            return (0, 0, 0);
-        }
-
-        uint256 daysUntilNextDue;
-        if (isFirstPeriod) {
-            daysUntilNextDue = calendar.getDaysDiff(timestamp, cr.nextDueDate);
-        } else {
-            uint256 periodStartDate = calendar.getStartDateOfPeriod(cc.periodDuration, timestamp);
-            daysUntilNextDue = calendar.getDaysDiff(periodStartDate, cr.nextDueDate);
-        }
-        (accruedYieldDue, committedYieldDue) = computeAccruedAndCommittedYieldDue(
-            cc,
-            totalPrincipal,
-            daysUntilNextDue
-        );
-        FeeStructure memory fees = poolConfig.getFeeStructure();
-        if (nextDueDate == maturityDate) {
-            // All principal is due in the last billing cycle.
-            principalDue = cr.unbilledPrincipal;
-        } else if (fees.minPrincipalRateInBps > 0) {
-            principalDue = computePrincipalDueForPartialPeriod(
-                cr.unbilledPrincipal,
-                fees.minPrincipalRateInBps,
-                daysUntilNextDue,
-                cc.periodDuration
-            );
-        }
-        return (accruedYieldDue, committedYieldDue, principalDue);
     }
 }

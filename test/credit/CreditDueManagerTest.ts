@@ -1246,6 +1246,11 @@ describe("CreditDueManager Tests", function () {
                                 accrued: 0,
                             },
                         };
+
+                        // printCreditRecord("expectedNewCR", expectedNewCR);
+                        // printCreditRecord("newCR", newCR);
+                        // console.log("expectedNewDD", expectedNewDD);
+                        // console.log("newDD", newDD);
                         checkCreditRecordsMatch(newCR, expectedNewCR);
                         checkDueDetailsMatch(newDD, expectedNewDD);
                     });
