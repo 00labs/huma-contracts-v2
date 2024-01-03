@@ -336,7 +336,7 @@ contract PoolConfig is AccessControl, Initializable {
             feeManager.withdrawEAFee(eaWithdrawable);
         }
 
-        // Make sure the affiliate first loss cover still meets liquidity requirements with the new EA.
+        // Make sure the new EA meets the liquidity requirements.
         if (IPool(pool).isPoolOn()) {
             if (
                 !IFirstLossCover(_firstLossCovers[AFFILIATE_FIRST_LOSS_COVER_INDEX]).isSufficient()
@@ -472,11 +472,9 @@ contract PoolConfig is AccessControl, Initializable {
 
     function setPoolSettings(PoolSettings memory settings) external {
         _onlyOwnerOrHumaMasterAdmin();
-        if (settings.maxCreditLine >= 2 ** 96) revert Errors.creditLineTooHigh();
         if (settings.advanceRateInBps > 10000) {
             revert Errors.invalidBasisPointHigherThan10000();
         }
-        // note: this rate can be over 10000 when it requires more backing than the credit limit
         _poolSettings = settings;
         emit PoolSettingsChanged(
             settings.maxCreditLine,
@@ -556,7 +554,9 @@ contract PoolConfig is AccessControl, Initializable {
     function checkLiquidityRequirements() public view {
         ITrancheVaultLike juniorTrancheVault = ITrancheVaultLike(juniorTranche);
         checkLiquidityRequirementForPoolOwner(juniorTrancheVault.totalAssetsOf(poolOwnerTreasury));
-        checkLiquidityRequirementForEA(juniorTrancheVault.totalAssetsOf(evaluationAgent));
+        if (evaluationAgent != address(0)) {
+            checkLiquidityRequirementForEA(juniorTrancheVault.totalAssetsOf(evaluationAgent));
+        }
     }
 
     /**

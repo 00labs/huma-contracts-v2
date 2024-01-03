@@ -28,15 +28,15 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
 
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = _poolConfig.underlyingToken();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         underlyingToken = IERC20(addr);
 
         addr = _poolConfig.poolFeeManager();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         poolFeeManager = IPoolFeeManager(addr);
 
         addr = _poolConfig.pool();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         pool = IPool(addr);
     }
 

@@ -13,6 +13,8 @@ import {Errors} from "./Errors.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
+import "hardhat/console.sol";
+
 contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
     using SafeERC20 for IERC20;
 
@@ -50,24 +52,24 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address oldUnderlyingToken = address(underlyingToken);
         address newUnderlyingToken = _poolConfig.underlyingToken();
-        if (newUnderlyingToken == address(0)) revert Errors.zeroAddressProvided();
+        assert(newUnderlyingToken != address(0));
         underlyingToken = IERC20(newUnderlyingToken);
 
         address addr = _poolConfig.poolSafe();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         poolSafe = IPoolSafe(addr);
 
         addr = _poolConfig.pool();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         pool = IPool(addr);
 
         addr = address(_poolConfig.humaConfig());
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         humaConfig = HumaConfig(addr);
 
         address oldFirstLossCover = address(firstLossCover);
         addr = _poolConfig.getFirstLossCover(AFFILIATE_FIRST_LOSS_COVER_INDEX);
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         firstLossCover = IFirstLossCover(addr);
         _resetFirstLossCoverAllowance(
             oldFirstLossCover,
@@ -184,17 +186,13 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         AccruedIncomes memory incomes = _accruedIncomes;
 
         uint256 protocolWithdrawn = protocolIncomeWithdrawn;
-        protocolWithdrawable = incomes.protocolIncome < protocolWithdrawn
-            ? 0
-            : incomes.protocolIncome - protocolWithdrawn;
+        protocolWithdrawable = incomes.protocolIncome - protocolWithdrawn;
 
         uint256 poolOwnerWithdrawn = poolOwnerIncomeWithdrawn;
-        poolOwnerWithdrawable = incomes.poolOwnerIncome < poolOwnerWithdrawn
-            ? 0
-            : incomes.poolOwnerIncome - poolOwnerWithdrawn;
+        poolOwnerWithdrawable = incomes.poolOwnerIncome - poolOwnerWithdrawn;
 
         uint256 eaWithdrawn = eaIncomeWithdrawn;
-        eaWithdrawable = incomes.eaIncome < eaWithdrawn ? 0 : incomes.eaIncome - eaWithdrawn;
+        eaWithdrawable = incomes.eaIncome - eaWithdrawn;
     }
 
     /**

@@ -219,9 +219,86 @@ describe("PoolSafe Tests", function () {
             await testWithdrawal();
         });
 
+        it("Should disallow withdrawal to the zero address", async function () {
+            await expect(
+                poolSafeContract.connect(lender).withdraw(ethers.constants.AddressZero, amount),
+            ).to.be.revertedWithCustomError(poolSafeContract, "zeroAddressProvided");
+        });
+
         it("Should disallow non-qualified addresses to withdraw", async function () {
             await expect(
                 poolSafeContract.connect(lender).withdraw(lender.address, amount),
+            ).to.be.revertedWithCustomError(poolSafeContract, "notAuthorizedCaller");
+        });
+    });
+
+    describe("addUnprocessedProfit", function () {
+        let profit: BN;
+
+        beforeEach(async function () {
+            profit = toToken(12_345);
+
+            await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.getAddress());
+            await poolSafeContract.connect(poolOwner).updatePoolConfigData();
+        });
+
+        it("Should allow the pool to add unprocessed profit for both tranches", async function () {
+            for (const tranche of [seniorTrancheVaultContract, juniorTrancheVaultContract]) {
+                const oldUnprocessedProfit = await poolSafeContract.unprocessedTrancheProfit(
+                    tranche.address,
+                );
+                await poolSafeContract.addUnprocessedProfit(tranche.address, profit);
+                expect(await poolSafeContract.unprocessedTrancheProfit(tranche.address)).to.equal(
+                    oldUnprocessedProfit.add(profit),
+                );
+            }
+        });
+
+        it("Should not allow non-pools to add unprocessed profit", async function () {
+            await expect(
+                poolSafeContract
+                    .connect(lender)
+                    .addUnprocessedProfit(seniorTrancheVaultContract.address, profit),
+            ).to.be.revertedWithCustomError(poolSafeContract, "notPool");
+        });
+
+        it("Should not allow unprocessed profits to be added for non-tranches", async function () {
+            await expect(
+                poolSafeContract.addUnprocessedProfit(
+                    affiliateFirstLossCoverContract.address,
+                    profit,
+                ),
+            ).to.be.revertedWithCustomError(poolSafeContract, "todo");
+        });
+    });
+
+    describe("resetUnprocessedProfit", function () {
+        beforeEach(async function () {
+            await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.getAddress());
+            await poolConfigContract
+                .connect(poolOwner)
+                .setTranches(defaultDeployer.getAddress(), defaultDeployer.getAddress());
+            await poolSafeContract.connect(poolOwner).updatePoolConfigData();
+        });
+
+        it("Should allow the tranches to reset their unprocessed profit", async function () {
+            // Add some unprocessed profits first to make sure that the profit is truly reset.
+            await poolSafeContract.addUnprocessedProfit(
+                defaultDeployer.getAddress(),
+                toToken(100),
+            );
+            expect(
+                await poolSafeContract.unprocessedTrancheProfit(defaultDeployer.getAddress()),
+            ).to.be.gt(0);
+            await poolSafeContract.connect(defaultDeployer).resetUnprocessedProfit();
+            expect(
+                await poolSafeContract.unprocessedTrancheProfit(defaultDeployer.getAddress()),
+            ).to.equal(0);
+        });
+
+        it("Should not allow non-tranches to reset unprocessed profit", async function () {
+            await expect(
+                poolSafeContract.connect(lender).resetUnprocessedProfit(),
             ).to.be.revertedWithCustomError(poolSafeContract, "notAuthorizedCaller");
         });
     });

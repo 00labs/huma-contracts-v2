@@ -167,14 +167,73 @@ describe("TrancheVault Test", function () {
         await loadFixture(prepare);
     });
 
-    describe("Operation Tests", function () {
+    describe("decimals", function () {
+        it("Should return the number of decimals of the underlying token", async function () {
+            const tokenDecimals = await mockTokenContract.decimals();
+            await expect(await seniorTrancheVaultContract.decimals()).to.equal(tokenDecimals);
+        });
+    });
+
+    describe("convertToShares", function () {
+        let assets: BN;
+
+        beforeEach(async function () {
+            assets = toToken(100);
+        });
+
+        it("Should return the assets as the number of shares if the current total supply is 0", async function () {
+            expect(await seniorTrancheVaultContract.totalSupply()).to.equal(0);
+            expect(await seniorTrancheVaultContract.convertToShares(assets)).to.equal(assets);
+        });
+
+        it("Should return the correct number of shares otherwise", async function () {
+            await seniorTrancheVaultContract
+                .connect(lender)
+                .deposit(toToken(1_000), lender.getAddress());
+
+            const currSupply = await seniorTrancheVaultContract.totalSupply();
+            const currAssets = await seniorTrancheVaultContract.totalAssets();
+            expect(currSupply).to.be.gt(0);
+            expect(await seniorTrancheVaultContract.convertToShares(assets)).to.equal(
+                assets.mul(currSupply).div(currAssets),
+            );
+        });
+    });
+
+    describe("covertToAssets", function () {
+        let shares: BN;
+
+        beforeEach(async function () {
+            shares = toToken(100);
+        });
+
+        it("Should return the number of shares as the amount of assets if the current total supply is 0", async function () {
+            expect(await seniorTrancheVaultContract.totalSupply()).to.equal(0);
+            expect(await seniorTrancheVaultContract.convertToAssets(shares)).to.equal(shares);
+        });
+
+        it("Should return the correct amount of assets otherwise", async function () {
+            await seniorTrancheVaultContract
+                .connect(lender)
+                .deposit(toToken(1_000), lender.getAddress());
+
+            const supply = await seniorTrancheVaultContract.totalSupply();
+            const assets = await seniorTrancheVaultContract.totalAssets();
+            expect(supply).to.be.gt(0);
+            expect(await seniorTrancheVaultContract.convertToAssets(shares)).to.equal(
+                shares.mul(assets).div(supply),
+            );
+        });
+    });
+
+    describe("addApprovedLender", function () {
         it("Should not allow non-Operator to add a lender", async function () {
             await expect(
                 juniorTrancheVaultContract.addApprovedLender(defaultDeployer.address, false),
             ).to.be.revertedWithCustomError(poolConfigContract, "poolOperatorRequired");
         });
 
-        it("Should not add empty address", async function () {
+        it("Should reject lenders with zero addresses", async function () {
             await expect(
                 juniorTrancheVaultContract
                     .connect(poolOperator)
@@ -182,7 +241,7 @@ describe("TrancheVault Test", function () {
             ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "zeroAddressProvided");
         });
 
-        it("Should not add a lender twice", async function () {
+        it("Should not allow a lender to be added twice", async function () {
             await juniorTrancheVaultContract
                 .connect(poolOperator)
                 .addApprovedLender(poolOwner.address, false);
@@ -191,10 +250,28 @@ describe("TrancheVault Test", function () {
                 juniorTrancheVaultContract
                     .connect(poolOperator)
                     .addApprovedLender(poolOwner.address, false),
-            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "todo");
+            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "alreadyLender");
         });
 
-        it("Should allow Operator to add a lender", async function () {
+        it("Should not allow lenders who do not reinvest their yield to be added if the capacity has been reached", async function () {
+            for (let i = 0; i < 100; ++i) {
+                const account = ethers.Wallet.createRandom();
+                await juniorTrancheVaultContract
+                    .connect(poolOperator)
+                    .addApprovedLender(account.getAddress(), false);
+            }
+
+            await expect(
+                juniorTrancheVaultContract
+                    .connect(poolOperator)
+                    .addApprovedLender(poolOwner.address, false),
+            ).to.be.revertedWithCustomError(
+                juniorTrancheVaultContract,
+                "nonReinvestYieldLenderCapacityReached",
+            );
+        });
+
+        it("Should allow pool operators to add a lender", async function () {
             let role = await poolConfigContract.POOL_OPERATOR_ROLE();
             await poolConfigContract.connect(poolOwner).grantRole(role, defaultDeployer.address);
 
@@ -225,14 +302,16 @@ describe("TrancheVault Test", function () {
                 ),
             ).to.equal(defaultDeployer.address);
         });
+    });
 
+    describe("removeApprovedLender", function () {
         it("Should not allow non-Operator to remove a lender", async function () {
             await expect(
                 juniorTrancheVaultContract.removeApprovedLender(defaultDeployer.address),
             ).to.be.revertedWithCustomError(poolConfigContract, "poolOperatorRequired");
         });
 
-        it("Should not remove empty address", async function () {
+        it("Should reject lenders with zero addresses", async function () {
             await expect(
                 juniorTrancheVaultContract
                     .connect(poolOperator)
@@ -240,7 +319,7 @@ describe("TrancheVault Test", function () {
             ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "zeroAddressProvided");
         });
 
-        it("Should not remove a lender twice", async function () {
+        it("Should not allow a lender to be removed twice", async function () {
             await juniorTrancheVaultContract
                 .connect(poolOperator)
                 .removeApprovedLender(lender4.address);
@@ -249,12 +328,14 @@ describe("TrancheVault Test", function () {
                 juniorTrancheVaultContract
                     .connect(poolOperator)
                     .removeApprovedLender(lender4.address),
-            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "todo");
+            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "notLender");
         });
 
-        it("Should allow Operator to remove a lender", async function () {
-            let role = await poolConfigContract.POOL_OPERATOR_ROLE();
-            await poolConfigContract.connect(poolOwner).grantRole(role, defaultDeployer.address);
+        it("Should allow pool operators to remove a lender that was added first", async function () {
+            const poolOperatorRole = await poolConfigContract.POOL_OPERATOR_ROLE();
+            await poolConfigContract
+                .connect(poolOwner)
+                .grantRole(poolOperatorRole, defaultDeployer.address);
             await juniorTrancheVaultContract
                 .connect(defaultDeployer)
                 .addApprovedLender(defaultDeployer.address, false);
@@ -265,47 +346,100 @@ describe("TrancheVault Test", function () {
                 .connect(defaultDeployer)
                 .addApprovedLender(treasury.address, false);
 
-            let depositRecord = await juniorTrancheVaultContract.depositRecords(
+            const oldDepositRecord = await juniorTrancheVaultContract.depositRecords(
                 defaultDeployer.address,
             );
-            checkDepositRecord(depositRecord, BN.from(0), false);
+            checkDepositRecord(oldDepositRecord);
 
-            let nonReinvestingLendersLength =
+            const numNonReinvestingLenders =
                 await juniorTrancheVaultContract.getNonReinvestingLendersLength();
-            role = await juniorTrancheVaultContract.LENDER_ROLE();
+            const lenderRole = await juniorTrancheVaultContract.LENDER_ROLE();
+
             await expect(
                 juniorTrancheVaultContract
                     .connect(defaultDeployer)
                     .removeApprovedLender(defaultDeployer.address),
             )
                 .to.emit(juniorTrancheVaultContract, "RoleRevoked")
-                .withArgs(role, defaultDeployer.address, defaultDeployer.address);
-
-            expect(
-                await juniorTrancheVaultContract.hasRole(role, defaultDeployer.address),
-            ).to.equal(false);
-
-            depositRecord = await juniorTrancheVaultContract.depositRecords(
+                .withArgs(lenderRole, defaultDeployer.address, defaultDeployer.address);
+            expect(await juniorTrancheVaultContract.hasRole(lenderRole, defaultDeployer.address))
+                .to.be.false;
+            const newDepositRecord = await juniorTrancheVaultContract.depositRecords(
                 defaultDeployer.address,
             );
-            checkDepositRecord(depositRecord);
+            checkDepositRecord(newDepositRecord);
 
-            let newNonReinvestingLendersLength =
+            const newNumNonReinvestingLenders =
                 await juniorTrancheVaultContract.getNonReinvestingLendersLength();
-            expect(newNonReinvestingLendersLength).to.equal(nonReinvestingLendersLength.sub(1));
+            expect(newNumNonReinvestingLenders).to.equal(numNonReinvestingLenders.sub(1));
             expect(
                 await juniorTrancheVaultContract.nonReinvestingLenders(
-                    newNonReinvestingLendersLength.sub(1),
+                    newNumNonReinvestingLenders.sub(1),
                 ),
             ).to.equal(protocolOwner.address);
             expect(
                 await juniorTrancheVaultContract.nonReinvestingLenders(
-                    newNonReinvestingLendersLength.sub(2),
+                    newNumNonReinvestingLenders.sub(2),
                 ),
             ).to.equal(treasury.address);
         });
 
-        it("Should not set reinvestYield true while the lender's reinvestYield is already true", async function () {
+        it("Should allow pool operators to remove a lender that was added last", async function () {
+            const poolOperatorRole = await poolConfigContract.POOL_OPERATOR_ROLE();
+            await poolConfigContract
+                .connect(poolOwner)
+                .grantRole(poolOperatorRole, defaultDeployer.address);
+            await juniorTrancheVaultContract
+                .connect(defaultDeployer)
+                .addApprovedLender(defaultDeployer.address, false);
+            await juniorTrancheVaultContract
+                .connect(defaultDeployer)
+                .addApprovedLender(protocolOwner.address, false);
+            await juniorTrancheVaultContract
+                .connect(defaultDeployer)
+                .addApprovedLender(treasury.address, false);
+
+            const oldDepositRecord = await juniorTrancheVaultContract.depositRecords(
+                treasury.address,
+            );
+            checkDepositRecord(oldDepositRecord);
+
+            const numNonReinvestingLenders =
+                await juniorTrancheVaultContract.getNonReinvestingLendersLength();
+            const lenderRole = await juniorTrancheVaultContract.LENDER_ROLE();
+
+            await expect(
+                juniorTrancheVaultContract
+                    .connect(defaultDeployer)
+                    .removeApprovedLender(treasury.address),
+            )
+                .to.emit(juniorTrancheVaultContract, "RoleRevoked")
+                .withArgs(lenderRole, treasury.address, defaultDeployer.address);
+            expect(await juniorTrancheVaultContract.hasRole(lenderRole, treasury.address)).to.be
+                .false;
+            const newDepositRecord = await juniorTrancheVaultContract.depositRecords(
+                treasury.address,
+            );
+            checkDepositRecord(newDepositRecord);
+
+            const newNumNonReinvestingLenders =
+                await juniorTrancheVaultContract.getNonReinvestingLendersLength();
+            expect(newNumNonReinvestingLenders).to.equal(numNonReinvestingLenders.sub(1));
+            expect(
+                await juniorTrancheVaultContract.nonReinvestingLenders(
+                    newNumNonReinvestingLenders.sub(1),
+                ),
+            ).to.equal(protocolOwner.address);
+            expect(
+                await juniorTrancheVaultContract.nonReinvestingLenders(
+                    newNumNonReinvestingLenders.sub(2),
+                ),
+            ).to.equal(defaultDeployer.address);
+        });
+    });
+
+    describe("setReinvestYield", function () {
+        it("Should not allow the reinvestYield option to be set to true if it's already true for the lender", async function () {
             await juniorTrancheVaultContract
                 .connect(poolOperator)
                 .addApprovedLender(defaultDeployer.address, true);
@@ -317,7 +451,7 @@ describe("TrancheVault Test", function () {
             ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "todo");
         });
 
-        it("Should not set reinvestYield false while the lender's reinvestYield is already false", async function () {
+        it("Should not allow the reinvestYield option to be set to false if it's already false for the lender", async function () {
             await juniorTrancheVaultContract
                 .connect(poolOperator)
                 .addApprovedLender(defaultDeployer.address, false);
@@ -329,7 +463,28 @@ describe("TrancheVault Test", function () {
             ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "todo");
         });
 
-        it("Should set reinvestYield true while the lender's reinvestYield is false", async function () {
+        it("Should not allow the reinvestYield option to be set to false if there are already enough lenders with the option set to false", async function () {
+            for (let i = 0; i < 100; ++i) {
+                const account = ethers.Wallet.createRandom();
+                await juniorTrancheVaultContract
+                    .connect(poolOperator)
+                    .addApprovedLender(account.getAddress(), false);
+            }
+            await juniorTrancheVaultContract
+                .connect(poolOperator)
+                .addApprovedLender(poolOwner.getAddress(), true);
+
+            await expect(
+                juniorTrancheVaultContract
+                    .connect(poolOperator)
+                    .setReinvestYield(poolOwner.address, false),
+            ).to.be.revertedWithCustomError(
+                juniorTrancheVaultContract,
+                "nonReinvestYieldLenderCapacityReached",
+            );
+        });
+
+        it("Should allow the reinvestYield option to be set to true if the lender's reinvestYield is false", async function () {
             await juniorTrancheVaultContract
                 .connect(poolOperator)
                 .addApprovedLender(defaultDeployer.address, false);
@@ -368,7 +523,7 @@ describe("TrancheVault Test", function () {
             ).to.equal(defaultDeployer.address);
         });
 
-        it("Should set reinvestYield false while the lender's reinvestYield is true", async function () {
+        it("Should allow the reinvestYield option to be set to false if the lender's reinvestYield is true", async function () {
             await juniorTrancheVaultContract
                 .connect(poolOperator)
                 .addApprovedLender(defaultDeployer.address, true);
@@ -2314,7 +2469,7 @@ describe("TrancheVault Test", function () {
         });
     });
 
-    describe("Handle Yields Tests", function () {
+    describe("processYieldForLenders", function () {
         class Lender {
             lender: Signer;
             principal: BN;

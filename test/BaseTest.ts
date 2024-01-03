@@ -371,13 +371,14 @@ export async function setupPoolContracts(
     poolOwnerTreasury: SignerWithAddress,
     poolOperator: SignerWithAddress,
     accounts: SignerWithAddress[],
+    shouldSetEA: boolean = true,
 ): Promise<void> {
     const poolLiquidityCap = toToken(1_000_000_000);
-    let settings = await poolConfigContract.getPoolSettings();
+    const settings = await poolConfigContract.getPoolSettings();
     await poolConfigContract
         .connect(poolOwner)
         .setPoolSettings({ ...settings, ...{ maxCreditLine: toToken(10_000_000) } });
-    let lpConfig = await poolConfigContract.getLPConfig();
+    const lpConfig = await poolConfigContract.getLPConfig();
     await poolConfigContract
         .connect(poolOwner)
         .setLPConfig({ ...lpConfig, ...{ liquidityCap: poolLiquidityCap } });
@@ -385,18 +386,6 @@ export async function setupPoolContracts(
     await poolConfigContract
         .connect(poolOwner)
         .setPoolOwnerTreasury(poolOwnerTreasury.getAddress());
-
-    let eaNFTTokenId;
-    const tx = await eaNFTContract.mintNFT(evaluationAgent.address);
-    const receipt = await tx.wait();
-    for (const evt of receipt.events!) {
-        if (evt.event === "NFTGenerated") {
-            eaNFTTokenId = evt.args!.tokenId;
-        }
-    }
-    await poolConfigContract
-        .connect(poolOwner)
-        .setEvaluationAgent(eaNFTTokenId, evaluationAgent.getAddress());
 
     // Deposit enough liquidity for the pool owner and EA in the junior tranche.
     const adminRnR = await poolConfigContract.getAdminRnR();
@@ -410,17 +399,32 @@ export async function setupPoolContracts(
     await juniorTrancheVaultContract
         .connect(poolOwnerTreasury)
         .makeInitialDeposit(poolOwnerLiquidity);
+    let expectedInitialLiquidity = poolOwnerLiquidity;
 
     await mockTokenContract
         .connect(evaluationAgent)
         .approve(poolSafeContract.address, ethers.constants.MaxUint256);
     await mockTokenContract.mint(evaluationAgent.getAddress(), toToken(1_000_000_000));
-    const evaluationAgentLiquidity = BN.from(adminRnR.liquidityRateInBpsByEA)
-        .mul(poolLiquidityCap)
-        .div(CONSTANTS.BP_FACTOR);
-    await juniorTrancheVaultContract
-        .connect(evaluationAgent)
-        .makeInitialDeposit(evaluationAgentLiquidity);
+    if (shouldSetEA) {
+        let eaNFTTokenId;
+        const tx = await eaNFTContract.mintNFT(evaluationAgent.address);
+        const receipt = await tx.wait();
+        for (const evt of receipt.events!) {
+            if (evt.event === "NFTGenerated") {
+                eaNFTTokenId = evt.args!.tokenId;
+            }
+        }
+        await poolConfigContract
+            .connect(poolOwner)
+            .setEvaluationAgent(eaNFTTokenId, evaluationAgent.getAddress());
+        const evaluationAgentLiquidity = BN.from(adminRnR.liquidityRateInBpsByEA)
+            .mul(poolLiquidityCap)
+            .div(CONSTANTS.BP_FACTOR);
+        await juniorTrancheVaultContract
+            .connect(evaluationAgent)
+            .makeInitialDeposit(evaluationAgentLiquidity);
+        expectedInitialLiquidity = expectedInitialLiquidity.add(evaluationAgentLiquidity);
+    }
 
     await mockTokenContract
         .connect(poolOwnerTreasury)
@@ -451,7 +455,6 @@ export async function setupPoolContracts(
     await poolContract.connect(poolOwner).setReadyForFirstLossCoverWithdrawal(true);
 
     await poolContract.connect(poolOwner).enablePool();
-    const expectedInitialLiquidity = poolOwnerLiquidity.add(evaluationAgentLiquidity);
     expect(await poolContract.totalAssets()).to.equal(expectedInitialLiquidity);
     expect(await juniorTrancheVaultContract.totalAssets()).to.equal(expectedInitialLiquidity);
     expect(await juniorTrancheVaultContract.totalSupply()).to.equal(expectedInitialLiquidity);
@@ -488,8 +491,9 @@ export async function deployAndSetupPoolContracts(
     poolOwnerTreasury: SignerWithAddress,
     poolOperator: SignerWithAddress,
     accounts: SignerWithAddress[],
+    shouldSetEA: boolean = true,
 ): Promise<PoolContracts> {
-    let [
+    const [
         poolConfigContract,
         poolFeeManagerContract,
         poolSafeContract,
@@ -531,6 +535,7 @@ export async function deployAndSetupPoolContracts(
         poolOwnerTreasury,
         poolOperator,
         accounts,
+        shouldSetEA,
     );
 
     return [
