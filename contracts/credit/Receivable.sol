@@ -93,6 +93,9 @@ contract Receivable is
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(MINTER_ROLE, msg.sender);
         _grantRole(UPGRADER_ROLE, msg.sender);
+
+        // Start the token counter at 1
+        _tokenIdCounter.increment();
     }
 
     /// @inheritdoc IReceivable
@@ -100,9 +103,19 @@ contract Receivable is
         uint16 currencyCode,
         uint96 receivableAmount,
         uint64 maturityDate,
+        string memory referenceId,
         string memory uri
     ) public onlyRole(MINTER_ROLE) returns (uint256 tokenId) {
-        tokenId = _getNewTokenId();
+        tokenId = _tokenIdCounter.current();
+
+        if (bytes(referenceId).length > 0) {
+            bytes32 referenceIdCreatorHash = getReferenceIdHash(referenceId, msg.sender);
+            uint256 existingTokenId = referenceIdHashToTokenId[referenceIdCreatorHash];
+            if (_exists(existingTokenId)) revert Errors.receivableReferenceIdAlreadyExists();
+
+            referenceIdHashToTokenId[referenceIdCreatorHash] = tokenId;
+        }
+
         _safeMint(msg.sender, tokenId);
 
         receivableInfoMap[tokenId] = ReceivableInfo(
@@ -118,6 +131,8 @@ contract Receivable is
         _setTokenURI(tokenId, uri);
 
         emit ReceivableCreated(msg.sender, tokenId, receivableAmount, maturityDate, currencyCode);
+
+        _tokenIdCounter.increment();
     }
 
     /// @inheritdoc IReceivable
@@ -165,6 +180,14 @@ contract Receivable is
     /// @inheritdoc IReceivable
     function getStatus(uint256 tokenId) public view returns (ReceivableState) {
         return receivableInfoMap[tokenId].state;
+    }
+
+    /// @inheritdoc IReceivable
+    function getReferenceIdHash(
+        string memory referenceId,
+        address creator
+    ) public view returns (bytes32) {
+        return keccak256(abi.encodePacked(address(this), referenceId, creator));
     }
 
     function _authorizeUpgrade(
