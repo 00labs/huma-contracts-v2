@@ -118,8 +118,12 @@ describe("Receivable Test", function () {
             0, // currencyCode
             1000,
             100,
+            "referenceId",
             "Test URI",
         );
+
+        const tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
+        expect(tokenId).to.equal(1); // tokenId should start at 1
     }
 
     beforeEach(async function () {
@@ -133,6 +137,7 @@ describe("Receivable Test", function () {
                     0, // currencyCode
                     100,
                     100,
+                    "referenceId2",
                     "Test URI",
                 ),
             ).to.be.revertedWith(
@@ -146,9 +151,47 @@ describe("Receivable Test", function () {
                     0, // currencyCode
                     1000,
                     100,
+                    "referenceId2",
                     "Test URI",
                 ),
             ).to.emit(receivableContract, "ReceivableCreated");
+        });
+
+        it("Should not allow multiple receivables to be created with the same reference id unless the existing one is burned", async function () {
+            await expect(
+                receivableContract.connect(borrower).createReceivable(
+                    0, // currencyCode
+                    1000,
+                    100,
+                    "referenceId",
+                    "Test URI",
+                ),
+            ).to.be.revertedWithCustomError(
+                receivableContract,
+                "receivableReferenceIdAlreadyExists",
+            );
+
+            const tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
+            await receivableContract.connect(borrower).burn(tokenId);
+            await receivableContract.connect(borrower).createReceivable(
+                0, // currencyCode
+                1000,
+                100,
+                "referenceId",
+                "Test URI",
+            );
+        });
+
+        it("Should correctly map reference id to the token id in referenceIdHashToTokenIdMap", async function () {
+            const tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
+            const receivableIdCreatorHash = await receivableContract.getReferenceIdHash(
+                "referenceId",
+                borrower.address,
+            );
+            const lookupTokenId =
+                await receivableContract.referenceIdHashToTokenId(receivableIdCreatorHash);
+
+            expect(lookupTokenId).to.equal(tokenId);
         });
 
         it("Stores the correct details on chain when creating a receivable", async function () {
@@ -156,12 +199,14 @@ describe("Receivable Test", function () {
                 0, // currencyCode
                 1000,
                 100,
+                "referenceId2",
                 "Test URI",
             );
             await receivableContract.connect(borrower).createReceivable(
                 5, // currencyCode
                 1000,
                 100,
+                "referenceId3",
                 "Test URI2",
             );
 
@@ -313,7 +358,7 @@ describe("Receivable Test", function () {
 
     describe("supportsInterface", function () {
         it("Should support interfaces that the contract implements", async function () {
-            for (const interfaceId of ["0xd31a437e", "0x80ac58cd", "0x7965db0b"]) {
+            for (const interfaceId of ["0x6921aa19", "0x80ac58cd", "0x7965db0b"]) {
                 expect(await receivableContract.supportsInterface(interfaceId)).to.be.true;
             }
         });

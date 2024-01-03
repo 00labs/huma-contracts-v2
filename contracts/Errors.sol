@@ -100,6 +100,7 @@ contract Errors {
     // first loss cover operation
     error notAllProvidersPaidOut(); // 0xf878b213
     error firstLossCoverLiquidityCapExceeded();
+    error tooManyCoverProviders();
 
     // receivable operation
     error receivableAssetMismatch(); // 0x41dbeec1
@@ -108,8 +109,9 @@ contract Errors {
     error receivableAssetParamMismatch(); // 0x1400a0b4
     error insufficientReceivableAmount(); // 0xf7f34854
     error zeroReceivableIdProvided(); // 0x7a7c1f4f
-    error notReceivableOwner();
-    error notReceivableOwnerOrCreator();
+    error notReceivableOwner(); // 0x828f434d
+    error notReceivableOwnerOrCreator(); // 0xc7fb4427
+    error receivableReferenceIdAlreadyExists(); // 0x09ab3996
 
     // superfluid
     error durationTooLong(); // 0xf1dd53a8

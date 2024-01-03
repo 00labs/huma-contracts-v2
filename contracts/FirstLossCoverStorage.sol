@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 contract FirstLossCoverStorage {
     IPool public pool;
@@ -14,7 +15,7 @@ contract FirstLossCoverStorage {
     // The cumulative amount of loss covered.
     uint256 public coveredLoss;
 
-    address[] internal _coverProviders;
+    EnumerableSet.AddressSet internal _coverProviders;
 
     uint256[100] private __gap;
 }
