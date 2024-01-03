@@ -366,6 +366,7 @@ export async function setupPoolContracts(
     juniorTrancheVaultContract: TrancheVault,
     seniorTrancheVaultContract: TrancheVault,
     creditContract: CreditContractType,
+    receivableContract: Receivable,
     poolOwner: SignerWithAddress,
     evaluationAgent: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
@@ -475,6 +476,9 @@ export async function setupPoolContracts(
             .connect(accounts[i])
             .approve(creditContract.address, ethers.constants.MaxUint256);
         await mockTokenContract.mint(accounts[i].getAddress(), toToken(1_000_000_000));
+        await receivableContract
+            .connect(poolOwner)
+            .grantRole(await receivableContract.MINTER_ROLE(), accounts[i].getAddress());
     }
 }
 
@@ -530,6 +534,7 @@ export async function deployAndSetupPoolContracts(
         juniorTrancheVaultContract,
         seniorTrancheVaultContract,
         creditContract,
+        receivableContract,
         poolOwner,
         evaluationAgent,
         poolOwnerTreasury,
