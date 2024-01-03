@@ -476,10 +476,9 @@ export async function setupPoolContracts(
             .connect(accounts[i])
             .approve(creditContract.address, ethers.constants.MaxUint256);
         await mockTokenContract.mint(accounts[i].getAddress(), toToken(1_000_000_000));
-        await receivableContract.grantRole(
-            await receivableContract.MINTER_ROLE(),
-            accounts[i].getAddress(),
-        );
+        await receivableContract
+            .connect(poolOwner)
+            .grantRole(await receivableContract.MINTER_ROLE(), accounts[i].getAddress());
     }
 }
 
