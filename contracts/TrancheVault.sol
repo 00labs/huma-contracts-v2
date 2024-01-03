@@ -392,7 +392,7 @@ contract TrancheVault is
 
         uint256 price = convertToAssets(DEFAULT_DECIMALS_FACTOR);
         uint96[2] memory tranchesAssets = pool.currentTranchesAssets();
-        for (uint256 i; i < len; i++) {
+        for (uint256 i = 0; i < len; i++) {
             address lender = nonReinvestingLenders[i];
             uint256 shares = ERC20Upgradeable.balanceOf(lender);
             uint256 assets = (shares * price) / DEFAULT_DECIMALS_FACTOR;
@@ -535,7 +535,7 @@ contract TrancheVault is
 
     function _removeLenderFromNonReinvestingLenders(address lender) internal {
         uint256 len = nonReinvestingLenders.length;
-        for (uint256 i; i < len; i++) {
+        for (uint256 i = 0; i < len; i++) {
             if (nonReinvestingLenders[i] == lender) {
                 if (i != len - 1) nonReinvestingLenders[i] = nonReinvestingLenders[len - 1];
                 nonReinvestingLenders.pop();

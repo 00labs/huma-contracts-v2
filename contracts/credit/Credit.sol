@@ -502,7 +502,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
 
         // Pay principal due first, then unbilled principal.
         uint256 principalDuePaid;
-        uint256 unbilledPrincipalPaid;
+        uint256 unbilledPrincipalPaid = 0;
         if (amount < principalDue) {
             cr.nextDue = uint96(cr.nextDue - amount);
             principalDuePaid = amount;

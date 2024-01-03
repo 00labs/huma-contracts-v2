@@ -157,7 +157,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             newDD.principalPastDue += cr.nextDue - cr.yieldDue;
         }
 
-        uint256 principalDue;
+        uint256 principalDue = 0;
         if (cr.remainingPeriods != 0) {
             uint256 totalPrincipal = cr.unbilledPrincipal +
                 cr.nextDue -
