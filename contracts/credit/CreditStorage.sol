@@ -14,8 +14,8 @@ import {IFirstLossCover} from "../interfaces/IFirstLossCover.sol";
 contract CreditStorage {
     HumaConfig public humaConfig;
 
-    // Reference to the fee manager contract
-    ICreditDueManager public feeManager;
+    // Reference to the due manager contract
+    ICreditDueManager public dueManager;
 
     ICalendar public calendar;
     IPoolSafe public poolSafe;
