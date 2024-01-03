@@ -535,6 +535,7 @@ export async function deployAndSetupPoolContracts(
         juniorTrancheVaultContract,
         seniorTrancheVaultContract,
         creditContract,
+        receivableContract,
         poolOwner,
         evaluationAgent,
         poolOwnerTreasury,
