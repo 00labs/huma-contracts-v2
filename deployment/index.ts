@@ -94,6 +94,13 @@ export enum ReceivableState {
     Defaulted,
 }
 
+export enum CreditClosureReason {
+    Paidoff,
+    CreditLimitChangedToBeZero,
+    OverwrittenByNewLine,
+    AdminClosure,
+}
+
 const DAYS_IN_A_MONTH = 30;
 const DAYS_IN_A_QUARTER = 90;
 const DAYS_IN_A_HALF_YEAR = 180;
@@ -107,9 +114,6 @@ const SECONDS_IN_A_DAY = 24 * 60 * 60;
 const SECONDS_IN_A_YEAR = 60 * 60 * 24 * 365;
 const BORROWER_FIRST_LOSS_COVER_INDEX = 0;
 const AFFILIATE_FIRST_LOSS_COVER_INDEX = 1;
-const PERIOD_DURATION_MONTHLY = 0;
-const PERIOD_DURATION_QUARTERLY = 1;
-const PERIOD_DURATION_SEMI_ANNUALLY = 2;
 
 export const CONSTANTS = {
     DAYS_IN_A_MONTH,
@@ -125,9 +129,6 @@ export const CONSTANTS = {
     SECONDS_IN_A_YEAR,
     BORROWER_FIRST_LOSS_COVER_INDEX,
     AFFILIATE_FIRST_LOSS_COVER_INDEX,
-    PERIOD_DURATION_MONTHLY,
-    PERIOD_DURATION_QUARTERLY,
-    PERIOD_DURATION_SEMI_ANNUALLY,
 };
 
 export async function deployProtocolContracts(
@@ -213,15 +214,15 @@ export async function deployPoolContracts(
 
     const receivableContract = await deploy("Receivable", "Receivable");
 
-    awaitTx(await receivableContract.initialize(), "Receivable initialized");
-    awaitTx(
+    await awaitTx(await receivableContract.initialize(), "Receivable initialized");
+    await awaitTx(
         await receivableContract.grantRole(
             receivableContract.DEFAULT_ADMIN_ROLE(),
             poolOwner.getAddress(),
         ),
         "Receivable admin granted",
     );
-    awaitTx(
+    await awaitTx(
         await receivableContract.renounceRole(
             receivableContract.DEFAULT_ADMIN_ROLE(),
             deployer.getAddress(),
@@ -229,7 +230,7 @@ export async function deployPoolContracts(
         "Receivable admin renounced",
     );
 
-    awaitTx(
+    await awaitTx(
         await poolConfigContract.initialize("Test Pool", [
             humaConfigContract.address,
             mockTokenContract.address,
@@ -247,7 +248,7 @@ export async function deployPoolContracts(
         ]),
         "PoolConfig initialized",
     );
-    awaitTx(
+    await awaitTx(
         await poolConfigContract.setFirstLossCover(
             BORROWER_FIRST_LOSS_COVER_INDEX,
             borrowerFirstLossCoverContract.address,
@@ -256,12 +257,16 @@ export async function deployPoolContracts(
                 coverCap: 0,
                 liquidityCap: 0,
                 maxPercentOfPoolValueInBps: 0,
-                riskYieldMultiplier: 0,
+                riskYieldMultiplierInBps: 0,
             },
         ),
         "Borrower First Loss Cover set",
     );
-    awaitTx(
+    await awaitTx(
+        await poolConfigContract.setReceivableAsset(receivableContract.address),
+        "Receivable asset set",
+    );
+    await awaitTx(
         await poolConfigContract.setFirstLossCover(
             AFFILIATE_FIRST_LOSS_COVER_INDEX,
             affiliateFirstLossCoverContract.address,
@@ -270,20 +275,20 @@ export async function deployPoolContracts(
                 coverCap: 0,
                 liquidityCap: 0,
                 maxPercentOfPoolValueInBps: 0,
-                riskYieldMultiplier: 20000,
+                riskYieldMultiplierInBps: 20000,
             },
         ),
         "Affiliate First Loss Cover set",
     );
 
-    awaitTx(
+    await awaitTx(
         await poolConfigContract.grantRole(
             await poolConfigContract.DEFAULT_ADMIN_ROLE(),
             poolOwner.getAddress(),
         ),
         "PoolConfig admin granted",
     );
-    awaitTx(
+    await awaitTx(
         await poolConfigContract.renounceRole(
             await poolConfigContract.DEFAULT_ADMIN_ROLE(),
             deployer.getAddress(),
@@ -291,12 +296,15 @@ export async function deployPoolContracts(
         "PoolConfig admin renounced",
     );
 
-    awaitTx(
+    await awaitTx(
         await poolFeeManagerContract.initialize(poolConfigContract.address),
         "PoolFeeManager initialized",
     );
-    awaitTx(await poolSafeContract.initialize(poolConfigContract.address), "PoolSafe initialized");
-    awaitTx(
+    await awaitTx(
+        await poolSafeContract.initialize(poolConfigContract.address),
+        "PoolSafe initialized",
+    );
+    await awaitTx(
         await borrowerFirstLossCoverContract["initialize(string,string,address)"](
             "Borrower First Loss Cover",
             "BFLC",
@@ -304,7 +312,7 @@ export async function deployPoolContracts(
         ),
         "BorrowerFirstLossCover initialized",
     );
-    awaitTx(
+    await awaitTx(
         await affiliateFirstLossCoverContract["initialize(string,string,address)"](
             "Affiliate First Loss Cover",
             "AFLC",
@@ -312,16 +320,16 @@ export async function deployPoolContracts(
         ),
         "AffiliateFirstLossCover initialized",
     );
-    awaitTx(
+    await awaitTx(
         await tranchesPolicyContract.initialize(poolConfigContract.address),
         "TranchesPolicy initialized",
     );
-    awaitTx(await poolContract.initialize(poolConfigContract.address), "Pool initialized");
-    awaitTx(
+    await awaitTx(await poolContract.initialize(poolConfigContract.address), "Pool initialized");
+    await awaitTx(
         await epochManagerContract.initialize(poolConfigContract.address),
         "EpochManager initialized",
     );
-    awaitTx(
+    await awaitTx(
         await seniorTrancheVaultContract["initialize(string,string,address,uint8)"](
             "Senior Tranche Vault",
             "STV",
@@ -330,7 +338,7 @@ export async function deployPoolContracts(
         ),
         "SeniorTrancheVault initialized",
     );
-    awaitTx(
+    await awaitTx(
         await juniorTrancheVaultContract["initialize(string,string,address,uint8)"](
             "Junior Tranche Vault",
             "JTV",
@@ -339,15 +347,15 @@ export async function deployPoolContracts(
         ),
         "JuniorTrancheVault initialized",
     );
-    awaitTx(
+    await awaitTx(
         await creditContract.connect(poolOwner).initialize(poolConfigContract.address),
         "Credit initialized",
     );
-    awaitTx(
+    await awaitTx(
         await creditDueManagerContract.initialize(poolConfigContract.address),
         "CreditDueManager initialized",
     );
-    awaitTx(
+    await awaitTx(
         await creditManagerContract.initialize(poolConfigContract.address),
         "CreditManager initialized",
     );
@@ -387,18 +395,25 @@ export async function setupPoolContracts(
     poolOwnerTreasury: SignerWithAddress,
     poolOperator: SignerWithAddress,
     accounts: SignerWithAddress[],
+    creditContractName: CreditContractName,
 ): Promise<void> {
     const poolLiquidityCap = toToken(1_000_000_000);
-    awaitTx(
-        await poolConfigContract.connect(poolOwner).setPoolLiquidityCap(poolLiquidityCap),
-        "Pool liquidity cap set",
-    );
-    awaitTx(
-        await poolConfigContract.connect(poolOwner).setMaxCreditLine(toToken(10_000_000)),
+    let settings = await poolConfigContract.getPoolSettings();
+    await awaitTx(
+        await poolConfigContract
+            .connect(poolOwner)
+            .setPoolSettings({ ...settings, ...{ maxCreditLine: toToken(10_000_000) } }),
         "Max credit line set",
     );
+    let lpConfig = await poolConfigContract.getLPConfig();
+    await awaitTx(
+        await poolConfigContract
+            .connect(poolOwner)
+            .setLPConfig({ ...lpConfig, ...{ liquidityCap: poolLiquidityCap } }),
+        "Pool liquidity cap set",
+    );
 
-    awaitTx(
+    await awaitTx(
         await poolConfigContract
             .connect(poolOwner)
             .setPoolOwnerTreasury(poolOwnerTreasury.getAddress()),
@@ -414,7 +429,7 @@ export async function setupPoolContracts(
         }
     }
     console.log("EvaluationAgentNFT minted");
-    awaitTx(
+    await awaitTx(
         await poolConfigContract
             .connect(poolOwner)
             .setEvaluationAgent(eaNFTTokenId, evaluationAgent.getAddress()),
@@ -423,60 +438,60 @@ export async function setupPoolContracts(
 
     // Deposit enough liquidity for the pool owner and EA in the junior tranche.
     const adminRnR = await poolConfigContract.getAdminRnR();
-    awaitTx(
+    await awaitTx(
         await mockTokenContract
             .connect(poolOwnerTreasury)
             .approve(poolSafeContract.address, ethers.constants.MaxUint256),
         "MockToken approved",
     );
-    awaitTx(
+    await awaitTx(
         await mockTokenContract.mint(poolOwnerTreasury.getAddress(), toToken(1_000_000_000)),
         "MockToken minted",
     );
     const poolOwnerLiquidity = BN.from(adminRnR.liquidityRateInBpsByPoolOwner)
         .mul(poolLiquidityCap)
         .div(CONSTANTS.BP_FACTOR);
-    awaitTx(
+    await awaitTx(
         await juniorTrancheVaultContract
             .connect(poolOwnerTreasury)
             .makeInitialDeposit(poolOwnerLiquidity),
         "Pool owner liquidity deposited",
     );
 
-    awaitTx(
+    await awaitTx(
         await mockTokenContract
             .connect(evaluationAgent)
             .approve(poolSafeContract.address, ethers.constants.MaxUint256),
         "MockToken approved",
     );
-    awaitTx(
+    await awaitTx(
         await mockTokenContract.mint(evaluationAgent.getAddress(), toToken(1_000_000_000)),
         "MockToken minted",
     );
-    const evaluationAgentLiquidity = BN.from(adminRnR.liquidityRateInBpsByPoolOwner)
+    const evaluationAgentLiquidity = BN.from(adminRnR.liquidityRateInBpsByEA)
         .mul(poolLiquidityCap)
         .div(CONSTANTS.BP_FACTOR);
-    awaitTx(
+    await awaitTx(
         await juniorTrancheVaultContract
             .connect(evaluationAgent)
             .makeInitialDeposit(evaluationAgentLiquidity),
         "Evaluation agent liquidity deposited",
     );
 
-    awaitTx(
+    await awaitTx(
         await mockTokenContract
             .connect(poolOwnerTreasury)
             .approve(affiliateFirstLossCoverContract.address, ethers.constants.MaxUint256),
         "MockToken approved",
     );
-    awaitTx(
+    await awaitTx(
         await mockTokenContract
             .connect(evaluationAgent)
             .approve(affiliateFirstLossCoverContract.address, ethers.constants.MaxUint256),
         "MockToken approved",
     );
     const firstLossCoverageInBps = 100;
-    awaitTx(
+    await awaitTx(
         await affiliateFirstLossCoverContract
             .connect(poolOwner)
             .setCoverProvider(poolOwnerTreasury.getAddress(), {
@@ -485,7 +500,7 @@ export async function setupPoolContracts(
             }),
         "AffiliateFirstLossCover setCoverProvider",
     );
-    awaitTx(
+    await awaitTx(
         await affiliateFirstLossCoverContract
             .connect(poolOwner)
             .setCoverProvider(evaluationAgent.getAddress(), {
@@ -496,85 +511,105 @@ export async function setupPoolContracts(
     );
 
     const role = await poolConfigContract.POOL_OPERATOR_ROLE();
-    awaitTx(
+    await awaitTx(
         await poolConfigContract.connect(poolOwner).grantRole(role, poolOwner.getAddress()),
         "poolOwner granted role",
     );
-    awaitTx(
+    await awaitTx(
         await poolConfigContract.connect(poolOwner).grantRole(role, poolOperator.getAddress()),
         "poolOperator granted role",
     );
 
-    awaitTx(
+    await awaitTx(
         await juniorTrancheVaultContract
             .connect(poolOperator)
             .setReinvestYield(poolOwnerTreasury.address, true),
         "Reinvest yield set",
     );
-    awaitTx(
+    await awaitTx(
         await juniorTrancheVaultContract
             .connect(poolOperator)
             .setReinvestYield(evaluationAgent.address, true),
         "Reinvest yield set",
     );
 
-    awaitTx(
+    await awaitTx(
         await affiliateFirstLossCoverContract
             .connect(poolOwnerTreasury)
             .depositCover(poolLiquidityCap.mul(firstLossCoverageInBps).div(CONSTANTS.BP_FACTOR)),
         "AffiliateFirstLossCover depositCover",
     );
-    awaitTx(
+    await awaitTx(
         await affiliateFirstLossCoverContract
             .connect(evaluationAgent)
             .depositCover(poolLiquidityCap.mul(firstLossCoverageInBps).div(CONSTANTS.BP_FACTOR)),
         "AffiliateFirstLossCover depositCover",
     );
-    awaitTx(
+    await awaitTx(
         await poolContract.connect(poolOwner).setReadyForFirstLossCoverWithdrawal(true),
         "poolOwner setReadyForFirstLossCoverWithdrawal",
     );
 
-    const lpConfig = await poolConfigContract.getLPConfig();
-    const newLPConfig = {
-        ...lpConfig,
-        fixedSeniorYieldInBps: 1217,
-    };
-    awaitTx(
-        await poolConfigContract.connect(poolOwner).setLPConfig(newLPConfig),
-        "poolOwner setLPConfig",
-    );
+    if (creditContractName === "ReceivableBackedCreditLine") {
+        const latePaymentGracePeriodInDays = 5;
+        const yieldInBps = 1217;
+        const lateFeeBps = 2400;
+        const principalRate = 100;
 
-    awaitTx(await poolContract.connect(poolOwner).enablePool(), "Pool enabled");
+        const settings = await poolConfigContract.getPoolSettings();
+        await awaitTx(
+            await poolConfigContract.connect(poolOwner).setPoolSettings({
+                ...settings,
+                ...{
+                    payPeriodDuration: PayPeriodDuration.Monthly,
+                    latePaymentGracePeriodInDays: latePaymentGracePeriodInDays,
+                    advanceRateInBps: CONSTANTS.BP_FACTOR,
+                    receivableAutoApproval: true,
+                },
+            }),
+            "Pool settings set",
+        );
+
+        await awaitTx(
+            await poolConfigContract.connect(poolOwner).setFeeStructure({
+                yieldInBps,
+                minPrincipalRateInBps: principalRate,
+                lateFeeBps,
+            }),
+            "Pool fee structure set",
+        );
+    }
+
+    await awaitTx(await poolContract.connect(poolOwner).enablePool(), "Pool enabled");
 
     for (let i = 0; i < accounts.length; i++) {
         console.log("********************");
         console.log("Add approved lender and approve mock token: ", accounts[i].address);
-        awaitTx(
+        await awaitTx(
             await juniorTrancheVaultContract
                 .connect(poolOperator)
                 .addApprovedLender(accounts[i].getAddress(), true),
             "Approved lender added",
         );
-        awaitTx(
+        await awaitTx(
             await seniorTrancheVaultContract
                 .connect(poolOperator)
                 .addApprovedLender(accounts[i].getAddress(), true),
             "Approved lender added",
         );
-        awaitTx(
+        await awaitTx(
             await mockTokenContract
                 .connect(accounts[i])
                 .approve(poolSafeContract.address, ethers.constants.MaxUint256),
             "MockToken approved",
         );
-        awaitTx(
+        await awaitTx(
             await mockTokenContract
                 .connect(accounts[i])
                 .approve(creditContract.address, ethers.constants.MaxUint256),
             "MockToken approved",
         );
-        awaitTx(
+        await awaitTx(
             await mockTokenContract.mint(accounts[i].getAddress(), toToken(1_000_000_000)),
             "MockToken minted",
         );
@@ -637,6 +672,7 @@ export async function deployAndSetupPoolContracts(
         poolOwnerTreasury,
         poolOperator,
         accounts,
+        creditContractName,
     );
 
     return [
@@ -658,7 +694,10 @@ export async function deployAndSetupPoolContracts(
     ];
 }
 
-export async function deployContracts() {
+export async function deployContracts(
+    creditContractName: CreditContractName,
+    creditManagerContractName: CreditManagerContractName,
+) {
     const [
         defaultDeployer,
         protocolOwner,
@@ -688,8 +727,8 @@ export async function deployContracts() {
         "FixedSeniorYieldTranchePolicy",
         defaultDeployer,
         poolOwner,
-        "CreditLine",
-        "BorrowerLevelCreditManager",
+        creditContractName,
+        creditManagerContractName,
         evaluationAgent,
         poolOwnerTreasury,
         poolOperator,
@@ -697,4 +736,5 @@ export async function deployContracts() {
     );
 }
 
-deployContracts();
+// deployContracts("CreditLine", "BorrowerLevelCreditManager");
+deployContracts("ReceivableBackedCreditLine", "ReceivableBackedCreditLineManager");

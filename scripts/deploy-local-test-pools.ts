@@ -223,9 +223,9 @@ async function deployPool(
         await (creditContract as CreditLine).connect(borrowerActive).drawdown(borrowAmount);
     } else if (poolName === LocalPoolName.ReceivableBackedCreditLine) {
         const latePaymentGracePeriodInDays = 5;
-        const yieldInBps = 1200;
+        const yieldInBps = 1217;
         const lateFeeBps = 2400;
-        const principalRate = 0;
+        const principalRate = 100;
 
         const settings = await poolConfigContract.getPoolSettings();
         await poolConfigContract.connect(poolOwner).setPoolSettings({

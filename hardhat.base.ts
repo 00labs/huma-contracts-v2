@@ -17,6 +17,18 @@ const EMPTY_PRIVATE_KEY = "0x000000000000000000000000000000000000000000000000000
 
 const sepoliaUrl = process.env["SEPOLIA_URL"] || EMPTY_URL;
 const deployer = process.env["DEPLOYER"] || EMPTY_PRIVATE_KEY;
+const mumbaiUrl = process.env["MUMBAI_URL"];
+const defaultDeployer = process.env["DEPLOYER"];
+const protocolOwner = process.env["PROTOCOL_OWNER"];
+const treasury = process.env["TREASURY"];
+const eaServiceAccount = process.env["EA_SERVICE"];
+const pdsServiceAccount = process.env["PDS_SERVICE"];
+const poolOwner = process.env["POOL_OWNER"];
+const poolOwnerTreasury = process.env["BASE_CREDIT_POOL_OWNER_TREASURY"];
+const evaluationAgent = process.env["EA"];
+const poolOperator = process.env["BASE_CREDIT_POOL_OPERATOR"];
+const seniorLender = process.env["SENIOR_LENDER"];
+const juniorLender = process.env["JUNIOR_LENDER"];
 
 const config: HardhatUserConfig = {
     networks: {
@@ -26,6 +38,22 @@ const config: HardhatUserConfig = {
         sepolia: {
             url: sepoliaUrl,
             accounts: [deployer],
+        },
+        maticmum: {
+            url: mumbaiUrl,
+            accounts: [
+                defaultDeployer!,
+                protocolOwner!,
+                treasury!,
+                eaServiceAccount!,
+                pdsServiceAccount!,
+                poolOwner!,
+                poolOwnerTreasury!,
+                evaluationAgent!,
+                poolOperator!,
+                seniorLender!,
+                juniorLender!,
+            ],
         },
     },
     solidity: {
@@ -44,6 +72,7 @@ const config: HardhatUserConfig = {
     etherscan: {
         apiKey: {
             sepolia: process.env.ETHERSCAN_API_KEY || "",
+            polygonMumbai: process.env.POLYGONSCAN_API_KEY!,
         },
     },
     contractSizer: {

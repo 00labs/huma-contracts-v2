@@ -80,6 +80,7 @@ export async function getLatestBlock() {
 }
 
 export async function awaitTx(tx: ContractTransaction, message: string) {
+    console.log("Starting " + message);
     await tx.wait();
     console.log(message);
 }

@@ -13,8 +13,8 @@
   "SeniorTrancheVault": "Done",
   "JuniorTrancheVault": "Done",
   "Calendar": "Done",
-  "CreditLine": "Done",
+  "ReceivableBackedCreditLine": "Done",
   "CreditDueManager": "Done",
-  "BorrowerLevelCreditManager": "Done",
+  "ReceivableBackedCreditLineManager": "Done",
   "Receivable": "Done"
 }
