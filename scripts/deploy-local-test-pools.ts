@@ -10,11 +10,7 @@ import {
     deployProtocolContracts,
     PayPeriodDuration,
 } from "../test/BaseTest";
-import {
-    getMinFirstLossCoverRequirement,
-    overrideFirstLossCoverConfig,
-    toToken,
-} from "../test/TestUtils";
+import { overrideFirstLossCoverConfig, toToken } from "../test/TestUtils";
 import {
     BorrowerLevelCreditManager,
     Calendar,
@@ -71,34 +67,12 @@ let poolConfigContract: PoolConfig,
     creditDueManagerContract: CreditDueManager,
     creditManagerContract: BorrowerLevelCreditManager;
 
-async function depositFirstLossCover(
-    poolContract: Pool,
-    coverContract: FirstLossCover,
-    account: SignerWithAddress,
-) {
-    const fetchPoolConfigContractAddr = await poolContract.poolConfig();
-    const PoolConfig = await ethers.getContractFactory("PoolConfig");
-    const fetchPoolConfigContract = PoolConfig.attach(fetchPoolConfigContractAddr);
-
-    await coverContract.connect(poolOwner).setCoverProvider(account.address, {
-        poolCapCoverageInBps: 1,
-        poolValueCoverageInBps: 100,
-    });
+async function depositFirstLossCover(coverContract: FirstLossCover, account: SignerWithAddress) {
+    await coverContract.connect(poolOwner).addCoverProvider(account.address);
     await mockTokenContract
         .connect(account)
         .approve(coverContract.address, ethers.constants.MaxUint256);
-    await coverContract
-        .connect(account)
-        .depositCover(
-            (
-                await getMinFirstLossCoverRequirement(
-                    coverContract,
-                    fetchPoolConfigContract,
-                    poolContract,
-                    account.address,
-                )
-            ).mul(2),
-        );
+    await coverContract.connect(account).depositCover(toToken(20_000));
 }
 
 async function deployPool(
@@ -174,7 +148,7 @@ async function deployPool(
     );
 
     // Deposit first loss cover
-    await depositFirstLossCover(poolContract, borrowerFirstLossCoverContract, borrowerActive);
+    await depositFirstLossCover(borrowerFirstLossCoverContract, borrowerActive);
 
     // Set first loss cover liquidity cap
     const totalAssetsBorrowerFLC = await borrowerFirstLossCoverContract.totalAssets();
@@ -186,7 +160,7 @@ async function deployPool(
         poolConfigContract,
         poolOwner,
         {
-            liquidityCap: totalAssetsBorrowerFLC.sub(yieldAmount),
+            maxLiquidity: totalAssetsBorrowerFLC.add(yieldAmount),
         },
     );
     await overrideFirstLossCoverConfig(
@@ -195,7 +169,7 @@ async function deployPool(
         poolConfigContract,
         poolOwner,
         {
-            liquidityCap: totalAssetsAffiliateFLC.sub(yieldAmount),
+            maxLiquidity: totalAssetsAffiliateFLC.add(yieldAmount),
         },
     );
 

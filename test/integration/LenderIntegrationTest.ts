@@ -43,17 +43,15 @@ import {
     evmRevert,
     evmSnapshot,
     getLatestBlock,
-    getMinFirstLossCoverRequirement,
     overrideLPConfig,
     setNextBlockTimestamp,
     timestampToMoment,
     toToken,
 } from "../TestUtils";
 
-// 2 initial lenders(jLender1, jLender2) in the junior tranche;
-// 2 initial lenders(sLender1, sLender2) in the senior tranche.
+// 2 initial lenders (jLender1, jLender2) in the junior tranche;
+// 2 initial lenders (sLender1, sLender2) in the senior tranche.
 // The number of lenders will change as the test progresses.
-
 // 1 credit line
 
 let defaultDeployer: SignerWithAddress,
@@ -93,7 +91,7 @@ let epochChecker: EpochChecker;
 
 const POOL_PERIOD_DURATION = PayPeriodDuration.Monthly;
 
-const POOL_LIQUDITY_CAP = toToken(12_000_000);
+const POOL_LIQUIDITY_CAP = toToken(12_000_000);
 const MAX_SENIOR_JUNIOR_RATIO = 4;
 const WITHDRAWAL_LOCKOUT_PERIOD_IN_DAYS = 30;
 
@@ -111,10 +109,10 @@ const REWARD_RATE_IN_BPS_FOR_EA = 300;
 const LIQUIDITY_RATE_IN_BPS_FOR_POOL_OWNER = 50;
 const LIQUIDITY_RATE_IN_BPS_FOR_EA = 100;
 
-const ADMIN_FIRST_LOSS_COVER_RISK_YIELD_MULTIPLIER = 10000;
+const ADMIN_FIRST_LOSS_COVER_RISK_YIELD_MULTIPLIER_IN_BPS = 10000;
 
-const JUNIOR_LENDER_NUM = 3;
-const SENIOR_LENDER_NUM = 3;
+const NUM_JUNIOR_LENDERS = 3;
+const NUM_SENIOR_LENDERS = 3;
 
 let currentTS: number;
 let creditHash: string;
@@ -123,23 +121,23 @@ let sLenderReinvests = [false, true, true],
     jLenderReinvests = [true, false, true];
 let juniorShareRequested: BN = BN.from(0),
     seniorShareRequested: BN = BN.from(0);
-let jLenderPrincipals: BN[] = Array(JUNIOR_LENDER_NUM).fill(BN.from(0)),
-    sLenderPrincipals: BN[] = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
-let jLenderShareRequests: BN[] = Array(JUNIOR_LENDER_NUM).fill(BN.from(0)),
-    sLenderShareRequests: BN[] = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
-let jLenderPrincipalRequests: BN[] = Array(JUNIOR_LENDER_NUM).fill(BN.from(0)),
-    sLenderPrincipalRequests: BN[] = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
-let jLenderAmountsProcessed: BN[] = Array(JUNIOR_LENDER_NUM).fill(BN.from(0)),
-    sLenderAmountsProcessed: BN[] = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
-let jLenderWithdrawals: BN[] = Array(JUNIOR_LENDER_NUM).fill(BN.from(0)),
-    sLenderWithdrawals: BN[] = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
+let jLenderPrincipals: BN[] = Array(NUM_JUNIOR_LENDERS).fill(BN.from(0)),
+    sLenderPrincipals: BN[] = Array(NUM_SENIOR_LENDERS).fill(BN.from(0));
+let jLenderShareRequests: BN[] = Array(NUM_JUNIOR_LENDERS).fill(BN.from(0)),
+    sLenderShareRequests: BN[] = Array(NUM_SENIOR_LENDERS).fill(BN.from(0));
+let jLenderPrincipalRequests: BN[] = Array(NUM_JUNIOR_LENDERS).fill(BN.from(0)),
+    sLenderPrincipalRequests: BN[] = Array(NUM_SENIOR_LENDERS).fill(BN.from(0));
+let jLenderAmountsProcessed: BN[] = Array(NUM_JUNIOR_LENDERS).fill(BN.from(0)),
+    sLenderAmountsProcessed: BN[] = Array(NUM_SENIOR_LENDERS).fill(BN.from(0));
+let jLenderWithdrawals: BN[] = Array(NUM_JUNIOR_LENDERS).fill(BN.from(0)),
+    sLenderWithdrawals: BN[] = Array(NUM_SENIOR_LENDERS).fill(BN.from(0));
 
 async function configPool(lpConfig: Partial<LPConfigStructOutput>) {
     let settings = await poolConfigContract.getPoolSettings();
     await poolConfigContract.connect(poolOwner).setPoolSettings({
         ...settings,
         ...{
-            maxCreditLine: POOL_LIQUDITY_CAP,
+            maxCreditLine: POOL_LIQUIDITY_CAP,
             payPeriodDuration: POOL_PERIOD_DURATION,
             latePaymentGracePeriodInDays: LATE_PAYMENT_GRACE_PERIOD_IN_DAYS,
             defaultGracePeriodInDays: DEFAULT_GRACE_PERIOD_IN_MONTHS,
@@ -147,7 +145,7 @@ async function configPool(lpConfig: Partial<LPConfigStructOutput>) {
     });
 
     await overrideLPConfig(poolConfigContract, poolOwner, {
-        liquidityCap: POOL_LIQUDITY_CAP,
+        liquidityCap: POOL_LIQUIDITY_CAP,
         maxSeniorJuniorRatio: MAX_SENIOR_JUNIOR_RATIO,
         withdrawalLockoutPeriodInDays: WITHDRAWAL_LOCKOUT_PERIOD_IN_DAYS,
         ...lpConfig,
@@ -181,10 +179,10 @@ async function configPool(lpConfig: Partial<LPConfigStructOutput>) {
             CONSTANTS.BORROWER_FIRST_LOSS_COVER_INDEX,
             borrowerFirstLossCoverContract.address,
             {
-                coverRateInBps: 1000,
-                coverCap: toToken(10000),
-                liquidityCap: 0,
-                maxPercentOfPoolValueInBps: 0,
+                coverRatePerLossInBps: 1_000,
+                coverCapPerLoss: toToken(10_000),
+                maxLiquidity: toToken(250_000),
+                minLiquidity: 0,
                 riskYieldMultiplierInBps: 0,
             },
         );
@@ -194,11 +192,11 @@ async function configPool(lpConfig: Partial<LPConfigStructOutput>) {
             CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
             affiliateFirstLossCoverContract.address,
             {
-                coverRateInBps: 1000,
-                coverCap: toToken(30000),
-                liquidityCap: 0,
-                maxPercentOfPoolValueInBps: 0,
-                riskYieldMultiplierInBps: ADMIN_FIRST_LOSS_COVER_RISK_YIELD_MULTIPLIER,
+                coverRatePerLossInBps: 1_000,
+                coverCapPerLoss: toToken(30_000),
+                maxLiquidity: toToken(250_000),
+                minLiquidity: 0,
+                riskYieldMultiplierInBps: ADMIN_FIRST_LOSS_COVER_RISK_YIELD_MULTIPLIER_IN_BPS,
             },
         );
 
@@ -224,7 +222,7 @@ async function configPool(lpConfig: Partial<LPConfigStructOutput>) {
         .approve(poolSafeContract.address, ethers.constants.MaxUint256);
     await mockTokenContract.mint(poolOwnerTreasury.getAddress(), toToken(1_000_000_000));
     const poolOwnerLiquidity = BN.from(adminRnR.liquidityRateInBpsByPoolOwner)
-        .mul(POOL_LIQUDITY_CAP)
+        .mul(POOL_LIQUIDITY_CAP)
         .div(CONSTANTS.BP_FACTOR);
     await juniorTrancheVaultContract
         .connect(poolOwnerTreasury)
@@ -235,7 +233,7 @@ async function configPool(lpConfig: Partial<LPConfigStructOutput>) {
         .approve(poolSafeContract.address, ethers.constants.MaxUint256);
     await mockTokenContract.mint(evaluationAgent.getAddress(), toToken(1_000_000_000));
     const evaluationAgentLiquidity = BN.from(adminRnR.liquidityRateInBpsByEA)
-        .mul(POOL_LIQUDITY_CAP)
+        .mul(POOL_LIQUIDITY_CAP)
         .div(CONSTANTS.BP_FACTOR);
     await juniorTrancheVaultContract
         .connect(evaluationAgent)
@@ -247,19 +245,12 @@ async function configPool(lpConfig: Partial<LPConfigStructOutput>) {
     await mockTokenContract
         .connect(evaluationAgent)
         .approve(affiliateFirstLossCoverContract.address, ethers.constants.MaxUint256);
-    const firstLossCoverageInBps = 100;
     await affiliateFirstLossCoverContract
         .connect(poolOwner)
-        .setCoverProvider(poolOwnerTreasury.getAddress(), {
-            poolCapCoverageInBps: firstLossCoverageInBps,
-            poolValueCoverageInBps: firstLossCoverageInBps,
-        });
+        .addCoverProvider(poolOwnerTreasury.getAddress());
     await affiliateFirstLossCoverContract
         .connect(poolOwner)
-        .setCoverProvider(evaluationAgent.getAddress(), {
-            poolCapCoverageInBps: firstLossCoverageInBps,
-            poolValueCoverageInBps: firstLossCoverageInBps,
-        });
+        .addCoverProvider(evaluationAgent.getAddress());
 
     const role = await poolConfigContract.POOL_OPERATOR_ROLE();
     await poolConfigContract.connect(poolOwner).grantRole(role, poolOwner.getAddress());
@@ -272,15 +263,16 @@ async function configPool(lpConfig: Partial<LPConfigStructOutput>) {
         .connect(poolOperator)
         .setReinvestYield(evaluationAgent.address, true);
 
+    // Deposit 1% of the pool liquidity cap as the first loss cover.
     await affiliateFirstLossCoverContract
         .connect(poolOwnerTreasury)
-        .depositCover(POOL_LIQUDITY_CAP.mul(firstLossCoverageInBps).div(CONSTANTS.BP_FACTOR));
+        .depositCover(POOL_LIQUIDITY_CAP.div(100));
     await affiliateFirstLossCoverContract
         .connect(evaluationAgent)
-        .depositCover(POOL_LIQUDITY_CAP.mul(firstLossCoverageInBps).div(CONSTANTS.BP_FACTOR));
+        .depositCover(POOL_LIQUIDITY_CAP.div(100));
     await poolContract.connect(poolOwner).setReadyForFirstLossCoverWithdrawal(true);
 
-    let accounts = [...sLenders, ...jLenders, borrower];
+    const accounts = [...sLenders, ...jLenders, borrower];
     for (let i = 0; i < accounts.length; i++) {
         await juniorTrancheVaultContract
             .connect(poolOperator)
@@ -297,28 +289,11 @@ async function configPool(lpConfig: Partial<LPConfigStructOutput>) {
         await mockTokenContract.mint(accounts[i].getAddress(), toToken(1_000_000_000));
     }
 
-    await borrowerFirstLossCoverContract.connect(poolOwner).setCoverProvider(borrower.address, {
-        poolCapCoverageInBps: 100,
-        poolValueCoverageInBps: 100,
-    });
+    await borrowerFirstLossCoverContract.connect(poolOwner).addCoverProvider(borrower.address);
     await mockTokenContract
         .connect(borrower)
         .approve(borrowerFirstLossCoverContract.address, ethers.constants.MaxUint256);
-    await borrowerFirstLossCoverContract
-        .connect(borrower)
-        .depositCover(
-            (
-                await getMinFirstLossCoverRequirement(
-                    borrowerFirstLossCoverContract,
-                    poolConfigContract,
-                    poolContract,
-                    borrower.address,
-                )
-            ).add(toToken(100)),
-        );
-
-    // console.log(`poolOwnerTreasury: ${poolOwnerTreasury.address}`);
-    // console.log(`evaluationAgent: ${evaluationAgent.address}`);
+    await borrowerFirstLossCoverContract.connect(borrower).depositCover(toToken(100));
 
     for (let i = 0; i < jLenders.length; i++) {
         let reinvestYield = (await juniorTrancheVaultContract.depositRecords(jLenders[i].address))
@@ -505,7 +480,6 @@ async function testYieldPayout() {
 
 async function testRedemptionRequest(jLenderRequests: BN[], sLenderRequests: BN[]) {
     for (let i = 0; i < jLenderRequests.length; i++) {
-        // console.log(`jLenderRequests[${i}]: ${jLenderRequests[i]}`);
         if (jLenderRequests[i].gt(0)) {
             let oldShares = await juniorTrancheVaultContract.balanceOf(jLenders[i].address);
             await juniorTrancheVaultContract
@@ -518,9 +492,6 @@ async function testRedemptionRequest(jLenderRequests: BN[], sLenderRequests: BN[
                 jLenders[i].address,
             );
             let principalRequested = jLenderPrincipals[i].mul(jLenderRequests[i]).div(oldShares);
-            // console.log(
-            //     `newPrincipal: ${newPrincipal}, principalRequested: ${principalRequested}, jLenderPrincipals[i]: ${jLenderPrincipals[i]}`,
-            // );
             let expectedNewPrincipal = jLenderPrincipals[i].sub(principalRequested);
             expect(newPrincipal).to.equal(expectedNewPrincipal);
             jLenderShareRequests[i] = jLenderShareRequests[i].add(jLenderRequests[i]);
@@ -551,7 +522,6 @@ async function testRedemptionRequest(jLenderRequests: BN[], sLenderRequests: BN[
     }
 
     for (let i = 0; i < sLenderRequests.length; i++) {
-        // console.log(`sLenderRequests[${i}]: ${sLenderRequests[i]}`);
         if (sLenderRequests[i].gt(0)) {
             let oldShares = await seniorTrancheVaultContract.balanceOf(sLenders[i].address);
             await seniorTrancheVaultContract
@@ -665,11 +635,6 @@ describe("Lender Integration Test", function () {
         }
 
         before(async function () {
-            // console.log(
-            //     `RiskAdjustedTranchesPolicy before block.timestamp: ${
-            //         (await getLatestBlock()).timestamp
-            //     }`,
-            // );
             sId = await evmSnapshot();
             await prepare();
         });
@@ -680,36 +645,21 @@ describe("Lender Integration Test", function () {
             }
             juniorShareRequested = BN.from(0);
             seniorShareRequested = BN.from(0);
-            jLenderPrincipals = Array(JUNIOR_LENDER_NUM).fill(BN.from(0));
-            sLenderPrincipals = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
-            jLenderShareRequests = Array(JUNIOR_LENDER_NUM).fill(BN.from(0));
-            sLenderShareRequests = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
-            jLenderPrincipalRequests = Array(JUNIOR_LENDER_NUM).fill(BN.from(0));
-            sLenderPrincipalRequests = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
-            jLenderAmountsProcessed = Array(JUNIOR_LENDER_NUM).fill(BN.from(0));
-            sLenderAmountsProcessed = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
-            jLenderWithdrawals = Array(JUNIOR_LENDER_NUM).fill(BN.from(0));
-            sLenderWithdrawals = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
+            jLenderPrincipals = Array(NUM_JUNIOR_LENDERS).fill(BN.from(0));
+            sLenderPrincipals = Array(NUM_SENIOR_LENDERS).fill(BN.from(0));
+            jLenderShareRequests = Array(NUM_JUNIOR_LENDERS).fill(BN.from(0));
+            sLenderShareRequests = Array(NUM_SENIOR_LENDERS).fill(BN.from(0));
+            jLenderPrincipalRequests = Array(NUM_JUNIOR_LENDERS).fill(BN.from(0));
+            sLenderPrincipalRequests = Array(NUM_SENIOR_LENDERS).fill(BN.from(0));
+            jLenderAmountsProcessed = Array(NUM_JUNIOR_LENDERS).fill(BN.from(0));
+            sLenderAmountsProcessed = Array(NUM_SENIOR_LENDERS).fill(BN.from(0));
+            jLenderWithdrawals = Array(NUM_JUNIOR_LENDERS).fill(BN.from(0));
+            sLenderWithdrawals = Array(NUM_SENIOR_LENDERS).fill(BN.from(0));
             sActiveLenders = [];
             jActiveLenders = [];
-            // console.log("RiskAdjustedTranchesPolicy after");
         });
 
         it("Epoch 0, day 0: Lenders provide liquidity and the borrower makes initial drawdown", async function () {
-            // console.log(
-            //     `junior cap: ${await poolConfigContract.getTrancheLiquidityCap(
-            //         CONSTANTS.JUNIOR_TRANCHE,
-            //     )}, junior total assets: ${await poolContract.trancheTotalAssets(
-            //         CONSTANTS.JUNIOR_TRANCHE,
-            //     )}`,
-            // );
-            // console.log(
-            //     `senior cap: ${await poolConfigContract.getTrancheLiquidityCap(
-            //         CONSTANTS.SENIOR_TRANCHE,
-            //     )}, senior total assets: ${await poolContract.trancheTotalAssets(
-            //         CONSTANTS.SENIOR_TRANCHE,
-            //     )}`,
-            // );
             let block = await getLatestBlock();
             currentTS =
                 timestampToMoment(block.timestamp, "YYYY-MM-01").add(1, "month").unix() + 300;
@@ -758,7 +708,7 @@ describe("Lender Integration Test", function () {
                     true,
                 );
 
-            let borowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
+            let borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
             let oldFees = await poolFeeManagerContract.getAccruedIncomes();
             let borrowerFLCOldBalance = await mockTokenContract.balanceOf(
                 borrowerFirstLossCoverContract.address,
@@ -774,14 +724,12 @@ describe("Lender Integration Test", function () {
             let [protocolReward, poolOwnerReward, eaReward, poolProfit, amountToBorrower] =
                 await feeCalculator.calcPoolFeesForDrawdown(toToken(BORROWER_INITIAL_AMOUNT));
             expect(await mockTokenContract.balanceOf(borrower.address)).to.equal(
-                borowerOldBalance.add(amountToBorrower),
+                borrowerOldBalance.add(amountToBorrower),
             );
             await checkPoolFees(oldFees, protocolReward, poolOwnerReward, eaReward);
 
             let [expectedTranchesAssets, expectedTranchesProfits, expectedFirstLossCoverProfits] =
                 await pnlCalculator.endRiskAdjustedProfitCalculation(poolProfit);
-
-            // console.log(`expectedTranchesProfits: ${expectedTranchesProfits}`);
 
             await checkAssetsForProfit(
                 expectedTranchesAssets,
@@ -790,7 +738,7 @@ describe("Lender Integration Test", function () {
                 affiliateFLCOldBalance,
             );
 
-            let expectedPoolSafeBalanceIncremnet = protocolReward
+            let expectedPoolSafeBalanceIncrement = protocolReward
                 .add(poolOwnerReward)
                 .add(eaReward)
                 .add(expectedTranchesProfits[CONSTANTS.SENIOR_TRANCHE])
@@ -798,7 +746,7 @@ describe("Lender Integration Test", function () {
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
                 poolSafeOldBalance
                     .sub(toToken(BORROWER_INITIAL_AMOUNT))
-                    .add(expectedPoolSafeBalanceIncremnet),
+                    .add(expectedPoolSafeBalanceIncrement),
             );
 
             await checkUserAssets(expectedTranchesAssets);
@@ -837,8 +785,6 @@ describe("Lender Integration Test", function () {
 
             let [expectedTranchesAssets, expectedTranchesProfits, expectedFirstLossCoverProfits] =
                 await pnlCalculator.endRiskAdjustedProfitCalculation(poolProfit);
-
-            // console.log(`expectedTranchesProfits: ${expectedTranchesProfits}`);
 
             await checkAssetsForProfit(
                 expectedTranchesAssets,
@@ -2001,16 +1947,16 @@ describe("Lender Integration Test", function () {
             }
             juniorShareRequested = BN.from(0);
             seniorShareRequested = BN.from(0);
-            jLenderPrincipals = Array(JUNIOR_LENDER_NUM).fill(BN.from(0));
-            sLenderPrincipals = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
-            jLenderShareRequests = Array(JUNIOR_LENDER_NUM).fill(BN.from(0));
-            sLenderShareRequests = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
-            jLenderPrincipalRequests = Array(JUNIOR_LENDER_NUM).fill(BN.from(0));
-            sLenderPrincipalRequests = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
-            jLenderAmountsProcessed = Array(JUNIOR_LENDER_NUM).fill(BN.from(0));
-            sLenderAmountsProcessed = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
-            jLenderWithdrawals = Array(JUNIOR_LENDER_NUM).fill(BN.from(0));
-            sLenderWithdrawals = Array(SENIOR_LENDER_NUM).fill(BN.from(0));
+            jLenderPrincipals = Array(NUM_JUNIOR_LENDERS).fill(BN.from(0));
+            sLenderPrincipals = Array(NUM_SENIOR_LENDERS).fill(BN.from(0));
+            jLenderShareRequests = Array(NUM_JUNIOR_LENDERS).fill(BN.from(0));
+            sLenderShareRequests = Array(NUM_SENIOR_LENDERS).fill(BN.from(0));
+            jLenderPrincipalRequests = Array(NUM_JUNIOR_LENDERS).fill(BN.from(0));
+            sLenderPrincipalRequests = Array(NUM_SENIOR_LENDERS).fill(BN.from(0));
+            jLenderAmountsProcessed = Array(NUM_JUNIOR_LENDERS).fill(BN.from(0));
+            sLenderAmountsProcessed = Array(NUM_SENIOR_LENDERS).fill(BN.from(0));
+            jLenderWithdrawals = Array(NUM_JUNIOR_LENDERS).fill(BN.from(0));
+            sLenderWithdrawals = Array(NUM_SENIOR_LENDERS).fill(BN.from(0));
             sActiveLenders = [];
             jActiveLenders = [];
             // console.log("FixedYieldTranchesPolicy after");

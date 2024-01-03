@@ -81,15 +81,15 @@ struct FeeStructure {
 }
 
 struct FirstLossCoverConfig {
-    // The percentage of a default to be paid by the first loss cover
-    uint16 coverRateInBps;
-    // The max amount that first loss cover can spend on one default
-    uint96 coverCap;
+    // The percentage of loss to be paid by the first loss cover per occurrence of loss
+    uint16 coverRatePerLossInBps;
+    // The max amount that first loss cover can spend on one occurrence of loss
+    uint96 coverCapPerLoss;
     // The max liquidity allowed for the first loss cover
-    uint96 liquidityCap;
-    // The max percent of pool assets that first loss cover can reach
-    uint16 maxPercentOfPoolValueInBps;
-    // riskYieldMultiplierInBps is used to adjust the yield of the first loss covers and junior tranche
+    uint96 maxLiquidity;
+    // The min liquidity required for the first loss cover
+    uint96 minLiquidity;
+    // Adjusts the yield of the first loss covers and junior tranche
     uint16 riskYieldMultiplierInBps;
 }
 
@@ -168,10 +168,10 @@ contract PoolConfig is AccessControl, Initializable {
     event FirstLossCoverChanged(
         uint8 index,
         address firstLossCover,
-        uint16 coverRateInBps,
-        uint96 coverCap,
-        uint96 liquidityCap,
-        uint16 maxPercentOfPoolValueInBps,
+        uint16 coverRatePerLossInBps,
+        uint96 coverCapPerLoss,
+        uint96 maxLiquidity,
+        uint96 minLiquidity,
         uint16 riskYieldMultiplierInBps,
         address by
     );
@@ -336,12 +336,10 @@ contract PoolConfig is AccessControl, Initializable {
             feeManager.withdrawEAFee(eaWithdrawable);
         }
 
-        // Make sure the new EA has met the liquidity requirements.
+        // Make sure the affiliate first loss cover still meets liquidity requirements with the new EA.
         if (IPool(pool).isPoolOn()) {
             if (
-                !IFirstLossCover(_firstLossCovers[AFFILIATE_FIRST_LOSS_COVER_INDEX]).isSufficient(
-                    agent
-                )
+                !IFirstLossCover(_firstLossCovers[AFFILIATE_FIRST_LOSS_COVER_INDEX]).isSufficient()
             ) {
                 revert Errors.lessThanRequiredCover();
             }
@@ -449,10 +447,10 @@ contract PoolConfig is AccessControl, Initializable {
         emit FirstLossCoverChanged(
             index,
             firstLossCover,
-            config.coverRateInBps,
-            config.coverCap,
-            config.liquidityCap,
-            config.maxPercentOfPoolValueInBps,
+            config.coverRatePerLossInBps,
+            config.coverCapPerLoss,
+            config.maxLiquidity,
+            config.minLiquidity,
             config.riskYieldMultiplierInBps,
             msg.sender
         );
@@ -533,14 +531,13 @@ contract PoolConfig is AccessControl, Initializable {
     }
 
     /**
-     * @notice Checks to make sure both EA and pool owner treasury meet the pool's first loss cover requirements
+     * @notice Checks whether the affiliate first loss cover has met the liquidity requirements.
      */
     function checkFirstLossCoverRequirementsForAdmin() public view {
         IFirstLossCover firstLossCover = IFirstLossCover(
             _firstLossCovers[AFFILIATE_FIRST_LOSS_COVER_INDEX]
         );
-        if (!firstLossCover.isSufficient(poolOwnerTreasury)) revert Errors.lessThanRequiredCover();
-        if (!firstLossCover.isSufficient(evaluationAgent)) revert Errors.lessThanRequiredCover();
+        if (!firstLossCover.isSufficient()) revert Errors.lessThanRequiredCover();
     }
 
     function checkLiquidityRequirementForPoolOwner(uint256 balance) public view {

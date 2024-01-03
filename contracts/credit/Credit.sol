@@ -556,8 +556,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         uint256 borrowAmount,
         uint256 creditLimit
     ) internal view {
-        if (!firstLossCover.isSufficient(borrower))
-            revert Errors.insufficientBorrowerFirstLossCover();
+        if (!firstLossCover.isSufficient()) revert Errors.insufficientBorrowerFirstLossCover();
 
         if (borrowAmount > poolSafe.getAvailableBalanceForPool()) revert Errors.todo();
 

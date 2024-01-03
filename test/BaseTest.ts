@@ -276,10 +276,10 @@ export async function deployPoolContracts(
         BORROWER_FIRST_LOSS_COVER_INDEX,
         borrowerFirstLossCoverContract.address,
         {
-            coverRateInBps: 0,
-            coverCap: 0,
-            liquidityCap: 0,
-            maxPercentOfPoolValueInBps: 0,
+            coverRatePerLossInBps: 0,
+            coverCapPerLoss: 0,
+            maxLiquidity: toToken(100_000_000),
+            minLiquidity: 0,
             riskYieldMultiplierInBps: 0,
         },
     );
@@ -288,10 +288,10 @@ export async function deployPoolContracts(
         AFFILIATE_FIRST_LOSS_COVER_INDEX,
         affiliateFirstLossCoverContract.address,
         {
-            coverRateInBps: 0,
-            coverCap: 0,
-            liquidityCap: 0,
-            maxPercentOfPoolValueInBps: 0,
+            coverRatePerLossInBps: 0,
+            coverCapPerLoss: 0,
+            maxLiquidity: toToken(100_000_000),
+            minLiquidity: 0,
             riskYieldMultiplierInBps: 20000,
         },
     );
@@ -428,19 +428,12 @@ export async function setupPoolContracts(
     await mockTokenContract
         .connect(evaluationAgent)
         .approve(affiliateFirstLossCoverContract.address, ethers.constants.MaxUint256);
-    const firstLossCoverageInBps = 100;
     await affiliateFirstLossCoverContract
         .connect(poolOwner)
-        .setCoverProvider(poolOwnerTreasury.getAddress(), {
-            poolCapCoverageInBps: firstLossCoverageInBps,
-            poolValueCoverageInBps: firstLossCoverageInBps,
-        });
+        .addCoverProvider(poolOwnerTreasury.getAddress());
     await affiliateFirstLossCoverContract
         .connect(poolOwner)
-        .setCoverProvider(evaluationAgent.getAddress(), {
-            poolCapCoverageInBps: firstLossCoverageInBps,
-            poolValueCoverageInBps: firstLossCoverageInBps,
-        });
+        .addCoverProvider(evaluationAgent.getAddress());
 
     const role = await poolConfigContract.POOL_OPERATOR_ROLE();
     await poolConfigContract.connect(poolOwner).grantRole(role, poolOwner.getAddress());
@@ -453,12 +446,8 @@ export async function setupPoolContracts(
         .connect(poolOperator)
         .setReinvestYield(evaluationAgent.address, true);
 
-    await affiliateFirstLossCoverContract
-        .connect(poolOwnerTreasury)
-        .depositCover(poolLiquidityCap.mul(firstLossCoverageInBps).div(CONSTANTS.BP_FACTOR));
-    await affiliateFirstLossCoverContract
-        .connect(evaluationAgent)
-        .depositCover(poolLiquidityCap.mul(firstLossCoverageInBps).div(CONSTANTS.BP_FACTOR));
+    await affiliateFirstLossCoverContract.connect(poolOwnerTreasury).depositCover(toToken(10_000));
+    await affiliateFirstLossCoverContract.connect(evaluationAgent).depositCover(toToken(10_000));
     await poolContract.connect(poolOwner).setReadyForFirstLossCoverWithdrawal(true);
 
     await poolContract.connect(poolOwner).enablePool();
@@ -646,8 +635,8 @@ export interface FirstLossCoverInfo {
 
 async function calcLossCover(loss: BN, firstLossCoverInfo: FirstLossCoverInfo): Promise<BN[]> {
     const coveredAmount = minBigNumber(
-        loss.mul(await firstLossCoverInfo.config.coverRateInBps).div(CONSTANTS.BP_FACTOR),
-        BN.from(await firstLossCoverInfo.config.coverCap),
+        loss.mul(await firstLossCoverInfo.config.coverRatePerLossInBps).div(CONSTANTS.BP_FACTOR),
+        BN.from(await firstLossCoverInfo.config.coverCapPerLoss),
         firstLossCoverInfo.asset,
         loss,
     );
