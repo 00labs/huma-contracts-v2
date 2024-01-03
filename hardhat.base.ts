@@ -9,15 +9,8 @@ import { HardhatUserConfig } from "hardhat/types";
 const EMPTY_URL = "empty url";
 const EMPTY_PRIVATE_KEY = "0x0000000000000000000000000000000000000000000000000000000000000000";
 
-let sepoliaUrl = process.env["SEPOLIA_URL"];
-if (!sepoliaUrl) {
-    sepoliaUrl = EMPTY_URL;
-}
-
-let deployer = process.env["DEPLOYER"];
-if (!deployer) {
-    deployer = EMPTY_PRIVATE_KEY;
-}
+let sepoliaUrl = process.env["SEPOLIA_URL"] || EMPTY_URL;
+let deployer = process.env["DEPLOYER"] || EMPTY_PRIVATE_KEY;
 
 const config: HardhatUserConfig = {
     networks: {

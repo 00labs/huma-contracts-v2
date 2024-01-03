@@ -79,7 +79,7 @@ contract Receivable is
     }
 
     /**
-     * @dev Initializer
+     * @dev Initializer that sets the default admin role
      */
     function initialize() public initializer {
         __ERC721_init("Receivable", "REC");

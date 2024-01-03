@@ -148,7 +148,6 @@ export async function deployProxyContract(
     initFunction?: string,
     initParams?: unknown[],
 ) {
-    // const Contract = await ethers.getContractFactory(ContractFactory);
     const contractImpl = await Contract.deploy();
     await contractImpl.deployed();
 
@@ -162,8 +161,7 @@ export async function deployProxyContract(
     }
     const contractProxy = await Proxy.deploy(contractImpl.address, calldata);
     await contractProxy.deployed();
-    const contract = await Contract.attach(contractProxy.address);
-    return contract;
+    return await Contract.attach(contractProxy.address);
 }
 
 export async function deployProtocolContracts(
@@ -267,7 +265,6 @@ export async function deployPoolContracts(
     const Receivable = await ethers.getContractFactory("Receivable");
     const receivableContract = (await deployProxyContract(Receivable, "initialize")) as Receivable;
 
-    // await receivableContract.initialize();
     await receivableContract.grantRole(
         receivableContract.DEFAULT_ADMIN_ROLE(),
         poolOwner.getAddress(),

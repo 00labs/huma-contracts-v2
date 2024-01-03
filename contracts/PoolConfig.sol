@@ -235,8 +235,6 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
      */
 
     function initialize(string memory _poolName, address[] memory _contracts) public initializer {
-        // onlyPoolOwner(msg.sender);
-
         poolName = _poolName;
 
         for (uint256 i = 0; i < _contracts.length; i++) {
