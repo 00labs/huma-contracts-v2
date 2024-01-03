@@ -26,12 +26,13 @@ struct PoolSettings {
     // The grace period before a default can be triggered, in days. This can be 0.
     uint16 defaultGracePeriodInDays;
     // Percentage (in basis points) of the receivable amount applied towards available credit
-    // TODO same to advanceRateInBps?
+    // TODO same to advanceRateInBps? Remove?
     uint16 receivableRequiredInBps;
     // Specifies the max credit line as a percentage (in basis points) of the receivable amount.
     // E.g., for a receivable of $100 with an advance rate of 9000 bps, the credit line can be up to $90.
     uint16 advanceRateInBps;
-    // TODO add comment here
+    // Specifies whether receivables should be automatically approved during initial drawdown. If `false`, then
+    // receivables need to be approved prior to the first drawdown.
     bool receivableAutoApproval;
 }
 
@@ -435,6 +436,7 @@ contract PoolConfig is AccessControl, Initializable {
     }
 
     //* todo passing the parameter inside the struct instead of the struct itself.
+    // Do we want to do this?
     function setFirstLossCover(
         uint8 index,
         address firstLossCover,

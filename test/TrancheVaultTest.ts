@@ -910,10 +910,13 @@ describe("TrancheVault Test", function () {
 
             // TODO(jiatu): re-enable this test after we figure out what we should do if totalAssets == 0
             // when converting assets to shares.
-            // it("Should mint the correct number of LP tokens if the senior tranche has to take loss", async function () {
-            //     const profit = toToken(0), loss = juniorAmount.add(seniorAmount), lossRecovery = toToken(0);
-            //     await testDepositWithPnL(profit, loss, lossRecovery);
-            // });
+            // What do we want to do here?
+            it.skip("Should mint the correct number of LP tokens if the senior tranche has to take loss", async function () {
+                const profit = toToken(0),
+                    loss = juniorAmount.add(seniorAmount),
+                    lossRecovery = toToken(0);
+                await testDepositWithPnL(profit, loss, lossRecovery);
+            });
 
             it("Should mint the correct number of LP tokens if the senior tranche loss can be recovered", async function () {
                 const profit = toToken(0),

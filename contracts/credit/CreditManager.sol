@@ -222,7 +222,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         _setCreditConfig(creditHash, cc);
 
         // todo decide if this event emission should be kept or not
-        // TODO decide if cc.receivableBacked, cc.borrowerLevelCredit and cc.exclusive should be kept or not
+        // Get rid of it.
         emit CreditConfigChanged(
             creditHash,
             cc.creditLimit,
@@ -297,6 +297,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         credit.setCreditRecord(creditHash, cr);
 
         // TODO really need this?
+        // Doesn't seem necessary.
         cc.creditLimit = 0;
         _setCreditConfig(creditHash, cc);
 

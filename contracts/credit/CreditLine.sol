@@ -61,6 +61,7 @@ contract CreditLine is Credit, ICreditLine {
         poolConfig.onlyProtocolAndPoolOn();
         // TODO: Remove the following condition since we want to allow non-borrowers to make payment
         // on the behalf of the borrower (mostly intended for invoice issuers).
+        // Do we want to allow others to pay for non-receivable factoring use cases?
         if (msg.sender != borrower) _onlyPDSServiceAccount();
 
         bytes32 creditHash = getCreditHash(borrower);

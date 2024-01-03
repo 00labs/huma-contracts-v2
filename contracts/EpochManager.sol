@@ -38,7 +38,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
 
     // It is used to avoid tiny amount to be processed, e.g. 1 amount = 0.0000001 USDC remaining in the pool caused
     // by rounding down in the last epoch
-    // TODO constant?
+    // TODO constant? Let's discuss
     uint256 public minAmountToProcessPerEpoch;
 
     event EpochClosed(

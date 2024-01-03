@@ -264,7 +264,7 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         uint256 eaFees = (availableIncomes.eaIncome * feesLiquidity) / totalAvailableFees;
         firstLossCover.depositCoverFor(eaFees, poolConfig.evaluationAgent());
         uint256 protocolFees = feesLiquidity - poolOwnerFees - eaFees;
-        //* todo protocol owner needs to do this?
+        //* todo protocol owner needs to do this? Let's discuss
         firstLossCover.depositCoverFor(protocolFees, humaConfig.humaTreasury());
         incomes.protocolIncome -= uint96(protocolFees);
         incomes.poolOwnerIncome -= uint96(poolOwnerFees);

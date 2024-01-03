@@ -94,7 +94,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             lateFeeStartDate = _dd.lateFeeUpdatedDate;
         }
 
-        // TODO(jiatu): gas-golf dd reading
+        // TODO(jiatu): gas-golf dd reading. Is this easy to do?
         // Use the larger of the outstanding principal and the committed amount as the basis for calculating
         // the late fee. While this is not 100% accurate since the relative magnitude of the two value
         // may change between the last time late fee was refreshed and now, we are intentionally making this
