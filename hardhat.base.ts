@@ -1,4 +1,5 @@
 import "@nomicfoundation/hardhat-toolbox";
+import "dotenv/config";
 import "hardhat-abi-exporter";
 import "hardhat-contract-sizer";
 
@@ -19,6 +20,15 @@ if (!deployer) {
 }
 
 const config: HardhatUserConfig = {
+    networks: {
+        hardhat: {
+            chainId: Number(process.env.LOCALHOST_CHAIN_ID ?? 31337),
+        },
+        sepolia: {
+            url: sepoliaUrl,
+            accounts: [deployer],
+        },
+    },
     solidity: {
         compilers: [
             {
@@ -32,13 +42,6 @@ const config: HardhatUserConfig = {
             },
         ],
     },
-    networks: {
-        sepolia: {
-            url: sepoliaUrl,
-            accounts: [deployer],
-        },
-    },
-
     etherscan: {
         apiKey: {
             sepolia: process.env.ETHERSCAN_API_KEY || "",

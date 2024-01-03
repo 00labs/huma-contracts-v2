@@ -2,12 +2,12 @@
 pragma solidity ^0.8.0;
 
 /**
- * @notice RedemptionSummary is a summary of a group of redemption requests. It captures
- * the total number of shares requested, number of shoares actually redeemed and the
+ * @notice EpochRedemptionSummary is a summary of a group of redemption requests. It captures
+ * the total number of shares requested, number of shares actually redeemed and the
  * associated amount.
  */
 
-struct RedemptionSummary {
+struct EpochRedemptionSummary {
     uint64 epochId;
     // The total number of shares requested for redemption in this epoch
     uint96 totalSharesRequested;
@@ -21,7 +21,7 @@ interface IRedemptionHandler {
     /**
      * @notice Returns unprocessed epoch info.
      */
-    function currentRedemptionSummary() external view returns (RedemptionSummary memory);
+    function currentRedemptionSummary() external view returns (EpochRedemptionSummary memory);
 
     /**
      * @notice Executes the redemption bundle by transferring assets
@@ -29,6 +29,6 @@ interface IRedemptionHandler {
      * have been approved to redeem
      */
     function executeRedemptionSummary(
-        RedemptionSummary memory processedRedemptionSummary
+        EpochRedemptionSummary memory processedRedemptionSummary
     ) external;
 }

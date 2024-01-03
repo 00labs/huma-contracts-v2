@@ -20,7 +20,7 @@ import {
     Receivable,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
-} from "../../typechain-types";
+} from "../../../typechain-types";
 import {
     CONSTANTS,
     CreditState,
@@ -41,20 +41,19 @@ import {
     deployProtocolContracts,
     genDueDetail,
     getPrincipal,
-} from "../BaseTest";
+} from "../../BaseTest";
 import {
     borrowerLevelCreditHash,
     evmRevert,
     evmSnapshot,
     getFirstLossCoverInfo,
-    getMinFirstLossCoverRequirement,
     isCloseTo,
     overrideFirstLossCoverConfig,
     overrideLPConfig,
     setNextBlockTimestamp,
     sumBNArray,
     toToken,
-} from "../TestUtils";
+} from "../../TestUtils";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
@@ -94,7 +93,7 @@ describe("Credit Line Integration Test", function () {
         committedAmount: BN,
         newCommittedAmount: BN,
         frontLoadingFeeFlat: BN,
-        coverCap: BN;
+        coverCapPerLoss: BN;
     let nextYear: number, designatedStartDate: moment.Moment;
     const yieldInBps = 1200,
         newYieldInBps = 600,
@@ -102,7 +101,7 @@ describe("Credit Line Integration Test", function () {
         principalRateInBps = 200,
         numPeriods = 12,
         riskAdjustment = 8000,
-        coverRateInBps = 5_000;
+        coverRatePerLossInBps = 5_000;
     let payPeriodDuration: PayPeriodDuration;
     const latePaymentGracePeriodInDays = 5,
         defaultGracePeriodInDays = 10;
@@ -249,40 +248,59 @@ describe("Credit Line Integration Test", function () {
             day: 2,
         });
         payPeriodDuration = PayPeriodDuration.Monthly;
-        coverCap = toToken(3_000_000);
+        coverCapPerLoss = toToken(3_000_000);
         feeCalculator = new FeeCalculator(humaConfigContract, poolConfigContract);
 
-        await borrowerFirstLossCoverContract
-            .connect(poolOwner)
-            .setCoverProvider(borrower.address, {
-                poolCapCoverageInBps: 1,
-                poolValueCoverageInBps: 100,
-            });
+        await borrowerFirstLossCoverContract.connect(poolOwner).addCoverProvider(borrower.address);
         await mockTokenContract
             .connect(borrower)
             .approve(borrowerFirstLossCoverContract.address, ethers.constants.MaxUint256);
-        await borrowerFirstLossCoverContract
-            .connect(borrower)
-            .depositCover(
-                (
-                    await getMinFirstLossCoverRequirement(
-                        borrowerFirstLossCoverContract,
-                        poolConfigContract,
-                        poolContract,
-                        await borrower.getAddress(),
-                    )
-                ).mul(2),
-            );
+        await affiliateFirstLossCoverContract
+            .connect(poolOwner)
+            .addCoverProvider(poolOwnerTreasury.address);
+        await mockTokenContract
+            .connect(poolOwnerTreasury)
+            .approve(poolOwnerTreasury.address, ethers.constants.MaxUint256);
+        await affiliateFirstLossCoverContract
+            .connect(poolOwner)
+            .addCoverProvider(evaluationAgent.address);
+        await mockTokenContract
+            .connect(evaluationAgent)
+            .approve(evaluationAgent.address, ethers.constants.MaxUint256);
+
+        const firstLossCoverMaxLiquidity = toToken(1_000_000);
         await overrideFirstLossCoverConfig(
             borrowerFirstLossCoverContract,
             CONSTANTS.BORROWER_FIRST_LOSS_COVER_INDEX,
             poolConfigContract,
             poolOwner,
             {
-                coverRateInBps: coverRateInBps,
-                coverCap: coverCap,
+                coverRatePerLossInBps,
+                coverCapPerLoss,
+                maxLiquidity: firstLossCoverMaxLiquidity,
             },
         );
+        await borrowerFirstLossCoverContract
+            .connect(borrower)
+            .depositCover(firstLossCoverMaxLiquidity);
+
+        await overrideFirstLossCoverConfig(
+            affiliateFirstLossCoverContract,
+            CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+            poolConfigContract,
+            poolOwner,
+            {
+                coverRatePerLossInBps,
+                coverCapPerLoss,
+                maxLiquidity: firstLossCoverMaxLiquidity,
+            },
+        );
+        await affiliateFirstLossCoverContract
+            .connect(poolOwnerTreasury)
+            .depositCover(firstLossCoverMaxLiquidity.div(2));
+        // await affiliateFirstLossCoverContract
+        //     .connect(evaluationAgent)
+        //     .depositCover(firstLossCoverMaxLiquidity.div(2));
 
         await juniorTrancheVaultContract
             .connect(juniorLender)
@@ -1541,6 +1559,71 @@ describe("Credit Line Integration Test", function () {
     });
 
     it("7/20: Pay off. Bill back to good standing", async function () {
+        // Turn off the pool first so that we can adjust the pool cap, then turn the pool back on
+        // to allow payment.
+        const dateOfPoolCapAdjustment = moment.utc({
+            year: nextYear + 1,
+            month: 6,
+            day: 20,
+            hour: 10,
+        });
+        await setNextBlockTimestamp(dateOfPoolCapAdjustment.unix());
+        await poolContract.connect(poolOwner).disablePool();
+
+        // Lower the pool and first loss cover liquidity cap.
+        const existingLpConfig = await poolConfigContract.getLPConfig();
+        await poolConfigContract.connect(poolOwner).setLPConfig({
+            ...existingLpConfig,
+            ...{
+                liquidityCap: 0,
+            },
+        });
+        const firstLossCoverConfigs = [];
+        const firstLossCovers = [borrowerFirstLossCoverContract, affiliateFirstLossCoverContract];
+        for (let i = 0; i < firstLossCovers.length; ++i) {
+            const config = await poolConfigContract.getFirstLossCoverConfig(
+                firstLossCovers[i].address,
+            );
+            firstLossCoverConfigs.push(config);
+            await poolConfigContract
+                .connect(poolOwner)
+                .setFirstLossCover(i, firstLossCovers[i].address, {
+                    ...config,
+                    ...{
+                        maxLiquidity: 0,
+                    },
+                });
+        }
+
+        await poolContract.connect(poolOwner).enablePool();
+
+        // Any further deposit attempts by lenders should fail.
+        await expect(
+            juniorTrancheVaultContract
+                .connect(juniorLender)
+                .deposit(toToken(1), juniorLender.getAddress()),
+        ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "trancheLiquidityCapExceeded");
+        // So do first loss covers.
+        await expect(
+            borrowerFirstLossCoverContract.connect(borrower).depositCover(toToken(1)),
+        ).to.be.revertedWithCustomError(
+            borrowerFirstLossCoverContract,
+            "firstLossCoverLiquidityCapExceeded",
+        );
+        await expect(
+            affiliateFirstLossCoverContract.connect(poolOwnerTreasury).depositCover(toToken(1)),
+        ).to.be.revertedWithCustomError(
+            borrowerFirstLossCoverContract,
+            "firstLossCoverLiquidityCapExceeded",
+        );
+        await expect(
+            affiliateFirstLossCoverContract.connect(evaluationAgent).depositCover(toToken(1)),
+        ).to.be.revertedWithCustomError(
+            borrowerFirstLossCoverContract,
+            "firstLossCoverLiquidityCapExceeded",
+        );
+
+        // Allow payment to go through.
         const dateOfPayment = moment.utc({
             year: nextYear + 1,
             month: 6,
@@ -1623,6 +1706,23 @@ describe("Credit Line Integration Test", function () {
             [BN.from(0), BN.from(0)],
             lossesRecoveredByFirstLossCovers,
         );
+
+        const dateOfPoolCapRestoration = moment.utc({
+            year: nextYear + 1,
+            month: 6,
+            day: 20,
+            hour: 12,
+        });
+        await setNextBlockTimestamp(dateOfPoolCapRestoration.unix());
+        // Restore the original liquidity caps.
+        await poolContract.connect(poolOwner).disablePool();
+        await poolConfigContract.connect(poolOwner).setLPConfig(existingLpConfig);
+        for (let i = 0; i < firstLossCovers.length; ++i) {
+            await poolConfigContract
+                .connect(poolOwner)
+                .setFirstLossCover(i, firstLossCovers[i].address, firstLossCoverConfigs[i]);
+        }
+        await poolContract.connect(poolOwner).enablePool();
     });
 
     it("8/1: 8th bill generated because of outstanding commitment", async function () {
@@ -2442,13 +2542,8 @@ describe("Credit Line Integration Test", function () {
             daysUntilNextDue,
         );
         expect(accruedYieldDue).to.be.gt(committedYieldDue);
-        const principalDue = calcPrincipalDueForFullPeriods(
-            oldCR.unbilledPrincipal,
-            principalRateInBps,
-            1,
-        );
-        expect(principalDue).to.be.gt(0);
-        const nextDue = accruedYieldDue.add(principalDue);
+        // This is the last period, so all principal is due.
+        const nextDue = accruedYieldDue.add(oldCR.unbilledPrincipal);
 
         await expect(creditManagerContract.refreshCredit(borrower.address))
             .to.emit(creditContract, "BillRefreshed")
@@ -2456,7 +2551,7 @@ describe("Credit Line Integration Test", function () {
 
         const actualCR = await creditContract.getCreditRecord(creditHash);
         const expectedCR = {
-            unbilledPrincipal: oldCR.unbilledPrincipal.sub(principalDue),
+            unbilledPrincipal: 0,
             nextDueDate: nextDueDate.unix(),
             nextDue: nextDue,
             yieldDue: accruedYieldDue,

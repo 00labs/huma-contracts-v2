@@ -126,7 +126,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
     /**
      * @notice checks if the credit line is ready to be triggered as defaulted
      */
-    function isDefaultReady(bytes32 creditHash) public view virtual returns (bool isDefault) {
+    function isDefaultReady(bytes32 creditHash) public view virtual returns (bool isReady) {
         CreditConfig memory cc = getCreditConfig(creditHash);
         CreditRecord memory cr = credit.getCreditRecord(creditHash);
         DueDetail memory dd = credit.getDueDetail(creditHash);

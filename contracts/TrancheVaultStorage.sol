@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {RedemptionSummary} from "./interfaces/IRedemptionHandler.sol";
+import {EpochRedemptionSummary} from "./interfaces/IRedemptionHandler.sol";
 import {IEpochManager} from "./interfaces/IEpochManager.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
+import {ICalendar} from "./credit/interfaces/ICalendar.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract TrancheVaultStorage {
-    struct RedemptionInfo {
-        // The index of the epoch ID in the epochIds array when the redemption info was last updated.
-        uint64 lastUpdatedEpochIndex;
+    struct LenderRedemptionRecord {
+        // The next epoch ID fro redemption processing
+        uint64 nextEpochIdToProcess;
         // The number of shares requested for redemption in this epoch
         uint96 numSharesRequested;
         // The principal amount included in the redemption request
@@ -21,11 +22,13 @@ contract TrancheVaultStorage {
         uint96 totalAmountWithdrawn;
     }
 
-    struct UserInfo {
+    struct DepositRecord {
         // The total amount of underlying tokens deposited by the lender
         uint96 principal;
         // Whether the lender reinvests the yield
         bool reinvestYield;
+        // The last deposit time in this pool
+        uint64 lastDepositTime;
     }
 
     IERC20 public underlyingToken;
@@ -36,20 +39,16 @@ contract TrancheVaultStorage {
     IPool public pool;
     IPoolSafe public poolSafe;
     IEpochManager public epochManager;
+    ICalendar public calendar;
 
-    // The IDs of all epochs where there is at least one redemption request.
-    // Note that the index may not be contiguous: if there is no redemption request,
-    // the ID won't be recorded in this array.
-    uint256[] public epochIds;
-    mapping(uint256 => RedemptionSummary) public redemptionSummaryByEpochId;
+    mapping(uint256 => EpochRedemptionSummary) public epochRedemptionSummaries;
 
-    mapping(address => RedemptionInfo) public redemptionInfoByLender;
+    mapping(address => LenderRedemptionRecord) public lenderRedemptionRecords;
 
     // This mapping contains the amount of underlying tokens deposited by lenders
-    mapping(address => UserInfo) public userInfos;
+    mapping(address => DepositRecord) public depositRecords;
 
-    // Tracks the last deposit time for each lender in this pool
-    mapping(address => uint256) public lastDepositTime;
+    address[] public nonReinvestingLenders;
 
     /**
      * @dev This empty reserved space is put in place to allow future versions to add new

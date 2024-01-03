@@ -13,6 +13,8 @@ import {Errors} from "./Errors.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
+import "hardhat/console.sol";
+
 contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
     using SafeERC20 for IERC20;
 
@@ -34,10 +36,13 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
     uint256 public eaIncomeWithdrawn;
 
     event IncomeDistributed(
-        uint256 protocolFee,
-        uint256 ownerIncome,
+        uint256 protocolIncome,
+        uint256 poolOwnerIncome,
         uint256 eaIncome,
-        uint256 poolIncome
+        uint256 remaining,
+        uint256 accruedProtocolIncome,
+        uint256 accruedPoolOwnerIncome,
+        uint256 accruedEAIncome
     );
 
     event PoolRewardsWithdrawn(address receiver, uint256 amount, address by);
@@ -47,24 +52,24 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address oldUnderlyingToken = address(underlyingToken);
         address newUnderlyingToken = _poolConfig.underlyingToken();
-        if (newUnderlyingToken == address(0)) revert Errors.zeroAddressProvided();
+        assert(newUnderlyingToken != address(0));
         underlyingToken = IERC20(newUnderlyingToken);
 
         address addr = _poolConfig.poolSafe();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         poolSafe = IPoolSafe(addr);
 
         addr = _poolConfig.pool();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         pool = IPool(addr);
 
         addr = address(_poolConfig.humaConfig());
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         humaConfig = HumaConfig(addr);
 
         address oldFirstLossCover = address(firstLossCover);
         addr = _poolConfig.getFirstLossCover(AFFILIATE_FIRST_LOSS_COVER_INDEX);
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         firstLossCover = IFirstLossCover(addr);
         _resetFirstLossCoverAllowance(
             oldFirstLossCover,
@@ -89,7 +94,10 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
             incomes.protocolIncome,
             incomes.poolOwnerIncome,
             incomes.eaIncome,
-            remaining
+            remaining,
+            accruedIncomes.protocolIncome,
+            accruedIncomes.poolOwnerIncome,
+            accruedIncomes.eaIncome
         );
 
         return remaining;
@@ -120,7 +128,7 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         // Invests available fees in FirstLossCover first
         AccruedIncomes memory incomes = _investFeesInFirstLossCover();
         // Checks if the required cover is sufficient
-        if (!firstLossCover.isSufficient(poolOwnerTreasury)) revert Errors.lessThanRequiredCover();
+        if (!firstLossCover.isSufficient()) revert Errors.lessThanRequiredCover();
 
         uint256 incomeWithdrawn = poolOwnerIncomeWithdrawn;
         if (incomeWithdrawn + amount > incomes.poolOwnerIncome)
@@ -138,7 +146,7 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         // Invests available fees in FirstLossCover first
         AccruedIncomes memory incomes = _investFeesInFirstLossCover();
         // Checks if the required cover is sufficient
-        if (!firstLossCover.isSufficient(ea)) revert Errors.lessThanRequiredCover();
+        if (!firstLossCover.isSufficient()) revert Errors.lessThanRequiredCover();
 
         uint256 incomeWithdrawn = eaIncomeWithdrawn;
         if (incomeWithdrawn + amount > incomes.eaIncome)
@@ -178,24 +186,20 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         AccruedIncomes memory incomes = _accruedIncomes;
 
         uint256 protocolWithdrawn = protocolIncomeWithdrawn;
-        protocolWithdrawable = incomes.protocolIncome < protocolWithdrawn
-            ? 0
-            : incomes.protocolIncome - protocolWithdrawn;
+        protocolWithdrawable = incomes.protocolIncome - protocolWithdrawn;
 
         uint256 poolOwnerWithdrawn = poolOwnerIncomeWithdrawn;
-        poolOwnerWithdrawable = incomes.poolOwnerIncome < poolOwnerWithdrawn
-            ? 0
-            : incomes.poolOwnerIncome - poolOwnerWithdrawn;
+        poolOwnerWithdrawable = incomes.poolOwnerIncome - poolOwnerWithdrawn;
 
         uint256 eaWithdrawn = eaIncomeWithdrawn;
-        eaWithdrawable = incomes.eaIncome < eaWithdrawn ? 0 : incomes.eaIncome - eaWithdrawn;
+        eaWithdrawable = incomes.eaIncome - eaWithdrawn;
     }
 
     /**
      * @notice PoolOwner can call this function to know if there are some available fees to be able to invested in FirstLossCover.
      */
     function getAvailableFeesToInvestInFirstLossCover() external view returns (uint256 fees) {
-        (fees, ) = _getAvailableFeesToInvestInFirstLossCover(pool.totalAssets());
+        (fees, ) = _getAvailableFeesToInvestInFirstLossCover();
     }
 
     /**
@@ -243,7 +247,7 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         (
             uint256 feesLiquidity,
             AccruedIncomes memory availableIncomes
-        ) = _getAvailableFeesToInvestInFirstLossCover(pool.totalAssets());
+        ) = _getAvailableFeesToInvestInFirstLossCover();
         if (feesLiquidity == 0) return _accruedIncomes;
 
         // Transfers tokens from PoolSafe to this contract, firstLossCover will transfer token from this contract
@@ -277,17 +281,16 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
      *   3. the available value of _accruedIncomes
      * @return availableIncomes The available incomes of the Huma protocol, pool owner and EA.
      */
-    function _getAvailableFeesToInvestInFirstLossCover(
-        uint256 poolAssets
-    ) internal view returns (uint256 availableFees, AccruedIncomes memory availableIncomes) {
+    function _getAvailableFeesToInvestInFirstLossCover()
+        internal
+        view
+        returns (uint256 availableFees, AccruedIncomes memory availableIncomes)
+    {
         availableIncomes = _getAvailableIncomes();
         uint256 availableTotalFees = availableIncomes.protocolIncome +
             availableIncomes.poolOwnerIncome +
             availableIncomes.eaIncome;
-        uint256 availableCap = pool.getFirstLossCoverAvailableCap(
-            address(firstLossCover),
-            poolAssets
-        );
+        uint256 availableCap = firstLossCover.getAvailableCap();
         availableFees = availableTotalFees > availableCap ? availableCap : availableTotalFees;
         uint256 availableBalance = poolSafe.getAvailableBalanceForFees();
         availableFees = availableFees > availableBalance ? availableBalance : availableFees;

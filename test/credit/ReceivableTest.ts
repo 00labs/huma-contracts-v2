@@ -17,8 +17,12 @@ import {
     Receivable,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
-} from "../typechain-types";
-import { ReceivableState, deployAndSetupPoolContracts, deployProtocolContracts } from "./BaseTest";
+} from "../../typechain-types";
+import {
+    ReceivableState,
+    deployAndSetupPoolContracts,
+    deployProtocolContracts,
+} from "../BaseTest";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
@@ -118,8 +122,12 @@ describe("Receivable Test", function () {
             0, // currencyCode
             1000,
             100,
+            "referenceId",
             "Test URI",
         );
+
+        const tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
+        expect(tokenId).to.equal(1); // tokenId should start at 1
     }
 
     beforeEach(async function () {
@@ -133,6 +141,7 @@ describe("Receivable Test", function () {
                     0, // currencyCode
                     100,
                     100,
+                    "referenceId2",
                     "Test URI",
                 ),
             ).to.be.revertedWith(
@@ -146,9 +155,47 @@ describe("Receivable Test", function () {
                     0, // currencyCode
                     1000,
                     100,
+                    "referenceId2",
                     "Test URI",
                 ),
             ).to.emit(receivableContract, "ReceivableCreated");
+        });
+
+        it("Should not allow multiple receivables to be created with the same reference id unless the existing one is burned", async function () {
+            await expect(
+                receivableContract.connect(borrower).createReceivable(
+                    0, // currencyCode
+                    1000,
+                    100,
+                    "referenceId",
+                    "Test URI",
+                ),
+            ).to.be.revertedWithCustomError(
+                receivableContract,
+                "receivableReferenceIdAlreadyExists",
+            );
+
+            const tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
+            await receivableContract.connect(borrower).burn(tokenId);
+            await receivableContract.connect(borrower).createReceivable(
+                0, // currencyCode
+                1000,
+                100,
+                "referenceId",
+                "Test URI",
+            );
+        });
+
+        it("Should correctly map reference id to the token id in referenceIdHashToTokenIdMap", async function () {
+            const tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
+            const receivableIdCreatorHash = await receivableContract.getReferenceIdHash(
+                "referenceId",
+                borrower.address,
+            );
+            const lookupTokenId =
+                await receivableContract.referenceIdHashToTokenId(receivableIdCreatorHash);
+
+            expect(lookupTokenId).to.equal(tokenId);
         });
 
         it("Stores the correct details on chain when creating a receivable", async function () {
@@ -156,12 +203,14 @@ describe("Receivable Test", function () {
                 0, // currencyCode
                 1000,
                 100,
+                "referenceId2",
                 "Test URI",
             );
             await receivableContract.connect(borrower).createReceivable(
                 5, // currencyCode
                 1000,
                 100,
+                "referenceId3",
                 "Test URI2",
             );
 
@@ -248,6 +297,45 @@ describe("Receivable Test", function () {
         });
     });
 
+    describe("updateReceivableMetadata", function () {
+        it("Should emit a ReceivableMetadataUpdated event when creating a receivable update", async function () {
+            const tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
+            await expect(
+                receivableContract.connect(borrower).updateReceivableMetadata(tokenId, "uri2"),
+            ).to.emit(receivableContract, "ReceivableMetadataUpdated");
+        });
+
+        it("Should not allow for updates to be created for non-existant receivable", async function () {
+            await expect(
+                receivableContract.connect(borrower).updateReceivableMetadata(123, "uri2"),
+            ).to.be.revertedWith("ERC721: invalid token ID");
+        });
+
+        it("Should allow the creator to create a receivable update even after the original receivable has been transferred", async function () {
+            const tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
+            await receivableContract
+                .connect(borrower)
+                ["safeTransferFrom(address,address,uint256)"](
+                    borrower.address,
+                    lender.address,
+                    tokenId,
+                );
+
+            await receivableContract.connect(borrower).updateReceivableMetadata(tokenId, "uri2");
+
+            const tokenURI = await receivableContract.tokenURI(tokenId);
+            expect(tokenURI).to.equal("uri2");
+        });
+
+        it("Should not allow a non-owner and non-creator to create a receivable update", async function () {
+            const tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
+
+            await expect(
+                receivableContract.connect(poolOwner).updateReceivableMetadata(tokenId, "uri2"),
+            ).to.be.revertedWithCustomError(receivableContract, "notReceivableOwnerOrCreator");
+        });
+    });
+
     describe("getStatus", function () {
         it("Should return the correct status if a receivable is unpaid", async function () {
             const tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
@@ -269,6 +357,18 @@ describe("Receivable Test", function () {
 
             const status = await receivableContract.getStatus(tokenId);
             expect(status).to.equal(ReceivableState.Paid);
+        });
+    });
+
+    describe("supportsInterface", function () {
+        it("Should support interfaces that the contract implements", async function () {
+            for (const interfaceId of ["0x6921aa19", "0x80ac58cd", "0x7965db0b"]) {
+                expect(await receivableContract.supportsInterface(interfaceId)).to.be.true;
+            }
+        });
+
+        it("Should not support interfaces that the contract doesn't implement", async function () {
+            expect(await receivableContract.supportsInterface("0x17ab19ef")).to.be.false;
         });
     });
 });

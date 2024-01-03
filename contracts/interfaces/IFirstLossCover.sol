@@ -49,7 +49,18 @@ interface IFirstLossCover {
 
     function totalAssets() external view returns (uint256);
 
-    function isSufficient(address account) external view returns (bool sufficient);
+    /**
+     * @notice Returns whether the first loss cover has sufficient assets to meet
+     * the minimum liquidity requirement.
+     */
+    function isSufficient() external view returns (bool sufficient);
 
-    function getCapacity(uint256 poolAssets) external view returns (uint256);
+    /**
+     * @notice Returns the available capacity of the given first loss cover.
+     */
+    function getAvailableCap() external view returns (uint256 availableCap);
+
+    function getMaxLiquidity() external view returns (uint256 maxLiquidity);
+
+    function getMinLiquidity() external view returns (uint256 minLiquidity);
 }

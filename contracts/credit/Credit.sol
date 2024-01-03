@@ -133,6 +133,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
     }
 
     /// Shared setter to the credit record mapping for contract size consideration
+    /// @custom:access Only CreditManager can access this function
     function setCreditRecord(bytes32 creditHash, CreditRecord memory cr) external {
         _onlyCreditManager();
         _setCreditRecord(creditHash, cr);
@@ -148,6 +149,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         return _dueDetailMap[creditHash];
     }
 
+    /// @custom:access Only CreditManager can access this function
     function updateDueInfo(
         bytes32 creditHash,
         CreditRecord memory cr,
@@ -173,14 +175,14 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         CreditConfig memory cc = creditManager.getCreditConfig(creditHash);
         cr = getCreditRecord(creditHash);
         dd = getDueDetail(creditHash);
-        return feeManager.getDueInfo(cr, cc, dd, block.timestamp);
+        return dueManager.getDueInfo(cr, cc, dd, block.timestamp);
     }
 
     function _getNextBillRefreshDate(
         bytes32 creditHash
     ) internal view returns (uint256 refreshDate) {
         CreditRecord memory cr = getCreditRecord(creditHash);
-        return feeManager.getNextBillRefreshDate(cr);
+        return dueManager.getNextBillRefreshDate(cr);
     }
 
     /**
@@ -208,18 +210,19 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         bytes32 creditHash,
         uint256 borrowAmount
     ) internal virtual {
+        if (borrowAmount == 0) revert Errors.zeroAmountProvided();
+
         // todo need to add return values
         CreditRecord memory cr = getCreditRecord(creditHash);
         CreditConfig memory cc = _getCreditConfig(creditHash);
         DueDetail memory dd = getDueDetail(creditHash);
         _checkDrawdownEligibility(borrower, cr, borrowAmount, cc.creditLimit);
 
-        console.log("block.timestamp %d", block.timestamp);
         if (cr.state == CreditState.Approved) {
             // Flow for first drawdown.
             // Sets the principal, generates the first bill and sets credit status.
             cr.unbilledPrincipal = uint96(borrowAmount);
-            (cr, dd) = feeManager.getDueInfo(cr, cc, dd, block.timestamp);
+            (cr, dd) = dueManager.getDueInfo(cr, cc, dd, block.timestamp);
             cr.state = CreditState.GoodStanding;
         } else {
             // Disallow repeated drawdown for non-revolving credit
@@ -227,7 +230,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
 
             if (block.timestamp > cr.nextDueDate) {
                 // Bring the credit current and check if it is still in good standing.
-                (cr, dd) = feeManager.getDueInfo(cr, cc, dd, block.timestamp);
+                (cr, dd) = dueManager.getDueInfo(cr, cc, dd, block.timestamp);
                 if (cr.state != CreditState.GoodStanding)
                     revert Errors.creditLineNotInGoodStandingState();
             }
@@ -240,7 +243,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             uint256 daysRemaining = calendar.getDaysRemainingInPeriod(cr.nextDueDate);
             // It's important to note that the yield calculation includes the day of the drawdown. For instance,
             // if the borrower draws down at 11:59 PM on October 30th, the yield for October 30th must be paid.
-            uint256 additionalYieldAccrued = feeManager.computeYieldDue(
+            uint256 additionalYieldAccrued = dueManager.computeYieldDue(
                 borrowAmount,
                 cc.yieldInBps,
                 daysRemaining
@@ -261,7 +264,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             FeeStructure memory fees = poolConfig.getFeeStructure();
             if (fees.minPrincipalRateInBps > 0) {
                 // Record the additional principal due generated from the drawdown.
-                uint256 additionalPrincipalDue = feeManager.computePrincipalDueForPartialPeriod(
+                uint256 additionalPrincipalDue = dueManager.computePrincipalDueForPartialPeriod(
                     borrowAmount,
                     fees.minPrincipalRateInBps,
                     daysRemaining,
@@ -273,7 +276,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         }
         _updateDueInfo(creditHash, cr, dd);
 
-        (uint256 netAmountToBorrower, uint256 platformProfit) = feeManager.distBorrowingAmount(
+        (uint256 netAmountToBorrower, uint256 platformProfit) = dueManager.distBorrowingAmount(
             borrowAmount
         );
         IPool(poolConfig.pool()).distributeProfit(platformProfit);
@@ -308,10 +311,10 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         }
         CreditConfig memory cc = _getCreditConfig(creditHash);
         DueDetail memory dd = getDueDetail(creditHash);
-        (cr, dd) = feeManager.getDueInfo(cr, cc, dd, block.timestamp);
+        (cr, dd) = dueManager.getDueInfo(cr, cc, dd, block.timestamp);
         CreditState oldCRState = cr.state;
 
-        uint256 payoffAmount = feeManager.getPayoffAmount(cr);
+        uint256 payoffAmount = dueManager.getPayoffAmount(cr);
         uint256 amountToCollect = amount < payoffAmount ? amount : payoffAmount;
         PaymentRecord memory paymentRecord;
 
@@ -395,7 +398,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
                     // If all next due is paid off and the bill has already entered the new billing cycle,
                     // then refresh the bill.
                     if (block.timestamp > cr.nextDueDate) {
-                        (cr, dd) = feeManager.getDueInfo(cr, cc, dd, block.timestamp);
+                        (cr, dd) = dueManager.getDueInfo(cr, cc, dd, block.timestamp);
                     }
                 }
             }
@@ -484,7 +487,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         }
         if (block.timestamp > cr.nextDueDate) {
             CreditConfig memory cc = _getCreditConfig(creditHash);
-            (cr, dd) = feeManager.getDueInfo(cr, cc, dd, block.timestamp);
+            (cr, dd) = dueManager.getDueInfo(cr, cc, dd, block.timestamp);
             if (cr.state != CreditState.GoodStanding) {
                 revert Errors.creditLineNotInStateForMakingPrincipalPayment();
             }
@@ -553,8 +556,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         uint256 borrowAmount,
         uint256 creditLimit
     ) internal view {
-        if (!firstLossCover.isSufficient(borrower))
-            revert Errors.insufficientBorrowerFirstLossCover();
+        if (!firstLossCover.isSufficient()) revert Errors.insufficientBorrowerFirstLossCover();
 
         if (borrowAmount > poolSafe.getAvailableBalanceForPool()) revert Errors.todo();
 
@@ -602,7 +604,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
 
         addr = _poolConfig.creditDueManager();
         assert(addr != address(0));
-        feeManager = ICreditDueManager(addr);
+        dueManager = ICreditDueManager(addr);
 
         addr = _poolConfig.calendar();
         assert(addr != address(0));

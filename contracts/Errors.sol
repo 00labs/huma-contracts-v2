@@ -56,11 +56,13 @@ contract Errors {
     error poolIsNotReadyForFirstLossCoverWithdrawal(); // 0x20b8b473
 
     // tranche operation
-    error poolLiquidityCapExceeded(); // 0xdea32e48
+    error trancheLiquidityCapExceeded(); // 0xdea32e48
     error withdrawTooSoon(); // 0x67982472
-    error maxSeniorJuniorRatioExceeded(); // 0x52fc3aa4
     error invalidTrancheIndex(); // 0xa82f3ece
     error closeTooSoon(); // 0xa38d0553
+    error alreadyLender();
+    error notLender();
+    error nonReinvestYieldLenderCapacityReached();
 
     // credit operation
     error creditHasNoCommitment(); // 0xca0cc99a
@@ -97,6 +99,8 @@ contract Errors {
 
     // first loss cover operation
     error notAllProvidersPaidOut(); // 0xf878b213
+    error firstLossCoverLiquidityCapExceeded();
+    error tooManyCoverProviders();
 
     // receivable operation
     error receivableAssetMismatch(); // 0x41dbeec1
@@ -105,7 +109,9 @@ contract Errors {
     error receivableAssetParamMismatch(); // 0x1400a0b4
     error insufficientReceivableAmount(); // 0xf7f34854
     error zeroReceivableIdProvided(); // 0x7a7c1f4f
-    error notReceivableOwnerOrCreator();
+    error notReceivableOwner(); // 0x828f434d
+    error notReceivableOwnerOrCreator(); // 0xc7fb4427
+    error receivableReferenceIdAlreadyExists(); // 0x09ab3996
 
     // superfluid
     error durationTooLong(); // 0xf1dd53a8

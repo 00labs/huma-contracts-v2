@@ -144,14 +144,23 @@ describe("FixedSeniorYieldTranchePolicy Test", function () {
         ).to.be.revertedWithCustomError(tranchesPolicyContract, "todo");
     });
 
+    describe("getFirstLossCovers", function () {
+        it("Should return the first loss covers", async function () {
+            expect(await tranchesPolicyContract.getFirstLossCovers()).to.eql([
+                borrowerFirstLossCoverContract.address,
+                affiliateFirstLossCoverContract.address,
+            ]);
+        });
+    });
+
     describe("Distribution", function () {
         it("Profit is not enough for senior tranche", async function () {
             const deployedAssets = toToken(300_000);
             await creditContract.drawdown(ethers.constants.HashZero, deployedAssets);
             const assets = await poolContract.currentTranchesAssets();
-            let profit = BN.from(10);
+            let profit = BN.from(100);
             const lastBlock = await getLatestBlock();
-            let nextDate = lastBlock.timestamp + 10;
+            let nextDate = lastBlock.timestamp + 60;
             await mineNextBlockWithTimestamp(nextDate);
 
             let tracker = await tranchesPolicyContract.seniorYieldTracker();
@@ -163,22 +172,15 @@ describe("FixedSeniorYieldTranchePolicy Test", function () {
                 tracker,
             );
 
-            const afterAssets = await tranchesPolicyContract.callStatic.distProfitToTranches(
+            const result = await tranchesPolicyContract.callStatic.distProfitToTranches(
                 profit,
                 assets,
             );
-            expect(afterAssets[CONSTANTS.SENIOR_TRANCHE]).to.equal(
-                newAssets[CONSTANTS.SENIOR_TRANCHE],
+            console.log(`result: ${result}`);
+            expect(result.profitsForTrancheVault[CONSTANTS.SENIOR_TRANCHE]).to.equal(
+                newAssets[CONSTANTS.SENIOR_TRANCHE].sub(assets[CONSTANTS.SENIOR_TRANCHE]),
             );
-            expect(afterAssets[CONSTANTS.JUNIOR_TRANCHE]).to.equal(
-                newAssets[CONSTANTS.JUNIOR_TRANCHE],
-            );
-            expect(afterAssets[CONSTANTS.SENIOR_TRANCHE]).to.equal(
-                assets[CONSTANTS.SENIOR_TRANCHE].add(profit),
-            );
-            expect(afterAssets[CONSTANTS.JUNIOR_TRANCHE]).to.equal(
-                assets[CONSTANTS.JUNIOR_TRANCHE],
-            );
+            expect(result.profitsForTrancheVault[CONSTANTS.JUNIOR_TRANCHE]).to.equal(0);
 
             nextDate = lastBlock.timestamp + 100;
             await setNextBlockTimestamp(nextDate);
@@ -223,22 +225,23 @@ describe("FixedSeniorYieldTranchePolicy Test", function () {
                 tracker,
             );
 
-            const afterAssets = await tranchesPolicyContract.callStatic.distProfitToTranches(
+            const result = await tranchesPolicyContract.callStatic.distProfitToTranches(
                 profit,
                 assets,
             );
-            expect(afterAssets[CONSTANTS.SENIOR_TRANCHE]).to.equal(
-                newAssets[CONSTANTS.SENIOR_TRANCHE],
+            console.log(`result: ${result}`);
+            expect(result.profitsForTrancheVault[CONSTANTS.SENIOR_TRANCHE]).to.equal(
+                newAssets[CONSTANTS.SENIOR_TRANCHE].sub(assets[CONSTANTS.SENIOR_TRANCHE]),
             );
-            expect(afterAssets[CONSTANTS.JUNIOR_TRANCHE]).to.equal(
-                newAssets[CONSTANTS.JUNIOR_TRANCHE],
+            let allProfit = result.profitsForTrancheVault[CONSTANTS.SENIOR_TRANCHE].add(
+                result.profitsForTrancheVault[CONSTANTS.JUNIOR_TRANCHE],
             );
-            expect(afterAssets[CONSTANTS.SENIOR_TRANCHE]).to.greaterThan(
-                assets[CONSTANTS.SENIOR_TRANCHE],
-            );
-            expect(afterAssets[CONSTANTS.JUNIOR_TRANCHE]).to.greaterThan(
-                assets[CONSTANTS.JUNIOR_TRANCHE],
-            );
+            result.profitsForFirstLossCover.forEach((profit) => {
+                allProfit = allProfit.add(profit);
+            });
+            expect(allProfit).to.equal(profit);
+            expect(result.profitsForTrancheVault[CONSTANTS.SENIOR_TRANCHE]).to.greaterThan(0);
+            expect(result.profitsForTrancheVault[CONSTANTS.JUNIOR_TRANCHE]).to.greaterThan(0);
 
             nextDate = lastBlock.timestamp + 100;
             await setNextBlockTimestamp(nextDate);

@@ -37,7 +37,7 @@ import {
     CreditConfigStruct,
     CreditConfigStructOutput,
 } from "../typechain-types/contracts/credit/CreditManager";
-import { RedemptionSummaryStruct } from "../typechain-types/contracts/interfaces/IRedemptionHandler";
+import { EpochRedemptionSummaryStruct } from "../typechain-types/contracts/interfaces/IRedemptionHandler";
 import { getLatestBlock, maxBigNumber, minBigNumber, sumBNArray, toToken } from "./TestUtils";
 
 export type CreditContractType =
@@ -296,21 +296,22 @@ export async function deployPoolContracts(
         BORROWER_FIRST_LOSS_COVER_INDEX,
         borrowerFirstLossCoverContract.address,
         {
-            coverRateInBps: 0,
-            coverCap: 0,
-            liquidityCap: 0,
-            maxPercentOfPoolValueInBps: 0,
+            coverRatePerLossInBps: 0,
+            coverCapPerLoss: 0,
+            maxLiquidity: toToken(100_000_000),
+            minLiquidity: 0,
             riskYieldMultiplierInBps: 0,
         },
     );
+    await poolConfigContract.setReceivableAsset(receivableContract.address);
     await poolConfigContract.setFirstLossCover(
         AFFILIATE_FIRST_LOSS_COVER_INDEX,
         affiliateFirstLossCoverContract.address,
         {
-            coverRateInBps: 0,
-            coverCap: 0,
-            liquidityCap: 0,
-            maxPercentOfPoolValueInBps: 0,
+            coverRatePerLossInBps: 0,
+            coverCapPerLoss: 0,
+            maxLiquidity: toToken(100_000_000),
+            minLiquidity: 0,
             riskYieldMultiplierInBps: 20000,
         },
     );
@@ -390,13 +391,14 @@ export async function setupPoolContracts(
     poolOwnerTreasury: SignerWithAddress,
     poolOperator: SignerWithAddress,
     accounts: SignerWithAddress[],
+    shouldSetEA: boolean = true,
 ): Promise<void> {
     const poolLiquidityCap = toToken(1_000_000_000);
-    let settings = await poolConfigContract.getPoolSettings();
+    const settings = await poolConfigContract.getPoolSettings();
     await poolConfigContract
         .connect(poolOwner)
         .setPoolSettings({ ...settings, ...{ maxCreditLine: toToken(10_000_000) } });
-    let lpConfig = await poolConfigContract.getLPConfig();
+    const lpConfig = await poolConfigContract.getLPConfig();
     await poolConfigContract
         .connect(poolOwner)
         .setLPConfig({ ...lpConfig, ...{ liquidityCap: poolLiquidityCap } });
@@ -404,18 +406,6 @@ export async function setupPoolContracts(
     await poolConfigContract
         .connect(poolOwner)
         .setPoolOwnerTreasury(poolOwnerTreasury.getAddress());
-
-    let eaNFTTokenId;
-    const tx = await eaNFTContract.mintNFT(evaluationAgent.address);
-    const receipt = await tx.wait();
-    for (const evt of receipt.events!) {
-        if (evt.event === "NFTGenerated") {
-            eaNFTTokenId = evt.args!.tokenId;
-        }
-    }
-    await poolConfigContract
-        .connect(poolOwner)
-        .setEvaluationAgent(eaNFTTokenId, evaluationAgent.getAddress());
 
     // Deposit enough liquidity for the pool owner and EA in the junior tranche.
     const adminRnR = await poolConfigContract.getAdminRnR();
@@ -429,17 +419,32 @@ export async function setupPoolContracts(
     await juniorTrancheVaultContract
         .connect(poolOwnerTreasury)
         .makeInitialDeposit(poolOwnerLiquidity);
+    let expectedInitialLiquidity = poolOwnerLiquidity;
 
     await mockTokenContract
         .connect(evaluationAgent)
         .approve(poolSafeContract.address, ethers.constants.MaxUint256);
     await mockTokenContract.mint(evaluationAgent.getAddress(), toToken(1_000_000_000));
-    const evaluationAgentLiquidity = BN.from(adminRnR.liquidityRateInBpsByEA)
-        .mul(poolLiquidityCap)
-        .div(CONSTANTS.BP_FACTOR);
-    await juniorTrancheVaultContract
-        .connect(evaluationAgent)
-        .makeInitialDeposit(evaluationAgentLiquidity);
+    if (shouldSetEA) {
+        let eaNFTTokenId;
+        const tx = await eaNFTContract.mintNFT(evaluationAgent.address);
+        const receipt = await tx.wait();
+        for (const evt of receipt.events!) {
+            if (evt.event === "NFTGenerated") {
+                eaNFTTokenId = evt.args!.tokenId;
+            }
+        }
+        await poolConfigContract
+            .connect(poolOwner)
+            .setEvaluationAgent(eaNFTTokenId, evaluationAgent.getAddress());
+        const evaluationAgentLiquidity = BN.from(adminRnR.liquidityRateInBpsByEA)
+            .mul(poolLiquidityCap)
+            .div(CONSTANTS.BP_FACTOR);
+        await juniorTrancheVaultContract
+            .connect(evaluationAgent)
+            .makeInitialDeposit(evaluationAgentLiquidity);
+        expectedInitialLiquidity = expectedInitialLiquidity.add(evaluationAgentLiquidity);
+    }
 
     await mockTokenContract
         .connect(poolOwnerTreasury)
@@ -447,19 +452,12 @@ export async function setupPoolContracts(
     await mockTokenContract
         .connect(evaluationAgent)
         .approve(affiliateFirstLossCoverContract.address, ethers.constants.MaxUint256);
-    const firstLossCoverageInBps = 100;
     await affiliateFirstLossCoverContract
         .connect(poolOwner)
-        .setCoverProvider(poolOwnerTreasury.getAddress(), {
-            poolCapCoverageInBps: firstLossCoverageInBps,
-            poolValueCoverageInBps: firstLossCoverageInBps,
-        });
+        .addCoverProvider(poolOwnerTreasury.getAddress());
     await affiliateFirstLossCoverContract
         .connect(poolOwner)
-        .setCoverProvider(evaluationAgent.getAddress(), {
-            poolCapCoverageInBps: firstLossCoverageInBps,
-            poolValueCoverageInBps: firstLossCoverageInBps,
-        });
+        .addCoverProvider(evaluationAgent.getAddress());
 
     const role = await poolConfigContract.POOL_OPERATOR_ROLE();
     await poolConfigContract.connect(poolOwner).grantRole(role, poolOwner.getAddress());
@@ -472,16 +470,11 @@ export async function setupPoolContracts(
         .connect(poolOperator)
         .setReinvestYield(evaluationAgent.address, true);
 
-    await affiliateFirstLossCoverContract
-        .connect(poolOwnerTreasury)
-        .depositCover(poolLiquidityCap.mul(firstLossCoverageInBps).div(CONSTANTS.BP_FACTOR));
-    await affiliateFirstLossCoverContract
-        .connect(evaluationAgent)
-        .depositCover(poolLiquidityCap.mul(firstLossCoverageInBps).div(CONSTANTS.BP_FACTOR));
+    await affiliateFirstLossCoverContract.connect(poolOwnerTreasury).depositCover(toToken(10_000));
+    await affiliateFirstLossCoverContract.connect(evaluationAgent).depositCover(toToken(10_000));
     await poolContract.connect(poolOwner).setReadyForFirstLossCoverWithdrawal(true);
 
     await poolContract.connect(poolOwner).enablePool();
-    const expectedInitialLiquidity = poolOwnerLiquidity.add(evaluationAgentLiquidity);
     expect(await poolContract.totalAssets()).to.equal(expectedInitialLiquidity);
     expect(await juniorTrancheVaultContract.totalAssets()).to.equal(expectedInitialLiquidity);
     expect(await juniorTrancheVaultContract.totalSupply()).to.equal(expectedInitialLiquidity);
@@ -518,8 +511,9 @@ export async function deployAndSetupPoolContracts(
     poolOwnerTreasury: SignerWithAddress,
     poolOperator: SignerWithAddress,
     accounts: SignerWithAddress[],
+    shouldSetEA: boolean = true,
 ): Promise<PoolContracts> {
-    let [
+    const [
         poolConfigContract,
         poolFeeManagerContract,
         poolSafeContract,
@@ -561,6 +555,7 @@ export async function deployAndSetupPoolContracts(
         poolOwnerTreasury,
         poolOperator,
         accounts,
+        shouldSetEA,
     );
 
     return [
@@ -665,8 +660,8 @@ export interface FirstLossCoverInfo {
 
 async function calcLossCover(loss: BN, firstLossCoverInfo: FirstLossCoverInfo): Promise<BN[]> {
     const coveredAmount = minBigNumber(
-        loss.mul(await firstLossCoverInfo.config.coverRateInBps).div(CONSTANTS.BP_FACTOR),
-        BN.from(await firstLossCoverInfo.config.coverCap),
+        loss.mul(await firstLossCoverInfo.config.coverRatePerLossInBps).div(CONSTANTS.BP_FACTOR),
+        BN.from(await firstLossCoverInfo.config.coverCapPerLoss),
         firstLossCoverInfo.asset,
         loss,
     );
@@ -720,12 +715,12 @@ async function calcLossRecovery(
     lossRecovery = lossRecovery.sub(juniorRecovery);
     const lossRecoveredInFirstLossCovers = [];
     let recoveredAmount;
-    for (const coveredLoss of lossesCoveredByFirstLossCovers) {
+    for (const coveredLoss of lossesCoveredByFirstLossCovers.slice().reverse()) {
         [lossRecovery, recoveredAmount] = calcLossRecoveryForFirstLossCover(
             coveredLoss,
             lossRecovery,
         );
-        lossRecoveredInFirstLossCovers.push(recoveredAmount);
+        lossRecoveredInFirstLossCovers.unshift(recoveredAmount);
     }
 
     return [
@@ -1000,7 +995,7 @@ export class ProfitAndLossCalculator {
 }
 
 export function checkRedemptionSummary(
-    redemptionSummary: RedemptionSummaryStruct,
+    redemptionSummary: EpochRedemptionSummaryStruct,
     epochId: BN,
     totalSharesRequested: BN,
     totalSharesProcessed: BN = BN.from(0),
@@ -1102,7 +1097,7 @@ export class EpochChecker {
 
     private async checkCurrentEpochEmpty(trancheContract: TrancheVault) {
         const epochId = await this.epochManagerContract.currentEpochId();
-        const epoch = await trancheContract.redemptionSummaryByEpochId(epochId);
+        const epoch = await trancheContract.epochRedemptionSummaries(epochId);
         checkRedemptionSummary(epoch, BN.from(0), BN.from(0), BN.from(0), BN.from(0));
         return epochId;
     }
@@ -1115,7 +1110,7 @@ export class EpochChecker {
         delta: number = 0,
     ) {
         const epochId = await this.epochManagerContract.currentEpochId();
-        const epoch = await trancheContract.redemptionSummaryByEpochId(epochId);
+        const epoch = await trancheContract.epochRedemptionSummaries(epochId);
         checkRedemptionSummary(
             epoch,
             epochId,
@@ -1135,7 +1130,7 @@ export class EpochChecker {
         amountProcessed: BN = BN.from(0),
         delta: number = 0,
     ) {
-        const epoch = await trancheContract.redemptionSummaryByEpochId(epochId);
+        const epoch = await trancheContract.epochRedemptionSummaries(epochId);
         checkRedemptionSummary(
             epoch,
             epochId,
@@ -1155,6 +1150,7 @@ export function checkCreditConfigsMatch(
     expect(actualCC.committedAmount).to.equal(expectedCC.committedAmount);
     expect(actualCC.periodDuration).to.equal(expectedCC.periodDuration);
     expect(actualCC.numOfPeriods).to.equal(expectedCC.numOfPeriods);
+    expect(actualCC.revolving).to.equal(expectedCC.revolving);
     expect(actualCC.yieldInBps).to.equal(expectedCC.yieldInBps);
     expect(actualCC.advanceRateInBps).to.equal(expectedCC.advanceRateInBps);
     expect(actualCC.autoApproval).to.equal(expectedCC.autoApproval);
@@ -1461,10 +1457,15 @@ export async function calcPrincipalDueNew(
         currentDate.unix(),
     );
     const daysUntilNextDue = await calendarContract.getDaysDiff(periodStartDate, nextDueDate);
-    const principalNextDue = remainingPrincipal
-        .mul(principalRateInBps)
-        .mul(daysUntilNextDue)
-        .div(totalDaysInFullPeriod.mul(CONSTANTS.BP_FACTOR));
+    let principalNextDue;
+    if (nextDueDate.eq(maturityDate.unix())) {
+        principalNextDue = remainingPrincipal;
+    } else {
+        principalNextDue = remainingPrincipal
+            .mul(principalRateInBps)
+            .mul(daysUntilNextDue)
+            .div(totalDaysInFullPeriod.mul(CONSTANTS.BP_FACTOR));
+    }
     return [
         remainingPrincipal.sub(principalNextDue),
         principalPastDue.add(dd.principalPastDue).add(cr.nextDue.sub(cr.yieldDue)),
@@ -1731,20 +1732,20 @@ export function calcPoolFees(
     return [accruedIncomes, remainingProfit.sub(poolOwnerIncome).sub(eaIncome)];
 }
 
-export async function checkRedemptionInfoByLender(
+export async function checkRedemptionRecordByLender(
     trancheVaultContract: TrancheVault,
     lender: SignerWithAddress,
-    lastUpdatedEpochIndex: BN | number,
+    nextEpochIdToProcess: BN | number,
     numSharesRequested: BN = BN.from(0),
     principalRequested: BN = BN.from(0),
     totalAmountProcessed: BN = BN.from(0),
     totalAmountWithdrawn: BN = BN.from(0),
     delta: number = 0,
 ) {
-    const redemptionInfo = await trancheVaultContract.redemptionInfoByLender(lender.address);
-    checkRedemptionInfo(
-        redemptionInfo,
-        lastUpdatedEpochIndex,
+    const redemptionRecord = await trancheVaultContract.lenderRedemptionRecords(lender.address);
+    checkRedemptionRecord(
+        redemptionRecord,
+        nextEpochIdToProcess,
         numSharesRequested,
         principalRequested,
         totalAmountProcessed,
@@ -1753,26 +1754,26 @@ export async function checkRedemptionInfoByLender(
     );
 }
 
-type RedemptionInfoStructOutput = [BN, BN, BN, BN, BN] & {
-    lastUpdatedEpochIndex: BN;
+type RedemptionRecordStructOutput = [BN, BN, BN, BN, BN] & {
+    nextEpochIdToProcess: BN;
     numSharesRequested: BN;
     principalRequested: BN;
     totalAmountProcessed: BN;
     totalAmountWithdrawn: BN;
 };
 
-export function checkRedemptionInfo(
-    redemptionInfo: RedemptionInfoStructOutput,
-    lastUpdatedEpochIndex: BN | number,
+export function checkRedemptionRecord(
+    redemptionRecord: RedemptionRecordStructOutput,
+    nextEpochIdToProcess: BN | number,
     numSharesRequested: BN = BN.from(0),
     principalRequested: BN = BN.from(0),
     totalAmountProcessed: BN = BN.from(0),
     totalAmountWithdrawn: BN = BN.from(0),
     delta: number = 0,
 ) {
-    expect(redemptionInfo.lastUpdatedEpochIndex).to.be.closeTo(lastUpdatedEpochIndex, delta);
-    expect(redemptionInfo.numSharesRequested).to.be.closeTo(numSharesRequested, delta);
-    expect(redemptionInfo.principalRequested).to.be.closeTo(principalRequested, delta);
-    expect(redemptionInfo.totalAmountProcessed).to.be.closeTo(totalAmountProcessed, delta);
-    expect(redemptionInfo.totalAmountWithdrawn).to.be.closeTo(totalAmountWithdrawn, delta);
+    expect(redemptionRecord.nextEpochIdToProcess).to.be.closeTo(nextEpochIdToProcess, delta);
+    expect(redemptionRecord.numSharesRequested).to.be.closeTo(numSharesRequested, delta);
+    expect(redemptionRecord.principalRequested).to.be.closeTo(principalRequested, delta);
+    expect(redemptionRecord.totalAmountProcessed).to.be.closeTo(totalAmountProcessed, delta);
+    expect(redemptionRecord.totalAmountWithdrawn).to.be.closeTo(totalAmountWithdrawn, delta);
 }

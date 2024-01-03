@@ -1,13 +1,16 @@
 import { time } from "@nomicfoundation/hardhat-network-helpers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { BigNumber as BN } from "ethers";
-import { ethers, network } from "hardhat";
-import { CONSTANTS, deployAndSetupPoolContracts, deployProtocolContracts } from "../test/BaseTest";
+import { ethers } from "hardhat";
 import {
-    getMinFirstLossCoverRequirement,
-    overrideFirstLossCoverConfig,
-    toToken,
-} from "../test/TestUtils";
+    CONSTANTS,
+    CreditContractName,
+    CreditManagerContractName,
+    deployAndSetupPoolContracts,
+    deployProtocolContracts,
+    PayPeriodDuration,
+} from "../test/BaseTest";
+import { overrideFirstLossCoverConfig, toToken } from "../test/TestUtils";
 import {
     BorrowerLevelCreditManager,
     Calendar,
@@ -64,37 +67,24 @@ let poolConfigContract: PoolConfig,
     creditDueManagerContract: CreditDueManager,
     creditManagerContract: BorrowerLevelCreditManager;
 
-async function depositFirstLossCover(
-    poolContract: Pool,
-    coverContract: FirstLossCover,
-    account: SignerWithAddress,
-) {
-    const fetchPoolConfigContractAddr = await poolContract.poolConfig();
-    const PoolConfig = await ethers.getContractFactory("PoolConfig");
-    const fetchPoolConfigContract = PoolConfig.attach(fetchPoolConfigContractAddr);
-
-    await coverContract.connect(poolOwner).setCoverProvider(account.address, {
-        poolCapCoverageInBps: 1,
-        poolValueCoverageInBps: 100,
-    });
+async function depositFirstLossCover(coverContract: FirstLossCover, account: SignerWithAddress) {
+    await coverContract.connect(poolOwner).addCoverProvider(account.address);
     await mockTokenContract
         .connect(account)
         .approve(coverContract.address, ethers.constants.MaxUint256);
-    await coverContract
-        .connect(account)
-        .depositCover(
-            (
-                await getMinFirstLossCoverRequirement(
-                    coverContract,
-                    fetchPoolConfigContract,
-                    poolContract,
-                    account.address,
-                )
-            ).mul(2),
-        );
+    await coverContract.connect(account).depositCover(toToken(20_000));
 }
 
-async function main() {
+async function deployPool(
+    creditContractName: CreditContractName,
+    creditManagerContractName: CreditManagerContractName,
+    poolName?: "ArfV2",
+) {
+    console.log("=====================================");
+    console.log(`Deploying pool with ${creditContractName} and ${creditManagerContractName}`);
+    if (poolName) {
+        console.log(`Pool name: ${poolName}`);
+    }
     console.log(`Starting block timestamp: ${await time.latest()}`);
     [
         defaultDeployer,
@@ -149,8 +139,8 @@ async function main() {
         "RiskAdjustedTranchesPolicy",
         defaultDeployer,
         poolOwner,
-        "CreditLine",
-        "BorrowerLevelCreditManager",
+        creditContractName,
+        creditManagerContractName,
         evaluationAgent,
         poolOwnerTreasury,
         poolOperator,
@@ -158,7 +148,7 @@ async function main() {
     );
 
     // Deposit first loss cover
-    await depositFirstLossCover(poolContract, borrowerFirstLossCoverContract, borrowerActive);
+    await depositFirstLossCover(borrowerFirstLossCoverContract, borrowerActive);
 
     // Set first loss cover liquidity cap
     const totalAssetsBorrowerFLC = await borrowerFirstLossCoverContract.totalAssets();
@@ -170,7 +160,7 @@ async function main() {
         poolConfigContract,
         poolOwner,
         {
-            liquidityCap: totalAssetsBorrowerFLC.sub(yieldAmount),
+            maxLiquidity: totalAssetsBorrowerFLC.add(yieldAmount),
         },
     );
     await overrideFirstLossCoverConfig(
@@ -179,7 +169,7 @@ async function main() {
         poolConfigContract,
         poolOwner,
         {
-            liquidityCap: totalAssetsAffiliateFLC.sub(yieldAmount),
+            maxLiquidity: totalAssetsAffiliateFLC.add(yieldAmount),
         },
     );
 
@@ -191,39 +181,36 @@ async function main() {
         .connect(seniorLender)
         .deposit(toToken(200_000), seniorLender.address);
 
-    // Drawdown
     const frontLoadingFeeFlat = toToken(100);
     const frontLoadingFeeBps = BN.from(100);
     await poolConfigContract.connect(poolOwner).setFrontLoadingFees({
         frontLoadingFeeFlat: frontLoadingFeeFlat,
         frontLoadingFeeBps: frontLoadingFeeBps,
     });
-    const numOfPeriods = 5;
-    const yieldInBps = 1217;
-    await creditManagerContract
-        .connect(eaServiceAccount)
-        .approveBorrower(
-            borrowerActive.address,
-            toToken(100_000),
-            numOfPeriods,
+
+    if (poolName === "ArfV2") {
+        const latePaymentGracePeriodInDays = 5;
+        const yieldInBps = 1200;
+        const lateFeeBps = 2400;
+        const principalRate = 0;
+
+        const settings = await poolConfigContract.getPoolSettings();
+        await poolConfigContract.connect(poolOwner).setPoolSettings({
+            ...settings,
+            ...{
+                payPeriodDuration: PayPeriodDuration.Monthly,
+                latePaymentGracePeriodInDays: latePaymentGracePeriodInDays,
+                advanceRateInBps: CONSTANTS.BP_FACTOR,
+                receivableAutoApproval: true,
+            },
+        });
+
+        await poolConfigContract.connect(poolOwner).setFeeStructure({
             yieldInBps,
-            toToken(0),
-            0,
-            true,
-        );
-    const borrowAmount = toToken(50_000);
-
-    // Drawing down credit line
-    await creditContract.connect(borrowerActive).drawdown(borrowerActive.address, borrowAmount);
-
-    // Submitting junior redemption request
-    await juniorTrancheVaultContract.connect(juniorLender).addRedemptionRequest(toToken(10_000));
-
-    console.log("Time skipping to next epoch");
-    const epochTimeInSeconds = 31 * 24 * 60 * 60; // 31 days in seconds
-    // Simulate the passage of time by advancing the time on the Hardhat Network
-    await network.provider.send("evm_increaseTime", [epochTimeInSeconds]);
-    await network.provider.send("evm_mine");
+            minPrincipalRateInBps: principalRate,
+            lateFeeBps,
+        });
+    }
 
     console.log("=====================================");
     console.log("Accounts:");
@@ -245,15 +232,27 @@ async function main() {
     console.log(`Senior tranche:  ${seniorTrancheVaultContract.address}`);
     console.log(`Pool safe:       ${poolSafeContract.address}`);
     console.log(`Test token:      ${mockTokenContract.address}`);
-    console.log(`Credit manager:      ${creditManagerContract.address}`);
-    console.log(`Borrower FLC:      ${borrowerFirstLossCoverContract.address}`);
-    console.log(`Affiliate FLC:      ${affiliateFirstLossCoverContract.address}`);
+    console.log(`Credit:          ${creditContract.address}`);
+    console.log(`Credit manager:  ${creditManagerContract.address}`);
+    console.log(`Borrower FLC:    ${borrowerFirstLossCoverContract.address}`);
+    console.log(`Affiliate FLC:   ${affiliateFirstLossCoverContract.address}`);
 
     console.log("=====================================");
     console.log(`Current block timestamp: ${await time.latest()}`);
 }
 
-main().catch((error) => {
-    console.error(error);
-    process.exitCode = 1;
-});
+async function deployPools() {
+    try {
+        await deployPool("CreditLine", "BorrowerLevelCreditManager");
+        await deployPool(
+            "ReceivableBackedCreditLine",
+            "ReceivableBackedCreditLineManager",
+            "ArfV2",
+        );
+    } catch (error) {
+        console.error(error);
+        process.exitCode = 1;
+    }
+}
+
+deployPools();
