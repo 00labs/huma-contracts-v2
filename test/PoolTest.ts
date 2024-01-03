@@ -708,9 +708,8 @@ describe("Pool Test", function () {
                     );
                 });
 
-                it.only("Should distribute loss recovery correctly when the borrower first loss can be partially recovered", async function () {
+                it("Should distribute loss recovery correctly when the borrower first loss can be partially recovered", async function () {
                     const assets = await poolContract.currentTranchesAssets();
-                    const borrowerFLCAssets = await borrowerFirstLossCoverContract.totalAssets();
                     const affiliateFLCAssets = await affiliateFirstLossCoverContract.totalAssets();
                     const profit = toToken(0);
                     const loss = coverTotalAssets
