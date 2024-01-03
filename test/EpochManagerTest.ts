@@ -1187,6 +1187,27 @@ describe("EpochManager Test", function () {
             );
         });
 
+        it("Should close epochs with the correct LP token prices successfully even if junior redemption requests cannot be processed due to the potential of breaching the senior : junior asset ratio", async function () {
+            // Deplete all junior assets through loss so that no redemption request can be processed.
+            const juniorAssets = await poolContract.trancheTotalAssets(CONSTANTS.JUNIOR_TRANCHE);
+            const firstLossCovers = [
+                borrowerFirstLossCoverContract,
+                affiliateFirstLossCoverContract,
+            ];
+            const coverTotalAssets = sumBNArray(
+                await Promise.all(firstLossCovers.map((cover) => cover.totalAssets())),
+            );
+            await creditContract.mockDistributePnL(0, juniorAssets.add(coverTotalAssets), 0);
+
+            const sharesToRedeem = toToken(1);
+            await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(sharesToRedeem);
+
+            let epochId = await epochManagerContract.currentEpochId();
+            await testCloseEpoch(BN.from(0), BN.from(0), BN.from(0));
+            await epochChecker.checkJuniorRedemptionSummaryById(epochId, sharesToRedeem);
+            await epochChecker.checkJuniorCurrentRedemptionSummary(sharesToRedeem);
+        });
+
         it("Should close epochs with the correct LP token prices successfully after processing multiple junior redemption requests fully", async function () {
             const availableAssets = await poolSafeContract.getAvailableBalanceForPool();
             await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
@@ -1328,7 +1349,7 @@ describe("EpochManager Test", function () {
                 await testCloseEpoch(BN.from(0), BN.from(0));
                 await epochChecker.checkSeniorRedemptionSummaryById(epochId, allSeniorShares);
                 await epochChecker.checkJuniorRedemptionSummaryById(epochId, allJuniorShares);
-                epochId = await epochChecker.checkSeniorCurrentRedemptionSummary(allSeniorShares);
+                await epochChecker.checkSeniorCurrentRedemptionSummary(allSeniorShares);
                 epochId = await epochChecker.checkJuniorCurrentRedemptionSummary(allJuniorShares);
 
                 // Epoch 2
@@ -1345,7 +1366,7 @@ describe("EpochManager Test", function () {
                 await testCloseEpoch(BN.from(0), BN.from(0));
                 await epochChecker.checkSeniorRedemptionSummaryById(epochId, allSeniorShares);
                 await epochChecker.checkJuniorRedemptionSummaryById(epochId, allJuniorShares);
-                epochId = await epochChecker.checkSeniorCurrentRedemptionSummary(allSeniorShares);
+                await epochChecker.checkSeniorCurrentRedemptionSummary(allSeniorShares);
                 epochId = await epochChecker.checkJuniorCurrentRedemptionSummary(allJuniorShares);
 
                 // Epoch 3
@@ -1362,7 +1383,7 @@ describe("EpochManager Test", function () {
                 await testCloseEpoch(BN.from(0), BN.from(0));
                 await epochChecker.checkSeniorRedemptionSummaryById(epochId, allSeniorShares);
                 await epochChecker.checkJuniorRedemptionSummaryById(epochId, allJuniorShares);
-                epochId = await epochChecker.checkSeniorCurrentRedemptionSummary(allSeniorShares);
+                await epochChecker.checkSeniorCurrentRedemptionSummary(allSeniorShares);
                 epochId = await epochChecker.checkJuniorCurrentRedemptionSummary(allJuniorShares);
 
                 // Introduce PnL.

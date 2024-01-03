@@ -56,27 +56,27 @@ contract EpochManager is PoolConfigCache, IEpochManager {
      */
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = _poolConfig.poolSafe();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         poolSafe = IPoolSafe(addr);
 
         addr = _poolConfig.pool();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         pool = IPool(addr);
 
         addr = _poolConfig.seniorTranche();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         seniorTranche = ITrancheVaultLike(addr);
 
         addr = _poolConfig.juniorTranche();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         juniorTranche = ITrancheVaultLike(addr);
 
         addr = _poolConfig.calendar();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         calendar = ICalendar(addr);
 
         addr = _poolConfig.underlyingToken();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         uint256 decimals = IERC20Metadata(addr).decimals();
         // set minAmountToProcessPerEpoch to 1 token now
         // TODO change this to a configuration parameter?

@@ -431,8 +431,6 @@ describe("Pool Test", function () {
                         totalAssets = await poolContract.totalAssets();
                         expect(totalAssets).to.equal(seniorAssets.add(juniorAssets));
 
-                        console.log(`firstLossCoverProfits: ${firstLossCoverProfits}`);
-
                         newFirstLossCoverInfos = await Promise.all(
                             [borrowerFirstLossCoverContract, affiliateFirstLossCoverContract].map(
                                 (contract) => getFirstLossCoverInfo(contract, poolConfigContract),
@@ -606,13 +604,13 @@ describe("Pool Test", function () {
                     await testDistribution(profit, loss, recovery);
                 });
 
-                it("Should distribute loss recovery correctly when senior loss can be recovered", async function () {
+                it("Should distribute loss recovery correctly when senior loss can be partially recovered", async function () {
                     const assets = await poolContract.currentTranchesAssets();
                     const profit = toToken(0);
                     const loss = coverTotalAssets.add(
                         assets[CONSTANTS.SENIOR_TRANCHE].add(assets[CONSTANTS.JUNIOR_TRANCHE]),
                     );
-                    const recovery = assets[CONSTANTS.SENIOR_TRANCHE];
+                    const recovery = assets[CONSTANTS.SENIOR_TRANCHE].sub(toToken(1));
 
                     await testDistribution(profit, loss, recovery);
                 });
@@ -648,6 +646,24 @@ describe("Pool Test", function () {
                     const loss = toToken(8493);
                     const recovery = toToken(3485);
                     await testDistribution(profit, loss, recovery);
+                });
+
+                it("Should not allow non-credit or non-credit manager to distribute profit", async function () {
+                    await expect(
+                        poolContract.connect(lender).distributeProfit(toToken(1)),
+                    ).to.be.revertedWithCustomError(poolContract, "notAuthorizedCaller");
+                });
+
+                it("Should not allow non-credit or non-credit manager to distribute loss", async function () {
+                    await expect(
+                        poolContract.connect(lender).distributeLoss(toToken(1)),
+                    ).to.be.revertedWithCustomError(poolContract, "notAuthorizedCaller");
+                });
+
+                it("Should not allow non-credit to distribute loss recovery", async function () {
+                    await expect(
+                        poolContract.connect(lender).distributeLossRecovery(toToken(1)),
+                    ).to.be.revertedWithCustomError(poolContract, "notAuthorizedCaller");
                 });
             });
 
@@ -809,8 +825,41 @@ describe("Pool Test", function () {
             });
         });
 
-        describe("View functions", function () {
-            it("Should return correct tranche available caps", async function () {
+        describe("updateTranchesAssets", function () {
+            let tranchesAssets: [BN, BN];
+
+            beforeEach(async function () {
+                tranchesAssets = [toToken(100_000_000), toToken(100_000_000)];
+            });
+
+            it("Should allow the tranche vault to update", async function () {
+                await poolConfigContract
+                    .connect(poolOwner)
+                    .setTranches(defaultDeployer.getAddress(), defaultDeployer.getAddress());
+                await poolContract.updateTranchesAssets(tranchesAssets);
+
+                console.log(await poolContract.currentTranchesAssets());
+                expect(await poolContract.currentTranchesAssets()).to.eql(tranchesAssets);
+            });
+
+            it("Should allow the epoch manager to update", async function () {
+                await poolConfigContract
+                    .connect(poolOwner)
+                    .setEpochManager(defaultDeployer.getAddress());
+                await poolContract.updateTranchesAssets(tranchesAssets);
+
+                expect(await poolContract.currentTranchesAssets()).to.eql(tranchesAssets);
+            });
+
+            it("Should not allow non-tranche vault or non-epoch manager to update tranches assets", async function () {
+                await expect(
+                    poolContract.connect(lender).updateTranchesAssets(tranchesAssets),
+                ).to.be.revertedWithCustomError(poolContract, "notAuthorizedCaller");
+            });
+        });
+
+        describe("getTrancheAvailableCap", function () {
+            it("Should return the correct tranche available caps", async function () {
                 await seniorTrancheVaultContract
                     .connect(lender)
                     .deposit(toToken(10000), lender.address);
@@ -821,7 +870,7 @@ describe("Pool Test", function () {
                 const seniorAvailableCap = await poolContract.getTrancheAvailableCap(
                     CONSTANTS.SENIOR_TRANCHE,
                 );
-                const juniorAvailableCap = await await poolContract.getTrancheAvailableCap(
+                const juniorAvailableCap = await poolContract.getTrancheAvailableCap(
                     CONSTANTS.JUNIOR_TRANCHE,
                 );
                 const lpConfig = await poolConfigContract.getLPConfig();
@@ -840,6 +889,67 @@ describe("Pool Test", function () {
                         .mul(lpConfig.maxSeniorJuniorRatio)
                         .sub(tranchesAssets[CONSTANTS.SENIOR_TRANCHE]),
                 );
+                // Should return 0 if the index is not junior or senior.
+                expect(await poolContract.getTrancheAvailableCap(2)).to.equal(0);
+            });
+
+            describe("For the senior tranche", function () {
+                it("Should return the smaller of the total available cap and the senior available cap", async function () {
+                    // Override the senior: junior ratio to be an extremely large number so that the available cap is
+                    // determined by the total available cap.
+                    const newRatio = 100;
+                    await overrideLPConfig(poolConfigContract, poolOwner, {
+                        maxSeniorJuniorRatio: newRatio,
+                    });
+
+                    const poolTotalAssets = await poolContract.totalAssets();
+                    const poolConfig = await poolConfigContract.getLPConfig();
+                    expect(
+                        await poolContract.getTrancheAvailableCap(CONSTANTS.SENIOR_TRANCHE),
+                    ).to.equal(poolConfig.liquidityCap.sub(poolTotalAssets));
+                });
+            });
+        });
+
+        describe("trancheTotalAssets", function () {
+            it("Should return the total assets of the given tranche", async function () {
+                const tranchesAssets = await poolContract.currentTranchesAssets();
+                expect(await poolContract.trancheTotalAssets(CONSTANTS.JUNIOR_TRANCHE)).to.equal(
+                    tranchesAssets[CONSTANTS.JUNIOR_TRANCHE],
+                );
+                expect(await poolContract.trancheTotalAssets(CONSTANTS.SENIOR_TRANCHE)).to.equal(
+                    tranchesAssets[CONSTANTS.SENIOR_TRANCHE],
+                );
+            });
+        });
+
+        describe("totalAssets", function () {
+            it("Should return the combined total assets of all tranches", async function () {
+                const tranchesAssets = await poolContract.currentTranchesAssets();
+                expect(await poolContract.totalAssets()).to.equal(
+                    tranchesAssets[CONSTANTS.JUNIOR_TRANCHE].add(
+                        tranchesAssets[CONSTANTS.SENIOR_TRANCHE],
+                    ),
+                );
+            });
+        });
+
+        describe("currentTranchesAssets", function () {
+            it("Should return the total assets of each tranche", async function () {
+                const tranchesAssets = await poolContract.tranchesAssets();
+                expect(await poolContract.currentTranchesAssets()).to.eql([
+                    tranchesAssets.seniorTotalAssets,
+                    tranchesAssets.juniorTotalAssets,
+                ]);
+            });
+        });
+
+        describe("getFirstLossCovers", function () {
+            it("Should return the first loss covers", async function () {
+                expect(await poolContract.getFirstLossCovers()).to.eql([
+                    borrowerFirstLossCoverContract.address,
+                    affiliateFirstLossCoverContract.address,
+                ]);
             });
         });
     });

@@ -144,6 +144,15 @@ describe("FixedSeniorYieldTranchePolicy Test", function () {
         ).to.be.revertedWithCustomError(tranchesPolicyContract, "todo");
     });
 
+    describe("getFirstLossCovers", function () {
+        it("Should return the first loss covers", async function () {
+            expect(await tranchesPolicyContract.getFirstLossCovers()).to.eql([
+                borrowerFirstLossCoverContract.address,
+                affiliateFirstLossCoverContract.address,
+            ]);
+        });
+    });
+
     describe("Distribution", function () {
         it("Profit is not enough for senior tranche", async function () {
             const deployedAssets = toToken(300_000);
