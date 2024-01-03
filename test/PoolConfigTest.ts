@@ -98,10 +98,6 @@ describe("PoolConfig Tests", function () {
             );
             const PoolConfig = await ethers.getContractFactory("PoolConfig");
             poolConfigContract = (await deployProxyContract(PoolConfig)) as PoolConfig;
-            await poolConfigContract.grantRole(
-                await poolConfigContract.DEFAULT_ADMIN_ROLE(),
-                poolOwner.address,
-            );
 
             const PoolFeeManager = await ethers.getContractFactory("PoolFeeManager");
             poolFeeManagerContract = (await deployProxyContract(PoolFeeManager)) as PoolFeeManager;
@@ -191,9 +187,28 @@ describe("PoolConfig Tests", function () {
             expect(lpConfig.maxSeniorJuniorRatio).to.equal(4);
         });
 
-        it("Should reject non-owner's call to initialize()", async function () {
+        it("Should reject call to initialize() if the proxy is deployed with calldata", async function () {
+            const PoolConfig = await ethers.getContractFactory("PoolConfig");
+            const poolConfigContractNew = (await deployProxyContract(PoolConfig, "initialize", [
+                "Base Credit Pool",
+                [
+                    humaConfigContract.address,
+                    mockTokenContract.address,
+                    poolFeeManagerContract.address,
+                    poolSafeContract.address,
+                    calendarContract.address,
+                    tranchesPolicyContract.address,
+                    poolContract.address,
+                    epochManagerContract.address,
+                    seniorTrancheVaultContract.address,
+                    juniorTrancheVaultContract.address,
+                    creditContract.address,
+                    creditDueManagerContract.address,
+                    creditManagerContract.address,
+                ],
+            ])) as PoolConfig;
             await expect(
-                poolConfigContract
+                poolConfigContractNew
                     .connect(regularUser)
                     .initialize("Base Credit Pool", [
                         humaConfigContract.address,
@@ -210,7 +225,7 @@ describe("PoolConfig Tests", function () {
                         creditDueManagerContract.address,
                         creditManagerContract.address,
                     ]),
-            ).to.be.revertedWithCustomError(poolConfigContract, "notPoolOwner");
+            ).to.be.revertedWith("Initializable: contract is already initialized");
         });
 
         it("Should reject zero address for HumaConfig", async function () {
