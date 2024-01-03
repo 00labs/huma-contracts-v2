@@ -34,7 +34,6 @@ import {
 import {
     evmRevert,
     evmSnapshot,
-    getMinFirstLossCoverRequirement,
     receivableLevelCreditHash,
     setNextBlockTimestamp,
     toToken,
@@ -138,27 +137,10 @@ describe("ReceivableFactoringCredit Integration Tests", function () {
             .connect(payer)
             .approve(nftContract.address, ethers.constants.MaxUint256);
 
-        await borrowerFirstLossCoverContract
-            .connect(poolOwner)
-            .setCoverProvider(borrower.address, {
-                poolCapCoverageInBps: 1,
-                poolValueCoverageInBps: 100,
-            });
+        await borrowerFirstLossCoverContract.connect(poolOwner).addCoverProvider(borrower.address);
         await mockTokenContract
             .connect(borrower)
             .approve(borrowerFirstLossCoverContract.address, ethers.constants.MaxUint256);
-        await borrowerFirstLossCoverContract
-            .connect(borrower)
-            .depositCover(
-                (
-                    await getMinFirstLossCoverRequirement(
-                        borrowerFirstLossCoverContract,
-                        poolConfigContract,
-                        poolContract,
-                        borrower.address,
-                    )
-                ).mul(2),
-            );
 
         await juniorTrancheVaultContract
             .connect(lender)

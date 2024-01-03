@@ -60,6 +60,9 @@ contract Errors {
     error withdrawTooSoon(); // 0x67982472
     error invalidTrancheIndex(); // 0xa82f3ece
     error closeTooSoon(); // 0xa38d0553
+    error alreadyLender();
+    error notLender();
+    error nonReinvestYieldLenderCapacityReached();
 
     // credit operation
     error creditHasNoCommitment(); // 0xca0cc99a
@@ -96,6 +99,8 @@ contract Errors {
 
     // first loss cover operation
     error notAllProvidersPaidOut(); // 0xf878b213
+    error firstLossCoverLiquidityCapExceeded();
+    error tooManyCoverProviders();
 
     // receivable operation
     error receivableAssetMismatch(); // 0x41dbeec1

@@ -50,13 +50,4 @@ interface IPool {
     function getTrancheAvailableCap(uint256 index) external view returns (uint256 availableCap);
 
     function readyForFirstLossCoverWithdrawal() external view returns (bool ready);
-
-    /**
-     * @notice Gets the available cap of specified first loss cover including reserved profit and loss recovery
-     * PoolFeeManager uses this function to invest available liquidity of fees in first loss cover
-     */
-    function getFirstLossCoverAvailableCap(
-        address coverAddress,
-        uint256 poolAssets
-    ) external view returns (uint256 availableCap);
 }

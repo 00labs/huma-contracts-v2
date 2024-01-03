@@ -36,7 +36,6 @@ import {
 } from "../BaseTest";
 import {
     getLatestBlock,
-    getMinFirstLossCoverRequirement,
     getStartOfNextMonth,
     isCloseTo,
     receivableLevelCreditHash,
@@ -74,7 +73,7 @@ let poolConfigContract: PoolConfig,
     creditManagerContract: ReceivableLevelCreditManager,
     nftContract: MockNFT;
 
-describe("ReceivableFactoringCreditManager Test", function () {
+describe("ReceivableLevelCreditManager Test", function () {
     before(async function () {
         [
             defaultDeployer,
@@ -139,27 +138,10 @@ describe("ReceivableFactoringCreditManager Test", function () {
         await poolConfigContract.connect(poolOwner).setReceivableAsset(nftContract.address);
         await creditManagerContract.connect(poolOwner).addPayer(payer.getAddress());
 
-        await borrowerFirstLossCoverContract
-            .connect(poolOwner)
-            .setCoverProvider(borrower.address, {
-                poolCapCoverageInBps: 1,
-                poolValueCoverageInBps: 100,
-            });
+        await borrowerFirstLossCoverContract.connect(poolOwner).addCoverProvider(borrower.address);
         await mockTokenContract
             .connect(borrower)
             .approve(borrowerFirstLossCoverContract.address, ethers.constants.MaxUint256);
-        await borrowerFirstLossCoverContract
-            .connect(borrower)
-            .depositCover(
-                (
-                    await getMinFirstLossCoverRequirement(
-                        borrowerFirstLossCoverContract,
-                        poolConfigContract,
-                        poolContract,
-                        borrower.address,
-                    )
-                ).mul(2),
-            );
 
         await juniorTrancheVaultContract
             .connect(lender)

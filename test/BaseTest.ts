@@ -276,10 +276,10 @@ export async function deployPoolContracts(
         BORROWER_FIRST_LOSS_COVER_INDEX,
         borrowerFirstLossCoverContract.address,
         {
-            coverRateInBps: 0,
-            coverCap: 0,
-            liquidityCap: 0,
-            maxPercentOfPoolValueInBps: 0,
+            coverRatePerLossInBps: 0,
+            coverCapPerLoss: 0,
+            maxLiquidity: toToken(100_000_000),
+            minLiquidity: 0,
             riskYieldMultiplierInBps: 0,
         },
     );
@@ -288,10 +288,10 @@ export async function deployPoolContracts(
         AFFILIATE_FIRST_LOSS_COVER_INDEX,
         affiliateFirstLossCoverContract.address,
         {
-            coverRateInBps: 0,
-            coverCap: 0,
-            liquidityCap: 0,
-            maxPercentOfPoolValueInBps: 0,
+            coverRatePerLossInBps: 0,
+            coverCapPerLoss: 0,
+            maxLiquidity: toToken(100_000_000),
+            minLiquidity: 0,
             riskYieldMultiplierInBps: 20000,
         },
     );
@@ -366,18 +366,20 @@ export async function setupPoolContracts(
     juniorTrancheVaultContract: TrancheVault,
     seniorTrancheVaultContract: TrancheVault,
     creditContract: CreditContractType,
+    receivableContract: Receivable,
     poolOwner: SignerWithAddress,
     evaluationAgent: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
     poolOperator: SignerWithAddress,
     accounts: SignerWithAddress[],
+    shouldSetEA: boolean = true,
 ): Promise<void> {
     const poolLiquidityCap = toToken(1_000_000_000);
-    let settings = await poolConfigContract.getPoolSettings();
+    const settings = await poolConfigContract.getPoolSettings();
     await poolConfigContract
         .connect(poolOwner)
         .setPoolSettings({ ...settings, ...{ maxCreditLine: toToken(10_000_000) } });
-    let lpConfig = await poolConfigContract.getLPConfig();
+    const lpConfig = await poolConfigContract.getLPConfig();
     await poolConfigContract
         .connect(poolOwner)
         .setLPConfig({ ...lpConfig, ...{ liquidityCap: poolLiquidityCap } });
@@ -385,18 +387,6 @@ export async function setupPoolContracts(
     await poolConfigContract
         .connect(poolOwner)
         .setPoolOwnerTreasury(poolOwnerTreasury.getAddress());
-
-    let eaNFTTokenId;
-    const tx = await eaNFTContract.mintNFT(evaluationAgent.address);
-    const receipt = await tx.wait();
-    for (const evt of receipt.events!) {
-        if (evt.event === "NFTGenerated") {
-            eaNFTTokenId = evt.args!.tokenId;
-        }
-    }
-    await poolConfigContract
-        .connect(poolOwner)
-        .setEvaluationAgent(eaNFTTokenId, evaluationAgent.getAddress());
 
     // Deposit enough liquidity for the pool owner and EA in the junior tranche.
     const adminRnR = await poolConfigContract.getAdminRnR();
@@ -410,17 +400,32 @@ export async function setupPoolContracts(
     await juniorTrancheVaultContract
         .connect(poolOwnerTreasury)
         .makeInitialDeposit(poolOwnerLiquidity);
+    let expectedInitialLiquidity = poolOwnerLiquidity;
 
     await mockTokenContract
         .connect(evaluationAgent)
         .approve(poolSafeContract.address, ethers.constants.MaxUint256);
     await mockTokenContract.mint(evaluationAgent.getAddress(), toToken(1_000_000_000));
-    const evaluationAgentLiquidity = BN.from(adminRnR.liquidityRateInBpsByEA)
-        .mul(poolLiquidityCap)
-        .div(CONSTANTS.BP_FACTOR);
-    await juniorTrancheVaultContract
-        .connect(evaluationAgent)
-        .makeInitialDeposit(evaluationAgentLiquidity);
+    if (shouldSetEA) {
+        let eaNFTTokenId;
+        const tx = await eaNFTContract.mintNFT(evaluationAgent.address);
+        const receipt = await tx.wait();
+        for (const evt of receipt.events!) {
+            if (evt.event === "NFTGenerated") {
+                eaNFTTokenId = evt.args!.tokenId;
+            }
+        }
+        await poolConfigContract
+            .connect(poolOwner)
+            .setEvaluationAgent(eaNFTTokenId, evaluationAgent.getAddress());
+        const evaluationAgentLiquidity = BN.from(adminRnR.liquidityRateInBpsByEA)
+            .mul(poolLiquidityCap)
+            .div(CONSTANTS.BP_FACTOR);
+        await juniorTrancheVaultContract
+            .connect(evaluationAgent)
+            .makeInitialDeposit(evaluationAgentLiquidity);
+        expectedInitialLiquidity = expectedInitialLiquidity.add(evaluationAgentLiquidity);
+    }
 
     await mockTokenContract
         .connect(poolOwnerTreasury)
@@ -428,19 +433,12 @@ export async function setupPoolContracts(
     await mockTokenContract
         .connect(evaluationAgent)
         .approve(affiliateFirstLossCoverContract.address, ethers.constants.MaxUint256);
-    const firstLossCoverageInBps = 100;
     await affiliateFirstLossCoverContract
         .connect(poolOwner)
-        .setCoverProvider(poolOwnerTreasury.getAddress(), {
-            poolCapCoverageInBps: firstLossCoverageInBps,
-            poolValueCoverageInBps: firstLossCoverageInBps,
-        });
+        .addCoverProvider(poolOwnerTreasury.getAddress());
     await affiliateFirstLossCoverContract
         .connect(poolOwner)
-        .setCoverProvider(evaluationAgent.getAddress(), {
-            poolCapCoverageInBps: firstLossCoverageInBps,
-            poolValueCoverageInBps: firstLossCoverageInBps,
-        });
+        .addCoverProvider(evaluationAgent.getAddress());
 
     const role = await poolConfigContract.POOL_OPERATOR_ROLE();
     await poolConfigContract.connect(poolOwner).grantRole(role, poolOwner.getAddress());
@@ -453,16 +451,11 @@ export async function setupPoolContracts(
         .connect(poolOperator)
         .setReinvestYield(evaluationAgent.address, true);
 
-    await affiliateFirstLossCoverContract
-        .connect(poolOwnerTreasury)
-        .depositCover(poolLiquidityCap.mul(firstLossCoverageInBps).div(CONSTANTS.BP_FACTOR));
-    await affiliateFirstLossCoverContract
-        .connect(evaluationAgent)
-        .depositCover(poolLiquidityCap.mul(firstLossCoverageInBps).div(CONSTANTS.BP_FACTOR));
+    await affiliateFirstLossCoverContract.connect(poolOwnerTreasury).depositCover(toToken(10_000));
+    await affiliateFirstLossCoverContract.connect(evaluationAgent).depositCover(toToken(10_000));
     await poolContract.connect(poolOwner).setReadyForFirstLossCoverWithdrawal(true);
 
     await poolContract.connect(poolOwner).enablePool();
-    const expectedInitialLiquidity = poolOwnerLiquidity.add(evaluationAgentLiquidity);
     expect(await poolContract.totalAssets()).to.equal(expectedInitialLiquidity);
     expect(await juniorTrancheVaultContract.totalAssets()).to.equal(expectedInitialLiquidity);
     expect(await juniorTrancheVaultContract.totalSupply()).to.equal(expectedInitialLiquidity);
@@ -483,6 +476,9 @@ export async function setupPoolContracts(
             .connect(accounts[i])
             .approve(creditContract.address, ethers.constants.MaxUint256);
         await mockTokenContract.mint(accounts[i].getAddress(), toToken(1_000_000_000));
+        await receivableContract
+            .connect(poolOwner)
+            .grantRole(await receivableContract.MINTER_ROLE(), accounts[i].getAddress());
     }
 }
 
@@ -499,8 +495,9 @@ export async function deployAndSetupPoolContracts(
     poolOwnerTreasury: SignerWithAddress,
     poolOperator: SignerWithAddress,
     accounts: SignerWithAddress[],
+    shouldSetEA: boolean = true,
 ): Promise<PoolContracts> {
-    let [
+    const [
         poolConfigContract,
         poolFeeManagerContract,
         poolSafeContract,
@@ -537,11 +534,13 @@ export async function deployAndSetupPoolContracts(
         juniorTrancheVaultContract,
         seniorTrancheVaultContract,
         creditContract,
+        receivableContract,
         poolOwner,
         evaluationAgent,
         poolOwnerTreasury,
         poolOperator,
         accounts,
+        shouldSetEA,
     );
 
     return [
@@ -646,8 +645,8 @@ export interface FirstLossCoverInfo {
 
 async function calcLossCover(loss: BN, firstLossCoverInfo: FirstLossCoverInfo): Promise<BN[]> {
     const coveredAmount = minBigNumber(
-        loss.mul(await firstLossCoverInfo.config.coverRateInBps).div(CONSTANTS.BP_FACTOR),
-        BN.from(await firstLossCoverInfo.config.coverCap),
+        loss.mul(await firstLossCoverInfo.config.coverRatePerLossInBps).div(CONSTANTS.BP_FACTOR),
+        BN.from(await firstLossCoverInfo.config.coverCapPerLoss),
         firstLossCoverInfo.asset,
         loss,
     );
@@ -701,12 +700,12 @@ async function calcLossRecovery(
     lossRecovery = lossRecovery.sub(juniorRecovery);
     const lossRecoveredInFirstLossCovers = [];
     let recoveredAmount;
-    for (const coveredLoss of lossesCoveredByFirstLossCovers) {
+    for (const coveredLoss of lossesCoveredByFirstLossCovers.slice().reverse()) {
         [lossRecovery, recoveredAmount] = calcLossRecoveryForFirstLossCover(
             coveredLoss,
             lossRecovery,
         );
-        lossRecoveredInFirstLossCovers.push(recoveredAmount);
+        lossRecoveredInFirstLossCovers.unshift(recoveredAmount);
     }
 
     return [

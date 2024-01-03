@@ -40,7 +40,6 @@ import {
     borrowerLevelCreditHash,
     getFutureBlockTime,
     getLatestBlock,
-    getMinFirstLossCoverRequirement,
     mineNextBlockWithTimestamp,
     setNextBlockTimestamp,
     toToken,
@@ -145,27 +144,10 @@ describe("ReceivableBackedCreditLine Tests", function () {
             .grantRole(receivableContract.MINTER_ROLE(), lender.address);
         await poolConfigContract.connect(poolOwner).setReceivableAsset(receivableContract.address);
 
-        await borrowerFirstLossCoverContract
-            .connect(poolOwner)
-            .setCoverProvider(borrower.address, {
-                poolCapCoverageInBps: 1,
-                poolValueCoverageInBps: 100,
-            });
+        await borrowerFirstLossCoverContract.connect(poolOwner).addCoverProvider(borrower.address);
         await mockTokenContract
             .connect(borrower)
             .approve(borrowerFirstLossCoverContract.address, ethers.constants.MaxUint256);
-        await borrowerFirstLossCoverContract
-            .connect(borrower)
-            .depositCover(
-                (
-                    await getMinFirstLossCoverRequirement(
-                        borrowerFirstLossCoverContract,
-                        poolConfigContract,
-                        poolContract,
-                        borrower.address,
-                    )
-                ).mul(2),
-            );
 
         await juniorTrancheVaultContract
             .connect(lender)

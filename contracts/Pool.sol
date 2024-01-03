@@ -14,6 +14,8 @@ import {ITranchesPolicy} from "./interfaces/ITranchesPolicy.sol";
 import {ICreditManager} from "./credit/interfaces/ICreditManager.sol";
 import {ICredit} from "./credit/interfaces/ICredit.sol";
 
+import "hardhat/console.sol";
+
 /**
  * @title Pool
  * @notice Pool is a core contract that connects the lender side (via Tranches)
@@ -89,33 +91,34 @@ contract Pool is PoolConfigCache, IPool {
      */
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = _poolConfig.poolSafe();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         poolSafe = IPoolSafe(addr);
 
         addr = _poolConfig.tranchesPolicy();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         tranchesPolicy = ITranchesPolicy(addr);
 
         addr = _poolConfig.poolFeeManager();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         feeManager = IPoolFeeManager(addr);
 
         addr = _poolConfig.epochManager();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         epochManager = IEpochManager(addr);
 
         addr = _poolConfig.credit();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         credit = ICredit(addr);
 
         addr = _poolConfig.creditManager();
-        if (addr == address(0)) revert Errors.zeroAddressProvided();
+        assert(addr != address(0));
         creditManager = ICreditManager(addr);
 
         address[16] memory covers = _poolConfig.getFirstLossCovers();
         for (uint256 i = 0; i < covers.length; i++) {
-            if (covers[i] != address(0)) _firstLossCovers.push(IFirstLossCover(covers[i]));
-            else break;
+            if (covers[i] != address(0)) {
+                _firstLossCovers.push(IFirstLossCover(covers[i]));
+            }
         }
     }
 
@@ -136,7 +139,7 @@ contract Pool is PoolConfigCache, IPool {
 
     /**
      * @notice Disables the pool. Once a pool is disabled, no money moves in or out.
-     * @custom:accss Any pool operator can disable a pool. Only the pool owner or Huma protocol
+     * @custom:access Any pool operator can disable a pool. Only the pool owner or Huma protocol
      * owner can enable it again.
      */
     function disablePool() external {
@@ -174,24 +177,22 @@ contract Pool is PoolConfigCache, IPool {
         }
     }
 
-    /// custom:access only Credit or CreditManager contract can call this function.
     /// @inheritdoc IPool
+    /// @custom:access Only Credit or CreditManager contract can call this function.
     function distributeProfit(uint256 profit) external {
-        // TODO(jiatu): add pool tests for non-authorized callers.
         _onlyCreditOrCreditManager(msg.sender);
         _distributeProfit(profit);
     }
 
-    /// custom:access only Credit or CreditManager contract can call this function.
     /// @inheritdoc IPool
+    /// @custom:access Only Credit or CreditManager contract can call this function.
     function distributeLoss(uint256 loss) external {
-        // TODO: Check if there are tests for non-authorized callers.
         _onlyCreditOrCreditManager(msg.sender);
         _distributeLoss(loss);
     }
 
-    /// custom:access Only Credit contract can call this function
     /// @inheritdoc IPool
+    /// @custom:access Only Credit contract can call this function
     function distributeLossRecovery(uint256 lossRecovery) external {
         if (msg.sender != address(credit)) revert Errors.notAuthorizedCaller();
         _distributeLossRecovery(lossRecovery);
@@ -210,10 +211,6 @@ contract Pool is PoolConfigCache, IPool {
         uint256 poolProfit = feeManager.distributePoolFees(profit);
 
         if (poolProfit > 0) {
-            // distributes to junior and senior tranches
-            // TODO It is confusing to allocate profits for FLCs and Junior to Junior tranche
-            // first, then distribute it to FLC and have the remainer for Junior. Prefer
-            // distProfitToTranches to return results for tranches and FLCs.
             (
                 uint256[2] memory profitsForTrancheVaults,
                 uint256[] memory profitsForFirstLossCovers
@@ -390,7 +387,7 @@ contract Pool is PoolConfigCache, IPool {
     }
 
     /**
-     * @notice Gets the assets for each tranch
+     * @notice Gets the assets for each tranche
      * @return assets the tranche assets in an array.
      */
     function currentTranchesAssets() public view returns (uint96[2] memory assets) {
@@ -414,7 +411,7 @@ contract Pool is PoolConfigCache, IPool {
 
     /**
      * @notice Utility function to update tranche assets
-     * @param assets an array that represents the descired tranche asset
+     * @param assets an array that represents the desired tranche asset
      * @custom:access Internal function without access restriction. Caller needs to control access
      */
     function _updateTranchesAssets(uint96[2] memory assets) internal {
@@ -423,17 +420,6 @@ contract Pool is PoolConfigCache, IPool {
             juniorTotalAssets: assets[JUNIOR_TRANCHE]
         });
         tranchesPolicy.refreshYieldTracker(assets);
-    }
-
-    /// @inheritdoc IPool
-    function getFirstLossCoverAvailableCap(
-        address coverAddress,
-        uint256 poolAssets
-    ) external view returns (uint256 availableCap) {
-        IFirstLossCover cover = IFirstLossCover(coverAddress);
-        uint256 coverTotalAssets = cover.totalAssets();
-        uint256 totalCap = cover.getCapacity(poolAssets);
-        return totalCap > coverTotalAssets ? totalCap - coverTotalAssets : 0;
     }
 
     function _onlyTrancheVaultOrEpochManager(address account) internal view {
