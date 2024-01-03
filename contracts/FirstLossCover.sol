@@ -255,7 +255,7 @@ contract FirstLossCover is
         uint256 totalShares = totalSupply();
         address[] memory providers = _coverProviders.values();
         uint256 remainingShares = totalShares;
-        for (uint256 i; i < providers.length; i++) {
+        for (uint256 i = 0; i < providers.length; i++) {
             address provider = providers[i];
             uint256 shares = balanceOf(provider);
             if (shares == 0) continue;
