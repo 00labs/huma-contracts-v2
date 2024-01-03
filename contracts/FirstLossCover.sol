@@ -177,13 +177,13 @@ contract FirstLossCover is
         (remainingRecovery, recoveredAmount) = _calcLossRecover(coveredLoss, recovery);
 
         if (recoveredAmount > 0) {
-            poolSafe.withdraw(address(this), recovery);
+            poolSafe.withdraw(address(this), recoveredAmount);
 
             uint256 currCoveredLoss = coveredLoss;
-            currCoveredLoss -= recovery;
+            currCoveredLoss -= recoveredAmount;
             coveredLoss = currCoveredLoss;
 
-            emit LossRecovered(recovery, currCoveredLoss);
+            emit LossRecovered(recoveredAmount, currCoveredLoss);
         }
     }
 

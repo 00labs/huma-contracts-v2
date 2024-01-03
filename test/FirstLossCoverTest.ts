@@ -996,7 +996,7 @@ describe("FirstLossCover Tests", function () {
         });
     });
 
-    describe("Loss cover and recover", function () {
+    describe("Loss cover and recovery", function () {
         async function setCoverConfig(coverRatePerLossInBps: BN, coverCapPerLoss: BN) {
             await overrideFirstLossCoverConfig(
                 affiliateFirstLossCoverContract,
@@ -1010,7 +1010,7 @@ describe("FirstLossCover Tests", function () {
             );
         }
 
-        describe("Cover loss", function () {
+        describe("coverLoss", function () {
             async function testCoverLoss(
                 coverRatePerLossInBps: BN,
                 coverCapPerLoss: BN,
@@ -1096,7 +1096,7 @@ describe("FirstLossCover Tests", function () {
             });
         });
 
-        describe("Recover loss", function () {
+        describe("recoverLoss", function () {
             let loss: BN;
 
             beforeEach(async function () {
@@ -1104,7 +1104,7 @@ describe("FirstLossCover Tests", function () {
                 await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.getAddress());
             });
 
-            it("Should allow the pool to recover the loss", async function () {
+            it("Should allow the pool to fully recover the loss", async function () {
                 // Initiate loss coverage so that the loss can be recovered later,
                 const coverTotalAssets = await affiliateFirstLossCoverContract.totalAssets();
                 await setCoverConfig(CONSTANTS.BP_FACTOR, coverTotalAssets.add(1_000));
@@ -1123,7 +1123,45 @@ describe("FirstLossCover Tests", function () {
                 await affiliateFirstLossCoverContract.coverLoss(loss);
 
                 // Make sure the pool safe has enough balance to be transferred from.
-                const lossRecovery = loss;
+                const lossRecovery = loss.add(toToken(1));
+                await mockTokenContract.mint(poolSafeContract.address, lossRecovery);
+
+                const amountRecovered = minBigNumber(amountLossCovered, lossRecovery);
+                const oldCoveredLoss = await affiliateFirstLossCoverContract.coveredLoss();
+                const newCoveredLoss = oldCoveredLoss.sub(amountRecovered);
+                const oldPoolSafeAssets = await poolSafeContract.totalBalance();
+
+                await expect(affiliateFirstLossCoverContract.recoverLoss(lossRecovery))
+                    .to.emit(affiliateFirstLossCoverContract, "LossRecovered")
+                    .withArgs(amountRecovered, newCoveredLoss);
+                expect(await poolSafeContract.totalBalance()).to.equal(
+                    oldPoolSafeAssets.sub(amountRecovered),
+                );
+                expect(await affiliateFirstLossCoverContract.coveredLoss()).to.equal(
+                    newCoveredLoss,
+                );
+            });
+
+            it("Should allow the pool to partially recover the loss", async function () {
+                // Initiate loss coverage so that the loss can be recovered later,
+                const coverTotalAssets = await affiliateFirstLossCoverContract.totalAssets();
+                await setCoverConfig(CONSTANTS.BP_FACTOR, coverTotalAssets.add(1_000));
+                const config = await poolConfigContract.getFirstLossCoverConfig(
+                    affiliateFirstLossCoverContract.address,
+                );
+                const amountLossCovered = minBigNumber(
+                    loss.mul(config.coverRatePerLossInBps).div(CONSTANTS.BP_FACTOR),
+                    config.coverCapPerLoss,
+                    coverTotalAssets,
+                );
+                await mockTokenContract.mint(
+                    affiliateFirstLossCoverContract.address,
+                    amountLossCovered,
+                );
+                await affiliateFirstLossCoverContract.coverLoss(loss);
+
+                // Make sure the pool safe has enough balance to be transferred from.
+                const lossRecovery = loss.sub(toToken(1));
                 await mockTokenContract.mint(poolSafeContract.address, lossRecovery);
 
                 const amountRecovered = minBigNumber(amountLossCovered, lossRecovery);
