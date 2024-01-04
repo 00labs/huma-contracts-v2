@@ -282,8 +282,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         // Calculate the minimum amount of junior assets required to maintain the senior : junior ratio.
         // Since integer division rounds down, add 1 to minJuniorAmount in order to maintain the ratio.
         uint256 minJuniorAmount = tranchesAssets[SENIOR_TRANCHE] / maxSeniorJuniorRatio;
-        if (minJuniorAmount * maxSeniorJuniorRatio < tranchesAssets[SENIOR_TRANCHE])
-            minJuniorAmount += 1;
+        if (tranchesAssets[SENIOR_TRANCHE] % maxSeniorJuniorRatio != 0) minJuniorAmount++;
 
         uint256 maxRedeemableAmount = tranchesAssets[JUNIOR_TRANCHE] > minJuniorAmount
             ? tranchesAssets[JUNIOR_TRANCHE] - minJuniorAmount
