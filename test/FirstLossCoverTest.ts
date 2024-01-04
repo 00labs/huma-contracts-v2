@@ -20,7 +20,12 @@ import {
     RiskAdjustedTranchesPolicy,
     TrancheVault,
 } from "../typechain-types";
-import { CONSTANTS, deployAndSetupPoolContracts, deployProtocolContracts } from "./BaseTest";
+import {
+    CONSTANTS,
+    deployAndSetupPoolContracts,
+    deployProtocolContracts,
+    deployProxyContract,
+} from "./BaseTest";
 import {
     getMinFirstLossCoverRequirement,
     minBigNumber,
@@ -162,8 +167,7 @@ describe("FirstLossCover Tests", function () {
         ) {
             await spendAllowance();
             const PoolConfig = await ethers.getContractFactory("PoolConfig");
-            const newPoolConfigContract = await PoolConfig.deploy();
-            await newPoolConfigContract.deployed();
+            const newPoolConfigContract = (await deployProxyContract(PoolConfig)) as PoolConfig;
 
             // Update the contract addresses.
             await newPoolConfigContract.initialize("Test Pool", [
@@ -200,8 +204,8 @@ describe("FirstLossCover Tests", function () {
         describe("When both the pool safe and the underlying token contracts are updated", function () {
             it("Should reset the allowance of the pool safe contract", async function () {
                 const PoolSafe = await ethers.getContractFactory("PoolSafe");
-                const newPoolSafeContract = await PoolSafe.deploy();
-                await newPoolSafeContract.deployed();
+                const newPoolSafeContract = (await deployProxyContract(PoolSafe)) as PoolSafe;
+
                 const MockToken = await ethers.getContractFactory("MockToken");
                 const newMockTokenContract = await MockToken.deploy();
                 await newMockTokenContract.deployed();
@@ -243,8 +247,7 @@ describe("FirstLossCover Tests", function () {
         describe("When only the pool safe contract is updated", function () {
             it("Should reset the allowance of the pool safe contract", async function () {
                 const PoolSafe = await ethers.getContractFactory("PoolSafe");
-                const newPoolSafeContract = await PoolSafe.deploy();
-                await newPoolSafeContract.deployed();
+                const newPoolSafeContract = (await deployProxyContract(PoolSafe)) as PoolSafe;
                 await performUpdate(newPoolSafeContract, mockTokenContract);
 
                 // Make sure the old allowance has been reduced to 0, and the new allowance has been increase to uint256.max.

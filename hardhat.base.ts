@@ -3,12 +3,23 @@ import "dotenv/config";
 import "hardhat-abi-exporter";
 import "hardhat-contract-sizer";
 
+import "dotenv/config";
 import { HardhatUserConfig } from "hardhat/types";
+
+const EMPTY_URL = "empty url";
+const EMPTY_PRIVATE_KEY = "0x0000000000000000000000000000000000000000000000000000000000000000";
+
+const sepoliaUrl = process.env["SEPOLIA_URL"] || EMPTY_URL;
+const deployer = process.env["DEPLOYER"] || EMPTY_PRIVATE_KEY;
 
 const config: HardhatUserConfig = {
     networks: {
         hardhat: {
             chainId: Number(process.env.LOCALHOST_CHAIN_ID ?? 31337),
+        },
+        sepolia: {
+            url: sepoliaUrl,
+            accounts: [deployer],
         },
     },
     solidity: {
@@ -23,6 +34,11 @@ const config: HardhatUserConfig = {
                 },
             },
         ],
+    },
+    etherscan: {
+        apiKey: {
+            sepolia: process.env.ETHERSCAN_API_KEY || "",
+        },
     },
     contractSizer: {
         alphaSort: true,

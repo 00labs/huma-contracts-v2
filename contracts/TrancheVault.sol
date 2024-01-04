@@ -51,10 +51,6 @@ contract TrancheVault is
 
     event ReinvestYieldConfigSet(address indexed account, bool reinvestYield, address by);
 
-    constructor() {
-        // _disableInitializers();
-    }
-
     function initialize(
         string memory name,
         string memory symbol,
@@ -63,6 +59,7 @@ contract TrancheVault is
     ) external initializer {
         __ERC20_init(name, symbol);
         __AccessControl_init();
+        __UUPSUpgradeable_init();
         _initialize(_poolConfig);
 
         if (seniorTrancheOrJuniorTranche > 1) revert Errors.invalidTrancheIndex();
