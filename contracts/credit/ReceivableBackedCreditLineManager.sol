@@ -4,11 +4,11 @@ pragma solidity ^0.8.0;
 import {BorrowerLevelCreditManager} from "./BorrowerLevelCreditManager.sol";
 import {ReceivableBackedCreditLineManagerStorage} from "./ReceivableBackedCreditLineManagerStorage.sol";
 import {CreditConfig} from "./CreditStructs.sol";
-import {Errors} from "../Errors.sol";
+import {Errors} from "../common/Errors.sol";
 import {IReceivableBackedCreditLineManager} from "./interfaces/IReceivableBackedCreditLineManager.sol";
-import {HUNDRED_PERCENT_IN_BPS} from "../SharedDefs.sol";
+import {HUNDRED_PERCENT_IN_BPS} from "../common/SharedDefs.sol";
 import {IReceivable} from "./interfaces/IReceivable.sol";
-import {PoolConfig} from "../PoolConfig.sol";
+import {PoolConfig} from "../common/PoolConfig.sol";
 import {CreditManager} from "./CreditManager.sol";
 
 contract ReceivableBackedCreditLineManager is

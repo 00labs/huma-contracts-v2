@@ -1,20 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {Errors} from "../Errors.sol";
-import {HumaConfig} from "../HumaConfig.sol";
-import {PoolConfig, PoolSettings, FeeStructure} from "../PoolConfig.sol";
-import {IPool} from "../interfaces/IPool.sol";
-import {PoolConfigCache} from "../PoolConfigCache.sol";
+import {Errors} from "../common/Errors.sol";
+import {HumaConfig} from "../common/HumaConfig.sol";
+import {PoolConfig, PoolSettings, FeeStructure} from "../common/PoolConfig.sol";
+import {IPool} from "../liquidity/interfaces/IPool.sol";
+import {PoolConfigCache} from "../common/PoolConfigCache.sol";
 import {CreditStorage} from "./CreditStorage.sol";
-import {CreditConfig, CreditRecord, CreditState, DueDetail, PayPeriodDuration} from "./CreditStructs.sol";
-import {IFirstLossCover} from "../interfaces/IFirstLossCover.sol";
-import {IPoolSafe} from "../interfaces/IPoolSafe.sol";
+import {CreditConfig, CreditRecord, CreditState, DueDetail} from "./CreditStructs.sol";
+import {PayPeriodDuration} from "../common/SharedDefs.sol";
+import {IFirstLossCover} from "../liquidity/interfaces/IFirstLossCover.sol";
+import {IPoolSafe} from "../liquidity/interfaces/IPoolSafe.sol";
 import {ICredit} from "./interfaces/ICredit.sol";
 import {ICreditManager} from "./interfaces/ICreditManager.sol";
 import {ICreditDueManager} from "./utils/interfaces/ICreditDueManager.sol";
 import {IERC20, IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {BORROWER_FIRST_LOSS_COVER_INDEX, DAYS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS, SECONDS_IN_A_DAY} from "../SharedDefs.sol";
+import {BORROWER_FIRST_LOSS_COVER_INDEX, DAYS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS, SECONDS_IN_A_DAY} from "../common/SharedDefs.sol";
 
 import "hardhat/console.sol";
 
