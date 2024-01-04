@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import {PoolConfig} from "./PoolConfig.sol";
 import {Errors} from "./Errors.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 /**
  * @notice All contract addresses and configurations at the pool level are stored in the PoolConfig contract.
@@ -11,16 +12,21 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
  * PoolConfigCache is responsible for managing PoolConfig and caching the addresses of depending contracts.
  */
 
-abstract contract PoolConfigCache is Initializable {
+abstract contract PoolConfigCache is Initializable, UUPSUpgradeable {
     PoolConfig public poolConfig;
 
     event PoolConfigCacheUpdated(address indexed poolConfig);
     event PoolConfigChanged(address indexed newPoolConfig, address indexed oldPoolConfig);
 
+    constructor() {
+        _disableInitializers();
+    }
+
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual;
 
     function initialize(PoolConfig _poolConfig) public virtual initializer {
         _initialize(_poolConfig);
+        __UUPSUpgradeable_init();
     }
 
     function _initialize(PoolConfig _poolConfig) internal onlyInitializing {
@@ -49,5 +55,9 @@ abstract contract PoolConfigCache is Initializable {
         poolConfig = _poolConfig;
         _updatePoolConfigData(_poolConfig);
         emit PoolConfigChanged(address(_poolConfig), address(oldPoolConfig));
+    }
+
+    function _authorizeUpgrade(address) internal view override {
+        poolConfig.onlyHumaMasterAdmin(msg.sender);
     }
 }

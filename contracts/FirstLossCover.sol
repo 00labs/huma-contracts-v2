@@ -47,16 +47,13 @@ contract FirstLossCover is
 
     event YieldPaidout(address indexed account, uint256 yields);
 
-    constructor() {
-        // _disableInitializers();
-    }
-
     function initialize(
         string memory name,
         string memory symbol,
         PoolConfig _poolConfig
     ) external initializer {
         __ERC20_init(name, symbol);
+        __UUPSUpgradeable_init();
         _initialize(_poolConfig);
     }
 
