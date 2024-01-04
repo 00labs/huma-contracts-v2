@@ -16,11 +16,8 @@ contract CreditStorage {
 
     // Reference to the due manager contract
     ICreditDueManager public dueManager;
-
-    ICalendar public calendar;
     IPoolSafe public poolSafe;
     IFirstLossCover public firstLossCover;
-
     ICreditManager public creditManager;
 
     /// mapping from credit id to the credit record

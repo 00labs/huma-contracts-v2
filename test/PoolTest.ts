@@ -148,7 +148,7 @@ describe("Pool Test", function () {
                 .setEvaluationAgent(eaNFTTokenId, evaluationAgent.address);
             await affiliateFirstLossCoverContract
                 .connect(poolOwner)
-                .addCoverProvider(poolOwnerTreasury.address);
+                .addCoverProvider(evaluationAgent.address);
 
             minPoolOwnerLiquidity =
                 await getMinLiquidityRequirementForPoolOwner(poolConfigContract);

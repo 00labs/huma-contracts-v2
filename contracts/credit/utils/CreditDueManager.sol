@@ -157,7 +157,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             newDD.principalPastDue += cr.nextDue - cr.yieldDue;
         }
 
-        uint256 principalDue;
+        uint256 principalDue = 0;
         if (cr.remainingPeriods != 0) {
             uint256 totalPrincipal = cr.unbilledPrincipal +
                 cr.nextDue -
@@ -264,6 +264,29 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         accrued = computeYieldDue(principal, cc.yieldInBps, daysPassed);
         committed = computeYieldDue(cc.committedAmount, cc.yieldInBps, daysPassed);
         return (accrued, committed);
+    }
+
+    /// @inheritdoc ICreditDueManager
+    function computeAdditionalYieldAccruedAndPrincipalDueForDrawdown(
+        PayPeriodDuration periodDuration,
+        uint256 borrowAmount,
+        uint256 nextDueDate,
+        uint256 yieldInBps
+    ) external view returns (uint256 additionalYieldAccrued, uint256 additionalPrincipalDue) {
+        uint256 daysRemaining = calendar.getDaysRemainingInPeriod(nextDueDate);
+        // It's important to note that the yield calculation includes the day of the drawdown. For instance,
+        // if the borrower draws down at 11:59 PM on October 30th, the yield for October 30th must be paid.
+        additionalYieldAccrued = computeYieldDue(borrowAmount, yieldInBps, daysRemaining);
+        FeeStructure memory fees = poolConfig.getFeeStructure();
+        if (fees.minPrincipalRateInBps > 0) {
+            additionalPrincipalDue = computePrincipalDueForPartialPeriod(
+                borrowAmount,
+                fees.minPrincipalRateInBps,
+                daysRemaining,
+                periodDuration
+            );
+        }
+        return (additionalYieldAccrued, additionalPrincipalDue);
     }
 
     function computeYieldDue(
