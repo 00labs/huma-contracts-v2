@@ -59,7 +59,7 @@ let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
     eaServiceAccount: SignerWithAddress,
-    pdsServiceAccount: SignerWithAddress;
+    sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
     evaluationAgent: SignerWithAddress,
@@ -203,7 +203,7 @@ describe("Credit Line Integration Test", function () {
             protocolOwner,
             treasury,
             eaServiceAccount,
-            pdsServiceAccount,
+            sentinelServiceAccount,
             poolOwner,
         );
 
@@ -340,7 +340,7 @@ describe("Credit Line Integration Test", function () {
             protocolOwner,
             treasury,
             eaServiceAccount,
-            pdsServiceAccount,
+            sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
             evaluationAgent,
@@ -425,7 +425,7 @@ describe("Credit Line Integration Test", function () {
         await setNextBlockTimestamp(runDate.unix());
         await expect(
             creditManagerContract
-                .connect(pdsServiceAccount)
+                .connect(sentinelServiceAccount)
                 .startCommittedCredit(borrower.getAddress()),
         )
             .to.emit(creditManagerContract, "CommittedCreditStarted")

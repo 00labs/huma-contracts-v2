@@ -44,7 +44,7 @@ contract CreditLine is Credit, ICreditLine {
         uint256 amount
     ) external virtual override returns (uint256 amountPaid, bool paidoff) {
         poolConfig.onlyProtocolAndPoolOn();
-        if (msg.sender != borrower) _onlyPDSServiceAccount();
+        if (msg.sender != borrower) _onlySentinelServiceAccount();
 
         bytes32 creditHash = getCreditHash(borrower);
         creditManager.onlyCreditBorrower(creditHash, borrower);
@@ -61,7 +61,7 @@ contract CreditLine is Credit, ICreditLine {
         poolConfig.onlyProtocolAndPoolOn();
         // TODO: Remove the following condition since we want to allow non-borrowers to make payment
         // on the behalf of the borrower (mostly intended for invoice issuers).
-        if (msg.sender != borrower) _onlyPDSServiceAccount();
+        if (msg.sender != borrower) _onlySentinelServiceAccount();
 
         bytes32 creditHash = getCreditHash(borrower);
         creditManager.onlyCreditBorrower(creditHash, borrower);

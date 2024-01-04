@@ -147,7 +147,7 @@ export async function deployProtocolContracts(
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
     eaServiceAccount: SignerWithAddress,
-    pdsServiceAccount: SignerWithAddress,
+    sentinelServiceAccount: SignerWithAddress,
     poolOwner: SignerWithAddress,
 ): Promise<ProtocolContracts> {
     // Deploy EvaluationAgentNFT
@@ -163,7 +163,7 @@ export async function deployProtocolContracts(
     await humaConfigContract.setHumaTreasury(treasury.getAddress());
     await humaConfigContract.setEANFTContractAddress(eaNFTContract.address);
     await humaConfigContract.setEAServiceAccount(eaServiceAccount.getAddress());
-    await humaConfigContract.setPDSServiceAccount(pdsServiceAccount.getAddress());
+    await humaConfigContract.setSentinelServiceAccount(sentinelServiceAccount.getAddress());
 
     await humaConfigContract.addPauser(protocolOwner.getAddress());
     await humaConfigContract.addPauser(poolOwner.getAddress());
