@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {HumaConfig} from "../HumaConfig.sol";
-import {CreditConfig, CreditRecord, CreditLimit, DueDetail} from "./CreditStructs.sol";
+import {CreditConfig, CreditRecord, DueDetail} from "./CreditStructs.sol";
 import {PoolConfig} from "../PoolConfig.sol";
 import {ICreditDueManager} from "./utils/interfaces/ICreditDueManager.sol";
 import {ICalendar} from "./interfaces/ICalendar.sol";
@@ -16,11 +16,8 @@ contract CreditStorage {
 
     // Reference to the due manager contract
     ICreditDueManager public dueManager;
-
-    ICalendar public calendar;
     IPoolSafe public poolSafe;
     IFirstLossCover public firstLossCover;
-
     ICreditManager public creditManager;
 
     /// mapping from credit id to the credit record

@@ -97,10 +97,8 @@ contract ReceivableFactoringCredit is
         emit PaymentMadeWithReceivable(borrower, receivableId, amount, msg.sender);
     }
 
-    /// TODO(jiatu): rename this? `ForContract` is too specific as this function allows payment to be made
-    // by anyone with the `PAYER` role.
     /// @inheritdoc IReceivableFactoringCreditForContract
-    function makePaymentWithReceivableForContract(
+    function makePaymentWithReceivableByPayer(
         uint256 receivableId,
         uint256 amount
     ) external returns (uint256 amountPaid, bool paidoff) {

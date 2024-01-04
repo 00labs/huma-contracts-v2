@@ -51,7 +51,7 @@ import {
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     eaServiceAccount: SignerWithAddress,
-    pdsServiceAccount: SignerWithAddress;
+    sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
     evaluationAgent: SignerWithAddress,
@@ -85,7 +85,7 @@ describe("CreditDueManager Tests", function () {
             protocolOwner,
             protocolTreasury,
             eaServiceAccount,
-            pdsServiceAccount,
+            sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
             evaluationAgent,
@@ -106,7 +106,7 @@ describe("CreditDueManager Tests", function () {
             protocolOwner,
             protocolTreasury,
             eaServiceAccount,
-            pdsServiceAccount,
+            sentinelServiceAccount,
             poolOwner,
         );
 
@@ -398,10 +398,7 @@ describe("CreditDueManager Tests", function () {
                     yieldInBps: 1000,
                     advanceRateInBps: 8000,
                     revolving: true,
-                    receivableBacked: true,
-                    borrowerLevelCredit: true,
-                    exclusive: true,
-                    autoApproval: true,
+                    receivableAutoApproval: true,
                 },
                 ...creditConfigOverrides,
             };
@@ -1246,6 +1243,11 @@ describe("CreditDueManager Tests", function () {
                                 accrued: 0,
                             },
                         };
+
+                        // printCreditRecord("expectedNewCR", expectedNewCR);
+                        // printCreditRecord("newCR", newCR);
+                        // console.log("expectedNewDD", expectedNewDD);
+                        // console.log("newDD", newDD);
                         checkCreditRecordsMatch(newCR, expectedNewCR);
                         checkDueDetailsMatch(newDD, expectedNewDD);
                     });

@@ -20,7 +20,12 @@ import {
     RiskAdjustedTranchesPolicy,
     TrancheVault,
 } from "../typechain-types";
-import { CONSTANTS, deployAndSetupPoolContracts, deployProtocolContracts } from "./BaseTest";
+import {
+    CONSTANTS,
+    deployAndSetupPoolContracts,
+    deployProtocolContracts,
+    deployProxyContract,
+} from "./BaseTest";
 import {
     getMinFirstLossCoverRequirement,
     minBigNumber,
@@ -31,7 +36,7 @@ import {
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     eaServiceAccount: SignerWithAddress,
-    pdsServiceAccount: SignerWithAddress;
+    sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
     evaluationAgent: SignerWithAddress,
@@ -65,7 +70,7 @@ describe("FirstLossCover Tests", function () {
             protocolOwner,
             protocolTreasury,
             eaServiceAccount,
-            pdsServiceAccount,
+            sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
             evaluationAgent,
@@ -80,7 +85,7 @@ describe("FirstLossCover Tests", function () {
             protocolOwner,
             protocolTreasury,
             eaServiceAccount,
-            pdsServiceAccount,
+            sentinelServiceAccount,
             poolOwner,
         );
 
@@ -162,8 +167,7 @@ describe("FirstLossCover Tests", function () {
         ) {
             await spendAllowance();
             const PoolConfig = await ethers.getContractFactory("PoolConfig");
-            const newPoolConfigContract = await PoolConfig.deploy();
-            await newPoolConfigContract.deployed();
+            const newPoolConfigContract = (await deployProxyContract(PoolConfig)) as PoolConfig;
 
             // Update the contract addresses.
             await newPoolConfigContract.initialize("Test Pool", [
@@ -200,8 +204,8 @@ describe("FirstLossCover Tests", function () {
         describe("When both the pool safe and the underlying token contracts are updated", function () {
             it("Should reset the allowance of the pool safe contract", async function () {
                 const PoolSafe = await ethers.getContractFactory("PoolSafe");
-                const newPoolSafeContract = await PoolSafe.deploy();
-                await newPoolSafeContract.deployed();
+                const newPoolSafeContract = (await deployProxyContract(PoolSafe)) as PoolSafe;
+
                 const MockToken = await ethers.getContractFactory("MockToken");
                 const newMockTokenContract = await MockToken.deploy();
                 await newMockTokenContract.deployed();
@@ -243,8 +247,7 @@ describe("FirstLossCover Tests", function () {
         describe("When only the pool safe contract is updated", function () {
             it("Should reset the allowance of the pool safe contract", async function () {
                 const PoolSafe = await ethers.getContractFactory("PoolSafe");
-                const newPoolSafeContract = await PoolSafe.deploy();
-                await newPoolSafeContract.deployed();
+                const newPoolSafeContract = (await deployProxyContract(PoolSafe)) as PoolSafe;
                 await performUpdate(newPoolSafeContract, mockTokenContract);
 
                 // Make sure the old allowance has been reduced to 0, and the new allowance has been increase to uint256.max.
@@ -312,23 +315,24 @@ describe("FirstLossCover Tests", function () {
             await expect(
                 affiliateFirstLossCoverContract
                     .connect(poolOwner)
-                    .addCoverProvider(evaluationAgent2.address),
+                    .addCoverProvider(evaluationAgent2.getAddress()),
             )
                 .to.emit(affiliateFirstLossCoverContract, "CoverProviderAdded")
                 .withArgs(evaluationAgent2.address);
-            // Adding twice should not cause errors, neither should it emit events.
-            expect(
+
+            // Adding a second time should cause an error.
+            await expect(
                 affiliateFirstLossCoverContract
                     .connect(poolOwner)
-                    .addCoverProvider(evaluationAgent2.address),
-            ).to.not.emit(affiliateFirstLossCoverContract, "CoverProviderAdded");
+                    .addCoverProvider(evaluationAgent2.getAddress()),
+            ).to.be.revertedWithCustomError(affiliateFirstLossCoverContract, "alreadyProvider");
             const providers = await affiliateFirstLossCoverContract.getCoverProviders();
             expect(providers.includes(await evaluationAgent2.getAddress())).to.be.true;
         });
 
         it("Should disallow non-pool owners to add cover providers", async function () {
             await expect(
-                affiliateFirstLossCoverContract.addCoverProvider(evaluationAgent2.address),
+                affiliateFirstLossCoverContract.addCoverProvider(evaluationAgent2.getAddress()),
             ).to.be.revertedWithCustomError(poolConfigContract, "notPoolOwner");
         });
 
@@ -357,10 +361,124 @@ describe("FirstLossCover Tests", function () {
                 affiliateFirstLossCoverContract
                     .connect(poolOwner)
                     .addCoverProvider(evaluationAgent2.getAddress()),
-            ).to.be.revertedWithCustomError(
-                affiliateFirstLossCoverContract,
-                "tooManyCoverProviders",
-            );
+            ).to.be.revertedWithCustomError(affiliateFirstLossCoverContract, "tooManyProviders");
+        });
+    });
+
+    describe("removeCoverProvider", function () {
+        describe("When the account being removed is not a cover provider", function () {
+            it("Should throw an error", async function () {
+                await expect(
+                    affiliateFirstLossCoverContract
+                        .connect(poolOwner)
+                        .removeCoverProvider(evaluationAgent2.getAddress()),
+                ).to.be.revertedWithCustomError(affiliateFirstLossCoverContract, "notProvider");
+            });
+        });
+
+        describe("When the account is a cover provider", function () {
+            async function addCoverProvider() {
+                await affiliateFirstLossCoverContract
+                    .connect(poolOwner)
+                    .addCoverProvider(evaluationAgent2.getAddress());
+            }
+
+            describe("If the provider has not deposited assets", function () {
+                beforeEach(async function () {
+                    await loadFixture(addCoverProvider);
+                });
+
+                it("Should allow the provider to be removed", async function () {
+                    const oldProviders = await affiliateFirstLossCoverContract.getCoverProviders();
+                    expect(oldProviders.includes(await evaluationAgent2.getAddress())).to.be.true;
+
+                    await expect(
+                        affiliateFirstLossCoverContract
+                            .connect(poolOwner)
+                            .removeCoverProvider(evaluationAgent2.getAddress()),
+                    )
+                        .to.emit(affiliateFirstLossCoverContract, "CoverProviderRemoved")
+                        .withArgs(await evaluationAgent2.getAddress());
+
+                    // Removing a second time should cause an error.
+                    await expect(
+                        affiliateFirstLossCoverContract
+                            .connect(poolOwner)
+                            .removeCoverProvider(evaluationAgent2.getAddress()),
+                    ).to.be.revertedWithCustomError(
+                        affiliateFirstLossCoverContract,
+                        "notProvider",
+                    );
+
+                    const newProviders = await affiliateFirstLossCoverContract.getCoverProviders();
+                    expect(newProviders.includes(await evaluationAgent2.getAddress())).to.be.false;
+                });
+
+                it("Should not allow non-pool owners to remove cover providers", async function () {
+                    await expect(
+                        affiliateFirstLossCoverContract
+                            .connect(lender)
+                            .removeCoverProvider(evaluationAgent2.getAddress()),
+                    ).to.be.revertedWithCustomError(poolConfigContract, "notPoolOwner");
+                });
+
+                it("Should not remove providers with zero address", async function () {
+                    await expect(
+                        affiliateFirstLossCoverContract
+                            .connect(poolOwner)
+                            .removeCoverProvider(ethers.constants.AddressZero),
+                    ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
+                });
+            });
+
+            describe("If the provider has deposited assets", function () {
+                let providerAssets: BN;
+
+                async function prepare() {
+                    providerAssets = toToken(10_000);
+
+                    const currentCoverTotalAssets =
+                        await affiliateFirstLossCoverContract.totalAssets();
+
+                    await overrideFirstLossCoverConfig(
+                        affiliateFirstLossCoverContract,
+                        CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                        poolConfigContract,
+                        poolOwner,
+                        {
+                            maxLiquidity: currentCoverTotalAssets.add(providerAssets),
+                        },
+                    );
+
+                    await addCoverProvider();
+
+                    await mockTokenContract.mint(evaluationAgent2.getAddress(), providerAssets);
+                    await mockTokenContract
+                        .connect(evaluationAgent2)
+                        .approve(affiliateFirstLossCoverContract.address, providerAssets);
+                    await affiliateFirstLossCoverContract
+                        .connect(evaluationAgent2)
+                        .depositCover(providerAssets);
+                }
+
+                beforeEach(async function () {
+                    await loadFixture(prepare);
+                });
+
+                it("Should not allow the provider to be removed", async function () {
+                    await expect(
+                        affiliateFirstLossCoverContract
+                            .connect(poolOwner)
+                            .removeCoverProvider(evaluationAgent2.getAddress()),
+                    )
+                        .to.emit(affiliateFirstLossCoverContract, "CoverProviderRemoved")
+                        .withArgs(await evaluationAgent2.getAddress())
+                        .to.be.revertedWithCustomError(
+                            affiliateFirstLossCoverContract,
+                            "providerHasOutstandingAssets",
+                        );
+                });
+            });
         });
     });
 
@@ -372,10 +490,6 @@ describe("FirstLossCover Tests", function () {
         });
 
         it("Should allow a cover provider to deposit assets", async function () {
-            // Add the evaluation agent as a cover provider.
-            await affiliateFirstLossCoverContract
-                .connect(poolOwner)
-                .addCoverProvider(evaluationAgent.getAddress());
             // Top up the EA's wallet and allow the first loss cover contract to transfer assets from it.
             await mockTokenContract.mint(evaluationAgent.getAddress(), assets);
             await mockTokenContract
@@ -433,9 +547,6 @@ describe("FirstLossCover Tests", function () {
         it("Should disallow deposits that exceed the max liquidity requirement", async function () {
             const maxLiquidity = await affiliateFirstLossCoverContract.getMaxLiquidity();
             const depositAmount = maxLiquidity.add(toToken(1));
-            await affiliateFirstLossCoverContract
-                .connect(poolOwner)
-                .addCoverProvider(evaluationAgent.getAddress());
             await mockTokenContract.mint(evaluationAgent.getAddress(), depositAmount);
             await mockTokenContract
                 .connect(evaluationAgent)
@@ -586,9 +697,6 @@ describe("FirstLossCover Tests", function () {
 
         it("Should return the correct number of shares otherwise", async function () {
             const depositAmount = toToken(5_000);
-            await affiliateFirstLossCoverContract
-                .connect(poolOwner)
-                .addCoverProvider(evaluationAgent.getAddress());
             await mockTokenContract.mint(evaluationAgent.getAddress(), depositAmount);
             await mockTokenContract
                 .connect(evaluationAgent)
@@ -619,9 +727,6 @@ describe("FirstLossCover Tests", function () {
 
         it("Should return the correct amount of assets otherwise", async function () {
             const depositAmount = toToken(5_000);
-            await affiliateFirstLossCoverContract
-                .connect(poolOwner)
-                .addCoverProvider(evaluationAgent.getAddress());
             await mockTokenContract.mint(evaluationAgent.getAddress(), depositAmount);
             await mockTokenContract
                 .connect(evaluationAgent)
@@ -654,10 +759,6 @@ describe("FirstLossCover Tests", function () {
             loss: BN = BN.from(0),
             lossRecovery: BN = BN.from(0),
         ) {
-            // Add the evaluation agent as a cover provider.
-            await affiliateFirstLossCoverContract
-                .connect(poolOwner)
-                .addCoverProvider(evaluationAgent.getAddress());
             // Top up the EA's wallet and allow the first loss cover contract to transfer assets from it.
             await mockTokenContract.mint(evaluationAgent.getAddress(), assets);
             await mockTokenContract
@@ -1189,9 +1290,6 @@ describe("FirstLossCover Tests", function () {
 
         describe("isSufficient", function () {
             async function depositCover(assets: BN) {
-                await affiliateFirstLossCoverContract
-                    .connect(poolOwner)
-                    .addCoverProvider(evaluationAgent.getAddress());
                 await mockTokenContract.mint(evaluationAgent.getAddress(), assets);
                 await mockTokenContract
                     .connect(evaluationAgent)

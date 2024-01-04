@@ -42,7 +42,7 @@ contract MockNFT is
         address owner = ownerOf(tokenId);
         if (owner.supportsInterface(type(IReceivableFactoringCreditForContract).interfaceId)) {
             IERC20(tokenAddress).safeTransferFrom(msg.sender, address(this), amount);
-            IReceivableFactoringCreditForContract(owner).makePaymentWithReceivableForContract(
+            IReceivableFactoringCreditForContract(owner).makePaymentWithReceivableByPayer(
                 tokenId,
                 amount
             );

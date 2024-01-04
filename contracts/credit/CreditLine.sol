@@ -47,7 +47,7 @@ contract CreditLine is Credit, ICreditLine {
         uint256 amount
     ) external virtual override returns (uint256 amountPaid, bool paidoff) {
         poolConfig.onlyProtocolAndPoolOn();
-        if (msg.sender != borrower) _onlyPDSServiceAccount();
+        if (msg.sender != borrower) _onlySentinelServiceAccount();
 
         bytes32 creditHash = getCreditHash(borrower);
         creditManager.onlyCreditBorrower(creditHash, borrower);
@@ -62,7 +62,7 @@ contract CreditLine is Credit, ICreditLine {
         uint256 amount
     ) external virtual override returns (uint256 amountPaid, bool paidoff) {
         poolConfig.onlyProtocolAndPoolOn();
-        if (msg.sender != borrower) _onlyPDSServiceAccount();
+        if (msg.sender != borrower) _onlySentinelServiceAccount();
 
         bytes32 creditHash = getCreditHash(borrower);
         creditManager.onlyCreditBorrower(creditHash, borrower);

@@ -45,7 +45,7 @@ let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
     eaServiceAccount: SignerWithAddress,
-    pdsServiceAccount: SignerWithAddress;
+    sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
     evaluationAgent: SignerWithAddress,
@@ -78,7 +78,7 @@ describe("ReceivableFactoringCredit Tests", function () {
             protocolOwner,
             treasury,
             eaServiceAccount,
-            pdsServiceAccount,
+            sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
             evaluationAgent,
@@ -94,7 +94,7 @@ describe("ReceivableFactoringCredit Tests", function () {
             protocolOwner,
             treasury,
             eaServiceAccount,
-            pdsServiceAccount,
+            sentinelServiceAccount,
             poolOwner,
         );
 
@@ -598,7 +598,7 @@ describe("ReceivableFactoringCredit Tests", function () {
         });
     });
 
-    describe("makePaymentWithReceivableForContract", function () {
+    describe("makePaymentWithReceivableByPayer", function () {
         const yieldInBps = 1217,
             principalRate = 100,
             lateFeeBps = 2400;
@@ -670,7 +670,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                 await expect(
                     creditContract
                         .connect(payer)
-                        .makePaymentWithReceivableForContract(tokenId2, borrowAmount),
+                        .makePaymentWithReceivableByPayer(tokenId2, borrowAmount),
                 ).to.be.revertedWithCustomError(creditContract, "notReceivableOwner");
 
                 await nftContract.connect(borrower).burn(tokenId2);
@@ -690,7 +690,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                 await expect(
                     creditContract
                         .connect(payer)
-                        .makePaymentWithReceivableForContract(tokenId, paymentAmount),
+                        .makePaymentWithReceivableByPayer(tokenId, paymentAmount),
                 )
                     .to.emit(creditContract, "PaymentMade")
                     .withArgs(
@@ -738,7 +738,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                 await expect(
                     creditContract
                         .connect(payer)
-                        .makePaymentWithReceivableForContract(tokenId, borrowAmount),
+                        .makePaymentWithReceivableByPayer(tokenId, borrowAmount),
                 ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
                 await humaConfigContract.connect(protocolOwner).unpause();
 
@@ -746,7 +746,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                 await expect(
                     creditContract
                         .connect(payer)
-                        .makePaymentWithReceivableForContract(tokenId, borrowAmount),
+                        .makePaymentWithReceivableByPayer(tokenId, borrowAmount),
                 ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
                 await poolContract.connect(poolOwner).enablePool();
             });
@@ -755,7 +755,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                 await expect(
                     creditContract
                         .connect(borrower)
-                        .makePaymentWithReceivableForContract(tokenId, borrowAmount),
+                        .makePaymentWithReceivableByPayer(tokenId, borrowAmount),
                 ).to.be.revertedWithCustomError(creditManagerContract, "permissionDeniedNotPayer");
             });
 
@@ -763,7 +763,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                 await expect(
                     creditContract
                         .connect(payer)
-                        .makePaymentWithReceivableForContract(0, borrowAmount),
+                        .makePaymentWithReceivableByPayer(0, borrowAmount),
                 ).to.be.revertedWithCustomError(creditContract, "zeroReceivableIdProvided");
             });
         });

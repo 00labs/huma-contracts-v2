@@ -47,7 +47,7 @@ let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
     eaServiceAccount: SignerWithAddress,
-    pdsServiceAccount: SignerWithAddress;
+    sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
     evaluationAgent: SignerWithAddress,
@@ -80,7 +80,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
             protocolOwner,
             treasury,
             eaServiceAccount,
-            pdsServiceAccount,
+            sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
             evaluationAgent,
@@ -95,7 +95,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
             protocolOwner,
             treasury,
             eaServiceAccount,
-            pdsServiceAccount,
+            sentinelServiceAccount,
             poolOwner,
         );
 
@@ -114,6 +114,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
             creditContract as unknown,
             creditDueManagerContract,
             creditManagerContract as unknown,
+            receivableContract,
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
@@ -129,11 +130,6 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
             [lender, borrower],
         );
 
-        const Receivable = await ethers.getContractFactory("Receivable");
-        receivableContract = await Receivable.deploy();
-        await receivableContract.deployed();
-
-        await receivableContract.connect(poolOwner).initialize();
         await receivableContract
             .connect(poolOwner)
             .grantRole(receivableContract.MINTER_ROLE(), borrower.address);
@@ -271,18 +267,17 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                 await receivableContract
                     .connect(borrower)
                     .createReceivable(1, borrowAmount, maturityDate, "", "");
-                let tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
-                console.log(`tokenId: ${tokenId}`);
+                const receivableId = await receivableContract.tokenOfOwnerByIndex(
+                    borrower.address,
+                    0,
+                );
+                console.log(`receivableId: ${receivableId}`);
                 await receivableContract
                     .connect(borrower)
-                    .approve(creditContract.address, tokenId);
+                    .approve(creditContract.address, receivableId);
                 await creditContract
                     .connect(borrower)
-                    .drawdownWithReceivable(
-                        borrower.address,
-                        { receivableAmount: borrowAmount, receivableId: tokenId },
-                        borrowAmount,
-                    );
+                    .drawdownWithReceivable(borrower.address, receivableId, borrowAmount);
             }
         });
 
@@ -312,19 +307,22 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                 await receivableContract
                     .connect(borrower)
                     .createReceivable(1, borrowAmount, maturityDate, "", "");
-                let tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
-                console.log(`tokenId: ${tokenId}`);
+                const receivableId = await receivableContract.tokenOfOwnerByIndex(
+                    borrower.address,
+                    0,
+                );
+                console.log(`receivableId: ${receivableId}`);
                 await receivableContract
                     .connect(borrower)
-                    .approve(creditContract.address, tokenId);
+                    .approve(creditContract.address, receivableId);
 
                 await creditContract
                     .connect(borrower)
                     .makePrincipalPaymentAndDrawdownWithReceivable(
                         borrower.address,
-                        tokenId.sub(5),
+                        receivableId.sub(5),
                         paymentAmount,
-                        { receivableAmount: borrowAmount, receivableId: tokenId },
+                        receivableId,
                         borrowAmount,
                     );
             }
@@ -346,19 +344,22 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                 await receivableContract
                     .connect(borrower)
                     .createReceivable(1, borrowAmount, maturityDate, "", "");
-                let tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
-                console.log(`tokenId: ${tokenId}`);
+                const receivableId = await receivableContract.tokenOfOwnerByIndex(
+                    borrower.address,
+                    0,
+                );
+                console.log(`receivableId: ${receivableId}`);
                 await receivableContract
                     .connect(borrower)
-                    .approve(creditContract.address, tokenId);
+                    .approve(creditContract.address, receivableId);
 
                 await creditContract
                     .connect(borrower)
                     .makePrincipalPaymentAndDrawdownWithReceivable(
                         borrower.address,
-                        tokenId.sub(5),
+                        receivableId.sub(5),
                         paymentAmount,
-                        { receivableAmount: borrowAmount, receivableId: tokenId },
+                        receivableId,
                         borrowAmount,
                     );
             }
@@ -380,19 +381,22 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                 await receivableContract
                     .connect(borrower)
                     .createReceivable(1, borrowAmount, maturityDate, "", "");
-                let tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
-                console.log(`tokenId: ${tokenId}`);
+                const receivableId = await receivableContract.tokenOfOwnerByIndex(
+                    borrower.address,
+                    0,
+                );
+                console.log(`receivableId: ${receivableId}`);
                 await receivableContract
                     .connect(borrower)
-                    .approve(creditContract.address, tokenId);
+                    .approve(creditContract.address, receivableId);
 
                 await creditContract
                     .connect(borrower)
                     .makePrincipalPaymentAndDrawdownWithReceivable(
                         borrower.address,
-                        tokenId.sub(5),
+                        receivableId.sub(5),
                         paymentAmount,
-                        { receivableAmount: borrowAmount, receivableId: tokenId },
+                        receivableId,
                         borrowAmount,
                     );
             }
@@ -434,19 +438,22 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                 await receivableContract
                     .connect(borrower)
                     .createReceivable(1, borrowAmount, maturityDate, "", "");
-                let tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
-                console.log(`tokenId: ${tokenId}`);
+                const receivableId = await receivableContract.tokenOfOwnerByIndex(
+                    borrower.address,
+                    0,
+                );
+                console.log(`receivableId: ${receivableId}`);
                 await receivableContract
                     .connect(borrower)
-                    .approve(creditContract.address, tokenId);
+                    .approve(creditContract.address, receivableId);
 
                 await creditContract
                     .connect(borrower)
                     .makePrincipalPaymentAndDrawdownWithReceivable(
                         borrower.address,
-                        tokenId.sub(5),
+                        receivableId.sub(5),
                         paymentAmount,
-                        { receivableAmount: borrowAmount, receivableId: tokenId },
+                        receivableId,
                         borrowAmount,
                     );
             }
@@ -468,19 +475,22 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                 await receivableContract
                     .connect(borrower)
                     .createReceivable(1, borrowAmount, maturityDate, "", "");
-                let tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
-                console.log(`tokenId: ${tokenId}`);
+                const receivableId = await receivableContract.tokenOfOwnerByIndex(
+                    borrower.address,
+                    0,
+                );
+                console.log(`receivableId: ${receivableId}`);
                 await receivableContract
                     .connect(borrower)
-                    .approve(creditContract.address, tokenId);
+                    .approve(creditContract.address, receivableId);
 
                 await creditContract
                     .connect(borrower)
                     .makePrincipalPaymentAndDrawdownWithReceivable(
                         borrower.address,
-                        tokenId.sub(5),
+                        receivableId.sub(5),
                         paymentAmount,
-                        { receivableAmount: borrowAmount, receivableId: tokenId },
+                        receivableId,
                         borrowAmount,
                     );
             }
@@ -517,19 +527,22 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                 await receivableContract
                     .connect(borrower)
                     .createReceivable(1, borrowAmount, maturityDate, "", "");
-                let tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
-                console.log(`tokenId: ${tokenId}`);
+                const receivableId = await receivableContract.tokenOfOwnerByIndex(
+                    borrower.address,
+                    0,
+                );
+                console.log(`receivableId: ${receivableId}`);
                 await receivableContract
                     .connect(borrower)
-                    .approve(creditContract.address, tokenId);
+                    .approve(creditContract.address, receivableId);
 
                 await creditContract
                     .connect(borrower)
                     .makePrincipalPaymentAndDrawdownWithReceivable(
                         borrower.address,
-                        tokenId.sub(5),
+                        receivableId.sub(5),
                         paymentAmount,
-                        { receivableAmount: borrowAmount, receivableId: tokenId },
+                        receivableId,
                         borrowAmount,
                     );
             }
@@ -563,18 +576,20 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
             await receivableContract
                 .connect(borrower)
                 .createReceivable(1, borrowAmount, maturityDate, "", "");
-            let tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
-            console.log(`tokenId: ${tokenId}`);
-            await receivableContract.connect(borrower).approve(creditContract.address, tokenId);
+            const receivableId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
+            console.log(`receivableId: ${receivableId}`);
+            await receivableContract
+                .connect(borrower)
+                .approve(creditContract.address, receivableId);
 
             await expect(
                 creditContract
                     .connect(borrower)
                     .makePrincipalPaymentAndDrawdownWithReceivable(
                         borrower.address,
-                        tokenId.sub(5),
+                        receivableId.sub(5),
                         paymentAmount,
-                        { receivableAmount: borrowAmount, receivableId: tokenId },
+                        receivableId,
                         borrowAmount,
                     ),
             ).to.be.revertedWithCustomError(
@@ -612,16 +627,16 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
         });
 
         it("Month3 - Day7: make payment and drawdown together", async function () {
-            let tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
-            console.log(`tokenId: ${tokenId}`);
+            const receivableId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
+            console.log(`receivableId: ${receivableId}`);
 
             await creditContract
                 .connect(borrower)
                 .makePrincipalPaymentAndDrawdownWithReceivable(
                     borrower.address,
-                    tokenId.sub(5),
+                    receivableId.sub(5),
                     paymentAmount,
-                    { receivableAmount: borrowAmount, receivableId: tokenId },
+                    receivableId,
                     borrowAmount,
                 );
         });

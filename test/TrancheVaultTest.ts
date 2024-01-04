@@ -42,7 +42,7 @@ let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
     eaServiceAccount: SignerWithAddress,
-    pdsServiceAccount: SignerWithAddress;
+    sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
     evaluationAgent: SignerWithAddress,
@@ -105,7 +105,7 @@ describe("TrancheVault Test", function () {
             protocolOwner,
             treasury,
             eaServiceAccount,
-            pdsServiceAccount,
+            sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
             evaluationAgent,
@@ -122,7 +122,7 @@ describe("TrancheVault Test", function () {
             protocolOwner,
             treasury,
             eaServiceAccount,
-            pdsServiceAccount,
+            sentinelServiceAccount,
             poolOwner,
         );
 
@@ -904,16 +904,6 @@ describe("TrancheVault Test", function () {
             it("Should mint the correct number of LP tokens if the junior tranche has to take loss", async function () {
                 const profit = toToken(0),
                     loss = juniorAmount.sub(toToken(1)),
-                    lossRecovery = toToken(0);
-                await testDepositWithPnL(profit, loss, lossRecovery);
-            });
-
-            // TODO(jiatu): re-enable this test after we figure out what we should do if totalAssets == 0
-            // when converting assets to shares.
-            // What do we want to do here?
-            it.skip("Should mint the correct number of LP tokens if the senior tranche has to take loss", async function () {
-                const profit = toToken(0),
-                    loss = juniorAmount.add(seniorAmount),
                     lossRecovery = toToken(0);
                 await testDepositWithPnL(profit, loss, lossRecovery);
             });
@@ -2771,43 +2761,6 @@ describe("TrancheVault Test", function () {
                     juniorTrancheVaultContract.address,
                 ),
             ).to.equal(0);
-        });
-
-        it.skip("Performance testing", async function () {
-            const lenders: Signer[] = [];
-
-            for (let i = 0; i < 50; i++) {
-                let lender = ethers.Wallet.createRandom();
-                lender = lender.connect(ethers.provider);
-                await defaultDeployer.sendTransaction({
-                    to: lender.address,
-                    value: ethers.utils.parseEther("1"),
-                });
-                await juniorTrancheVaultContract
-                    .connect(poolOperator)
-                    .addApprovedLender(lender.address, false);
-                await seniorTrancheVaultContract
-                    .connect(poolOperator)
-                    .addApprovedLender(lender.address, false);
-                await mockTokenContract
-                    .connect(lender)
-                    .approve(poolSafeContract.address, ethers.constants.MaxUint256);
-                await mockTokenContract.mint(lender.getAddress(), toToken(1_000_000_000));
-
-                lenders.push(lender);
-            }
-
-            await prepareForYieldTests(lenders);
-
-            // Introduce profit
-            let totalAssets = await juniorTrancheVaultContract.totalAssets();
-            let profit = totalAssets.mul(BN.from(30));
-            await creditContract.mockDistributePnL(profit, BN.from(0), BN.from(0));
-
-            await expect(juniorTrancheVaultContract.processYieldForLenders()).to.emit(
-                juniorTrancheVaultContract,
-                "YieldPaidout",
-            );
         });
     });
 });

@@ -27,7 +27,7 @@ import {
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     eaServiceAccount: SignerWithAddress,
-    pdsServiceAccount: SignerWithAddress;
+    sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
     evaluationAgent: SignerWithAddress,
@@ -60,7 +60,7 @@ describe("Receivable Test", function () {
             protocolOwner,
             protocolTreasury,
             eaServiceAccount,
-            pdsServiceAccount,
+            sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
             evaluationAgent,
@@ -75,7 +75,7 @@ describe("Receivable Test", function () {
             protocolOwner,
             protocolTreasury,
             eaServiceAccount,
-            pdsServiceAccount,
+            sentinelServiceAccount,
             poolOwner,
         );
 
@@ -109,11 +109,15 @@ describe("Receivable Test", function () {
             poolOperator,
             [lender],
         );
-
         await receivableContract
             .connect(poolOwner)
             .grantRole(receivableContract.MINTER_ROLE(), borrower.address);
 
+        console.log("borrower", borrower.address);
+        console.log(await receivableContract.MINTER_ROLE());
+        console.log(
+            await receivableContract.hasRole(receivableContract.MINTER_ROLE(), borrower.address),
+        );
         await receivableContract.connect(borrower).createReceivable(
             0, // currencyCode
             1000,

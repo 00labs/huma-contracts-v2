@@ -60,11 +60,19 @@ interface ICreditDueManager {
 
     function getPayoffAmount(CreditRecord memory cr) external view returns (uint256 payoffAmount);
 
-    function computeYieldDue(
-        uint256 principal,
-        uint256 yieldInBps,
-        uint256 numDays
-    ) external pure returns (uint96 yieldDue);
+    /**
+     * @notice Returns the additional yield accrued and principal due for the amount being drawn down.
+     * @param periodDuration The pay period duration
+     * @param borrowAmount The amount being drawndown
+     * @param nextDueDate The next due date of the bill
+     * @param yieldInBps The APY expressed in BPs
+     */
+    function computeAdditionalYieldAccruedAndPrincipalDueForDrawdown(
+        PayPeriodDuration periodDuration,
+        uint256 borrowAmount,
+        uint256 nextDueDate,
+        uint256 yieldInBps
+    ) external view returns (uint256 additionalYieldAccrued, uint256 additionalPrincipalDue);
 
     /**
      * @notice Returns the difference in yield due to the value that the yield is calculated from changed from the old
@@ -77,11 +85,4 @@ interface ICreditDueManager {
         uint256 newValue,
         uint256 principal
     ) external view returns (uint256 updatedYield);
-
-    function computePrincipalDueForPartialPeriod(
-        uint256 unbilledPrincipal,
-        uint256 principalRateInBps,
-        uint256 numDays,
-        PayPeriodDuration periodDuration
-    ) external view returns (uint256 principalDue);
 }

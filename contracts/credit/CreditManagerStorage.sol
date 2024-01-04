@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {HumaConfig} from "../HumaConfig.sol";
-import {CreditConfig, CreditLimit} from "./CreditStructs.sol";
+import {CreditConfig} from "./CreditStructs.sol";
 import {ICredit} from "./interfaces/ICredit.sol";
 import {ICalendar} from "./interfaces/ICalendar.sol";
 import {ICreditDueManager} from "./utils/interfaces/ICreditDueManager.sol";

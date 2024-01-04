@@ -3,10 +3,13 @@ pragma solidity ^0.8.0;
 
 import {BorrowerLevelCreditManager} from "./BorrowerLevelCreditManager.sol";
 import {ReceivableBackedCreditLineManagerStorage} from "./ReceivableBackedCreditLineManagerStorage.sol";
-import {ReceivableInput, CreditLimit} from "./CreditStructs.sol";
+import {CreditConfig} from "./CreditStructs.sol";
 import {Errors} from "../Errors.sol";
 import {IReceivableBackedCreditLineManager} from "./interfaces/IReceivableBackedCreditLineManager.sol";
 import {HUNDRED_PERCENT_IN_BPS} from "../SharedDefs.sol";
+import {IReceivable} from "./interfaces/IReceivable.sol";
+import {PoolConfig} from "../PoolConfig.sol";
+import {CreditManager} from "./CreditManager.sol";
 
 contract ReceivableBackedCreditLineManager is
     IReceivableBackedCreditLineManager,
@@ -22,39 +25,54 @@ contract ReceivableBackedCreditLineManager is
     );
 
     /// @inheritdoc IReceivableBackedCreditLineManager
-    function approveReceivable(address borrower, ReceivableInput memory receivableInput) external {
+    function approveReceivable(address borrower, uint256 receivableId) external {
         poolConfig.onlyProtocolAndPoolOn();
         if (msg.sender != humaConfig.eaServiceAccount() && msg.sender != address(credit))
             revert Errors.notAuthorizedCaller();
 
-        if (receivableInput.receivableAmount == 0) revert Errors.zeroAmountProvided();
-        if (receivableInput.receivableId == 0) revert Errors.zeroReceivableIdProvided();
+        if (receivableId == 0) revert Errors.zeroReceivableIdProvided();
+        if (receivableBorrowerMap[receivableId] != address(0)) {
+            // If a receivable has been previously approved, then early return so that the operation
+            // is idempotent. This makes it possible for a manually approved receivable to be used
+            // for drawdown in a pool that has receivable auto-approval.
+            return;
+        }
+        uint256 receivableAmount = receivableAsset.getReceivable(receivableId).receivableAmount;
+        // Either the receivable does not exist, or the receivable has a zero amount.
+        // We shouldn't approve either way.
+        if (receivableAmount == 0) revert Errors.zeroReceivableAmount();
 
         bytes32 creditHash = getCreditHash(borrower);
         onlyCreditBorrower(creditHash, borrower);
 
-        _approveReceivable(borrower, creditHash, receivableInput);
+        _approveReceivable(borrower, creditHash, receivableId, receivableAmount);
     }
 
     function _approveReceivable(
         address borrower,
         bytes32 creditHash,
-        ReceivableInput memory receivableInput
+        uint256 receivableId,
+        uint256 receivableAmount
     ) internal {
-        uint256 incrementalCredit = (getCreditConfig(creditHash).advanceRateInBps *
-            receivableInput.receivableAmount) / HUNDRED_PERCENT_IN_BPS;
-        CreditLimit memory cl = getCreditLimit(creditHash);
-        cl.availableCredit += uint96(incrementalCredit);
-        _creditLimitMap[creditHash] = cl;
+        CreditConfig memory cc = getCreditConfig(creditHash);
+        uint256 availableCredit = getAvailableCredit(creditHash);
 
-        receivableBorrowerMap[receivableInput.receivableId] = borrower;
+        uint256 incrementalCredit = (cc.advanceRateInBps * receivableAmount) /
+            HUNDRED_PERCENT_IN_BPS;
+        availableCredit += incrementalCredit;
+        if (availableCredit > cc.creditLimit) {
+            revert Errors.creditLineExceeded();
+        }
+        _availableCredits[creditHash] = uint96(availableCredit);
+
+        receivableBorrowerMap[receivableId] = borrower;
 
         emit ReceivableApproved(
             borrower,
-            receivableInput.receivableId,
-            receivableInput.receivableAmount,
+            receivableId,
+            receivableAmount,
             incrementalCredit,
-            cl.availableCredit
+            availableCredit
         );
     }
 
@@ -66,13 +84,21 @@ contract ReceivableBackedCreditLineManager is
     /// @inheritdoc IReceivableBackedCreditLineManager
     function decreaseCreditLimit(bytes32 creditHash, uint256 amount) external {
         if (msg.sender != address(credit)) revert Errors.notAuthorizedCaller();
-        CreditLimit memory cl = getCreditLimit(creditHash);
-        if (amount > cl.availableCredit) revert Errors.creditLineExceeded();
-        cl.availableCredit -= uint96(amount);
-        _creditLimitMap[creditHash] = cl;
+        uint256 availableCredit = getAvailableCredit(creditHash);
+        if (amount > availableCredit) revert Errors.creditLineExceeded();
+        availableCredit -= amount;
+        _availableCredits[creditHash] = uint96(availableCredit);
     }
 
-    function getCreditLimit(bytes32 creditHash) public view returns (CreditLimit memory) {
-        return _creditLimitMap[creditHash];
+    function getAvailableCredit(bytes32 creditHash) public view returns (uint256 availableCredit) {
+        return _availableCredits[creditHash];
+    }
+
+    function _updatePoolConfigData(PoolConfig poolConfig) internal virtual override {
+        CreditManager._updatePoolConfigData(poolConfig);
+
+        address addr = address(poolConfig.receivableAsset());
+        assert(addr != address(0));
+        receivableAsset = IReceivable(addr);
     }
 }

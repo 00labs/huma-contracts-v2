@@ -16,8 +16,7 @@ struct CreditConfig {
     // Percentage of receivable nominal amount to be available for drawdown.
     uint16 advanceRateInBps;
     bool revolving; // if repeated borrowing is allowed
-    // TODO: rename this to `receivableAutoApproval`?
-    bool autoApproval;
+    bool receivableAutoApproval;
 }
 
 // CreditRecord keep track of the dynamic stats of a credit that change
@@ -57,13 +56,6 @@ struct DueDetail {
     uint96 committed;
     uint96 accrued;
     uint96 paid;
-}
-
-// todo The design of this struct is not optiized. There is duplication of creditLimit field
-// in this struct and CreditConfig. Need to revisit and refine it.
-struct CreditLimit {
-    uint96 creditLimit;
-    uint96 availableCredit;
 }
 
 enum PayPeriodDuration {
@@ -113,8 +105,6 @@ struct ReceivableInfo {
     ReceivableState state;
 }
 
-// todo Not sure if it is a good idea to separate this struct, will research and decide later.
-// Keep for now?
 struct ReceivableInput {
     uint96 receivableAmount;
     uint64 receivableId;

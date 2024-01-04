@@ -31,6 +31,7 @@ contract FirstLossCover is
     using EnumerableSet for EnumerableSet.AddressSet;
 
     event CoverProviderAdded(address indexed account);
+    event CoverProviderRemoved(address indexed account);
 
     event LossCovered(uint256 covered, uint256 remaining, uint256 coveredLoss);
     event LossRecovered(uint256 recovered, uint256 coveredLoss);
@@ -46,16 +47,13 @@ contract FirstLossCover is
 
     event YieldPaidout(address indexed account, uint256 yields);
 
-    constructor() {
-        // _disableInitializers();
-    }
-
     function initialize(
         string memory name,
         string memory symbol,
         PoolConfig _poolConfig
     ) external initializer {
         __ERC20_init(name, symbol);
+        __UUPSUpgradeable_init();
         _initialize(_poolConfig);
     }
 
@@ -86,10 +84,32 @@ contract FirstLossCover is
         if (account == address(0)) revert Errors.zeroAddressProvided();
 
         if (_coverProviders.length() >= MAX_ALLOWED_NUM_PROVIDERS) {
-            revert Errors.tooManyCoverProviders();
+            revert Errors.tooManyProviders();
         }
-        _coverProviders.add(account);
+        bool newlyAdded = _coverProviders.add(account);
+        if (!newlyAdded) {
+            // `newlyAdded` being false means the cover provider has been added before.
+            revert Errors.alreadyProvider();
+        }
         emit CoverProviderAdded(account);
+    }
+
+    function removeCoverProvider(address account) external {
+        poolConfig.onlyPoolOwner(msg.sender);
+        if (account == address(0)) revert Errors.zeroAddressProvided();
+
+        if (balanceOf(account) != 0) {
+            // We do not allow providers with assets to be removed, since allowing that would make it possible
+            // for the pool owner to remove all other providers and take all yield by themselves.
+            revert Errors.providerHasOutstandingAssets();
+        }
+        bool removed = _coverProviders.remove(account);
+        if (!removed) {
+            // `removed` being false means either the account has never been a cover provider,
+            // or it has been removed before.
+            revert Errors.notProvider();
+        }
+        emit CoverProviderRemoved(account);
     }
 
     /// @inheritdoc IFirstLossCover
@@ -231,16 +251,18 @@ contract FirstLossCover is
         uint256 totalShares = totalSupply();
         address[] memory providers = _coverProviders.values();
         uint256 remainingShares = totalShares;
-        for (uint256 i; i < providers.length; i++) {
+        for (uint256 i = 0; i < providers.length; i++) {
             address provider = providers[i];
             uint256 shares = balanceOf(provider);
             if (shares == 0) continue;
 
             uint256 payout = (yield * shares) / totalShares;
-            underlyingToken.safeTransfer(provider, payout);
             remainingShares -= shares;
+            underlyingToken.safeTransfer(provider, payout);
             emit YieldPaidout(provider, payout);
         }
+
+        assert(remainingShares == 0);
     }
 
     function isSufficient() external view returns (bool sufficient) {

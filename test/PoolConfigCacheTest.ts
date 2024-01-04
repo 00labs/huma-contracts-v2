@@ -19,13 +19,13 @@ import {
     RiskAdjustedTranchesPolicy,
     TrancheVault,
 } from "../typechain-types";
-import { deployPoolContracts, deployProtocolContracts } from "./BaseTest";
+import { deployPoolContracts, deployProtocolContracts, deployProxyContract } from "./BaseTest";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
     eaServiceAccount: SignerWithAddress,
-    pdsServiceAccount: SignerWithAddress;
+    sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
     evaluationAgent: SignerWithAddress,
@@ -57,7 +57,7 @@ describe("PoolConfigCache Test", function () {
             protocolOwner,
             treasury,
             eaServiceAccount,
-            pdsServiceAccount,
+            sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
             evaluationAgent,
@@ -71,7 +71,7 @@ describe("PoolConfigCache Test", function () {
             protocolOwner,
             treasury,
             eaServiceAccount,
-            pdsServiceAccount,
+            sentinelServiceAccount,
             poolOwner,
         );
 
@@ -135,8 +135,7 @@ describe("PoolConfigCache Test", function () {
 
     it("Should set new pool config", async function () {
         const PoolConfig = await ethers.getContractFactory("PoolConfig");
-        const newPoolConfigContract = await PoolConfig.deploy();
-        await newPoolConfigContract.deployed();
+        const newPoolConfigContract = (await deployProxyContract(PoolConfig)) as PoolConfig;
 
         await newPoolConfigContract.initialize("Test New Pool", [
             humaConfigContract.address,

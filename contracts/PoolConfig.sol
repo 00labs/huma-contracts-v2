@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IPoolFeeManager} from "./interfaces/IPoolFeeManager.sol";
@@ -95,7 +96,7 @@ interface ITrancheVaultLike {
     function totalAssetsOf(address account) external view returns (uint256 assets);
 }
 
-contract PoolConfig is AccessControl, Initializable {
+contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable {
     bytes32 public constant POOL_OPERATOR_ROLE = keccak256("POOL_OPERATOR");
 
     //using SafeERC20 for IERC20;
@@ -208,7 +209,7 @@ contract PoolConfig is AccessControl, Initializable {
     );
 
     constructor() {
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _disableInitializers();
     }
 
     /**
@@ -231,8 +232,6 @@ contract PoolConfig is AccessControl, Initializable {
      */
 
     function initialize(string memory _poolName, address[] memory _contracts) public initializer {
-        onlyPoolOwner(msg.sender);
-
         poolName = _poolName;
 
         for (uint256 i = 0; i < _contracts.length; i++) {
@@ -276,6 +275,9 @@ contract PoolConfig is AccessControl, Initializable {
         LPConfig memory config = _lpConfig;
         config.maxSeniorJuniorRatio = 4; // senior : junior = 4:1
         _lpConfig = config;
+        __AccessControl_init();
+        __UUPSUpgradeable_init();
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
     function setPoolOwnerRewardsAndLiquidity(uint256 rewardRate, uint256 liquidityRate) external {
@@ -430,8 +432,6 @@ contract PoolConfig is AccessControl, Initializable {
         emit CreditChanged(_credit, msg.sender);
     }
 
-    //* todo passing the parameter inside the struct instead of the struct itself.
-    // Do we want to do this?
     function setFirstLossCover(
         uint8 index,
         address firstLossCover,
@@ -626,12 +626,13 @@ contract PoolConfig is AccessControl, Initializable {
     }
 
     /**
-     * @notice "Modifier" function that limits access to pool owner or PDS service.
+     * @notice "Modifier" function that limits access to the pool owner or the Sentinel Service account.
      */
-    function onlyPoolOwnerOrPDSServiceAccount(address account) public view {
+    function onlyPoolOwnerOrSentinelServiceAccount(address account) public view {
         // Treat DEFAULT_ADMIN_ROLE role as owner role
-        if (!hasRole(DEFAULT_ADMIN_ROLE, account) && account != humaConfig.pdsServiceAccount())
-            revert Errors.notAuthorizedCaller();
+        if (
+            !hasRole(DEFAULT_ADMIN_ROLE, account) && account != humaConfig.sentinelServiceAccount()
+        ) revert Errors.notAuthorizedCaller();
     }
 
     /**
@@ -652,6 +653,12 @@ contract PoolConfig is AccessControl, Initializable {
      */
     function onlyOwnerOrHumaMasterAdmin(address account) public view {
         if (!hasRole(DEFAULT_ADMIN_ROLE, account) && account != humaConfig.owner()) {
+            revert Errors.permissionDeniedNotAdmin();
+        }
+    }
+
+    function onlyHumaMasterAdmin(address account) public view {
+        if (account != humaConfig.owner()) {
             revert Errors.permissionDeniedNotAdmin();
         }
     }
@@ -685,5 +692,9 @@ contract PoolConfig is AccessControl, Initializable {
     function _getRequiredLiquidityForEA() internal view returns (uint256 amount) {
         return
             (_lpConfig.liquidityCap * _adminRnR.liquidityRateInBpsByEA) / HUNDRED_PERCENT_IN_BPS;
+    }
+
+    function _authorizeUpgrade(address) internal view override {
+        onlyHumaMasterAdmin(msg.sender);
     }
 }

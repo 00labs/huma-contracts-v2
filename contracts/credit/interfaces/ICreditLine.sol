@@ -32,7 +32,7 @@ interface ICreditLine {
 
     /**
      * @notice Makes one payment for the credit line. This can be initiated by the borrower
-     * or by PDSServiceAccount with the allowance approval from the borrower.
+     * or by sentinelServiceAccount with the allowance approval from the borrower.
      * If this is the final payment, it automatically triggers the payoff process.
      * @return amountPaid the actual amount paid to the contract. When the tendered
      * amount is larger than the payoff amount, the contract only accepts the payoff amount.

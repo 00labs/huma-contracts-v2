@@ -3,10 +3,10 @@ pragma solidity ^0.8.0;
 
 import {IERC721, IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {Credit} from "./Credit.sol";
-import {ReceivableInput} from "./CreditStructs.sol";
 import {CreditRecord, CreditState, DueDetail} from "./CreditStructs.sol";
 import {Errors} from "../Errors.sol";
 import {IReceivableBackedCreditLineManager} from "./interfaces/IReceivableBackedCreditLineManager.sol";
+import {IReceivable} from "./interfaces/IReceivable.sol";
 
 import "hardhat/console.sol";
 
@@ -28,7 +28,6 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
     event DrawdownMadeWithReceivable(
         address indexed borrower,
         uint256 indexed receivableId,
-        uint256 receivableAmount,
         uint256 amount,
         address by
     );
@@ -50,7 +49,7 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
      */
     function drawdownWithReceivable(
         address borrower,
-        ReceivableInput memory receivableInput,
+        uint256 receivableId,
         uint256 amount
     ) public virtual returns (uint256 netAmountToBorrower) {
         poolConfig.onlyProtocolAndPoolOn();
@@ -62,19 +61,13 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         _prepareForDrawdown(
             borrower,
             creditHash,
-            IERC721(poolConfig.receivableAsset()),
-            receivableInput,
+            poolConfig.receivableAsset(),
+            receivableId,
             amount
         );
         netAmountToBorrower = _drawdown(borrower, creditHash, amount);
 
-        emit DrawdownMadeWithReceivable(
-            borrower,
-            receivableInput.receivableId,
-            receivableInput.receivableAmount,
-            amount,
-            msg.sender
-        );
+        emit DrawdownMadeWithReceivable(borrower, receivableId, amount, msg.sender);
     }
 
     /**
@@ -86,12 +79,12 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         uint256 amount
     ) public virtual returns (uint256 amountPaid, bool paidoff) {
         poolConfig.onlyProtocolAndPoolOn();
-        if (msg.sender != borrower) _onlyPDSServiceAccount();
+        if (msg.sender != borrower) _onlySentinelServiceAccount();
 
         bytes32 creditHash = getCreditHash(borrower);
         creditManager.onlyCreditBorrower(creditHash, borrower);
 
-        _prepareForPayment(borrower, IERC721(poolConfig.receivableAsset()), receivableId);
+        _prepareForPayment(borrower, poolConfig.receivableAsset(), receivableId);
         // todo update the receivable to indicate it is paid.
         // Don't think we have time to do a tighter integration between the receivable contract
         // and this contract.
@@ -115,8 +108,7 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         bytes32 creditHash = getCreditHash(borrower);
         creditManager.onlyCreditBorrower(creditHash, borrower);
 
-        IERC721 receivableAsset = IERC721(poolConfig.receivableAsset());
-        _prepareForPayment(borrower, receivableAsset, receivableId);
+        _prepareForPayment(borrower, poolConfig.receivableAsset(), receivableId);
 
         (amountPaid, paidoff) = _makePrincipalPayment(borrower, creditHash, amount);
 
@@ -131,7 +123,7 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         address borrower,
         uint256 paymentReceivableId,
         uint256 paymentAmount,
-        ReceivableInput memory drawdownReceivableInput,
+        uint256 drawdownReceivableId,
         uint256 drawdownAmount
     ) public virtual returns (uint256 amountPaid, uint256 netAmountToBorrower, bool paidoff) {
         poolConfig.onlyProtocolAndPoolOn();
@@ -148,16 +140,16 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         uint256 principalOutstanding = cr.unbilledPrincipal + cr.nextDue - cr.yieldDue;
         if (principalOutstanding == 0) {
             // No principal payment is needed when there is no principal outstanding.
-            return (0, false);
+            return (0, 0, false);
         }
 
-        IERC721 receivableAsset = IERC721(poolConfig.receivableAsset());
+        address receivableAsset = poolConfig.receivableAsset();
         _prepareForPayment(borrower, receivableAsset, paymentReceivableId);
         _prepareForDrawdown(
             borrower,
             creditHash,
             receivableAsset,
-            drawdownReceivableInput,
+            drawdownReceivableId,
             drawdownAmount
         );
 
@@ -187,8 +179,7 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
 
         emit DrawdownMadeWithReceivable(
             borrower,
-            drawdownReceivableInput.receivableId,
-            drawdownReceivableInput.receivableAmount,
+            drawdownReceivableId,
             drawdownAmount,
             msg.sender
         );
@@ -205,7 +196,7 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
 
     function _prepareForPayment(
         address borrower,
-        IERC721 receivableAsset,
+        address receivableAsset,
         uint256 receivableId
     ) internal view {
         if (receivableId == 0) revert Errors.zeroReceivableIdProvided();
@@ -213,35 +204,36 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
             borrower,
             receivableId
         );
-        if (receivableAsset.ownerOf(receivableId) != address(this))
+        if (IERC721(receivableAsset).ownerOf(receivableId) != address(this))
             revert Errors.notReceivableOwner();
     }
 
     function _prepareForDrawdown(
         address borrower,
         bytes32 creditHash,
-        IERC721 receivableAsset,
-        ReceivableInput memory receivableInput,
+        address receivableAsset,
+        uint256 receivableId,
         uint256 amount
     ) internal {
-        if (receivableInput.receivableAmount == 0) revert Errors.zeroAmountProvided();
-        if (receivableInput.receivableId == 0) revert Errors.zeroReceivableIdProvided();
-        if (amount > receivableInput.receivableAmount)
-            revert Errors.insufficientReceivableAmount();
-        if (receivableAsset.ownerOf(receivableInput.receivableId) != borrower)
+        if (receivableId == 0) revert Errors.zeroReceivableIdProvided();
+        uint256 receivableAmount = IReceivable(receivableAsset)
+            .getReceivable(receivableId)
+            .receivableAmount;
+        if (amount > receivableAmount) revert Errors.insufficientReceivableAmount();
+        if (IERC721(receivableAsset).ownerOf(receivableId) != borrower)
             revert Errors.notReceivableOwner();
 
         IReceivableBackedCreditLineManager rbclManager = IReceivableBackedCreditLineManager(
             address(creditManager)
         );
-        if (_getCreditConfig(creditHash).autoApproval) {
-            rbclManager.approveReceivable(borrower, receivableInput);
+        if (_getCreditConfig(creditHash).receivableAutoApproval) {
+            rbclManager.approveReceivable(borrower, receivableId);
         } else {
-            rbclManager.validateReceivable(borrower, receivableInput.receivableId);
+            rbclManager.validateReceivable(borrower, receivableId);
         }
         rbclManager.decreaseCreditLimit(creditHash, amount);
 
-        receivableAsset.safeTransferFrom(borrower, address(this), receivableInput.receivableId);
+        IERC721(receivableAsset).safeTransferFrom(borrower, address(this), receivableId);
     }
 
     function getCreditHash(address borrower) internal view virtual returns (bytes32 creditHash) {

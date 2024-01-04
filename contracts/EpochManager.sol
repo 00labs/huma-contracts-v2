@@ -11,12 +11,8 @@ import {DEFAULT_DECIMALS_FACTOR, JUNIOR_TRANCHE, SENIOR_TRANCHE} from "./SharedD
 import {IEpochManager} from "./interfaces/IEpochManager.sol";
 import {Errors} from "./Errors.sol";
 import {ICalendar} from "./credit/interfaces/ICalendar.sol";
-import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IERC20Metadata, IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-
-interface ITrancheVaultLike is IRedemptionHandler {
-    function totalSupply() external view returns (uint256);
-}
 
 /**
  * @title EpochManager
@@ -33,8 +29,8 @@ contract EpochManager is PoolConfigCache, IEpochManager {
 
     IPool public pool;
     IPoolSafe public poolSafe;
-    ITrancheVaultLike public seniorTranche;
-    ITrancheVaultLike public juniorTranche;
+    IRedemptionHandler public seniorTranche;
+    IRedemptionHandler public juniorTranche;
     ICalendar public calendar;
 
     CurrentEpoch internal _currentEpoch;
@@ -65,11 +61,11 @@ contract EpochManager is PoolConfigCache, IEpochManager {
 
         addr = _poolConfig.seniorTranche();
         assert(addr != address(0));
-        seniorTranche = ITrancheVaultLike(addr);
+        seniorTranche = IRedemptionHandler(addr);
 
         addr = _poolConfig.juniorTranche();
         assert(addr != address(0));
-        juniorTranche = ITrancheVaultLike(addr);
+        juniorTranche = IRedemptionHandler(addr);
 
         addr = _poolConfig.calendar();
         assert(addr != address(0));
@@ -100,9 +96,9 @@ contract EpochManager is PoolConfigCache, IEpochManager {
 
         // calculate senior/junior LP token prices
         uint256 seniorPrice = (tranchesAssets[SENIOR_TRANCHE] * DEFAULT_DECIMALS_FACTOR) /
-            seniorTranche.totalSupply();
+            IERC20(address(seniorTranche)).totalSupply();
         uint256 juniorPrice = (tranchesAssets[JUNIOR_TRANCHE] * DEFAULT_DECIMALS_FACTOR) /
-            juniorTranche.totalSupply();
+            IERC20(address(juniorTranche)).totalSupply();
 
         // get unprocessed redemption requests
         EpochRedemptionSummary memory seniorSummary = seniorTranche.currentRedemptionSummary();
@@ -197,7 +193,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
     ) internal view {
         // get available underlying token amount
         uint256 availableAmount = poolSafe.getAvailableBalanceForPool();
-        if (availableAmount <= minAmountToProcessPerEpoch) return;
+        if (availableAmount <= minAmountAvailableForEpochProcessing) return;
 
         // Process senior tranche redemption requests.
         if (seniorSummary.totalSharesRequested > 0) {
@@ -244,16 +240,14 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         uint256 availableAmount
     ) internal pure returns (uint256 remainingAmount) {
         uint256 sharesToRedeem = redemptionSummary.totalSharesRequested;
-        uint256 redemptionAmount = (sharesToRedeem * lpTokenPrice) / DEFAULT_DECIMALS_FACTOR;
-        if (availableAmount < redemptionAmount) {
-            redemptionAmount = availableAmount;
-            // Round up the number of shares the lender has to burn in order to receive
-            // the amount redeemable. The result favors the pool.
-            sharesToRedeem = Math.ceilDiv(
-                redemptionAmount * DEFAULT_DECIMALS_FACTOR,
-                lpTokenPrice
-            );
+        uint256 redemptionAmountWithDecimal = sharesToRedeem * lpTokenPrice;
+        uint256 availableAmountWithDecimal = availableAmount * DEFAULT_DECIMALS_FACTOR;
+        if (availableAmountWithDecimal < redemptionAmountWithDecimal) {
+            redemptionAmountWithDecimal = availableAmountWithDecimal;
+            // Round up the number of shares to make sure it is enough for redemptionAmount
+            sharesToRedeem = Math.ceilDiv(redemptionAmountWithDecimal, lpTokenPrice);
         }
+        uint256 redemptionAmount = redemptionAmountWithDecimal / DEFAULT_DECIMALS_FACTOR;
         redemptionSummary.totalSharesProcessed = uint96(sharesToRedeem);
         redemptionSummary.totalAmountProcessed = uint96(redemptionAmount);
         availableAmount -= redemptionAmount;
@@ -282,11 +276,11 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         EpochRedemptionSummary memory redemptionSummary,
         uint256 availableAmount
     ) internal pure returns (uint256 remainingAmount) {
-        // Calculate the minimum amount of junior assets required to maintain the senior : junior ratio.
-        // Since integer division rounds down, add 1 to minJuniorAmount in order to maintain the ratio.
-        uint256 minJuniorAmount = tranchesAssets[SENIOR_TRANCHE] / maxSeniorJuniorRatio;
-        if (minJuniorAmount * maxSeniorJuniorRatio < tranchesAssets[SENIOR_TRANCHE])
-            minJuniorAmount += 1;
+        // Round up the junior asset to make sure the senior : junior ratio is maintained
+        uint256 minJuniorAmount = Math.ceilDiv(
+            tranchesAssets[SENIOR_TRANCHE],
+            maxSeniorJuniorRatio
+        );
 
         uint256 maxRedeemableAmount = tranchesAssets[JUNIOR_TRANCHE] > minJuniorAmount
             ? tranchesAssets[JUNIOR_TRANCHE] - minJuniorAmount
@@ -294,25 +288,23 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         if (maxRedeemableAmount <= 0) return availableAmount;
 
         uint256 sharesToRedeem = redemptionSummary.totalSharesRequested;
-        uint256 redemptionAmount = (sharesToRedeem * lpTokenPrice) / DEFAULT_DECIMALS_FACTOR;
-        if (availableAmount < redemptionAmount) {
-            redemptionAmount = availableAmount;
-            // Round up the number of shares the lender has to burn in order to receive
-            // the amount redeemable. The result favors the pool.
-            sharesToRedeem = Math.ceilDiv(
-                redemptionAmount * DEFAULT_DECIMALS_FACTOR,
-                lpTokenPrice
-            );
+
+        uint256 redemptionAmountWithDecimal = sharesToRedeem * lpTokenPrice;
+        uint256 tempAmountWithDecimal = availableAmount * DEFAULT_DECIMALS_FACTOR;
+        if (tempAmountWithDecimal < redemptionAmountWithDecimal) {
+            redemptionAmountWithDecimal = tempAmountWithDecimal;
+            // Round up the number of shares to make sure it is enough for redemptionAmount
+            sharesToRedeem = Math.ceilDiv(redemptionAmountWithDecimal, lpTokenPrice);
         }
-        if (maxRedeemableAmount < redemptionAmount) {
-            redemptionAmount = maxRedeemableAmount;
-            // Round up the number of shares the lender has to burn in order to receive
-            // the amount redeemable. The result favors the pool.
-            sharesToRedeem = Math.ceilDiv(
-                redemptionAmount * DEFAULT_DECIMALS_FACTOR,
-                lpTokenPrice
-            );
+
+        tempAmountWithDecimal = maxRedeemableAmount * DEFAULT_DECIMALS_FACTOR;
+        if (tempAmountWithDecimal < redemptionAmountWithDecimal) {
+            redemptionAmountWithDecimal = tempAmountWithDecimal;
+            // Following OZ's favoring-the-pool principle, round up the number of shares the lender
+            // has to burn to make sure the burned in order to receive.
+            sharesToRedeem = Math.ceilDiv(tempAmountWithDecimal, lpTokenPrice);
         }
+        uint256 redemptionAmount = redemptionAmountWithDecimal / DEFAULT_DECIMALS_FACTOR;
 
         redemptionSummary.totalSharesProcessed = uint96(sharesToRedeem);
         redemptionSummary.totalAmountProcessed = uint96(redemptionAmount);
