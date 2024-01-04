@@ -159,13 +159,14 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
 
         newCR = _deepCopyCreditRecord(cr);
         newDD = _deepCopyDueDetail(dd);
-        newCR.state = CreditState.GoodStanding;
+        if (newCR.state == CreditState.Approved) newCR.state = CreditState.GoodStanding;
 
         uint256 principalRate = 0;
         {
             FeeStructure memory fees = poolConfig.getFeeStructure();
             principalRate = fees.minPrincipalRateInBps;
         }
+        uint256 totalDaysInFullPeriod = calendar.getTotalDaysInFullPeriod(cc.periodDuration);
 
         if (isLate) {
             if (timestamp > cr.nextDueDate) {
@@ -200,17 +201,14 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
 
                 if (periodsForPastDueComputation > 0) {
                     newDD.yieldPastDue += uint96(
-                        _computeMaxYieldDueFromAccruedAndCommitted(
+                        _computeYieldNextDue(
                             cc.yieldInBps,
                             cr.unbilledPrincipal + cr.nextDue - cr.yieldDue + dd.principalPastDue,
                             cc.committedAmount,
-                            periodsForPastDueComputation *
-                                calendar.getTotalDaysInFullPeriod(cc.periodDuration)
+                            periodsForPastDueComputation * totalDaysInFullPeriod
                         )
                     );
 
-                    FeeStructure memory fees = poolConfig.getFeeStructure();
-                    principalRate = fees.minPrincipalRateInBps;
                     if (principalRate > 0) {
                         uint256 principalPastDue = _computePrincipalDueForFullPeriods(
                             cr.unbilledPrincipal,
@@ -254,7 +252,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                 if (cr.state == CreditState.Approved) {
                     daysUntilNextDue = calendar.getDaysDiff(timestamp, newCR.nextDueDate);
                 } else {
-                    daysUntilNextDue = calendar.getTotalDaysInFullPeriod(cc.periodDuration);
+                    daysUntilNextDue = totalDaysInFullPeriod;
                 }
                 (newDD.accrued, newDD.committed) = _computeAccruedAndCommittedYieldDue(
                     cc.yieldInBps,
@@ -270,7 +268,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                         newCR.unbilledPrincipal,
                         principalRate,
                         daysUntilNextDue,
-                        cc.periodDuration
+                        totalDaysInFullPeriod
                     );
                     newCR.unbilledPrincipal -= uint96(principalDue);
                     newCR.nextDue += uint96(principalDue);
@@ -309,7 +307,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                 borrowAmount,
                 fees.minPrincipalRateInBps,
                 daysRemaining,
-                periodDuration
+                calendar.getTotalDaysInFullPeriod(periodDuration)
             );
         }
         return (additionalYieldAccrued, additionalPrincipalDue);
@@ -348,15 +346,14 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         uint256 unbilledPrincipal,
         uint256 principalRateInBps,
         uint256 numDays,
-        PayPeriodDuration periodDuration
+        uint256 totalDaysInFullPeriod
     ) internal view returns (uint256 principalDue) {
-        uint256 totalDaysInFullPeriod = calendar.getTotalDaysInFullPeriod(periodDuration);
         return
             (unbilledPrincipal * principalRateInBps * numDays) /
             (HUNDRED_PERCENT_IN_BPS * totalDaysInFullPeriod);
     }
 
-    function _computeMaxYieldDueFromAccruedAndCommitted(
+    function _computeYieldNextDue(
         uint256 yieldInBps,
         uint256 principal,
         uint256 committedAmount,
