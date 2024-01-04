@@ -1214,10 +1214,6 @@ describe("CreditLine Test", function () {
             });
 
             it("Should not allow drawdown if the borrower doesn't meet the first loss cover requirement", async function () {
-                await borrowerFirstLossCoverContract
-                    .connect(poolOwner)
-                    .addCoverProvider(borrower.address);
-
                 const coverTotalAssets = await affiliateFirstLossCoverContract.totalAssets();
                 await overrideFirstLossCoverConfig(
                     borrowerFirstLossCoverContract,

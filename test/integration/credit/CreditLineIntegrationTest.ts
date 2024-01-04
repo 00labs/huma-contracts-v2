@@ -255,18 +255,6 @@ describe("Credit Line Integration Test", function () {
         await mockTokenContract
             .connect(borrower)
             .approve(borrowerFirstLossCoverContract.address, ethers.constants.MaxUint256);
-        await affiliateFirstLossCoverContract
-            .connect(poolOwner)
-            .addCoverProvider(poolOwnerTreasury.address);
-        await mockTokenContract
-            .connect(poolOwnerTreasury)
-            .approve(poolOwnerTreasury.address, ethers.constants.MaxUint256);
-        await affiliateFirstLossCoverContract
-            .connect(poolOwner)
-            .addCoverProvider(evaluationAgent.address);
-        await mockTokenContract
-            .connect(evaluationAgent)
-            .approve(evaluationAgent.address, ethers.constants.MaxUint256);
 
         const firstLossCoverMaxLiquidity = toToken(1_000_000);
         await overrideFirstLossCoverConfig(
