@@ -130,7 +130,8 @@ contract TrancheVault is
         if (!depositRecords[lender].reinvestYield) {
             _removeLenderFromNonReinvestingLenders(lender);
         }
-        delete depositRecords[lender];
+        // We intentionally do not delete `depositRecord` for the lender so that they can still
+        // request redemption post removal.
     }
 
     /**
