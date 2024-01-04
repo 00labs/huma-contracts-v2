@@ -168,7 +168,7 @@ export async function deployProtocolContracts(
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
     eaServiceAccount: SignerWithAddress,
-    pdsServiceAccount: SignerWithAddress,
+    sentinelServiceAccount: SignerWithAddress,
     poolOwner: SignerWithAddress,
 ): Promise<ProtocolContracts> {
     // Deploy EvaluationAgentNFT
@@ -184,7 +184,7 @@ export async function deployProtocolContracts(
     await humaConfigContract.setHumaTreasury(treasury.getAddress());
     await humaConfigContract.setEANFTContractAddress(eaNFTContract.address);
     await humaConfigContract.setEAServiceAccount(eaServiceAccount.getAddress());
-    await humaConfigContract.setPDSServiceAccount(pdsServiceAccount.getAddress());
+    await humaConfigContract.setSentinelServiceAccount(sentinelServiceAccount.getAddress());
 
     await humaConfigContract.addPauser(protocolOwner.getAddress());
     await humaConfigContract.addPauser(poolOwner.getAddress());
@@ -626,9 +626,10 @@ function calcProfitForFixedSeniorYieldPolicy(
 function calcProfitForRiskAdjustedPolicy(profit: BN, assets: BN[], riskAdjustment: BN): BN[] {
     const totalAssets = assets[CONSTANTS.SENIOR_TRANCHE].add(assets[CONSTANTS.JUNIOR_TRANCHE]);
 
-    let seniorProfit = profit.mul(assets[CONSTANTS.SENIOR_TRANCHE]).div(totalAssets);
-    const adjustedProfit = seniorProfit.mul(riskAdjustment).div(CONSTANTS.BP_FACTOR);
-    seniorProfit = seniorProfit.sub(adjustedProfit);
+    let seniorProfit = profit
+        .mul(assets[CONSTANTS.SENIOR_TRANCHE])
+        .mul(CONSTANTS.BP_FACTOR.sub(riskAdjustment))
+        .div(totalAssets.mul(CONSTANTS.BP_FACTOR));
 
     return [
         assets[CONSTANTS.SENIOR_TRANCHE].add(seniorProfit),

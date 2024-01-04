@@ -9,7 +9,7 @@ import {ICreditManager} from "./interfaces/ICreditManager.sol";
 import {PoolConfig, PoolSettings} from "../PoolConfig.sol";
 import {PoolConfigCache} from "../PoolConfigCache.sol";
 import {CreditManagerStorage} from "./CreditManagerStorage.sol";
-import {CreditClosureReason, CreditConfig, CreditLimit, CreditRecord, CreditState, DueDetail, PayPeriodDuration} from "./CreditStructs.sol";
+import {CreditClosureReason, CreditConfig, CreditRecord, CreditState, DueDetail, PayPeriodDuration} from "./CreditStructs.sol";
 import {Errors} from "../Errors.sol";
 import {DAYS_IN_A_MONTH, DAYS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS, SECONDS_IN_A_DAY} from "../SharedDefs.sol";
 import {ICreditDueManager} from "./utils/interfaces/ICreditDueManager.sol";
@@ -570,11 +570,5 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
     function _onlyEAServiceAccount() internal view {
         if (msg.sender != humaConfig.eaServiceAccount())
             revert Errors.evaluationAgentServiceAccountRequired();
-    }
-
-    function _onlyPoolOwnerOrPDSServiceAccount() internal view {
-        if (msg.sender != humaConfig.pdsServiceAccount()) {
-            poolConfig.onlyPoolOwner(msg.sender);
-        }
     }
 }

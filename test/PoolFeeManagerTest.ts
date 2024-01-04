@@ -31,7 +31,7 @@ import { overrideFirstLossCoverConfig, toToken } from "./TestUtils";
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     eaServiceAccount: SignerWithAddress,
-    pdsServiceAccount: SignerWithAddress;
+    sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
     evaluationAgent: SignerWithAddress,
@@ -67,7 +67,7 @@ describe("PoolFeeManager Tests", function () {
             protocolOwner,
             protocolTreasury,
             eaServiceAccount,
-            pdsServiceAccount,
+            sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
             evaluationAgent,
@@ -81,7 +81,7 @@ describe("PoolFeeManager Tests", function () {
             protocolOwner,
             protocolTreasury,
             eaServiceAccount,
-            pdsServiceAccount,
+            sentinelServiceAccount,
             poolOwner,
         );
 
@@ -160,7 +160,9 @@ describe("PoolFeeManager Tests", function () {
             const feesInvestable =
                 await poolFeeManagerContract.getAvailableFeesToInvestInFirstLossCover();
             expect(feesInvestable).to.not.equal(ethers.constants.Zero);
-            await poolFeeManagerContract.connect(pdsServiceAccount).investFeesInFirstLossCover();
+            await poolFeeManagerContract
+                .connect(sentinelServiceAccount)
+                .investFeesInFirstLossCover();
         }
 
         async function performUpdate(
@@ -582,7 +584,7 @@ describe("PoolFeeManager Tests", function () {
             await loadFixture(setPool);
         });
 
-        it("Should not allow a non-pool owner and non-pds service account to invest fees", async function () {
+        it("Should not allow a non-pool owner and non-Sentinel Service account to invest fees", async function () {
             await expect(
                 poolFeeManagerContract.connect(lender).investFeesInFirstLossCover(),
             ).to.be.revertedWithCustomError(poolConfigContract, "notAuthorizedCaller");
@@ -605,7 +607,9 @@ describe("PoolFeeManager Tests", function () {
             const oldFirstLossCoverAssets = await affiliateFirstLossCoverContract.totalAssets();
             const olsPoolSafeAssets = await poolSafeContract.totalBalance();
 
-            await poolFeeManagerContract.connect(pdsServiceAccount).investFeesInFirstLossCover();
+            await poolFeeManagerContract
+                .connect(sentinelServiceAccount)
+                .investFeesInFirstLossCover();
             const newAccruedIncomes = await poolFeeManagerContract.getAccruedIncomes();
             expect(newAccruedIncomes.protocolIncome).to.equal(oldAccruedIncomes.protocolIncome);
             expect(newAccruedIncomes.poolOwnerIncome).to.equal(oldAccruedIncomes.poolOwnerIncome);
@@ -644,7 +648,7 @@ describe("PoolFeeManager Tests", function () {
                 const olsPoolSafeAssets = await poolSafeContract.totalBalance();
 
                 await poolFeeManagerContract
-                    .connect(pdsServiceAccount)
+                    .connect(sentinelServiceAccount)
                     .investFeesInFirstLossCover();
                 const newAccruedIncomes = await poolFeeManagerContract.getAccruedIncomes();
                 expect(newAccruedIncomes.protocolIncome).to.equal(0);
@@ -739,7 +743,7 @@ describe("PoolFeeManager Tests", function () {
             },
         );
 
-        it("Should allow PDS service account to invest fees", async function () {
+        it("Should allow Sentinel Service account to invest fees", async function () {
             const coverTotalAssets = await affiliateFirstLossCoverContract.totalAssets();
             await poolFeeManagerContract.distributePoolFees(profit);
             const totalAvailableFees = await poolFeeManagerContract.getTotalAvailableFees();
@@ -776,7 +780,9 @@ describe("PoolFeeManager Tests", function () {
                 .sub(expectedEAFeesInvested);
             expect(expectedProtocolFeesInvested).to.be.lessThan(oldAccruedIncomes.protocolIncome);
 
-            await poolFeeManagerContract.connect(pdsServiceAccount).investFeesInFirstLossCover();
+            await poolFeeManagerContract
+                .connect(sentinelServiceAccount)
+                .investFeesInFirstLossCover();
             const newAccruedIncomes = await poolFeeManagerContract.getAccruedIncomes();
             expect(newAccruedIncomes.protocolIncome).to.equal(
                 oldAccruedIncomes.protocolIncome.sub(expectedProtocolFeesInvested),

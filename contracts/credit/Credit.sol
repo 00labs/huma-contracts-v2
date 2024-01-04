@@ -7,7 +7,7 @@ import {PoolConfig, PoolSettings, FeeStructure} from "../PoolConfig.sol";
 import {IPool} from "../interfaces/IPool.sol";
 import {PoolConfigCache} from "../PoolConfigCache.sol";
 import {CreditStorage} from "./CreditStorage.sol";
-import {CreditConfig, CreditRecord, CreditLimit, CreditState, DueDetail, PayPeriodDuration} from "./CreditStructs.sol";
+import {CreditConfig, CreditRecord, CreditState, DueDetail, PayPeriodDuration} from "./CreditStructs.sol";
 import {IFirstLossCover} from "../interfaces/IFirstLossCover.sol";
 import {IPoolSafe} from "../interfaces/IPoolSafe.sol";
 import {ICredit} from "./interfaces/ICredit.sol";
@@ -75,7 +75,6 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
      * @param lateFeePaid the amount of this payment applied to late fee
      * @param principalPastDuePaid the amount of this payment applied to principal past due
      * @param by the address that has triggered the process of marking the payment made.
-     * In most cases, it is the borrower. In receivable factoring, it is PDSServiceAccount.
      */
     event PaymentMade(
         address indexed borrower,
@@ -101,7 +100,6 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
      * @param principalDuePaid the amount of this payment applied to principal due
      * @param unbilledPrincipalPaid the amount of this payment applied to unbilled principal
      * @param by the address that has triggered the process of marking the payment made.
-     * In most cases, it is the borrower. In receivable factoring, it is PDSServiceAccount.
      */
     event PrincipalPaymentMade(
         address indexed borrower,
@@ -493,7 +491,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
 
         // Pay principal due first, then unbilled principal.
         uint256 principalDuePaid;
-        uint256 unbilledPrincipalPaid;
+        uint256 unbilledPrincipalPaid = 0;
         if (amount < principalDue) {
             cr.nextDue = uint96(cr.nextDue - amount);
             principalDuePaid = amount;
@@ -574,14 +572,14 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         return creditManager.getCreditConfig(creditHash);
     }
 
-    /// "Modifier" function that limits access to pdsServiceAccount only.
-    function _onlyPDSServiceAccount() internal view {
-        if (msg.sender != humaConfig.pdsServiceAccount())
-            revert Errors.paymentDetectionServiceAccountRequired();
+    /// "Modifier" function that limits access to Sentinel Service account only.
+    function _onlySentinelServiceAccount() internal view {
+        if (msg.sender != humaConfig.sentinelServiceAccount())
+            revert Errors.sentinelServiceAccountRequired();
     }
 
     function _getPaymentOriginator(address borrower) internal view returns (address originator) {
-        return msg.sender == humaConfig.pdsServiceAccount() ? borrower : msg.sender;
+        return msg.sender == humaConfig.sentinelServiceAccount() ? borrower : msg.sender;
     }
 
     function _onlyCreditManager() internal view {

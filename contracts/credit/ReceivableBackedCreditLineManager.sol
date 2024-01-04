@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {BorrowerLevelCreditManager} from "./BorrowerLevelCreditManager.sol";
 import {ReceivableBackedCreditLineManagerStorage} from "./ReceivableBackedCreditLineManagerStorage.sol";
-import {ReceivableInput, CreditLimit} from "./CreditStructs.sol";
+import {CreditConfig, ReceivableInput} from "./CreditStructs.sol";
 import {Errors} from "../Errors.sol";
 import {IReceivableBackedCreditLineManager} from "./interfaces/IReceivableBackedCreditLineManager.sol";
 import {HUNDRED_PERCENT_IN_BPS} from "../SharedDefs.sol";
@@ -29,6 +29,12 @@ contract ReceivableBackedCreditLineManager is
 
         if (receivableInput.receivableAmount == 0) revert Errors.zeroAmountProvided();
         if (receivableInput.receivableId == 0) revert Errors.zeroReceivableIdProvided();
+        if (receivableBorrowerMap[receivableInput.receivableId] != address(0)) {
+            // If a receivable has been previously approved, then early return so that the operation
+            // is idempotent. This makes it possible for a manually approved receivable to be used
+            // for drawdown in a pool that has receivable auto-approval.
+            return;
+        }
 
         bytes32 creditHash = getCreditHash(borrower);
         onlyCreditBorrower(creditHash, borrower);
@@ -41,11 +47,16 @@ contract ReceivableBackedCreditLineManager is
         bytes32 creditHash,
         ReceivableInput memory receivableInput
     ) internal {
-        uint256 incrementalCredit = (getCreditConfig(creditHash).advanceRateInBps *
-            receivableInput.receivableAmount) / HUNDRED_PERCENT_IN_BPS;
-        CreditLimit memory cl = getCreditLimit(creditHash);
-        cl.availableCredit += uint96(incrementalCredit);
-        _creditLimitMap[creditHash] = cl;
+        CreditConfig memory cc = getCreditConfig(creditHash);
+        uint256 availableCredit = getAvailableCredit(creditHash);
+
+        uint256 incrementalCredit = (cc.advanceRateInBps * receivableInput.receivableAmount) /
+            HUNDRED_PERCENT_IN_BPS;
+        availableCredit += incrementalCredit;
+        if (availableCredit > cc.creditLimit) {
+            revert Errors.creditLineExceeded();
+        }
+        _availableCredits[creditHash] = uint96(availableCredit);
 
         receivableBorrowerMap[receivableInput.receivableId] = borrower;
 
@@ -54,7 +65,7 @@ contract ReceivableBackedCreditLineManager is
             receivableInput.receivableId,
             receivableInput.receivableAmount,
             incrementalCredit,
-            cl.availableCredit
+            availableCredit
         );
     }
 
@@ -66,13 +77,13 @@ contract ReceivableBackedCreditLineManager is
     /// @inheritdoc IReceivableBackedCreditLineManager
     function decreaseCreditLimit(bytes32 creditHash, uint256 amount) external {
         if (msg.sender != address(credit)) revert Errors.notAuthorizedCaller();
-        CreditLimit memory cl = getCreditLimit(creditHash);
-        if (amount > cl.availableCredit) revert Errors.creditLineExceeded();
-        cl.availableCredit -= uint96(amount);
-        _creditLimitMap[creditHash] = cl;
+        uint256 availableCredit = getAvailableCredit(creditHash);
+        if (amount > availableCredit) revert Errors.creditLineExceeded();
+        availableCredit -= amount;
+        _availableCredits[creditHash] = uint96(availableCredit);
     }
 
-    function getCreditLimit(bytes32 creditHash) public view returns (CreditLimit memory) {
-        return _creditLimitMap[creditHash];
+    function getAvailableCredit(bytes32 creditHash) public view returns (uint256 availableCredit) {
+        return _availableCredits[creditHash];
     }
 }

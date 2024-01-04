@@ -632,12 +632,13 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
     }
 
     /**
-     * @notice "Modifier" function that limits access to pool owner or PDS service.
+     * @notice "Modifier" function that limits access to the pool owner or the Sentinel Service account.
      */
-    function onlyPoolOwnerOrPDSServiceAccount(address account) public view {
+    function onlyPoolOwnerOrSentinelServiceAccount(address account) public view {
         // Treat DEFAULT_ADMIN_ROLE role as owner role
-        if (!hasRole(DEFAULT_ADMIN_ROLE, account) && account != humaConfig.pdsServiceAccount())
-            revert Errors.notAuthorizedCaller();
+        if (
+            !hasRole(DEFAULT_ADMIN_ROLE, account) && account != humaConfig.sentinelServiceAccount()
+        ) revert Errors.notAuthorizedCaller();
     }
 
     /**

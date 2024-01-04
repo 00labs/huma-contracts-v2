@@ -59,7 +59,7 @@ let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
     eaServiceAccount: SignerWithAddress,
-    pdsServiceAccount: SignerWithAddress;
+    sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
     evaluationAgent: SignerWithAddress,
@@ -203,7 +203,7 @@ describe("Credit Line Integration Test", function () {
             protocolOwner,
             treasury,
             eaServiceAccount,
-            pdsServiceAccount,
+            sentinelServiceAccount,
             poolOwner,
         );
 
@@ -255,18 +255,6 @@ describe("Credit Line Integration Test", function () {
         await mockTokenContract
             .connect(borrower)
             .approve(borrowerFirstLossCoverContract.address, ethers.constants.MaxUint256);
-        await affiliateFirstLossCoverContract
-            .connect(poolOwner)
-            .addCoverProvider(poolOwnerTreasury.address);
-        await mockTokenContract
-            .connect(poolOwnerTreasury)
-            .approve(poolOwnerTreasury.address, ethers.constants.MaxUint256);
-        await affiliateFirstLossCoverContract
-            .connect(poolOwner)
-            .addCoverProvider(evaluationAgent.address);
-        await mockTokenContract
-            .connect(evaluationAgent)
-            .approve(evaluationAgent.address, ethers.constants.MaxUint256);
 
         const firstLossCoverMaxLiquidity = toToken(1_000_000);
         await overrideFirstLossCoverConfig(
@@ -340,7 +328,7 @@ describe("Credit Line Integration Test", function () {
             protocolOwner,
             treasury,
             eaServiceAccount,
-            pdsServiceAccount,
+            sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
             evaluationAgent,
@@ -425,7 +413,7 @@ describe("Credit Line Integration Test", function () {
         await setNextBlockTimestamp(runDate.unix());
         await expect(
             creditManagerContract
-                .connect(pdsServiceAccount)
+                .connect(sentinelServiceAccount)
                 .startCommittedCredit(borrower.getAddress()),
         )
             .to.emit(creditManagerContract, "CommittedCreditStarted")

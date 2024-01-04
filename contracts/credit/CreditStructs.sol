@@ -58,13 +58,6 @@ struct DueDetail {
     uint96 paid;
 }
 
-// todo The design of this struct is not optiized. There is duplication of creditLimit field
-// in this struct and CreditConfig. Need to revisit and refine it.
-struct CreditLimit {
-    uint96 creditLimit;
-    uint96 availableCredit;
-}
-
 enum PayPeriodDuration {
     Monthly,
     Quarterly,
