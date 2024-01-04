@@ -243,16 +243,14 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         uint256 availableAmount
     ) internal pure returns (uint256 remainingAmount) {
         uint256 sharesToRedeem = redemptionSummary.totalSharesRequested;
-        uint256 redemptionAmount = (sharesToRedeem * lpTokenPrice) / DEFAULT_DECIMALS_FACTOR;
-        if (availableAmount < redemptionAmount) {
-            redemptionAmount = availableAmount;
-            // Round up the number of shares the lender has to burn in order to receive
-            // the amount redeemable. The result favors the pool.
-            sharesToRedeem = Math.ceilDiv(
-                redemptionAmount * DEFAULT_DECIMALS_FACTOR,
-                lpTokenPrice
-            );
+        uint256 redemptionAmountWithDecimal = sharesToRedeem * lpTokenPrice;
+        uint256 availableAmountWithDecimal = availableAmount * DEFAULT_DECIMALS_FACTOR;
+        if (availableAmountWithDecimal < redemptionAmountWithDecimal) {
+            redemptionAmountWithDecimal = availableAmountWithDecimal;
+            // Round up the number of shares to make sure it is enough for redemptionAmount
+            sharesToRedeem = Math.ceilDiv(redemptionAmountWithDecimal, lpTokenPrice);
         }
+        uint256 redemptionAmount = redemptionAmountWithDecimal / DEFAULT_DECIMALS_FACTOR;
         redemptionSummary.totalSharesProcessed = uint96(sharesToRedeem);
         redemptionSummary.totalAmountProcessed = uint96(redemptionAmount);
         availableAmount -= redemptionAmount;
