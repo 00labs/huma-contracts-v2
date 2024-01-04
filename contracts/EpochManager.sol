@@ -23,6 +23,9 @@ interface ITrancheVaultLike is IRedemptionHandler {
  * @notice EpochManager processes redemption requests at the end of each billing cycle
  */
 contract EpochManager is PoolConfigCache, IEpochManager {
+    // The minimum available amount that must be in the pool for epoch processing to go through.
+    uint256 private constant MIN_AMOUNT_AVAILABLE_FOR_EPOCH_PROCESSING = 1;
+
     struct CurrentEpoch {
         uint64 id;
         uint64 endTime;
@@ -36,10 +39,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
 
     CurrentEpoch internal _currentEpoch;
 
-    // It is used to avoid tiny amount to be processed, e.g. 1 amount = 0.0000001 USDC remaining in the pool caused
-    // by rounding down in the last epoch
-    // TODO constant? Let's discuss
-    uint256 public minAmountToProcessPerEpoch;
+    uint256 public minAmountAvailableForEpochProcessing;
 
     event EpochClosed(
         uint256 epochId,
@@ -78,9 +78,10 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         addr = _poolConfig.underlyingToken();
         assert(addr != address(0));
         uint256 decimals = IERC20Metadata(addr).decimals();
-        // set minAmountToProcessPerEpoch to 1 token now
-        // TODO change this to a configuration parameter?
-        minAmountToProcessPerEpoch = 10 ** decimals;
+
+        minAmountAvailableForEpochProcessing =
+            MIN_AMOUNT_AVAILABLE_FOR_EPOCH_PROCESSING *
+            10 ** decimals;
     }
 
     /**

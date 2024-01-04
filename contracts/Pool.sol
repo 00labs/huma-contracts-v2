@@ -246,8 +246,6 @@ contract Pool is PoolConfigCache, IPool {
 
             // Don't call _updateTranchesAssets() here because yield tracker has already
             // been updated in distProfitToTranches().
-            // TODO: Not sure if it is a good practice to update state in tranchesPolicy.
-            // Let us discuss we need to change it.
             tranchesAssets = TranchesAssets({
                 seniorTotalAssets: uint96(newAssets[SENIOR_TRANCHE]),
                 juniorTotalAssets: uint96(newAssets[JUNIOR_TRANCHE])

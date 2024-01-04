@@ -27,7 +27,7 @@ interface IReceivableFactoringCredit {
         address borrower,
         uint256 receivableId,
         uint256 amount
-    ) external;
+    ) external returns (uint256 netAmountToBorrower);
 
     /**
      * @notice Makes one payment for the credit previously drawndown with the given receivable.

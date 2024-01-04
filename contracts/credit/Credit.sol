@@ -209,7 +209,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         address borrower,
         bytes32 creditHash,
         uint256 borrowAmount
-    ) internal virtual {
+    ) internal virtual returns (uint256 netAmountToBorrower) {
         if (borrowAmount == 0) revert Errors.zeroAmountProvided();
 
         // todo need to add return values
@@ -277,9 +277,8 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         }
         _updateDueInfo(creditHash, cr, dd);
 
-        (uint256 netAmountToBorrower, uint256 platformProfit) = dueManager.distBorrowingAmount(
-            borrowAmount
-        );
+        uint256 platformProfit = 0;
+        (netAmountToBorrower, platformProfit) = dueManager.distBorrowingAmount(borrowAmount);
         IPool(poolConfig.pool()).distributeProfit(platformProfit);
 
         // Transfer funds to the borrower

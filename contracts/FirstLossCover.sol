@@ -133,7 +133,6 @@ contract FirstLossCover is
         uint256 minLiquidity = getMinLiquidity();
         uint256 currTotalAssets = totalAssets();
 
-        //: todo pool.readyForFirstLossCoverWithdrawal() is a tricky design. Any other solutions?
         bool ready = pool.readyForFirstLossCoverWithdrawal();
         // If ready, all assets can be withdrawn. Otherwise, only the excessive assets over the minimum
         // liquidity requirement can be withdrawn.

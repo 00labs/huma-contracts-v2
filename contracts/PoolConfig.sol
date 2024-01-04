@@ -25,9 +25,6 @@ struct PoolSettings {
     uint8 latePaymentGracePeriodInDays;
     // The grace period before a default can be triggered, in days. This can be 0.
     uint16 defaultGracePeriodInDays;
-    // Percentage (in basis points) of the receivable amount applied towards available credit
-    // TODO same to advanceRateInBps? Remove?
-    uint16 receivableRequiredInBps;
     // Specifies the max credit line as a percentage (in basis points) of the receivable amount.
     // E.g., for a receivable of $100 with an advance rate of 9000 bps, the credit line can be up to $90.
     uint16 advanceRateInBps;
@@ -184,7 +181,6 @@ contract PoolConfig is AccessControl, Initializable {
         PayPeriodDuration payPeriodDuration,
         uint8 latePaymentGracePeriodInDays,
         uint16 defaultGracePeriodInDays,
-        uint16 receivableRequiredInBps,
         uint16 advanceRateInBps,
         bool receivableAutoApproval,
         address by
@@ -265,7 +261,6 @@ contract PoolConfig is AccessControl, Initializable {
         // strange behaviors when the pool owner missed setting up these configurations.
         PoolSettings memory tempPoolSettings = _poolSettings;
         tempPoolSettings.payPeriodDuration = PayPeriodDuration.Monthly;
-        tempPoolSettings.receivableRequiredInBps = 10000; // 100%
         tempPoolSettings.advanceRateInBps = 8000; // 80%
         tempPoolSettings.latePaymentGracePeriodInDays = 5;
         tempPoolSettings.defaultGracePeriodInDays = 10; // 10 days
@@ -483,7 +478,6 @@ contract PoolConfig is AccessControl, Initializable {
             settings.payPeriodDuration,
             settings.latePaymentGracePeriodInDays,
             settings.defaultGracePeriodInDays,
-            settings.receivableRequiredInBps,
             settings.advanceRateInBps,
             settings.receivableAutoApproval,
             msg.sender

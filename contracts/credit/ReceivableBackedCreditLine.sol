@@ -52,7 +52,7 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         address borrower,
         ReceivableInput memory receivableInput,
         uint256 amount
-    ) public virtual {
+    ) public virtual returns (uint256 netAmountToBorrower) {
         poolConfig.onlyProtocolAndPoolOn();
         if (msg.sender != borrower) revert Errors.notBorrower();
 
@@ -66,7 +66,7 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
             receivableInput,
             amount
         );
-        _drawdown(borrower, creditHash, amount);
+        netAmountToBorrower = _drawdown(borrower, creditHash, amount);
 
         emit DrawdownMadeWithReceivable(
             borrower,
@@ -133,7 +133,7 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         uint256 paymentAmount,
         ReceivableInput memory drawdownReceivableInput,
         uint256 drawdownAmount
-    ) public virtual returns (uint256 amountPaid, bool paidoff) {
+    ) public virtual returns (uint256 amountPaid, uint256 netAmountToBorrower, bool paidoff) {
         poolConfig.onlyProtocolAndPoolOn();
         if (msg.sender != borrower) revert Errors.notBorrower();
 
@@ -175,7 +175,7 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
             poolSafe.deposit(msg.sender, paymentAmount);
             poolSafe.withdraw(borrower, paymentAmount);
             uint256 amount = drawdownAmount - paymentAmount;
-            _drawdown(borrower, creditHash, amount);
+            netAmountToBorrower = _drawdown(borrower, creditHash, amount);
         }
 
         emit PrincipalPaymentMadeWithReceivable(
