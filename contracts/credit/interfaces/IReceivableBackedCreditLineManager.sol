@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {CreditRecord, ReceivableInput} from "../CreditStructs.sol";
+import {CreditRecord} from "../CreditStructs.sol";
 
 interface IReceivableBackedCreditLineManager {
     /**
@@ -9,7 +9,7 @@ interface IReceivableBackedCreditLineManager {
      * @dev Only when the protocol and pool are live.
      * @custom:access Only the EA service account or the Credit contract can call this function
      */
-    function approveReceivable(address borrower, ReceivableInput memory receivableInput) external;
+    function approveReceivable(address borrower, uint256 receivableId) external;
 
     /**
      * @notice Validates the receivable, e.g. checking if the receivable is owned by the borrower.
