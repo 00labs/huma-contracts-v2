@@ -275,10 +275,11 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         EpochRedemptionSummary memory redemptionSummary,
         uint256 availableAmount
     ) internal pure returns (uint256 remainingAmount) {
-        // Calculate the minimum amount of junior assets required to maintain the senior : junior ratio.
-        // Since integer division rounds down, add 1 to minJuniorAmount in order to maintain the ratio.
-        uint256 minJuniorAmount = tranchesAssets[SENIOR_TRANCHE] / maxSeniorJuniorRatio;
-        if (tranchesAssets[SENIOR_TRANCHE] % maxSeniorJuniorRatio != 0) minJuniorAmount++;
+        // Round up the junior asset to make sure the senior : junior ratio is maintained
+        uint256 minJuniorAmount = Math.ceilDiv(
+            tranchesAssets[SENIOR_TRANCHE],
+            maxSeniorJuniorRatio
+        );
 
         uint256 maxRedeemableAmount = tranchesAssets[JUNIOR_TRANCHE] > minJuniorAmount
             ? tranchesAssets[JUNIOR_TRANCHE] - minJuniorAmount
