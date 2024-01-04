@@ -162,26 +162,16 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         newDD = _deepCopyDueDetail(dd);
         newCR.state = CreditState.GoodStanding;
 
-        // console.log("isLate: %s, needNextPeriod: %s", isLate, needNextPeriod);
-
         if (isLate) {
             if (timestamp > cr.nextDueDate) {
-                // console.log("0-0");
                 uint256 periodsPassedForBillProcessing = 0;
                 {
-                    // console.log("cr.nextDueDate: %s, timestamp: %s", cr.nextDueDate, timestamp);
                     uint256 periodsPassed = calendar.getNumPeriodsPassed(
                         cc.periodDuration,
                         cr.nextDueDate,
                         timestamp
                     );
 
-                    // console.log(
-                    //     "newCR.missedPeriods: %s, cr.remainingPeriods: %s, periodsPassed: %s",
-                    //     newCR.missedPeriods,
-                    //     cr.remainingPeriods,
-                    //     periodsPassed
-                    // );
                     newCR.missedPeriods += uint16(
                         cr.nextDue + cr.totalPastDue == 0 &&
                             (cr.unbilledPrincipal > 0 || cc.committedAmount > 0)
@@ -193,11 +183,6 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                         periodsPassedForBillProcessing = periodsPassed > cr.remainingPeriods
                             ? cr.remainingPeriods
                             : periodsPassed;
-                        // console.log(
-                        //     "periodsPassed: %s, periodsPassedForBillProcessing: %s",
-                        //     periodsPassed,
-                        //     periodsPassedForBillProcessing
-                        // );
 
                         newCR.remainingPeriods = uint16(
                             cr.remainingPeriods - periodsPassedForBillProcessing
@@ -209,7 +194,6 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                 }
 
                 if (periodsPassedForBillProcessing > 0) {
-                    // console.log("0-1");
                     (
                         uint256 accruedYieldPastDue,
                         uint256 committedYieldPastDue
@@ -225,7 +209,6 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                             : committedYieldPastDue
                     );
 
-                    // console.log("0-2");
                     FeeStructure memory fees = poolConfig.getFeeStructure();
                     uint256 principalRate = fees.minPrincipalRateInBps;
                     if (principalRate > 0) {
@@ -238,8 +221,6 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                         newCR.unbilledPrincipal = uint96(cr.unbilledPrincipal - principalPastDue);
                     }
 
-                    // console.log("0-3");
-
                     if (newCR.remainingPeriods == 0) {
                         newDD.principalPastDue += newCR.unbilledPrincipal;
                         newCR.unbilledPrincipal = 0;
@@ -247,7 +228,6 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                 }
             }
 
-            // console.log("done1");
             (newDD.lateFeeUpdatedDate, newDD.lateFee) = refreshLateFee(
                 cr,
                 dd,
@@ -256,7 +236,6 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                 timestamp
             ); // refactor refreshLateFee
 
-            // console.log("done2");
             newCR.totalPastDue = newDD.lateFee + newDD.yieldPastDue + newDD.principalPastDue;
             newCR.state = CreditState.Delayed;
         }
@@ -270,7 +249,6 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             newDD.paid = 0;
             newDD.accrued = 0;
             newDD.committed = 0;
-            // console.log("newCR.remainingPeriods: %s", newCR.remainingPeriods);
             if (newCR.remainingPeriods > 0) {
                 uint256 daysUntilNextDue;
                 if (cr.state == CreditState.Approved) {
@@ -288,7 +266,6 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
 
                 FeeStructure memory fees = poolConfig.getFeeStructure();
                 uint256 principalRate = fees.minPrincipalRateInBps;
-                // console.log("principalRate: %s", principalRate);
                 if (principalRate > 0) {
                     uint256 principalDue = computePrincipalDueForPartialPeriod(
                         newCR.unbilledPrincipal,
