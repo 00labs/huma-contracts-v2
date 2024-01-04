@@ -49,7 +49,7 @@ let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
     eaServiceAccount: SignerWithAddress,
-    pdsServiceAccount: SignerWithAddress;
+    sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
     evaluationAgent: SignerWithAddress,
@@ -82,7 +82,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
             protocolOwner,
             treasury,
             eaServiceAccount,
-            pdsServiceAccount,
+            sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
             evaluationAgent,
@@ -97,7 +97,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
             protocolOwner,
             treasury,
             eaServiceAccount,
-            pdsServiceAccount,
+            sentinelServiceAccount,
             poolOwner,
         );
 
@@ -718,15 +718,12 @@ describe("ReceivableBackedCreditLine Tests", function () {
                 await poolContract.connect(poolOwner).enablePool();
             });
 
-            it("Should not allow payment by non-borrower or non-PDS account", async function () {
+            it("Should not allow payment by non-borrower or non-Sentinel Service account", async function () {
                 await expect(
                     creditContract
                         .connect(lender)
                         .makePaymentWithReceivable(borrower.getAddress(), tokenId, borrowAmount),
-                ).to.be.revertedWithCustomError(
-                    creditContract,
-                    "paymentDetectionServiceAccountRequired",
-                );
+                ).to.be.revertedWithCustomError(creditContract, "sentinelServiceAccountRequired");
             });
 
             it("Should not allow payment with 0 receivable ID", async function () {

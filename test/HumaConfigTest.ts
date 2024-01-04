@@ -13,7 +13,7 @@ describe("HumaConfig Tests", function () {
         treasury: SignerWithAddress,
         newOwner: SignerWithAddress,
         newTreasury: SignerWithAddress,
-        pdsServiceAccount: SignerWithAddress,
+        sentinelServiceAccount: SignerWithAddress,
         eaServiceAccount: SignerWithAddress,
         randomUser: SignerWithAddress;
 
@@ -25,7 +25,7 @@ describe("HumaConfig Tests", function () {
             treasury,
             newOwner,
             newTreasury,
-            pdsServiceAccount,
+            sentinelServiceAccount,
             eaServiceAccount,
             randomUser,
         ] = await ethers.getSigners();
@@ -361,32 +361,34 @@ describe("HumaConfig Tests", function () {
         });
     });
 
-    // Test suite for pdsServiceAccount
-    describe("Update pdsServiceAccount", function () {
-        it("Should disallow non-owner to change pdsServiceAccount", async function () {
+    // Test suite for sentinelServiceAccount
+    describe("Update sentinelServiceAccount", function () {
+        it("Should disallow non-owner to change sentinelServiceAccount", async function () {
             await expect(
-                configContract.connect(randomUser).setPDSServiceAccount(pdsServiceAccount.address),
+                configContract
+                    .connect(randomUser)
+                    .setSentinelServiceAccount(sentinelServiceAccount.address),
             ).to.be.revertedWith("Ownable: caller is not the owner");
         });
 
-        it("Should reject 0 address pdsServiceAccount", async function () {
+        it("Should reject 0 address sentinelServiceAccount", async function () {
             await expect(
                 configContract
                     .connect(origOwner)
-                    .setPDSServiceAccount(ethers.constants.AddressZero),
+                    .setSentinelServiceAccount(ethers.constants.AddressZero),
             ).to.be.revertedWithCustomError(configContract, "zeroAddressProvided");
         });
 
-        it("Should allow pdsServiceAccount to be changed", async function () {
+        it("Should allow sentinelServiceAccount to be changed", async function () {
             expect(
                 await configContract
                     .connect(origOwner)
-                    .setPDSServiceAccount(pdsServiceAccount.address),
+                    .setSentinelServiceAccount(sentinelServiceAccount.address),
             )
-                .to.emit(configContract, "PDSServiceAccountChanged")
-                .withArgs(pdsServiceAccount.address);
-            expect(await configContract.connect(origOwner).pdsServiceAccount()).to.equal(
-                pdsServiceAccount.address,
+                .to.emit(configContract, "SentinelServiceAccountChanged")
+                .withArgs(sentinelServiceAccount.address);
+            expect(await configContract.connect(origOwner).sentinelServiceAccount()).to.equal(
+                sentinelServiceAccount.address,
             );
         });
     });
