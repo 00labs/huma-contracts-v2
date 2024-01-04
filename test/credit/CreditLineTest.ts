@@ -66,7 +66,7 @@ let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
     eaServiceAccount: SignerWithAddress,
-    pdsServiceAccount: SignerWithAddress;
+    sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
     evaluationAgent: SignerWithAddress,
@@ -98,7 +98,7 @@ describe("CreditLine Test", function () {
             protocolOwner,
             treasury,
             eaServiceAccount,
-            pdsServiceAccount,
+            sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
             evaluationAgent,
@@ -114,7 +114,7 @@ describe("CreditLine Test", function () {
             protocolOwner,
             treasury,
             eaServiceAccount,
-            pdsServiceAccount,
+            sentinelServiceAccount,
             poolOwner,
         );
 
@@ -731,7 +731,7 @@ describe("CreditLine Test", function () {
                 await setNextBlockTimestamp(startDate);
                 await expect(
                     creditManagerContract
-                        .connect(pdsServiceAccount)
+                        .connect(sentinelServiceAccount)
                         .startCommittedCredit(borrower.getAddress()),
                 )
                     .to.emit(creditManagerContract, "CommittedCreditStarted")
@@ -770,7 +770,7 @@ describe("CreditLine Test", function () {
                 await setNextBlockTimestamp(runDate);
                 await expect(
                     creditManagerContract
-                        .connect(pdsServiceAccount)
+                        .connect(sentinelServiceAccount)
                         .startCommittedCredit(borrower.getAddress()),
                 )
                     .to.emit(creditManagerContract, "CommittedCreditStarted")
@@ -838,7 +838,7 @@ describe("CreditLine Test", function () {
                 await setNextBlockTimestamp(startDate);
                 await expect(
                     creditManagerContract
-                        .connect(pdsServiceAccount)
+                        .connect(sentinelServiceAccount)
                         .startCommittedCredit(borrower.getAddress()),
                 )
                     .to.emit(creditManagerContract, "CommittedCreditStarted")
@@ -882,7 +882,7 @@ describe("CreditLine Test", function () {
                 await setNextBlockTimestamp(runDate);
                 await expect(
                     creditManagerContract
-                        .connect(pdsServiceAccount)
+                        .connect(sentinelServiceAccount)
                         .startCommittedCredit(borrower.getAddress()),
                 )
                     .to.emit(creditManagerContract, "CommittedCreditStarted")
@@ -926,7 +926,7 @@ describe("CreditLine Test", function () {
             await humaConfigContract.connect(protocolOwner).pause();
             await expect(
                 creditManagerContract
-                    .connect(pdsServiceAccount)
+                    .connect(sentinelServiceAccount)
                     .startCommittedCredit(borrower.getAddress()),
             ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
             await humaConfigContract.connect(protocolOwner).unpause();
@@ -934,23 +934,23 @@ describe("CreditLine Test", function () {
             await poolContract.connect(poolOwner).disablePool();
             await expect(
                 creditManagerContract
-                    .connect(pdsServiceAccount)
+                    .connect(sentinelServiceAccount)
                     .startCommittedCredit(borrower.getAddress()),
             ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
         });
 
-        it("Should not allow non-pds service accounts or pool owner to start a credit", async function () {
+        it("Should not allow non-Sentinel Service accounts or pool owner to start a credit", async function () {
             await expect(
                 creditManagerContract
                     .connect(borrower)
                     .startCommittedCredit(borrower.getAddress()),
-            ).to.be.revertedWithCustomError(poolConfigContract, "notPoolOwner");
+            ).to.be.revertedWithCustomError(poolConfigContract, "notAuthorizedCaller");
         });
 
         it("Should not start a credit for a borrower without an approved credit", async function () {
             await expect(
                 creditManagerContract
-                    .connect(pdsServiceAccount)
+                    .connect(sentinelServiceAccount)
                     .startCommittedCredit(borrower.getAddress()),
             ).to.be.revertedWithCustomError(creditContract, "notBorrower");
         });
@@ -981,7 +981,7 @@ describe("CreditLine Test", function () {
                 .drawdown(borrower.getAddress(), toToken(20_000));
             await expect(
                 creditManagerContract
-                    .connect(pdsServiceAccount)
+                    .connect(sentinelServiceAccount)
                     .startCommittedCredit(borrower.getAddress()),
             ).to.be.revertedWithCustomError(
                 creditManagerContract,
@@ -1004,7 +1004,7 @@ describe("CreditLine Test", function () {
                 );
             await expect(
                 creditManagerContract
-                    .connect(pdsServiceAccount)
+                    .connect(sentinelServiceAccount)
                     .startCommittedCredit(borrower.getAddress()),
             ).to.be.revertedWithCustomError(
                 creditManagerContract,
@@ -1035,7 +1035,7 @@ describe("CreditLine Test", function () {
             await setNextBlockTimestamp(kickOffDate);
             await expect(
                 creditManagerContract
-                    .connect(pdsServiceAccount)
+                    .connect(sentinelServiceAccount)
                     .startCommittedCredit(borrower.getAddress()),
             ).to.be.revertedWithCustomError(
                 creditManagerContract,
@@ -1214,10 +1214,6 @@ describe("CreditLine Test", function () {
             });
 
             it("Should not allow drawdown if the borrower doesn't meet the first loss cover requirement", async function () {
-                await borrowerFirstLossCoverContract
-                    .connect(poolOwner)
-                    .addCoverProvider(borrower.address);
-
                 const coverTotalAssets = await affiliateFirstLossCoverContract.totalAssets();
                 await overrideFirstLossCoverConfig(
                     borrowerFirstLossCoverContract,
@@ -4034,7 +4030,7 @@ describe("CreditLine Test", function () {
                             await testMakePayment(paymentAmount);
                         });
 
-                        it("Should allow the PDS to make partial payment from the borrower's wallet that covers part of yield next due", async function () {
+                        it("Should allow the Sentinel Service to make partial payment from the borrower's wallet that covers part of yield next due", async function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
@@ -4057,7 +4053,7 @@ describe("CreditLine Test", function () {
                             await testMakePayment(
                                 paymentAmount,
                                 makePaymentDate,
-                                pdsServiceAccount,
+                                sentinelServiceAccount,
                             );
                         });
 
@@ -7586,14 +7582,14 @@ describe("CreditLine Test", function () {
                     await poolContract.connect(poolOwner).enablePool();
                 });
 
-                it("Should not allow non-borrower or non-PDS service account to make payment", async function () {
+                it("Should not allow non-borrower or non-Sentinel Service account to make payment", async function () {
                     await expect(
                         creditContract
                             .connect(borrower2)
                             .makePayment(borrower.getAddress(), toToken(1)),
                     ).to.be.revertedWithCustomError(
                         creditContract,
-                        "paymentDetectionServiceAccountRequired",
+                        "sentinelServiceAccountRequired",
                     );
                 });
 
@@ -7869,7 +7865,7 @@ describe("CreditLine Test", function () {
                     );
                 });
 
-                it("Should allow the PDS to pay for the unbilled principal once in the current billing cycle from the borrower's wallet", async function () {
+                it("Should allow the Sentinel Service to pay for the unbilled principal once in the current billing cycle from the borrower's wallet", async function () {
                     const cr = await creditContract.getCreditRecord(creditHash);
                     const dd = await creditContract.getDueDetail(creditHash);
 
@@ -7907,7 +7903,7 @@ describe("CreditLine Test", function () {
                         borrowAmount,
                         expectedNewCR,
                         expectedNewDD,
-                        pdsServiceAccount,
+                        sentinelServiceAccount,
                     );
                 });
 
@@ -8097,14 +8093,14 @@ describe("CreditLine Test", function () {
                     await poolContract.connect(poolOwner).enablePool();
                 });
 
-                it("Should not allow non-borrower or non-PDS service account to make principal payment", async function () {
+                it("Should not allow non-borrower or non-Sentinel Service account to make principal payment", async function () {
                     await expect(
                         creditContract
                             .connect(borrower2)
                             .makePrincipalPayment(borrower.getAddress(), toToken(1)),
                     ).to.be.revertedWithCustomError(
                         creditContract,
-                        "paymentDetectionServiceAccountRequired",
+                        "sentinelServiceAccountRequired",
                     );
                 });
 

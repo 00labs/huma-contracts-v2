@@ -11,13 +11,13 @@ contract Errors {
     error insufficientSharesForRequest(); // 0x439f3ef3
     error lessThanRequiredCover(); // 0xd0f0d90e
     error emptyArray(); // 0x81a5a837
-    error unsupportedFunction();
+    error unsupportedFunction(); // 0x47c67999
 
     // security
     error permissionDeniedNotAdmin(); // 0xf2c5b6a7
     error permissionDeniedNotLender(); // 0x68299b20
     error evaluationAgentServiceAccountRequired(); // 0x9b3b1ed6
-    error paymentDetectionServiceAccountRequired(); // 0x731b978f
+    error sentinelServiceAccountRequired(); // 0x2fc45e27
     error poolOperatorRequired(); // 0xdc2dc6d0
     error notPoolOwner(); // 0xd39208c9
     error notProtocolOwner(); // 0x97924c20
@@ -56,13 +56,13 @@ contract Errors {
     error poolIsNotReadyForFirstLossCoverWithdrawal(); // 0x20b8b473
 
     // tranche operation
-    error trancheLiquidityCapExceeded(); // 0xdea32e48
+    error trancheLiquidityCapExceeded(); // 0xa836f9bb
     error withdrawTooSoon(); // 0x67982472
     error invalidTrancheIndex(); // 0xa82f3ece
     error closeTooSoon(); // 0xa38d0553
-    error alreadyLender();
-    error notLender();
-    error nonReinvestYieldLenderCapacityReached();
+    error alreadyLender(); // 0x7ee8431c
+    error notLender(); // 0xf3150796
+    error nonReinvestYieldLenderCapacityReached(); // 0xfa05f220
 
     // credit operation
     error creditHasNoCommitment(); // 0xca0cc99a
@@ -99,8 +99,11 @@ contract Errors {
 
     // first loss cover operation
     error notAllProvidersPaidOut(); // 0xf878b213
-    error firstLossCoverLiquidityCapExceeded();
-    error tooManyCoverProviders();
+    error firstLossCoverLiquidityCapExceeded(); // 0x4cb179d9
+    error tooManyProviders(); // 0x8a6d2a02
+    error alreadyProvider(); // 0xd8acb2e6
+    error providerHasOutstandingAssets(); // 0x5b86e16e
+    error notProvider(); // 0xa9f79f68
 
     // receivable operation
     error receivableAssetMismatch(); // 0x41dbeec1

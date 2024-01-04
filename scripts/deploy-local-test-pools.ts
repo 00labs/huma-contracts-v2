@@ -33,7 +33,7 @@ let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
     eaServiceAccount: SignerWithAddress,
-    pdsServiceAccount: SignerWithAddress;
+    sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
     evaluationAgent: SignerWithAddress,
@@ -91,7 +91,7 @@ async function deployPool(
         protocolOwner,
         treasury,
         eaServiceAccount,
-        pdsServiceAccount,
+        sentinelServiceAccount,
         poolOwner,
         poolOwnerTreasury,
         evaluationAgent,
@@ -113,7 +113,7 @@ async function deployPool(
         protocolOwner,
         treasury,
         eaServiceAccount,
-        pdsServiceAccount,
+        sentinelServiceAccount,
         poolOwner,
     );
 
@@ -217,7 +217,7 @@ async function deployPool(
     console.log(`Junior lender: ${juniorLender.address}`);
     console.log(`Senior lender: ${seniorLender.address}`);
     console.log(`Borrower:      ${borrowerActive.address}`);
-    console.log(`PDS service:   ${pdsServiceAccount.address}`);
+    console.log(`Sentinel Service:   ${sentinelServiceAccount.address}`);
     console.log(`Pool owner:   ${poolOwner.address}`);
     console.log(`EA service:   ${eaServiceAccount.address}`);
 

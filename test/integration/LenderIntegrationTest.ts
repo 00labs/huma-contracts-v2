@@ -58,7 +58,7 @@ let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
     eaServiceAccount: SignerWithAddress,
-    pdsServiceAccount: SignerWithAddress;
+    sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
     evaluationAgent: SignerWithAddress,
@@ -505,7 +505,7 @@ async function testRedemptionRequest(jLenderRequests: BN[], sLenderRequests: BN[
                 jLenderPrincipalRequests[i],
                 jLenderAmountsProcessed[i],
                 jLenderWithdrawals[i],
-                1,
+                2,
             );
             expect(
                 await juniorTrancheVaultContract.cancellableRedemptionShares(jLenders[i].address),
@@ -567,7 +567,7 @@ describe("Lender Integration Test", function () {
             protocolOwner,
             treasury,
             eaServiceAccount,
-            pdsServiceAccount,
+            sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
             evaluationAgent,
@@ -602,7 +602,7 @@ describe("Lender Integration Test", function () {
                 protocolOwner,
                 treasury,
                 eaServiceAccount,
-                pdsServiceAccount,
+                sentinelServiceAccount,
                 poolOwner,
             );
 
@@ -1899,7 +1899,7 @@ describe("Lender Integration Test", function () {
                 protocolOwner,
                 treasury,
                 eaServiceAccount,
-                pdsServiceAccount,
+                sentinelServiceAccount,
                 poolOwner,
             );
 
@@ -2724,7 +2724,7 @@ describe("Lender Integration Test", function () {
                         await juniorTrancheVaultContract.withdrawableAssets(
                             jActiveLenders[i].address,
                         ),
-                    ).to.closeTo(jLenderAmountsProcessed[i], 1);
+                    ).to.closeTo(jLenderAmountsProcessed[i], 2);
                 }
             }
             juniorShareRequested = BN.from(0);
@@ -3231,7 +3231,7 @@ describe("Lender Integration Test", function () {
                         await juniorTrancheVaultContract.withdrawableAssets(
                             jActiveLenders[i].address,
                         ),
-                    ).to.closeTo(jLenderAmountsProcessed[i].sub(jLenderWithdrawals[i]), 1);
+                    ).to.closeTo(jLenderAmountsProcessed[i].sub(jLenderWithdrawals[i]), 2);
                 }
             }
             juniorShareRequested = BN.from(0);

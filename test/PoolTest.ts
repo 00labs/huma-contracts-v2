@@ -44,7 +44,7 @@ let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
     eaServiceAccount: SignerWithAddress,
-    pdsServiceAccount: SignerWithAddress;
+    sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
     evaluationAgent: SignerWithAddress,
@@ -77,7 +77,7 @@ describe("Pool Test", function () {
             protocolOwner,
             treasury,
             eaServiceAccount,
-            pdsServiceAccount,
+            sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
             evaluationAgent,
@@ -95,7 +95,7 @@ describe("Pool Test", function () {
                 protocolOwner,
                 treasury,
                 eaServiceAccount,
-                pdsServiceAccount,
+                sentinelServiceAccount,
                 poolOwner,
             );
 
@@ -148,7 +148,7 @@ describe("Pool Test", function () {
                 .setEvaluationAgent(eaNFTTokenId, evaluationAgent.address);
             await affiliateFirstLossCoverContract
                 .connect(poolOwner)
-                .addCoverProvider(poolOwnerTreasury.address);
+                .addCoverProvider(evaluationAgent.address);
 
             minPoolOwnerLiquidity =
                 await getMinLiquidityRequirementForPoolOwner(poolConfigContract);
@@ -262,7 +262,7 @@ describe("Pool Test", function () {
                 protocolOwner,
                 treasury,
                 eaServiceAccount,
-                pdsServiceAccount,
+                sentinelServiceAccount,
                 poolOwner,
             );
 
