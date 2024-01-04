@@ -609,9 +609,10 @@ function calcProfitForFixedSeniorYieldPolicy(
 function calcProfitForRiskAdjustedPolicy(profit: BN, assets: BN[], riskAdjustment: BN): BN[] {
     const totalAssets = assets[CONSTANTS.SENIOR_TRANCHE].add(assets[CONSTANTS.JUNIOR_TRANCHE]);
 
-    let seniorProfit = profit.mul(assets[CONSTANTS.SENIOR_TRANCHE]).div(totalAssets);
-    const adjustedProfit = seniorProfit.mul(riskAdjustment).div(CONSTANTS.BP_FACTOR);
-    seniorProfit = seniorProfit.sub(adjustedProfit);
+    let seniorProfit = profit
+        .mul(assets[CONSTANTS.SENIOR_TRANCHE])
+        .mul(CONSTANTS.BP_FACTOR.sub(riskAdjustment))
+        .div(totalAssets.mul(CONSTANTS.BP_FACTOR));
 
     return [
         assets[CONSTANTS.SENIOR_TRANCHE].add(seniorProfit),
