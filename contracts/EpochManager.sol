@@ -11,12 +11,8 @@ import {DEFAULT_DECIMALS_FACTOR, JUNIOR_TRANCHE, SENIOR_TRANCHE} from "./SharedD
 import {IEpochManager} from "./interfaces/IEpochManager.sol";
 import {Errors} from "./Errors.sol";
 import {ICalendar} from "./credit/interfaces/ICalendar.sol";
-import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IERC20Metadata, IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-
-interface ITrancheVaultLike is IRedemptionHandler {
-    function totalSupply() external view returns (uint256);
-}
 
 /**
  * @title EpochManager
@@ -30,8 +26,8 @@ contract EpochManager is PoolConfigCache, IEpochManager {
 
     IPool public pool;
     IPoolSafe public poolSafe;
-    ITrancheVaultLike public seniorTranche;
-    ITrancheVaultLike public juniorTranche;
+    IRedemptionHandler public seniorTranche;
+    IRedemptionHandler public juniorTranche;
     ICalendar public calendar;
 
     CurrentEpoch internal _currentEpoch;
@@ -65,11 +61,11 @@ contract EpochManager is PoolConfigCache, IEpochManager {
 
         addr = _poolConfig.seniorTranche();
         assert(addr != address(0));
-        seniorTranche = ITrancheVaultLike(addr);
+        seniorTranche = IRedemptionHandler(addr);
 
         addr = _poolConfig.juniorTranche();
         assert(addr != address(0));
-        juniorTranche = ITrancheVaultLike(addr);
+        juniorTranche = IRedemptionHandler(addr);
 
         addr = _poolConfig.calendar();
         assert(addr != address(0));
@@ -99,9 +95,9 @@ contract EpochManager is PoolConfigCache, IEpochManager {
 
         // calculate senior/junior LP token prices
         uint256 seniorPrice = (tranchesAssets[SENIOR_TRANCHE] * DEFAULT_DECIMALS_FACTOR) /
-            seniorTranche.totalSupply();
+            IERC20(address(seniorTranche)).totalSupply();
         uint256 juniorPrice = (tranchesAssets[JUNIOR_TRANCHE] * DEFAULT_DECIMALS_FACTOR) /
-            juniorTranche.totalSupply();
+            IERC20(address(juniorTranche)).totalSupply();
 
         // get unprocessed redemption requests
         EpochRedemptionSummary memory seniorSummary = seniorTranche.currentRedemptionSummary();
