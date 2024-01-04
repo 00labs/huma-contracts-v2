@@ -74,12 +74,6 @@ interface ICreditDueManager {
         uint256 yieldInBps
     ) external view returns (uint256 additionalYieldAccrued, uint256 additionalPrincipalDue);
 
-    function computeYieldDue(
-        uint256 principal,
-        uint256 yieldInBps,
-        uint256 numDays
-    ) external pure returns (uint96 yieldDue);
-
     /**
      * @notice Returns the difference in yield due to the value that the yield is calculated from changed from the old
      * value to the new value.
@@ -91,11 +85,4 @@ interface ICreditDueManager {
         uint256 newValue,
         uint256 principal
     ) external view returns (uint256 updatedYield);
-
-    function computePrincipalDueForPartialPeriod(
-        uint256 unbilledPrincipal,
-        uint256 principalRateInBps,
-        uint256 numDays,
-        PayPeriodDuration periodDuration
-    ) external view returns (uint256 principalDue);
 }
