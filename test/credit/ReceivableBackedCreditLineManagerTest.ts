@@ -212,6 +212,15 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
                         incrementalCredit,
                         incrementalCredit,
                     );
+                // The same receivable can be approved twice w/o increasing the available credit.
+                await expect(
+                    creditManagerContract
+                        .connect(eaServiceAccount)
+                        .approveReceivable(borrower.getAddress(), {
+                            receivableAmount: receivableAmount,
+                            receivableId: receivableId,
+                        }),
+                ).not.to.emit(creditManagerContract, "ReceivableApproved");
                 const actualAvailableCredit =
                     await creditManagerContract.getAvailableCredit(creditHash);
                 expect(actualAvailableCredit).to.equal(incrementalCredit);
@@ -315,26 +324,6 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
                             receivableId: 0,
                         }),
                 ).to.be.revertedWithCustomError(creditManagerContract, "zeroReceivableIdProvided");
-            });
-
-            it("Should not approve the same receivable twice", async function () {
-                await creditManagerContract
-                    .connect(eaServiceAccount)
-                    .approveReceivable(borrower.getAddress(), {
-                        receivableAmount: receivableAmount,
-                        receivableId: receivableId,
-                    });
-                await expect(
-                    creditManagerContract
-                        .connect(eaServiceAccount)
-                        .approveReceivable(borrower.getAddress(), {
-                            receivableAmount: receivableAmount,
-                            receivableId: receivableId,
-                        }),
-                ).to.be.revertedWithCustomError(
-                    creditManagerContract,
-                    "receivableAlreadyApproved",
-                );
             });
         });
     });

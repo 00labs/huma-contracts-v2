@@ -29,8 +29,12 @@ contract ReceivableBackedCreditLineManager is
 
         if (receivableInput.receivableAmount == 0) revert Errors.zeroAmountProvided();
         if (receivableInput.receivableId == 0) revert Errors.zeroReceivableIdProvided();
-        if (receivableBorrowerMap[receivableInput.receivableId] != address(0))
-            revert Errors.receivableAlreadyApproved();
+        if (receivableBorrowerMap[receivableInput.receivableId] != address(0)) {
+            // If a receivable has been previously approved, then early return so that the operation
+            // is idempotent. This makes it possible for a manually approved receivable to be used
+            // for drawdown in a pool that has receivable auto-approval.
+            return;
+        }
 
         bytes32 creditHash = getCreditHash(borrower);
         onlyCreditBorrower(creditHash, borrower);
