@@ -94,6 +94,10 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             lateFeeStartDate = _dd.lateFeeUpdatedDate;
         }
 
+        // Use the larger of the outstanding principal and the committed amount as the basis for calculating
+        // the late fee. While this is not 100% accurate since the relative magnitude of the two value
+        // may change between the last time late fee was refreshed and now, we are intentionally making this
+        // simplification since in reality the principal will almost always be higher the committed amount.
         uint256 totalPrincipal = _cr.unbilledPrincipal +
             _cr.nextDue -
             _cr.yieldDue +
@@ -129,17 +133,17 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             }
             if (
                 cr.state == CreditState.Delayed ||
-                /* The last due was not paid off */
+                // The last due was not paid off
                 (cr.state == CreditState.GoodStanding &&
                     cr.nextDue > 0 &&
                     timestamp > nextBillRefreshDate) ||
-                /* The last due was paid off, but next due wan't refreshed */
+                // The last due was paid off, but next due wan't refreshed
                 (cr.state == CreditState.GoodStanding &&
                     cr.nextDue == 0 &&
                     cr.unbilledPrincipal > 0 &&
                     timestamp >
                     calendar.getStartDateOfNextPeriod(cc.periodDuration, cr.nextDueDate)) ||
-                /* Outstanding commitment */
+                // Outstanding commitment
                 (cr.state == CreditState.GoodStanding &&
                     cr.nextDue + cr.unbilledPrincipal == 0 &&
                     cc.committedAmount > 0 &&
