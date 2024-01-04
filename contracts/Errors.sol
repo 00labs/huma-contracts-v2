@@ -17,7 +17,7 @@ contract Errors {
     error permissionDeniedNotAdmin(); // 0xf2c5b6a7
     error permissionDeniedNotLender(); // 0x68299b20
     error evaluationAgentServiceAccountRequired(); // 0x9b3b1ed6
-    error sentinelServiceAccountRequired(); // 0x731b978f
+    error sentinelServiceAccountRequired(); // 0x2fc45e27
     error poolOperatorRequired(); // 0xdc2dc6d0
     error notPoolOwner(); // 0xd39208c9
     error notProtocolOwner(); // 0x97924c20
@@ -56,7 +56,7 @@ contract Errors {
     error poolIsNotReadyForFirstLossCoverWithdrawal(); // 0x20b8b473
 
     // tranche operation
-    error trancheLiquidityCapExceeded(); // 0xa836f9bb // 0xdea32e48
+    error trancheLiquidityCapExceeded(); // 0xa836f9bb
     error withdrawTooSoon(); // 0x67982472
     error invalidTrancheIndex(); // 0xa82f3ece
     error closeTooSoon(); // 0xa38d0553
