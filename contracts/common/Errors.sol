@@ -111,7 +111,7 @@ contract Errors {
     error unsupportedReceivableAsset(); // 0xe60c383e
     error receivableAssetParamMismatch(); // 0x1400a0b4
     error insufficientReceivableAmount(); // 0xf7f34854
-    error zeroReceivableAmount();
+    error zeroReceivableAmount(); // 0xe32c8fca
     error zeroReceivableIdProvided(); // 0x7a7c1f4f
     error notReceivableOwner(); // 0x828f434d
     error notReceivableOwnerOrCreator(); // 0xc7fb4427

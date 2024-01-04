@@ -22,8 +22,8 @@ import {
     PoolSafe,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
-} from "../../typechain-types";
-import { LPConfigStructOutput } from "../../typechain-types/contracts/PoolConfig.sol/PoolConfig";
+} from "../../../typechain-types";
+import { LPConfigStructOutput } from "../../../typechain-types/contracts/common/PoolConfig.sol/PoolConfig";
 import {
     CONSTANTS,
     EpochChecker,
@@ -37,7 +37,7 @@ import {
     checkSeniorYieldTrackersMatch,
     deployPoolContracts,
     deployProtocolContracts,
-} from "../BaseTest";
+} from "../../BaseTest";
 import {
     borrowerLevelCreditHash,
     evmRevert,
@@ -47,7 +47,7 @@ import {
     setNextBlockTimestamp,
     timestampToMoment,
     toToken,
-} from "../TestUtils";
+} from "../../TestUtils";
 
 // 2 initial lenders (jLender1, jLender2) in the junior tranche;
 // 2 initial lenders (sLender1, sLender2) in the senior tranche.

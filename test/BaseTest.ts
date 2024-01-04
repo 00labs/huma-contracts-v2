@@ -26,7 +26,7 @@ import {
     ReceivableLevelCreditManager,
     TrancheVault,
 } from "../typechain-types";
-import { FirstLossCoverConfigStruct } from "../typechain-types/contracts/PoolConfig.sol/PoolConfig";
+import { FirstLossCoverConfigStruct } from "../typechain-types/contracts/common/PoolConfig.sol/PoolConfig";
 import {
     CreditRecordStruct,
     CreditRecordStructOutput,
@@ -37,7 +37,7 @@ import {
     CreditConfigStruct,
     CreditConfigStructOutput,
 } from "../typechain-types/contracts/credit/CreditManager";
-import { EpochRedemptionSummaryStruct } from "../typechain-types/contracts/interfaces/IRedemptionHandler";
+import { EpochRedemptionSummaryStruct } from "../typechain-types/contracts/liquidity/interfaces/IRedemptionHandler";
 import { getLatestBlock, maxBigNumber, minBigNumber, sumBNArray, toToken } from "./TestUtils";
 
 export type CreditContractType =

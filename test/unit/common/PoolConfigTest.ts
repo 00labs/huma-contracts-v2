@@ -26,7 +26,7 @@ import {
     FrontLoadingFeesStructureStruct,
     LPConfigStruct,
     PoolSettingsStructOutput,
-} from "../../../typechain-types/contracts/PoolConfig.sol/PoolConfig";
+} from "../../../typechain-types/contracts/common/PoolConfig.sol/PoolConfig";
 import {
     CONSTANTS,
     PayPeriodDuration,
