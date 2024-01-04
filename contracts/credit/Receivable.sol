@@ -8,7 +8,7 @@ import {ERC721BurnableUpgradeable} from "@openzeppelin/contracts-upgradeable/tok
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {CountersUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/CountersUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import {Errors} from "../Errors.sol";
+import {Errors} from "../common/Errors.sol";
 import {ReceivableStorage} from "./ReceivableStorage.sol";
 import {IReceivable} from "./interfaces/IReceivable.sol";
 import {ReceivableInfo, ReceivableState} from "./CreditStructs.sol";

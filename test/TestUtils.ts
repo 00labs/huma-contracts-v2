@@ -6,7 +6,7 @@ import { FirstLossCover, PoolConfig } from "../typechain-types";
 import {
     FirstLossCoverConfigStruct,
     LPConfigStructOutput,
-} from "../typechain-types/contracts/PoolConfig.sol/PoolConfig";
+} from "../typechain-types/contracts/common/PoolConfig.sol/PoolConfig";
 import { CONSTANTS, FirstLossCoverInfo } from "./BaseTest";
 
 export function toBN(number: string | number, decimals: number): BN {

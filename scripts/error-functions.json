@@ -89,6 +89,7 @@
   "unsupportedReceivableAsset()": "0xe60c383e",
   "receivableAssetParamMismatch()": "0x1400a0b4",
   "insufficientReceivableAmount()": "0xf7f34854",
+  "zeroReceivableAmount()": "0xe32c8fca",
   "zeroReceivableIdProvided()": "0x7a7c1f4f",
   "notReceivableOwner()": "0x828f434d",
   "notReceivableOwnerOrCreator()": "0xc7fb4427",

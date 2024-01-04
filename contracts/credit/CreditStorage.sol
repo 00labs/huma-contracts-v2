@@ -2,14 +2,14 @@
 pragma solidity ^0.8.0;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {HumaConfig} from "../HumaConfig.sol";
+import {HumaConfig} from "../common/HumaConfig.sol";
 import {CreditConfig, CreditRecord, DueDetail} from "./CreditStructs.sol";
-import {PoolConfig} from "../PoolConfig.sol";
+import {PoolConfig} from "../common/PoolConfig.sol";
 import {ICreditDueManager} from "./utils/interfaces/ICreditDueManager.sol";
-import {ICalendar} from "./interfaces/ICalendar.sol";
+import {ICalendar} from "../common/interfaces/ICalendar.sol";
 import {ICreditManager} from "./interfaces/ICreditManager.sol";
-import {IPoolSafe} from "../interfaces/IPoolSafe.sol";
-import {IFirstLossCover} from "../interfaces/IFirstLossCover.sol";
+import {IPoolSafe} from "../liquidity/interfaces/IPoolSafe.sol";
+import {IFirstLossCover} from "../liquidity/interfaces/IFirstLossCover.sol";
 
 contract CreditStorage {
     HumaConfig public humaConfig;

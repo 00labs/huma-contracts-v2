@@ -3,11 +3,11 @@ pragma solidity ^0.8.0;
 
 import {ICreditDueManager} from "./interfaces/ICreditDueManager.sol";
 import {CreditConfig, CreditRecord, CreditState, DueDetail, PayPeriodDuration} from "../CreditStructs.sol";
-import {PoolConfig, PoolSettings, FeeStructure} from "../../PoolConfig.sol";
-import {ICalendar} from "../interfaces/ICalendar.sol";
-import {DAYS_IN_A_MONTH, DAYS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS, MONTHS_IN_A_YEAR, SECONDS_IN_A_DAY, SECONDS_IN_A_YEAR} from "../../SharedDefs.sol";
-import {Errors} from "../../Errors.sol";
-import {PoolConfigCache} from "../../PoolConfigCache.sol";
+import {PoolConfig, PoolSettings, FeeStructure} from "../../common/PoolConfig.sol";
+import {ICalendar} from "../../common/interfaces/ICalendar.sol";
+import {DAYS_IN_A_MONTH, DAYS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS, MONTHS_IN_A_YEAR, SECONDS_IN_A_DAY, SECONDS_IN_A_YEAR} from "../../common/SharedDefs.sol";
+import {Errors} from "../../common/Errors.sol";
+import {PoolConfigCache} from "../../common/PoolConfigCache.sol";
 
 // import "hardhat/console.sol";
 
