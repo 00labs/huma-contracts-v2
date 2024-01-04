@@ -44,7 +44,7 @@ import {
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     eaServiceAccount: SignerWithAddress,
-    pdsServiceAccount: SignerWithAddress;
+    sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
     evaluationAgent: SignerWithAddress,
@@ -78,7 +78,7 @@ describe("PoolConfig Tests", function () {
             protocolOwner,
             protocolTreasury,
             eaServiceAccount,
-            pdsServiceAccount,
+            sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
             evaluationAgent,
@@ -94,7 +94,7 @@ describe("PoolConfig Tests", function () {
                 protocolOwner,
                 protocolTreasury,
                 eaServiceAccount,
-                pdsServiceAccount,
+                sentinelServiceAccount,
                 poolOwner,
             );
             const PoolConfig = await ethers.getContractFactory("PoolConfig");
@@ -604,7 +604,7 @@ describe("PoolConfig Tests", function () {
                 protocolOwner,
                 protocolTreasury,
                 eaServiceAccount,
-                pdsServiceAccount,
+                sentinelServiceAccount,
                 poolOwner,
             );
             [

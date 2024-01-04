@@ -571,10 +571,4 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         if (msg.sender != humaConfig.eaServiceAccount())
             revert Errors.evaluationAgentServiceAccountRequired();
     }
-
-    function _onlyPoolOwnerOrPDSServiceAccount() internal view {
-        if (msg.sender != humaConfig.pdsServiceAccount()) {
-            poolConfig.onlyPoolOwner(msg.sender);
-        }
-    }
 }

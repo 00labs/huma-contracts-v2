@@ -25,7 +25,7 @@ import { toToken } from "./TestUtils";
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     eaServiceAccount: SignerWithAddress,
-    pdsServiceAccount: SignerWithAddress;
+    sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
     evaluationAgent: SignerWithAddress,
@@ -58,7 +58,7 @@ describe("PoolSafe Tests", function () {
             protocolOwner,
             protocolTreasury,
             eaServiceAccount,
-            pdsServiceAccount,
+            sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
             evaluationAgent,
@@ -73,7 +73,7 @@ describe("PoolSafe Tests", function () {
             protocolOwner,
             protocolTreasury,
             eaServiceAccount,
-            pdsServiceAccount,
+            sentinelServiceAccount,
             poolOwner,
         );
 

@@ -31,7 +31,7 @@ import {
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     eaServiceAccount: SignerWithAddress,
-    pdsServiceAccount: SignerWithAddress;
+    sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
     evaluationAgent: SignerWithAddress,
@@ -65,7 +65,7 @@ describe("FirstLossCover Tests", function () {
             protocolOwner,
             protocolTreasury,
             eaServiceAccount,
-            pdsServiceAccount,
+            sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
             evaluationAgent,
@@ -80,7 +80,7 @@ describe("FirstLossCover Tests", function () {
             protocolOwner,
             protocolTreasury,
             eaServiceAccount,
-            pdsServiceAccount,
+            sentinelServiceAccount,
             poolOwner,
         );
 

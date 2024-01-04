@@ -36,8 +36,8 @@ contract HumaConfig is Ownable, Pausable {
     /// Service account for Huma's evaluation agent hosting service
     address public eaServiceAccount;
 
-    /// Service account for Huma's payment detection service
-    address public pdsServiceAccount;
+    /// Service account for Huma's Sentinel service
+    address public sentinelServiceAccount;
 
     /// Pausers can pause the pool.
     mapping(address => bool) private pausers;
@@ -69,8 +69,8 @@ contract HumaConfig is Ownable, Pausable {
     /// A pauser has been removed
     event PauserRemoved(address indexed pauser, address by);
 
-    /// Service account for Payment Detection Service has been changed
-    event PDSServiceAccountChanged(address pdsService);
+    /// Service account for Sentinel Service has been changed
+    event SentinelServiceAccountChanged(address sentinelService);
 
     event PoolAdminAdded(address indexed poolAdmin, address by);
     event PoolAdminRemoved(address indexed poolAdmin, address by);
@@ -221,13 +221,14 @@ contract HumaConfig is Ownable, Pausable {
     }
 
     /**
-     * @notice Sets the service account for Payment Detection Service. Only proto admin can do so.
-     * This is the account that can report to the contract that a payment has been received.
+     * @notice Sets the service account for Sentinel Service. Only protocol admin can do so.
+     * This is the account that handles various tasks, such as autopay, yield payout, starting
+     * a committed credit.
      */
-    function setPDSServiceAccount(address accountAddress) external onlyOwner {
+    function setSentinelServiceAccount(address accountAddress) external onlyOwner {
         if (accountAddress == address(0)) revert Errors.zeroAddressProvided();
-        pdsServiceAccount = accountAddress;
-        emit PDSServiceAccountChanged(accountAddress);
+        sentinelServiceAccount = accountAddress;
+        emit SentinelServiceAccountChanged(accountAddress);
     }
 
     /**
