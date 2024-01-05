@@ -544,6 +544,18 @@ describe("FirstLossCover Tests", function () {
             ).to.be.revertedWithCustomError(affiliateFirstLossCoverContract, "notCoverProvider");
         });
 
+        it("Should disallow deposits with amounts lower than the min requirement", async function () {
+            const poolSettings = await poolConfigContract.getPoolSettings();
+            await expect(
+                affiliateFirstLossCoverContract
+                    .connect(evaluationAgent)
+                    .depositCover(poolSettings.minDepositAmount.sub(toToken(1))),
+            ).to.be.revertedWithCustomError(
+                affiliateFirstLossCoverContract,
+                "depositAmountTooLow",
+            );
+        });
+
         it("Should disallow deposits that exceed the max liquidity requirement", async function () {
             const maxLiquidity = await affiliateFirstLossCoverContract.getMaxLiquidity();
             const depositAmount = maxLiquidity.add(toToken(1));
@@ -645,6 +657,19 @@ describe("FirstLossCover Tests", function () {
             ).to.be.revertedWithCustomError(
                 affiliateFirstLossCoverContract,
                 "notAuthorizedCaller",
+            );
+        });
+
+        it("Should disallow deposits with amounts lower than the min requirement", async function () {
+            const poolSettings = await poolConfigContract.getPoolSettings();
+            await expect(
+                affiliateFirstLossCoverContract.depositCoverFor(
+                    poolSettings.minDepositAmount.sub(toToken(1)),
+                    evaluationAgent.getAddress(),
+                ),
+            ).to.be.revertedWithCustomError(
+                affiliateFirstLossCoverContract,
+                "depositAmountTooLow",
             );
         });
     });
@@ -771,19 +796,6 @@ describe("FirstLossCover Tests", function () {
 
             await affiliateFirstLossCoverContract.connect(evaluationAgent).depositCover(assets);
         }
-
-        describe("Transfer", function () {
-            it("Should not allow first loss cover tokens to be transferred", async function () {
-                await expect(
-                    affiliateFirstLossCoverContract
-                        .connect(evaluationAgent)
-                        .transfer(lender.address, toToken(100)),
-                ).to.be.revertedWithCustomError(
-                    affiliateFirstLossCoverContract,
-                    "unsupportedFunction",
-                );
-            });
-        });
 
         describe("When the pool is not ready for first loss cover withdrawal", function () {
             async function setFirstLossCoverWithdrawalToNotReady() {
@@ -985,7 +997,8 @@ describe("FirstLossCover Tests", function () {
                         minLiquidity: 0,
                     },
                 );
-                await depositCover(toToken(1));
+                const poolSettings = await poolConfigContract.getPoolSettings();
+                await depositCover(poolSettings.minDepositAmount);
                 await creditContract.mockDistributePnL(profit, loss, lossRecovery);
 
                 const oldSupply = await affiliateFirstLossCoverContract.totalSupply();
@@ -1094,6 +1107,19 @@ describe("FirstLossCover Tests", function () {
                     "zeroAddressProvided",
                 );
             });
+        });
+    });
+
+    describe("Transfer", function () {
+        it("Should not allow first loss cover tokens to be transferred", async function () {
+            await expect(
+                affiliateFirstLossCoverContract
+                    .connect(evaluationAgent)
+                    .transfer(lender.address, toToken(100)),
+            ).to.be.revertedWithCustomError(
+                affiliateFirstLossCoverContract,
+                "unsupportedFunction",
+            );
         });
     });
 
@@ -1304,7 +1330,8 @@ describe("FirstLossCover Tests", function () {
                     affiliateFirstLossCoverContract,
                     poolConfigContract,
                 );
-                await depositCover(minLiquidityRequirement.add(toToken(1)));
+                const poolSettings = await poolConfigContract.getPoolSettings();
+                await depositCover(minLiquidityRequirement.add(poolSettings.minDepositAmount));
 
                 expect(await affiliateFirstLossCoverContract.isSufficient()).to.be.true;
             });

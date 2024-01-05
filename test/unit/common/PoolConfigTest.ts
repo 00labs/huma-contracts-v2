@@ -1603,6 +1603,7 @@ describe("PoolConfig Tests", function () {
                     .to.emit(poolConfigContract, "PoolSettingsChanged")
                     .withArgs(
                         newSettings.maxCreditLine,
+                        newSettings.minDepositAmount,
                         newSettings.payPeriodDuration,
                         newSettings.latePaymentGracePeriodInDays,
                         newSettings.defaultGracePeriodInDays,
@@ -1613,6 +1614,7 @@ describe("PoolConfig Tests", function () {
 
                 const actualNewSettings = await poolConfigContract.getPoolSettings();
                 expect(actualNewSettings.maxCreditLine).to.equal(newSettings.maxCreditLine);
+                expect(actualNewSettings.minDepositAmount).to.equal(newSettings.minDepositAmount);
                 expect(actualNewSettings.payPeriodDuration).to.equal(
                     newSettings.payPeriodDuration,
                 );
@@ -1635,6 +1637,7 @@ describe("PoolConfig Tests", function () {
                     .to.emit(poolConfigContract, "PoolSettingsChanged")
                     .withArgs(
                         newSettings.maxCreditLine,
+                        newSettings.minDepositAmount,
                         newSettings.payPeriodDuration,
                         newSettings.latePaymentGracePeriodInDays,
                         newSettings.defaultGracePeriodInDays,
@@ -1645,6 +1648,7 @@ describe("PoolConfig Tests", function () {
 
                 const actualNewSettings = await poolConfigContract.getPoolSettings();
                 expect(actualNewSettings.maxCreditLine).to.equal(newSettings.maxCreditLine);
+                expect(actualNewSettings.minDepositAmount).to.equal(newSettings.minDepositAmount);
                 expect(actualNewSettings.payPeriodDuration).to.equal(
                     newSettings.payPeriodDuration,
                 );
@@ -1664,6 +1668,17 @@ describe("PoolConfig Tests", function () {
                 await expect(
                     poolConfigContract.connect(regularUser).setPoolSettings(newSettings),
                 ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+            });
+
+            it("Should disallow min deposit amount that's less than the min threshold", async function () {
+                await expect(
+                    poolConfigContract.connect(poolOwner).setPoolSettings({
+                        ...newSettings,
+                        ...{
+                            minDepositAmount: 10 ** 6 - 1,
+                        },
+                    }),
+                ).to.be.revertedWithCustomError(poolConfigContract, "minDepositAmountTooLow");
             });
 
             it("Should disallow advance rates that exceed 10000", async function () {

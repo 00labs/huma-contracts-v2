@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {Errors} from "../common/Errors.sol";
 import {FirstLossCoverStorage} from "./FirstLossCoverStorage.sol";
-import {PoolConfig, LPConfig, FirstLossCoverConfig} from "../common/PoolConfig.sol";
+import {PoolConfig, PoolSettings, FirstLossCoverConfig} from "../common/PoolConfig.sol";
 import {PoolConfigCache} from "../common/PoolConfigCache.sol";
 import {HUNDRED_PERCENT_IN_BPS, JUNIOR_TRANCHE, SENIOR_TRANCHE} from "../common/SharedDefs.sol";
 import {IFirstLossCover} from "./interfaces/IFirstLossCover.sol";
@@ -314,6 +314,10 @@ contract FirstLossCover is
     }
 
     function _deposit(uint256 assets, address account) internal returns (uint256 shares) {
+        PoolSettings memory poolSettings = poolConfig.getPoolSettings();
+        if (assets < poolSettings.minDepositAmount) {
+            revert Errors.depositAmountTooLow();
+        }
         if (assets > getAvailableCap()) {
             revert Errors.firstLossCoverLiquidityCapExceeded();
         }

@@ -226,15 +226,20 @@ contract TrancheVault is
      * @return shares The number of tranche token to be minted
      */
     function deposit(uint256 assets, address receiver) external returns (uint256 shares) {
+        poolConfig.onlyProtocolAndPoolOn();
         if (assets == 0) revert Errors.zeroAmountProvided();
         if (receiver == address(0)) revert Errors.zeroAddressProvided();
         _onlyLender(msg.sender);
         _onlyLender(receiver);
-        poolConfig.onlyProtocolAndPoolOn();
+
         return _deposit(assets, receiver);
     }
 
     function _deposit(uint256 assets, address receiver) internal returns (uint256 shares) {
+        PoolSettings memory poolSettings = poolConfig.getPoolSettings();
+        if (assets < poolSettings.minDepositAmount) {
+            revert Errors.depositAmountTooLow();
+        }
         uint256 availableCap = pool.getTrancheAvailableCap(trancheIndex);
         if (assets > availableCap) {
             revert Errors.trancheLiquidityCapExceeded();
@@ -467,9 +472,6 @@ contract TrancheVault is
         uint256 _assets,
         uint256 _totalAssets
     ) internal view returns (uint256 shares) {
-        // TODO solve the first tiny deposit vector - https://github.com/spearbit/portfolio/blob/master/pdfs/MapleV2.pdf
-        // Operational workaround + documentation?
-
         uint256 supply = ERC20Upgradeable.totalSupply();
 
         return supply == 0 ? _assets : (_assets * supply) / _totalAssets;
