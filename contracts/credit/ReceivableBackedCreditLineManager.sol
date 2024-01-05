@@ -32,14 +32,13 @@ contract ReceivableBackedCreditLineManager is
 
         if (receivableId == 0) revert Errors.zeroReceivableIdProvided();
         address existingBorrowerForReceivable = receivableBorrowerMap[receivableId];
-        if (receivableBorrowerMap[receivableId] != address(0)) {
-            if (existingBorrowerForReceivable == borrower) {
-                // If a receivable has been previously approved, then early return so that the operation
-                // is idempotent. This makes it possible for a manually approved receivable to be used
-                // for drawdown in a pool that has receivable auto-approval.
-                return;
-            }
-
+        if (existingBorrowerForReceivable == borrower) {
+            // If a receivable has been previously approved, then early return so that the operation
+            // is idempotent. This makes it possible for a manually approved receivable to be used
+            // for drawdown in a pool that has receivable auto-approval.
+            return;
+        }
+        if (existingBorrowerForReceivable != address(0)) {
             // Revert if the receivable was previously approved but belongs to some other borrower.
             revert Errors.receivableIdMismatch();
         }
@@ -84,7 +83,7 @@ contract ReceivableBackedCreditLineManager is
     }
 
     /// @inheritdoc IReceivableBackedCreditLineManager
-    function validateReceivable(address borrower, uint256 receivableId) external {
+    function validateReceivable(address borrower, uint256 receivableId) external view {
         if (receivableBorrowerMap[receivableId] != borrower) revert Errors.receivableIdMismatch();
         ReceivableInfo memory receivable = receivableAsset.getReceivable(receivableId);
         _validateReceivableStatus(receivable);

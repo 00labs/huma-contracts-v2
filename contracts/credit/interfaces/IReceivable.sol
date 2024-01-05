@@ -34,7 +34,9 @@ interface IReceivable {
      * @param tokenId The ID of the receivable token.
      * @return receivable The receivable.
      */
-    function getReceivable(uint256 tokenId) external returns (ReceivableInfo memory receivable);
+    function getReceivable(
+        uint256 tokenId
+    ) external view returns (ReceivableInfo memory receivable);
 
     /**
      * @notice Gets the payment status of a receivable.
