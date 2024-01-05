@@ -62,9 +62,9 @@ struct DueDetail {
 
 enum CreditState {
     Deleted,
+    Paused,
     Approved,
     GoodStanding,
-    Paused,
     Delayed,
     Defaulted
 }
