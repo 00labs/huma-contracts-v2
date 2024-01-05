@@ -26,7 +26,7 @@ import { CONSTANTS, deployAndSetupPoolContracts, deployProtocolContracts } from 
 import {
     borrowerLevelCreditHash,
     getFutureBlockTime,
-    setNextBlockTimestamp,
+    mineNextBlockWithTimestamp,
     toToken,
 } from "../../TestUtils";
 
@@ -438,99 +438,67 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
         });
     });
 
-    describe("validateReceivable", function () {
-        let receivableAmount: BN, maturityDate: number;
+    describe("validateReceivableOwnership", function () {
+        it("Should reject receivables not owned by the borrower", async function () {
+            await expect(
+                creditManagerContract.validateReceivableOwnership(borrower.getAddress(), 1),
+            ).to.be.revertedWithCustomError(creditManagerContract, "receivableIdMismatch");
+        });
+    });
+
+    describe("validateReceivableStatus", function () {
+        let receivableId: BN, receivableAmount: BN;
+
+        async function prepare() {
+            await creditManagerContract
+                .connect(eaServiceAccount)
+                .approveBorrower(
+                    borrower.getAddress(),
+                    toToken(65_000),
+                    6,
+                    1517,
+                    toToken(0),
+                    0,
+                    true,
+                );
+
+            receivableAmount = toToken(50_000);
+            const maturityDate = await getFutureBlockTime(3_600);
+            await receivableContract
+                .connect(borrower)
+                .createReceivable(0, receivableAmount, maturityDate, "referenceId4", "Test URI");
+            receivableId = await receivableContract.tokenOfOwnerByIndex(borrower.getAddress(), 0);
+            await creditManagerContract
+                .connect(eaServiceAccount)
+                .approveReceivable(borrower.getAddress(), receivableId);
+        }
 
         beforeEach(async function () {
-            receivableAmount = toToken(50_000);
-            maturityDate = await getFutureBlockTime(3_600);
+            await loadFixture(prepare);
         });
 
-        describe("When the receivable was not approved", function () {
-            it("Should reject receivables not owned by the borrower", async function () {
-                await expect(
-                    creditManagerContract.validateReceivable(borrower.getAddress(), 1),
-                ).to.be.revertedWithCustomError(creditManagerContract, "receivableIdMismatch");
-            });
+        it("Should reject receivables that have passed their maturity dates", async function () {
+            // Simulate time passage such that the receivable has matured when it is validated.
+            const receivable = await receivableContract.getReceivable(receivableId);
+            await mineNextBlockWithTimestamp(receivable.maturityDate.add(1));
+            await expect(
+                creditManagerContract
+                    .connect(eaServiceAccount)
+                    .validateReceivableStatus(receivable),
+            ).to.be.revertedWithCustomError(creditManagerContract, "receivableAlreadyMatured");
         });
 
-        describe("When the receivable was approved", function () {
-            async function prepare() {
-                await creditManagerContract
+        it("Should reject receivables that are in the wrong state", async function () {
+            await receivableContract
+                .connect(borrower)
+                .declarePayment(receivableId, receivableAmount);
+            const receivable = await receivableContract.getReceivable(receivableId);
+
+            await expect(
+                creditManagerContract
                     .connect(eaServiceAccount)
-                    .approveBorrower(
-                        borrower.getAddress(),
-                        toToken(65_000),
-                        6,
-                        1517,
-                        toToken(0),
-                        0,
-                        true,
-                    );
-            }
-
-            beforeEach(async function () {
-                await loadFixture(prepare);
-            });
-
-            it("Should reject receivables that have passed their maturity dates", async function () {
-                await receivableContract
-                    .connect(borrower)
-                    .createReceivable(
-                        0,
-                        receivableAmount,
-                        maturityDate,
-                        "referenceId4",
-                        "Test URI",
-                    );
-                const receivableId = await receivableContract.tokenOfOwnerByIndex(
-                    borrower.getAddress(),
-                    0,
-                );
-                await creditManagerContract
-                    .connect(eaServiceAccount)
-                    .approveReceivable(borrower.getAddress(), receivableId);
-
-                // Simulate time passage such that the receivable has matured when it is validated.
-                await setNextBlockTimestamp(maturityDate + 1);
-                await expect(
-                    creditManagerContract
-                        .connect(eaServiceAccount)
-                        .validateReceivable(borrower.getAddress(), receivableId),
-                ).to.be.revertedWithCustomError(creditManagerContract, "receivableAlreadyMatured");
-
-                await receivableContract.connect(borrower).burn(receivableId);
-            });
-
-            it("Should reject receivables that are in the wrong state", async function () {
-                await receivableContract
-                    .connect(borrower)
-                    .createReceivable(
-                        0,
-                        receivableAmount,
-                        maturityDate,
-                        "referenceId4",
-                        "Test URI",
-                    );
-                const receivableId = await receivableContract.tokenOfOwnerByIndex(
-                    borrower.getAddress(),
-                    0,
-                );
-                await creditManagerContract
-                    .connect(eaServiceAccount)
-                    .approveReceivable(borrower.getAddress(), receivableId);
-                await receivableContract
-                    .connect(borrower)
-                    .declarePayment(receivableId, receivableAmount);
-
-                await expect(
-                    creditManagerContract
-                        .connect(eaServiceAccount)
-                        .validateReceivable(borrower.getAddress(), receivableId),
-                ).to.be.revertedWithCustomError(creditManagerContract, "invalidReceivableState");
-
-                await receivableContract.connect(borrower).burn(receivableId);
-            });
+                    .validateReceivableStatus(receivable),
+            ).to.be.revertedWithCustomError(creditManagerContract, "invalidReceivableState");
         });
     });
 

@@ -46,7 +46,7 @@ contract ReceivableBackedCreditLineManager is
         // Either the receivable does not exist, or the receivable has a zero amount.
         // We shouldn't approve either way.
         if (receivable.receivableAmount == 0) revert Errors.zeroReceivableAmount();
-        _validateReceivableStatus(receivable);
+        validateReceivableStatus(receivable);
 
         bytes32 creditHash = getCreditHash(borrower);
         onlyCreditBorrower(creditHash, borrower);
@@ -83,10 +83,16 @@ contract ReceivableBackedCreditLineManager is
     }
 
     /// @inheritdoc IReceivableBackedCreditLineManager
-    function validateReceivable(address borrower, uint256 receivableId) external view {
+    function validateReceivableOwnership(address borrower, uint256 receivableId) external view {
         if (receivableBorrowerMap[receivableId] != borrower) revert Errors.receivableIdMismatch();
-        ReceivableInfo memory receivable = receivableAsset.getReceivable(receivableId);
-        _validateReceivableStatus(receivable);
+    }
+
+    function validateReceivableStatus(ReceivableInfo memory receivable) public view {
+        if (receivable.maturityDate < block.timestamp) revert Errors.receivableAlreadyMatured();
+        if (
+            receivable.state != ReceivableState.Minted &&
+            receivable.state != ReceivableState.Approved
+        ) revert Errors.invalidReceivableState();
     }
 
     /// @inheritdoc IReceivableBackedCreditLineManager
@@ -100,14 +106,6 @@ contract ReceivableBackedCreditLineManager is
 
     function getAvailableCredit(bytes32 creditHash) public view returns (uint256 availableCredit) {
         return _availableCredits[creditHash];
-    }
-
-    function _validateReceivableStatus(ReceivableInfo memory receivable) internal view {
-        if (receivable.maturityDate < block.timestamp) revert Errors.receivableAlreadyMatured();
-        if (
-            receivable.state != ReceivableState.Minted &&
-            receivable.state != ReceivableState.Approved
-        ) revert Errors.invalidReceivableState();
     }
 
     function _updatePoolConfigData(PoolConfig poolConfig) internal virtual override {

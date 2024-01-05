@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {IERC721, IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {Credit} from "./Credit.sol";
-import {CreditRecord, CreditState, DueDetail} from "./CreditStructs.sol";
+import {CreditRecord, CreditState, DueDetail, ReceivableInfo} from "./CreditStructs.sol";
 import {Errors} from "../common/Errors.sol";
 import {IReceivableBackedCreditLineManager} from "./interfaces/IReceivableBackedCreditLineManager.sol";
 import {IReceivable} from "./interfaces/IReceivable.sol";
@@ -198,7 +198,7 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         uint256 receivableId
     ) internal view {
         if (receivableId == 0) revert Errors.zeroReceivableIdProvided();
-        IReceivableBackedCreditLineManager(address(creditManager)).validateReceivable(
+        IReceivableBackedCreditLineManager(address(creditManager)).validateReceivableOwnership(
             borrower,
             receivableId
         );
@@ -214,10 +214,10 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         uint256 amount
     ) internal {
         if (receivableId == 0) revert Errors.zeroReceivableIdProvided();
-        uint256 receivableAmount = IReceivable(receivableAsset)
-            .getReceivable(receivableId)
-            .receivableAmount;
-        if (amount > receivableAmount) revert Errors.insufficientReceivableAmount();
+        ReceivableInfo memory receivable = IReceivable(receivableAsset).getReceivable(
+            receivableId
+        );
+        if (amount > receivable.receivableAmount) revert Errors.insufficientReceivableAmount();
         if (IERC721(receivableAsset).ownerOf(receivableId) != borrower)
             revert Errors.notReceivableOwner();
 
@@ -227,7 +227,8 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         if (_getCreditConfig(creditHash).receivableAutoApproval) {
             rbclManager.approveReceivable(borrower, receivableId);
         } else {
-            rbclManager.validateReceivable(borrower, receivableId);
+            rbclManager.validateReceivableOwnership(borrower, receivableId);
+            rbclManager.validateReceivableStatus(receivable);
         }
         rbclManager.decreaseCreditLimit(creditHash, amount);
 

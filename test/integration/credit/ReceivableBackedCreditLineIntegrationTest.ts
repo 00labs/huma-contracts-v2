@@ -262,7 +262,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                 nextTime += CONSTANTS.SECONDS_IN_A_DAY;
                 await setNextBlockTimestamp(nextTime);
 
-                let maturityDate =
+                const maturityDate =
                     nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
                 await receivableContract
                     .connect(borrower)
@@ -302,7 +302,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                 nextTime += CONSTANTS.SECONDS_IN_A_DAY;
                 await setNextBlockTimestamp(nextTime);
 
-                let maturityDate =
+                const maturityDate =
                     nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
                 await receivableContract
                     .connect(borrower)
@@ -339,7 +339,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                 nextTime += CONSTANTS.SECONDS_IN_A_DAY;
                 await setNextBlockTimestamp(nextTime);
 
-                let maturityDate =
+                const maturityDate =
                     nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
                 await receivableContract
                     .connect(borrower)
@@ -376,7 +376,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                 nextTime += CONSTANTS.SECONDS_IN_A_DAY;
                 await setNextBlockTimestamp(nextTime);
 
-                let maturityDate =
+                const maturityDate =
                     nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
                 await receivableContract
                     .connect(borrower)
@@ -433,7 +433,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                 nextTime += CONSTANTS.SECONDS_IN_A_DAY;
                 await setNextBlockTimestamp(nextTime);
 
-                let maturityDate =
+                const maturityDate =
                     nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
                 await receivableContract
                     .connect(borrower)
@@ -470,7 +470,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                 nextTime += CONSTANTS.SECONDS_IN_A_DAY;
                 await setNextBlockTimestamp(nextTime);
 
-                let maturityDate =
+                const maturityDate =
                     nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
                 await receivableContract
                     .connect(borrower)
@@ -522,7 +522,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                 nextTime += CONSTANTS.SECONDS_IN_A_DAY;
                 await setNextBlockTimestamp(nextTime);
 
-                let maturityDate =
+                const maturityDate =
                     nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
                 await receivableContract
                     .connect(borrower)
@@ -572,7 +572,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
             printCreditRecord("cr", cr);
 
             // Calling makePrincipalPaymentAndDrawdownWithReceivable fails
-            let maturityDate = nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
+            const maturityDate = nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
             await receivableContract
                 .connect(borrower)
                 .createReceivable(1, borrowAmount, maturityDate, "", "");
