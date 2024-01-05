@@ -98,7 +98,10 @@ interface ITrancheVaultLike {
 }
 
 contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable {
-    bytes32 public constant POOL_OPERATOR_ROLE = keccak256("POOL_OPERATOR");
+    // This is the keccak-256 hash of "POOL_OPERATOR"
+    bytes32 public constant POOL_OPERATOR_ROLE =
+        0xb33da3d30c8b734b741ef435441a8aa7b574459ef10d6ab4cf5c8bfb56fe18e8;
+
     // The smallest value that `PoolSettings.minDepositAmount` can be set to. Note that this value is "pre-decimals",
     // i.e. if the underlying token is USDC, then this represents $10 in USDC.
     uint256 private constant MIN_DEPOSIT_AMOUNT_THRESHOLD = 10;

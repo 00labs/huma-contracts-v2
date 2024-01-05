@@ -23,7 +23,9 @@ contract TrancheVault is
     TrancheVaultStorage,
     IRedemptionHandler
 {
-    bytes32 public constant LENDER_ROLE = keccak256("LENDER");
+    // This is the keccak-256 hash of "LENDER"
+    bytes32 public constant LENDER_ROLE =
+        0xdc5d40cf8d4d749e412db2b897d4c0ba9fa68e10b530fa46e9167f8509076137;
     uint256 private constant MAX_ALLOWED_NUM_NON_REINVESTING_LENDERS = 100;
 
     using SafeERC20 for IERC20;

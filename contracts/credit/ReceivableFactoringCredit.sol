@@ -18,7 +18,9 @@ contract ReceivableFactoringCredit is
     IReceivableFactoringCredit,
     IReceivableFactoringCreditForContract
 {
-    bytes32 public constant PAYER_ROLE = keccak256("PAYER");
+    // This is the keccak-256 hash of "PAYER"
+    bytes32 public constant PAYER_ROLE =
+        0x2b2d2bc97bc0e0e953432f38c414b8b1c4b8f83a5dc170b7df98331f5de3fe5c;
 
     event ExtraFundsDispersed(address indexed receiver, uint256 amount);
 
