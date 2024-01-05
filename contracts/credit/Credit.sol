@@ -207,14 +207,13 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         address borrower,
         bytes32 creditHash,
         uint256 borrowAmount
-    ) internal virtual {
+    ) internal virtual returns (uint256 netAmountToBorrower) {
         if (borrowAmount == 0) revert Errors.zeroAmountProvided();
 
-        // todo need to add return values
         CreditRecord memory cr = getCreditRecord(creditHash);
         CreditConfig memory cc = _getCreditConfig(creditHash);
         DueDetail memory dd = getDueDetail(creditHash);
-        _checkDrawdownEligibility(borrower, cr, borrowAmount, cc.creditLimit);
+        _checkDrawdownEligibility(cr, borrowAmount, cc.creditLimit);
 
         if (cr.state == CreditState.Approved) {
             // Flow for first drawdown.
@@ -266,9 +265,8 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         }
         _updateDueInfo(creditHash, cr, dd);
 
-        (uint256 netAmountToBorrower, uint256 platformProfit) = dueManager.distBorrowingAmount(
-            borrowAmount
-        );
+        uint256 platformProfit = 0;
+        (netAmountToBorrower, platformProfit) = dueManager.distBorrowingAmount(borrowAmount);
         IPool(poolConfig.pool()).distributeProfit(platformProfit);
 
         // Transfer funds to the borrower
@@ -541,7 +539,6 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
      * @dev Please note cr.nextDueDate is the credit expiration date for the first drawdown.
      */
     function _checkDrawdownEligibility(
-        address borrower,
         CreditRecord memory cr,
         uint256 borrowAmount,
         uint256 creditLimit
@@ -564,7 +561,8 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             // Prevent drawdown if the credit is in good standing, but has due outstanding and is currently in the
             // late payment grace period or later. In this case, we want the borrower to pay off the due before being
             // able to make further drawdown.
-            // TODO(jiatu): this error name is misleading. Rename it.
+            // TODO(jiatu): this error name is misleading since the drawdown may not necessarily be in the late payment grace period.
+            // Rename it.
             revert Errors.drawdownNotAllowedInLatePaymentGracePeriod();
         }
     }

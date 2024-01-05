@@ -18,18 +18,6 @@ import {ICreditDueManager} from "./utils/interfaces/ICreditDueManager.sol";
 import "hardhat/console.sol";
 
 abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICreditManager {
-    event CreditConfigChanged(
-        bytes32 indexed creditHash,
-        uint256 creditLimit,
-        uint256 committedAmount,
-        PayPeriodDuration periodDuration,
-        uint256 numOfPeriods,
-        uint256 yieldInBps,
-        bool revolving,
-        uint256 advanceRateInBps,
-        bool autoApproval
-    );
-
     event CommittedCreditStarted(bytes32 indexed creditHash);
 
     event CreditPaused(bytes32 indexed creditHash);
@@ -208,7 +196,6 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         // Once a drawdown has happened, it is disallowed to re-approve a credit. One has to call
         // other admin functions to change the terms of the credit.
         CreditRecord memory cr = credit.getCreditRecord(creditHash);
-        // TODO(jiatu): we shouldn't rely on the order of enum values.
         if (cr.state > CreditState.Approved) revert Errors.creditLineNotInStateForUpdate();
 
         CreditConfig memory cc = getCreditConfig(creditHash);
@@ -219,22 +206,8 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         cc.yieldInBps = yieldInBps;
         cc.revolving = revolving;
         cc.advanceRateInBps = ps.advanceRateInBps;
-        cc.autoApproval = ps.receivableAutoApproval;
+        cc.receivableAutoApproval = ps.receivableAutoApproval;
         _setCreditConfig(creditHash, cc);
-
-        // todo decide if this event emission should be kept or not
-        // TODO decide if cc.receivableBacked, cc.borrowerLevelCredit and cc.exclusive should be kept or not
-        emit CreditConfigChanged(
-            creditHash,
-            cc.creditLimit,
-            cc.committedAmount,
-            cc.periodDuration,
-            cc.numOfPeriods,
-            cc.yieldInBps,
-            cc.revolving,
-            cc.advanceRateInBps,
-            cc.autoApproval
-        );
 
         // Note: Special logic. dueDate is normally used to track the next bill due.
         // Before the first drawdown, it is also used to set the designated start date
@@ -297,7 +270,6 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         cr.remainingPeriods = 0;
         credit.setCreditRecord(creditHash, cr);
 
-        // TODO really need this?
         cc.creditLimit = 0;
         _setCreditConfig(creditHash, cc);
 

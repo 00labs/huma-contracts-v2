@@ -18,7 +18,7 @@ struct CreditConfig {
     // Percentage of receivable nominal amount to be available for drawdown.
     uint16 advanceRateInBps;
     bool revolving; // if repeated borrowing is allowed
-    bool autoApproval;
+    bool receivableAutoApproval;
 }
 
 // CreditRecord keep track of the dynamic stats of a credit that change
@@ -101,7 +101,6 @@ struct ReceivableInfo {
     ReceivableState state;
 }
 
-// todo Not sure if it is a good idea to separate this struct, will research and decide later.
 struct ReceivableInput {
     uint96 receivableAmount;
     uint64 receivableId;

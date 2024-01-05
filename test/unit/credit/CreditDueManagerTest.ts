@@ -398,10 +398,7 @@ describe("CreditDueManager Tests", function () {
                     yieldInBps: 1000,
                     advanceRateInBps: 8000,
                     revolving: true,
-                    receivableBacked: true,
-                    borrowerLevelCredit: true,
-                    exclusive: true,
-                    autoApproval: true,
+                    receivableAutoApproval: true,
                 },
                 ...creditConfigOverrides,
             };

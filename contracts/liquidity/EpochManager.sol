@@ -19,6 +19,13 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
  * @notice EpochManager processes redemption requests at the end of each billing cycle
  */
 contract EpochManager is PoolConfigCache, IEpochManager {
+    // The minimum balance required in the pool to process redemption requests. This threshold is set to avoid rounding
+    // errors when the pool's balance is too low.
+    uint256 private constant MIN_POOL_BALANCE_FOR_REDEMPTION = 1;
+    // The actual threshold required for redemption based on the number of decimals
+    // of the underlying token of the pool. The value will be calculated and cached during initialization.
+    uint256 public minPoolBalanceForRedemption;
+
     struct CurrentEpoch {
         uint64 id;
         uint64 endTime;
@@ -31,11 +38,6 @@ contract EpochManager is PoolConfigCache, IEpochManager {
     ICalendar public calendar;
 
     CurrentEpoch internal _currentEpoch;
-
-    // It is used to avoid tiny amount to be processed, e.g. 1 amount = 0.0000001 USDC remaining in the pool caused
-    // by rounding down in the last epoch
-    // TODO constant?
-    uint256 public minAmountToProcessPerEpoch;
 
     event EpochClosed(
         uint256 epochId,
@@ -74,9 +76,8 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         addr = _poolConfig.underlyingToken();
         assert(addr != address(0));
         uint256 decimals = IERC20Metadata(addr).decimals();
-        // set minAmountToProcessPerEpoch to 1 token now
-        // TODO change this to a configuration parameter?
-        minAmountToProcessPerEpoch = 10 ** decimals;
+
+        minPoolBalanceForRedemption = MIN_POOL_BALANCE_FOR_REDEMPTION * 10 ** decimals;
     }
 
     /**
@@ -192,7 +193,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
     ) internal view {
         // get available underlying token amount
         uint256 availableAmount = poolSafe.getAvailableBalanceForPool();
-        if (availableAmount <= minAmountToProcessPerEpoch) return;
+        if (availableAmount <= minPoolBalanceForRedemption) return;
 
         // Process senior tranche redemption requests.
         if (seniorSummary.totalSharesRequested > 0) {

@@ -480,18 +480,6 @@ describe("CreditLine Test", function () {
                         true,
                     ),
             )
-                .to.emit(creditManagerContract, "CreditConfigChanged")
-                .withArgs(
-                    creditHash,
-                    toToken(10_000),
-                    toToken(10_000),
-                    poolSettings.payPeriodDuration,
-                    1,
-                    1217,
-                    true,
-                    poolSettings.advanceRateInBps,
-                    false,
-                )
                 .to.emit(creditManagerContract, "CreditLineApproved")
                 .withArgs(
                     borrower.address,
@@ -558,18 +546,6 @@ describe("CreditLine Test", function () {
                         true,
                     ),
             )
-                .to.emit(creditManagerContract, "CreditConfigChanged")
-                .withArgs(
-                    creditHash,
-                    toToken(20_000),
-                    toToken(20_000),
-                    poolSettings.payPeriodDuration,
-                    3,
-                    1217,
-                    true,
-                    poolSettings.advanceRateInBps,
-                    false,
-                )
                 .to.emit(creditManagerContract, "CreditLineApproved")
                 .withArgs(
                     borrower.address,
@@ -638,18 +614,6 @@ describe("CreditLine Test", function () {
                         true,
                     ),
             )
-                .to.emit(creditManagerContract, "CreditConfigChanged")
-                .withArgs(
-                    creditHash,
-                    toToken(10_000),
-                    toToken(10_000),
-                    poolSettings.payPeriodDuration,
-                    3,
-                    1217,
-                    true,
-                    poolSettings.advanceRateInBps,
-                    false,
-                )
                 .to.emit(creditManagerContract, "CreditLineApproved")
                 .withArgs(
                     borrower.address,
@@ -8797,7 +8761,7 @@ describe("CreditLine Test", function () {
                     oldCreditConfig.yieldInBps,
                     oldCreditConfig.revolving,
                     oldCreditConfig.advanceRateInBps,
-                    oldCreditConfig.autoApproval,
+                    oldCreditConfig.receivableAutoApproval,
                 );
                 const newCreditRecord = await creditContract.getCreditRecord(creditHash);
                 checkCreditRecord(

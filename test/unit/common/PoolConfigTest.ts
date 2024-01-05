@@ -174,7 +174,6 @@ describe("PoolConfig Tests", function () {
 
             const poolSettings = await poolConfigContract.getPoolSettings();
             expect(poolSettings.payPeriodDuration).to.equal(PayPeriodDuration.Monthly);
-            expect(poolSettings.receivableRequiredInBps).to.equal(10000);
             expect(poolSettings.advanceRateInBps).to.equal(8000);
             expect(poolSettings.latePaymentGracePeriodInDays).to.equal(5);
             expect(poolSettings.defaultGracePeriodInDays).to.equal(10);
@@ -1607,7 +1606,6 @@ describe("PoolConfig Tests", function () {
                         newSettings.payPeriodDuration,
                         newSettings.latePaymentGracePeriodInDays,
                         newSettings.defaultGracePeriodInDays,
-                        newSettings.receivableRequiredInBps,
                         newSettings.advanceRateInBps,
                         newSettings.receivableAutoApproval,
                         await poolOwner.getAddress(),
@@ -1623,9 +1621,6 @@ describe("PoolConfig Tests", function () {
                 );
                 expect(actualNewSettings.defaultGracePeriodInDays).to.equal(
                     newSettings.defaultGracePeriodInDays,
-                );
-                expect(actualNewSettings.receivableRequiredInBps).to.equal(
-                    newSettings.receivableRequiredInBps,
                 );
                 expect(actualNewSettings.advanceRateInBps).to.equal(newSettings.advanceRateInBps);
                 expect(actualNewSettings.receivableAutoApproval).to.equal(
@@ -1643,7 +1638,6 @@ describe("PoolConfig Tests", function () {
                         newSettings.payPeriodDuration,
                         newSettings.latePaymentGracePeriodInDays,
                         newSettings.defaultGracePeriodInDays,
-                        newSettings.receivableRequiredInBps,
                         newSettings.advanceRateInBps,
                         newSettings.receivableAutoApproval,
                         await protocolOwner.getAddress(),
@@ -1659,9 +1653,6 @@ describe("PoolConfig Tests", function () {
                 );
                 expect(actualNewSettings.defaultGracePeriodInDays).to.equal(
                     newSettings.defaultGracePeriodInDays,
-                );
-                expect(actualNewSettings.receivableRequiredInBps).to.equal(
-                    newSettings.receivableRequiredInBps,
                 );
                 expect(actualNewSettings.advanceRateInBps).to.equal(newSettings.advanceRateInBps);
                 expect(actualNewSettings.receivableAutoApproval).to.equal(

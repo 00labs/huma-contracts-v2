@@ -51,7 +51,7 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         address borrower,
         uint256 receivableId,
         uint256 amount
-    ) public virtual {
+    ) public virtual returns (uint256 netAmountToBorrower) {
         poolConfig.onlyProtocolAndPoolOn();
         if (msg.sender != borrower) revert Errors.notBorrower();
 
@@ -65,7 +65,7 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
             receivableId,
             amount
         );
-        _drawdown(borrower, creditHash, amount);
+        netAmountToBorrower = _drawdown(borrower, creditHash, amount);
 
         emit DrawdownMadeWithReceivable(borrower, receivableId, amount, msg.sender);
     }
@@ -123,7 +123,7 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         uint256 paymentAmount,
         uint256 drawdownReceivableId,
         uint256 drawdownAmount
-    ) public virtual returns (uint256 amountPaid, bool paidoff) {
+    ) public virtual returns (uint256 amountPaid, uint256 netAmountToBorrower, bool paidoff) {
         poolConfig.onlyProtocolAndPoolOn();
         if (msg.sender != borrower) revert Errors.notBorrower();
 
@@ -138,7 +138,7 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         uint256 principalOutstanding = cr.unbilledPrincipal + cr.nextDue - cr.yieldDue;
         if (principalOutstanding == 0) {
             // No principal payment is needed when there is no principal outstanding.
-            return (0, false);
+            return (0, 0, false);
         }
 
         address receivableAsset = poolConfig.receivableAsset();
@@ -165,7 +165,7 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
             poolSafe.deposit(msg.sender, paymentAmount);
             poolSafe.withdraw(borrower, paymentAmount);
             uint256 amount = drawdownAmount - paymentAmount;
-            _drawdown(borrower, creditHash, amount);
+            netAmountToBorrower = _drawdown(borrower, creditHash, amount);
         }
 
         emit PrincipalPaymentMadeWithReceivable(
@@ -224,7 +224,7 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         IReceivableBackedCreditLineManager rbclManager = IReceivableBackedCreditLineManager(
             address(creditManager)
         );
-        if (_getCreditConfig(creditHash).autoApproval) {
+        if (_getCreditConfig(creditHash).receivableAutoApproval) {
             rbclManager.approveReceivable(borrower, receivableId);
         } else {
             rbclManager.validateReceivable(borrower, receivableId);

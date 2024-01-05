@@ -57,7 +57,7 @@ contract ReceivableFactoringCredit is
         address borrower,
         uint256 receivableId,
         uint256 amount
-    ) external {
+    ) external returns (uint256 netAmountToBorrower) {
         poolConfig.onlyProtocolAndPoolOn();
 
         if (msg.sender != borrower) revert Errors.notBorrower();
@@ -71,7 +71,7 @@ contract ReceivableFactoringCredit is
 
         receivableAsset.safeTransferFrom(borrower, address(this), receivableId);
 
-        _drawdown(borrower, creditHash, amount);
+        netAmountToBorrower = _drawdown(borrower, creditHash, amount);
 
         emit DrawdownMadeWithReceivable(borrower, receivableId, amount, msg.sender);
     }
@@ -97,9 +97,8 @@ contract ReceivableFactoringCredit is
         emit PaymentMadeWithReceivable(borrower, receivableId, amount, msg.sender);
     }
 
-    /// TODO(jiatu): rename this?
     /// @inheritdoc IReceivableFactoringCreditForContract
-    function makePaymentWithReceivableForContract(
+    function makePaymentWithReceivableByPayer(
         uint256 receivableId,
         uint256 amount
     ) external returns (uint256 amountPaid, bool paidoff) {

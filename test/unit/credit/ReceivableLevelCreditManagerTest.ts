@@ -304,7 +304,7 @@ describe("ReceivableLevelCreditManager Test", function () {
                 revolving: false,
                 yieldInBps,
                 advanceRateInBps: poolSettings.advanceRateInBps,
-                autoApproval: false,
+                receivableAutoApproval: false,
             };
             checkCreditConfigsMatch(actualCC, expectedCC);
 

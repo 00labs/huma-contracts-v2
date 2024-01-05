@@ -25,13 +25,11 @@ struct PoolSettings {
     uint8 latePaymentGracePeriodInDays;
     // The grace period before a default can be triggered, in days. This can be 0.
     uint16 defaultGracePeriodInDays;
-    // Percentage (in basis points) of the receivable amount applied towards available credit
-    // TODO same to advanceRateInBps?
-    uint16 receivableRequiredInBps;
     // Specifies the max credit line as a percentage (in basis points) of the receivable amount.
     // E.g., for a receivable of $100 with an advance rate of 9000 bps, the credit line can be up to $90.
     uint16 advanceRateInBps;
-    // TODO add comment here
+    // Specifies whether receivables should be automatically approved during initial drawdown. If `false`, then
+    // receivables need to be approved prior to the first drawdown.
     bool receivableAutoApproval;
 }
 
@@ -183,7 +181,6 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         PayPeriodDuration payPeriodDuration,
         uint8 latePaymentGracePeriodInDays,
         uint16 defaultGracePeriodInDays,
-        uint16 receivableRequiredInBps,
         uint16 advanceRateInBps,
         bool receivableAutoApproval,
         address by
@@ -262,7 +259,6 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         // strange behaviors when the pool owner missed setting up these configurations.
         PoolSettings memory tempPoolSettings = _poolSettings;
         tempPoolSettings.payPeriodDuration = PayPeriodDuration.Monthly;
-        tempPoolSettings.receivableRequiredInBps = 10000; // 100%
         tempPoolSettings.advanceRateInBps = 8000; // 80%
         tempPoolSettings.latePaymentGracePeriodInDays = 5;
         tempPoolSettings.defaultGracePeriodInDays = 10; // 10 days
@@ -435,7 +431,6 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         emit CreditChanged(_credit, msg.sender);
     }
 
-    //* todo passing the parameter inside the struct instead of the struct itself.
     function setFirstLossCover(
         uint8 index,
         address firstLossCover,
@@ -482,7 +477,6 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
             settings.payPeriodDuration,
             settings.latePaymentGracePeriodInDays,
             settings.defaultGracePeriodInDays,
-            settings.receivableRequiredInBps,
             settings.advanceRateInBps,
             settings.receivableAutoApproval,
             msg.sender

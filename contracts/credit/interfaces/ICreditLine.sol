@@ -21,10 +21,14 @@ interface ICreditLine {
     /**
      * @notice Allows the borrower to borrow against an approved credit line.
      * @param borrower Address of the borrower
-     * @param borrowAmount the amount to borrow
+     * @param borrowAmount The amount to borrow
+     * @return netAmountToBorrower The net amount disbursed to the borrower
      * @dev Only the owner of the credit line can drawdown.
      */
-    function drawdown(address borrower, uint256 borrowAmount) external;
+    function drawdown(
+        address borrower,
+        uint256 borrowAmount
+    ) external returns (uint256 netAmountToBorrower);
 
     /**
      * @notice Makes one payment for the credit line. This can be initiated by the borrower

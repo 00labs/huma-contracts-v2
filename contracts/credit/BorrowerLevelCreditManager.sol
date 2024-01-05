@@ -13,8 +13,6 @@ import {Errors} from "../common/Errors.sol";
  * at the borrower-level. A classic example of borrower-level credit is credit line.
  */
 contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManager {
-    //* todo standardize whether to emit events at Credit contract or this contract.
-    //* todo standardize where to place access control, at Credit contract or this contract
     event CreditLineApproved(
         address indexed borrower,
         bytes32 indexed creditHash,

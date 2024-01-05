@@ -468,6 +468,7 @@ contract TrancheVault is
         uint256 _totalAssets
     ) internal view returns (uint256 shares) {
         // TODO solve the first tiny deposit vector - https://github.com/spearbit/portfolio/blob/master/pdfs/MapleV2.pdf
+        // Operational workaround + documentation?
 
         uint256 supply = ERC20Upgradeable.totalSupply();
 
