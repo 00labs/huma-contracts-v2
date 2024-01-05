@@ -87,7 +87,7 @@ let poolConfigContract: PoolConfig,
 
 let feeCalculator: FeeCalculator;
 
-describe("Credit Line Integration Test", function () {
+describe("CreditLine Integration Test", function () {
     let creditHash: string;
     let creditLimit: BN,
         committedAmount: BN,
@@ -1586,26 +1586,33 @@ describe("Credit Line Integration Test", function () {
         await poolContract.connect(poolOwner).enablePool();
 
         // Any further deposit attempts by lenders should fail.
+        const poolSettings = await poolConfigContract.getPoolSettings();
         await expect(
             juniorTrancheVaultContract
                 .connect(juniorLender)
-                .deposit(toToken(1), juniorLender.getAddress()),
+                .deposit(poolSettings.minDepositAmount, juniorLender.getAddress()),
         ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "trancheLiquidityCapExceeded");
         // So do first loss covers.
         await expect(
-            borrowerFirstLossCoverContract.connect(borrower).depositCover(toToken(1)),
+            borrowerFirstLossCoverContract
+                .connect(borrower)
+                .depositCover(poolSettings.minDepositAmount),
         ).to.be.revertedWithCustomError(
             borrowerFirstLossCoverContract,
             "firstLossCoverLiquidityCapExceeded",
         );
         await expect(
-            affiliateFirstLossCoverContract.connect(poolOwnerTreasury).depositCover(toToken(1)),
+            affiliateFirstLossCoverContract
+                .connect(poolOwnerTreasury)
+                .depositCover(poolSettings.minDepositAmount),
         ).to.be.revertedWithCustomError(
             borrowerFirstLossCoverContract,
             "firstLossCoverLiquidityCapExceeded",
         );
         await expect(
-            affiliateFirstLossCoverContract.connect(evaluationAgent).depositCover(toToken(1)),
+            affiliateFirstLossCoverContract
+                .connect(evaluationAgent)
+                .depositCover(poolSettings.minDepositAmount),
         ).to.be.revertedWithCustomError(
             borrowerFirstLossCoverContract,
             "firstLossCoverLiquidityCapExceeded",

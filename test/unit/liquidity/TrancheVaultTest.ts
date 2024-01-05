@@ -554,7 +554,7 @@ describe("TrancheVault Test", function () {
 
     describe("makeInitialDeposit", function () {
         it("Should allow the pool owner treasury to make the initial deposit even if the protocol is paused or the pool is off", async function () {
-            const amount = toToken(1);
+            const amount = toToken(1_000);
             const shares = amount;
             await humaConfigContract.connect(protocolOwner).pause();
             await expect(
@@ -573,7 +573,7 @@ describe("TrancheVault Test", function () {
         });
 
         it("Should allow the EA to make the initial deposit even if the protocol is paused or the pool is off", async function () {
-            const amount = toToken(1);
+            const amount = toToken(1_000);
             const shares = amount;
             await humaConfigContract.connect(protocolOwner).pause();
             await expect(
@@ -596,9 +596,32 @@ describe("TrancheVault Test", function () {
                 juniorTrancheVaultContract.connect(lender).makeInitialDeposit(toToken(1)),
             ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "notAuthorizedCaller");
         });
+
+        it("Should now allow deposit amount less than the min requirement", async function () {
+            const poolSettings = await poolConfigContract.getPoolSettings();
+            await expect(
+                juniorTrancheVaultContract
+                    .connect(poolOwnerTreasury)
+                    .makeInitialDeposit(poolSettings.minDepositAmount.sub(toToken(1))),
+            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "depositAmountTooLow");
+        });
     });
 
     describe("Deposit Tests", function () {
+        it("Should not allow deposits when the protocol is paused or the pool is off", async function () {
+            await humaConfigContract.connect(protocolOwner).pause();
+            await expect(
+                juniorTrancheVaultContract.connect(lender).deposit(toToken(1), lender.address),
+            ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+            await humaConfigContract.connect(protocolOwner).unpause();
+
+            await poolContract.connect(poolOwner).disablePool();
+            await expect(
+                juniorTrancheVaultContract.connect(lender).deposit(toToken(1), lender.address),
+            ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+            await poolContract.connect(poolOwner).enablePool();
+        });
+
         it("Should not allow deposits with 0 amount", async function () {
             await expect(
                 juniorTrancheVaultContract.connect(lender).deposit(0, lender.address),
@@ -629,18 +652,13 @@ describe("TrancheVault Test", function () {
             );
         });
 
-        it("Should not allow deposits when the protocol is paused or the pool is off", async function () {
-            await humaConfigContract.connect(protocolOwner).pause();
+        it("Should now allow deposit amount less than the min requirement", async function () {
+            const poolSettings = await poolConfigContract.getPoolSettings();
             await expect(
-                juniorTrancheVaultContract.connect(lender).deposit(toToken(1), lender.address),
-            ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
-            await humaConfigContract.connect(protocolOwner).unpause();
-
-            await poolContract.connect(poolOwner).disablePool();
-            await expect(
-                juniorTrancheVaultContract.connect(lender).deposit(toToken(1), lender.address),
-            ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
-            await poolContract.connect(poolOwner).enablePool();
+                juniorTrancheVaultContract
+                    .connect(lender)
+                    .deposit(poolSettings.minDepositAmount.sub(toToken(1)), lender.getAddress()),
+            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "depositAmountTooLow");
         });
 
         it("Should not allow deposits that would result in the liquidity cap being exceeded", async function () {

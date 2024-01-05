@@ -19,6 +19,8 @@ import "hardhat/console.sol";
 struct PoolSettings {
     // The maximum credit line for a borrower in terms of the amount of poolTokens
     uint96 maxCreditLine;
+    // The minimum amount a lender/First Loss Cover provider needs to supply each time they deposit.
+    uint96 minDepositAmount;
     // The number of months in one pay period
     PayPeriodDuration payPeriodDuration;
     // The grace period before a late fee can be charged, in the unit of number of days
@@ -97,6 +99,9 @@ interface ITrancheVaultLike {
 
 contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable {
     bytes32 public constant POOL_OPERATOR_ROLE = keccak256("POOL_OPERATOR");
+    // The smallest value that `PoolSettings.minDepositAmount` can be set to. Note that this value is "pre-decimals",
+    // i.e. if the underlying token is USDC, then this represents $10 in USDC.
+    uint256 private constant MIN_DEPOSIT_AMOUNT_THRESHOLD = 10;
 
     //using SafeERC20 for IERC20;
 
@@ -178,6 +183,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
 
     event PoolSettingsChanged(
         uint96 maxCreditLine,
+        uint96 minDepositAmount,
         PayPeriodDuration payPeriodDuration,
         uint8 latePaymentGracePeriodInDays,
         uint16 defaultGracePeriodInDays,
@@ -258,6 +264,9 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         // these values when setting up the pools. Setting these default values to avoid
         // strange behaviors when the pool owner missed setting up these configurations.
         PoolSettings memory tempPoolSettings = _poolSettings;
+        tempPoolSettings.minDepositAmount = uint96(
+            MIN_DEPOSIT_AMOUNT_THRESHOLD * 10 ** IERC20Metadata(underlyingToken).decimals()
+        );
         tempPoolSettings.payPeriodDuration = PayPeriodDuration.Monthly;
         tempPoolSettings.advanceRateInBps = 8000; // 80%
         tempPoolSettings.latePaymentGracePeriodInDays = 5;
@@ -468,12 +477,19 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
 
     function setPoolSettings(PoolSettings memory settings) external {
         _onlyOwnerOrHumaMasterAdmin();
+        if (
+            settings.minDepositAmount <
+            uint96(MIN_DEPOSIT_AMOUNT_THRESHOLD * 10 ** IERC20Metadata(underlyingToken).decimals())
+        ) {
+            revert Errors.minDepositAmountTooLow();
+        }
         if (settings.advanceRateInBps > 10000) {
             revert Errors.invalidBasisPointHigherThan10000();
         }
         _poolSettings = settings;
         emit PoolSettingsChanged(
             settings.maxCreditLine,
+            settings.minDepositAmount,
             settings.payPeriodDuration,
             settings.latePaymentGracePeriodInDays,
             settings.defaultGracePeriodInDays,
