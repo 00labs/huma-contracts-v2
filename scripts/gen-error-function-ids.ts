@@ -52,7 +52,7 @@ async function addContractComments(sourceFile: string, contractFile: string) {
 async function main() {
     const sourceFile = "./error-functions.json";
     const destFile = "./scripts/error-functions.json";
-    const errorFile = "./contracts/Errors.sol";
+    const errorFile = "./contracts/common/Errors.sol";
 
     await genFunctionKeys(errorFile, destFile);
     await genFunctionIds(sourceFile, destFile);

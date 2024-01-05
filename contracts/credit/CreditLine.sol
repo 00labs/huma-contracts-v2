@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import {ICreditLine} from "./interfaces/ICreditLine.sol";
 import {Credit} from "./Credit.sol";
 import {CreditRecord, DueDetail} from "./CreditStructs.sol";
-import {Errors} from "../Errors.sol";
+import {Errors} from "../common/Errors.sol";
 
 import "hardhat/console.sol";
 

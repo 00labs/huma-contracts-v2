@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import {IERC721, IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {Credit} from "./Credit.sol";
 import {CreditRecord, CreditState, DueDetail} from "./CreditStructs.sol";
-import {Errors} from "../Errors.sol";
+import {Errors} from "../common/Errors.sol";
 import {IReceivableBackedCreditLineManager} from "./interfaces/IReceivableBackedCreditLineManager.sol";
 import {IReceivable} from "./interfaces/IReceivable.sol";
 

@@ -8,8 +8,8 @@ import {CreditRecord, DueDetail} from "./CreditStructs.sol";
 import {IReceivableFactoringCredit} from "./interfaces/IReceivableFactoringCredit.sol";
 import {IReceivableFactoringCreditForContract} from "./interfaces/IReceivableFactoringCreditForContract.sol";
 import {IReceivableLevelCreditManager} from "./interfaces/IReceivableLevelCreditManager.sol";
-import {PoolConfig} from "../PoolConfig.sol";
-import {Errors} from "../Errors.sol";
+import {PoolConfig} from "../common/PoolConfig.sol";
+import {Errors} from "../common/Errors.sol";
 
 contract ReceivableFactoringCredit is
     ERC165Upgradeable,

@@ -3,8 +3,8 @@ pragma solidity ^0.8.0;
 
 import {IBorrowerLevelCreditManager} from "./interfaces/IBorrowerLevelCreditManager.sol";
 import {CreditManager} from "./CreditManager.sol";
-import {PayPeriodDuration} from "./CreditStructs.sol";
-import {Errors} from "../Errors.sol";
+import {PayPeriodDuration} from "../common/SharedDefs.sol";
+import {Errors} from "../common/Errors.sol";
 
 /**
  * BorrowerLevelCreditManager has a set of administrative functions to manage the settings

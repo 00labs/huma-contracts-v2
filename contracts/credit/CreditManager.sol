@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {HumaConfig} from "../HumaConfig.sol";
+import {HumaConfig} from "../common/HumaConfig.sol";
 import {ICredit} from "./interfaces/ICredit.sol";
-import {ICalendar} from "./interfaces/ICalendar.sol";
-import {IPool} from "../interfaces/IPool.sol";
+import {ICalendar} from "../common/interfaces/ICalendar.sol";
+import {IPool} from "../liquidity/interfaces/IPool.sol";
 import {ICreditManager} from "./interfaces/ICreditManager.sol";
-import {PoolConfig, PoolSettings} from "../PoolConfig.sol";
-import {PoolConfigCache} from "../PoolConfigCache.sol";
+import {PoolConfig, PoolSettings} from "../common/PoolConfig.sol";
+import {PoolConfigCache} from "../common/PoolConfigCache.sol";
 import {CreditManagerStorage} from "./CreditManagerStorage.sol";
-import {CreditClosureReason, CreditConfig, CreditRecord, CreditState, DueDetail, PayPeriodDuration} from "./CreditStructs.sol";
-import {Errors} from "../Errors.sol";
-import {DAYS_IN_A_MONTH, DAYS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS, SECONDS_IN_A_DAY} from "../SharedDefs.sol";
+import {CreditClosureReason, CreditConfig, CreditRecord, CreditState, DueDetail} from "./CreditStructs.sol";
+import {PayPeriodDuration} from "../common/SharedDefs.sol";
+import {Errors} from "../common/Errors.sol";
+import {DAYS_IN_A_MONTH, DAYS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS, SECONDS_IN_A_DAY} from "../common/SharedDefs.sol";
 import {ICreditDueManager} from "./utils/interfaces/ICreditDueManager.sol";
 
 import "hardhat/console.sol";

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
+import {PayPeriodDuration} from "../common/SharedDefs.sol";
+
 // CreditConfig keeps track of the static settings of a credit.
 // A CreditConfig is created after the approval of each credit.
 struct CreditConfig {
@@ -56,12 +58,6 @@ struct DueDetail {
     uint96 committed;
     uint96 accrued;
     uint96 paid;
-}
-
-enum PayPeriodDuration {
-    Monthly,
-    Quarterly,
-    SemiAnnually
 }
 
 enum CreditState {
