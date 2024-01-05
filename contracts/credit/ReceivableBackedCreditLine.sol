@@ -228,7 +228,7 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
             rbclManager.approveReceivable(borrower, receivableId);
         } else {
             rbclManager.validateReceivableOwnership(borrower, receivableId);
-            rbclManager.validateReceivableStatus(receivable);
+            rbclManager.validateReceivableStatus(receivable.maturityDate, receivable.state);
         }
         rbclManager.decreaseCreditLimit(creditHash, amount);
 

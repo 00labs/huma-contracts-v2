@@ -484,7 +484,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
             await expect(
                 creditManagerContract
                     .connect(eaServiceAccount)
-                    .validateReceivableStatus(receivable),
+                    .validateReceivableStatus(receivable.maturityDate, receivable.state),
             ).to.be.revertedWithCustomError(creditManagerContract, "receivableAlreadyMatured");
         });
 
@@ -497,7 +497,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
             await expect(
                 creditManagerContract
                     .connect(eaServiceAccount)
-                    .validateReceivableStatus(receivable),
+                    .validateReceivableStatus(receivable.maturityDate, receivable.state),
             ).to.be.revertedWithCustomError(creditManagerContract, "invalidReceivableState");
         });
     });

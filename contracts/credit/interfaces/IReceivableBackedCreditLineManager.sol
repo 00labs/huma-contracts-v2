@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {CreditRecord, ReceivableInfo} from "../CreditStructs.sol";
+import {CreditRecord, ReceivableState} from "../CreditStructs.sol";
 
 interface IReceivableBackedCreditLineManager {
     /**
@@ -19,7 +19,7 @@ interface IReceivableBackedCreditLineManager {
     /**
      * @notice Validates the receivable status, including its state and maturity date.
      */
-    function validateReceivableStatus(ReceivableInfo memory receivable) external view;
+    function validateReceivableStatus(uint256 maturityDate, ReceivableState state) external view;
 
     /**
      * @notice Decreases the amount that the borrower can borrow from the credit line due to new drawdown.

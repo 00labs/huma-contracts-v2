@@ -46,7 +46,7 @@ contract ReceivableBackedCreditLineManager is
         // Either the receivable does not exist, or the receivable has a zero amount.
         // We shouldn't approve either way.
         if (receivable.receivableAmount == 0) revert Errors.zeroReceivableAmount();
-        validateReceivableStatus(receivable);
+        validateReceivableStatus(receivable.maturityDate, receivable.state);
 
         bytes32 creditHash = getCreditHash(borrower);
         onlyCreditBorrower(creditHash, borrower);
@@ -87,12 +87,10 @@ contract ReceivableBackedCreditLineManager is
         if (receivableBorrowerMap[receivableId] != borrower) revert Errors.receivableIdMismatch();
     }
 
-    function validateReceivableStatus(ReceivableInfo memory receivable) public view {
-        if (receivable.maturityDate < block.timestamp) revert Errors.receivableAlreadyMatured();
-        if (
-            receivable.state != ReceivableState.Minted &&
-            receivable.state != ReceivableState.Approved
-        ) revert Errors.invalidReceivableState();
+    function validateReceivableStatus(uint256 maturityDate, ReceivableState state) public view {
+        if (maturityDate < block.timestamp) revert Errors.receivableAlreadyMatured();
+        if (state != ReceivableState.Minted && state != ReceivableState.Approved)
+            revert Errors.invalidReceivableState();
     }
 
     /// @inheritdoc IReceivableBackedCreditLineManager
