@@ -14,6 +14,7 @@ import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {IERC20MetadataUpgradeable, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract TrancheVault is
     AccessControlUpgradeable,
@@ -24,6 +25,8 @@ contract TrancheVault is
 {
     bytes32 public constant LENDER_ROLE = keccak256("LENDER");
     uint256 private constant MAX_ALLOWED_NUM_NON_REINVESTING_LENDERS = 100;
+
+    using SafeERC20 for IERC20;
 
     event EpochProcessed(
         uint256 indexed epochId,
@@ -381,7 +384,7 @@ contract TrancheVault is
         if (withdrawable > 0) {
             record.totalAmountWithdrawn += uint96(withdrawable);
             lenderRedemptionRecords[msg.sender] = record;
-            underlyingToken.transfer(msg.sender, withdrawable);
+            underlyingToken.safeTransfer(msg.sender, withdrawable);
             emit LenderFundDisbursed(msg.sender, msg.sender, withdrawable);
         }
     }

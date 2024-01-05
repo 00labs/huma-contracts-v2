@@ -347,7 +347,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         uint256 principalRateInBps,
         uint256 numDays,
         uint256 totalDaysInFullPeriod
-    ) internal view returns (uint256 principalDue) {
+    ) internal pure returns (uint256 principalDue) {
         return
             (unbilledPrincipal * principalRateInBps * numDays) /
             (HUNDRED_PERCENT_IN_BPS * totalDaysInFullPeriod);
