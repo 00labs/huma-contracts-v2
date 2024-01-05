@@ -14,7 +14,7 @@ interface IReceivableBackedCreditLineManager {
     /**
      * @notice Validates the receivable, e.g. checking if the receivable is owned by the borrower.
      */
-    function validateReceivable(address borrower, uint256 receivableId) external view;
+    function validateReceivable(address borrower, uint256 receivableId) external;
 
     /**
      * @notice Decreases the amount that the borrower can borrow from the credit line due to new drawdown.

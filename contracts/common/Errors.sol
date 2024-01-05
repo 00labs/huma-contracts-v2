@@ -98,6 +98,8 @@ contract Errors {
     error committedAmountGreaterThanCreditLimit(); // 0x4ff6cc6f
     error insufficientBorrowerFirstLossCover(); // 0x6bf498b9
     error attemptedDrawdownForNonrevolvingLine(); // 0x35dd2354
+    error receivableAlreadyMatured();
+    error invalidReceivableState();
 
     // first loss cover operation
     error notAllProvidersPaidOut(); // 0xf878b213

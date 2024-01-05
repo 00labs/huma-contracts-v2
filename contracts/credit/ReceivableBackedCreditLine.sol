@@ -196,7 +196,7 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         address borrower,
         address receivableAsset,
         uint256 receivableId
-    ) internal view {
+    ) internal {
         if (receivableId == 0) revert Errors.zeroReceivableIdProvided();
         IReceivableBackedCreditLineManager(address(creditManager)).validateReceivable(
             borrower,
