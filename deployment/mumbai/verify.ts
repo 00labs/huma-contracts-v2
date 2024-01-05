@@ -59,15 +59,16 @@ async function etherscanVerify(contractName, contractAddress, argsFile, logMessa
 }
 
 async function verifyContract(contractKey, args) {
+    if (!deployedContracts[contractKey]) {
+        console.log(`${contractKey} not deployed yet!`);
+        return "not deployed yet";
+    }
     const verified = await getVerifiedContract(contractKey);
     if (verified) {
         console.log(`${contractKey} is already verified!`);
         return "already verified";
     }
 
-    if (!deployedContracts[contractKey]) {
-        throw new Error(`${contractKey} not deployed yet!`);
-    }
     let result;
     if (args) {
         const argsFile = await writeVerifyArgs(contractKey, args);
@@ -97,20 +98,45 @@ async function verifyContracts() {
     const verifyMockToken = await verifyContract("MockToken");
     console.log(`Verify MockToken result: ${verifyMockToken}`);
 
-    const verifyPoolConfig = await verifyContract("PoolConfig");
+    const PoolConfigImpl = await verifyContract("PoolConfigImpl");
+    console.log(`Verify PoolConfigImpl result: ${PoolConfigImpl}`);
+
+    const verifyPoolConfig = await verifyContract("PoolConfig", [
+        `'${deployedContracts["PoolConfigImpl"]}'`,
+        "[]",
+    ]);
     console.log(`Verify PoolConfig result: ${verifyPoolConfig}`);
+
+    const verifyPoolFeeManagerImpl = await verifyContract("PoolFeeManagerImpl");
+    console.log(`Verify PoolFeeManagerImpl result: ${verifyPoolFeeManagerImpl}`);
 
     const verifyPoolFeeManager = await verifyContract("PoolFeeManager");
     console.log(`Verify PoolFeeManager result: ${verifyPoolFeeManager}`);
 
+    const verifyPoolSafeImpl = await verifyContract("PoolSafeImpl");
+    console.log(`Verify PoolSafeImpl result: ${verifyPoolSafeImpl}`);
+
     const verifyPoolSafe = await verifyContract("PoolSafe");
     console.log(`Verify PoolSafe result: ${verifyPoolSafe}`);
+
+    const verifyBorrowerFirstLossCoverImpl = await verifyContract("BorrowerFirstLossCoverImpl");
+    console.log(`Verify BorrowerFirstLossCoverImpl result: ${verifyBorrowerFirstLossCoverImpl}`);
 
     const verifyBorrowerFirstLossCover = await verifyContract("BorrowerFirstLossCover");
     console.log(`Verify BorrowerFirstLossCover result: ${verifyBorrowerFirstLossCover}`);
 
+    const verifyAffiliateFirstLossCoverImpl = await verifyContract("AffiliateFirstLossCoverImpl");
+    console.log(`Verify AffiliateFirstLossCoverImpl result: ${verifyAffiliateFirstLossCoverImpl}`);
+
     const verifyAffiliateFirstLossCover = await verifyContract("AffiliateFirstLossCover");
     console.log(`Verify AffiliateFirstLossCover result: ${verifyAffiliateFirstLossCover}`);
+
+    const verifyFixedSeniorYieldTranchePolicyImpl = await verifyContract(
+        "FixedSeniorYieldTranchePolicyImpl",
+    );
+    console.log(
+        `Verify FixedSeniorYieldTranchePolicyImpl result: ${verifyFixedSeniorYieldTranchePolicyImpl}`,
+    );
 
     const verifyFixedSeniorYieldTranchePolicy = await verifyContract(
         "FixedSeniorYieldTranchePolicy",
@@ -119,14 +145,26 @@ async function verifyContracts() {
         `Verify FixedSeniorYieldTranchePolicy result: ${verifyFixedSeniorYieldTranchePolicy}`,
     );
 
+    const verifyPoolImpl = await verifyContract("PoolImpl");
+    console.log(`Verify PoolImpl result: ${verifyPoolImpl}`);
+
     const verifyPool = await verifyContract("Pool");
     console.log(`Verify Pool result: ${verifyPool}`);
+
+    const verifyEpochManagerImpl = await verifyContract("EpochManagerImpl");
+    console.log(`Verify EpochManagerImpl result: ${verifyEpochManagerImpl}`);
 
     const verifyEpochManager = await verifyContract("EpochManager");
     console.log(`Verify EpochManager result: ${verifyEpochManager}`);
 
+    const verifySeniorTrancheVaultImpl = await verifyContract("SeniorTrancheVaultImpl");
+    console.log(`Verify SeniorTrancheVaultImpl result: ${verifySeniorTrancheVaultImpl}`);
+
     const verifySeniorTrancheVault = await verifyContract("SeniorTrancheVault");
     console.log(`Verify SeniorTrancheVault result: ${verifySeniorTrancheVault}`);
+
+    const verifyJuniorTrancheVaultImpl = await verifyContract("JuniorTrancheVaultImpl");
+    console.log(`Verify JuniorTrancheVaultImpl result: ${verifyJuniorTrancheVaultImpl}`);
 
     const verifyJuniorTrancheVault = await verifyContract("JuniorTrancheVault");
     console.log(`Verify JuniorTrancheVault result: ${verifyJuniorTrancheVault}`);
@@ -134,14 +172,54 @@ async function verifyContracts() {
     const verifyCalendar = await verifyContract("Calendar");
     console.log(`Verify Calendar result: ${verifyCalendar}`);
 
+    const verifyCreditLineImpl = await verifyContract("CreditLineImpl");
+    console.log(`Verify CreditLineImpl result: ${verifyCreditLineImpl}`);
+
     const verifyCreditLine = await verifyContract("CreditLine");
     console.log(`Verify CreditLine result: ${verifyCreditLine}`);
+
+    const verifyReceivableBackedCreditLineImpl = await verifyContract(
+        "ReceivableBackedCreditLineImpl",
+    );
+    console.log(
+        `Verify ReceivableBackedCreditLineImpl result: ${verifyReceivableBackedCreditLineImpl}`,
+    );
+
+    const verifyReceivableBackedCreditLine = await verifyContract("ReceivableBackedCreditLine");
+    console.log(`Verify ReceivableBackedCreditLine result: ${verifyReceivableBackedCreditLine}`);
+
+    const verifyCreditDueManagerImpl = await verifyContract("CreditDueManagerImpl");
+    console.log(`Verify CreditDueManagerImpl result: ${verifyCreditDueManagerImpl}`);
 
     const verifyCreditDueManager = await verifyContract("CreditDueManager");
     console.log(`Verify CreditDueManager result: ${verifyCreditDueManager}`);
 
+    const verifyBorrowerLevelCreditManagerImpl = await verifyContract(
+        "BorrowerLevelCreditManagerImpl",
+    );
+    console.log(
+        `Verify BorrowerLevelCreditManagerImpl result: ${verifyBorrowerLevelCreditManagerImpl}`,
+    );
+
     const verifyBorrowerLevelCreditManager = await verifyContract("BorrowerLevelCreditManager");
     console.log(`Verify BorrowerLevelCreditManager result: ${verifyBorrowerLevelCreditManager}`);
+
+    const verifyReceivableBackedCreditLineManagerImpl = await verifyContract(
+        "ReceivableBackedCreditLineManagerImpl",
+    );
+    console.log(
+        `Verify ReceivableBackedCreditLineManagerImpl result: ${verifyReceivableBackedCreditLineManagerImpl}`,
+    );
+
+    const verifyReceivableBackedCreditLineManager = await verifyContract(
+        "ReceivableBackedCreditLineManager",
+    );
+    console.log(
+        `Verify ReceivableBackedCreditLineManager result: ${verifyReceivableBackedCreditLineManager}`,
+    );
+
+    const verifyReceivableImpl = await verifyContract("ReceivableImpl");
+    console.log(`Verify ReceivableImpl result: ${verifyReceivableImpl}`);
 
     const verifyReceivable = await verifyContract("Receivable");
     console.log(`Verify Receivable result: ${verifyReceivable}`);

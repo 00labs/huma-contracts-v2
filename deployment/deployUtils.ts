@@ -123,6 +123,45 @@ const sendTransaction = async function (
     console.log(`${contractName}:${logMessage} End!`);
 };
 
+export async function deployProxy(contractName, keyName, initFunction?, initParams?) {
+    const deployed = await getDeployedContract(keyName);
+    if (deployed) {
+        console.log(`${keyName} already deployed: ${deployed}`);
+        let Contract = await hre.ethers.getContractFactory(contractName);
+        return Contract.attach(deployed);
+    }
+
+    let Contract = await hre.ethers.getContractFactory(contractName);
+    const contractImpl = await Contract.deploy({
+        maxFeePerGas: MAX_FEE_PER_GAS,
+        maxPriorityFeePerGas: MAX_PRIORITY_FEE_PER_GAS,
+    });
+    await contractImpl.deployed();
+    console.log(`${keyName}Impl TransactionHash: ${contractImpl.deployTransaction.hash}`);
+    console.log(`${keyName}Impl: ${contractImpl.address}`);
+    await updateDeployedContract(`${keyName}Impl`, contractImpl.address);
+    console.log(`Deploy ${keyName}Impl Done!`);
+
+    const Proxy = await hre.ethers.getContractFactory("ERC1967Proxy");
+    let fragment, calldata;
+    if (initFunction) {
+        fragment = await Contract.interface.getFunction(initFunction);
+        calldata = await Contract.interface.encodeFunctionData(fragment, initParams);
+    } else {
+        calldata = "0x";
+    }
+    const contractProxy = await Proxy.deploy(contractImpl.address, calldata, {
+        maxFeePerGas: MAX_FEE_PER_GAS,
+        maxPriorityFeePerGas: MAX_PRIORITY_FEE_PER_GAS,
+    });
+    await contractProxy.deployed();
+    console.log(`${keyName} TransactionHash: ${contractProxy.deployTransaction.hash}`);
+    console.log(`${keyName}: ${contractProxy.address}`);
+    await updateDeployedContract(keyName, contractProxy.address);
+    console.log(`Deploy ${keyName} Done!`);
+    return await Contract.attach(contractProxy.address);
+}
+
 export async function deploy(contractName, keyName, contractParameters?, deployer?) {
     const deployed = await getDeployedContract(keyName);
     if (deployed) {
