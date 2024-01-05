@@ -64,9 +64,9 @@ enum CreditState {
     Deleted,
     Approved,
     GoodStanding,
+    Paused,
     Delayed,
-    Defaulted,
-    Paused
+    Defaulted
 }
 
 enum ReceivableState {

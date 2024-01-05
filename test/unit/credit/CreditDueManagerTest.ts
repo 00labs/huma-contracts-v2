@@ -431,6 +431,76 @@ describe("CreditDueManager Tests", function () {
             return [cc, cr, dd];
         }
 
+        describe("If the bill is deleted", function () {
+            it("Should return the CreditRecord and DueDetail as is", async function () {
+                const timestamp = await getFutureBlockTime(2);
+
+                const [cc, cr, dd] = getInputParams({}, { state: CreditState.Deleted });
+                const [newCR, newDD] = await creditDueManagerContract.getDueInfo(
+                    cr,
+                    cc,
+                    dd,
+                    timestamp,
+                );
+                checkCreditRecordsMatch(newCR, cr);
+                checkDueDetailsMatch(newDD, dd);
+            });
+        });
+
+        describe("If the bill is paused", function () {
+            it("Should return the CreditRecord and DueDetail as is", async function () {
+                const timestamp = await getFutureBlockTime(2);
+
+                const [cc, cr, dd] = getInputParams({}, { state: CreditState.Paused });
+                const [newCR, newDD] = await creditDueManagerContract.getDueInfo(
+                    cr,
+                    cc,
+                    dd,
+                    timestamp,
+                );
+                checkCreditRecordsMatch(newCR, cr);
+                checkDueDetailsMatch(newDD, dd);
+            });
+        });
+
+        describe("If the bill is defaulted", function () {
+            it("Should return the CreditRecord and DueDetail as is", async function () {
+                const timestamp = await getFutureBlockTime(2);
+
+                const [cc, cr, dd] = getInputParams({}, { state: CreditState.Defaulted });
+                const [newCR, newDD] = await creditDueManagerContract.getDueInfo(
+                    cr,
+                    cc,
+                    dd,
+                    timestamp,
+                );
+                checkCreditRecordsMatch(newCR, cr);
+                checkDueDetailsMatch(newDD, dd);
+            });
+        });
+
+        describe("If the bill is approved but has not yet reached the designated start date", function () {
+            it("Should return the CreditRecord and DueDetail as is", async function () {
+                const timestamp = await getFutureBlockTime(2);
+
+                const [cc, cr, dd] = getInputParams(
+                    {},
+                    {
+                        state: CreditState.Approved,
+                        nextDueDate: timestamp + CONSTANTS.SECONDS_IN_A_DAY,
+                    },
+                );
+                const [newCR, newDD] = await creditDueManagerContract.getDueInfo(
+                    cr,
+                    cc,
+                    dd,
+                    timestamp,
+                );
+                checkCreditRecordsMatch(newCR, cr);
+                checkDueDetailsMatch(newDD, dd);
+            });
+        });
+
         describe("If the current block timestamp is within the current billing cycle", function () {
             describe("If the bill is not late", function () {
                 it("Should return the CreditRecord and DueDetail as is", async function () {

@@ -120,8 +120,15 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         DueDetail memory dd,
         uint256 timestamp
     ) public view virtual override returns (CreditRecord memory newCR, DueDetail memory newDD) {
-        // Do not update due info for accounts already in default state.
-        if (cr.state == CreditState.Defaulted) return (cr, dd);
+        // Do not update due info for credits that are under certain states, such as closed, defaulted or paused.
+        if (
+            cr.state != CreditState.Approved &&
+            cr.state != CreditState.GoodStanding &&
+            cr.state != CreditState.Delayed
+        ) return (cr, dd);
+        // If the credit is approved, then a non-zero `cr.nextDueDate` represents the designated credit start date.
+        // In this case, the bill should be returned as-is since it hasn't started yet.
+        if (cr.state == CreditState.Approved && timestamp < cr.nextDueDate) return (cr, dd);
 
         bool shouldAdvanceToNextPeriod = false;
         bool isLate = false;
@@ -137,7 +144,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                 (cr.state == CreditState.GoodStanding &&
                     cr.nextDue > 0 &&
                     timestamp > nextBillRefreshDate) ||
-                // The last due was paid off, but next due wan't refreshed
+                // The last due was paid off, but next due wasn't refreshed
                 (cr.state == CreditState.GoodStanding &&
                     cr.nextDue == 0 &&
                     cr.unbilledPrincipal > 0 &&
