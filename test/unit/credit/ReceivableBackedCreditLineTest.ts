@@ -540,6 +540,47 @@ describe("ReceivableBackedCreditLine Tests", function () {
                 await receivableContract.connect(lender).burn(receivableId2);
             });
 
+            it("Should not allow drawdown if the receivable has matured", async function () {
+                await receivableContract
+                    .connect(borrower)
+                    .createReceivable(1, receivableAmount, 0, "", "");
+                const receivableId2 = await receivableContract.tokenOfOwnerByIndex(
+                    borrower.getAddress(),
+                    1,
+                );
+                await receivableContract
+                    .connect(borrower)
+                    .approve(creditContract.address, receivableId2);
+
+                await expect(
+                    creditContract
+                        .connect(borrower)
+                        .drawdownWithReceivable(
+                            borrower.getAddress(),
+                            receivableId2,
+                            receivableAmount,
+                        ),
+                ).to.be.revertedWithCustomError(creditManagerContract, "receivableAlreadyMatured");
+
+                await receivableContract.connect(borrower).burn(receivableId2);
+            });
+
+            it("Should not allow drawdown if the receivable is in the wrong state", async function () {
+                await receivableContract
+                    .connect(borrower)
+                    .declarePayment(receivableId, receivableAmount);
+
+                await expect(
+                    creditContract
+                        .connect(borrower)
+                        .drawdownWithReceivable(
+                            borrower.getAddress(),
+                            receivableId,
+                            receivableAmount,
+                        ),
+                ).to.be.revertedWithCustomError(creditManagerContract, "invalidReceivableState");
+            });
+
             it("Should not allow drawdown if the receivable is not approved", async function () {
                 const settings = await poolConfigContract.getPoolSettings();
                 await poolConfigContract.connect(poolOwner).setPoolSettings({
@@ -651,6 +692,123 @@ describe("ReceivableBackedCreditLine Tests", function () {
                 const oldCR = await creditContract.getCreditRecord(creditHash);
                 const oldDD = await creditContract.getDueDetail(creditHash);
                 const paymentAmount = oldCR.yieldDue;
+
+                await expect(
+                    creditContract
+                        .connect(borrower)
+                        .makePaymentWithReceivable(
+                            borrower.getAddress(),
+                            receivableId,
+                            paymentAmount,
+                        ),
+                )
+                    .to.emit(creditContract, "PaymentMade")
+                    .withArgs(
+                        await borrower.getAddress(),
+                        await borrower.getAddress(),
+                        paymentAmount,
+                        oldCR.yieldDue,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        await borrower.getAddress(),
+                    )
+                    .to.emit(creditContract, "PaymentMadeWithReceivable")
+                    .withArgs(
+                        await borrower.getAddress(),
+                        receivableId,
+                        paymentAmount,
+                        await borrower.getAddress(),
+                    );
+
+                const actualCR = await creditContract.getCreditRecord(creditHash);
+                const expectedCR = {
+                    ...oldCR,
+                    ...{
+                        nextDue: oldCR.nextDue.sub(oldCR.yieldDue),
+                        yieldDue: 0,
+                    },
+                };
+                checkCreditRecordsMatch(actualCR, expectedCR);
+
+                const actualDD = await creditContract.getDueDetail(creditHash);
+                const expectedDD = {
+                    ...oldDD,
+                    ...{
+                        paid: paymentAmount,
+                    },
+                };
+                checkDueDetailsMatch(actualDD, expectedDD);
+            });
+
+            it("Should allow the borrower to make payment even if the receivable has matured", async function () {
+                const oldCR = await creditContract.getCreditRecord(creditHash);
+                const oldDD = await creditContract.getDueDetail(creditHash);
+                const paymentAmount = oldCR.yieldDue;
+
+                // Advance the block timestamp to be after the maturity date and make sure the payment can
+                // still go through.
+                await setNextBlockTimestamp(maturityDate + 1);
+                await expect(
+                    creditContract
+                        .connect(borrower)
+                        .makePaymentWithReceivable(
+                            borrower.getAddress(),
+                            receivableId,
+                            paymentAmount,
+                        ),
+                )
+                    .to.emit(creditContract, "PaymentMade")
+                    .withArgs(
+                        await borrower.getAddress(),
+                        await borrower.getAddress(),
+                        paymentAmount,
+                        oldCR.yieldDue,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        await borrower.getAddress(),
+                    )
+                    .to.emit(creditContract, "PaymentMadeWithReceivable")
+                    .withArgs(
+                        await borrower.getAddress(),
+                        receivableId,
+                        paymentAmount,
+                        await borrower.getAddress(),
+                    );
+
+                const actualCR = await creditContract.getCreditRecord(creditHash);
+                const expectedCR = {
+                    ...oldCR,
+                    ...{
+                        nextDue: oldCR.nextDue.sub(oldCR.yieldDue),
+                        yieldDue: 0,
+                    },
+                };
+                checkCreditRecordsMatch(actualCR, expectedCR);
+
+                const actualDD = await creditContract.getDueDetail(creditHash);
+                const expectedDD = {
+                    ...oldDD,
+                    ...{
+                        paid: paymentAmount,
+                    },
+                };
+                checkDueDetailsMatch(actualDD, expectedDD);
+            });
+
+            it("Should allow the borrower to make payment even if the receivable is not just minted", async function () {
+                const oldCR = await creditContract.getCreditRecord(creditHash);
+                const oldDD = await creditContract.getDueDetail(creditHash);
+                const paymentAmount = oldCR.yieldDue;
+                // Declare payment on the receivable so it's partially paid.
+                await receivableContract
+                    .connect(borrower)
+                    .declarePayment(receivableId, toToken(1));
 
                 await expect(
                     creditContract

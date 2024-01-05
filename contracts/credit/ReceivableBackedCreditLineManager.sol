@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {BorrowerLevelCreditManager} from "./BorrowerLevelCreditManager.sol";
 import {ReceivableBackedCreditLineManagerStorage} from "./ReceivableBackedCreditLineManagerStorage.sol";
-import {CreditConfig} from "./CreditStructs.sol";
+import {CreditConfig, ReceivableInfo, ReceivableState} from "./CreditStructs.sol";
 import {Errors} from "../common/Errors.sol";
 import {IReceivableBackedCreditLineManager} from "./interfaces/IReceivableBackedCreditLineManager.sol";
 import {HUNDRED_PERCENT_IN_BPS} from "../common/SharedDefs.sol";
@@ -31,21 +31,27 @@ contract ReceivableBackedCreditLineManager is
             revert Errors.notAuthorizedCaller();
 
         if (receivableId == 0) revert Errors.zeroReceivableIdProvided();
-        if (receivableBorrowerMap[receivableId] != address(0)) {
+        address existingBorrowerForReceivable = receivableBorrowerMap[receivableId];
+        if (existingBorrowerForReceivable == borrower) {
             // If a receivable has been previously approved, then early return so that the operation
             // is idempotent. This makes it possible for a manually approved receivable to be used
             // for drawdown in a pool that has receivable auto-approval.
             return;
         }
-        uint256 receivableAmount = receivableAsset.getReceivable(receivableId).receivableAmount;
+        if (existingBorrowerForReceivable != address(0)) {
+            // Revert if the receivable was previously approved but belongs to some other borrower.
+            revert Errors.receivableIdMismatch();
+        }
+        ReceivableInfo memory receivable = receivableAsset.getReceivable(receivableId);
         // Either the receivable does not exist, or the receivable has a zero amount.
         // We shouldn't approve either way.
-        if (receivableAmount == 0) revert Errors.zeroReceivableAmount();
+        if (receivable.receivableAmount == 0) revert Errors.zeroReceivableAmount();
+        validateReceivableStatus(receivable.maturityDate, receivable.state);
 
         bytes32 creditHash = getCreditHash(borrower);
         onlyCreditBorrower(creditHash, borrower);
 
-        _approveReceivable(borrower, creditHash, receivableId, receivableAmount);
+        _approveReceivable(borrower, creditHash, receivableId, receivable.receivableAmount);
     }
 
     function _approveReceivable(
@@ -77,8 +83,14 @@ contract ReceivableBackedCreditLineManager is
     }
 
     /// @inheritdoc IReceivableBackedCreditLineManager
-    function validateReceivable(address borrower, uint256 receivableId) external view {
+    function validateReceivableOwnership(address borrower, uint256 receivableId) external view {
         if (receivableBorrowerMap[receivableId] != borrower) revert Errors.receivableIdMismatch();
+    }
+
+    function validateReceivableStatus(uint256 maturityDate, ReceivableState state) public view {
+        if (maturityDate < block.timestamp) revert Errors.receivableAlreadyMatured();
+        if (state != ReceivableState.Minted && state != ReceivableState.Approved)
+            revert Errors.invalidReceivableState();
     }
 
     /// @inheritdoc IReceivableBackedCreditLineManager

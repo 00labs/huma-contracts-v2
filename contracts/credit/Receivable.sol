@@ -208,13 +208,6 @@ contract Receivable is
         super._burn(tokenId);
     }
 
-    function _getNewTokenId() internal returns (uint256) {
-        // Increment the counter first before assigning a new ID so that the ID starts at 1
-        // instead of 0.
-        _tokenIdCounter.increment();
-        return _tokenIdCounter.current();
-    }
-
     function tokenURI(
         uint256 tokenId
     )
