@@ -8919,30 +8919,38 @@ describe("CreditLine Test", function () {
 
         it("Should allow the EA to pause and unpause a credit", async function () {
             await creditContract.connect(borrower).drawdown(borrower.getAddress(), toToken(1_000));
-            await creditManagerContract
-                .connect(eaServiceAccount)
-                .pauseCredit(borrower.getAddress());
+            await expect(
+                creditManagerContract.connect(eaServiceAccount).pauseCredit(borrower.getAddress()),
+            )
+                .to.emit(creditManagerContract, "CreditPaused")
+                .withArgs(creditHash);
             let cr = await creditContract.getCreditRecord(creditHash);
             expect(cr.state).to.equal(CreditState.Paused);
 
-            await creditManagerContract
-                .connect(eaServiceAccount)
-                .unpauseCredit(borrower.getAddress());
+            await expect(
+                creditManagerContract
+                    .connect(eaServiceAccount)
+                    .unpauseCredit(borrower.getAddress()),
+            )
+                .to.emit(creditManagerContract, "CreditUnpaused")
+                .withArgs(creditHash);
             cr = await creditContract.getCreditRecord(creditHash);
             expect(cr.state).to.equal(CreditState.GoodStanding);
         });
 
         it("Should do nothing if the credit line is not in the desired states", async function () {
             const oldCR = await creditContract.getCreditRecord(creditHash);
-            await creditManagerContract
-                .connect(eaServiceAccount)
-                .pauseCredit(borrower.getAddress());
+            await expect(
+                creditManagerContract.connect(eaServiceAccount).pauseCredit(borrower.getAddress()),
+            ).to.not.emit(creditManagerContract, "CreditPaused");
             let newCR = await creditContract.getCreditRecord(creditHash);
             expect(newCR.state).to.equal(oldCR.state);
 
-            await creditManagerContract
-                .connect(eaServiceAccount)
-                .unpauseCredit(borrower.getAddress());
+            await expect(
+                creditManagerContract
+                    .connect(eaServiceAccount)
+                    .unpauseCredit(borrower.getAddress()),
+            ).to.not.emit(creditManagerContract, "CreditUnpaused");
             newCR = await creditContract.getCreditRecord(creditHash);
             expect(newCR.state).to.equal(oldCR.state);
         });

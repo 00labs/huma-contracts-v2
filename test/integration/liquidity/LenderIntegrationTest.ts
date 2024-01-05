@@ -36,7 +36,7 @@ import {
     checkRedemptionRecordByLender,
     checkSeniorYieldTrackersMatch,
     deployPoolContracts,
-    deployProtocolContracts,
+    deployProtocolContracts, CreditState
 } from "../../BaseTest";
 import {
     borrowerLevelCreditHash,
@@ -1104,9 +1104,8 @@ describe("Lender Integration Test", function () {
             await setNextBlockTimestamp(currentTS);
 
             await creditManagerContract.refreshCredit(borrower.address);
-            let cr = await creditContract.getCreditRecord(creditHash);
-            // printCreditRecord("cr", cr);
-            expect(cr.state).to.equal(3);
+            const cr = await creditContract.getCreditRecord(creditHash);
+            expect(cr.state).to.equal(CreditState.Delayed);
         });
 
         it("Epoch 3, day 10: Junior lenders put in redemption requests that would breach senior : junior ratio", async function () {
@@ -1595,9 +1594,8 @@ describe("Lender Integration Test", function () {
             await setNextBlockTimestamp(currentTS);
 
             await creditManagerContract.refreshCredit(borrower.address);
-            let cr = await creditContract.getCreditRecord(creditHash);
-            // printCreditRecord("cr", cr);
-            expect(cr.state).to.equal(3);
+            const cr = await creditContract.getCreditRecord(creditHash);
+            expect(cr.state).to.equal(CreditState.Delayed);
         });
 
         it("Epoch 9, day 1: Default triggered and distribution of profit and loss", async function () {
@@ -2444,9 +2442,8 @@ describe("Lender Integration Test", function () {
             await setNextBlockTimestamp(currentTS);
 
             await creditManagerContract.refreshCredit(borrower.address);
-            let cr = await creditContract.getCreditRecord(creditHash);
-            // printCreditRecord("cr", cr);
-            expect(cr.state).to.equal(3);
+            const cr = await creditContract.getCreditRecord(creditHash);
+            expect(cr.state).to.equal(CreditState.Delayed);
         });
 
         it("Epoch 3, day 10: Junior lenders put in redemption requests that would breach senior : junior ratio", async function () {
@@ -2954,9 +2951,8 @@ describe("Lender Integration Test", function () {
             await setNextBlockTimestamp(currentTS);
 
             await creditManagerContract.refreshCredit(borrower.address);
-            let cr = await creditContract.getCreditRecord(creditHash);
-            // printCreditRecord("cr", cr);
-            expect(cr.state).to.equal(3);
+            const cr = await creditContract.getCreditRecord(creditHash);
+            expect(cr.state).to.equal(CreditState.Delayed);
         });
 
         it("Epoch 9, day 1: Default triggered and distribution of profit and loss", async function () {

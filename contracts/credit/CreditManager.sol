@@ -22,6 +22,8 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
 
     event CreditPaused(bytes32 indexed creditHash);
 
+    event CreditUnpaused(bytes32 indexed creditHash);
+
     /**
      * @notice An existing credit has been closed
      * @param creditHash the credit hash
@@ -281,8 +283,8 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         if (cr.state == CreditState.GoodStanding) {
             cr.state = CreditState.Paused;
             credit.setCreditRecord(creditHash, cr);
+            emit CreditPaused(creditHash);
         }
-        emit CreditPaused(creditHash);
     }
 
     function _unpauseCredit(bytes32 creditHash) internal virtual {
@@ -290,6 +292,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         if (cr.state == CreditState.Paused) {
             cr.state = CreditState.GoodStanding;
             credit.setCreditRecord(creditHash, cr);
+            emit CreditUnpaused(creditHash);
         }
     }
 
@@ -298,14 +301,9 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
      */
     function _refreshCredit(bytes32 creditHash) internal {
         CreditRecord memory cr = credit.getCreditRecord(creditHash);
-        if (
-            cr.state != CreditState.Approved &&
-            cr.state != CreditState.Deleted &&
-            cr.state != CreditState.Defaulted
-        ) {
-            // There is nothing to refresh when:
-            // 1. the credit is approved but hasn't started yet;
-            // 2. the credit has already been closed.
+        if (cr.state == CreditState.GoodStanding || cr.state == CreditState.Delayed) {
+            // Only refresh the bill when it's in GoodStanding and Delayed. The bill should
+            // stay as-is in all other states.
             CreditConfig memory cc = getCreditConfig(creditHash);
             DueDetail memory dd = credit.getDueDetail(creditHash);
             (cr, dd) = dueManager.getDueInfo(cr, cc, dd, block.timestamp);
