@@ -2612,7 +2612,7 @@ describe("CreditLine Integration Test", function () {
         checkDueDetailsMatch(actualDD, expectedDD);
     });
 
-    it("2/6: Bill maturity date passes", async function () {
+    it("2/6: Bill passes the maturity date", async function () {
         const dateOfRefresh = moment.utc({
             year: nextYear + 2,
             month: 1,
