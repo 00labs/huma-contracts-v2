@@ -59,7 +59,7 @@ let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
     eaServiceAccount: SignerWithAddress,
-    pdsServiceAccount: SignerWithAddress;
+    sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
     evaluationAgent: SignerWithAddress,
@@ -87,7 +87,7 @@ let poolConfigContract: PoolConfig,
 
 let feeCalculator: FeeCalculator;
 
-describe("Credit Line Integration Test", function () {
+describe("CreditLine Integration Test", function () {
     let creditHash: string;
     let creditLimit: BN,
         committedAmount: BN,
@@ -203,7 +203,7 @@ describe("Credit Line Integration Test", function () {
             protocolOwner,
             treasury,
             eaServiceAccount,
-            pdsServiceAccount,
+            sentinelServiceAccount,
             poolOwner,
         );
 
@@ -255,18 +255,6 @@ describe("Credit Line Integration Test", function () {
         await mockTokenContract
             .connect(borrower)
             .approve(borrowerFirstLossCoverContract.address, ethers.constants.MaxUint256);
-        await affiliateFirstLossCoverContract
-            .connect(poolOwner)
-            .addCoverProvider(poolOwnerTreasury.address);
-        await mockTokenContract
-            .connect(poolOwnerTreasury)
-            .approve(poolOwnerTreasury.address, ethers.constants.MaxUint256);
-        await affiliateFirstLossCoverContract
-            .connect(poolOwner)
-            .addCoverProvider(evaluationAgent.address);
-        await mockTokenContract
-            .connect(evaluationAgent)
-            .approve(evaluationAgent.address, ethers.constants.MaxUint256);
 
         const firstLossCoverMaxLiquidity = toToken(1_000_000);
         await overrideFirstLossCoverConfig(
@@ -340,7 +328,7 @@ describe("Credit Line Integration Test", function () {
             protocolOwner,
             treasury,
             eaServiceAccount,
-            pdsServiceAccount,
+            sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
             evaluationAgent,
@@ -425,7 +413,7 @@ describe("Credit Line Integration Test", function () {
         await setNextBlockTimestamp(runDate.unix());
         await expect(
             creditManagerContract
-                .connect(pdsServiceAccount)
+                .connect(sentinelServiceAccount)
                 .startCommittedCredit(borrower.getAddress()),
         )
             .to.emit(creditManagerContract, "CommittedCreditStarted")
@@ -1598,26 +1586,33 @@ describe("Credit Line Integration Test", function () {
         await poolContract.connect(poolOwner).enablePool();
 
         // Any further deposit attempts by lenders should fail.
+        const poolSettings = await poolConfigContract.getPoolSettings();
         await expect(
             juniorTrancheVaultContract
                 .connect(juniorLender)
-                .deposit(toToken(1), juniorLender.getAddress()),
+                .deposit(poolSettings.minDepositAmount, juniorLender.getAddress()),
         ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "trancheLiquidityCapExceeded");
         // So do first loss covers.
         await expect(
-            borrowerFirstLossCoverContract.connect(borrower).depositCover(toToken(1)),
+            borrowerFirstLossCoverContract
+                .connect(borrower)
+                .depositCover(poolSettings.minDepositAmount),
         ).to.be.revertedWithCustomError(
             borrowerFirstLossCoverContract,
             "firstLossCoverLiquidityCapExceeded",
         );
         await expect(
-            affiliateFirstLossCoverContract.connect(poolOwnerTreasury).depositCover(toToken(1)),
+            affiliateFirstLossCoverContract
+                .connect(poolOwnerTreasury)
+                .depositCover(poolSettings.minDepositAmount),
         ).to.be.revertedWithCustomError(
             borrowerFirstLossCoverContract,
             "firstLossCoverLiquidityCapExceeded",
         );
         await expect(
-            affiliateFirstLossCoverContract.connect(evaluationAgent).depositCover(toToken(1)),
+            affiliateFirstLossCoverContract
+                .connect(evaluationAgent)
+                .depositCover(poolSettings.minDepositAmount),
         ).to.be.revertedWithCustomError(
             borrowerFirstLossCoverContract,
             "firstLossCoverLiquidityCapExceeded",

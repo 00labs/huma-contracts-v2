@@ -8,7 +8,7 @@ import {ERC721BurnableUpgradeable} from "@openzeppelin/contracts-upgradeable/tok
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {CountersUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/CountersUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import {Errors} from "../Errors.sol";
+import {Errors} from "../common/Errors.sol";
 import {ReceivableStorage} from "./ReceivableStorage.sol";
 import {IReceivable} from "./interfaces/IReceivable.sol";
 import {ReceivableInfo, ReceivableState} from "./CreditStructs.sol";
@@ -81,7 +81,7 @@ contract Receivable is
     /**
      * @dev Initializer that sets the default admin role
      */
-    function initialize() public initializer {
+    function initialize() external initializer {
         __ERC721_init("Receivable", "REC");
         __ERC721Enumerable_init();
         __ERC721URIStorage_init();
@@ -92,43 +92,6 @@ contract Receivable is
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
 
         // Start the token counter at 1
-        _tokenIdCounter.increment();
-    }
-
-    /// @inheritdoc IReceivable
-    function createReceivable(
-        uint16 currencyCode,
-        uint96 receivableAmount,
-        uint64 maturityDate,
-        string memory referenceId,
-        string memory uri
-    ) public onlyRole(MINTER_ROLE) returns (uint256 tokenId) {
-        tokenId = _tokenIdCounter.current();
-
-        if (bytes(referenceId).length > 0) {
-            bytes32 referenceIdCreatorHash = getReferenceIdHash(referenceId, msg.sender);
-            uint256 existingTokenId = referenceIdHashToTokenId[referenceIdCreatorHash];
-            if (_exists(existingTokenId)) revert Errors.receivableReferenceIdAlreadyExists();
-
-            referenceIdHashToTokenId[referenceIdCreatorHash] = tokenId;
-        }
-
-        _safeMint(msg.sender, tokenId);
-
-        receivableInfoMap[tokenId] = ReceivableInfo(
-            receivableAmount,
-            uint64(block.timestamp),
-            0, // paidAmount
-            currencyCode,
-            maturityDate,
-            ReceivableState.Minted // Minted
-        );
-        creators[tokenId] = msg.sender;
-
-        _setTokenURI(tokenId, uri);
-
-        emit ReceivableCreated(msg.sender, tokenId, receivableAmount, maturityDate, currencyCode);
-
         _tokenIdCounter.increment();
     }
 
@@ -175,6 +138,43 @@ contract Receivable is
     }
 
     /// @inheritdoc IReceivable
+    function createReceivable(
+        uint16 currencyCode,
+        uint96 receivableAmount,
+        uint64 maturityDate,
+        string memory referenceId,
+        string memory uri
+    ) public onlyRole(MINTER_ROLE) returns (uint256 tokenId) {
+        tokenId = _tokenIdCounter.current();
+
+        if (bytes(referenceId).length > 0) {
+            bytes32 referenceIdCreatorHash = getReferenceIdHash(referenceId, msg.sender);
+            uint256 existingTokenId = referenceIdHashToTokenId[referenceIdCreatorHash];
+            if (_exists(existingTokenId)) revert Errors.receivableReferenceIdAlreadyExists();
+
+            referenceIdHashToTokenId[referenceIdCreatorHash] = tokenId;
+        }
+
+        _safeMint(msg.sender, tokenId);
+
+        receivableInfoMap[tokenId] = ReceivableInfo(
+            receivableAmount,
+            uint64(block.timestamp),
+            0, // paidAmount
+            currencyCode,
+            maturityDate,
+            ReceivableState.Minted // Minted
+        );
+        creators[tokenId] = msg.sender;
+
+        _setTokenURI(tokenId, uri);
+
+        emit ReceivableCreated(msg.sender, tokenId, receivableAmount, maturityDate, currencyCode);
+
+        _tokenIdCounter.increment();
+    }
+
+    /// @inheritdoc IReceivable
     function getStatus(uint256 tokenId) public view returns (ReceivableState) {
         return receivableInfoMap[tokenId].state;
     }
@@ -185,34 +185,6 @@ contract Receivable is
         address creator
     ) public view returns (bytes32) {
         return keccak256(abi.encodePacked(address(this), referenceId, creator));
-    }
-
-    function _authorizeUpgrade(
-        address newImplementation
-    ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
-
-    // The following functions are overrides required by Solidity.
-    // super calls functions from right-to-left in the inheritance hierarchy: https://solidity-by-example.org/inheritance/#multiple-inheritance-order
-    function _beforeTokenTransfer(
-        address from,
-        address to,
-        uint256 tokenId,
-        uint256 batchSize
-    ) internal override(ERC721Upgradeable, ERC721EnumerableUpgradeable) {
-        super._beforeTokenTransfer(from, to, tokenId, batchSize);
-    }
-
-    function _burn(
-        uint256 tokenId
-    ) internal override(ERC721Upgradeable, ERC721URIStorageUpgradeable) {
-        super._burn(tokenId);
-    }
-
-    function _getNewTokenId() internal returns (uint256) {
-        // Increment the counter first before assigning a new ID so that the ID starts at 1
-        // instead of 0.
-        _tokenIdCounter.increment();
-        return _tokenIdCounter.current();
     }
 
     function tokenURI(
@@ -243,5 +215,26 @@ contract Receivable is
             interfaceId == type(IReceivable).interfaceId ||
             ERC721Upgradeable.supportsInterface(interfaceId) ||
             AccessControlUpgradeable.supportsInterface(interfaceId);
+    }
+
+    function _authorizeUpgrade(
+        address newImplementation
+    ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+
+    // The following functions are overrides required by Solidity.
+    // super calls functions from right-to-left in the inheritance hierarchy: https://solidity-by-example.org/inheritance/#multiple-inheritance-order
+    function _beforeTokenTransfer(
+        address from,
+        address to,
+        uint256 tokenId,
+        uint256 batchSize
+    ) internal override(ERC721Upgradeable, ERC721EnumerableUpgradeable) {
+        super._beforeTokenTransfer(from, to, tokenId, batchSize);
+    }
+
+    function _burn(
+        uint256 tokenId
+    ) internal override(ERC721Upgradeable, ERC721URIStorageUpgradeable) {
+        super._burn(tokenId);
     }
 }

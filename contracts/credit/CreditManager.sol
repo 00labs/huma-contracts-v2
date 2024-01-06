@@ -1,37 +1,27 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {HumaConfig} from "../HumaConfig.sol";
+import {HumaConfig} from "../common/HumaConfig.sol";
 import {ICredit} from "./interfaces/ICredit.sol";
-import {ICalendar} from "./interfaces/ICalendar.sol";
-import {IPool} from "../interfaces/IPool.sol";
+import {ICalendar} from "../common/interfaces/ICalendar.sol";
+import {IPool} from "../liquidity/interfaces/IPool.sol";
 import {ICreditManager} from "./interfaces/ICreditManager.sol";
-import {PoolConfig, PoolSettings} from "../PoolConfig.sol";
-import {PoolConfigCache} from "../PoolConfigCache.sol";
+import {PoolConfig, PoolSettings} from "../common/PoolConfig.sol";
+import {PoolConfigCache} from "../common/PoolConfigCache.sol";
 import {CreditManagerStorage} from "./CreditManagerStorage.sol";
-import {CreditClosureReason, CreditConfig, CreditLimit, CreditRecord, CreditState, DueDetail, PayPeriodDuration} from "./CreditStructs.sol";
-import {Errors} from "../Errors.sol";
-import {DAYS_IN_A_MONTH, DAYS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS, SECONDS_IN_A_DAY} from "../SharedDefs.sol";
-import {ICreditDueManager} from "./utils/interfaces/ICreditDueManager.sol";
+import {CreditClosureReason, CreditConfig, CreditRecord, CreditState, DueDetail} from "./CreditStructs.sol";
+import {PayPeriodDuration} from "../common/SharedDefs.sol";
+import {Errors} from "../common/Errors.sol";
+import {ICreditDueManager} from "./interfaces/ICreditDueManager.sol";
 
 import "hardhat/console.sol";
 
 abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICreditManager {
-    event CreditConfigChanged(
-        bytes32 indexed creditHash,
-        uint256 creditLimit,
-        uint256 committedAmount,
-        PayPeriodDuration periodDuration,
-        uint256 numOfPeriods,
-        uint256 yieldInBps,
-        bool revolving,
-        uint256 advanceRateInBps,
-        bool autoApproval
-    );
-
     event CommittedCreditStarted(bytes32 indexed creditHash);
 
     event CreditPaused(bytes32 indexed creditHash);
+
+    event CreditUnpaused(bytes32 indexed creditHash);
 
     /**
      * @notice An existing credit has been closed
@@ -123,6 +113,10 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         address by
     );
 
+    function getCreditBorrower(bytes32 creditHash) external view returns (address) {
+        return _creditBorrowerMap[creditHash];
+    }
+
     /**
      * @notice checks if the credit line is ready to be triggered as defaulted
      */
@@ -137,10 +131,6 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
     /// Shared accessor to the credit config mapping for contract size consideration
     function getCreditConfig(bytes32 creditHash) public view returns (CreditConfig memory) {
         return _creditConfigMap[creditHash];
-    }
-
-    function getCreditBorrower(bytes32 creditHash) external view returns (address) {
-        return _creditBorrowerMap[creditHash];
     }
 
     function onlyCreditBorrower(bytes32 creditHash, address borrower) public view {
@@ -207,7 +197,6 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         // Once a drawdown has happened, it is disallowed to re-approve a credit. One has to call
         // other admin functions to change the terms of the credit.
         CreditRecord memory cr = credit.getCreditRecord(creditHash);
-        // TODO(jiatu): we shouldn't rely on the order of enum values.
         if (cr.state > CreditState.Approved) revert Errors.creditLineNotInStateForUpdate();
 
         CreditConfig memory cc = getCreditConfig(creditHash);
@@ -218,22 +207,8 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         cc.yieldInBps = yieldInBps;
         cc.revolving = revolving;
         cc.advanceRateInBps = ps.advanceRateInBps;
-        cc.autoApproval = ps.receivableAutoApproval;
+        cc.receivableAutoApproval = ps.receivableAutoApproval;
         _setCreditConfig(creditHash, cc);
-
-        // todo decide if this event emission should be kept or not
-        // TODO decide if cc.receivableBacked, cc.borrowerLevelCredit and cc.exclusive should be kept or not
-        emit CreditConfigChanged(
-            creditHash,
-            cc.creditLimit,
-            cc.committedAmount,
-            cc.periodDuration,
-            cc.numOfPeriods,
-            cc.yieldInBps,
-            cc.revolving,
-            cc.advanceRateInBps,
-            cc.autoApproval
-        );
 
         // Note: Special logic. dueDate is normally used to track the next bill due.
         // Before the first drawdown, it is also used to set the designated start date
@@ -296,7 +271,6 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         cr.remainingPeriods = 0;
         credit.setCreditRecord(creditHash, cr);
 
-        // TODO really need this?
         cc.creditLimit = 0;
         _setCreditConfig(creditHash, cc);
 
@@ -308,8 +282,8 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         if (cr.state == CreditState.GoodStanding) {
             cr.state = CreditState.Paused;
             credit.setCreditRecord(creditHash, cr);
+            emit CreditPaused(creditHash);
         }
-        emit CreditPaused(creditHash);
     }
 
     function _unpauseCredit(bytes32 creditHash) internal virtual {
@@ -317,6 +291,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         if (cr.state == CreditState.Paused) {
             cr.state = CreditState.GoodStanding;
             credit.setCreditRecord(creditHash, cr);
+            emit CreditUnpaused(creditHash);
         }
     }
 
@@ -325,14 +300,9 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
      */
     function _refreshCredit(bytes32 creditHash) internal {
         CreditRecord memory cr = credit.getCreditRecord(creditHash);
-        if (
-            cr.state != CreditState.Approved &&
-            cr.state != CreditState.Deleted &&
-            cr.state != CreditState.Defaulted
-        ) {
-            // There is nothing to refresh when:
-            // 1. the credit is approved but hasn't started yet;
-            // 2. the credit has already been closed.
+        if (cr.state == CreditState.GoodStanding || cr.state == CreditState.Delayed) {
+            // Only refresh the bill when it's in GoodStanding and Delayed. The bill should
+            // stay as-is in all other states.
             CreditConfig memory cc = getCreditConfig(creditHash);
             DueDetail memory dd = credit.getDueDetail(creditHash);
             (cr, dd) = dueManager.getDueInfo(cr, cc, dd, block.timestamp);
@@ -570,11 +540,5 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
     function _onlyEAServiceAccount() internal view {
         if (msg.sender != humaConfig.eaServiceAccount())
             revert Errors.evaluationAgentServiceAccountRequired();
-    }
-
-    function _onlyPoolOwnerOrPDSServiceAccount() internal view {
-        if (msg.sender != humaConfig.pdsServiceAccount()) {
-            poolConfig.onlyPoolOwner(msg.sender);
-        }
     }
 }

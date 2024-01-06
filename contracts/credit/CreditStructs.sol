@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
+import {PayPeriodDuration} from "../common/SharedDefs.sol";
+
 // CreditConfig keeps track of the static settings of a credit.
 // A CreditConfig is created after the approval of each credit.
 struct CreditConfig {
@@ -16,7 +18,7 @@ struct CreditConfig {
     // Percentage of receivable nominal amount to be available for drawdown.
     uint16 advanceRateInBps;
     bool revolving; // if repeated borrowing is allowed
-    bool autoApproval;
+    bool receivableAutoApproval;
 }
 
 // CreditRecord keep track of the dynamic stats of a credit that change
@@ -58,26 +60,13 @@ struct DueDetail {
     uint96 paid;
 }
 
-// todo The design of this struct is not optiized. There is duplication of creditLimit field
-// in this struct and CreditConfig. Need to revisit and refine it.
-struct CreditLimit {
-    uint96 creditLimit;
-    uint96 availableCredit;
-}
-
-enum PayPeriodDuration {
-    Monthly,
-    Quarterly,
-    SemiAnnually
-}
-
 enum CreditState {
     Deleted,
+    Paused,
     Approved,
     GoodStanding,
     Delayed,
-    Defaulted,
-    Paused
+    Defaulted
 }
 
 enum ReceivableState {
@@ -112,7 +101,6 @@ struct ReceivableInfo {
     ReceivableState state;
 }
 
-// todo Not sure if it is a good idea to separate this struct, will research and decide later.
 struct ReceivableInput {
     uint96 receivableAmount;
     uint64 receivableId;

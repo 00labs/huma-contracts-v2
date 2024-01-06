@@ -8,8 +8,7 @@ import {CreditRecord, DueDetail} from "./CreditStructs.sol";
 import {IReceivableFactoringCredit} from "./interfaces/IReceivableFactoringCredit.sol";
 import {IReceivableFactoringCreditForContract} from "./interfaces/IReceivableFactoringCreditForContract.sol";
 import {IReceivableLevelCreditManager} from "./interfaces/IReceivableLevelCreditManager.sol";
-import {PoolConfig} from "../PoolConfig.sol";
-import {Errors} from "../Errors.sol";
+import {Errors} from "../common/Errors.sol";
 
 contract ReceivableFactoringCredit is
     ERC165Upgradeable,
@@ -37,27 +36,11 @@ contract ReceivableFactoringCredit is
     );
 
     /// @inheritdoc IReceivableFactoringCredit
-    function getNextBillRefreshDate(
-        uint256 receivableId
-    ) external view returns (uint256 refreshDate) {
-        bytes32 creditHash = _getCreditHash(receivableId);
-        return _getNextBillRefreshDate(creditHash);
-    }
-
-    /// @inheritdoc IReceivableFactoringCredit
-    function getDueInfo(
-        uint256 receivableId
-    ) external view returns (CreditRecord memory cr, DueDetail memory dd) {
-        bytes32 creditHash = _getCreditHash(receivableId);
-        return _getDueInfo(creditHash);
-    }
-
-    /// @inheritdoc IReceivableFactoringCredit
     function drawdownWithReceivable(
         address borrower,
         uint256 receivableId,
         uint256 amount
-    ) external {
+    ) external returns (uint256 netAmountToBorrower) {
         poolConfig.onlyProtocolAndPoolOn();
 
         if (msg.sender != borrower) revert Errors.notBorrower();
@@ -71,7 +54,7 @@ contract ReceivableFactoringCredit is
 
         receivableAsset.safeTransferFrom(borrower, address(this), receivableId);
 
-        _drawdown(borrower, creditHash, amount);
+        netAmountToBorrower = _drawdown(borrower, creditHash, amount);
 
         emit DrawdownMadeWithReceivable(borrower, receivableId, amount, msg.sender);
     }
@@ -81,7 +64,7 @@ contract ReceivableFactoringCredit is
         address borrower,
         uint256 receivableId,
         uint256 amount
-    ) public virtual returns (uint256 amountPaid, bool paidoff) {
+    ) external virtual returns (uint256 amountPaid, bool paidoff) {
         poolConfig.onlyProtocolAndPoolOn();
         if (msg.sender != borrower) revert Errors.notBorrower();
         if (receivableId == 0) revert Errors.zeroReceivableIdProvided();
@@ -97,9 +80,17 @@ contract ReceivableFactoringCredit is
         emit PaymentMadeWithReceivable(borrower, receivableId, amount, msg.sender);
     }
 
-    /// TODO(jiatu): rename this?
+    function onERC721Received(
+        address /*operator*/,
+        address /*from*/,
+        uint256 /*tokenId*/,
+        bytes calldata /*data*/
+    ) external virtual returns (bytes4) {
+        return this.onERC721Received.selector;
+    }
+
     /// @inheritdoc IReceivableFactoringCreditForContract
-    function makePaymentWithReceivableForContract(
+    function makePaymentWithReceivableByPayer(
         uint256 receivableId,
         uint256 amount
     ) external returns (uint256 amountPaid, bool paidoff) {
@@ -121,6 +112,34 @@ contract ReceivableFactoringCredit is
         emit PaymentMadeWithReceivable(borrower, receivableId, amount, msg.sender);
     }
 
+    /// @inheritdoc IReceivableFactoringCredit
+    function getNextBillRefreshDate(
+        uint256 receivableId
+    ) external view returns (uint256 refreshDate) {
+        bytes32 creditHash = _getCreditHash(receivableId);
+        return _getNextBillRefreshDate(creditHash);
+    }
+
+    /// @inheritdoc IReceivableFactoringCredit
+    function getDueInfo(
+        uint256 receivableId
+    ) external view returns (CreditRecord memory cr, DueDetail memory dd) {
+        bytes32 creditHash = _getCreditHash(receivableId);
+        return _getDueInfo(creditHash);
+    }
+
+    /// @inheritdoc IReceivableFactoringCredit
+    function getCreditRecord(uint256 receivableId) external view returns (CreditRecord memory) {
+        bytes32 creditHash = _getCreditHash(receivableId);
+        return getCreditRecord(creditHash);
+    }
+
+    function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
+        return
+            interfaceId == type(IReceivableFactoringCreditForContract).interfaceId ||
+            super.supportsInterface(interfaceId);
+    }
+
     function _makePaymentWithReceivable(
         address borrower,
         bytes32 creditHash,
@@ -135,27 +154,6 @@ contract ReceivableFactoringCredit is
         }
 
         // Don't delete paid receivable
-    }
-
-    /// @inheritdoc IReceivableFactoringCredit
-    function getCreditRecord(uint256 receivableId) external view returns (CreditRecord memory) {
-        bytes32 creditHash = _getCreditHash(receivableId);
-        return getCreditRecord(creditHash);
-    }
-
-    function onERC721Received(
-        address /*operator*/,
-        address /*from*/,
-        uint256 /*tokenId*/,
-        bytes calldata /*data*/
-    ) external virtual returns (bytes4) {
-        return this.onERC721Received.selector;
-    }
-
-    function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
-        return
-            interfaceId == type(IReceivableFactoringCreditForContract).interfaceId ||
-            super.supportsInterface(interfaceId);
     }
 
     function _getCreditHash(

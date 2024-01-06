@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 interface IReceivableFactoringCreditForContract {
-    function makePaymentWithReceivableForContract(
+    function makePaymentWithReceivableByPayer(
         uint256 receivableId,
         uint256 amount
     ) external returns (uint256 amountPaid, bool paidoff);

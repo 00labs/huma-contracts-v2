@@ -3,9 +3,10 @@ pragma solidity ^0.8.0;
 
 import {CreditManager} from "./CreditManager.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import {PoolConfig} from "../PoolConfig.sol";
-import {Errors} from "../Errors.sol";
-import {ReceivableInput, PayPeriodDuration} from "./CreditStructs.sol";
+import {PoolConfig} from "../common/PoolConfig.sol";
+import {Errors} from "../common/Errors.sol";
+import {ReceivableInput} from "./CreditStructs.sol";
+import {PayPeriodDuration} from "../common/SharedDefs.sol";
 import {IReceivableLevelCreditManager} from "./interfaces/IReceivableLevelCreditManager.sol";
 
 contract ReceivableLevelCreditManager is
@@ -30,7 +31,7 @@ contract ReceivableLevelCreditManager is
 
     event PayerRemoved(address indexed payer);
 
-    function initialize(PoolConfig _poolConfig) public virtual override initializer {
+    function initialize(PoolConfig _poolConfig) external virtual override initializer {
         __AccessControl_init();
         _initialize(_poolConfig);
         __UUPSUpgradeable_init();

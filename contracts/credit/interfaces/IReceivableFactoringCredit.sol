@@ -5,29 +5,13 @@ import {CreditRecord, DueDetail} from "../CreditStructs.sol";
 
 interface IReceivableFactoringCredit {
     /**
-     * @notice Returns the date that the bill should be refreshed.
-     * @param receivableId The ID of the receivable
-     */
-    function getNextBillRefreshDate(
-        uint256 receivableId
-    ) external view returns (uint256 refreshDate);
-
-    /**
-     * @notice Returns the bill with up-to-date due info.
-     * @param receivableId The ID of the receivable
-     */
-    function getDueInfo(
-        uint256 receivableId
-    ) external view returns (CreditRecord memory cr, DueDetail memory dd);
-
-    /**
      * @notice Allows the borrower to drawdown using a receivable.
      */
     function drawdownWithReceivable(
         address borrower,
         uint256 receivableId,
         uint256 amount
-    ) external;
+    ) external returns (uint256 netAmountToBorrower);
 
     /**
      * @notice Makes one payment for the credit previously drawndown with the given receivable.
@@ -42,6 +26,22 @@ interface IReceivableFactoringCredit {
         uint256 receivableId,
         uint256 amount
     ) external returns (uint256 amountPaid, bool paidoff);
+
+    /**
+     * @notice Returns the date that the bill should be refreshed.
+     * @param receivableId The ID of the receivable
+     */
+    function getNextBillRefreshDate(
+        uint256 receivableId
+    ) external view returns (uint256 refreshDate);
+
+    /**
+     * @notice Returns the bill with up-to-date due info.
+     * @param receivableId The ID of the receivable
+     */
+    function getDueInfo(
+        uint256 receivableId
+    ) external view returns (CreditRecord memory cr, DueDetail memory dd);
 
     /**
      * @notice Returns the credit record associated with the given receivable.

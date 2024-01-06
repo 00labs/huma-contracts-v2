@@ -1,21 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {Errors} from "../Errors.sol";
-import {HumaConfig} from "../HumaConfig.sol";
-import {PoolConfig, PoolSettings, FeeStructure} from "../PoolConfig.sol";
-import {IPool} from "../interfaces/IPool.sol";
-import {PoolConfigCache} from "../PoolConfigCache.sol";
+import {Errors} from "../common/Errors.sol";
+import {HumaConfig} from "../common/HumaConfig.sol";
+import {PoolConfig} from "../common/PoolConfig.sol";
+import {IPool} from "../liquidity/interfaces/IPool.sol";
+import {PoolConfigCache} from "../common/PoolConfigCache.sol";
 import {CreditStorage} from "./CreditStorage.sol";
-import {CreditConfig, CreditRecord, CreditLimit, CreditState, DueDetail, PayPeriodDuration} from "./CreditStructs.sol";
-import {ICalendar} from "./interfaces/ICalendar.sol";
-import {IFirstLossCover} from "../interfaces/IFirstLossCover.sol";
-import {IPoolSafe} from "../interfaces/IPoolSafe.sol";
+import {CreditConfig, CreditRecord, CreditState, DueDetail} from "./CreditStructs.sol";
+import {PayPeriodDuration} from "../common/SharedDefs.sol";
+import {IFirstLossCover} from "../liquidity/interfaces/IFirstLossCover.sol";
+import {IPoolSafe} from "../liquidity/interfaces/IPoolSafe.sol";
 import {ICredit} from "./interfaces/ICredit.sol";
 import {ICreditManager} from "./interfaces/ICreditManager.sol";
-import {ICreditDueManager} from "./utils/interfaces/ICreditDueManager.sol";
-import {IERC20, IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {BORROWER_FIRST_LOSS_COVER_INDEX, DAYS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS, SECONDS_IN_A_DAY} from "../SharedDefs.sol";
+import {ICreditDueManager} from "./interfaces/ICreditDueManager.sol";
+import {BORROWER_FIRST_LOSS_COVER_INDEX} from "../common/SharedDefs.sol";
 
 import "hardhat/console.sol";
 
@@ -24,6 +23,15 @@ import "hardhat/console.sol";
  * basic operations that applies to all credits in Huma Protocol.
  */
 abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
+    struct PaymentRecord {
+        uint256 principalDuePaid;
+        uint256 yieldDuePaid;
+        uint256 unbilledPrincipalPaid;
+        uint256 principalPastDuePaid;
+        uint256 yieldPastDuePaid;
+        uint256 lateFeePaid;
+    }
+
     /// Account billing info refreshed with the updated due amount and date
     event BillRefreshed(bytes32 indexed creditHash, uint256 newDueDate, uint256 amountDue);
 
@@ -76,7 +84,6 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
      * @param lateFeePaid the amount of this payment applied to late fee
      * @param principalPastDuePaid the amount of this payment applied to principal past due
      * @param by the address that has triggered the process of marking the payment made.
-     * In most cases, it is the borrower. In receivable factoring, it is PDSServiceAccount.
      */
     event PaymentMade(
         address indexed borrower,
@@ -102,7 +109,6 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
      * @param principalDuePaid the amount of this payment applied to principal due
      * @param unbilledPrincipalPaid the amount of this payment applied to unbilled principal
      * @param by the address that has triggered the process of marking the payment made.
-     * In most cases, it is the borrower. In receivable factoring, it is PDSServiceAccount.
      */
     event PrincipalPaymentMade(
         address indexed borrower,
@@ -123,30 +129,11 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
      */
     event CreditClosedAfterPayOff(bytes32 indexed creditHash, address by);
 
-    struct PaymentRecord {
-        uint256 principalDuePaid;
-        uint256 yieldDuePaid;
-        uint256 unbilledPrincipalPaid;
-        uint256 principalPastDuePaid;
-        uint256 yieldPastDuePaid;
-        uint256 lateFeePaid;
-    }
-
     /// Shared setter to the credit record mapping for contract size consideration
     /// @custom:access Only CreditManager can access this function
     function setCreditRecord(bytes32 creditHash, CreditRecord memory cr) external {
         _onlyCreditManager();
         _setCreditRecord(creditHash, cr);
-    }
-
-    /// Shared accessor to the credit record mapping for contract size consideration
-    function getCreditRecord(bytes32 creditHash) public view returns (CreditRecord memory) {
-        return _creditRecordMap[creditHash];
-    }
-
-    /// Shared accessor to DueDetail for contract size consideration
-    function getDueDetail(bytes32 creditHash) public view returns (DueDetail memory) {
-        return _dueDetailMap[creditHash];
     }
 
     /// @custom:access Only CreditManager can access this function
@@ -159,6 +146,16 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         return _updateDueInfo(creditHash, cr, dd);
     }
 
+    /// Shared accessor to the credit record mapping for contract size consideration
+    function getCreditRecord(bytes32 creditHash) public view returns (CreditRecord memory) {
+        return _creditRecordMap[creditHash];
+    }
+
+    /// Shared accessor to DueDetail for contract size consideration
+    function getDueDetail(bytes32 creditHash) public view returns (DueDetail memory) {
+        return _dueDetailMap[creditHash];
+    }
+
     /// Shared setter to the credit record mapping for contract size consideration
     function _setCreditRecord(bytes32 creditHash, CreditRecord memory cr) internal {
         _creditRecordMap[creditHash] = cr;
@@ -167,22 +164,6 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
     /// Shared setter to the DueDetail mapping for contract size consideration
     function _setDueDetail(bytes32 creditHash, DueDetail memory dd) internal {
         _dueDetailMap[creditHash] = dd;
-    }
-
-    function _getDueInfo(
-        bytes32 creditHash
-    ) internal view returns (CreditRecord memory cr, DueDetail memory dd) {
-        CreditConfig memory cc = creditManager.getCreditConfig(creditHash);
-        cr = getCreditRecord(creditHash);
-        dd = getDueDetail(creditHash);
-        return dueManager.getDueInfo(cr, cc, dd, block.timestamp);
-    }
-
-    function _getNextBillRefreshDate(
-        bytes32 creditHash
-    ) internal view returns (uint256 refreshDate) {
-        CreditRecord memory cr = getCreditRecord(creditHash);
-        return dueManager.getNextBillRefreshDate(cr);
     }
 
     /**
@@ -209,14 +190,13 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         address borrower,
         bytes32 creditHash,
         uint256 borrowAmount
-    ) internal virtual {
+    ) internal virtual returns (uint256 netAmountToBorrower) {
         if (borrowAmount == 0) revert Errors.zeroAmountProvided();
 
-        // todo need to add return values
         CreditRecord memory cr = getCreditRecord(creditHash);
         CreditConfig memory cc = _getCreditConfig(creditHash);
         DueDetail memory dd = getDueDetail(creditHash);
-        _checkDrawdownEligibility(borrower, cr, borrowAmount, cc.creditLimit);
+        _checkDrawdownEligibility(cr, borrowAmount, cc.creditLimit);
 
         if (cr.state == CreditState.Approved) {
             // Flow for first drawdown.
@@ -240,14 +220,13 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             ) revert Errors.creditLineExceeded();
 
             // Add the yield of new borrowAmount for the remainder of the period
-            uint256 daysRemaining = calendar.getDaysRemainingInPeriod(cr.nextDueDate);
-            // It's important to note that the yield calculation includes the day of the drawdown. For instance,
-            // if the borrower draws down at 11:59 PM on October 30th, the yield for October 30th must be paid.
-            uint256 additionalYieldAccrued = dueManager.computeYieldDue(
-                borrowAmount,
-                cc.yieldInBps,
-                daysRemaining
-            );
+            (uint256 additionalYieldAccrued, uint256 additionalPrincipalDue) = dueManager
+                .computeAdditionalYieldAccruedAndPrincipalDueForDrawdown(
+                    cc.periodDuration,
+                    borrowAmount,
+                    cr.nextDueDate,
+                    cc.yieldInBps
+                );
             dd.accrued += uint96(additionalYieldAccrued);
             if (dd.accrued > dd.committed) {
                 // 1. If `dd.committed` was higher than `dd.accrued` before the drawdown but lower afterwards,
@@ -261,24 +240,16 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             }
             cr.unbilledPrincipal = uint96(cr.unbilledPrincipal + borrowAmount);
 
-            FeeStructure memory fees = poolConfig.getFeeStructure();
-            if (fees.minPrincipalRateInBps > 0) {
+            if (additionalPrincipalDue > 0) {
                 // Record the additional principal due generated from the drawdown.
-                uint256 additionalPrincipalDue = dueManager.computePrincipalDueForPartialPeriod(
-                    borrowAmount,
-                    fees.minPrincipalRateInBps,
-                    daysRemaining,
-                    cc.periodDuration
-                );
                 cr.unbilledPrincipal -= uint96(additionalPrincipalDue);
                 cr.nextDue += uint96(additionalPrincipalDue);
             }
         }
         _updateDueInfo(creditHash, cr, dd);
 
-        (uint256 netAmountToBorrower, uint256 platformProfit) = dueManager.distBorrowingAmount(
-            borrowAmount
-        );
+        uint256 platformProfit = 0;
+        (netAmountToBorrower, platformProfit) = dueManager.distBorrowingAmount(borrowAmount);
         IPool(poolConfig.pool()).distributeProfit(platformProfit);
 
         // Transfer funds to the borrower
@@ -502,7 +473,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
 
         // Pay principal due first, then unbilled principal.
         uint256 principalDuePaid;
-        uint256 unbilledPrincipalPaid;
+        uint256 unbilledPrincipalPaid = 0;
         if (amount < principalDue) {
             cr.nextDue = uint96(cr.nextDue - amount);
             principalDuePaid = amount;
@@ -541,6 +512,28 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         return (amountToCollect, cr.nextDue == 0 && cr.unbilledPrincipal == 0);
     }
 
+    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
+        address addr = address(_poolConfig.humaConfig());
+        assert(addr != address(0));
+        humaConfig = HumaConfig(addr);
+
+        addr = _poolConfig.creditDueManager();
+        assert(addr != address(0));
+        dueManager = ICreditDueManager(addr);
+
+        addr = _poolConfig.poolSafe();
+        assert(addr != address(0));
+        poolSafe = IPoolSafe(addr);
+
+        addr = _poolConfig.getFirstLossCover(BORROWER_FIRST_LOSS_COVER_INDEX);
+        assert(addr != address(0));
+        firstLossCover = IFirstLossCover(addr);
+
+        addr = _poolConfig.creditManager();
+        assert(addr != address(0));
+        creditManager = ICreditManager(addr);
+    }
+
     /**
      * @notice Checks if drawdown is allowed for the borrower at this point of time
      * @dev Checks to make sure the following conditions are met:
@@ -551,7 +544,6 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
      * @dev Please note cr.nextDueDate is the credit expiration date for the first drawdown.
      */
     function _checkDrawdownEligibility(
-        address borrower,
         CreditRecord memory cr,
         uint256 borrowAmount,
         uint256 creditLimit
@@ -574,52 +566,43 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             // Prevent drawdown if the credit is in good standing, but has due outstanding and is currently in the
             // late payment grace period or later. In this case, we want the borrower to pay off the due before being
             // able to make further drawdown.
-            // TODO(jiatu): this error name is misleading. Rename it.
+            // TODO(jiatu): this error name is misleading since the drawdown may not necessarily be in the late payment grace period.
+            // Rename it.
             revert Errors.drawdownNotAllowedInLatePaymentGracePeriod();
         }
+    }
+
+    function _getDueInfo(
+        bytes32 creditHash
+    ) internal view returns (CreditRecord memory cr, DueDetail memory dd) {
+        CreditConfig memory cc = creditManager.getCreditConfig(creditHash);
+        cr = getCreditRecord(creditHash);
+        dd = getDueDetail(creditHash);
+        return dueManager.getDueInfo(cr, cc, dd, block.timestamp);
+    }
+
+    function _getNextBillRefreshDate(
+        bytes32 creditHash
+    ) internal view returns (uint256 refreshDate) {
+        CreditRecord memory cr = getCreditRecord(creditHash);
+        return dueManager.getNextBillRefreshDate(cr);
     }
 
     function _getCreditConfig(bytes32 creditHash) internal view returns (CreditConfig memory) {
         return creditManager.getCreditConfig(creditHash);
     }
 
-    /// "Modifier" function that limits access to pdsServiceAccount only.
-    function _onlyPDSServiceAccount() internal view {
-        if (msg.sender != humaConfig.pdsServiceAccount())
-            revert Errors.paymentDetectionServiceAccountRequired();
+    /// "Modifier" function that limits access to Sentinel Service account only.
+    function _onlySentinelServiceAccount() internal view {
+        if (msg.sender != humaConfig.sentinelServiceAccount())
+            revert Errors.sentinelServiceAccountRequired();
     }
 
     function _getPaymentOriginator(address borrower) internal view returns (address originator) {
-        return msg.sender == humaConfig.pdsServiceAccount() ? borrower : msg.sender;
+        return msg.sender == humaConfig.sentinelServiceAccount() ? borrower : msg.sender;
     }
 
     function _onlyCreditManager() internal view {
         if (msg.sender != address(creditManager)) revert Errors.notAuthorizedCaller();
-    }
-
-    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
-        address addr = address(_poolConfig.humaConfig());
-        assert(addr != address(0));
-        humaConfig = HumaConfig(addr);
-
-        addr = _poolConfig.creditDueManager();
-        assert(addr != address(0));
-        dueManager = ICreditDueManager(addr);
-
-        addr = _poolConfig.calendar();
-        assert(addr != address(0));
-        calendar = ICalendar(addr);
-
-        addr = _poolConfig.poolSafe();
-        assert(addr != address(0));
-        poolSafe = IPoolSafe(addr);
-
-        addr = _poolConfig.getFirstLossCover(BORROWER_FIRST_LOSS_COVER_INDEX);
-        assert(addr != address(0));
-        firstLossCover = IFirstLossCover(addr);
-
-        addr = _poolConfig.creditManager();
-        assert(addr != address(0));
-        creditManager = ICreditManager(addr);
     }
 }

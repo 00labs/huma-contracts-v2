@@ -3,8 +3,8 @@ pragma solidity ^0.8.0;
 
 import {IBorrowerLevelCreditManager} from "./interfaces/IBorrowerLevelCreditManager.sol";
 import {CreditManager} from "./CreditManager.sol";
-import {PayPeriodDuration} from "./CreditStructs.sol";
-import {Errors} from "../Errors.sol";
+import {PayPeriodDuration} from "../common/SharedDefs.sol";
+import {Errors} from "../common/Errors.sol";
 
 /**
  * BorrowerLevelCreditManager has a set of administrative functions to manage the settings
@@ -13,8 +13,6 @@ import {Errors} from "../Errors.sol";
  * at the borrower-level. A classic example of borrower-level credit is credit line.
  */
 contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManager {
-    //* todo standardize whether to emit events at Credit contract or this contract.
-    //* todo standardize where to place access control, at Credit contract or this contract
     event CreditLineApproved(
         address indexed borrower,
         bytes32 indexed creditHash,
@@ -66,7 +64,7 @@ contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManage
     /// @inheritdoc IBorrowerLevelCreditManager
     function startCommittedCredit(address borrower) external virtual override {
         poolConfig.onlyProtocolAndPoolOn();
-        _onlyPoolOwnerOrPDSServiceAccount();
+        poolConfig.onlyPoolOwnerOrSentinelServiceAccount(msg.sender);
 
         bytes32 creditHash = getCreditHash(borrower);
         onlyCreditBorrower(creditHash, borrower);
@@ -136,10 +134,6 @@ contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManage
         _updateYield(creditHash, yieldInBps);
     }
 
-    function getCreditHash(address borrower) internal view virtual returns (bytes32 creditHash) {
-        return keccak256(abi.encode(address(credit), borrower));
-    }
-
     /// @inheritdoc IBorrowerLevelCreditManager
     function extendRemainingPeriod(
         address borrower,
@@ -171,5 +165,9 @@ contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManage
         _onlyEAServiceAccount();
 
         _waiveLateFee(getCreditHash(borrower), amount);
+    }
+
+    function getCreditHash(address borrower) internal view virtual returns (bytes32 creditHash) {
+        return keccak256(abi.encode(address(credit), borrower));
     }
 }

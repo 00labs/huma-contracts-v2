@@ -26,7 +26,7 @@ import {
     ReceivableLevelCreditManager,
     TrancheVault,
 } from "../typechain-types";
-import { FirstLossCoverConfigStruct } from "../typechain-types/contracts/PoolConfig.sol/PoolConfig";
+import { FirstLossCoverConfigStruct } from "../typechain-types/contracts/common/PoolConfig.sol/PoolConfig";
 import {
     CreditRecordStruct,
     CreditRecordStructOutput,
@@ -37,7 +37,7 @@ import {
     CreditConfigStruct,
     CreditConfigStructOutput,
 } from "../typechain-types/contracts/credit/CreditManager";
-import { EpochRedemptionSummaryStruct } from "../typechain-types/contracts/interfaces/IRedemptionHandler";
+import { EpochRedemptionSummaryStruct } from "../typechain-types/contracts/liquidity/interfaces/IRedemptionHandler";
 import { getLatestBlock, maxBigNumber, minBigNumber, sumBNArray, toToken } from "./TestUtils";
 
 export type CreditContractType =
@@ -88,11 +88,11 @@ export enum PayPeriodDuration {
 
 export enum CreditState {
     Deleted,
+    Paused,
     Approved,
     GoodStanding,
     Delayed,
     Defaulted,
-    Paused,
 }
 
 export enum ReceivableState {
@@ -168,7 +168,7 @@ export async function deployProtocolContracts(
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
     eaServiceAccount: SignerWithAddress,
-    pdsServiceAccount: SignerWithAddress,
+    sentinelServiceAccount: SignerWithAddress,
     poolOwner: SignerWithAddress,
 ): Promise<ProtocolContracts> {
     // Deploy EvaluationAgentNFT
@@ -184,7 +184,7 @@ export async function deployProtocolContracts(
     await humaConfigContract.setHumaTreasury(treasury.getAddress());
     await humaConfigContract.setEANFTContractAddress(eaNFTContract.address);
     await humaConfigContract.setEAServiceAccount(eaServiceAccount.getAddress());
-    await humaConfigContract.setPDSServiceAccount(pdsServiceAccount.getAddress());
+    await humaConfigContract.setSentinelServiceAccount(sentinelServiceAccount.getAddress());
 
     await humaConfigContract.addPauser(protocolOwner.getAddress());
     await humaConfigContract.addPauser(poolOwner.getAddress());
@@ -626,9 +626,10 @@ function calcProfitForFixedSeniorYieldPolicy(
 function calcProfitForRiskAdjustedPolicy(profit: BN, assets: BN[], riskAdjustment: BN): BN[] {
     const totalAssets = assets[CONSTANTS.SENIOR_TRANCHE].add(assets[CONSTANTS.JUNIOR_TRANCHE]);
 
-    let seniorProfit = profit.mul(assets[CONSTANTS.SENIOR_TRANCHE]).div(totalAssets);
-    const adjustedProfit = seniorProfit.mul(riskAdjustment).div(CONSTANTS.BP_FACTOR);
-    seniorProfit = seniorProfit.sub(adjustedProfit);
+    let seniorProfit = profit
+        .mul(assets[CONSTANTS.SENIOR_TRANCHE])
+        .mul(CONSTANTS.BP_FACTOR.sub(riskAdjustment))
+        .div(totalAssets.mul(CONSTANTS.BP_FACTOR));
 
     return [
         assets[CONSTANTS.SENIOR_TRANCHE].add(seniorProfit),
@@ -1155,7 +1156,7 @@ export function checkCreditConfigsMatch(
     expect(actualCC.revolving).to.equal(expectedCC.revolving);
     expect(actualCC.yieldInBps).to.equal(expectedCC.yieldInBps);
     expect(actualCC.advanceRateInBps).to.equal(expectedCC.advanceRateInBps);
-    expect(actualCC.autoApproval).to.equal(expectedCC.autoApproval);
+    expect(actualCC.receivableAutoApproval).to.equal(expectedCC.receivableAutoApproval);
 }
 
 export function checkCreditConfig(
@@ -1167,7 +1168,7 @@ export function checkCreditConfig(
     yieldInBps: number,
     revolving: boolean,
     advanceRateInBps: number,
-    autoApproval: boolean,
+    receivableAutoApproval: boolean,
 ) {
     expect(creditConfig.creditLimit).to.equal(creditLimit);
     expect(creditConfig.committedAmount).to.equal(committedAmount);
@@ -1176,7 +1177,7 @@ export function checkCreditConfig(
     expect(creditConfig.yieldInBps).to.equal(yieldInBps);
     expect(creditConfig.revolving).to.equal(revolving);
     expect(creditConfig.advanceRateInBps).to.equal(advanceRateInBps);
-    expect(creditConfig.autoApproval).to.equal(autoApproval);
+    expect(creditConfig.receivableAutoApproval).to.equal(receivableAutoApproval);
 }
 
 export function checkCreditRecordsMatch(

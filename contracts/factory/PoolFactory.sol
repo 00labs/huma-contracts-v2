@@ -3,14 +3,29 @@ pragma solidity ^0.8.0;
 
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {PoolConfig, FirstLossCoverConfig, PoolSettings} from "../PoolConfig.sol";
-import {IFirstLossCover} from "../interfaces/IFirstLossCover.sol";
-import {IPoolConfigCache} from "../interfaces/IPoolConfigCache.sol";
-import {ITrancheVault} from "../interfaces/ITrancheVault.sol";
+import {PoolConfig, FirstLossCoverConfig, PoolSettings} from "../common/PoolConfig.sol";
+import {IFirstLossCover} from "../liquidity/interfaces/IFirstLossCover.sol";
+import {IPoolConfigCache} from "../common/interfaces/IPoolConfigCache.sol";
+import {ITrancheVault} from "../liquidity/interfaces/ITrancheVault.sol";
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
-import {Errors} from "../Errors.sol";
+import {Errors} from "../common/Errors.sol";
 
 contract PoolFactory is AccessControl {
+    enum PoolStatus {
+        Created,
+        Initialized,
+        Deleted
+    }
+
+    struct PoolRecord {
+        uint256 poolId;
+        address poolAddress;
+        string poolName;
+        PoolStatus poolStatus;
+        address poolConfig;
+        address poolTimeLock;
+    }
+
     // only deployer can create new pools
     bytes32 public constant DEPLOYER_ROLE = keccak256("DEPLOYER_ROLE");
 
@@ -44,21 +59,6 @@ contract PoolFactory is AccessControl {
 
     // poolId => PoolRecord
     mapping(uint256 => PoolRecord) private pools;
-
-    enum PoolStatus {
-        Created,
-        Initialized,
-        Deleted
-    }
-
-    struct PoolRecord {
-        uint256 poolId;
-        address poolAddress;
-        string poolName;
-        PoolStatus poolStatus;
-        address poolConfig;
-        address poolTimeLock;
-    }
 
     // events for implementation address changes
     event poolConfigImplChanged(address oldAddress, address newAddress);
@@ -265,142 +265,6 @@ contract PoolFactory is AccessControl {
         emit receivableImplChanged(oldAddress, newAddress);
     }
 
-    // add a proxy
-    function _addProxy(address _implAddress) internal returns (address) {
-        if (_implAddress == address(0)) revert Errors.zeroAddressProvided();
-        ERC1967Proxy proxy = new ERC1967Proxy(_implAddress, "");
-        return address(proxy);
-    }
-
-    // add poolConfig proxy
-    function _addPoolConfig() internal returns (address) {
-        if (poolConfigImplAddress == address(0)) revert Errors.zeroAddressProvided();
-        address poolConfig = _addProxy(poolConfigImplAddress);
-        return poolConfig;
-    }
-
-    // add poolFeeManager proxy
-    function _addPoolFeeManager() internal returns (address) {
-        if (poolFeeManagerImplAddress == address(0)) revert Errors.zeroAddressProvided();
-        address poolFeeManager = _addProxy(poolFeeManagerImplAddress);
-        return poolFeeManager;
-    }
-
-    // add pool proxy
-    function _addPool() internal returns (address) {
-        if (poolImplAddress == address(0)) revert Errors.zeroAddressProvided();
-        address pool = _addProxy(poolImplAddress);
-        return pool;
-    }
-
-    // add pool safe proxy
-    function _addPoolSafe() internal returns (address) {
-        if (poolSafeImplAddress == address(0)) revert Errors.zeroAddressProvided();
-        address poolSafe = _addProxy(poolSafeImplAddress);
-        return poolSafe;
-    }
-
-    // add firstLossCover proxy
-    function _addFirstLossCover() internal returns (address) {
-        if (firstLossCoverImplAddress == address(0)) revert Errors.zeroAddressProvided();
-        address firstLossCover = _addProxy(firstLossCoverImplAddress);
-        return firstLossCover;
-    }
-
-    // add tranchesPolicy proxies
-    function _addTranchesPolicy(address tranchesPolicyImpl) internal returns (address) {
-        if (tranchesPolicyImpl == address(0)) revert Errors.zeroAddressProvided();
-        address tranchesPolicy = _addProxy(tranchesPolicyImpl);
-        return tranchesPolicy;
-    }
-
-    // add epochManager proxy
-    function _addEpochManager() internal returns (address) {
-        if (epochManagerImplAddress == address(0)) revert Errors.zeroAddressProvided();
-        address epochManager = _addProxy(epochManagerImplAddress);
-        return epochManager;
-    }
-
-    // add trancheVault proxy
-    function _addTrancheVault() internal returns (address) {
-        if (trancheVaultImplAddress == address(0)) revert Errors.zeroAddressProvided();
-        address trancheVault = _addProxy(trancheVaultImplAddress);
-        return trancheVault;
-    }
-
-    // add credit proxy
-    function _addCredit(address creditImplAddress) internal returns (address) {
-        if (creditImplAddress == address(0)) revert Errors.zeroAddressProvided();
-        address credit = _addProxy(creditImplAddress);
-        return credit;
-    }
-
-    // add creditDueManager proxy
-    function _addCreditDueManager() internal returns (address) {
-        if (creditDueManagerImplAddress == address(0)) revert Errors.zeroAddressProvided();
-        address creditDueManager = _addProxy(creditDueManagerImplAddress);
-        return creditDueManager;
-    }
-
-    // add creditManager proxy
-    function _addCreditManager(address creditManagerImplAddress) internal returns (address) {
-        if (creditManagerImplAddress == address(0)) revert Errors.zeroAddressProvided();
-        address creditManager = _addProxy(creditManagerImplAddress);
-        return creditManager;
-    }
-
-    // add receivable proxy
-    function _addReceivable() internal returns (address) {
-        if (receivableImpl == address(0)) revert Errors.zeroAddressProvided();
-        address receivable = _addProxy(receivableImpl);
-        return receivable;
-    }
-
-    // create a new pool
-    function _createPoolContracts(
-        string memory _poolName,
-        address assetTokenAddress,
-        string memory tranchesPolicyType,
-        string memory creditType
-    ) internal onlyRole(DEPLOYER_ROLE) returns (address, address[] memory) {
-        address poolConfigAddress = _addPoolConfig();
-        address[] memory poolAddresses = new address[](13);
-        poolAddresses[0] = HUMA_CONFIG_ADDRESS;
-        poolAddresses[1] = assetTokenAddress;
-        poolAddresses[2] = calendarAddress;
-        poolAddresses[3] = _addPool();
-        poolAddresses[4] = _addPoolSafe();
-        poolAddresses[5] = _addPoolFeeManager();
-
-        if (keccak256(bytes(tranchesPolicyType)) == keccak256(bytes("fixed"))) {
-            poolAddresses[6] = _addTranchesPolicy(fixedSeniorYieldTranchesPolicyImplAddress);
-        } else if (keccak256(bytes(tranchesPolicyType)) == keccak256(bytes("floating"))) {
-            poolAddresses[6] = _addTranchesPolicy(riskAdjustedTranchesPolicyImplAddress);
-        } else {
-            revert("Invalid tranchesPolicyType");
-        }
-
-        poolAddresses[7] = _addEpochManager();
-        poolAddresses[8] = _addTrancheVault(); // senior tranche vault
-        poolAddresses[9] = _addTrancheVault(); // junior tranche vault
-        poolAddresses[11] = _addCreditDueManager();
-
-        if (keccak256(bytes(creditType)) == keccak256(bytes("receivable"))) {
-            poolAddresses[10] = _addCredit(receivableBackedCreditLineImplAddress);
-            poolAddresses[12] = _addCreditManager(receivableBackedCreditLineManagerImplAddress);
-        } else if (keccak256(bytes(creditType)) == keccak256(bytes("factoring"))) {
-            poolAddresses[10] = _addCredit(receivableFactoringCreditImplAddress);
-            poolAddresses[12] = _addCreditManager(receivableLevelCreditManagerImplAddress);
-        } else if (keccak256(bytes(creditType)) == keccak256(bytes("borrower"))) {
-            poolAddresses[10] = _addCredit(creditLineImplAddress);
-            poolAddresses[12] = _addCreditManager(borrowerLevelCreditmanagerImplAddress);
-        } else {
-            revert("Invalid creditType");
-        }
-        emit PoolCreated(poolAddresses[0], _poolName);
-        return (poolConfigAddress, poolAddresses);
-    }
-
     function setFirstLossCover(
         address poolConfigAddress,
         uint8 index,
@@ -419,15 +283,6 @@ contract PoolFactory is AccessControl {
             riskYieldMultiplierInBps
         );
         _setFirstLossCover(poolConfigAddress, firstLossCover, index, config);
-    }
-
-    function _setFirstLossCover(
-        address poolConfigAddress,
-        address firstLossCover,
-        uint8 index,
-        FirstLossCoverConfig memory config
-    ) internal {
-        PoolConfig(poolConfigAddress).setFirstLossCover(index, firstLossCover, config);
     }
 
     function deployPool(
@@ -505,11 +360,17 @@ contract PoolFactory is AccessControl {
 
     function setupPool() external onlyRole(DEPLOYER_ROLE) {}
 
+    function transferOwnership(address newOwner) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _grantRole(DEFAULT_ADMIN_ROLE, newOwner);
+        _revokeRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        emit OwnershipChanged(msg.sender, newOwner);
+    }
+
     function addTimeLock(
         address[] memory poolAdmins,
         address[] memory poolExecutors
     )
-        internal
+        public
         // only one account can be pool admin
         onlyRole(DEPLOYER_ROLE)
         returns (address)
@@ -590,9 +451,148 @@ contract PoolFactory is AccessControl {
     //     emit PoolStatusUpdated(oldStatus, PoolStatus.Initialized);
     // }
 
-    function transferOwnership(address newOwner) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _grantRole(DEFAULT_ADMIN_ROLE, newOwner);
-        _revokeRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        emit OwnershipChanged(msg.sender, newOwner);
+    function _setFirstLossCover(
+        address poolConfigAddress,
+        address firstLossCover,
+        uint8 index,
+        FirstLossCoverConfig memory config
+    ) private {
+        PoolConfig(poolConfigAddress).setFirstLossCover(index, firstLossCover, config);
+    }
+
+    // add a proxy
+    function _addProxy(address _implAddress) private returns (address) {
+        if (_implAddress == address(0)) revert Errors.zeroAddressProvided();
+        ERC1967Proxy proxy = new ERC1967Proxy(_implAddress, "");
+        return address(proxy);
+    }
+
+    // add poolConfig proxy
+    function _addPoolConfig() private returns (address) {
+        if (poolConfigImplAddress == address(0)) revert Errors.zeroAddressProvided();
+        address poolConfig = _addProxy(poolConfigImplAddress);
+        return poolConfig;
+    }
+
+    // add poolFeeManager proxy
+    function _addPoolFeeManager() private returns (address) {
+        if (poolFeeManagerImplAddress == address(0)) revert Errors.zeroAddressProvided();
+        address poolFeeManager = _addProxy(poolFeeManagerImplAddress);
+        return poolFeeManager;
+    }
+
+    // add pool proxy
+    function _addPool() private returns (address) {
+        if (poolImplAddress == address(0)) revert Errors.zeroAddressProvided();
+        address pool = _addProxy(poolImplAddress);
+        return pool;
+    }
+
+    // add pool safe proxy
+    function _addPoolSafe() private returns (address) {
+        if (poolSafeImplAddress == address(0)) revert Errors.zeroAddressProvided();
+        address poolSafe = _addProxy(poolSafeImplAddress);
+        return poolSafe;
+    }
+
+    // add firstLossCover proxy
+    function _addFirstLossCover() private returns (address) {
+        if (firstLossCoverImplAddress == address(0)) revert Errors.zeroAddressProvided();
+        address firstLossCover = _addProxy(firstLossCoverImplAddress);
+        return firstLossCover;
+    }
+
+    // add tranchesPolicy proxies
+    function _addTranchesPolicy(address tranchesPolicyImpl) private returns (address) {
+        if (tranchesPolicyImpl == address(0)) revert Errors.zeroAddressProvided();
+        address tranchesPolicy = _addProxy(tranchesPolicyImpl);
+        return tranchesPolicy;
+    }
+
+    // add epochManager proxy
+    function _addEpochManager() private returns (address) {
+        if (epochManagerImplAddress == address(0)) revert Errors.zeroAddressProvided();
+        address epochManager = _addProxy(epochManagerImplAddress);
+        return epochManager;
+    }
+
+    // add trancheVault proxy
+    function _addTrancheVault() private returns (address) {
+        if (trancheVaultImplAddress == address(0)) revert Errors.zeroAddressProvided();
+        address trancheVault = _addProxy(trancheVaultImplAddress);
+        return trancheVault;
+    }
+
+    // add credit proxy
+    function _addCredit(address creditImplAddress) private returns (address) {
+        if (creditImplAddress == address(0)) revert Errors.zeroAddressProvided();
+        address credit = _addProxy(creditImplAddress);
+        return credit;
+    }
+
+    // add creditDueManager proxy
+    function _addCreditDueManager() private returns (address) {
+        if (creditDueManagerImplAddress == address(0)) revert Errors.zeroAddressProvided();
+        address creditDueManager = _addProxy(creditDueManagerImplAddress);
+        return creditDueManager;
+    }
+
+    // add creditManager proxy
+    function _addCreditManager(address creditManagerImplAddress) private returns (address) {
+        if (creditManagerImplAddress == address(0)) revert Errors.zeroAddressProvided();
+        address creditManager = _addProxy(creditManagerImplAddress);
+        return creditManager;
+    }
+
+    // add receivable proxy
+    function _addReceivable() private returns (address) {
+        if (receivableImpl == address(0)) revert Errors.zeroAddressProvided();
+        address receivable = _addProxy(receivableImpl);
+        return receivable;
+    }
+
+    // create a new pool
+    function _createPoolContracts(
+        string memory _poolName,
+        address assetTokenAddress,
+        string memory tranchesPolicyType,
+        string memory creditType
+    ) private onlyRole(DEPLOYER_ROLE) returns (address, address[] memory) {
+        address poolConfigAddress = _addPoolConfig();
+        address[] memory poolAddresses = new address[](13);
+        poolAddresses[0] = HUMA_CONFIG_ADDRESS;
+        poolAddresses[1] = assetTokenAddress;
+        poolAddresses[2] = calendarAddress;
+        poolAddresses[3] = _addPool();
+        poolAddresses[4] = _addPoolSafe();
+        poolAddresses[5] = _addPoolFeeManager();
+
+        if (keccak256(bytes(tranchesPolicyType)) == keccak256(bytes("fixed"))) {
+            poolAddresses[6] = _addTranchesPolicy(fixedSeniorYieldTranchesPolicyImplAddress);
+        } else if (keccak256(bytes(tranchesPolicyType)) == keccak256(bytes("floating"))) {
+            poolAddresses[6] = _addTranchesPolicy(riskAdjustedTranchesPolicyImplAddress);
+        } else {
+            revert("Invalid tranchesPolicyType");
+        }
+
+        poolAddresses[7] = _addEpochManager();
+        poolAddresses[8] = _addTrancheVault(); // senior tranche vault
+        poolAddresses[9] = _addTrancheVault(); // junior tranche vault
+        poolAddresses[11] = _addCreditDueManager();
+
+        if (keccak256(bytes(creditType)) == keccak256(bytes("receivable"))) {
+            poolAddresses[10] = _addCredit(receivableBackedCreditLineImplAddress);
+            poolAddresses[12] = _addCreditManager(receivableBackedCreditLineManagerImplAddress);
+        } else if (keccak256(bytes(creditType)) == keccak256(bytes("factoring"))) {
+            poolAddresses[10] = _addCredit(receivableFactoringCreditImplAddress);
+            poolAddresses[12] = _addCreditManager(receivableLevelCreditManagerImplAddress);
+        } else if (keccak256(bytes(creditType)) == keccak256(bytes("borrower"))) {
+            poolAddresses[10] = _addCredit(creditLineImplAddress);
+            poolAddresses[12] = _addCreditManager(borrowerLevelCreditmanagerImplAddress);
+        } else {
+            revert("Invalid creditType");
+        }
+        emit PoolCreated(poolAddresses[0], _poolName);
+        return (poolConfigAddress, poolAddresses);
     }
 }
