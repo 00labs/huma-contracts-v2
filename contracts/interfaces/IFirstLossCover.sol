@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
+import {PoolConfig} from "../PoolConfig.sol";
+
 /**
  * @title IFirstLossCover
  * @notice Interface for first loss cover
@@ -63,4 +65,6 @@ interface IFirstLossCover {
     function getMaxLiquidity() external view returns (uint256 maxLiquidity);
 
     function getMinLiquidity() external view returns (uint256 minLiquidity);
+
+    function initialize(string memory name, string memory symbol, PoolConfig _poolConfig) external;
 }
