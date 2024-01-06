@@ -119,19 +119,23 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                         )
                     );
 
-                    if (principalRate > 0) {
-                        uint256 principalPastDue = _computePrincipalDueForFullPeriods(
-                            cr.unbilledPrincipal,
-                            principalRate,
-                            periodsPassed
-                        );
-                        newDD.principalPastDue += uint96(principalPastDue);
-                        newCR.unbilledPrincipal = uint96(cr.unbilledPrincipal - principalPastDue);
-                    }
+                    if (cr.unbilledPrincipal > 0) {
+                        if (principalRate > 0) {
+                            uint256 principalPastDue = _computePrincipalDueForFullPeriods(
+                                cr.unbilledPrincipal,
+                                principalRate,
+                                periodsPassed
+                            );
+                            newDD.principalPastDue += uint96(principalPastDue);
+                            newCR.unbilledPrincipal = uint96(
+                                cr.unbilledPrincipal - principalPastDue
+                            );
+                        }
 
-                    if (newCR.remainingPeriods == 0) {
-                        newDD.principalPastDue += newCR.unbilledPrincipal;
-                        newCR.unbilledPrincipal = 0;
+                        if (newCR.remainingPeriods == 0) {
+                            newDD.principalPastDue += newCR.unbilledPrincipal;
+                            newCR.unbilledPrincipal = 0;
+                        }
                     }
                 }
             }
@@ -170,21 +174,24 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             newCR.nextDue = newCR.yieldDue;
 
             if (newCR.remainingPeriods > 0) {
-                if (principalRate > 0) {
-                    uint256 principalDue = _computePrincipalDueForPartialPeriod(
-                        newCR.unbilledPrincipal,
-                        principalRate,
-                        daysUntilNextDue,
-                        totalDaysInFullPeriod
-                    );
-                    newCR.unbilledPrincipal -= uint96(principalDue);
-                    newCR.nextDue += uint96(principalDue);
-                }
-
                 newCR.remainingPeriods -= 1;
-                if (newCR.remainingPeriods == 0) {
-                    newCR.nextDue += newCR.unbilledPrincipal;
-                    newCR.unbilledPrincipal = 0;
+
+                if (newCR.unbilledPrincipal > 0) {
+                    if (principalRate > 0) {
+                        uint256 principalDue = _computePrincipalDueForPartialPeriod(
+                            newCR.unbilledPrincipal,
+                            principalRate,
+                            daysUntilNextDue,
+                            totalDaysInFullPeriod
+                        );
+                        newCR.unbilledPrincipal -= uint96(principalDue);
+                        newCR.nextDue += uint96(principalDue);
+                    }
+
+                    if (newCR.remainingPeriods == 0) {
+                        newCR.nextDue += newCR.unbilledPrincipal;
+                        newCR.unbilledPrincipal = 0;
+                    }
                 }
             }
         }
