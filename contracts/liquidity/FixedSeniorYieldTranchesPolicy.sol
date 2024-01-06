@@ -17,7 +17,6 @@ contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
         uint64 lastUpdatedDate;
     }
 
-    address public pool;
     SeniorYieldTracker public seniorYieldTracker;
 
     event YieldTrackerRefreshed(uint256 totalAssets, uint256 unpaidYield, uint256 lastUpdatedDate);
@@ -40,13 +39,6 @@ contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
                 tracker.lastUpdatedDate
             );
         }
-    }
-
-    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
-        super._updatePoolConfigData(_poolConfig);
-        address addr = _poolConfig.pool();
-        assert(addr != address(0));
-        pool = addr;
     }
 
     function _distributeProfitForSeniorTranche(
