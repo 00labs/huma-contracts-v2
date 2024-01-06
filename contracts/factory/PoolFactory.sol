@@ -11,12 +11,16 @@ import {TimelockController} from "@openzeppelin/contracts/governance/TimelockCon
 import {Errors} from "../common/Errors.sol";
 
 contract PoolFactory is AccessControl {
+    /**
+     * @dev Represents the status of a pool.
+     */
     enum PoolStatus {
-        Created,
-        Initialized,
-        Deleted
+        Created, // the pool is created but not initialized yet
+        Initialized, // the pool is initialized and ready for use
+        Deleted // the pool is deleted from the factory
     }
 
+    // Struct to store information about a pool
     struct PoolRecord {
         uint256 poolId;
         address poolAddress;
@@ -100,17 +104,20 @@ contract PoolFactory is AccessControl {
         poolId = 0;
     }
 
+    // Add a deployer account
     function addDeployer(address account) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (account == address(0)) revert Errors.zeroAddressProvided();
         _grantRole(DEPLOYER_ROLE, account);
         emit DeployerAdded(account);
     }
 
+    // Remove a deployer account
     function removeDeployer(address account) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _revokeRole(DEPLOYER_ROLE, account);
         emit DeployerRemoved(account);
     }
 
+    // Add multiple deployer accounts
     function addDeployers(address[] memory accounts) external onlyRole(DEFAULT_ADMIN_ROLE) {
         for (uint256 i = 0; i < accounts.length; i++) {
             _grantRole(DEPLOYER_ROLE, accounts[i]);
@@ -126,6 +133,9 @@ contract PoolFactory is AccessControl {
         emit calendarAddressChanged(oldAddress, newAddress);
     }
 
+    /**
+     * @dev For protocol owner to set the implementation addresses
+     */
     function setFixedSeniorYieldTranchesPolicyImplAddress(
         address newAddress
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -160,7 +170,7 @@ contract PoolFactory is AccessControl {
         emit receivableBackedCreditLineImplChanged(oldAddress, newAddress);
     }
 
-    function setReceivableFactoringCreditLineImplAddress(
+    function setReceivableFactoringCreditImplAddress(
         address newAddress
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (newAddress == address(0)) revert Errors.zeroAddressProvided();
@@ -569,7 +579,7 @@ contract PoolFactory is AccessControl {
 
         if (keccak256(bytes(tranchesPolicyType)) == keccak256(bytes("fixed"))) {
             poolAddresses[6] = _addTranchesPolicy(fixedSeniorYieldTranchesPolicyImplAddress);
-        } else if (keccak256(bytes(tranchesPolicyType)) == keccak256(bytes("floating"))) {
+        } else if (keccak256(bytes(tranchesPolicyType)) == keccak256(bytes("adjusted"))) {
             poolAddresses[6] = _addTranchesPolicy(riskAdjustedTranchesPolicyImplAddress);
         } else {
             revert("Invalid tranchesPolicyType");
@@ -580,13 +590,13 @@ contract PoolFactory is AccessControl {
         poolAddresses[9] = _addTrancheVault(); // junior tranche vault
         poolAddresses[11] = _addCreditDueManager();
 
-        if (keccak256(bytes(creditType)) == keccak256(bytes("receivable"))) {
+        if (keccak256(bytes(creditType)) == keccak256(bytes("receivablebacked"))) {
             poolAddresses[10] = _addCredit(receivableBackedCreditLineImplAddress);
             poolAddresses[12] = _addCreditManager(receivableBackedCreditLineManagerImplAddress);
-        } else if (keccak256(bytes(creditType)) == keccak256(bytes("factoring"))) {
+        } else if (keccak256(bytes(creditType)) == keccak256(bytes("receivablefactoring"))) {
             poolAddresses[10] = _addCredit(receivableFactoringCreditImplAddress);
             poolAddresses[12] = _addCreditManager(receivableLevelCreditManagerImplAddress);
-        } else if (keccak256(bytes(creditType)) == keccak256(bytes("borrower"))) {
+        } else if (keccak256(bytes(creditType)) == keccak256(bytes("creditline"))) {
             poolAddresses[10] = _addCredit(creditLineImplAddress);
             poolAddresses[12] = _addCreditManager(borrowerLevelCreditmanagerImplAddress);
         } else {
