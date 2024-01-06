@@ -13,7 +13,7 @@ import {IFirstLossCover} from "../liquidity/interfaces/IFirstLossCover.sol";
 import {IPoolSafe} from "../liquidity/interfaces/IPoolSafe.sol";
 import {ICredit} from "./interfaces/ICredit.sol";
 import {ICreditManager} from "./interfaces/ICreditManager.sol";
-import {ICreditDueManager} from "./utils/interfaces/ICreditDueManager.sol";
+import {ICreditDueManager} from "./interfaces/ICreditDueManager.sol";
 import {BORROWER_FIRST_LOSS_COVER_INDEX} from "../common/SharedDefs.sol";
 
 import "hardhat/console.sol";

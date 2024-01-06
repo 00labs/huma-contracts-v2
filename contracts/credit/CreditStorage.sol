@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {HumaConfig} from "../common/HumaConfig.sol";
 import {CreditRecord, DueDetail} from "./CreditStructs.sol";
-import {ICreditDueManager} from "./utils/interfaces/ICreditDueManager.sol";
+import {ICreditDueManager} from "./interfaces/ICreditDueManager.sol";
 import {ICreditManager} from "./interfaces/ICreditManager.sol";
 import {IPoolSafe} from "../liquidity/interfaces/IPoolSafe.sol";
 import {IFirstLossCover} from "../liquidity/interfaces/IFirstLossCover.sol";

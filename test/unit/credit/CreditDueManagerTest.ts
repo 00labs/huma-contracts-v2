@@ -24,7 +24,7 @@ import {
     CreditConfigStruct,
     CreditRecordStruct,
     DueDetailStruct,
-} from "../../../typechain-types/contracts/credit/utils/CreditDueManager";
+} from "../../../typechain-types/contracts/credit/CreditDueManager";
 import {
     CONSTANTS,
     CreditState,

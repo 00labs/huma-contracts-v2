@@ -2,12 +2,12 @@
 pragma solidity ^0.8.0;
 
 import {ICreditDueManager} from "./interfaces/ICreditDueManager.sol";
-import {CreditConfig, CreditRecord, CreditState, DueDetail, PayPeriodDuration} from "../CreditStructs.sol";
-import {PoolConfig, PoolSettings, FeeStructure} from "../../common/PoolConfig.sol";
-import {ICalendar} from "../../common/interfaces/ICalendar.sol";
-import {DAYS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS, SECONDS_IN_A_DAY} from "../../common/SharedDefs.sol";
-import {Errors} from "../../common/Errors.sol";
-import {PoolConfigCache} from "../../common/PoolConfigCache.sol";
+import {CreditConfig, CreditRecord, CreditState, DueDetail, PayPeriodDuration} from "./CreditStructs.sol";
+import {PoolConfig, PoolSettings, FeeStructure} from "../common/PoolConfig.sol";
+import {ICalendar} from "../common/interfaces/ICalendar.sol";
+import {DAYS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS, SECONDS_IN_A_DAY} from "../common/SharedDefs.sol";
+import {Errors} from "../common/Errors.sol";
+import {PoolConfigCache} from "../common/PoolConfigCache.sol";
 
 contract CreditDueManager is PoolConfigCache, ICreditDueManager {
     ICalendar public calendar;

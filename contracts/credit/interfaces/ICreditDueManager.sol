@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {CreditConfig, CreditRecord, DueDetail} from "../../CreditStructs.sol";
-import {PayPeriodDuration} from "../../../common/SharedDefs.sol";
+import {CreditConfig, CreditRecord, DueDetail} from "../CreditStructs.sol";
+import {PayPeriodDuration} from "../../common/SharedDefs.sol";
 
 /**
  * @notice ICreditDueManager.sol defines functions to compute credit-related fees

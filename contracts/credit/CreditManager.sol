@@ -12,7 +12,7 @@ import {CreditManagerStorage} from "./CreditManagerStorage.sol";
 import {CreditClosureReason, CreditConfig, CreditRecord, CreditState, DueDetail} from "./CreditStructs.sol";
 import {PayPeriodDuration} from "../common/SharedDefs.sol";
 import {Errors} from "../common/Errors.sol";
-import {ICreditDueManager} from "./utils/interfaces/ICreditDueManager.sol";
+import {ICreditDueManager} from "./interfaces/ICreditDueManager.sol";
 
 import "hardhat/console.sol";
 
