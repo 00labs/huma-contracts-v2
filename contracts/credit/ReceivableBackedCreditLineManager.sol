@@ -54,6 +54,30 @@ contract ReceivableBackedCreditLineManager is
         _approveReceivable(borrower, creditHash, receivableId, receivable.receivableAmount);
     }
 
+    /// @inheritdoc IReceivableBackedCreditLineManager
+    function decreaseCreditLimit(bytes32 creditHash, uint256 amount) external {
+        if (msg.sender != address(credit)) revert Errors.notAuthorizedCaller();
+        uint256 availableCredit = getAvailableCredit(creditHash);
+        if (amount > availableCredit) revert Errors.creditLineExceeded();
+        availableCredit -= amount;
+        _availableCredits[creditHash] = uint96(availableCredit);
+    }
+
+    /// @inheritdoc IReceivableBackedCreditLineManager
+    function validateReceivableOwnership(address borrower, uint256 receivableId) external view {
+        if (receivableBorrowerMap[receivableId] != borrower) revert Errors.receivableIdMismatch();
+    }
+
+    function validateReceivableStatus(uint256 maturityDate, ReceivableState state) public view {
+        if (maturityDate < block.timestamp) revert Errors.receivableAlreadyMatured();
+        if (state != ReceivableState.Minted && state != ReceivableState.Approved)
+            revert Errors.invalidReceivableState();
+    }
+
+    function getAvailableCredit(bytes32 creditHash) public view returns (uint256 availableCredit) {
+        return _availableCredits[creditHash];
+    }
+
     function _approveReceivable(
         address borrower,
         bytes32 creditHash,
@@ -80,30 +104,6 @@ contract ReceivableBackedCreditLineManager is
             incrementalCredit,
             availableCredit
         );
-    }
-
-    /// @inheritdoc IReceivableBackedCreditLineManager
-    function validateReceivableOwnership(address borrower, uint256 receivableId) external view {
-        if (receivableBorrowerMap[receivableId] != borrower) revert Errors.receivableIdMismatch();
-    }
-
-    function validateReceivableStatus(uint256 maturityDate, ReceivableState state) public view {
-        if (maturityDate < block.timestamp) revert Errors.receivableAlreadyMatured();
-        if (state != ReceivableState.Minted && state != ReceivableState.Approved)
-            revert Errors.invalidReceivableState();
-    }
-
-    /// @inheritdoc IReceivableBackedCreditLineManager
-    function decreaseCreditLimit(bytes32 creditHash, uint256 amount) external {
-        if (msg.sender != address(credit)) revert Errors.notAuthorizedCaller();
-        uint256 availableCredit = getAvailableCredit(creditHash);
-        if (amount > availableCredit) revert Errors.creditLineExceeded();
-        availableCredit -= amount;
-        _availableCredits[creditHash] = uint96(availableCredit);
-    }
-
-    function getAvailableCredit(bytes32 creditHash) public view returns (uint256 availableCredit) {
-        return _availableCredits[creditHash];
     }
 
     function _updatePoolConfigData(PoolConfig poolConfig) internal virtual override {

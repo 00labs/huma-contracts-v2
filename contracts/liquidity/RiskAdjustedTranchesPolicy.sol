@@ -11,7 +11,8 @@ import {SENIOR_TRANCHE, JUNIOR_TRANCHE, HUNDRED_PERCENT_IN_BPS} from "../common/
  */
 contract RiskAdjustedTranchesPolicy is BaseTranchesPolicy {
     /**
-     * @dev Ignores solhint warning, it can't be view function because it implements ITranchesPolicy's disProfitToTranches.
+     * @dev Ignores solhint warning. This function can't be a view function because it implements
+     * `disProfitToTranches` from `ITranchesPolicy`.
      */
     function _distributeProfitForSeniorTranche(
         uint256 profit,

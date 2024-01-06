@@ -4,9 +4,9 @@ pragma solidity ^0.8.0;
 import {CreditConfig} from "../CreditStructs.sol";
 
 interface ICreditManager {
-    function getCreditConfig(bytes32 creditHash) external view returns (CreditConfig memory);
-
     function onlyCreditBorrower(bytes32 creditHash, address borrower) external view;
+
+    function getCreditConfig(bytes32 creditHash) external view returns (CreditConfig memory);
 
     function getCreditBorrower(bytes32 creditHash) external view returns (address borrower);
 }

@@ -24,7 +24,7 @@ import {
     CreditConfigStruct,
     CreditRecordStruct,
     DueDetailStruct,
-} from "../../../typechain-types/contracts/credit/utils/CreditDueManager";
+} from "../../../typechain-types/contracts/credit/CreditDueManager";
 import {
     CONSTANTS,
     CreditState,
@@ -42,9 +42,7 @@ import {
     evmRevert,
     evmSnapshot,
     getFutureBlockTime,
-    getLatestBlock,
     maxBigNumber,
-    timestampToMoment,
     toToken,
 } from "../../TestUtils";
 
@@ -209,79 +207,6 @@ describe("CreditDueManager Tests", function () {
                 creditDueManagerContract,
                 "borrowingAmountLessThanPlatformFees",
             );
-        });
-    });
-
-    describe("checkIsLate", function () {
-        let timestamp: number;
-
-        before(async function () {
-            timestamp = (await getLatestBlock()).timestamp;
-        });
-
-        it("Should return true if there are missed periods", async function () {
-            const creditRecord = {
-                unbilledPrincipal: 0,
-                nextDueDate: Date.now(),
-                nextDue: 0,
-                yieldDue: 0,
-                totalPastDue: 0,
-                missedPeriods: 1,
-                remainingPeriods: 0,
-                state: CreditState.Delayed,
-            };
-            expect(await creditDueManagerContract.checkIsLate(creditRecord, timestamp)).to.be.true;
-        });
-
-        it("Should return true if there is payment due and we've already passed the payment grace period", async function () {
-            const poolSettings = await poolConfigContract.getPoolSettings();
-            // Advance next block time to be a second after the end of the late payment grace period.
-            const nextBlockTime = timestampToMoment(await getFutureBlockTime(0))
-                .add(poolSettings.latePaymentGracePeriodInDays, "days")
-                .add(1, "second");
-            const creditRecord = {
-                unbilledPrincipal: 0,
-                nextDueDate: moment().unix(),
-                nextDue: toToken(1_000),
-                yieldDue: 0,
-                totalPastDue: 0,
-                missedPeriods: 0,
-                remainingPeriods: 0,
-                state: CreditState.GoodStanding,
-            };
-            expect(await creditDueManagerContract.checkIsLate(creditRecord, nextBlockTime.unix()))
-                .to.be.true;
-        });
-
-        it("Should return false if there is no missed periods and no next due", async function () {
-            const creditRecord = {
-                unbilledPrincipal: 0,
-                nextDueDate: 0,
-                nextDue: 0,
-                yieldDue: 0,
-                totalPastDue: 0,
-                missedPeriods: 0,
-                remainingPeriods: 0,
-                state: CreditState.Approved,
-            };
-            expect(await creditDueManagerContract.checkIsLate(creditRecord, timestamp)).to.be
-                .false;
-        });
-
-        it("Should return false if there is next due but we are not at the due date yet", async function () {
-            const nextDueDate = timestampToMoment(Date.now()).add(1, "day");
-            const creditRecord = {
-                unbilledPrincipal: 0,
-                nextDueDate: nextDueDate.unix(),
-                nextDue: toToken(1_000),
-                yieldDue: 0,
-                totalPastDue: 0,
-                missedPeriods: 0,
-                remainingPeriods: 0,
-                state: CreditState.Approved,
-            };
-            expect(await creditDueManagerContract.checkIsLate(creditRecord, timestamp)).to.be
-                .false;
         });
     });
 

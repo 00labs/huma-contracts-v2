@@ -5,7 +5,7 @@ import {HumaConfig} from "../common/HumaConfig.sol";
 import {CreditConfig} from "./CreditStructs.sol";
 import {ICredit} from "./interfaces/ICredit.sol";
 import {ICalendar} from "../common/interfaces/ICalendar.sol";
-import {ICreditDueManager} from "./utils/interfaces/ICreditDueManager.sol";
+import {ICreditDueManager} from "./interfaces/ICreditDueManager.sol";
 
 contract CreditManagerStorage {
     HumaConfig public humaConfig;

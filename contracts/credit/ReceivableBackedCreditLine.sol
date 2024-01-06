@@ -32,6 +32,15 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         address by
     );
 
+    function onERC721Received(
+        address /*operator*/,
+        address /*from*/,
+        uint256 /*tokenId*/,
+        bytes calldata /*data*/
+    ) external virtual returns (bytes4) {
+        return this.onERC721Received.selector;
+    }
+
     function getNextBillRefreshDate(address borrower) external view returns (uint256 refreshDate) {
         bytes32 creditHash = getCreditHash(borrower);
         return _getNextBillRefreshDate(creditHash);
@@ -183,29 +192,6 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         );
     }
 
-    function onERC721Received(
-        address /*operator*/,
-        address /*from*/,
-        uint256 /*tokenId*/,
-        bytes calldata /*data*/
-    ) external virtual returns (bytes4) {
-        return this.onERC721Received.selector;
-    }
-
-    function _prepareForPayment(
-        address borrower,
-        address receivableAsset,
-        uint256 receivableId
-    ) internal view {
-        if (receivableId == 0) revert Errors.zeroReceivableIdProvided();
-        IReceivableBackedCreditLineManager(address(creditManager)).validateReceivableOwnership(
-            borrower,
-            receivableId
-        );
-        if (IERC721(receivableAsset).ownerOf(receivableId) != address(this))
-            revert Errors.notReceivableOwner();
-    }
-
     function _prepareForDrawdown(
         address borrower,
         bytes32 creditHash,
@@ -233,6 +219,20 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         rbclManager.decreaseCreditLimit(creditHash, amount);
 
         IERC721(receivableAsset).safeTransferFrom(borrower, address(this), receivableId);
+    }
+
+    function _prepareForPayment(
+        address borrower,
+        address receivableAsset,
+        uint256 receivableId
+    ) internal view {
+        if (receivableId == 0) revert Errors.zeroReceivableIdProvided();
+        IReceivableBackedCreditLineManager(address(creditManager)).validateReceivableOwnership(
+            borrower,
+            receivableId
+        );
+        if (IERC721(receivableAsset).ownerOf(receivableId) != address(this))
+            revert Errors.notReceivableOwner();
     }
 
     function getCreditHash(address borrower) internal view virtual returns (bytes32 creditHash) {

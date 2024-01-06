@@ -21,6 +21,19 @@ interface IPoolSafe {
     function withdraw(address to, uint256 amount) external;
 
     /**
+     * @notice Pool calls this function to reserve the unprocessed profit for junior/senior tranches.
+     * A cron-like mechanism like autotask will handle it later to distribute the profit to the lenders who want to receive tokens
+     * or reinvest in the pool for the lenders who want to reinvest.
+     */
+    function addUnprocessedProfit(address tranche, uint256 interest) external;
+
+    /**
+     * @notice Senior/Junior tranches call this function to reset processed profit to 0 after
+     * TrancheVault.processInterestForLenders run.
+     */
+    function resetUnprocessedProfit() external;
+
+    /**
      * @notice Gets the total available underlying tokens in the pool
      * @return availableBalance the quantity of underlying tokens in the pool
      */
@@ -37,17 +50,4 @@ interface IPoolSafe {
      * 2. withdraw by admins
      */
     function getAvailableBalanceForFees() external view returns (uint256 availableBalance);
-
-    /**
-     * @notice Pool calls this function to reserve the unprocessed profit for junior/senior tranches.
-     * A cron-like mechanism like autotask will handle it later to distribute the profit to the lenders who want to receive tokens
-     * or reinvest in the pool for the lenders who want to reinvest.
-     */
-    function addUnprocessedProfit(address tranche, uint256 interest) external;
-
-    /**
-     * @notice Senior/Junior tranches call this function to reset processed profit to 0 after
-     * TrancheVault.processInterestForLenders run.
-     */
-    function resetUnprocessedProfit() external;
 }

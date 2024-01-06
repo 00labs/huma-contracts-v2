@@ -15,20 +15,6 @@ import "hardhat/console.sol";
  */
 contract CreditLine is Credit, ICreditLine {
     /// @inheritdoc ICreditLine
-    function getNextBillRefreshDate(address borrower) external view returns (uint256 refreshDate) {
-        bytes32 creditHash = getCreditHash(borrower);
-        return _getNextBillRefreshDate(creditHash);
-    }
-
-    /// @inheritdoc ICreditLine
-    function getDueInfo(
-        address borrower
-    ) external view returns (CreditRecord memory cr, DueDetail memory dd) {
-        bytes32 creditHash = getCreditHash(borrower);
-        return _getDueInfo(creditHash);
-    }
-
-    /// @inheritdoc ICreditLine
     function drawdown(
         address borrower,
         uint256 borrowAmount
@@ -69,6 +55,20 @@ contract CreditLine is Credit, ICreditLine {
 
         (amountPaid, paidoff) = _makePrincipalPayment(borrower, creditHash, amount);
         return (amountPaid, paidoff);
+    }
+
+    /// @inheritdoc ICreditLine
+    function getNextBillRefreshDate(address borrower) external view returns (uint256 refreshDate) {
+        bytes32 creditHash = getCreditHash(borrower);
+        return _getNextBillRefreshDate(creditHash);
+    }
+
+    /// @inheritdoc ICreditLine
+    function getDueInfo(
+        address borrower
+    ) external view returns (CreditRecord memory cr, DueDetail memory dd) {
+        bytes32 creditHash = getCreditHash(borrower);
+        return _getDueInfo(creditHash);
     }
 
     function getCreditHash(address borrower) internal view virtual returns (bytes32 creditHash) {

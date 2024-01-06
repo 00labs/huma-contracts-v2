@@ -9,7 +9,6 @@ import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {JUNIOR_TRANCHE, SENIOR_TRANCHE} from "../common/SharedDefs.sol";
 
 /**
  * @title PoolSafe
@@ -25,20 +24,6 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
     // This mapping contains the unprocessed profit for junior tranche and senior tranche.
     // The key is junior/senior tranche address, the value is the unprocessed profit.
     mapping(address => uint256) public unprocessedTrancheProfit;
-
-    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
-        address addr = _poolConfig.underlyingToken();
-        assert(addr != address(0));
-        underlyingToken = IERC20(addr);
-
-        addr = _poolConfig.poolFeeManager();
-        assert(addr != address(0));
-        poolFeeManager = IPoolFeeManager(addr);
-
-        addr = _poolConfig.pool();
-        assert(addr != address(0));
-        pool = IPool(addr);
-    }
 
     /// @inheritdoc IPoolSafe
     function deposit(address from, uint256 amount) external virtual {
@@ -98,6 +83,20 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
             unprocessedTrancheProfit[poolConfig.juniorTranche()];
         uint256 balance = underlyingToken.balanceOf(address(this));
         availableBalance = balance > reserved ? balance - reserved : 0;
+    }
+
+    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
+        address addr = _poolConfig.underlyingToken();
+        assert(addr != address(0));
+        underlyingToken = IERC20(addr);
+
+        addr = _poolConfig.poolFeeManager();
+        assert(addr != address(0));
+        poolFeeManager = IPoolFeeManager(addr);
+
+        addr = _poolConfig.pool();
+        assert(addr != address(0));
+        pool = IPool(addr);
     }
 
     function _onlySystemMoneyMover(address account) internal view {

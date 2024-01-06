@@ -5,7 +5,6 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IPoolSafe} from "../../liquidity/interfaces/IPoolSafe.sol";
 import {IPool} from "../../liquidity/interfaces/IPool.sol";
 import {PoolConfig, PoolConfigCache} from "../PoolConfigCache.sol";
-import {Errors} from "../Errors.sol";
 
 contract MockPoolCredit is PoolConfigCache {
     IPoolSafe public poolSafe;
@@ -24,20 +23,6 @@ contract MockPoolCredit is PoolConfigCache {
         bool revolving
     ) external {}
 
-    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
-        address addr = _poolConfig.poolSafe();
-        assert(addr != address(0));
-        poolSafe = IPoolSafe(addr);
-
-        addr = _poolConfig.underlyingToken();
-        assert(addr != address(0));
-        IERC20(addr).approve(address(poolSafe), type(uint256).max);
-
-        addr = _poolConfig.pool();
-        assert(addr != address(0));
-        pool = IPool(addr);
-    }
-
     function drawdown(bytes32 creditHash, uint256 borrowAmount) external {
         poolSafe.withdraw(address(this), borrowAmount);
     }
@@ -53,5 +38,19 @@ contract MockPoolCredit is PoolConfigCache {
         pool.distributeProfit(profit);
         pool.distributeLoss(loss);
         pool.distributeLossRecovery(lossRecovery);
+    }
+
+    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
+        address addr = _poolConfig.poolSafe();
+        assert(addr != address(0));
+        poolSafe = IPoolSafe(addr);
+
+        addr = _poolConfig.underlyingToken();
+        assert(addr != address(0));
+        IERC20(addr).approve(address(poolSafe), type(uint256).max);
+
+        addr = _poolConfig.pool();
+        assert(addr != address(0));
+        pool = IPool(addr);
     }
 }

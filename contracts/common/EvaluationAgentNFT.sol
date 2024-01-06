@@ -38,6 +38,11 @@ contract EvaluationAgentNFT is ERC721URIStorage, Ownable {
         return tokenId;
     }
 
+    function setTokenURI(uint256 tokenId, string memory uri) external onlyOwner {
+        emit SetURI(tokenId, uri);
+        _setTokenURI(tokenId, uri);
+    }
+
     function transferFrom(
         address from,
         address to,
@@ -61,10 +66,5 @@ contract EvaluationAgentNFT is ERC721URIStorage, Ownable {
         bytes memory data
     ) public virtual override(ERC721, IERC721) {
         // Intentionally disable transfer by doing nothing.
-    }
-
-    function setTokenURI(uint256 tokenId, string memory uri) external onlyOwner {
-        emit SetURI(tokenId, uri);
-        _setTokenURI(tokenId, uri);
     }
 }

@@ -22,17 +22,9 @@ abstract contract PoolConfigCache is Initializable, UUPSUpgradeable {
         _disableInitializers();
     }
 
-    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual;
-
-    function initialize(PoolConfig _poolConfig) public virtual initializer {
+    function initialize(PoolConfig _poolConfig) external virtual initializer {
         _initialize(_poolConfig);
         __UUPSUpgradeable_init();
-    }
-
-    function _initialize(PoolConfig _poolConfig) internal onlyInitializing {
-        if (address(_poolConfig) == address(0)) revert Errors.zeroAddressProvided();
-        poolConfig = _poolConfig;
-        _updatePoolConfigData(_poolConfig);
     }
 
     /**
@@ -55,6 +47,14 @@ abstract contract PoolConfigCache is Initializable, UUPSUpgradeable {
         poolConfig = _poolConfig;
         _updatePoolConfigData(_poolConfig);
         emit PoolConfigChanged(address(_poolConfig), address(oldPoolConfig));
+    }
+
+    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual;
+
+    function _initialize(PoolConfig _poolConfig) internal onlyInitializing {
+        if (address(_poolConfig) == address(0)) revert Errors.zeroAddressProvided();
+        poolConfig = _poolConfig;
+        _updatePoolConfigData(_poolConfig);
     }
 
     function _authorizeUpgrade(address) internal view override {

@@ -2,9 +2,9 @@
 pragma solidity ^0.8.0;
 
 import {Errors} from "../common/Errors.sol";
-import {PoolConfig, LPConfig, PoolSettings} from "../common/PoolConfig.sol";
+import {PoolConfig, PoolSettings} from "../common/PoolConfig.sol";
 import {PoolConfigCache} from "../common/PoolConfigCache.sol";
-import {JUNIOR_TRANCHE, SENIOR_TRANCHE, DEFAULT_DECIMALS_FACTOR, SECONDS_IN_A_DAY} from "../common/SharedDefs.sol";
+import {DEFAULT_DECIMALS_FACTOR, SECONDS_IN_A_DAY} from "../common/SharedDefs.sol";
 import {TrancheVaultStorage, IERC20} from "./TrancheVaultStorage.sol";
 import {IRedemptionHandler, EpochRedemptionSummary} from "./interfaces/IRedemptionHandler.sol";
 import {IEpochManager} from "./interfaces/IEpochManager.sol";
@@ -23,10 +23,10 @@ contract TrancheVault is
     TrancheVaultStorage,
     IRedemptionHandler
 {
+    using SafeERC20 for IERC20;
+
     bytes32 public constant LENDER_ROLE = keccak256("LENDER");
     uint256 private constant MAX_ALLOWED_NUM_NON_REINVESTING_LENDERS = 100;
-
-    using SafeERC20 for IERC20;
 
     event EpochProcessed(
         uint256 indexed epochId,
@@ -67,32 +67,6 @@ contract TrancheVault is
 
         if (seniorTrancheOrJuniorTranche > 1) revert Errors.invalidTrancheIndex();
         trancheIndex = seniorTrancheOrJuniorTranche;
-    }
-
-    /**
-     * @notice Gets address for underlyingToken, pool, poolSafe, and epochManager from poolConfig
-     */
-    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
-        address addr = _poolConfig.underlyingToken();
-        assert(addr != address(0));
-        underlyingToken = IERC20(addr);
-        _decimals = IERC20MetadataUpgradeable(addr).decimals();
-
-        addr = _poolConfig.pool();
-        assert(addr != address(0));
-        pool = IPool(addr);
-
-        addr = _poolConfig.poolSafe();
-        assert(addr != address(0));
-        poolSafe = IPoolSafe(addr);
-
-        addr = _poolConfig.epochManager();
-        assert(addr != address(0));
-        epochManager = IEpochManager(addr);
-
-        addr = _poolConfig.calendar();
-        assert(addr != address(0));
-        calendar = ICalendar(addr);
     }
 
     /**
@@ -151,25 +125,6 @@ contract TrancheVault is
         depositRecord.reinvestYield = reinvestYield;
         depositRecords[lender] = depositRecord;
         emit ReinvestYieldConfigSet(lender, reinvestYield, msg.sender);
-    }
-
-    /// @inheritdoc IRedemptionHandler
-    function currentRedemptionSummary()
-        external
-        view
-        override
-        returns (EpochRedemptionSummary memory redemptionSummary)
-    {
-        uint256 epochId = epochManager.currentEpochId();
-        redemptionSummary = epochRedemptionSummaries[epochId];
-    }
-
-    function decimals() public view override returns (uint8) {
-        return _decimals;
-    }
-
-    function totalSupply() public view override returns (uint256) {
-        return ERC20Upgradeable.totalSupply();
     }
 
     /// @inheritdoc IRedemptionHandler
@@ -236,32 +191,6 @@ contract TrancheVault is
         _onlyLender(receiver);
 
         return _deposit(assets, receiver);
-    }
-
-    function _deposit(uint256 assets, address receiver) internal returns (uint256 shares) {
-        PoolSettings memory poolSettings = poolConfig.getPoolSettings();
-        if (assets < poolSettings.minDepositAmount) {
-            revert Errors.depositAmountTooLow();
-        }
-        uint256 availableCap = pool.getTrancheAvailableCap(trancheIndex);
-        if (assets > availableCap) {
-            revert Errors.trancheLiquidityCapExceeded();
-        }
-
-        poolSafe.deposit(msg.sender, assets);
-        uint96[2] memory tranches = pool.currentTranchesAssets();
-        uint256 trancheAssets = tranches[trancheIndex];
-        shares = _convertToShares(assets, trancheAssets);
-        ERC20Upgradeable._mint(receiver, shares);
-        DepositRecord memory depositRecord = depositRecords[receiver];
-        depositRecord.principal += uint96(assets);
-        depositRecord.lastDepositTime = uint64(block.timestamp);
-        depositRecords[receiver] = depositRecord;
-
-        tranches[trancheIndex] += uint96(assets);
-        pool.updateTranchesAssets(tranches);
-
-        emit LiquidityDeposited(msg.sender, receiver, assets, shares);
     }
 
     /**
@@ -418,12 +347,15 @@ contract TrancheVault is
         pool.updateTranchesAssets(tranchesAssets);
     }
 
-    /**
-     * @notice Disables transfer function currently, need to consider how to support it later(lender permission,
-     * yield payout, profit distribution, etc.) when integrating with DEXs.
-     */
-    function transfer(address, uint256) public virtual override returns (bool) {
-        revert Errors.unsupportedFunction();
+    /// @inheritdoc IRedemptionHandler
+    function currentRedemptionSummary()
+        external
+        view
+        override
+        returns (EpochRedemptionSummary memory redemptionSummary)
+    {
+        uint256 epochId = epochManager.currentEpochId();
+        redemptionSummary = epochRedemptionSummaries[epochId];
     }
 
     /**
@@ -449,18 +381,8 @@ contract TrancheVault is
         shares = lenderRedemptionRecord.numSharesRequested;
     }
 
-    function totalAssets() public view returns (uint256) {
-        return pool.trancheTotalAssets(trancheIndex);
-    }
-
     function convertToShares(uint256 assets) external view returns (uint256 shares) {
         shares = _convertToShares(assets, totalAssets());
-    }
-
-    function convertToAssets(uint256 shares) public view returns (uint256 assets) {
-        uint256 tempTotalAssets = totalAssets();
-        uint256 tempTotalSupply = ERC20Upgradeable.totalSupply();
-        return tempTotalSupply == 0 ? shares : (shares * tempTotalAssets) / tempTotalSupply;
     }
 
     function totalAssetsOf(address account) external view returns (uint256 assets) {
@@ -469,6 +391,95 @@ contract TrancheVault is
 
     function getNonReinvestingLendersLength() external view returns (uint256) {
         return nonReinvestingLenders.length;
+    }
+
+    /**
+     * @notice Disables transfer function currently, need to consider how to support it later(lender permission,
+     * yield payout, profit distribution, etc.) when integrating with DEXs.
+     */
+    function transfer(address, uint256) public virtual override returns (bool) {
+        revert Errors.unsupportedFunction();
+    }
+
+    function decimals() public view override returns (uint8) {
+        return _decimals;
+    }
+
+    function totalAssets() public view returns (uint256) {
+        return pool.trancheTotalAssets(trancheIndex);
+    }
+
+    function totalSupply() public view override returns (uint256) {
+        return ERC20Upgradeable.totalSupply();
+    }
+
+    function convertToAssets(uint256 shares) public view returns (uint256 assets) {
+        uint256 tempTotalAssets = totalAssets();
+        uint256 tempTotalSupply = ERC20Upgradeable.totalSupply();
+        return tempTotalSupply == 0 ? shares : (shares * tempTotalAssets) / tempTotalSupply;
+    }
+
+    /**
+     * @notice Gets address for underlyingToken, pool, poolSafe, and epochManager from poolConfig
+     */
+    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
+        address addr = _poolConfig.underlyingToken();
+        assert(addr != address(0));
+        underlyingToken = IERC20(addr);
+        _decimals = IERC20MetadataUpgradeable(addr).decimals();
+
+        addr = _poolConfig.pool();
+        assert(addr != address(0));
+        pool = IPool(addr);
+
+        addr = _poolConfig.poolSafe();
+        assert(addr != address(0));
+        poolSafe = IPoolSafe(addr);
+
+        addr = _poolConfig.epochManager();
+        assert(addr != address(0));
+        epochManager = IEpochManager(addr);
+
+        addr = _poolConfig.calendar();
+        assert(addr != address(0));
+        calendar = ICalendar(addr);
+    }
+
+    function _deposit(uint256 assets, address receiver) internal returns (uint256 shares) {
+        PoolSettings memory poolSettings = poolConfig.getPoolSettings();
+        if (assets < poolSettings.minDepositAmount) {
+            revert Errors.depositAmountTooLow();
+        }
+        uint256 availableCap = pool.getTrancheAvailableCap(trancheIndex);
+        if (assets > availableCap) {
+            revert Errors.trancheLiquidityCapExceeded();
+        }
+
+        poolSafe.deposit(msg.sender, assets);
+        uint96[2] memory tranches = pool.currentTranchesAssets();
+        uint256 trancheAssets = tranches[trancheIndex];
+        shares = _convertToShares(assets, trancheAssets);
+        ERC20Upgradeable._mint(receiver, shares);
+        DepositRecord memory depositRecord = depositRecords[receiver];
+        depositRecord.principal += uint96(assets);
+        depositRecord.lastDepositTime = uint64(block.timestamp);
+        depositRecords[receiver] = depositRecord;
+
+        tranches[trancheIndex] += uint96(assets);
+        pool.updateTranchesAssets(tranches);
+
+        emit LiquidityDeposited(msg.sender, receiver, assets, shares);
+    }
+
+    function _removeLenderFromNonReinvestingLenders(address lender) internal {
+        uint256 len = nonReinvestingLenders.length;
+        for (uint256 i = 0; i < len; i++) {
+            if (nonReinvestingLenders[i] == lender) {
+                if (i != len - 1) nonReinvestingLenders[i] = nonReinvestingLenders[len - 1];
+                nonReinvestingLenders.pop();
+                break;
+            }
+        }
     }
 
     function _convertToShares(
@@ -533,17 +544,6 @@ contract TrancheVault is
             }
         }
         lenderRedemptionRecord.nextEpochIdToProcess = uint64(currentEpochId);
-    }
-
-    function _removeLenderFromNonReinvestingLenders(address lender) internal {
-        uint256 len = nonReinvestingLenders.length;
-        for (uint256 i = 0; i < len; i++) {
-            if (nonReinvestingLenders[i] == lender) {
-                if (i != len - 1) nonReinvestingLenders[i] = nonReinvestingLenders[len - 1];
-                nonReinvestingLenders.pop();
-                break;
-            }
-        }
     }
 
     function _onlyEpochManager(address account) internal view {

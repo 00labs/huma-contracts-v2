@@ -24,7 +24,7 @@ contract MockNFT is
     address public tokenAddress;
     CountersUpgradeable.Counter internal _tokenIdCounter;
 
-    function initialize(address _tokenAddress, address humaPoolSafe) public initializer {
+    function initialize(address _tokenAddress, address humaPoolSafe) external initializer {
         __ERC721_init("MockNFT", "MNFT");
         __ERC721Enumerable_init();
         __ERC721URIStorage_init();
@@ -32,10 +32,6 @@ contract MockNFT is
 
         tokenAddress = _tokenAddress;
         IERC20(tokenAddress).safeApprove(humaPoolSafe, type(uint256).max);
-    }
-
-    function getCurrentTokenId() external view returns (uint256) {
-        return _tokenIdCounter.current();
     }
 
     function payOwner(uint256 tokenId, uint256 amount) external {
@@ -61,19 +57,8 @@ contract MockNFT is
         _setTokenURI(newItemId, _tokenURI);
     }
 
-    function _beforeTokenTransfer(
-        address from,
-        address to,
-        uint256 tokenId,
-        uint256 batchSize
-    ) internal override(ERC721Upgradeable, ERC721EnumerableUpgradeable) {
-        ERC721EnumerableUpgradeable._beforeTokenTransfer(from, to, tokenId, batchSize);
-    }
-
-    function _burn(
-        uint256 tokenId
-    ) internal override(ERC721Upgradeable, ERC721URIStorageUpgradeable) {
-        ERC721URIStorageUpgradeable._burn(tokenId);
+    function getCurrentTokenId() external view returns (uint256) {
+        return _tokenIdCounter.current();
     }
 
     function tokenURI(
@@ -98,5 +83,20 @@ contract MockNFT is
         return
             ERC721EnumerableUpgradeable.supportsInterface(interfaceId) ||
             ERC721URIStorageUpgradeable.supportsInterface(interfaceId);
+    }
+
+    function _beforeTokenTransfer(
+        address from,
+        address to,
+        uint256 tokenId,
+        uint256 batchSize
+    ) internal override(ERC721Upgradeable, ERC721EnumerableUpgradeable) {
+        ERC721EnumerableUpgradeable._beforeTokenTransfer(from, to, tokenId, batchSize);
+    }
+
+    function _burn(
+        uint256 tokenId
+    ) internal override(ERC721Upgradeable, ERC721URIStorageUpgradeable) {
+        ERC721URIStorageUpgradeable._burn(tokenId);
     }
 }

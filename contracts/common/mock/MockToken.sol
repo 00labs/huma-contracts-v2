@@ -25,11 +25,11 @@ contract MockToken is ERC20Permit, IERC165 {
         _burn(from, amount);
     }
 
-    function decimals() public view virtual override returns (uint8) {
-        return 6;
-    }
-
     function supportsInterface(bytes4 interfaceId) external view virtual override returns (bool) {
         return interfaceId == 0x36372b07 || interfaceId == 0x01ffc9a7;
+    }
+
+    function decimals() public view virtual override returns (uint8) {
+        return 6;
     }
 }

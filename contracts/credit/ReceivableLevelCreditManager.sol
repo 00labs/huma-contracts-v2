@@ -31,7 +31,7 @@ contract ReceivableLevelCreditManager is
 
     event PayerRemoved(address indexed payer);
 
-    function initialize(PoolConfig _poolConfig) public virtual override initializer {
+    function initialize(PoolConfig _poolConfig) external virtual override initializer {
         __AccessControl_init();
         _initialize(_poolConfig);
         __UUPSUpgradeable_init();

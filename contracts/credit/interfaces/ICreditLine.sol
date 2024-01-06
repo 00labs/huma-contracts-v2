@@ -5,20 +5,6 @@ import {CreditRecord, DueDetail} from "../CreditStructs.sol";
 
 interface ICreditLine {
     /**
-     * @notice Returns the date that the bill should be refreshed.
-     * @param borrower The borrower address
-     */
-    function getNextBillRefreshDate(address borrower) external view returns (uint256 refreshDate);
-
-    /**
-     * @notice Returns the bill with up-to-date due info.
-     * @param borrower Address of the borrower
-     */
-    function getDueInfo(
-        address borrower
-    ) external view returns (CreditRecord memory cr, DueDetail memory dd);
-
-    /**
      * @notice Allows the borrower to borrow against an approved credit line.
      * @param borrower Address of the borrower
      * @param borrowAmount The amount to borrow
@@ -60,4 +46,18 @@ interface ICreditLine {
         address borrower,
         uint256 amount
     ) external returns (uint256 amountPaid, bool paidoff);
+
+    /**
+     * @notice Returns the date that the bill should be refreshed.
+     * @param borrower The borrower address
+     */
+    function getNextBillRefreshDate(address borrower) external view returns (uint256 refreshDate);
+
+    /**
+     * @notice Returns the bill with up-to-date due info.
+     * @param borrower Address of the borrower
+     */
+    function getDueInfo(
+        address borrower
+    ) external view returns (CreditRecord memory cr, DueDetail memory dd);
 }

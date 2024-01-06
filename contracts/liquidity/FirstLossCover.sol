@@ -5,7 +5,7 @@ import {Errors} from "../common/Errors.sol";
 import {FirstLossCoverStorage} from "./FirstLossCoverStorage.sol";
 import {PoolConfig, PoolSettings, FirstLossCoverConfig} from "../common/PoolConfig.sol";
 import {PoolConfigCache} from "../common/PoolConfigCache.sol";
-import {HUNDRED_PERCENT_IN_BPS, JUNIOR_TRANCHE, SENIOR_TRANCHE} from "../common/SharedDefs.sol";
+import {HUNDRED_PERCENT_IN_BPS} from "../common/SharedDefs.sol";
 import {IFirstLossCover} from "./interfaces/IFirstLossCover.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
@@ -25,10 +25,10 @@ contract FirstLossCover is
     FirstLossCoverStorage,
     IFirstLossCover
 {
-    uint256 private constant MAX_ALLOWED_NUM_PROVIDERS = 100;
-
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.AddressSet;
+
+    uint256 private constant MAX_ALLOWED_NUM_PROVIDERS = 100;
 
     event CoverProviderAdded(address indexed account);
     event CoverProviderRemoved(address indexed account);
@@ -55,28 +55,6 @@ contract FirstLossCover is
         __ERC20_init(name, symbol);
         __UUPSUpgradeable_init();
         _initialize(_poolConfig);
-    }
-
-    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
-        address oldUnderlyingToken = address(underlyingToken);
-        address newUnderlyingToken = _poolConfig.underlyingToken();
-        assert(newUnderlyingToken != address(0));
-        underlyingToken = IERC20(newUnderlyingToken);
-        _decimals = IERC20MetadataUpgradeable(newUnderlyingToken).decimals();
-
-        address oldPoolSafe = address(poolSafe);
-        address addr = _poolConfig.poolSafe();
-        assert(addr != address(0));
-        poolSafe = IPoolSafe(addr);
-        _resetPoolSafeAllowance(oldPoolSafe, addr, oldUnderlyingToken, newUnderlyingToken);
-
-        addr = _poolConfig.pool();
-        assert(addr != address(0));
-        pool = IPool(addr);
-    }
-
-    function getCoverProviders() external view returns (address[] memory providers) {
-        providers = _coverProviders.values();
     }
 
     function addCoverProvider(address account) external {
@@ -207,39 +185,6 @@ contract FirstLossCover is
     }
 
     /**
-     * @notice Disables transfer function currently
-     */
-    function transfer(address, uint256) public virtual override returns (bool) {
-        revert Errors.unsupportedFunction();
-    }
-
-    function decimals() public view override returns (uint8) {
-        return _decimals;
-    }
-
-    function totalAssets() public view virtual returns (uint256) {
-        return underlyingToken.balanceOf(address(this));
-    }
-
-    function convertToShares(uint256 assets) public view virtual returns (uint256) {
-        uint256 currTotalSupply = totalSupply();
-        uint256 currTotalAssets = totalAssets();
-
-        return currTotalSupply == 0 ? assets : (assets * currTotalSupply) / currTotalAssets;
-    }
-
-    function convertToAssets(uint256 shares) public view virtual returns (uint256) {
-        uint256 currTotalSupply = totalSupply();
-        uint256 currTotalAssets = totalAssets();
-
-        return currTotalSupply == 0 ? shares : (shares * currTotalAssets) / currTotalSupply;
-    }
-
-    function totalAssetsOf(address account) external view returns (uint256 assets) {
-        return convertToAssets(ERC20Upgradeable.balanceOf(account));
-    }
-
-    /**
      * @notice Pay out yield above the cap to providers. Expects to be called by a cron-like mechanism like autotask.
      */
     function payoutYield() external {
@@ -269,6 +214,43 @@ contract FirstLossCover is
         return totalAssets() >= getMinLiquidity();
     }
 
+    function getCoverProviders() external view returns (address[] memory providers) {
+        providers = _coverProviders.values();
+    }
+
+    function totalAssetsOf(address account) external view returns (uint256 assets) {
+        return convertToAssets(ERC20Upgradeable.balanceOf(account));
+    }
+
+    /**
+     * @notice Disables transfer function currently
+     */
+    function transfer(address, uint256) public virtual override returns (bool) {
+        revert Errors.unsupportedFunction();
+    }
+
+    function decimals() public view override returns (uint8) {
+        return _decimals;
+    }
+
+    function totalAssets() public view virtual returns (uint256) {
+        return underlyingToken.balanceOf(address(this));
+    }
+
+    function convertToShares(uint256 assets) public view virtual returns (uint256) {
+        uint256 currTotalSupply = totalSupply();
+        uint256 currTotalAssets = totalAssets();
+
+        return currTotalSupply == 0 ? assets : (assets * currTotalSupply) / currTotalAssets;
+    }
+
+    function convertToAssets(uint256 shares) public view virtual returns (uint256) {
+        uint256 currTotalSupply = totalSupply();
+        uint256 currTotalAssets = totalAssets();
+
+        return currTotalSupply == 0 ? shares : (shares * currTotalAssets) / currTotalSupply;
+    }
+
     /// @inheritdoc IFirstLossCover
     function getAvailableCap() public view returns (uint256 availableCap) {
         uint256 coverTotalAssets = totalAssets();
@@ -284,6 +266,24 @@ contract FirstLossCover is
     function getMinLiquidity() public view returns (uint256 minLiquidity) {
         FirstLossCoverConfig memory config = poolConfig.getFirstLossCoverConfig(address(this));
         return config.minLiquidity;
+    }
+
+    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
+        address oldUnderlyingToken = address(underlyingToken);
+        address newUnderlyingToken = _poolConfig.underlyingToken();
+        assert(newUnderlyingToken != address(0));
+        underlyingToken = IERC20(newUnderlyingToken);
+        _decimals = IERC20MetadataUpgradeable(newUnderlyingToken).decimals();
+
+        address oldPoolSafe = address(poolSafe);
+        address addr = _poolConfig.poolSafe();
+        assert(addr != address(0));
+        poolSafe = IPoolSafe(addr);
+        _resetPoolSafeAllowance(oldPoolSafe, addr, oldUnderlyingToken, newUnderlyingToken);
+
+        addr = _poolConfig.pool();
+        assert(addr != address(0));
+        pool = IPool(addr);
     }
 
     /**
@@ -347,14 +347,6 @@ contract FirstLossCover is
         remainingLoss = loss - coveredAmount;
     }
 
-    function _calcLossRecover(
-        uint256 coveredLoss,
-        uint256 recoveryAmount
-    ) internal pure returns (uint256 remainingRecovery, uint256 recoveredAmount) {
-        recoveredAmount = coveredLoss < recoveryAmount ? coveredLoss : recoveryAmount;
-        remainingRecovery = recoveryAmount - recoveredAmount;
-    }
-
     function _onlyCoverProvider(address account) internal view {
         if (!_coverProviders.contains(account)) {
             revert Errors.notCoverProvider();
@@ -363,5 +355,13 @@ contract FirstLossCover is
 
     function _onlyPoolFeeManager(address account) internal view {
         if (account != poolConfig.poolFeeManager()) revert Errors.notAuthorizedCaller();
+    }
+
+    function _calcLossRecover(
+        uint256 coveredLoss,
+        uint256 recoveryAmount
+    ) internal pure returns (uint256 remainingRecovery, uint256 recoveredAmount) {
+        recoveredAmount = coveredLoss < recoveryAmount ? coveredLoss : recoveryAmount;
+        remainingRecovery = recoveryAmount - recoveredAmount;
     }
 }

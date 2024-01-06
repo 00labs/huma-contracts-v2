@@ -6,6 +6,7 @@
     "not-rely-on-time": "off",
     "no-empty-blocks": "off",
     "func-visibility": ["error", { "ignoreConstructors": true }],
-    "no-console": "warn"
+    "no-console": "warn",
+    "ordering": "error"
   }
 }
