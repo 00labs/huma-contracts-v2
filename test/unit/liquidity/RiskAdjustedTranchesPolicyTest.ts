@@ -123,6 +123,13 @@ describe("RiskAdjustedTranchesPolicy Test", function () {
         await loadFixture(prepare);
     });
 
+    it("Should not allow non-pool to call distProfitToTranches", async function () {
+        const assets = await poolContract.currentTranchesAssets();
+        await expect(
+            tranchesPolicyContract.distProfitToTranches(0, [...assets]),
+        ).to.be.revertedWithCustomError(tranchesPolicyContract, "notAuthorizedCaller");
+    });
+
     it("Should call distProfitToTranches correctly", async function () {
         const adjustment = 8000;
         await overrideLPConfig(poolConfigContract, poolOwner, {
@@ -137,6 +144,8 @@ describe("RiskAdjustedTranchesPolicy Test", function () {
             assets,
             BN.from(adjustment),
         );
+        await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.address);
+        await tranchesPolicyContract.connect(poolOwner).updatePoolConfigData();
         const result = await tranchesPolicyContract.callStatic.distProfitToTranches(profit, [
             ...assets,
         ]);

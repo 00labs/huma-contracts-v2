@@ -232,6 +232,7 @@ contract Pool is PoolConfigCache, IPool {
         assert(addr != address(0));
         creditManager = ICreditManager(addr);
 
+        delete _firstLossCovers;
         address[16] memory covers = _poolConfig.getFirstLossCovers();
         for (uint256 i = 0; i < covers.length; i++) {
             if (covers[i] != address(0)) {
