@@ -608,7 +608,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
 
     function checkLiquidityRequirementForPoolOwner(uint256 balance) public view {
         if (balance < _getRequiredLiquidityForPoolOwner())
-            revert Errors.poolOwnerNotEnoughLiquidity();
+            revert Errors.poolOwnerInsufficientLiquidity();
     }
 
     function checkLiquidityRequirementForEA(uint256 balance) public view {

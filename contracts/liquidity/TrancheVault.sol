@@ -114,7 +114,8 @@ contract TrancheVault is
     function setReinvestYield(address lender, bool reinvestYield) external {
         poolConfig.onlyPoolOperator(msg.sender);
         DepositRecord memory depositRecord = depositRecords[lender];
-        if (depositRecord.reinvestYield == reinvestYield) revert Errors.todo();
+        if (depositRecord.reinvestYield == reinvestYield)
+            revert Errors.reinvestYieldOptionAlreadySet();
         if (!depositRecord.reinvestYield && reinvestYield) {
             _removeLenderFromNonReinvestingLenders(lender);
         } else {

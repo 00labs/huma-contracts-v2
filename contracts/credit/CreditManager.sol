@@ -190,7 +190,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
 
         PoolSettings memory ps = poolConfig.getPoolSettings();
         if (creditLimit > ps.maxCreditLine) {
-            revert Errors.greaterThanMaxCreditLine();
+            revert Errors.creditLimitTooHigh();
         }
 
         // Before a drawdown happens, it is allowed to re-approve a credit to change the terms.

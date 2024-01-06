@@ -236,6 +236,7 @@ contract HumaConfig is Ownable, Pausable {
      * @dev Rejects any grace period shorter than 1 day to guard against fat finger or attack.
      * @dev Emits ProtocolDefaultGracePeriodChanged(uint256 newGracePeriod) event
      */
+    // TODO: do we need this function?
     function setProtocolDefaultGracePeriod(uint256 gracePeriod) external onlyOwner {
         if (gracePeriod < MIN_DEFAULT_GRACE_PERIOD)
             revert Errors.defaultGracePeriodLessThanMinAllowed();

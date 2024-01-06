@@ -206,13 +206,13 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             cr.state = CreditState.GoodStanding;
         } else {
             // Disallow repeated drawdown for non-revolving credit
-            if (!cc.revolving) revert Errors.attemptedDrawdownForNonrevolvingLine();
+            if (!cc.revolving) revert Errors.attemptedDrawdownOnNonRevolvingLine();
 
             if (block.timestamp > cr.nextDueDate) {
                 // Bring the credit current and check if it is still in good standing.
                 (cr, dd) = dueManager.getDueInfo(cr, cc, dd, block.timestamp);
                 if (cr.state != CreditState.GoodStanding)
-                    revert Errors.creditLineNotInGoodStandingState();
+                    revert Errors.creditNotInStateForDrawdown();
             }
 
             if (
@@ -548,9 +548,10 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         uint256 borrowAmount,
         uint256 creditLimit
     ) internal view {
-        if (!firstLossCover.isSufficient()) revert Errors.insufficientBorrowerFirstLossCover();
+        if (!firstLossCover.isSufficient()) revert Errors.lessThanRequiredCover();
 
-        if (borrowAmount > poolSafe.getAvailableBalanceForPool()) revert Errors.todo();
+        if (borrowAmount > poolSafe.getAvailableBalanceForPool())
+            revert Errors.insufficientPoolBalanceForDrawdown();
 
         if (cr.state == CreditState.Approved) {
             // After the credit approval, if the credit has commitment and a designated start date, then the
@@ -566,9 +567,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             // Prevent drawdown if the credit is in good standing, but has due outstanding and is currently in the
             // late payment grace period or later. In this case, we want the borrower to pay off the due before being
             // able to make further drawdown.
-            // TODO(jiatu): this error name is misleading since the drawdown may not necessarily be in the late payment grace period.
-            // Rename it.
-            revert Errors.drawdownNotAllowedInLatePaymentGracePeriod();
+            revert Errors.creditNotInStateForDrawdown();
         }
     }
 

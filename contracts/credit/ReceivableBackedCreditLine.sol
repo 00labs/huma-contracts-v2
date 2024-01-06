@@ -94,7 +94,6 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         creditManager.onlyCreditBorrower(creditHash, borrower);
 
         _prepareForPayment(borrower, poolConfig.receivableAsset(), receivableId);
-        // todo update the receivable to indicate it is paid.
 
         (amountPaid, paidoff, ) = _makePayment(borrower, creditHash, amount);
 

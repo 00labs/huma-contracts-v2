@@ -44,7 +44,7 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
     function addUnprocessedProfit(address tranche, uint256 profit) external {
         if (msg.sender != address(pool)) revert Errors.notPool();
         if (tranche != poolConfig.seniorTranche() && tranche != poolConfig.juniorTranche())
-            revert Errors.todo();
+            revert Errors.notAuthorizedCaller();
         unprocessedTrancheProfit[tranche] += profit;
     }
 
