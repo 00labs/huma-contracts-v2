@@ -716,7 +716,7 @@ describe("CreditDueManager Tests", function () {
                             const [accruedYieldPastDue, committedYieldPastDue] = calcYieldDue(
                                 cc,
                                 principal,
-                                60,
+                                2 * CONSTANTS.DAYS_IN_A_MONTH,
                             );
                             const expectedYieldPastDue = maxBigNumber(
                                 accruedYieldPastDue,
@@ -733,7 +733,7 @@ describe("CreditDueManager Tests", function () {
                             const [accruedYieldNextDue, committedYieldNextDue] = calcYieldDue(
                                 cc,
                                 principal,
-                                30,
+                                CONSTANTS.DAYS_IN_A_MONTH,
                             );
                             const expectedYieldNextDue = maxBigNumber(
                                 accruedYieldNextDue,
@@ -817,7 +817,7 @@ describe("CreditDueManager Tests", function () {
                             const [accruedYieldPastDue, committedYieldPastDue] = calcYieldDue(
                                 cc,
                                 principal,
-                                60,
+                                2 * CONSTANTS.DAYS_IN_A_MONTH,
                             );
                             const expectedYieldPastDue = maxBigNumber(
                                 accruedYieldPastDue,
@@ -834,7 +834,7 @@ describe("CreditDueManager Tests", function () {
                             const [accruedYieldNextDue, committedYieldNextDue] = calcYieldDue(
                                 cc,
                                 principal,
-                                30,
+                                CONSTANTS.DAYS_IN_A_MONTH,
                             );
                             const expectedYieldNextDue = maxBigNumber(
                                 accruedYieldNextDue,
@@ -942,7 +942,7 @@ describe("CreditDueManager Tests", function () {
                             const [accruedYieldPastDue, committedYieldPastDue] = calcYieldDue(
                                 cc,
                                 principal,
-                                30,
+                                CONSTANTS.DAYS_IN_A_MONTH,
                             );
                             const expectedYieldPastDue = maxBigNumber(
                                 accruedYieldPastDue,
@@ -959,7 +959,7 @@ describe("CreditDueManager Tests", function () {
                             const [accruedYieldNextDue, committedYieldNextDue] = calcYieldDue(
                                 cc,
                                 principal,
-                                30,
+                                CONSTANTS.DAYS_IN_A_MONTH,
                             );
                             const expectedYieldNextDue = maxBigNumber(
                                 accruedYieldNextDue,
@@ -1053,7 +1053,7 @@ describe("CreditDueManager Tests", function () {
                             const [accruedYieldPastDue, committedYieldPastDue] = calcYieldDue(
                                 cc,
                                 principal,
-                                30,
+                                CONSTANTS.DAYS_IN_A_MONTH,
                             );
                             const expectedYieldPastDue = maxBigNumber(
                                 accruedYieldPastDue,
@@ -1070,7 +1070,7 @@ describe("CreditDueManager Tests", function () {
                             const [accruedYieldNextDue, committedYieldNextDue] = calcYieldDue(
                                 cc,
                                 principal,
-                                30,
+                                CONSTANTS.DAYS_IN_A_MONTH,
                             );
                             const expectedYieldNextDue = maxBigNumber(
                                 accruedYieldNextDue,
@@ -1181,7 +1181,7 @@ describe("CreditDueManager Tests", function () {
                         const [accruedYieldPastDue, committedYieldPastDue] = calcYieldDue(
                             cc,
                             principal,
-                            60,
+                            3 * CONSTANTS.DAYS_IN_A_MONTH,
                         );
                         const expectedYieldPastDue = maxBigNumber(
                             accruedYieldPastDue,
