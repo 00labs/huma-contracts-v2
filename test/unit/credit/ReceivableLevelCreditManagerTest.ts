@@ -27,6 +27,7 @@ import {
     CreditState,
     PayPeriodDuration,
     calcYield,
+    calcYieldDue,
     checkCreditConfigsMatch,
     checkCreditRecordsMatch,
     checkDueDetailsMatch,
@@ -374,6 +375,7 @@ describe("ReceivableLevelCreditManager Test", function () {
         });
 
         it("Should update the bill correctly", async function () {
+            const cc = await creditManagerContract.getCreditConfig(creditHash);
             const oldCR = await creditContract["getCreditRecord(uint256)"](tokenId);
             const settings = await poolConfigContract.getPoolSettings();
             const latePaymentDeadline =
@@ -386,19 +388,20 @@ describe("ReceivableLevelCreditManager Test", function () {
                 PayPeriodDuration.Monthly,
                 refreshDate,
             );
+            const [accruedYieldDue] = calcYieldDue(cc, borrowAmount, CONSTANTS.DAYS_IN_A_MONTH);
             const tomorrow = await calendarContract.getStartOfNextDay(refreshDate);
             const totalPastDue = oldCR.nextDue;
 
             await expect(creditManagerContract.refreshCredit(tokenId))
                 .to.emit(creditContract, "BillRefreshed")
-                .withArgs(creditHash, nextDueDate, 0);
+                .withArgs(creditHash, nextDueDate, accruedYieldDue);
 
             const actualCR = await creditContract["getCreditRecord(uint256)"](tokenId);
             const expectedCR = {
                 unbilledPrincipal: 0,
                 nextDueDate,
-                nextDue: 0,
-                yieldDue: 0,
+                nextDue: accruedYieldDue,
+                yieldDue: accruedYieldDue,
                 totalPastDue,
                 missedPeriods: 1,
                 remainingPeriods: numOfPeriods - 1,
@@ -413,6 +416,7 @@ describe("ReceivableLevelCreditManager Test", function () {
                     lateFeeUpdatedDate: tomorrow,
                     yieldPastDue: oldCR.yieldDue,
                     principalPastDue: borrowAmount,
+                    accrued: accruedYieldDue,
                 }),
             );
         });
@@ -505,7 +509,14 @@ describe("ReceivableLevelCreditManager Test", function () {
                 yieldInBps,
                 daysPassed.toNumber(),
             );
-            const expectedYieldLoss = oldCR.yieldDue.add(expectedAdditionalYieldPastDue);
+            const expectedYieldDue = calcYield(
+                borrowAmount,
+                yieldInBps,
+                CONSTANTS.DAYS_IN_A_MONTH,
+            );
+            const expectedYieldLoss = expectedYieldDue
+                .add(oldCR.yieldDue)
+                .add(expectedAdditionalYieldPastDue);
             // Late fee starts to accrue since the beginning of the second billing cycle until the start of tomorrow.
             const lateFeeDays =
                 (

@@ -210,6 +210,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                 cc.periodDuration,
                 viewTime,
             );
+            const [accruedYieldDue] = calcYieldDue(cc, borrowAmount, CONSTANTS.DAYS_IN_A_MONTH);
             const tomorrow = await calendarContract.getStartOfNextDay(viewTime);
             const lateFee = calcYield(borrowAmount, lateFeeBps, latePaymentGracePeriodInDays + 1);
             expect(lateFee).to.be.gt(0);
@@ -220,8 +221,8 @@ describe("ReceivableFactoringCredit Tests", function () {
             const expectedCR = {
                 unbilledPrincipal: 0,
                 nextDueDate,
-                nextDue: 0,
-                yieldDue: 0,
+                nextDue: accruedYieldDue,
+                yieldDue: accruedYieldDue,
                 totalPastDue: borrowAmount.add(oldCR.yieldDue).add(lateFee),
                 missedPeriods: 1,
                 remainingPeriods: 0,
@@ -233,8 +234,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                 lateFee: lateFee,
                 yieldPastDue: oldCR.yieldDue,
                 principalPastDue: borrowAmount,
-                accrued: 0,
-                committed: 0,
+                accrued: accruedYieldDue,
             });
             checkDueDetailsMatch(actualDD, expectedDD);
         });

@@ -2611,6 +2611,13 @@ describe("CreditLine Test", function () {
                     cc.periodDuration,
                     firstRefreshDate,
                 );
+                const [accruedYieldDue, committedYieldDue] = calcYieldDue(
+                    cc,
+                    borrowAmount,
+                    CONSTANTS.DAYS_IN_A_MONTH,
+                );
+                expect(accruedYieldDue).to.be.gt(committedYieldDue);
+                const expectedNextDue = accruedYieldDue;
                 const latePaymentDeadline =
                     oldCR.nextDueDate.toNumber() +
                     latePaymentGracePeriodInDays * CONSTANTS.SECONDS_IN_A_DAY;
@@ -2621,7 +2628,7 @@ describe("CreditLine Test", function () {
                 expect(nextBillRefreshDate).to.equal(latePaymentDeadline);
                 await expect(creditManagerContract.refreshCredit(borrower.address))
                     .to.emit(creditContract, "BillRefreshed")
-                    .withArgs(creditHash, expectedFirstDueDate, 0);
+                    .withArgs(creditHash, expectedFirstDueDate, expectedNextDue);
 
                 const actualFirstCR = await creditContract.getCreditRecord(creditHash);
                 const daysPassed = await calendarContract.getDaysDiff(
@@ -2638,8 +2645,8 @@ describe("CreditLine Test", function () {
                 const expectedFirstCR = {
                     unbilledPrincipal: BN.from(0),
                     nextDueDate: expectedFirstDueDate,
-                    nextDue: BN.from(0),
-                    yieldDue: BN.from(0),
+                    nextDue: expectedNextDue,
+                    yieldDue: accruedYieldDue,
                     totalPastDue: borrowAmount.add(oldCR.yieldDue).add(expectedYieldPastDue),
                     missedPeriods: cc.numOfPeriods,
                     remainingPeriods: 0,
@@ -2654,6 +2661,8 @@ describe("CreditLine Test", function () {
                         lateFeeUpdatedDate: expectedFirstLateFeeUpdatedDate,
                         principalPastDue: borrowAmount,
                         yieldPastDue: oldCR.yieldDue.add(expectedYieldPastDue),
+                        accrued: accruedYieldDue,
+                        committed: committedYieldDue,
                     }),
                 );
 
@@ -2670,6 +2679,13 @@ describe("CreditLine Test", function () {
                     secondRefreshDate,
                 );
                 expect(secondRefreshDate).to.not.equal(firstRefreshDate);
+                const [secondAccruedYieldDue, secondCommittedYieldDue] = calcYieldDue(
+                    cc,
+                    borrowAmount,
+                    CONSTANTS.DAYS_IN_A_MONTH,
+                );
+                expect(secondAccruedYieldDue).to.be.gt(secondCommittedYieldDue);
+                const expectedSecondNextDue = secondAccruedYieldDue;
 
                 const secondNextBillRefreshDate = await creditContract.getNextBillRefreshDate(
                     borrower.getAddress(),
@@ -2677,7 +2693,7 @@ describe("CreditLine Test", function () {
                 expect(secondNextBillRefreshDate).to.equal(actualFirstCR.nextDueDate);
                 await expect(creditManagerContract.refreshCredit(borrower.address))
                     .to.emit(creditContract, "BillRefreshed")
-                    .withArgs(creditHash, expectedSecondDueDate, 0);
+                    .withArgs(creditHash, expectedSecondDueDate, expectedSecondNextDue);
 
                 const actualSecondCR = await creditContract.getCreditRecord(creditHash);
                 const expectedSecondLateFeeUpdatedDate =
@@ -2685,10 +2701,10 @@ describe("CreditLine Test", function () {
                 const expectedSecondCR = {
                     unbilledPrincipal: BN.from(0),
                     nextDueDate: expectedSecondDueDate,
-                    nextDue: BN.from(0),
-                    yieldDue: BN.from(0),
+                    nextDue: expectedSecondNextDue,
+                    yieldDue: expectedSecondNextDue,
                     // Add the incremental late fee to past due.
-                    totalPastDue: actualFirstCR.totalPastDue,
+                    totalPastDue: actualFirstCR.totalPastDue.add(actualFirstCR.nextDue),
                     missedPeriods: actualFirstCR.missedPeriods + 1,
                     remainingPeriods: 0,
                     state: CreditState.Delayed,
@@ -2701,7 +2717,9 @@ describe("CreditLine Test", function () {
                     genDueDetail({
                         lateFeeUpdatedDate: expectedSecondLateFeeUpdatedDate,
                         principalPastDue: borrowAmount,
-                        yieldPastDue: actualFirstDD.yieldPastDue,
+                        yieldPastDue: actualFirstDD.yieldPastDue.add(actualFirstCR.yieldDue),
+                        accrued: secondAccruedYieldDue,
+                        committed: secondCommittedYieldDue,
                     }),
                 );
             });
@@ -2733,6 +2751,13 @@ describe("CreditLine Test", function () {
                     cc.periodDuration,
                     oldCR.nextDueDate,
                 );
+                const [accruedYieldDue, committedYieldDue] = calcYieldDue(
+                    cc,
+                    borrowAmount,
+                    CONSTANTS.DAYS_IN_A_MONTH,
+                );
+                expect(accruedYieldDue).to.be.lt(committedYieldDue);
+                const expectedNextDue = committedYieldDue;
 
                 const nextBillRefreshDate = await creditContract.getNextBillRefreshDate(
                     borrower.getAddress(),
@@ -2740,14 +2765,14 @@ describe("CreditLine Test", function () {
                 expect(nextBillRefreshDate).to.equal(oldCR.nextDueDate);
                 await expect(creditManagerContract.refreshCredit(borrower.address))
                     .to.emit(creditContract, "BillRefreshed")
-                    .withArgs(creditHash, expectedNextDueDate, 0);
+                    .withArgs(creditHash, expectedNextDueDate, expectedNextDue);
 
                 const actualCR = await creditContract.getCreditRecord(creditHash);
                 const expectedCR = {
                     unbilledPrincipal: BN.from(0),
                     nextDueDate: expectedNextDueDate,
-                    nextDue: BN.from(0),
-                    yieldDue: BN.from(0),
+                    nextDue: expectedNextDue,
+                    yieldDue: expectedNextDue,
                     totalPastDue: oldCR.totalPastDue
                         .add(oldCR.nextDue)
                         .add(oldCR.unbilledPrincipal),
@@ -2765,6 +2790,8 @@ describe("CreditLine Test", function () {
                             await calendarContract.getStartOfNextDay(secondRefreshDate),
                         principalPastDue: borrowAmount,
                         yieldPastDue: oldDD.yieldPastDue.add(oldCR.yieldDue),
+                        accrued: accruedYieldDue,
+                        committed: committedYieldDue,
                     }),
                 );
             });
@@ -3290,10 +3317,17 @@ describe("CreditLine Test", function () {
                     cc.periodDuration,
                     firstRefreshDate,
                 );
+                const [accruedYieldDue, committedYieldDue] = calcYieldDue(
+                    cc,
+                    borrowAmount,
+                    CONSTANTS.DAYS_IN_A_MONTH,
+                );
+                expect(accruedYieldDue).to.be.gt(committedYieldDue);
+                const expectedNextDue = accruedYieldDue;
 
                 await expect(creditManagerContract.refreshCredit(borrower.address))
                     .to.emit(creditContract, "BillRefreshed")
-                    .withArgs(creditHash, expectedFirstDueDate, 0);
+                    .withArgs(creditHash, expectedFirstDueDate, expectedNextDue);
 
                 const actualFirstCR = await creditContract.getCreditRecord(creditHash);
                 const daysPassed = await calendarContract.getDaysDiff(
@@ -3320,8 +3354,8 @@ describe("CreditLine Test", function () {
                 const expectedFirstCR = {
                     unbilledPrincipal: BN.from(0),
                     nextDueDate: expectedFirstDueDate,
-                    nextDue: BN.from(0),
-                    yieldDue: BN.from(0),
+                    nextDue: expectedNextDue,
+                    yieldDue: expectedNextDue,
                     totalPastDue: borrowAmount
                         .add(oldCR.yieldDue)
                         .add(expectedYieldPastDue)
@@ -3340,6 +3374,8 @@ describe("CreditLine Test", function () {
                         lateFee: expectedFirstLateFee,
                         principalPastDue: borrowAmount,
                         yieldPastDue: oldCR.yieldDue.add(expectedYieldPastDue),
+                        accrued: accruedYieldDue,
+                        committed: committedYieldDue,
                     }),
                 );
 
@@ -3356,10 +3392,17 @@ describe("CreditLine Test", function () {
                     secondRefreshDate,
                 );
                 expect(secondRefreshDate).to.not.equal(firstRefreshDate);
+                const [secondAccruedYieldDue, secondCommittedYieldDue] = calcYieldDue(
+                    cc,
+                    borrowAmount,
+                    CONSTANTS.DAYS_IN_A_MONTH,
+                );
+                expect(secondAccruedYieldDue).to.be.gt(secondCommittedYieldDue);
+                const expectedSecondNextDue = secondAccruedYieldDue;
 
                 await expect(creditManagerContract.refreshCredit(borrower.address))
                     .to.emit(creditContract, "BillRefreshed")
-                    .withArgs(creditHash, expectedSecondDueDate, 0);
+                    .withArgs(creditHash, expectedSecondDueDate, expectedSecondNextDue);
 
                 const actualSecondCR = await creditContract.getCreditRecord(creditHash);
                 const expectedSecondLateFeeUpdatedDate =
@@ -3377,10 +3420,11 @@ describe("CreditLine Test", function () {
                 const expectedSecondCR = {
                     unbilledPrincipal: BN.from(0),
                     nextDueDate: expectedSecondDueDate,
-                    nextDue: BN.from(0),
-                    yieldDue: BN.from(0),
+                    nextDue: expectedSecondNextDue,
+                    yieldDue: expectedSecondNextDue,
                     // Add the incremental late fee to past due.
                     totalPastDue: actualFirstCR.totalPastDue
+                        .add(actualFirstCR.nextDue)
                         .sub(expectedFirstLateFee)
                         .add(expectedSecondLateFee),
                     missedPeriods: actualFirstCR.missedPeriods + 1,
@@ -3396,7 +3440,9 @@ describe("CreditLine Test", function () {
                         lateFeeUpdatedDate: expectedSecondLateFeeUpdatedDate,
                         lateFee: expectedSecondLateFee,
                         principalPastDue: borrowAmount,
-                        yieldPastDue: actualFirstDD.yieldPastDue,
+                        yieldPastDue: actualFirstDD.yieldPastDue.add(actualFirstCR.nextDue),
+                        accrued: secondAccruedYieldDue,
+                        committed: secondCommittedYieldDue,
                     }),
                 );
             });
@@ -3428,10 +3474,17 @@ describe("CreditLine Test", function () {
                     cc.periodDuration,
                     oldCR.nextDueDate,
                 );
+                const [accruedYieldDue, committedYieldDue] = calcYieldDue(
+                    cc,
+                    borrowAmount,
+                    CONSTANTS.DAYS_IN_A_MONTH,
+                );
+                expect(accruedYieldDue).to.be.lt(committedYieldDue);
+                const expectedNextDue = committedYieldDue;
 
                 await expect(creditManagerContract.refreshCredit(borrower.address))
                     .to.emit(creditContract, "BillRefreshed")
-                    .withArgs(creditHash, expectedNextDueDate, 0);
+                    .withArgs(creditHash, expectedNextDueDate, expectedNextDue);
 
                 const actualCR = await creditContract.getCreditRecord(creditHash);
                 const expectedLateFeeRefreshDate =
@@ -3448,8 +3501,8 @@ describe("CreditLine Test", function () {
                 const expectedCR = {
                     unbilledPrincipal: BN.from(0),
                     nextDueDate: expectedNextDueDate,
-                    nextDue: BN.from(0),
-                    yieldDue: BN.from(0),
+                    nextDue: expectedNextDue,
+                    yieldDue: expectedNextDue,
                     totalPastDue: oldCR.totalPastDue
                         .add(oldCR.nextDue)
                         .add(oldCR.unbilledPrincipal)
@@ -3468,6 +3521,8 @@ describe("CreditLine Test", function () {
                         lateFee: oldDD.lateFee.add(additionalLateFee),
                         principalPastDue: borrowAmount,
                         yieldPastDue: oldDD.yieldPastDue.add(oldCR.yieldDue),
+                        accrued: accruedYieldDue,
+                        committed: committedYieldDue,
                     }),
                 );
             });
@@ -3725,20 +3780,6 @@ describe("CreditLine Test", function () {
                     borrower.getAddress(),
                 );
 
-                // console.log(
-                //     `paymentAmountUsed ${paymentAmountUsed}`,
-                //     `newDueDate ${newDueDate}`,
-                //     `nextDueAfter ${nextDueAfter}`,
-                //     `remainingPastDue ${remainingPastDue}`,
-                //     `remainingUnbilledPrincipal ${remainingUnbilledPrincipal}`,
-                //     `yieldDuePaid ${yieldDuePaid}`,
-                //     `principalDuePaid ${principalDuePaid}`,
-                //     `unbilledPrincipalPaid ${unbilledPrincipalPaid}`,
-                //     `yieldPastDuePaid ${yieldPastDuePaid}`,
-                //     `lateFeePaid ${lateFeePaid}`,
-                //     `principalPastDuePaid ${principalPastDuePaid}`,
-                //     `remaining late fee ${remainingLateFee}`
-                // );
                 if (paymentAmountUsed.gt(ethers.constants.Zero)) {
                     let poolDistributionEventName = "";
                     if (cr.state === CreditState.Defaulted) {
@@ -5033,7 +5074,10 @@ describe("CreditLine Test", function () {
                                 latePaymentGracePeriodInDays,
                             );
                             setNextBlockTimestamp(thirdPaymentDate.unix());
-                            await testMakePayment(borrowAmount.add(lateFee), thirdPaymentDate);
+                            await testMakePayment(
+                                borrowAmount.add(yieldNextDue).add(lateFee),
+                                thirdPaymentDate,
+                            );
 
                             const fourthPaymentDate = thirdPaymentDate
                                 .clone()
@@ -7677,15 +7721,6 @@ describe("CreditLine Test", function () {
                 const poolSafeBalanceBefore = await mockTokenContract.balanceOf(
                     poolSafeContract.address,
                 );
-                console.log(
-                    `amountToCollect: ${paymentAmountCollected}`,
-                    `principalDue ${BN.from(expectedNewCR.nextDue).sub(
-                        BN.from(expectedNewCR.yieldDue),
-                    )}`,
-                    `unbilled principal due ${expectedNewCR.unbilledPrincipal}`,
-                    `principalDuePaid: ${principalDuePaid}`,
-                    `unbilledPrincipalPaid ${unbilledPrincipalPaid}`,
-                );
                 if (paymentAmountCollected.gt(0)) {
                     await expect(
                         creditContract
@@ -8854,7 +8889,7 @@ describe("CreditLine Test", function () {
                 await creditManagerContract.refreshCredit(borrower.getAddress());
 
                 const cr = await creditContract.getCreditRecord(creditHash);
-                expect(cr.nextDue).to.equal(0);
+                expect(cr.nextDue).to.be.gt(0);
                 expect(cr.totalPastDue).to.be.gt(0);
                 expect(cr.unbilledPrincipal).to.equal(0);
                 await testCloseCreditReversion(borrower, "creditLineHasOutstandingBalance");

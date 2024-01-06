@@ -159,27 +159,24 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             newCR.nextDueDate = uint64(
                 calendar.getStartDateOfNextPeriod(cc.periodDuration, timestamp)
             );
-            newCR.nextDue = 0;
-            newCR.yieldDue = 0;
             newDD.paid = 0;
-            newDD.accrued = 0;
-            newDD.committed = 0;
-            if (newCR.remainingPeriods > 0) {
-                uint256 daysUntilNextDue;
-                if (cr.state == CreditState.Approved) {
-                    daysUntilNextDue = calendar.getDaysDiff(timestamp, newCR.nextDueDate);
-                } else {
-                    daysUntilNextDue = totalDaysInFullPeriod;
-                }
-                (newDD.accrued, newDD.committed) = _computeAccruedAndCommittedYieldDue(
-                    cc.yieldInBps,
-                    cr.unbilledPrincipal + cr.nextDue - cr.yieldDue + dd.principalPastDue,
-                    cc.committedAmount,
-                    daysUntilNextDue
-                );
-                newCR.yieldDue = newDD.committed > newDD.accrued ? newDD.committed : newDD.accrued;
-                newCR.nextDue = newCR.yieldDue;
 
+            uint256 daysUntilNextDue;
+            if (cr.state == CreditState.Approved) {
+                daysUntilNextDue = calendar.getDaysDiff(timestamp, newCR.nextDueDate);
+            } else {
+                daysUntilNextDue = totalDaysInFullPeriod;
+            }
+            (newDD.accrued, newDD.committed) = _computeAccruedAndCommittedYieldDue(
+                cc.yieldInBps,
+                cr.unbilledPrincipal + cr.nextDue - cr.yieldDue + dd.principalPastDue,
+                cc.committedAmount,
+                daysUntilNextDue
+            );
+            newCR.yieldDue = newDD.committed > newDD.accrued ? newDD.committed : newDD.accrued;
+            newCR.nextDue = newCR.yieldDue;
+
+            if (newCR.remainingPeriods > 0) {
                 if (principalRate > 0) {
                     uint256 principalDue = _computePrincipalDueForPartialPeriod(
                         newCR.unbilledPrincipal,
@@ -190,6 +187,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                     newCR.unbilledPrincipal -= uint96(principalDue);
                     newCR.nextDue += uint96(principalDue);
                 }
+
                 newCR.remainingPeriods -= 1;
                 if (newCR.remainingPeriods == 0) {
                     newCR.nextDue += newCR.unbilledPrincipal;

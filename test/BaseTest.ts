@@ -1312,20 +1312,17 @@ export async function calcYieldDueNew(
         ];
     }
     let daysOverdue, daysUntilNextDue;
-    if (currentDate.isAfter(maturityDate)) {
-        daysOverdue = await calendarContract.getDaysDiff(cr.nextDueDate, maturityDate.unix());
-        daysUntilNextDue = BN.from(0);
-    } else {
-        const periodStartDate = await calendarContract.getStartDateOfPeriod(
-            cc.periodDuration,
-            currentDate.unix(),
-        );
-        daysOverdue = await calendarContract.getDaysDiff(cr.nextDueDate, periodStartDate);
-        daysUntilNextDue = await calendarContract.getDaysDiff(
-            periodStartDate,
-            minBigNumber(BN.from(maturityDate.unix()), nextDueDate),
-        );
-    }
+    // if (currentDate.isAfter(maturityDate)) {
+    //     daysOverdue = await calendarContract.getDaysDiff(cr.nextDueDate, maturityDate.unix());
+    //     daysUntilNextDue = BN.from(0);
+    // } else {
+    const periodStartDate = await calendarContract.getStartDateOfPeriod(
+        cc.periodDuration,
+        currentDate.unix(),
+    );
+    daysOverdue = await calendarContract.getDaysDiff(cr.nextDueDate, periodStartDate);
+    daysUntilNextDue = await calendarContract.getDaysDiff(periodStartDate, nextDueDate);
+    // }
 
     const [accruedYieldPastDue, committedYieldPastDue] = calcYieldDue(
         cc,

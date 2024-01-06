@@ -1172,6 +1172,12 @@ describe("CreditDueManager Tests", function () {
                         const principal = getPrincipal(cr, dd);
 
                         // Calculate yield due.
+                        const [accruedYieldDue, committedYieldDue] = calcYieldDue(
+                            cc,
+                            principal,
+                            CONSTANTS.DAYS_IN_A_MONTH,
+                        );
+                        const expectedYieldDue = maxBigNumber(accruedYieldDue, committedYieldDue);
                         const [accruedYieldPastDue, committedYieldPastDue] = calcYieldDue(
                             cc,
                             principal,
@@ -1215,8 +1221,8 @@ describe("CreditDueManager Tests", function () {
                                     day: 1,
                                 })
                                 .unix(),
-                            nextDue: 0,
-                            yieldDue: 0,
+                            nextDue: expectedYieldDue,
+                            yieldDue: expectedYieldDue,
                             totalPastDue: BN.from(cr.nextDue)
                                 .add(expectedPrincipalPastDue)
                                 .add(expectedYieldPastDue)
@@ -1234,15 +1240,11 @@ describe("CreditDueManager Tests", function () {
                                 principalPastDue: BN.from(cr.nextDue)
                                     .sub(BN.from(cr.yieldDue))
                                     .add(expectedPrincipalPastDue),
-                                committed: 0,
-                                accrued: 0,
+                                committed: committedYieldDue,
+                                accrued: accruedYieldDue,
                             },
                         };
 
-                        // printCreditRecord("expectedNewCR", expectedNewCR);
-                        // printCreditRecord("newCR", newCR);
-                        // console.log("expectedNewDD", expectedNewDD);
-                        // console.log("newDD", newDD);
                         checkCreditRecordsMatch(newCR, expectedNewCR);
                         checkDueDetailsMatch(newDD, expectedNewDD);
                     });
