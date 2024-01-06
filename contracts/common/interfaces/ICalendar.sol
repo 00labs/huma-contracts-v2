@@ -44,11 +44,6 @@ interface ICalendar {
     ) external view returns (uint256 startOfNextPeriod);
 
     /**
-     * @notice Returns the beginning of the next day relative to the given timestamp.
-     */
-    function getStartOfNextDay(uint256 timestamp) external pure returns (uint256 startOfNextDay);
-
-    /**
      * @notice Returns the number of days between the two given dates. If `startDate` is 0, then
      * use the current block timestamp as the start date.
      * @dev The result should exclude the end date, e.g. the number of days between 1/1 and 1/2 is 1, not 2.
@@ -56,7 +51,12 @@ interface ICalendar {
     function getDaysDiff(
         uint256 startDate,
         uint256 endDate
-    ) external pure returns (uint256 daysDiff);
+    ) external view returns (uint256 daysDiff);
+
+    /**
+     * @notice Returns the beginning of the next day relative to the given timestamp.
+     */
+    function getStartOfNextDay(uint256 timestamp) external pure returns (uint256 startOfNextDay);
 
     /**
      * @notice Returns the exact number of days between the start of the previous period given by `numPeriodsPassed`
