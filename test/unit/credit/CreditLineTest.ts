@@ -3664,7 +3664,6 @@ describe("CreditLine Test", function () {
                     cr,
                     dd,
                     paymentDate,
-                    maturityDate,
                     latePaymentGracePeriodInDays,
                 );
                 let [lateFeeUpdatedDate, remainingLateFee] = await calcLateFeeNew(
@@ -4028,7 +4027,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const paymentAmount = yieldNextDue.sub(toToken(1));
@@ -4051,7 +4049,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const paymentAmount = yieldNextDue.sub(toToken(1));
@@ -4078,7 +4075,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const paymentAmount = yieldNextDue.add(toToken(1));
@@ -4101,7 +4097,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const paymentAmount = yieldNextDue.add(borrowAmount);
@@ -4124,7 +4119,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const paymentAmount = yieldNextDue.add(borrowAmount).add(toToken(1));
@@ -4147,7 +4141,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
 
@@ -4196,7 +4189,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const paymentAmount = yieldNextDue.sub(toToken(1));
@@ -4219,7 +4211,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const paymentAmount = yieldNextDue.add(toToken(1));
@@ -4242,7 +4233,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const paymentAmount = yieldNextDue.add(borrowAmount);
@@ -4265,7 +4255,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const paymentAmount = yieldNextDue.add(borrowAmount).add(toToken(1));
@@ -4288,7 +4277,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
 
@@ -4312,7 +4300,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 secondPaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             await testMakePayment(
@@ -4359,7 +4346,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const paymentAmount = yieldPastDue.sub(toToken(1));
@@ -4382,7 +4368,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const paymentAmount = yieldPastDue.add(toToken(1));
@@ -4405,7 +4390,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [, lateFee] = await calcLateFeeNew(
@@ -4437,7 +4421,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [, lateFee] = await calcLateFeeNew(
@@ -4469,7 +4452,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [, lateFee] = await calcLateFeeNew(
@@ -4504,7 +4486,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [, lateFee] = await calcLateFeeNew(
@@ -4540,7 +4521,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [, lateFee] = await calcLateFeeNew(
@@ -4611,7 +4591,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const paymentAmount = yieldPastDue.sub(toToken(1));
@@ -4634,7 +4613,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const paymentAmount = yieldPastDue.add(toToken(1));
@@ -4657,7 +4635,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [, lateFee] = await calcLateFeeNew(
@@ -4689,7 +4666,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [, lateFee] = await calcLateFeeNew(
@@ -4721,7 +4697,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [, lateFee] = await calcLateFeeNew(
@@ -4766,7 +4741,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [, lateFee] = await calcLateFeeNew(
@@ -4802,7 +4776,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
 
@@ -4907,7 +4880,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const paymentAmount = yieldPastDue.sub(toToken(1));
@@ -4930,7 +4902,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const paymentAmount = yieldPastDue.add(toToken(1));
@@ -4953,7 +4924,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [, lateFee] = await calcLateFeeNew(
@@ -4998,7 +4968,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [, lateFee] = await calcLateFeeNew(
@@ -5034,7 +5003,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
 
@@ -5144,7 +5112,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const paymentAmount = yieldPastDue.sub(toToken(1));
@@ -5167,7 +5134,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const paymentAmount = yieldPastDue.add(toToken(1));
@@ -5190,7 +5156,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [, lateFee] = await calcLateFeeNew(
@@ -5222,7 +5187,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [, lateFee] = await calcLateFeeNew(
@@ -5254,7 +5218,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [, lateFee] = await calcLateFeeNew(
@@ -5289,7 +5252,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
 
@@ -5383,7 +5345,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const paymentAmount = yieldPastDue.sub(toToken(1));
@@ -5406,7 +5367,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const paymentAmount = yieldPastDue.add(toToken(1));
@@ -5429,7 +5389,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [, lateFee] = await calcLateFeeNew(
@@ -5461,7 +5420,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [, lateFee] = await calcLateFeeNew(
@@ -5493,7 +5451,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [, lateFee] = await calcLateFeeNew(
@@ -5528,7 +5485,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
 
@@ -5650,7 +5606,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const paymentAmount = yieldPastDue.sub(toToken(1));
@@ -5673,7 +5628,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const paymentAmount = yieldPastDue.add(toToken(1));
@@ -5696,7 +5650,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [, lateFee] = await calcLateFeeNew(
@@ -5728,7 +5681,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [, lateFee] = await calcLateFeeNew(
@@ -5760,7 +5712,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [, lateFee] = await calcLateFeeNew(
@@ -5795,7 +5746,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [, lateFee] = await calcLateFeeNew(
@@ -5880,7 +5830,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const paymentAmount = yieldNextDue.sub(toToken(1));
@@ -5903,7 +5852,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const paymentAmount = yieldNextDue.add(toToken(1));
@@ -5926,7 +5874,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [, , principalNextDue] = await calcPrincipalDueNew(
@@ -5961,7 +5908,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [unbilledPrincipal, , principalNextDue] =
@@ -5997,7 +5943,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [unbilledPrincipal, , principalNextDue] =
@@ -6034,7 +5979,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [unbilledPrincipal, , principalNextDue] =
@@ -6098,7 +6042,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const paymentAmount = yieldNextDue.sub(toToken(1));
@@ -6121,7 +6064,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const paymentAmount = yieldNextDue.add(toToken(1));
@@ -6144,7 +6086,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [, , principalNextDue] = await calcPrincipalDueNew(
@@ -6179,7 +6120,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [unbilledPrincipal, , principalNextDue] =
@@ -6215,7 +6155,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [unbilledPrincipal, , principalNextDue] =
@@ -6252,7 +6191,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [unbilledPrincipal, , principalNextDue] =
@@ -6316,7 +6254,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const paymentAmount = yieldPastDue.sub(toToken(1));
@@ -6339,7 +6276,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const paymentAmount = yieldPastDue.add(toToken(1));
@@ -6362,7 +6298,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [, lateFee] = await calcLateFeeNew(
@@ -6394,7 +6329,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [, principalPastDue] = await calcPrincipalDueNew(
@@ -6439,7 +6373,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [principalPastDue, principalNextDue] = await calcPrincipalDueNew(
@@ -6485,7 +6418,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [unbilledPrincipal, principalPastDue, principalNextDue] =
@@ -6533,7 +6465,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [unbilledPrincipal, principalPastDue, principalNextDue] =
@@ -6572,7 +6503,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [unbilledPrincipal, principalPastDue, principalNextDue] =
@@ -6658,7 +6588,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const paymentAmount = yieldPastDue.sub(toToken(1));
@@ -6681,7 +6610,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const paymentAmount = yieldPastDue.add(toToken(1));
@@ -6704,7 +6632,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [, lateFee] = await calcLateFeeNew(
@@ -6736,7 +6663,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [, principalPastDue] = await calcPrincipalDueNew(
@@ -6781,7 +6707,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [principalPastDue, principalNextDue] = await calcPrincipalDueNew(
@@ -6827,7 +6752,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [unbilledPrincipal, principalPastDue, principalNextDue] =
@@ -6885,7 +6809,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [unbilledPrincipal, principalPastDue, principalNextDue] =
@@ -6938,7 +6861,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const paymentAmount = yieldPastDue.sub(toToken(1));
@@ -6961,7 +6883,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const paymentAmount = yieldPastDue.add(toToken(1));
@@ -6984,7 +6905,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [, lateFee] = await calcLateFeeNew(
@@ -7016,7 +6936,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [unbilledPrincipal, principalPastDue, principalNextDue] =
@@ -7074,7 +6993,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [unbilledPrincipal, principalPastDue, principalNextDue] =
@@ -7145,7 +7063,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const paymentAmount = yieldPastDue.sub(toToken(1));
@@ -7168,7 +7085,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const paymentAmount = yieldPastDue.add(toToken(1));
@@ -7191,7 +7107,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [, lateFee] = await calcLateFeeNew(
@@ -7223,7 +7138,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [, principalPastDue] = await calcPrincipalDueNew(
@@ -7268,7 +7182,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [principalPastDue, principalNextDue] = await calcPrincipalDueNew(
@@ -7314,7 +7227,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [unbilledPrincipal, principalPastDue, principalNextDue] =
@@ -7373,7 +7285,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const paymentAmount = yieldPastDue.sub(toToken(1));
@@ -7396,7 +7307,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const paymentAmount = yieldPastDue.add(toToken(1));
@@ -7419,7 +7329,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [, lateFee] = await calcLateFeeNew(
@@ -7451,7 +7360,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [, principalPastDue] = await calcPrincipalDueNew(
@@ -7496,7 +7404,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [principalPastDue, principalNextDue] = await calcPrincipalDueNew(
@@ -7542,7 +7449,6 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
                                 latePaymentGracePeriodInDays,
                             );
                             const [unbilledPrincipal, principalPastDue, principalNextDue] =
@@ -8013,7 +7919,6 @@ describe("CreditLine Test", function () {
                         cr,
                         dd,
                         makePaymentDate,
-                        maturityDate,
                         latePaymentGracePeriodInDays,
                     );
                     const [, lateFee] = await calcLateFeeNew(
@@ -8335,7 +8240,6 @@ describe("CreditLine Test", function () {
                         cr,
                         dd,
                         makePaymentDate,
-                        maturityDate,
                         latePaymentGracePeriodInDays,
                     );
                     const [unbilledPrincipal, principalPastDue, principalNextDue] =
