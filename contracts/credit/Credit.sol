@@ -201,6 +201,9 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             // Sets the principal, generates the first bill and sets credit status.
             cr.unbilledPrincipal = uint96(borrowAmount);
             (cr, dd) = dueManager.getDueInfo(cr, cc, dd, block.timestamp);
+            // Note that we don't need to check whether we are in the last period or beyond here because in the absence
+            // of the designated credit start date, it's the initial drawdown that kicks off a credit line, i.e.
+            // the initial drawdown always happens in the first period.
             cr.state = CreditState.GoodStanding;
         } else {
             // Disallow repeated drawdown for non-revolving credit
@@ -209,6 +212,8 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             if (block.timestamp > cr.nextDueDate) {
                 // Bring the credit current and check if it is still in good standing.
                 (cr, dd) = dueManager.getDueInfo(cr, cc, dd, block.timestamp);
+                if (cr.remainingPeriods == 0)
+                    revert Errors.DrawdownNotAllowedInFinalPeriodAndBeyond();
                 if (cr.state != CreditState.GoodStanding)
                     revert Errors.creditLineNotInGoodStandingState();
             }
@@ -546,10 +551,9 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         uint256 borrowAmount,
         uint256 creditLimit
     ) internal view {
+        if (cr.remainingPeriods == 0) revert Errors.DrawdownNotAllowedInFinalPeriodAndBeyond();
         if (!firstLossCover.isSufficient()) revert Errors.insufficientBorrowerFirstLossCover();
-
         if (borrowAmount > poolSafe.getAvailableBalanceForPool()) revert Errors.todo();
-
         if (cr.state == CreditState.Approved) {
             // After the credit approval, if the credit has commitment and a designated start date, then the
             // credit will kick start on that whether the borrower has initiated the drawdown or not.

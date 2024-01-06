@@ -77,6 +77,20 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         newCR = _deepCopyCreditRecord(cr);
         newDD = _deepCopyDueDetail(dd);
         if (newCR.state == CreditState.Approved) newCR.state = CreditState.GoodStanding;
+        // Update periods passed and remaining periods.
+        uint256 periodsPassed = 0;
+        if (timestamp > cr.nextDueDate) {
+            periodsPassed = calendar.getNumPeriodsPassed(
+                cc.periodDuration,
+                cr.nextDueDate,
+                timestamp
+            );
+            if (cr.remainingPeriods > 0) {
+                newCR.remainingPeriods = cr.remainingPeriods > uint16(periodsPassed)
+                    ? cr.remainingPeriods - uint16(periodsPassed)
+                    : 0;
+            }
+        }
 
         uint256 principalRate = 0;
         {
@@ -87,24 +101,12 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
 
         if (isLate) {
             if (timestamp > cr.nextDueDate) {
-                uint256 periodsPassed = calendar.getNumPeriodsPassed(
-                    cc.periodDuration,
-                    cr.nextDueDate,
-                    timestamp
-                );
-
                 newCR.missedPeriods += uint16(
                     cr.nextDue + cr.totalPastDue == 0 &&
                         (cr.unbilledPrincipal > 0 || cc.committedAmount > 0)
                         ? periodsPassed // last due was paid off
                         : periodsPassed + 1 // last due was not paid off
                 );
-
-                if (cr.remainingPeriods > 0) {
-                    newCR.remainingPeriods = cr.remainingPeriods > uint16(periodsPassed)
-                        ? cr.remainingPeriods - uint16(periodsPassed)
-                        : 0;
-                }
 
                 newDD.yieldPastDue += cr.yieldDue;
                 newDD.principalPastDue += cr.nextDue - cr.yieldDue;
@@ -164,9 +166,13 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             } else {
                 daysUntilNextDue = totalDaysInFullPeriod;
             }
+            uint256 totalPrincipal = cr.unbilledPrincipal +
+                cr.nextDue -
+                cr.yieldDue +
+                dd.principalPastDue;
             (newDD.accrued, newDD.committed) = _computeAccruedAndCommittedYieldDue(
                 cc.yieldInBps,
-                cr.unbilledPrincipal + cr.nextDue - cr.yieldDue + dd.principalPastDue,
+                totalPrincipal,
                 cc.committedAmount,
                 daysUntilNextDue
             );
