@@ -2612,7 +2612,7 @@ describe("CreditLine Integration Test", function () {
         checkDueDetailsMatch(actualDD, expectedDD);
     });
 
-    it("2/6: Post maturity and everything becomes past due", async function () {
+    it("2/6: Bill passes the maturity date", async function () {
         const dateOfRefresh = moment.utc({
             year: nextYear + 2,
             month: 1,
@@ -2633,6 +2633,12 @@ describe("CreditLine Integration Test", function () {
         const oldDD = await creditContract.getDueDetail(creditHash);
         const totalPrincipal = getPrincipal(oldCR, oldDD);
         const daysOverdue = CONSTANTS.DAYS_IN_A_MONTH;
+        const [accruedYieldDue, committedYieldDue] = calcYieldDue(
+            cc,
+            totalPrincipal,
+            CONSTANTS.DAYS_IN_A_MONTH,
+        );
+        expect(accruedYieldDue).to.be.gt(committedYieldDue);
         const [accruedYieldPastDue, committedYieldPastDue] = calcYieldDue(
             cc,
             totalPrincipal,
@@ -2644,14 +2650,14 @@ describe("CreditLine Integration Test", function () {
 
         await expect(creditManagerContract.refreshCredit(borrower.address))
             .to.emit(creditContract, "BillRefreshed")
-            .withArgs(creditHash, nextDueDate.unix(), 0);
+            .withArgs(creditHash, nextDueDate.unix(), accruedYieldDue);
 
         const actualCR = await creditContract.getCreditRecord(creditHash);
         const expectedCR = {
             unbilledPrincipal: 0,
             nextDueDate: nextDueDate.unix(),
-            nextDue: 0,
-            yieldDue: 0,
+            nextDue: accruedYieldDue,
+            yieldDue: accruedYieldDue,
             totalPastDue: oldCR.nextDue
                 .add(oldCR.unbilledPrincipal)
                 .add(accruedYieldPastDue)
@@ -2673,6 +2679,8 @@ describe("CreditLine Integration Test", function () {
             lateFee: lateFee,
             principalPastDue: oldCR.unbilledPrincipal.add(oldCR.nextDue).sub(oldCR.yieldDue),
             yieldPastDue: oldCR.yieldDue.add(accruedYieldPastDue),
+            accrued: accruedYieldDue,
+            committed: committedYieldDue,
         });
         checkDueDetailsMatch(actualDD, expectedDD);
     });
@@ -2693,22 +2701,31 @@ describe("CreditLine Integration Test", function () {
             month: 3,
             day: 1,
         });
+        const cc = await creditManagerContract.getCreditConfig(creditHash);
         const oldCR = await creditContract.getCreditRecord(creditHash);
         const oldDD = await creditContract.getDueDetail(creditHash);
         const totalPrincipal = getPrincipal(oldCR, oldDD);
+        const [accruedYieldDue, committedYieldDue] = calcYieldDue(
+            cc,
+            totalPrincipal,
+            CONSTANTS.DAYS_IN_A_MONTH,
+        );
+        expect(accruedYieldDue).to.be.gt(committedYieldDue);
         const additionalLateFee = calcYield(totalPrincipal, lateFeeBps, 25);
         expect(additionalLateFee).to.be.gt(0);
 
         await expect(creditManagerContract.refreshCredit(borrower.address))
             .to.emit(creditContract, "BillRefreshed")
-            .withArgs(creditHash, nextDueDate.unix(), 0);
+            .withArgs(creditHash, nextDueDate.unix(), accruedYieldDue);
 
         const actualCR = await creditContract.getCreditRecord(creditHash);
         const expectedCR = {
             ...oldCR,
             ...{
                 nextDueDate: nextDueDate.unix(),
-                totalPastDue: oldCR.totalPastDue.add(additionalLateFee),
+                nextDue: accruedYieldDue,
+                yieldDue: accruedYieldDue,
+                totalPastDue: oldCR.totalPastDue.add(oldCR.nextDue).add(additionalLateFee),
                 missedPeriods: 3,
             },
         };
@@ -2725,6 +2742,9 @@ describe("CreditLine Integration Test", function () {
             ...{
                 lateFeeUpdatedDate: lateFeeUpdatedDate.unix(),
                 lateFee: oldDD.lateFee.add(additionalLateFee),
+                yieldPastDue: oldDD.yieldPastDue.add(oldCR.yieldDue),
+                accrued: accruedYieldDue,
+                committedYieldDue: committedYieldDue,
             },
         };
         checkDueDetailsMatch(actualDD, expectedDD);
@@ -2746,8 +2766,11 @@ describe("CreditLine Integration Test", function () {
         const totalPrincipal = getPrincipal(oldCR, oldDD);
         const additionalLateFee = calcYield(totalPrincipal, lateFeeBps, 1);
         expect(additionalLateFee).to.be.gt(0);
-        const paymentAmount = oldCR.totalPastDue.add(additionalLateFee);
-        const totalProfit = oldDD.yieldPastDue.add(oldDD.lateFee).add(additionalLateFee);
+        const paymentAmount = oldCR.totalPastDue.add(oldCR.nextDue).add(additionalLateFee);
+        const totalProfit = oldDD.yieldPastDue
+            .add(oldCR.nextDue)
+            .add(oldDD.lateFee)
+            .add(additionalLateFee);
         const [assets, , profitsForFirstLossCovers] =
             await getAssetsAfterPnLDistribution(totalProfit);
         const totalProfitsForFirstLossCovers = sumBNArray(profitsForFirstLossCovers);
@@ -2765,7 +2788,7 @@ describe("CreditLine Integration Test", function () {
                 await borrower.getAddress(),
                 await borrower.getAddress(),
                 paymentAmount,
-                0,
+                oldCR.yieldDue,
                 0,
                 0,
                 oldDD.yieldPastDue,
@@ -2800,7 +2823,11 @@ describe("CreditLine Integration Test", function () {
         checkCreditRecordsMatch(actualCR, expectedCR);
 
         const actualDD = await creditContract.getDueDetail(creditHash);
-        const expectedDD = genDueDetail({});
+        const expectedDD = genDueDetail({
+            accrued: oldDD.accrued,
+            committed: oldDD.committed,
+            paid: oldCR.yieldDue,
+        });
         checkDueDetailsMatch(actualDD, expectedDD);
 
         await testPoolFees(totalProfit, oldAccruedIncomes);
