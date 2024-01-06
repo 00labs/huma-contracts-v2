@@ -14,11 +14,6 @@ import {Errors} from "../common/Errors.sol";
  */
 contract Calendar is ICalendar {
     /// @inheritdoc ICalendar
-    function getStartOfNextDay(uint256 timestamp) external pure returns (uint256 startOfNextDay) {
-        return DTL.addDays(_getStartOfDay(timestamp), 1);
-    }
-
-    /// @inheritdoc ICalendar
     function getDaysRemainingInPeriod(
         uint256 endDate
     ) external view returns (uint256 daysRemaining) {
@@ -36,6 +31,57 @@ contract Calendar is ICalendar {
         }
         // +1 here since we are using the beginning of the day.
         return numMonths * DAYS_IN_A_MONTH - day + 1;
+    }
+
+    /// @inheritdoc ICalendar
+    function getStartDateOfNextPeriod(
+        PayPeriodDuration periodDuration,
+        uint256 timestamp
+    ) external view returns (uint256 startOfNextPeriod) {
+        if (timestamp == 0) {
+            timestamp = block.timestamp;
+        }
+        return _getStartDateOfNextPeriod(periodDuration, timestamp);
+    }
+
+    /// @inheritdoc ICalendar
+    function getMaturityDate(
+        PayPeriodDuration periodDuration,
+        uint256 numPeriods,
+        uint256 timestamp
+    ) external pure returns (uint256 maturityDate) {
+        // The first period may be a partial period, so advance to the next period and only count full
+        // periods.
+        uint256 startDate = _getStartDateOfNextPeriod(periodDuration, timestamp);
+        uint256 monthCount = numPeriods - 1;
+        if (periodDuration == PayPeriodDuration.Quarterly) {
+            monthCount *= 3;
+        } else if (periodDuration == PayPeriodDuration.SemiAnnually) {
+            monthCount *= 6;
+        }
+        return DTL.addMonths(startDate, monthCount);
+    }
+
+    /// @inheritdoc ICalendar
+    function getStartOfNextDay(uint256 timestamp) external pure returns (uint256 startOfNextDay) {
+        return DTL.addDays(_getStartOfDay(timestamp), 1);
+    }
+
+    /// @inheritdoc ICalendar
+    function getDaysDiffSincePreviousPeriodStart(
+        PayPeriodDuration periodDuration,
+        uint256 numPeriodsPassed,
+        uint256 timestamp
+    ) external pure returns (uint256 daysDiff) {
+        uint256 periodStartDate = getStartDateOfPeriod(periodDuration, timestamp);
+        uint256 numMonths = numPeriodsPassed;
+        if (periodDuration == PayPeriodDuration.Quarterly) {
+            numMonths *= 3;
+        } else if (periodDuration == PayPeriodDuration.SemiAnnually) {
+            numMonths *= 6;
+        }
+        uint256 startDate = DTL.subMonths(periodStartDate, numMonths);
+        return DTL.diffDays(startDate, timestamp);
     }
 
     /// @inheritdoc ICalendar
@@ -67,48 +113,6 @@ contract Calendar is ICalendar {
     }
 
     /// @inheritdoc ICalendar
-    function getDaysDiffSincePreviousPeriodStart(
-        PayPeriodDuration periodDuration,
-        uint256 numPeriodsPassed,
-        uint256 timestamp
-    ) external pure returns (uint256 daysDiff) {
-        uint256 periodStartDate = getStartDateOfPeriod(periodDuration, timestamp);
-        uint256 numMonths = numPeriodsPassed;
-        if (periodDuration == PayPeriodDuration.Quarterly) {
-            numMonths *= 3;
-        } else if (periodDuration == PayPeriodDuration.SemiAnnually) {
-            numMonths *= 6;
-        }
-        uint256 startDate = DTL.subMonths(periodStartDate, numMonths);
-        return DTL.diffDays(startDate, timestamp);
-    }
-
-    /// @inheritdoc ICalendar
-    function getStartDateOfPeriod(
-        PayPeriodDuration periodDuration,
-        uint256 timestamp
-    ) public pure returns (uint256 startOfPeriod) {
-        if (periodDuration == PayPeriodDuration.Monthly) {
-            return _getStartOfMonth(timestamp);
-        }
-        if (periodDuration == PayPeriodDuration.Quarterly) {
-            return _getStartOfQuarter(timestamp);
-        }
-        return _getStartOfHalfYear(timestamp);
-    }
-
-    /// @inheritdoc ICalendar
-    function getStartDateOfNextPeriod(
-        PayPeriodDuration periodDuration,
-        uint256 timestamp
-    ) external view returns (uint256 startOfNextPeriod) {
-        if (timestamp == 0) {
-            timestamp = block.timestamp;
-        }
-        return _getStartDateOfNextPeriod(periodDuration, timestamp);
-    }
-
-    /// @inheritdoc ICalendar
     function getNumPeriodsPassed(
         PayPeriodDuration periodDuration,
         uint256 startDate,
@@ -128,34 +132,17 @@ contract Calendar is ICalendar {
     }
 
     /// @inheritdoc ICalendar
-    function getMaturityDate(
-        PayPeriodDuration periodDuration,
-        uint256 numPeriods,
-        uint256 timestamp
-    ) external pure returns (uint256 maturityDate) {
-        // The first period may be a partial period, so advance to the next period and only count full
-        // periods.
-        uint256 startDate = _getStartDateOfNextPeriod(periodDuration, timestamp);
-        uint256 monthCount = numPeriods - 1;
-        if (periodDuration == PayPeriodDuration.Quarterly) {
-            monthCount *= 3;
-        } else if (periodDuration == PayPeriodDuration.SemiAnnually) {
-            monthCount *= 6;
-        }
-        return DTL.addMonths(startDate, monthCount);
-    }
-
-    function _getStartDateOfNextPeriod(
+    function getStartDateOfPeriod(
         PayPeriodDuration periodDuration,
         uint256 timestamp
-    ) internal pure returns (uint256 startOfNextPeriod) {
+    ) public pure returns (uint256 startOfPeriod) {
         if (periodDuration == PayPeriodDuration.Monthly) {
-            return _getStartOfNextMonth(timestamp);
+            return _getStartOfMonth(timestamp);
         }
         if (periodDuration == PayPeriodDuration.Quarterly) {
-            return _getStartOfNextQuarter(timestamp);
+            return _getStartOfQuarter(timestamp);
         }
-        return _getStartOfNextHalfYear(timestamp);
+        return _getStartOfHalfYear(timestamp);
     }
 
     /// @inheritdoc ICalendar
@@ -169,6 +156,19 @@ contract Calendar is ICalendar {
             return DAYS_IN_A_QUARTER;
         }
         return DAYS_IN_A_HALF_YEAR;
+    }
+
+    function _getStartDateOfNextPeriod(
+        PayPeriodDuration periodDuration,
+        uint256 timestamp
+    ) internal pure returns (uint256 startOfNextPeriod) {
+        if (periodDuration == PayPeriodDuration.Monthly) {
+            return _getStartOfNextMonth(timestamp);
+        }
+        if (periodDuration == PayPeriodDuration.Quarterly) {
+            return _getStartOfNextQuarter(timestamp);
+        }
+        return _getStartOfNextHalfYear(timestamp);
     }
 
     function _getStartOfDay(uint256 timestamp) internal pure returns (uint256 startOfDay) {

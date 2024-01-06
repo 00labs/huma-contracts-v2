@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {Errors} from "../common/Errors.sol";
 import {HumaConfig} from "../common/HumaConfig.sol";
-import {PoolConfig, PoolSettings, FeeStructure} from "../common/PoolConfig.sol";
+import {PoolConfig} from "../common/PoolConfig.sol";
 import {IPool} from "../liquidity/interfaces/IPool.sol";
 import {PoolConfigCache} from "../common/PoolConfigCache.sol";
 import {CreditStorage} from "./CreditStorage.sol";
@@ -14,8 +14,7 @@ import {IPoolSafe} from "../liquidity/interfaces/IPoolSafe.sol";
 import {ICredit} from "./interfaces/ICredit.sol";
 import {ICreditManager} from "./interfaces/ICreditManager.sol";
 import {ICreditDueManager} from "./utils/interfaces/ICreditDueManager.sol";
-import {IERC20, IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {BORROWER_FIRST_LOSS_COVER_INDEX, DAYS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS, SECONDS_IN_A_DAY} from "../common/SharedDefs.sol";
+import {BORROWER_FIRST_LOSS_COVER_INDEX} from "../common/SharedDefs.sol";
 
 import "hardhat/console.sol";
 
@@ -24,6 +23,15 @@ import "hardhat/console.sol";
  * basic operations that applies to all credits in Huma Protocol.
  */
 abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
+    struct PaymentRecord {
+        uint256 principalDuePaid;
+        uint256 yieldDuePaid;
+        uint256 unbilledPrincipalPaid;
+        uint256 principalPastDuePaid;
+        uint256 yieldPastDuePaid;
+        uint256 lateFeePaid;
+    }
+
     /// Account billing info refreshed with the updated due amount and date
     event BillRefreshed(bytes32 indexed creditHash, uint256 newDueDate, uint256 amountDue);
 
@@ -121,30 +129,11 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
      */
     event CreditClosedAfterPayOff(bytes32 indexed creditHash, address by);
 
-    struct PaymentRecord {
-        uint256 principalDuePaid;
-        uint256 yieldDuePaid;
-        uint256 unbilledPrincipalPaid;
-        uint256 principalPastDuePaid;
-        uint256 yieldPastDuePaid;
-        uint256 lateFeePaid;
-    }
-
     /// Shared setter to the credit record mapping for contract size consideration
     /// @custom:access Only CreditManager can access this function
     function setCreditRecord(bytes32 creditHash, CreditRecord memory cr) external {
         _onlyCreditManager();
         _setCreditRecord(creditHash, cr);
-    }
-
-    /// Shared accessor to the credit record mapping for contract size consideration
-    function getCreditRecord(bytes32 creditHash) public view returns (CreditRecord memory) {
-        return _creditRecordMap[creditHash];
-    }
-
-    /// Shared accessor to DueDetail for contract size consideration
-    function getDueDetail(bytes32 creditHash) public view returns (DueDetail memory) {
-        return _dueDetailMap[creditHash];
     }
 
     /// @custom:access Only CreditManager can access this function
@@ -157,6 +146,16 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         return _updateDueInfo(creditHash, cr, dd);
     }
 
+    /// Shared accessor to the credit record mapping for contract size consideration
+    function getCreditRecord(bytes32 creditHash) public view returns (CreditRecord memory) {
+        return _creditRecordMap[creditHash];
+    }
+
+    /// Shared accessor to DueDetail for contract size consideration
+    function getDueDetail(bytes32 creditHash) public view returns (DueDetail memory) {
+        return _dueDetailMap[creditHash];
+    }
+
     /// Shared setter to the credit record mapping for contract size consideration
     function _setCreditRecord(bytes32 creditHash, CreditRecord memory cr) internal {
         _creditRecordMap[creditHash] = cr;
@@ -165,22 +164,6 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
     /// Shared setter to the DueDetail mapping for contract size consideration
     function _setDueDetail(bytes32 creditHash, DueDetail memory dd) internal {
         _dueDetailMap[creditHash] = dd;
-    }
-
-    function _getDueInfo(
-        bytes32 creditHash
-    ) internal view returns (CreditRecord memory cr, DueDetail memory dd) {
-        CreditConfig memory cc = creditManager.getCreditConfig(creditHash);
-        cr = getCreditRecord(creditHash);
-        dd = getDueDetail(creditHash);
-        return dueManager.getDueInfo(cr, cc, dd, block.timestamp);
-    }
-
-    function _getNextBillRefreshDate(
-        bytes32 creditHash
-    ) internal view returns (uint256 refreshDate) {
-        CreditRecord memory cr = getCreditRecord(creditHash);
-        return dueManager.getNextBillRefreshDate(cr);
     }
 
     /**
@@ -529,6 +512,28 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         return (amountToCollect, cr.nextDue == 0 && cr.unbilledPrincipal == 0);
     }
 
+    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
+        address addr = address(_poolConfig.humaConfig());
+        assert(addr != address(0));
+        humaConfig = HumaConfig(addr);
+
+        addr = _poolConfig.creditDueManager();
+        assert(addr != address(0));
+        dueManager = ICreditDueManager(addr);
+
+        addr = _poolConfig.poolSafe();
+        assert(addr != address(0));
+        poolSafe = IPoolSafe(addr);
+
+        addr = _poolConfig.getFirstLossCover(BORROWER_FIRST_LOSS_COVER_INDEX);
+        assert(addr != address(0));
+        firstLossCover = IFirstLossCover(addr);
+
+        addr = _poolConfig.creditManager();
+        assert(addr != address(0));
+        creditManager = ICreditManager(addr);
+    }
+
     /**
      * @notice Checks if drawdown is allowed for the borrower at this point of time
      * @dev Checks to make sure the following conditions are met:
@@ -567,6 +572,22 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         }
     }
 
+    function _getDueInfo(
+        bytes32 creditHash
+    ) internal view returns (CreditRecord memory cr, DueDetail memory dd) {
+        CreditConfig memory cc = creditManager.getCreditConfig(creditHash);
+        cr = getCreditRecord(creditHash);
+        dd = getDueDetail(creditHash);
+        return dueManager.getDueInfo(cr, cc, dd, block.timestamp);
+    }
+
+    function _getNextBillRefreshDate(
+        bytes32 creditHash
+    ) internal view returns (uint256 refreshDate) {
+        CreditRecord memory cr = getCreditRecord(creditHash);
+        return dueManager.getNextBillRefreshDate(cr);
+    }
+
     function _getCreditConfig(bytes32 creditHash) internal view returns (CreditConfig memory) {
         return creditManager.getCreditConfig(creditHash);
     }
@@ -583,27 +604,5 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
 
     function _onlyCreditManager() internal view {
         if (msg.sender != address(creditManager)) revert Errors.notAuthorizedCaller();
-    }
-
-    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
-        address addr = address(_poolConfig.humaConfig());
-        assert(addr != address(0));
-        humaConfig = HumaConfig(addr);
-
-        addr = _poolConfig.creditDueManager();
-        assert(addr != address(0));
-        dueManager = ICreditDueManager(addr);
-
-        addr = _poolConfig.poolSafe();
-        assert(addr != address(0));
-        poolSafe = IPoolSafe(addr);
-
-        addr = _poolConfig.getFirstLossCover(BORROWER_FIRST_LOSS_COVER_INDEX);
-        assert(addr != address(0));
-        firstLossCover = IFirstLossCover(addr);
-
-        addr = _poolConfig.creditManager();
-        assert(addr != address(0));
-        creditManager = ICreditManager(addr);
     }
 }

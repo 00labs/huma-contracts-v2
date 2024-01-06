@@ -4,8 +4,7 @@ pragma solidity ^0.8.0;
 import {Errors} from "../common/Errors.sol";
 import {LPConfig, PoolConfig} from "../common/PoolConfig.sol";
 import {BaseTranchesPolicy} from "./BaseTranchesPolicy.sol";
-import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
-import {SENIOR_TRANCHE, JUNIOR_TRANCHE, SECONDS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS} from "../common/SharedDefs.sol";
+import {SENIOR_TRANCHE, SECONDS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS} from "../common/SharedDefs.sol";
 
 /**
  * @notice Tranche policy when the yield for the senior tranche is fixed as long as
@@ -18,12 +17,12 @@ contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
         uint64 lastUpdatedDate;
     }
 
-    event YieldTrackerRefreshed(uint256 totalAssets, uint256 unpaidYield, uint256 lastUpdatedDate);
-
     address public pool;
     SeniorYieldTracker public seniorYieldTracker;
 
-    function refreshYieldTracker(uint96[2] memory assets) public override {
+    event YieldTrackerRefreshed(uint256 totalAssets, uint256 unpaidYield, uint256 lastUpdatedDate);
+
+    function refreshYieldTracker(uint96[2] memory assets) external override {
         if (msg.sender != address(poolConfig) && msg.sender != pool) {
             revert Errors.todo();
         }
@@ -41,6 +40,13 @@ contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
                 tracker.lastUpdatedDate
             );
         }
+    }
+
+    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
+        super._updatePoolConfigData(_poolConfig);
+        address addr = _poolConfig.pool();
+        assert(addr != address(0));
+        pool = addr;
     }
 
     function _distributeProfitForSeniorTranche(
@@ -66,14 +72,7 @@ contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
         return (seniorProfit, remainingProfit);
     }
 
-    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
-        super._updatePoolConfigData(_poolConfig);
-        address addr = _poolConfig.pool();
-        assert(addr != address(0));
-        pool = addr;
-    }
-
-    function _getYieldTracker() public view returns (SeniorYieldTracker memory, bool updated) {
+    function _getYieldTracker() internal view returns (SeniorYieldTracker memory, bool updated) {
         SeniorYieldTracker memory tracker = seniorYieldTracker;
         if (block.timestamp > tracker.lastUpdatedDate) {
             LPConfig memory lpConfig = poolConfig.getLPConfig();

@@ -6,7 +6,6 @@ import {PoolConfig, PoolSettings, LPConfig} from "../common/PoolConfig.sol";
 import {PoolConfigCache} from "../common/PoolConfigCache.sol";
 import {IRedemptionHandler, EpochRedemptionSummary} from "./interfaces/IRedemptionHandler.sol";
 import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
-import {ITranchesPolicy} from "./interfaces/ITranchesPolicy.sol";
 import {DEFAULT_DECIMALS_FACTOR, JUNIOR_TRANCHE, SENIOR_TRANCHE} from "../common/SharedDefs.sol";
 import {IEpochManager} from "./interfaces/IEpochManager.sol";
 import {Errors} from "../common/Errors.sol";
@@ -19,17 +18,21 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
  * @notice EpochManager processes redemption requests at the end of each billing cycle
  */
 contract EpochManager is PoolConfigCache, IEpochManager {
-    // The minimum balance required in the pool to process redemption requests. This threshold is set to avoid rounding
-    // errors when the pool's balance is too low.
-    uint256 private constant MIN_POOL_BALANCE_FOR_REDEMPTION = 1;
-    // The actual threshold required for redemption based on the number of decimals
-    // of the underlying token of the pool. The value will be calculated and cached during initialization.
-    uint256 public minPoolBalanceForRedemption;
-
     struct CurrentEpoch {
         uint64 id;
         uint64 endTime;
     }
+
+    /**
+     * The minimum balance required in the pool to process redemption requests. This threshold is set to avoid rounding
+     * errors when the pool's balance is too low.
+     */
+    uint256 private constant MIN_POOL_BALANCE_FOR_REDEMPTION = 1;
+    /**
+     * The actual threshold required for redemption based on the number of decimals
+     * of the underlying token of the pool. The value will be calculated and cached during initialization.
+     */
+    uint256 public minPoolBalanceForRedemption;
 
     IPool public pool;
     IPoolSafe public poolSafe;
@@ -47,37 +50,24 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         uint256 juniorTranchePrice,
         uint256 unprocessedAmount
     );
+
     event NewEpochStarted(uint256 epochId, uint256 endTime);
 
-    /**
-     * @notice Syndicates the address of dependent contracts from pool config.
-     */
-    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
-        address addr = _poolConfig.poolSafe();
-        assert(addr != address(0));
-        poolSafe = IPoolSafe(addr);
+    function startNewEpoch() external {
+        poolConfig.onlyPool(msg.sender);
 
-        addr = _poolConfig.pool();
-        assert(addr != address(0));
-        pool = IPool(addr);
+        EpochRedemptionSummary memory seniorSummary = seniorTranche.currentRedemptionSummary();
+        if (seniorSummary.totalSharesRequested > 0) {
+            seniorTranche.executeRedemptionSummary(seniorSummary);
+        }
+        EpochRedemptionSummary memory juniorSummary = juniorTranche.currentRedemptionSummary();
+        if (juniorSummary.totalSharesRequested > 0) {
+            juniorTranche.executeRedemptionSummary(juniorSummary);
+        }
 
-        addr = _poolConfig.seniorTranche();
-        assert(addr != address(0));
-        seniorTranche = IRedemptionHandler(addr);
-
-        addr = _poolConfig.juniorTranche();
-        assert(addr != address(0));
-        juniorTranche = IRedemptionHandler(addr);
-
-        addr = _poolConfig.calendar();
-        assert(addr != address(0));
-        calendar = ICalendar(addr);
-
-        addr = _poolConfig.underlyingToken();
-        assert(addr != address(0));
-        uint256 decimals = IERC20Metadata(addr).decimals();
-
-        minPoolBalanceForRedemption = MIN_POOL_BALANCE_FOR_REDEMPTION * 10 ** decimals;
+        CurrentEpoch memory ce = _currentEpoch;
+        ce.endTime = 0;
+        _createNextEpoch(ce);
     }
 
     /**
@@ -85,7 +75,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
      * @dev Expects to be called by a cron-like mechanism like autotask,
      * although anyone can call it to trigger epoch closure.
      */
-    function closeEpoch() public virtual {
+    function closeEpoch() external virtual {
         poolConfig.onlyProtocolAndPoolOn();
 
         CurrentEpoch memory ce = _currentEpoch;
@@ -132,21 +122,43 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         _createNextEpoch(ce);
     }
 
-    function startNewEpoch() external {
-        poolConfig.onlyPool(msg.sender);
+    function currentEpochId() external view returns (uint256) {
+        return _currentEpoch.id;
+    }
 
-        EpochRedemptionSummary memory seniorSummary = seniorTranche.currentRedemptionSummary();
-        if (seniorSummary.totalSharesRequested > 0) {
-            seniorTranche.executeRedemptionSummary(seniorSummary);
-        }
-        EpochRedemptionSummary memory juniorSummary = juniorTranche.currentRedemptionSummary();
-        if (juniorSummary.totalSharesRequested > 0) {
-            juniorTranche.executeRedemptionSummary(juniorSummary);
-        }
+    function currentEpoch() external view returns (CurrentEpoch memory) {
+        return _currentEpoch;
+    }
 
-        CurrentEpoch memory ce = _currentEpoch;
-        ce.endTime = 0;
-        _createNextEpoch(ce);
+    /**
+     * @notice Syndicates the address of dependent contracts from pool config.
+     */
+    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
+        address addr = _poolConfig.poolSafe();
+        assert(addr != address(0));
+        poolSafe = IPoolSafe(addr);
+
+        addr = _poolConfig.pool();
+        assert(addr != address(0));
+        pool = IPool(addr);
+
+        addr = _poolConfig.seniorTranche();
+        assert(addr != address(0));
+        seniorTranche = IRedemptionHandler(addr);
+
+        addr = _poolConfig.juniorTranche();
+        assert(addr != address(0));
+        juniorTranche = IRedemptionHandler(addr);
+
+        addr = _poolConfig.calendar();
+        assert(addr != address(0));
+        calendar = ICalendar(addr);
+
+        addr = _poolConfig.underlyingToken();
+        assert(addr != address(0));
+        uint256 decimals = IERC20Metadata(addr).decimals();
+
+        minPoolBalanceForRedemption = MIN_POOL_BALANCE_FOR_REDEMPTION * 10 ** decimals;
     }
 
     function _createNextEpoch(CurrentEpoch memory epoch) internal {
@@ -160,14 +172,6 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         _currentEpoch = epoch;
 
         emit NewEpochStarted(epoch.id, epoch.endTime);
-    }
-
-    function currentEpochId() external view returns (uint256) {
-        return _currentEpoch.id;
-    }
-
-    function currentEpoch() external view returns (CurrentEpoch memory) {
-        return _currentEpoch;
     }
 
     /**

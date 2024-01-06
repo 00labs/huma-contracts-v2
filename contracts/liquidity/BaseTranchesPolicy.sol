@@ -12,24 +12,6 @@ import "hardhat/console.sol";
 abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
     IFirstLossCover[] internal _firstLossCovers;
 
-    function getFirstLossCovers() external view returns (IFirstLossCover[] memory) {
-        return _firstLossCovers;
-    }
-
-    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
-        address[16] memory covers = _poolConfig.getFirstLossCovers();
-        for (uint256 i = 0; i < covers.length; i++) {
-            if (covers[i] != address(0)) {
-                _firstLossCovers.push(IFirstLossCover(covers[i]));
-            }
-        }
-    }
-
-    function _distributeProfitForSeniorTranche(
-        uint256 profit,
-        uint96[2] memory assets
-    ) internal virtual returns (uint256 seniorProfit, uint256 remainingProfit);
-
     /// @inheritdoc ITranchesPolicy
     function distProfitToTranches(
         uint256 profit,
@@ -47,27 +29,38 @@ abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
             remainingProfit
         ) = _distributeProfitForSeniorTranche(profit, assets);
 
-        // console.log(
-        //     "seniorProfit: %s, remainingProfit: %s",
-        //     profitsForTrancheVault[SENIOR_TRANCHE],
-        //     remainingProfit
-        // );
-
         if (remainingProfit > 0) {
             (
                 profitsForTrancheVault[JUNIOR_TRANCHE],
                 profitsForFirstLossCover
             ) = _calcProfitForFirstLossCovers(remainingProfit, assets[JUNIOR_TRANCHE]);
-            // console.log("juniorProfit: %s", profitsForTrancheVault[JUNIOR_TRANCHE]);
         }
 
         return (profitsForTrancheVault, profitsForFirstLossCover);
     }
 
     /// @inheritdoc ITranchesPolicy
-    function refreshYieldTracker(uint96[2] memory assets) public virtual {
+    function refreshYieldTracker(uint96[2] memory assets) external virtual {
         // Empty function for RiskAdjustedTranchePolicy
     }
+
+    function getFirstLossCovers() external view returns (IFirstLossCover[] memory) {
+        return _firstLossCovers;
+    }
+
+    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
+        address[16] memory covers = _poolConfig.getFirstLossCovers();
+        for (uint256 i = 0; i < covers.length; i++) {
+            if (covers[i] != address(0)) {
+                _firstLossCovers.push(IFirstLossCover(covers[i]));
+            }
+        }
+    }
+
+    function _distributeProfitForSeniorTranche(
+        uint256 profit,
+        uint96[2] memory assets
+    ) internal virtual returns (uint256 seniorProfit, uint256 remainingProfit);
 
     /**
      * @notice Internal function that calculates profit to first loss cover (FLC) providers

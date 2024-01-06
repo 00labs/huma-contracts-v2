@@ -134,10 +134,6 @@ contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManage
         _updateYield(creditHash, yieldInBps);
     }
 
-    function getCreditHash(address borrower) internal view virtual returns (bytes32 creditHash) {
-        return keccak256(abi.encode(address(credit), borrower));
-    }
-
     /// @inheritdoc IBorrowerLevelCreditManager
     function extendRemainingPeriod(
         address borrower,
@@ -169,5 +165,9 @@ contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManage
         _onlyEAServiceAccount();
 
         _waiveLateFee(getCreditHash(borrower), amount);
+    }
+
+    function getCreditHash(address borrower) internal view virtual returns (bytes32 creditHash) {
+        return keccak256(abi.encode(address(credit), borrower));
     }
 }

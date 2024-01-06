@@ -46,7 +46,7 @@ interface IReceivable {
      * @param tokenId The ID of the receivable token.
      * @return state The payment status of the receivable.
      */
-    function getStatus(uint256 tokenId) external returns (ReceivableState state);
+    function getStatus(uint256 tokenId) external view returns (ReceivableState state);
 
     /**
      * @notice Helper function to get the reference id hash, which is a key
@@ -57,5 +57,5 @@ interface IReceivable {
     function getReferenceIdHash(
         string memory referenceId,
         address creator
-    ) external returns (bytes32);
+    ) external view returns (bytes32);
 }

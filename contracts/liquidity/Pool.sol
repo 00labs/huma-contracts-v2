@@ -2,9 +2,9 @@
 pragma solidity ^0.8.0;
 
 import {Errors} from "../common/Errors.sol";
-import {PoolConfig, FirstLossCoverConfig, LPConfig} from "../common/PoolConfig.sol";
+import {PoolConfig, LPConfig} from "../common/PoolConfig.sol";
 import {PoolConfigCache} from "../common/PoolConfigCache.sol";
-import {JUNIOR_TRANCHE, SENIOR_TRANCHE, HUNDRED_PERCENT_IN_BPS} from "../common/SharedDefs.sol";
+import {JUNIOR_TRANCHE, SENIOR_TRANCHE} from "../common/SharedDefs.sol";
 import {IEpochManager} from "./interfaces/IEpochManager.sol";
 import {IFirstLossCover} from "./interfaces/IFirstLossCover.sol";
 import {IPool} from "./interfaces/IPool.sol";
@@ -85,44 +85,6 @@ contract Pool is PoolConfigCache, IPool {
     );
 
     /**
-     * @notice Common function in Huma protocol to retrieve contract addresses from PoolConfig.
-     * Pool contract references PoolSafe, PoolFeeManager, TranchePolicy, EpochManager, Credit,
-     * CreditManager, and FirstLossCover.
-     */
-    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
-        address addr = _poolConfig.poolSafe();
-        assert(addr != address(0));
-        poolSafe = IPoolSafe(addr);
-
-        addr = _poolConfig.tranchesPolicy();
-        assert(addr != address(0));
-        tranchesPolicy = ITranchesPolicy(addr);
-
-        addr = _poolConfig.poolFeeManager();
-        assert(addr != address(0));
-        feeManager = IPoolFeeManager(addr);
-
-        addr = _poolConfig.epochManager();
-        assert(addr != address(0));
-        epochManager = IEpochManager(addr);
-
-        addr = _poolConfig.credit();
-        assert(addr != address(0));
-        credit = ICredit(addr);
-
-        addr = _poolConfig.creditManager();
-        assert(addr != address(0));
-        creditManager = ICreditManager(addr);
-
-        address[16] memory covers = _poolConfig.getFirstLossCovers();
-        for (uint256 i = 0; i < covers.length; i++) {
-            if (covers[i] != address(0)) {
-                _firstLossCovers.push(IFirstLossCover(covers[i]));
-            }
-        }
-    }
-
-    /**
      * @notice Turns on the pool. Before a pool is turned on, the required First loss cover
      * and liquidity must be deposited first.
      * @custom:access Only the pool owner or protocol owner can enable a pool.
@@ -158,25 +120,6 @@ contract Pool is PoolConfigCache, IPool {
         emit PoolReadyForFirstLossCoverWithdrawal(msg.sender, isReady);
     }
 
-    /// Gets the on/off status of the pool
-    function isPoolOn() external view returns (bool status) {
-        return _status == PoolStatus.On;
-    }
-
-    function getTrancheAvailableCap(uint256 index) external view returns (uint256 availableCap) {
-        if (index != SENIOR_TRANCHE && index != JUNIOR_TRANCHE) return 0;
-        LPConfig memory config = poolConfig.getLPConfig();
-        uint96[2] memory assets = currentTranchesAssets();
-        uint256 poolAssets = assets[SENIOR_TRANCHE] + assets[JUNIOR_TRANCHE];
-        availableCap = config.liquidityCap > poolAssets ? config.liquidityCap - poolAssets : 0;
-        if (index == SENIOR_TRANCHE) {
-            uint256 seniorAvailableCap = assets[JUNIOR_TRANCHE] *
-                config.maxSeniorJuniorRatio -
-                assets[SENIOR_TRANCHE];
-            availableCap = availableCap > seniorAvailableCap ? seniorAvailableCap : availableCap;
-        }
-    }
-
     /// @inheritdoc IPool
     /// @custom:access Only Credit or CreditManager contract can call this function.
     function distributeProfit(uint256 profit) external {
@@ -196,6 +139,105 @@ contract Pool is PoolConfigCache, IPool {
     function distributeLossRecovery(uint256 lossRecovery) external {
         if (msg.sender != address(credit)) revert Errors.notAuthorizedCaller();
         _distributeLossRecovery(lossRecovery);
+    }
+
+    /**
+     * @notice Updates the tranche assets with the given asset values
+     * @param assets an array that represents the tranche asset
+     * @custom:access Only TrancheVault or Epoch Manager can call this function
+     */
+    function updateTranchesAssets(uint96[2] memory assets) external {
+        _onlyTrancheVaultOrEpochManager(msg.sender);
+        _updateTranchesAssets(assets);
+    }
+
+    /**
+     * @notice Gets the total asset of a tranche
+     * @param index the tranche index.
+     * @return the total asset of the tranche.
+     */
+    function trancheTotalAssets(uint256 index) external view returns (uint256) {
+        uint96[2] memory assets = currentTranchesAssets();
+        return assets[index];
+    }
+
+    /// Gets the on/off status of the pool
+    function isPoolOn() external view returns (bool status) {
+        return _status == PoolStatus.On;
+    }
+
+    function getTrancheAvailableCap(uint256 index) external view returns (uint256 availableCap) {
+        if (index != SENIOR_TRANCHE && index != JUNIOR_TRANCHE) return 0;
+        LPConfig memory config = poolConfig.getLPConfig();
+        uint96[2] memory assets = currentTranchesAssets();
+        uint256 poolAssets = assets[SENIOR_TRANCHE] + assets[JUNIOR_TRANCHE];
+        availableCap = config.liquidityCap > poolAssets ? config.liquidityCap - poolAssets : 0;
+        if (index == SENIOR_TRANCHE) {
+            uint256 seniorAvailableCap = assets[JUNIOR_TRANCHE] *
+                config.maxSeniorJuniorRatio -
+                assets[SENIOR_TRANCHE];
+            availableCap = availableCap > seniorAvailableCap ? seniorAvailableCap : availableCap;
+        }
+    }
+
+    function getFirstLossCovers() external view returns (IFirstLossCover[] memory) {
+        return _firstLossCovers;
+    }
+
+    /**
+     * @notice Gets the combined total asset of junior tranche and senior tranche.
+     * @return - the total asset of both junior and senior tranches
+     */
+    function totalAssets() public view returns (uint256) {
+        uint96[2] memory assets = currentTranchesAssets();
+        return assets[SENIOR_TRANCHE] + assets[JUNIOR_TRANCHE];
+    }
+
+    /**
+     * @notice Gets the assets for each tranche
+     * @return assets the tranche assets in an array.
+     */
+    function currentTranchesAssets() public view returns (uint96[2] memory assets) {
+        TranchesAssets memory tempTranchesAssets = tranchesAssets;
+        return [tempTranchesAssets.seniorTotalAssets, tempTranchesAssets.juniorTotalAssets];
+    }
+
+    /**
+     * @notice Common function in Huma protocol to retrieve contract addresses from PoolConfig.
+     * Pool contract references PoolSafe, PoolFeeManager, TranchePolicy, EpochManager, Credit,
+     * CreditManager, and FirstLossCover.
+     */
+    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
+        address addr = _poolConfig.poolSafe();
+        assert(addr != address(0));
+        poolSafe = IPoolSafe(addr);
+
+        addr = _poolConfig.tranchesPolicy();
+        assert(addr != address(0));
+        tranchesPolicy = ITranchesPolicy(addr);
+
+        addr = _poolConfig.poolFeeManager();
+        assert(addr != address(0));
+        feeManager = IPoolFeeManager(addr);
+
+        addr = _poolConfig.epochManager();
+        assert(addr != address(0));
+        epochManager = IEpochManager(addr);
+
+        addr = _poolConfig.credit();
+        assert(addr != address(0));
+        credit = ICredit(addr);
+
+        addr = _poolConfig.creditManager();
+        assert(addr != address(0));
+        creditManager = ICreditManager(addr);
+
+        address[16] memory covers = _poolConfig.getFirstLossCovers();
+        for (uint256 i = 0; i < covers.length; i++) {
+            if (covers[i] != address(0)) {
+                _firstLossCovers.push(IFirstLossCover(covers[i]));
+            }
+        }
     }
 
     /**
@@ -363,48 +405,6 @@ contract Pool is PoolConfigCache, IPool {
         );
 
         return remainingLossRecovery;
-    }
-
-    /**
-     * @notice Gets the total asset of a tranche
-     * @param index the tranche index.
-     * @return the total asset of the tranche.
-     */
-    function trancheTotalAssets(uint256 index) external view returns (uint256) {
-        uint96[2] memory assets = currentTranchesAssets();
-        return assets[index];
-    }
-
-    /**
-     * @notice Gets the combined total asset of junior tranche and senior tranche.
-     * @return - the total asset of both junior and senior tranches
-     */
-    function totalAssets() public view returns (uint256) {
-        uint96[2] memory assets = currentTranchesAssets();
-        return assets[SENIOR_TRANCHE] + assets[JUNIOR_TRANCHE];
-    }
-
-    /**
-     * @notice Gets the assets for each tranche
-     * @return assets the tranche assets in an array.
-     */
-    function currentTranchesAssets() public view returns (uint96[2] memory assets) {
-        TranchesAssets memory tempTranchesAssets = tranchesAssets;
-        return [tempTranchesAssets.seniorTotalAssets, tempTranchesAssets.juniorTotalAssets];
-    }
-
-    /**
-     * @notice Updates the tranche assets with the given asset values
-     * @param assets an array that represents the tranche asset
-     * @custom:access Only TrancheVault or Epoch Manager can call this function
-     */
-    function updateTranchesAssets(uint96[2] memory assets) external {
-        _onlyTrancheVaultOrEpochManager(msg.sender);
-        _updateTranchesAssets(assets);
-    }
-
-    function getFirstLossCovers() external view returns (IFirstLossCover[] memory) {
-        return _firstLossCovers;
     }
 
     /**

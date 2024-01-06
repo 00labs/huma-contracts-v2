@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {AFFILIATE_FIRST_LOSS_COVER_INDEX, HUNDRED_PERCENT_IN_BPS, JUNIOR_TRANCHE, SENIOR_TRANCHE} from "../common/SharedDefs.sol";
+import {AFFILIATE_FIRST_LOSS_COVER_INDEX, HUNDRED_PERCENT_IN_BPS} from "../common/SharedDefs.sol";
 import {PoolConfig, AdminRnR} from "../common/PoolConfig.sol";
 import {PoolConfigCache} from "../common/PoolConfigCache.sol";
 import {IPool} from "./interfaces/IPool.sol";
@@ -48,36 +48,6 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
     event PoolRewardsWithdrawn(address receiver, uint256 amount, address by);
     event ProtocolRewardsWithdrawn(address receiver, uint256 amount, address by);
     event EvaluationAgentRewardsWithdrawn(address receiver, uint256 amount, address by);
-
-    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
-        address oldUnderlyingToken = address(underlyingToken);
-        address newUnderlyingToken = _poolConfig.underlyingToken();
-        assert(newUnderlyingToken != address(0));
-        underlyingToken = IERC20(newUnderlyingToken);
-
-        address addr = _poolConfig.poolSafe();
-        assert(addr != address(0));
-        poolSafe = IPoolSafe(addr);
-
-        addr = _poolConfig.pool();
-        assert(addr != address(0));
-        pool = IPool(addr);
-
-        addr = address(_poolConfig.humaConfig());
-        assert(addr != address(0));
-        humaConfig = HumaConfig(addr);
-
-        address oldFirstLossCover = address(firstLossCover);
-        addr = _poolConfig.getFirstLossCover(AFFILIATE_FIRST_LOSS_COVER_INDEX);
-        assert(addr != address(0));
-        firstLossCover = IFirstLossCover(addr);
-        _resetFirstLossCoverAllowance(
-            oldFirstLossCover,
-            addr,
-            oldUnderlyingToken,
-            newUnderlyingToken
-        );
-    }
 
     function distributePoolFees(uint256 profit) external returns (uint256) {
         poolConfig.onlyPool(msg.sender);
@@ -157,21 +127,23 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         emit EvaluationAgentRewardsWithdrawn(ea, amount, msg.sender);
     }
 
+    /**
+     * @notice Invests available fees in FirstLossCover.
+     * @custom:access Only the pool owner or the Sentinel Service account can call this function.
+     */
+    function investFeesInFirstLossCover() external {
+        poolConfig.onlyPoolOwnerOrSentinelServiceAccount(msg.sender);
+        _investFeesInFirstLossCover();
+    }
+
     function getAccruedIncomes() external view returns (AccruedIncomes memory) {
         return _accruedIncomes;
     }
 
     /// @inheritdoc IPoolFeeManager
-    function getTotalAvailableFees() public view returns (uint256) {
+    function getTotalAvailableFees() external view returns (uint256) {
         AccruedIncomes memory incomes = _getAvailableIncomes();
         return incomes.protocolIncome + incomes.poolOwnerIncome + incomes.eaIncome;
-    }
-
-    function _getAvailableIncomes() internal view returns (AccruedIncomes memory incomes) {
-        incomes = _accruedIncomes;
-        incomes.protocolIncome = incomes.protocolIncome - uint96(protocolIncomeWithdrawn);
-        incomes.poolOwnerIncome = incomes.poolOwnerIncome - uint96(poolOwnerIncomeWithdrawn);
-        incomes.eaIncome = incomes.eaIncome - uint96(eaIncomeWithdrawn);
     }
 
     function getWithdrawables()
@@ -202,13 +174,34 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         (fees, ) = _getAvailableFeesToInvestInFirstLossCover();
     }
 
-    /**
-     * @notice Invests available fees in FirstLossCover.
-     * @custom:access Only the pool owner or the Sentinel Service account can call this function.
-     */
-    function investFeesInFirstLossCover() external {
-        poolConfig.onlyPoolOwnerOrSentinelServiceAccount(msg.sender);
-        _investFeesInFirstLossCover();
+    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
+        address oldUnderlyingToken = address(underlyingToken);
+        address newUnderlyingToken = _poolConfig.underlyingToken();
+        assert(newUnderlyingToken != address(0));
+        underlyingToken = IERC20(newUnderlyingToken);
+
+        address addr = _poolConfig.poolSafe();
+        assert(addr != address(0));
+        poolSafe = IPoolSafe(addr);
+
+        addr = _poolConfig.pool();
+        assert(addr != address(0));
+        pool = IPool(addr);
+
+        addr = address(_poolConfig.humaConfig());
+        assert(addr != address(0));
+        humaConfig = HumaConfig(addr);
+
+        address oldFirstLossCover = address(firstLossCover);
+        addr = _poolConfig.getFirstLossCover(AFFILIATE_FIRST_LOSS_COVER_INDEX);
+        assert(addr != address(0));
+        firstLossCover = IFirstLossCover(addr);
+        _resetFirstLossCoverAllowance(
+            oldFirstLossCover,
+            addr,
+            oldUnderlyingToken,
+            newUnderlyingToken
+        );
     }
 
     /**
@@ -270,6 +263,13 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         incomes.eaIncome -= uint96(eaFees);
 
         _accruedIncomes = incomes;
+    }
+
+    function _getAvailableIncomes() internal view returns (AccruedIncomes memory incomes) {
+        incomes = _accruedIncomes;
+        incomes.protocolIncome = incomes.protocolIncome - uint96(protocolIncomeWithdrawn);
+        incomes.poolOwnerIncome = incomes.poolOwnerIncome - uint96(poolOwnerIncomeWithdrawn);
+        incomes.eaIncome = incomes.eaIncome - uint96(eaIncomeWithdrawn);
     }
 
     /**

@@ -10,7 +10,7 @@ import {IPool} from "../liquidity/interfaces/IPool.sol";
 import {IFirstLossCover} from "../liquidity/interfaces/IFirstLossCover.sol";
 import {ITranchesPolicy} from "../liquidity/interfaces/ITranchesPolicy.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import {AFFILIATE_FIRST_LOSS_COVER_INDEX, HUNDRED_PERCENT_IN_BPS, JUNIOR_TRANCHE, PayPeriodDuration, SENIOR_TRANCHE} from "./SharedDefs.sol";
+import {AFFILIATE_FIRST_LOSS_COVER_INDEX, HUNDRED_PERCENT_IN_BPS, PayPeriodDuration} from "./SharedDefs.sol";
 import {HumaConfig} from "./HumaConfig.sol";
 import {Errors} from "./Errors.sol";
 
@@ -235,8 +235,10 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
      *   _contracts[11]: address of creditDueManager
      *   _contracts[12]: address of creditManager
      */
-
-    function initialize(string memory _poolName, address[] memory _contracts) public initializer {
+    function initialize(
+        string memory _poolName,
+        address[] memory _contracts
+    ) external initializer {
         poolName = _poolName;
 
         for (uint256 i = 0; i < _contracts.length; i++) {
@@ -539,6 +541,61 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         );
     }
 
+    function getLPConfig() external view returns (LPConfig memory) {
+        return _lpConfig;
+    }
+
+    function getAdminRnR() external view returns (AdminRnR memory) {
+        return _adminRnR;
+    }
+
+    function getFirstLossCovers() external view returns (address[16] memory) {
+        return _firstLossCovers;
+    }
+
+    function getFirstLossCover(uint256 index) external view returns (address) {
+        return _firstLossCovers[index];
+    }
+
+    function isFirstLossCover(address account) external view returns (bool isCover) {
+        uint256 numCovers = _firstLossCovers.length;
+        for (uint256 i = 0; i < numCovers; i++) {
+            if (account == address(_firstLossCovers[i])) return true;
+        }
+        return false;
+    }
+
+    function getFirstLossCoverConfig(
+        address firstLossCover
+    ) external view returns (FirstLossCoverConfig memory) {
+        return _firstLossCoverConfigs[firstLossCover];
+    }
+
+    function getPoolSettings() external view returns (PoolSettings memory) {
+        return _poolSettings;
+    }
+
+    function getFrontLoadingFees() external view returns (uint256, uint256) {
+        return (_frontFees.frontLoadingFeeFlat, _frontFees.frontLoadingFeeBps);
+    }
+
+    function getFeeStructure() external view returns (FeeStructure memory) {
+        return _feeStructure;
+    }
+
+    function onlyPool(address account) external view {
+        if (account != pool) revert Errors.notPool();
+    }
+
+    function onlyProtocolAndPoolOn() external view {
+        if (humaConfig.paused()) revert Errors.protocolIsPaused();
+        if (!IPool(pool).isPoolOn()) revert Errors.poolIsNotOn();
+    }
+
+    function onlyPoolOperator(address account) external view {
+        if (!hasRole(POOL_OPERATOR_ROLE, account)) revert Errors.poolOperatorRequired();
+    }
+
     /**
      * @notice Checks whether the affiliate first loss cover has met the liquidity requirements.
      */
@@ -593,48 +650,6 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         }
     }
 
-    function getLPConfig() external view returns (LPConfig memory) {
-        return _lpConfig;
-    }
-
-    function getAdminRnR() external view returns (AdminRnR memory) {
-        return _adminRnR;
-    }
-
-    function getFirstLossCovers() external view returns (address[16] memory) {
-        return _firstLossCovers;
-    }
-
-    function getFirstLossCover(uint256 index) external view returns (address) {
-        return _firstLossCovers[index];
-    }
-
-    function isFirstLossCover(address account) external view returns (bool isCover) {
-        uint256 numCovers = _firstLossCovers.length;
-        for (uint256 i = 0; i < numCovers; i++) {
-            if (account == address(_firstLossCovers[i])) return true;
-        }
-        return false;
-    }
-
-    function getFirstLossCoverConfig(
-        address firstLossCover
-    ) external view returns (FirstLossCoverConfig memory) {
-        return _firstLossCoverConfigs[firstLossCover];
-    }
-
-    function getPoolSettings() external view returns (PoolSettings memory) {
-        return _poolSettings;
-    }
-
-    function getFrontLoadingFees() external view returns (uint256, uint256) {
-        return (_frontFees.frontLoadingFeeFlat, _frontFees.frontLoadingFeeBps);
-    }
-
-    function getFeeStructure() external view returns (FeeStructure memory) {
-        return _feeStructure;
-    }
-
     function onlyPoolOwner(address account) public view {
         // Treat DEFAULT_ADMIN_ROLE role as owner role
         if (!hasRole(DEFAULT_ADMIN_ROLE, account)) revert Errors.notPoolOwner();
@@ -676,19 +691,6 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         if (account != humaConfig.owner()) {
             revert Errors.permissionDeniedNotAdmin();
         }
-    }
-
-    function onlyPool(address account) external view {
-        if (account != pool) revert Errors.notPool();
-    }
-
-    function onlyProtocolAndPoolOn() external view {
-        if (humaConfig.paused()) revert Errors.protocolIsPaused();
-        if (!IPool(pool).isPoolOn()) revert Errors.poolIsNotOn();
-    }
-
-    function onlyPoolOperator(address account) external view {
-        if (!hasRole(POOL_OPERATOR_ROLE, account)) revert Errors.poolOperatorRequired();
     }
 
     /**

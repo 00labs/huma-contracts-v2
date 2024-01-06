@@ -12,7 +12,6 @@ import {CreditManagerStorage} from "./CreditManagerStorage.sol";
 import {CreditClosureReason, CreditConfig, CreditRecord, CreditState, DueDetail} from "./CreditStructs.sol";
 import {PayPeriodDuration} from "../common/SharedDefs.sol";
 import {Errors} from "../common/Errors.sol";
-import {DAYS_IN_A_MONTH, DAYS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS, SECONDS_IN_A_DAY} from "../common/SharedDefs.sol";
 import {ICreditDueManager} from "./utils/interfaces/ICreditDueManager.sol";
 
 import "hardhat/console.sol";
@@ -114,6 +113,10 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         address by
     );
 
+    function getCreditBorrower(bytes32 creditHash) external view returns (address) {
+        return _creditBorrowerMap[creditHash];
+    }
+
     /**
      * @notice checks if the credit line is ready to be triggered as defaulted
      */
@@ -128,10 +131,6 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
     /// Shared accessor to the credit config mapping for contract size consideration
     function getCreditConfig(bytes32 creditHash) public view returns (CreditConfig memory) {
         return _creditConfigMap[creditHash];
-    }
-
-    function getCreditBorrower(bytes32 creditHash) external view returns (address) {
-        return _creditBorrowerMap[creditHash];
     }
 
     function onlyCreditBorrower(bytes32 creditHash, address borrower) public view {

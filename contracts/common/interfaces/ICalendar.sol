@@ -9,38 +9,11 @@ import {PayPeriodDuration} from "../SharedDefs.sol";
 
 interface ICalendar {
     /**
-     * @notice Returns the beginning of the next day relative to the given timestamp.
-     */
-    function getStartOfNextDay(uint256 timestamp) external pure returns (uint256 startOfNextDay);
-
-    /**
      * @notice Returns the number of days remaining in the period that ends on `endDate`.
      */
     function getDaysRemainingInPeriod(
         uint256 endDate
     ) external view returns (uint256 daysRemaining);
-
-    /**
-     * @notice Returns the number of days between the two given dates. If `startDate` is 0, then
-     * use the current block timestamp as the start date.
-     * @dev The result should exclude the end date, e.g. the number of days between 1/1 and 1/2 is 1, not 2.
-     */
-    function getDaysDiff(
-        uint256 startDate,
-        uint256 endDate
-    ) external view returns (uint256 daysDiff);
-
-    /**
-     * @notice Returns the exact number of days between the start of the previous period given by `numPeriodsPassed`
-     * and the given timestamp.
-     * @notice This function counts the number of days as-is instead of using the 30/360 convention.
-     * @dev The result should exclude the end date, e.g. the number of days between 1/1 and 1/2 is 1, not 2.
-     */
-    function getDaysDiffSincePreviousPeriodStart(
-        PayPeriodDuration periodDuration,
-        uint256 numPeriodsPassed,
-        uint256 timestamp
-    ) external pure returns (uint256 daysDiff);
 
     /**
      * @notice Returns the number of periods passed between the two given dates.
@@ -69,6 +42,33 @@ interface ICalendar {
         PayPeriodDuration periodDuration,
         uint256 timestamp
     ) external view returns (uint256 startOfNextPeriod);
+
+    /**
+     * @notice Returns the beginning of the next day relative to the given timestamp.
+     */
+    function getStartOfNextDay(uint256 timestamp) external pure returns (uint256 startOfNextDay);
+
+    /**
+     * @notice Returns the number of days between the two given dates. If `startDate` is 0, then
+     * use the current block timestamp as the start date.
+     * @dev The result should exclude the end date, e.g. the number of days between 1/1 and 1/2 is 1, not 2.
+     */
+    function getDaysDiff(
+        uint256 startDate,
+        uint256 endDate
+    ) external pure returns (uint256 daysDiff);
+
+    /**
+     * @notice Returns the exact number of days between the start of the previous period given by `numPeriodsPassed`
+     * and the given timestamp.
+     * @notice This function counts the number of days as-is instead of using the 30/360 convention.
+     * @dev The result should exclude the end date, e.g. the number of days between 1/1 and 1/2 is 1, not 2.
+     */
+    function getDaysDiffSincePreviousPeriodStart(
+        PayPeriodDuration periodDuration,
+        uint256 numPeriodsPassed,
+        uint256 timestamp
+    ) external pure returns (uint256 daysDiff);
 
     /**
      * @notice Returns the maturity date, which is `numPeriods` number of periods after the given `timestamp`.

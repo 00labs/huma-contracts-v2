@@ -7,17 +7,6 @@ pragma solidity ^0.8.0;
  */
 interface IPool {
     /**
-     * @notice Gets senior/junior tranche total assets
-     * @param index the index represents senior tranche or junior tranche
-     * @return tranche total assets
-     */
-    function trancheTotalAssets(uint256 index) external view returns (uint256);
-
-    function totalAssets() external view returns (uint256);
-
-    function currentTranchesAssets() external view returns (uint96[2] memory assets);
-
-    /**
      * @notice Distributes profit to admins, senior and junior tranches, and first loss covers
      * @param profit the amount of profit to be distributed
      */
@@ -44,6 +33,17 @@ interface IPool {
      * @param assets The amount of assets for each tranche to update to.
      */
     function updateTranchesAssets(uint96[2] memory assets) external;
+
+    /**
+     * @notice Gets senior/junior tranche total assets
+     * @param index the index represents senior tranche or junior tranche
+     * @return tranche total assets
+     */
+    function trancheTotalAssets(uint256 index) external view returns (uint256);
+
+    function totalAssets() external view returns (uint256);
+
+    function currentTranchesAssets() external view returns (uint96[2] memory assets);
 
     function isPoolOn() external view returns (bool status);
 
