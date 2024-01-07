@@ -10,7 +10,7 @@ import {Errors} from "./Errors.sol";
  */
 contract HumaConfig is Ownable, Pausable {
     /// The default treasury fee in bps.
-    uint16 private constant DEFAULT_TREASURY_FEE = 1000; // 10%
+    uint16 private constant DEFAULT_TREASURY_FEE = 500; // 5%
 
     /// The treasury fee upper bound in bps.
     uint16 private constant TREASURY_FEE_UPPER_BOUND = 5000; // 50%

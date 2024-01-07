@@ -48,7 +48,7 @@ describe("HumaConfig Tests", function () {
         });
 
         it("Should have the right treasury fee", async function () {
-            expect(await configContract.protocolFeeInBps()).to.equal(1000);
+            expect(await configContract.protocolFeeInBps()).to.equal(500);
         });
     });
 
