@@ -173,10 +173,10 @@ describe("PoolConfig Tests", function () {
                 ]);
 
             const poolSettings = await poolConfigContract.getPoolSettings();
+            expect(poolSettings.minDepositAmount).to.equal(toToken(10));
             expect(poolSettings.payPeriodDuration).to.equal(PayPeriodDuration.Monthly);
             expect(poolSettings.advanceRateInBps).to.equal(8000);
             expect(poolSettings.latePaymentGracePeriodInDays).to.equal(5);
-            expect(poolSettings.defaultGracePeriodInDays).to.equal(10);
 
             const adminRnR = await poolConfigContract.getAdminRnR();
             expect(adminRnR.rewardRateInBpsForEA).to.equal(300);
@@ -186,6 +186,7 @@ describe("PoolConfig Tests", function () {
 
             const lpConfig = await poolConfigContract.getLPConfig();
             expect(lpConfig.maxSeniorJuniorRatio).to.equal(4);
+            expect(lpConfig.withdrawalLockoutPeriodInDays).to.equal(90);
         });
 
         it("Should reject call to initialize() if the proxy is deployed with calldata", async function () {
@@ -1701,7 +1702,6 @@ describe("PoolConfig Tests", function () {
 
             before(async function () {
                 newLPConfig = {
-                    permissioned: false,
                     liquidityCap: toToken(100_000_000),
                     maxSeniorJuniorRatio: 4,
                     fixedSeniorYieldInBps: 2000,
@@ -1714,7 +1714,6 @@ describe("PoolConfig Tests", function () {
                 await expect(poolConfigContract.connect(poolOwner).setLPConfig(newLPConfig))
                     .to.emit(poolConfigContract, "LPConfigChanged")
                     .withArgs(
-                        newLPConfig.permissioned,
                         newLPConfig.liquidityCap,
                         newLPConfig.maxSeniorJuniorRatio,
                         newLPConfig.fixedSeniorYieldInBps,
@@ -1723,7 +1722,6 @@ describe("PoolConfig Tests", function () {
                         poolOwner.address,
                     );
                 const lpConfig = await poolConfigContract.getLPConfig();
-                expect(lpConfig.permissioned).to.equal(newLPConfig.permissioned);
                 expect(lpConfig.liquidityCap).to.equal(newLPConfig.liquidityCap);
                 expect(lpConfig.withdrawalLockoutPeriodInDays).to.equal(
                     newLPConfig.withdrawalLockoutPeriodInDays,
@@ -1739,7 +1737,6 @@ describe("PoolConfig Tests", function () {
                 await expect(poolConfigContract.connect(protocolOwner).setLPConfig(newLPConfig))
                     .to.emit(poolConfigContract, "LPConfigChanged")
                     .withArgs(
-                        newLPConfig.permissioned,
                         newLPConfig.liquidityCap,
                         newLPConfig.maxSeniorJuniorRatio,
                         newLPConfig.fixedSeniorYieldInBps,
@@ -1748,7 +1745,6 @@ describe("PoolConfig Tests", function () {
                         protocolOwner.address,
                     );
                 const lpConfig = await poolConfigContract.getLPConfig();
-                expect(lpConfig.permissioned).to.equal(newLPConfig.permissioned);
                 expect(lpConfig.liquidityCap).to.equal(newLPConfig.liquidityCap);
                 expect(lpConfig.withdrawalLockoutPeriodInDays).to.equal(
                     newLPConfig.withdrawalLockoutPeriodInDays,

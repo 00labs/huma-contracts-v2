@@ -64,7 +64,7 @@ let poolConfigContract: PoolConfig,
     creditContract: MockPoolCredit,
     creditDueManagerContract: CreditDueManager;
 
-describe("FixedSeniorYieldTranchePolicy Test", function () {
+describe("FixedSeniorYieldTranchesPolicy Test", function () {
     before(async function () {
         [
             defaultDeployer,
@@ -131,6 +131,7 @@ describe("FixedSeniorYieldTranchePolicy Test", function () {
 
         await overrideLPConfig(poolConfigContract, poolOwner, {
             fixedSeniorYieldInBps: apy,
+            withdrawalLockoutPeriodInDays: 0,
         });
     }
 

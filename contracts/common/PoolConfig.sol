@@ -50,8 +50,6 @@ struct AdminRnR {
 }
 
 struct LPConfig {
-    // whether approval is required for an LP to participate
-    bool permissioned;
     // The max liquidity allowed for the pool.
     uint96 liquidityCap;
     // The upper bound of senior-to-junior ratio allowed
@@ -102,8 +100,6 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
     // The smallest value that `PoolSettings.minDepositAmount` can be set to. Note that this value is "pre-decimals",
     // i.e. if the underlying token is USDC, then this represents $10 in USDC.
     uint256 private constant MIN_DEPOSIT_AMOUNT_THRESHOLD = 10;
-
-    //using SafeERC20 for IERC20;
 
     string public poolName;
 
@@ -193,7 +189,6 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
     );
 
     event LPConfigChanged(
-        bool permissioned,
         uint96 liquidityCap,
         uint8 maxSeniorJuniorRatio,
         uint16 fixedSeniorYieldInBps,
@@ -272,7 +267,6 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         tempPoolSettings.payPeriodDuration = PayPeriodDuration.Monthly;
         tempPoolSettings.advanceRateInBps = 8000; // 80%
         tempPoolSettings.latePaymentGracePeriodInDays = 5;
-        tempPoolSettings.defaultGracePeriodInDays = 10; // 10 days
         _poolSettings = tempPoolSettings;
 
         AdminRnR memory adminRnRConfig = _adminRnR;
@@ -282,9 +276,11 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         adminRnRConfig.liquidityRateInBpsByPoolOwner = 200; // 2%
         _adminRnR = adminRnRConfig;
 
-        LPConfig memory config = _lpConfig;
-        config.maxSeniorJuniorRatio = 4; // senior : junior = 4:1
-        _lpConfig = config;
+        LPConfig memory lpConfig = _lpConfig;
+        lpConfig.maxSeniorJuniorRatio = 4; // senior : junior = 4:1
+        lpConfig.withdrawalLockoutPeriodInDays = 90;
+        _lpConfig = lpConfig;
+
         __AccessControl_init();
         __UUPSUpgradeable_init();
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -510,7 +506,6 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         }
         _lpConfig = lpConfig;
         emit LPConfigChanged(
-            lpConfig.permissioned,
             lpConfig.liquidityCap,
             lpConfig.maxSeniorJuniorRatio,
             lpConfig.fixedSeniorYieldInBps,
