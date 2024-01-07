@@ -345,7 +345,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                             receivableId,
                             receivableAmount,
                         ),
-                ).to.be.revertedWithCustomError(creditManagerContract, "notBorrower");
+                ).to.be.revertedWithCustomError(creditManagerContract, "BorrowerRequired");
             });
         });
 
@@ -436,7 +436,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                         receivableId,
                         receivableAmount,
                     ),
-                ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+                ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
                 await humaConfigContract.connect(protocolOwner).unpause();
 
                 await poolContract.connect(poolOwner).disablePool();
@@ -446,7 +446,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                         receivableId,
                         receivableAmount,
                     ),
-                ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+                ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
                 await poolContract.connect(poolOwner).enablePool();
             });
 
@@ -459,7 +459,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                             receivableId,
                             receivableAmount,
                         ),
-                ).to.be.revertedWithCustomError(creditContract, "notBorrower");
+                ).to.be.revertedWithCustomError(creditContract, "BorrowerRequired");
             });
 
             it("Should not allow drawdown with 0 receivable amount", async function () {
@@ -482,7 +482,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                             receivableId2,
                             receivableAmount,
                         ),
-                ).to.be.revertedWithCustomError(creditContract, "insufficientReceivableAmount");
+                ).to.be.revertedWithCustomError(creditContract, "InsufficientReceivableAmount");
                 await receivableContract.connect(borrower).burn(receivableId2);
                 expect(await receivableContract.balanceOf(borrower.getAddress())).to.equal(1);
             });
@@ -492,7 +492,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                     creditContract
                         .connect(borrower)
                         .drawdownWithReceivable(borrower.getAddress(), 0, receivableAmount),
-                ).to.be.revertedWithCustomError(creditContract, "zeroReceivableIdProvided");
+                ).to.be.revertedWithCustomError(creditContract, "ZeroReceivableIdProvided");
             });
 
             it("Should not allow drawdown if the amount exceeds the receivable amount", async function () {
@@ -504,7 +504,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                             receivableId,
                             receivableAmount.add(toToken(1)),
                         ),
-                ).to.be.revertedWithCustomError(creditContract, "insufficientReceivableAmount");
+                ).to.be.revertedWithCustomError(creditContract, "InsufficientReceivableAmount");
             });
 
             it("Should not allow drawdown with 0 borrow amount", async function () {
@@ -512,7 +512,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                     creditContract
                         .connect(borrower)
                         .drawdownWithReceivable(borrower.getAddress(), receivableId, 0),
-                ).to.be.revertedWithCustomError(creditContract, "zeroAmountProvided");
+                ).to.be.revertedWithCustomError(creditContract, "ZeroAmountProvided");
             });
 
             it("Should not allow drawdown if the borrower does not own the receivable", async function () {
@@ -535,7 +535,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                             receivableId2,
                             receivableAmount,
                         ),
-                ).to.be.revertedWithCustomError(creditContract, "notReceivableOwner");
+                ).to.be.revertedWithCustomError(creditContract, "ReceivableOwnerRequired");
 
                 await receivableContract.connect(lender).burn(receivableId2);
             });
@@ -560,7 +560,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                             receivableId2,
                             receivableAmount,
                         ),
-                ).to.be.revertedWithCustomError(creditManagerContract, "receivableAlreadyMatured");
+                ).to.be.revertedWithCustomError(creditManagerContract, "ReceivableAlreadyMatured");
 
                 await receivableContract.connect(borrower).burn(receivableId2);
             });
@@ -578,7 +578,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                             receivableId,
                             receivableAmount,
                         ),
-                ).to.be.revertedWithCustomError(creditManagerContract, "invalidReceivableState");
+                ).to.be.revertedWithCustomError(creditManagerContract, "InvalidReceivableState");
             });
 
             it("Should not allow drawdown if the receivable is not approved", async function () {
@@ -600,7 +600,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                             receivableId,
                             receivableAmount,
                         ),
-                ).to.be.revertedWithCustomError(creditManagerContract, "receivableIdMismatch");
+                ).to.be.revertedWithCustomError(creditManagerContract, "ReceivableIdMismatch");
 
                 await poolConfigContract.connect(poolOwner).setPoolSettings(settings);
             });
@@ -679,7 +679,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                             receivableId,
                             borrowAmount,
                         ),
-                ).to.be.revertedWithCustomError(creditManagerContract, "notBorrower");
+                ).to.be.revertedWithCustomError(creditManagerContract, "BorrowerRequired");
             });
         });
 
@@ -870,7 +870,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                             receivableId,
                             borrowAmount,
                         ),
-                ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+                ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
                 await humaConfigContract.connect(protocolOwner).unpause();
 
                 await poolContract.connect(poolOwner).disablePool();
@@ -882,7 +882,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                             receivableId,
                             borrowAmount,
                         ),
-                ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+                ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
                 await poolContract.connect(poolOwner).enablePool();
             });
 
@@ -895,7 +895,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                             receivableId,
                             borrowAmount,
                         ),
-                ).to.be.revertedWithCustomError(creditContract, "sentinelServiceAccountRequired");
+                ).to.be.revertedWithCustomError(creditContract, "SentinelServiceAccountRequired");
             });
 
             it("Should not allow payment with 0 receivable ID", async function () {
@@ -903,7 +903,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                     creditContract
                         .connect(borrower)
                         .makePaymentWithReceivable(borrower.getAddress(), 0, borrowAmount),
-                ).to.be.revertedWithCustomError(creditContract, "zeroReceivableIdProvided");
+                ).to.be.revertedWithCustomError(creditContract, "ZeroReceivableIdProvided");
             });
 
             it("Should not allow payment if the receivable wasn't transferred to the contract", async function () {
@@ -932,7 +932,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                             receivableId2,
                             borrowAmount,
                         ),
-                ).to.be.revertedWithCustomError(creditContract, "notReceivableOwner");
+                ).to.be.revertedWithCustomError(creditContract, "ReceivableOwnerRequired");
 
                 await receivableContract.connect(borrower).burn(receivableId2);
             });
@@ -1011,7 +1011,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                             receivableId,
                             borrowAmount,
                         ),
-                ).to.be.revertedWithCustomError(creditManagerContract, "notBorrower");
+                ).to.be.revertedWithCustomError(creditManagerContract, "BorrowerRequired");
             });
         });
 
@@ -1079,7 +1079,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                             receivableId,
                             borrowAmount,
                         ),
-                ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+                ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
                 await humaConfigContract.connect(protocolOwner).unpause();
 
                 await poolContract.connect(poolOwner).disablePool();
@@ -1091,7 +1091,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                             receivableId,
                             borrowAmount,
                         ),
-                ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+                ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
                 await poolContract.connect(poolOwner).enablePool();
             });
 
@@ -1104,7 +1104,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                             receivableId,
                             borrowAmount,
                         ),
-                ).to.be.revertedWithCustomError(creditContract, "notBorrower");
+                ).to.be.revertedWithCustomError(creditContract, "BorrowerRequired");
             });
 
             it("Should not allow payment with 0 receivable ID", async function () {
@@ -1116,7 +1116,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                             0,
                             borrowAmount,
                         ),
-                ).to.be.revertedWithCustomError(creditContract, "zeroReceivableIdProvided");
+                ).to.be.revertedWithCustomError(creditContract, "ZeroReceivableIdProvided");
             });
 
             it("Should not allow payment if the receivable wasn't transferred to the contract", async function () {
@@ -1145,7 +1145,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                             receivableId2,
                             borrowAmount,
                         ),
-                ).to.be.revertedWithCustomError(creditContract, "notReceivableOwner");
+                ).to.be.revertedWithCustomError(creditContract, "ReceivableOwnerRequired");
 
                 await receivableContract.connect(borrower).burn(receivableId2);
             });
@@ -1258,7 +1258,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                             drawdownReceivableId,
                             paymentAmount,
                         ),
-                ).to.be.revertedWithCustomError(creditManagerContract, "notBorrower");
+                ).to.be.revertedWithCustomError(creditManagerContract, "BorrowerRequired");
             });
 
             it("Should not allow payment and drawdown if the receivable for drawdown is not approved", async function () {
@@ -1297,7 +1297,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                             drawdownReceivableId2,
                             paymentAmount,
                         ),
-                ).to.be.revertedWithCustomError(creditManagerContract, "receivableIdMismatch");
+                ).to.be.revertedWithCustomError(creditManagerContract, "ReceivableIdMismatch");
 
                 await poolConfigContract.connect(poolOwner).setPoolSettings(settings);
                 await receivableContract.connect(borrower).burn(drawdownReceivableId2);
@@ -1592,7 +1592,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                             drawdownReceivableId,
                             paymentAmount,
                         ),
-                ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+                ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
                 await humaConfigContract.connect(protocolOwner).unpause();
 
                 await poolContract.connect(poolOwner).disablePool();
@@ -1604,7 +1604,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                         drawdownReceivableId,
                         paymentAmount,
                     ),
-                ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+                ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
                 await poolContract.connect(poolOwner).enablePool();
             });
 
@@ -1619,7 +1619,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                             drawdownReceivableId,
                             paymentAmount,
                         ),
-                ).to.be.revertedWithCustomError(creditContract, "notBorrower");
+                ).to.be.revertedWithCustomError(creditContract, "BorrowerRequired");
             });
 
             it("Should not allow payment and drawdown if the payment amount is 0", async function () {
@@ -1633,7 +1633,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                             drawdownReceivableId,
                             paymentAmount,
                         ),
-                ).to.be.revertedWithCustomError(creditContract, "zeroAmountProvided");
+                ).to.be.revertedWithCustomError(creditContract, "ZeroAmountProvided");
             });
 
             it("Should not allow payment and drawdown if the borrow amount is 0", async function () {
@@ -1647,7 +1647,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                             drawdownReceivableId,
                             0,
                         ),
-                ).to.be.revertedWithCustomError(creditContract, "zeroAmountProvided");
+                ).to.be.revertedWithCustomError(creditContract, "ZeroAmountProvided");
             });
 
             it("Should not allow payment and drawdown with 0 receivable ID for the payment receivable", async function () {
@@ -1661,7 +1661,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                             0,
                             paymentAmount,
                         ),
-                ).to.be.revertedWithCustomError(creditContract, "zeroReceivableIdProvided");
+                ).to.be.revertedWithCustomError(creditContract, "ZeroReceivableIdProvided");
             });
 
             it("Should not allow payment and drawdown if the receivable to be paid for wasn't transferred to the contract", async function () {
@@ -1692,7 +1692,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                             drawdownReceivableId,
                             paymentAmount,
                         ),
-                ).to.be.revertedWithCustomError(creditContract, "notReceivableOwner");
+                ).to.be.revertedWithCustomError(creditContract, "ReceivableOwnerRequired");
 
                 await receivableContract.connect(borrower).burn(receivableId2);
             });
@@ -1718,7 +1718,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                             receivableId2,
                             paymentAmount,
                         ),
-                ).to.be.revertedWithCustomError(creditContract, "insufficientReceivableAmount");
+                ).to.be.revertedWithCustomError(creditContract, "InsufficientReceivableAmount");
             });
 
             it("Should not allow payment and drawdown with 0 receivable ID for the drawdown receivable", async function () {
@@ -1732,7 +1732,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                             0,
                             paymentAmount,
                         ),
-                ).to.be.revertedWithCustomError(creditContract, "zeroReceivableIdProvided");
+                ).to.be.revertedWithCustomError(creditContract, "ZeroReceivableIdProvided");
             });
 
             it("Should not allow payment and drawdown if the borrower does not own the receivable that will be drawndown from", async function () {
@@ -1759,7 +1759,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                             receivableId2,
                             paymentAmount,
                         ),
-                ).to.be.revertedWithCustomError(creditContract, "notReceivableOwner");
+                ).to.be.revertedWithCustomError(creditContract, "ReceivableOwnerRequired");
 
                 await receivableContract.connect(lender).burn(receivableId2);
             });

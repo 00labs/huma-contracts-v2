@@ -20,7 +20,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
     ) external view virtual returns (uint256 amtToBorrower, uint256 platformFees) {
         // Calculate platform fee, which includes protocol fee and pool fee
         platformFees = calcFrontLoadingFee(borrowAmount);
-        if (borrowAmount < platformFees) revert Errors.borrowingAmountLessThanPlatformFees();
+        if (borrowAmount < platformFees) revert Errors.BorrowAmountLessThanPlatformFees();
         amtToBorrower = borrowAmount - platformFees;
         return (amtToBorrower, platformFees);
     }

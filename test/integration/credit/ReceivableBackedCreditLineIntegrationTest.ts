@@ -594,7 +594,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                     ),
             ).to.be.revertedWithCustomError(
                 creditContract,
-                "creditLineNotInStateForMakingPrincipalPayment",
+                "CreditNotInStateForMakingPrincipalPayment",
             );
         });
 

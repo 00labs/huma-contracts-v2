@@ -39,14 +39,14 @@ contract ReceivableLevelCreditManager is
 
     function addPayer(address payer) external virtual {
         poolConfig.onlyPoolOwner(msg.sender); // TODO operator?
-        if (payer == address(0)) revert Errors.zeroAddressProvided();
+        if (payer == address(0)) revert Errors.ZeroAddressProvided();
         _grantRole(PAYER_ROLE, payer);
         emit PayerAdded(payer);
     }
 
     function removePayer(address payer) external virtual {
         poolConfig.onlyPoolOwner(msg.sender); // TODO
-        if (payer == address(0)) revert Errors.zeroAddressProvided();
+        if (payer == address(0)) revert Errors.ZeroAddressProvided();
         _revokeRole(PAYER_ROLE, payer);
         emit PayerRemoved(payer);
     }
@@ -62,7 +62,7 @@ contract ReceivableLevelCreditManager is
         poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
         if (creditLimit > receivableInput.receivableAmount)
-            revert Errors.insufficientReceivableAmount();
+            revert Errors.InsufficientReceivableAmount();
 
         bytes32 creditHash = _getCreditHash(receivableInput.receivableId);
         _approveCredit(
@@ -111,7 +111,7 @@ contract ReceivableLevelCreditManager is
     function closeCredit(address borrower, uint256 receivableId) external virtual {
         poolConfig.onlyProtocolAndPoolOn();
         if (msg.sender != borrower && msg.sender != humaConfig.eaServiceAccount())
-            revert Errors.notBorrowerOrEA();
+            revert Errors.BorrowerOrEARequired();
 
         bytes32 creditHash = _getCreditHash(receivableId);
         onlyCreditBorrower(creditHash, borrower);
@@ -165,7 +165,7 @@ contract ReceivableLevelCreditManager is
 
     /// @inheritdoc IReceivableLevelCreditManager
     function onlyPayer(address account, bytes32 creditHash) external view returns (address) {
-        if (!hasRole(PAYER_ROLE, account)) revert Errors.permissionDeniedNotPayer();
+        if (!hasRole(PAYER_ROLE, account)) revert Errors.PayerRequired();
         return _creditBorrowerMap[creditHash];
     }
 

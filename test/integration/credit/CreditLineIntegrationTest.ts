@@ -1591,7 +1591,7 @@ describe("CreditLine Integration Test", function () {
             juniorTrancheVaultContract
                 .connect(juniorLender)
                 .deposit(poolSettings.minDepositAmount, juniorLender.getAddress()),
-        ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "trancheLiquidityCapExceeded");
+        ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "TrancheLiquidityCapExceeded");
         // So do first loss covers.
         await expect(
             borrowerFirstLossCoverContract
@@ -1599,7 +1599,7 @@ describe("CreditLine Integration Test", function () {
                 .depositCover(poolSettings.minDepositAmount),
         ).to.be.revertedWithCustomError(
             borrowerFirstLossCoverContract,
-            "firstLossCoverLiquidityCapExceeded",
+            "FirstLossCoverLiquidityCapExceeded",
         );
         await expect(
             affiliateFirstLossCoverContract
@@ -1607,7 +1607,7 @@ describe("CreditLine Integration Test", function () {
                 .depositCover(poolSettings.minDepositAmount),
         ).to.be.revertedWithCustomError(
             borrowerFirstLossCoverContract,
-            "firstLossCoverLiquidityCapExceeded",
+            "FirstLossCoverLiquidityCapExceeded",
         );
         await expect(
             affiliateFirstLossCoverContract
@@ -1615,7 +1615,7 @@ describe("CreditLine Integration Test", function () {
                 .depositCover(poolSettings.minDepositAmount),
         ).to.be.revertedWithCustomError(
             borrowerFirstLossCoverContract,
-            "firstLossCoverLiquidityCapExceeded",
+            "FirstLossCoverLiquidityCapExceeded",
         );
 
         // Allow payment to go through.
@@ -1920,7 +1920,7 @@ describe("CreditLine Integration Test", function () {
         await setNextBlockTimestamp(dateOfDrawdown.unix());
         await expect(
             creditContract.connect(borrower).drawdown(borrower.getAddress(), toToken(10_000)),
-        ).to.be.revertedWithCustomError(creditContract, "creditNotInStateForDrawdown");
+        ).to.be.revertedWithCustomError(creditContract, "CreditNotInStateForDrawdown");
 
         const dateOfPayment = moment.utc({
             year: nextYear + 1,

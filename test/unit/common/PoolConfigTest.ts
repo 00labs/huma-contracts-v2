@@ -248,7 +248,7 @@ describe("PoolConfig Tests", function () {
                         creditDueManagerContract.address,
                         creditManagerContract.address,
                     ]),
-            ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
+            ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
         });
 
         it("Should reject invalid underlying tokens", async function () {
@@ -275,7 +275,7 @@ describe("PoolConfig Tests", function () {
                     ]),
             ).to.be.revertedWithCustomError(
                 poolConfigContract,
-                "underlyingTokenNotApprovedForHumaProtocol",
+                "UnderlyingTokenNotApprovedForHumaProtocol",
             );
         });
 
@@ -298,7 +298,7 @@ describe("PoolConfig Tests", function () {
                         creditDueManagerContract.address,
                         creditManagerContract.address,
                     ]),
-            ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
+            ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
         });
 
         it("Should reject zero address for poolSafe", async function () {
@@ -320,7 +320,7 @@ describe("PoolConfig Tests", function () {
                         creditDueManagerContract.address,
                         creditManagerContract.address,
                     ]),
-            ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
+            ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
         });
 
         it("Should reject zero address for calendar", async function () {
@@ -342,7 +342,7 @@ describe("PoolConfig Tests", function () {
                         creditDueManagerContract.address,
                         creditManagerContract.address,
                     ]),
-            ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
+            ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
         });
 
         it("Should reject zero address for poolOwnerOrEAFirstLossCover", async function () {
@@ -365,7 +365,7 @@ describe("PoolConfig Tests", function () {
                         creditDueManagerContract.address,
                         creditManagerContract.address,
                     ]),
-            ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
+            ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
         });
 
         it("Should reject zero address for tranchePolicy", async function () {
@@ -387,7 +387,7 @@ describe("PoolConfig Tests", function () {
                         creditDueManagerContract.address,
                         creditManagerContract.address,
                     ]),
-            ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
+            ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
         });
 
         it("Should reject zero address for the pool", async function () {
@@ -409,7 +409,7 @@ describe("PoolConfig Tests", function () {
                         creditDueManagerContract.address,
                         creditManagerContract.address,
                     ]),
-            ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
+            ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
         });
 
         it("Should reject zero address for epochManager", async function () {
@@ -431,7 +431,7 @@ describe("PoolConfig Tests", function () {
                         creditDueManagerContract.address,
                         creditManagerContract.address,
                     ]),
-            ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
+            ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
         });
 
         it("Should reject zero address for seniorTranche", async function () {
@@ -453,7 +453,7 @@ describe("PoolConfig Tests", function () {
                         creditDueManagerContract.address,
                         creditManagerContract.address,
                     ]),
-            ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
+            ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
         });
 
         it("Should reject zero address for juniorTranche", async function () {
@@ -475,7 +475,7 @@ describe("PoolConfig Tests", function () {
                         creditDueManagerContract.address,
                         creditManagerContract.address,
                     ]),
-            ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
+            ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
         });
 
         it("Should reject wrong tranche indices for juniorTranche", async function () {
@@ -503,7 +503,7 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract.address,
                     CONSTANTS.JUNIOR_TRANCHE + 1,
                 ),
-            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "invalidTrancheIndex");
+            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "InvalidTrancheIndex");
         });
 
         it("Should reject zero address for credit", async function () {
@@ -525,7 +525,7 @@ describe("PoolConfig Tests", function () {
                         creditDueManagerContract.address,
                         creditManagerContract.address,
                     ]),
-            ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
+            ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
         });
 
         it("Should reject zero address for creditDueManager", async function () {
@@ -547,7 +547,7 @@ describe("PoolConfig Tests", function () {
                         ethers.constants.AddressZero,
                         creditManagerContract.address,
                     ]),
-            ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
+            ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
         });
 
         it("Should reject zero address for creditManager", async function () {
@@ -569,7 +569,7 @@ describe("PoolConfig Tests", function () {
                         creditManagerContract.address,
                         ethers.constants.AddressZero,
                     ]),
-            ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
+            ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
         });
 
         it("Should reject repeated call to initialize()", async function () {
@@ -688,7 +688,7 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract
                         .connect(regularUser)
                         .setPoolOwnerRewardsAndLiquidity(rewardsRate, liquidityRate),
-                ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
             });
 
             it("Should fail if reward rate exceeds 100%", async function () {
@@ -698,7 +698,7 @@ describe("PoolConfig Tests", function () {
                         .setPoolOwnerRewardsAndLiquidity(15000, liquidityRate),
                 ).to.be.revertedWithCustomError(
                     poolConfigContract,
-                    "invalidBasisPointHigherThan10000",
+                    "InvalidBasisPointHigherThan10000",
                 );
             });
 
@@ -709,7 +709,7 @@ describe("PoolConfig Tests", function () {
                         .setPoolOwnerRewardsAndLiquidity(rewardsRate, 15000),
                 ).to.be.revertedWithCustomError(
                     poolConfigContract,
-                    "invalidBasisPointHigherThan10000",
+                    "InvalidBasisPointHigherThan10000",
                 );
             });
 
@@ -722,7 +722,7 @@ describe("PoolConfig Tests", function () {
                             CONSTANTS.BP_FACTOR.sub(adminRnR.rewardRateInBpsForEA).add(1),
                             liquidityRate,
                         ),
-                ).to.be.revertedWithCustomError(poolConfigContract, "adminRewardRateTooHigh");
+                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRewardRateTooHigh");
             });
         });
 
@@ -759,7 +759,7 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract
                         .connect(regularUser)
                         .setEARewardsAndLiquidity(rewardsRate, liquidityRate),
-                ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
             });
 
             it("Should fail if reward rate exceeds 100%", async function () {
@@ -769,7 +769,7 @@ describe("PoolConfig Tests", function () {
                         .setEARewardsAndLiquidity(15000, liquidityRate),
                 ).to.be.revertedWithCustomError(
                     poolConfigContract,
-                    "invalidBasisPointHigherThan10000",
+                    "InvalidBasisPointHigherThan10000",
                 );
             });
 
@@ -780,7 +780,7 @@ describe("PoolConfig Tests", function () {
                         .setEARewardsAndLiquidity(rewardsRate, 15000),
                 ).to.be.revertedWithCustomError(
                     poolConfigContract,
-                    "invalidBasisPointHigherThan10000",
+                    "InvalidBasisPointHigherThan10000",
                 );
             });
 
@@ -793,7 +793,7 @@ describe("PoolConfig Tests", function () {
                             CONSTANTS.BP_FACTOR.sub(adminRnR.rewardRateInBpsForPoolOwner).add(1),
                             liquidityRate,
                         ),
-                ).to.be.revertedWithCustomError(poolConfigContract, "adminRewardRateTooHigh");
+                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRewardRateTooHigh");
             });
         });
 
@@ -898,7 +898,7 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract
                         .connect(poolOwner)
                         .setEvaluationAgent(newNFTTokenId, ethers.constants.AddressZero),
-                ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
+                ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
             });
 
             it("Should not allow non-pool owners or Huma master admin to set the EA", async function () {
@@ -906,7 +906,7 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract
                         .connect(regularUser)
                         .setEvaluationAgent(newNFTTokenId, evaluationAgent2.address),
-                ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
             });
 
             it("Should reject when the proposed new EA does not own the EA NFT", async function () {
@@ -925,7 +925,7 @@ describe("PoolConfig Tests", function () {
                         .setEvaluationAgent(yetAnotherNFTTokenId, evaluationAgent2.address),
                 ).to.be.revertedWithCustomError(
                     poolConfigContract,
-                    "proposedEADoesNotOwnProvidedEANFT",
+                    "ProposedEADoesNotOwnProvidedEANFT",
                 );
             });
 
@@ -959,7 +959,7 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract
                         .connect(poolOwner)
                         .setEvaluationAgent(newNFTTokenId, evaluationAgent2.address),
-                ).to.be.revertedWithCustomError(poolConfigContract, "lessThanRequiredCover");
+                ).to.be.revertedWithCustomError(poolConfigContract, "InsufficientFirstLossCover");
             });
 
             it("Should reject when the new evaluation agent has not met the liquidity requirement", async function () {
@@ -969,7 +969,7 @@ describe("PoolConfig Tests", function () {
                         .setEvaluationAgent(newNFTTokenId, evaluationAgent2.address),
                 ).to.be.revertedWithCustomError(
                     poolConfigContract,
-                    "evaluationAgentNotEnoughLiquidity",
+                    "EvaluationAgentInsufficientLiquidity",
                 );
             });
         });
@@ -1006,7 +1006,7 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract
                         .connect(regularUser)
                         .setPoolFeeManager(poolFeeManagerContract.address),
-                ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
             });
 
             it("Should reject fee manager with zero address", async function () {
@@ -1014,7 +1014,7 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract
                         .connect(poolOwner)
                         .setPoolFeeManager(ethers.constants.AddressZero),
-                ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
+                ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
             });
         });
 
@@ -1046,7 +1046,7 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract
                         .connect(regularUser)
                         .setHumaConfig(humaConfigContract.address),
-                ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
             });
 
             it("Should reject Huma config with zero address", async function () {
@@ -1054,7 +1054,7 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract
                         .connect(poolOwner)
                         .setHumaConfig(ethers.constants.AddressZero),
-                ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
+                ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
             });
         });
 
@@ -1078,13 +1078,13 @@ describe("PoolConfig Tests", function () {
             it("Should reject non-owner or admin to set the pool", async function () {
                 await expect(
                     poolConfigContract.connect(regularUser).setPool(poolContract.address),
-                ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
             });
 
             it("Should reject pools with zero address", async function () {
                 await expect(
                     poolConfigContract.connect(poolOwner).setPool(ethers.constants.AddressZero),
-                ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
+                ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
             });
         });
 
@@ -1108,7 +1108,7 @@ describe("PoolConfig Tests", function () {
             it("Should reject non-owner or admin to call setPoolName", async function () {
                 await expect(
                     poolConfigContract.connect(regularUser).setPoolName(poolName),
-                ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
             });
         });
 
@@ -1144,7 +1144,7 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract
                         .connect(regularUser)
                         .setPoolOwnerTreasury(poolOwnerTreasury.address),
-                ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
             });
 
             it("Should disallow zero address for pool owner treasury", async function () {
@@ -1152,7 +1152,7 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract
                         .connect(poolOwner)
                         .setPoolOwnerTreasury(ethers.constants.AddressZero),
-                ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
+                ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
             });
         });
 
@@ -1188,7 +1188,7 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract
                         .connect(regularUser)
                         .setPoolUnderlyingToken(poolOwnerTreasury.address),
-                ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
             });
 
             it("Should disallow zero address for the underlying token", async function () {
@@ -1196,7 +1196,7 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract
                         .connect(poolOwner)
                         .setPoolUnderlyingToken(ethers.constants.AddressZero),
-                ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
+                ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
             });
         });
 
@@ -1255,7 +1255,7 @@ describe("PoolConfig Tests", function () {
                             seniorTrancheVaultContract.address,
                             juniorTrancheVaultContract.address,
                         ),
-                ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
             });
 
             it("Should disallow zero addresses for the senior tranche", async function () {
@@ -1266,7 +1266,7 @@ describe("PoolConfig Tests", function () {
                             ethers.constants.AddressZero,
                             juniorTrancheVaultContract.address,
                         ),
-                ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
+                ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
             });
 
             it("Should disallow zero addresses for the junior tranche", async function () {
@@ -1277,7 +1277,7 @@ describe("PoolConfig Tests", function () {
                             seniorTrancheVaultContract.address,
                             ethers.constants.AddressZero,
                         ),
-                ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
+                ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
             });
         });
 
@@ -1305,7 +1305,7 @@ describe("PoolConfig Tests", function () {
             it("Should reject non-owner or admin to set the pool safe", async function () {
                 await expect(
                     poolConfigContract.connect(regularUser).setPoolSafe(poolSafeContract.address),
-                ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
             });
 
             it("Should disallow zero address for the pool safe", async function () {
@@ -1313,7 +1313,7 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract
                         .connect(poolOwner)
                         .setPoolSafe(ethers.constants.AddressZero),
-                ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
+                ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
             });
         });
 
@@ -1349,7 +1349,7 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract
                         .connect(regularUser)
                         .setTranchesPolicy(tranchesPolicyContract.address),
-                ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
             });
 
             it("Should disallow zero address for the tranches policy", async function () {
@@ -1357,7 +1357,7 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract
                         .connect(poolOwner)
                         .setTranchesPolicy(ethers.constants.AddressZero),
-                ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
+                ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
             });
         });
 
@@ -1393,7 +1393,7 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract
                         .connect(regularUser)
                         .setEpochManager(epochManagerContract.address),
-                ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
             });
 
             it("Should disallow zero address for the epoch manager", async function () {
@@ -1401,7 +1401,7 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract
                         .connect(poolOwner)
                         .setEpochManager(ethers.constants.AddressZero),
-                ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
+                ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
             });
         });
 
@@ -1427,13 +1427,13 @@ describe("PoolConfig Tests", function () {
             it("Should reject non-owner or admin to set the credit contract", async function () {
                 await expect(
                     poolConfigContract.connect(regularUser).setCredit(creditContract.address),
-                ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
             });
 
             it("Should disallow zero address for the credit contract", async function () {
                 await expect(
                     poolConfigContract.connect(poolOwner).setCredit(ethers.constants.AddressZero),
-                ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
+                ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
             });
         });
 
@@ -1501,7 +1501,7 @@ describe("PoolConfig Tests", function () {
                             affiliateFirstLossCoverContract.address,
                             config,
                         ),
-                ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
             });
         });
 
@@ -1529,7 +1529,7 @@ describe("PoolConfig Tests", function () {
             it("Should reject non-owner or admin to set the calendar contract", async function () {
                 await expect(
                     poolConfigContract.connect(regularUser).setCalendar(calendarContract.address),
-                ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
             });
 
             it("Should disallow zero address for the calendar contract", async function () {
@@ -1537,7 +1537,7 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract
                         .connect(poolOwner)
                         .setCalendar(ethers.constants.AddressZero),
-                ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
+                ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
             });
         });
 
@@ -1573,7 +1573,7 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract
                         .connect(regularUser)
                         .setReceivableAsset(defaultDeployer.address),
-                ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
             });
 
             it("Should disallow zero address for the receivable asset", async function () {
@@ -1581,7 +1581,7 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract
                         .connect(poolOwner)
                         .setReceivableAsset(ethers.constants.AddressZero),
-                ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
+                ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
             });
         });
 
@@ -1667,7 +1667,7 @@ describe("PoolConfig Tests", function () {
             it("Should reject non-owner or admin to set the pool settings", async function () {
                 await expect(
                     poolConfigContract.connect(regularUser).setPoolSettings(newSettings),
-                ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
             });
 
             it("Should disallow min deposit amount that's less than the min threshold", async function () {
@@ -1678,7 +1678,7 @@ describe("PoolConfig Tests", function () {
                             minDepositAmount: 10 ** 6 - 1,
                         },
                     }),
-                ).to.be.revertedWithCustomError(poolConfigContract, "minDepositAmountTooLow");
+                ).to.be.revertedWithCustomError(poolConfigContract, "MinDepositAmountTooLow");
             });
 
             it("Should disallow advance rates that exceed 10000", async function () {
@@ -1691,7 +1691,7 @@ describe("PoolConfig Tests", function () {
                     }),
                 ).to.be.revertedWithCustomError(
                     poolConfigContract,
-                    "invalidBasisPointHigherThan10000",
+                    "InvalidBasisPointHigherThan10000",
                 );
             });
         });
@@ -1763,7 +1763,7 @@ describe("PoolConfig Tests", function () {
             it("Should reject non-owner or admin to set the LP config", async function () {
                 await expect(
                     poolConfigContract.connect(regularUser).setLPConfig(newLPConfig),
-                ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
             });
         });
 
@@ -1824,7 +1824,7 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract
                         .connect(regularUser)
                         .setFrontLoadingFees(newFrontLoadingFeeStructure),
-                ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
             });
         });
 
@@ -1877,7 +1877,7 @@ describe("PoolConfig Tests", function () {
             it("Should reject non-owner or admin to set the fee structure", async function () {
                 await expect(
                     poolConfigContract.connect(regularUser).setFeeStructure(newFeeStructure),
-                ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
             });
         });
 
@@ -1897,7 +1897,10 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract.checkLiquidityRequirementForPoolOwner(
                         minRequirement.sub(1),
                     ),
-                ).to.be.revertedWithCustomError(poolConfigContract, "poolOwnerNotEnoughLiquidity");
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "PoolOwnerInsufficientLiquidity",
+                );
             });
         });
 
@@ -1917,7 +1920,7 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract.checkLiquidityRequirementForEA(minRequirement.sub(1)),
                 ).to.be.revertedWithCustomError(
                     poolConfigContract,
-                    "evaluationAgentNotEnoughLiquidity",
+                    "EvaluationAgentInsufficientLiquidity",
                 );
             });
         });
@@ -1978,7 +1981,10 @@ describe("PoolConfig Tests", function () {
                         juniorTrancheVaultContract.address,
                         poolOwnerMinRequirement.sub(1),
                     ),
-                ).to.be.revertedWithCustomError(poolConfigContract, "poolOwnerNotEnoughLiquidity");
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "PoolOwnerInsufficientLiquidity",
+                );
             });
 
             it("Should revert when EA no longer has enough liquidity after redemption in the junior tranche", async function () {
@@ -2014,7 +2020,7 @@ describe("PoolConfig Tests", function () {
                     ),
                 ).to.be.revertedWithCustomError(
                     poolConfigContract,
-                    "evaluationAgentNotEnoughLiquidity",
+                    "EvaluationAgentInsufficientLiquidity",
                 );
             });
         });

@@ -79,7 +79,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         poolConfig.onlyProtocolAndPoolOn();
 
         CurrentEpoch memory ce = _currentEpoch;
-        if (block.timestamp <= ce.endTime) revert Errors.closeTooSoon();
+        if (block.timestamp <= ce.endTime) revert Errors.EpochClosedTooEarly();
 
         // update tranche assets to the current timestamp
         uint96[2] memory tranchesAssets = pool.currentTranchesAssets();

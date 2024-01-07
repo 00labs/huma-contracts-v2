@@ -278,7 +278,7 @@ describe("CreditLine Test", function () {
                         0,
                         true,
                     ),
-            ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+            ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
             await humaConfigContract.connect(protocolOwner).unpause();
 
             await poolContract.connect(poolOwner).disablePool();
@@ -294,7 +294,7 @@ describe("CreditLine Test", function () {
                         0,
                         true,
                     ),
-            ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+            ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
         });
 
         it("Should not allow non-EA service account to approve", async function () {
@@ -310,7 +310,7 @@ describe("CreditLine Test", function () {
                 ),
             ).to.be.revertedWithCustomError(
                 creditManagerContract,
-                "evaluationAgentServiceAccountRequired",
+                "EvaluationAgentServiceAccountRequired",
             );
         });
 
@@ -327,7 +327,7 @@ describe("CreditLine Test", function () {
                         0,
                         true,
                     ),
-            ).to.be.revertedWithCustomError(creditManagerContract, "zeroAddressProvided");
+            ).to.be.revertedWithCustomError(creditManagerContract, "ZeroAddressProvided");
 
             await expect(
                 creditManagerContract
@@ -341,7 +341,7 @@ describe("CreditLine Test", function () {
                         0,
                         true,
                     ),
-            ).to.be.revertedWithCustomError(creditManagerContract, "zeroAmountProvided");
+            ).to.be.revertedWithCustomError(creditManagerContract, "ZeroAmountProvided");
 
             await expect(
                 creditManagerContract
@@ -355,7 +355,7 @@ describe("CreditLine Test", function () {
                         0,
                         true,
                     ),
-            ).to.be.revertedWithCustomError(creditManagerContract, "zeroPayPeriods");
+            ).to.be.revertedWithCustomError(creditManagerContract, "ZeroPayPeriods");
 
             await expect(
                 creditManagerContract
@@ -371,7 +371,7 @@ describe("CreditLine Test", function () {
                     ),
             ).to.be.revertedWithCustomError(
                 creditManagerContract,
-                "committedAmountGreaterThanCreditLimit",
+                "CommittedAmountGreaterThanCreditLimit",
             );
 
             let poolSettings = await poolConfigContract.getPoolSettings();
@@ -389,7 +389,7 @@ describe("CreditLine Test", function () {
                         0,
                         true,
                     ),
-            ).to.be.revertedWithCustomError(creditManagerContract, "greaterThanMaxCreditLine");
+            ).to.be.revertedWithCustomError(creditManagerContract, "CreditLimitTooHigh");
 
             await creditManagerContract
                 .connect(eaServiceAccount)
@@ -415,10 +415,7 @@ describe("CreditLine Test", function () {
                         0,
                         true,
                     ),
-            ).to.be.revertedWithCustomError(
-                creditManagerContract,
-                "creditLineNotInStateForUpdate",
-            );
+            ).to.be.revertedWithCustomError(creditManagerContract, "CreditNotInStateForUpdate");
         });
 
         it("Should not approve if the credit has no commitment but a designated start date", async function () {
@@ -436,7 +433,7 @@ describe("CreditLine Test", function () {
                     ),
             ).to.be.revertedWithCustomError(
                 creditManagerContract,
-                "creditWithoutCommitmentShouldHaveNoDesignatedStartDate",
+                "CreditWithoutCommitmentShouldHaveNoDesignatedStartDate",
             );
         });
 
@@ -460,7 +457,7 @@ describe("CreditLine Test", function () {
                         designatedStartDate.unix(),
                         true,
                     ),
-            ).to.be.revertedWithCustomError(creditManagerContract, "designatedStartDateInThePast");
+            ).to.be.revertedWithCustomError(creditManagerContract, "DesignatedStartDateInThePast");
         });
 
         it("Should not approve a credit with a designated credit start date and only one period", async function () {
@@ -919,7 +916,7 @@ describe("CreditLine Test", function () {
                 creditManagerContract
                     .connect(sentinelServiceAccount)
                     .startCommittedCredit(borrower.getAddress()),
-            ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+            ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
             await humaConfigContract.connect(protocolOwner).unpause();
 
             await poolContract.connect(poolOwner).disablePool();
@@ -927,7 +924,7 @@ describe("CreditLine Test", function () {
                 creditManagerContract
                     .connect(sentinelServiceAccount)
                     .startCommittedCredit(borrower.getAddress()),
-            ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+            ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
         });
 
         it("Should not allow non-Sentinel Service accounts or pool owner to start a credit", async function () {
@@ -935,7 +932,10 @@ describe("CreditLine Test", function () {
                 creditManagerContract
                     .connect(borrower)
                     .startCommittedCredit(borrower.getAddress()),
-            ).to.be.revertedWithCustomError(poolConfigContract, "notAuthorizedCaller");
+            ).to.be.revertedWithCustomError(
+                poolConfigContract,
+                "AuthorizedContractCallerRequired",
+            );
         });
 
         it("Should not start a credit for a borrower without an approved credit", async function () {
@@ -943,7 +943,7 @@ describe("CreditLine Test", function () {
                 creditManagerContract
                     .connect(sentinelServiceAccount)
                     .startCommittedCredit(borrower.getAddress()),
-            ).to.be.revertedWithCustomError(creditContract, "notBorrower");
+            ).to.be.revertedWithCustomError(creditContract, "BorrowerRequired");
         });
 
         it("Should not start a credit that's in the wrong state", async function () {
@@ -976,7 +976,7 @@ describe("CreditLine Test", function () {
                     .startCommittedCredit(borrower.getAddress()),
             ).to.be.revertedWithCustomError(
                 creditManagerContract,
-                "committedCreditCannotBeStarted",
+                "CommittedCreditCannotBeStarted",
             );
         });
 
@@ -999,7 +999,7 @@ describe("CreditLine Test", function () {
                     .startCommittedCredit(borrower.getAddress()),
             ).to.be.revertedWithCustomError(
                 creditManagerContract,
-                "committedCreditCannotBeStarted",
+                "CommittedCreditCannotBeStarted",
             );
         });
 
@@ -1030,7 +1030,7 @@ describe("CreditLine Test", function () {
                     .startCommittedCredit(borrower.getAddress()),
             ).to.be.revertedWithCustomError(
                 creditManagerContract,
-                "committedCreditCannotBeStarted",
+                "CommittedCreditCannotBeStarted",
             );
         });
     });
@@ -1062,31 +1062,31 @@ describe("CreditLine Test", function () {
                 await humaConfigContract.connect(protocolOwner).pause();
                 await expect(
                     creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
-                ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+                ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
                 await humaConfigContract.connect(protocolOwner).unpause();
 
                 await poolContract.connect(poolOwner).disablePool();
                 await expect(
                     creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
-                ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+                ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
             });
 
             it("Should not allow drawdown with invalid parameters", async function () {
                 await expect(
                     creditContract.connect(borrower).drawdown(borrower2.address, toToken(10_000)),
-                ).to.be.revertedWithCustomError(creditContract, "notBorrower");
+                ).to.be.revertedWithCustomError(creditContract, "BorrowerRequired");
 
                 await expect(
                     creditContract.connect(borrower2).drawdown(borrower2.address, toToken(10_000)),
-                ).to.be.revertedWithCustomError(creditContract, "notBorrower");
+                ).to.be.revertedWithCustomError(creditContract, "BorrowerRequired");
 
                 await expect(
                     creditContract.connect(borrower).drawdown(borrower.address, toToken(0)),
-                ).to.be.revertedWithCustomError(creditContract, "zeroAmountProvided");
+                ).to.be.revertedWithCustomError(creditContract, "ZeroAmountProvided");
 
                 await expect(
                     creditContract.connect(borrower).drawdown(borrower.address, toToken(100_001)),
-                ).to.be.revertedWithCustomError(creditContract, "creditLineExceeded");
+                ).to.be.revertedWithCustomError(creditContract, "CreditLimitExceeded");
             });
 
             it("Should not allow drawdown if the credit line is closed", async function () {
@@ -1124,7 +1124,7 @@ describe("CreditLine Test", function () {
                     creditContract.connect(borrower).drawdown(borrower.address, borrowAmount),
                 ).to.be.revertedWithCustomError(
                     creditContract,
-                    "drawdownNotAllowedInLatePaymentGracePeriod",
+                    "DrawdownNotAllowedAfterDueDateWithUnpaidDue",
                 );
             });
 
@@ -1143,7 +1143,7 @@ describe("CreditLine Test", function () {
                     creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
                 ).to.be.revertedWithCustomError(
                     creditContract,
-                    "drawdownNotAllowedInLatePaymentGracePeriod",
+                    "DrawdownNotAllowedAfterDueDateWithUnpaidDue",
                 );
             });
 
@@ -1279,10 +1279,7 @@ describe("CreditLine Test", function () {
 
                 await expect(
                     creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
-                ).to.be.revertedWithCustomError(
-                    creditContract,
-                    "creditLineNotInGoodStandingState",
-                );
+                ).to.be.revertedWithCustomError(creditContract, "CreditNotInStateForDrawdown");
             });
 
             it("Should not allow drawdown if the credit is Defaulted", async function () {
@@ -1314,7 +1311,7 @@ describe("CreditLine Test", function () {
 
                 await expect(
                     creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
-                ).to.be.revertedWithCustomError(creditContract, "creditNotInStateForDrawdown");
+                ).to.be.revertedWithCustomError(creditContract, "CreditNotInStateForDrawdown");
                 const actualCR = await creditContract.getCreditRecord(creditHash);
                 checkCreditRecordsMatch(actualCR, expectedCR);
                 const actualDD = await creditContract.getDueDetail(creditHash);
@@ -1335,10 +1332,7 @@ describe("CreditLine Test", function () {
 
                 await expect(
                     creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
-                ).to.be.revertedWithCustomError(
-                    creditContract,
-                    "insufficientBorrowerFirstLossCover",
-                );
+                ).to.be.revertedWithCustomError(creditContract, "InsufficientFirstLossCover");
             });
 
             it("Should not allow drawdown before the designated start date", async function () {
@@ -1362,7 +1356,7 @@ describe("CreditLine Test", function () {
 
                 await expect(
                     creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
-                ).to.be.revertedWithCustomError(creditContract, "firstDrawdownTooSoon");
+                ).to.be.revertedWithCustomError(creditContract, "FirstDrawdownTooEarly");
             });
 
             it("Should not allow drawdown again if the credit line is non-revolving", async function () {
@@ -1383,7 +1377,7 @@ describe("CreditLine Test", function () {
                     creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
                 ).to.be.revertedWithCustomError(
                     creditContract,
-                    "attemptedDrawdownForNonrevolvingLine",
+                    "AttemptedDrawdownOnNonRevolvingLine",
                 );
             });
 
@@ -1403,7 +1397,7 @@ describe("CreditLine Test", function () {
 
                 await expect(
                     creditContract.connect(borrower).drawdown(borrower.address, toToken(1_001)),
-                ).to.be.revertedWithCustomError(creditContract, "creditLineExceeded");
+                ).to.be.revertedWithCustomError(creditContract, "CreditLimitExceeded");
             });
 
             it("Should not allow drawdown if the borrow amount is less than front loading fees after bill refresh", async function () {
@@ -1418,7 +1412,7 @@ describe("CreditLine Test", function () {
                     creditContract.connect(borrower).drawdown(borrower.address, toToken(999)),
                 ).to.be.revertedWithCustomError(
                     creditDueManagerContract,
-                    "borrowingAmountLessThanPlatformFees",
+                    "BorrowAmountLessThanPlatformFees",
                 );
             });
 
@@ -1443,7 +1437,10 @@ describe("CreditLine Test", function () {
 
                 await expect(
                     creditContract.connect(borrower).drawdown(borrower.address, amount),
-                ).to.be.revertedWithCustomError(creditContract, "todo");
+                ).to.be.revertedWithCustomError(
+                    creditContract,
+                    "InsufficientPoolBalanceForDrawdown",
+                );
             });
 
             it("Should allow the borrower to borrow for the first time", async function () {
@@ -3851,7 +3848,7 @@ describe("CreditLine Test", function () {
                     creditContract
                         .connect(borrower)
                         .makePayment(borrower.getAddress(), toToken(1)),
-                ).to.be.revertedWithCustomError(creditContract, "notBorrower");
+                ).to.be.revertedWithCustomError(creditContract, "BorrowerRequired");
             });
         });
 
@@ -3867,7 +3864,7 @@ describe("CreditLine Test", function () {
                         .makePayment(borrower.getAddress(), toToken(1)),
                 ).to.be.revertedWithCustomError(
                     creditContract,
-                    "creditLineNotInStateForMakingPayment",
+                    "CreditNotInStateForMakingPayment",
                 );
             });
         });
@@ -4973,7 +4970,7 @@ describe("CreditLine Test", function () {
                                     .makePayment(borrower.getAddress(), paymentAmount),
                             ).to.be.revertedWithCustomError(
                                 creditContract,
-                                "creditLineNotInStateForMakingPayment",
+                                "CreditNotInStateForMakingPayment",
                             );
                         });
 
@@ -5096,7 +5093,7 @@ describe("CreditLine Test", function () {
                                     .makePayment(borrower.getAddress(), toToken(1)),
                             ).to.be.revertedWithCustomError(
                                 creditContract,
-                                "creditLineNotInStateForMakingPayment",
+                                "CreditNotInStateForMakingPayment",
                             );
                         });
                     });
@@ -5200,7 +5197,7 @@ describe("CreditLine Test", function () {
                                     .makePayment(borrower.getAddress(), paymentAmount),
                             ).to.be.revertedWithCustomError(
                                 creditContract,
-                                "creditLineNotInStateForMakingPayment",
+                                "CreditNotInStateForMakingPayment",
                             );
                         });
 
@@ -5311,7 +5308,7 @@ describe("CreditLine Test", function () {
                                     .makePayment(borrower.getAddress(), toToken(1)),
                             ).to.be.revertedWithCustomError(
                                 creditContract,
-                                "creditLineNotInStateForMakingPayment",
+                                "CreditNotInStateForMakingPayment",
                             );
                         });
                     });
@@ -7041,7 +7038,7 @@ describe("CreditLine Test", function () {
                                     .makePayment(borrower.getAddress(), paymentAmount),
                             ).to.be.revertedWithCustomError(
                                 creditContract,
-                                "creditLineNotInStateForMakingPayment",
+                                "CreditNotInStateForMakingPayment",
                             );
                         });
 
@@ -7225,7 +7222,7 @@ describe("CreditLine Test", function () {
                                     .makePayment(borrower.getAddress(), paymentAmount),
                             ).to.be.revertedWithCustomError(
                                 creditContract,
-                                "creditLineNotInStateForMakingPayment",
+                                "CreditNotInStateForMakingPayment",
                             );
                         });
 
@@ -7738,13 +7735,13 @@ describe("CreditLine Test", function () {
                     await humaConfigContract.connect(protocolOwner).pause();
                     await expect(
                         creditContract.makePayment(borrower.getAddress(), toToken(1)),
-                    ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+                    ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
                     await humaConfigContract.connect(protocolOwner).unpause();
 
                     await poolContract.connect(poolOwner).disablePool();
                     await expect(
                         creditContract.makePayment(borrower.getAddress(), toToken(1)),
-                    ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+                    ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
                     await poolContract.connect(poolOwner).enablePool();
                 });
 
@@ -7755,14 +7752,14 @@ describe("CreditLine Test", function () {
                             .makePayment(borrower.getAddress(), toToken(1)),
                     ).to.be.revertedWithCustomError(
                         creditContract,
-                        "sentinelServiceAccountRequired",
+                        "SentinelServiceAccountRequired",
                     );
                 });
 
                 it("Should not allow the borrower to make payment with 0 amount", async function () {
                     await expect(
                         creditContract.connect(borrower).makePayment(borrower.getAddress(), 0),
-                    ).to.be.revertedWithCustomError(creditContract, "zeroAmountProvided");
+                    ).to.be.revertedWithCustomError(creditContract, "ZeroAmountProvided");
                 });
             });
         });
@@ -7838,7 +7835,7 @@ describe("CreditLine Test", function () {
                     creditContract
                         .connect(borrower)
                         .makePrincipalPayment(borrower.getAddress(), toToken(1)),
-                ).to.be.revertedWithCustomError(creditContract, "notBorrower");
+                ).to.be.revertedWithCustomError(creditContract, "BorrowerRequired");
             });
         });
 
@@ -7854,7 +7851,7 @@ describe("CreditLine Test", function () {
                         .makePrincipalPayment(borrower.getAddress(), toToken(1)),
                 ).to.be.revertedWithCustomError(
                     creditContract,
-                    "creditLineNotInStateForMakingPrincipalPayment",
+                    "CreditNotInStateForMakingPrincipalPayment",
                 );
             });
         });
@@ -8231,7 +8228,7 @@ describe("CreditLine Test", function () {
                             .makePrincipalPayment(borrower.getAddress(), toToken(1)),
                     ).to.be.revertedWithCustomError(
                         creditContract,
-                        "creditLineNotInStateForMakingPrincipalPayment",
+                        "CreditNotInStateForMakingPrincipalPayment",
                     );
                 });
 
@@ -8239,13 +8236,13 @@ describe("CreditLine Test", function () {
                     await humaConfigContract.connect(protocolOwner).pause();
                     await expect(
                         creditContract.makePrincipalPayment(borrower.getAddress(), toToken(1)),
-                    ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+                    ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
                     await humaConfigContract.connect(protocolOwner).unpause();
 
                     await poolContract.connect(poolOwner).disablePool();
                     await expect(
                         creditContract.makePrincipalPayment(borrower.getAddress(), toToken(1)),
-                    ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+                    ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
                     await poolContract.connect(poolOwner).enablePool();
                 });
 
@@ -8256,7 +8253,7 @@ describe("CreditLine Test", function () {
                             .makePrincipalPayment(borrower.getAddress(), toToken(1)),
                     ).to.be.revertedWithCustomError(
                         creditContract,
-                        "sentinelServiceAccountRequired",
+                        "SentinelServiceAccountRequired",
                     );
                 });
 
@@ -8265,7 +8262,7 @@ describe("CreditLine Test", function () {
                         creditContract
                             .connect(borrower)
                             .makePrincipalPayment(borrower.getAddress(), 0),
-                    ).to.be.revertedWithCustomError(creditContract, "zeroAmountProvided");
+                    ).to.be.revertedWithCustomError(creditContract, "ZeroAmountProvided");
                 });
 
                 it("Should not allow the borrower to make principal payment if the bill is delayed", async function () {
@@ -8277,7 +8274,7 @@ describe("CreditLine Test", function () {
                             .makePrincipalPayment(borrower.getAddress(), toToken(1)),
                     ).to.be.revertedWithCustomError(
                         creditContract,
-                        "creditLineNotInStateForMakingPrincipalPayment",
+                        "CreditNotInStateForMakingPrincipalPayment",
                     );
                 });
 
@@ -8312,7 +8309,7 @@ describe("CreditLine Test", function () {
                             .makePrincipalPayment(borrower.getAddress(), toToken(1)),
                     ).to.be.revertedWithCustomError(
                         creditContract,
-                        "creditLineNotInStateForMakingPrincipalPayment",
+                        "CreditNotInStateForMakingPrincipalPayment",
                     );
                     const actualCR = await creditContract.getCreditRecord(creditHash);
                     checkCreditRecordsMatch(actualCR, expectedCR);
@@ -8554,7 +8551,7 @@ describe("CreditLine Test", function () {
                             .makePrincipalPayment(borrower.getAddress(), toToken(1)),
                     ).to.be.revertedWithCustomError(
                         creditContract,
-                        "creditLineNotInStateForMakingPrincipalPayment",
+                        "CreditNotInStateForMakingPrincipalPayment",
                     );
                 });
 
@@ -8567,7 +8564,7 @@ describe("CreditLine Test", function () {
                             .makePrincipalPayment(borrower.getAddress(), toToken(1)),
                     ).to.be.revertedWithCustomError(
                         creditContract,
-                        "creditLineNotInStateForMakingPrincipalPayment",
+                        "CreditNotInStateForMakingPrincipalPayment",
                     );
                 });
             });
@@ -8587,7 +8584,7 @@ describe("CreditLine Test", function () {
 
             await expect(
                 creditContract.connect(borrower).updateDueInfo(creditHash, cr, dd),
-            ).to.be.revertedWithCustomError(creditContract, "notAuthorizedCaller");
+            ).to.be.revertedWithCustomError(creditContract, "AuthorizedContractCallerRequired");
         });
     });
 
@@ -8776,7 +8773,7 @@ describe("CreditLine Test", function () {
                     .triggerDefault(borrower.getAddress()),
             ).to.be.revertedWithCustomError(
                 creditManagerContract,
-                "defaultHasAlreadyBeenTriggered",
+                "DefaultHasAlreadyBeenTriggered",
             );
         }
 
@@ -8807,13 +8804,13 @@ describe("CreditLine Test", function () {
             await humaConfigContract.connect(protocolOwner).pause();
             await expect(
                 creditManagerContract.connect(eaServiceAccount).triggerDefault(borrower.address),
-            ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+            ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
             await humaConfigContract.connect(protocolOwner).unpause();
 
             await poolContract.connect(poolOwner).disablePool();
             await expect(
                 creditManagerContract.connect(eaServiceAccount).triggerDefault(borrower.address),
-            ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+            ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
         });
 
         it("Should not allow non-EA service account to trigger default", async function () {
@@ -8821,7 +8818,7 @@ describe("CreditLine Test", function () {
                 creditManagerContract.triggerDefault(borrower.address),
             ).to.be.revertedWithCustomError(
                 creditManagerContract,
-                "evaluationAgentServiceAccountRequired",
+                "EvaluationAgentServiceAccountRequired",
             );
         });
 
@@ -8836,7 +8833,7 @@ describe("CreditLine Test", function () {
                 creditManagerContract
                     .connect(eaServiceAccount)
                     .triggerDefault(borrower.getAddress()),
-            ).to.be.revertedWithCustomError(creditManagerContract, "defaultTriggeredTooEarly");
+            ).to.be.revertedWithCustomError(creditManagerContract, "DefaultTriggeredTooEarly");
         });
 
         it("Should not allow default to be triggered if the bill is delayed, but has not passed the default grace period", async function () {
@@ -8857,7 +8854,7 @@ describe("CreditLine Test", function () {
                 creditManagerContract
                     .connect(eaServiceAccount)
                     .triggerDefault(borrower.getAddress()),
-            ).to.be.revertedWithCustomError(creditManagerContract, "defaultTriggeredTooEarly");
+            ).to.be.revertedWithCustomError(creditManagerContract, "DefaultTriggeredTooEarly");
         });
     });
 
@@ -8866,26 +8863,26 @@ describe("CreditLine Test", function () {
             it("Should not allow non-borrower or non-EA to close the credit", async function () {
                 await expect(
                     creditManagerContract.connect(lender).closeCredit(borrower.getAddress()),
-                ).to.be.revertedWithCustomError(creditManagerContract, "notBorrowerOrEA");
+                ).to.be.revertedWithCustomError(creditManagerContract, "BorrowerOrEARequired");
             });
 
             it("Should not be able to close a non-existent credit", async function () {
                 await expect(
                     creditManagerContract.connect(borrower).closeCredit(borrower.getAddress()),
-                ).to.be.revertedWithCustomError(creditManagerContract, "notBorrower");
+                ).to.be.revertedWithCustomError(creditManagerContract, "BorrowerRequired");
             });
 
             it("Should not allow closure when the protocol is paused or pool is not on", async function () {
                 await humaConfigContract.connect(protocolOwner).pause();
                 await expect(
                     creditManagerContract.connect(borrower).closeCredit(borrower.getAddress()),
-                ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+                ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
                 await humaConfigContract.connect(protocolOwner).unpause();
 
                 await poolContract.connect(poolOwner).disablePool();
                 await expect(
                     creditManagerContract.connect(borrower).closeCredit(borrower.getAddress()),
-                ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+                ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
                 await poolContract.connect(poolOwner).enablePool();
             });
         });
@@ -9021,7 +9018,7 @@ describe("CreditLine Test", function () {
 
                 const newCR = await creditContract.getCreditRecord(creditHash);
                 expect(newCR.nextDue).to.be.gt(0);
-                await testCloseCreditReversion(borrower, "creditLineHasOutstandingBalance");
+                await testCloseCreditReversion(borrower, "CreditHasOutstandingBalance");
             });
 
             it("Should not allow the borrower to close a credit that has past due", async function () {
@@ -9048,7 +9045,7 @@ describe("CreditLine Test", function () {
                 expect(cr.nextDue).to.be.gt(0);
                 expect(cr.totalPastDue).to.be.gt(0);
                 expect(cr.unbilledPrincipal).to.equal(0);
-                await testCloseCreditReversion(borrower, "creditLineHasOutstandingBalance");
+                await testCloseCreditReversion(borrower, "CreditHasOutstandingBalance");
             });
 
             it("Should not allow the borrower to close a credit that has outstanding unbilled principal", async function () {
@@ -9067,7 +9064,7 @@ describe("CreditLine Test", function () {
                 expect(newCR.nextDue).to.equal(0);
                 expect(newCR.totalPastDue).to.equal(0);
                 expect(newCR.unbilledPrincipal).to.be.gt(0);
-                await testCloseCreditReversion(borrower, "creditLineHasOutstandingBalance");
+                await testCloseCreditReversion(borrower, "CreditHasOutstandingBalance");
             });
 
             it("Should not allow the borrower to close a used credit that has unfulfilled commitment", async function () {
@@ -9081,7 +9078,7 @@ describe("CreditLine Test", function () {
                 await creditContract
                     .connect(borrower)
                     .makePayment(borrower.getAddress(), cr.nextDue.add(cr.unbilledPrincipal));
-                await testCloseCreditReversion(borrower, "creditLineHasUnfulfilledCommitment");
+                await testCloseCreditReversion(borrower, "CreditHasUnfulfilledCommitment");
             });
         });
     });
@@ -9150,13 +9147,13 @@ describe("CreditLine Test", function () {
             await humaConfigContract.connect(protocolOwner).pause();
             await expect(
                 creditManagerContract.connect(eaServiceAccount).pauseCredit(borrower.getAddress()),
-            ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+            ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
             await humaConfigContract.connect(protocolOwner).unpause();
 
             await poolContract.connect(poolOwner).disablePool();
             await expect(
                 creditManagerContract.connect(eaServiceAccount).pauseCredit(borrower.getAddress()),
-            ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+            ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
             await poolContract.connect(poolOwner).enablePool();
         });
 
@@ -9167,7 +9164,7 @@ describe("CreditLine Test", function () {
                 creditManagerContract.connect(borrower).pauseCredit(borrower.getAddress()),
             ).to.be.revertedWithCustomError(
                 creditManagerContract,
-                "evaluationAgentServiceAccountRequired",
+                "EvaluationAgentServiceAccountRequired",
             );
             let newCR = await creditContract.getCreditRecord(creditHash);
             expect(newCR.state).to.equal(oldCR.state);
@@ -9176,7 +9173,7 @@ describe("CreditLine Test", function () {
                 creditManagerContract.connect(borrower).unpauseCredit(borrower.getAddress()),
             ).to.be.revertedWithCustomError(
                 creditManagerContract,
-                "evaluationAgentServiceAccountRequired",
+                "EvaluationAgentServiceAccountRequired",
             );
             newCR = await creditContract.getCreditRecord(creditHash);
             expect(newCR.state).to.equal(oldCR.state);
@@ -9233,7 +9230,7 @@ describe("CreditLine Test", function () {
                 creditManagerContract
                     .connect(eaServiceAccount)
                     .extendRemainingPeriod(borrower.getAddress(), numOfPeriods),
-            ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+            ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
             await humaConfigContract.connect(protocolOwner).unpause();
 
             await poolContract.connect(poolOwner).disablePool();
@@ -9241,7 +9238,7 @@ describe("CreditLine Test", function () {
                 creditManagerContract
                     .connect(eaServiceAccount)
                     .extendRemainingPeriod(borrower.getAddress(), numOfPeriods),
-            ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+            ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
             await poolContract.connect(poolOwner).enablePool();
         });
 
@@ -9252,7 +9249,7 @@ describe("CreditLine Test", function () {
                     .extendRemainingPeriod(borrower.getAddress(), numOfPeriods),
             ).to.be.revertedWithCustomError(
                 creditManagerContract,
-                "evaluationAgentServiceAccountRequired",
+                "EvaluationAgentServiceAccountRequired",
             );
         });
 
@@ -9264,10 +9261,7 @@ describe("CreditLine Test", function () {
                 creditManagerContract
                     .connect(eaServiceAccount)
                     .extendRemainingPeriod(borrower.getAddress(), 1),
-            ).to.be.revertedWithCustomError(
-                creditManagerContract,
-                "creditLineNotInStateForUpdate",
-            );
+            ).to.be.revertedWithCustomError(creditManagerContract, "CreditNotInStateForUpdate");
         });
 
         it("Should not allow extension on a delayed credit line", async function () {
@@ -9289,10 +9283,7 @@ describe("CreditLine Test", function () {
                 creditManagerContract
                     .connect(eaServiceAccount)
                     .extendRemainingPeriod(borrower.getAddress(), 1),
-            ).to.be.revertedWithCustomError(
-                creditManagerContract,
-                "creditLineNotInStateForUpdate",
-            );
+            ).to.be.revertedWithCustomError(creditManagerContract, "CreditNotInStateForUpdate");
         });
 
         it("Should not allow extension on a credit line that becomes delayed after refresh", async function () {
@@ -9314,10 +9305,7 @@ describe("CreditLine Test", function () {
                 creditManagerContract
                     .connect(eaServiceAccount)
                     .extendRemainingPeriod(borrower.getAddress(), 1),
-            ).to.be.revertedWithCustomError(
-                creditManagerContract,
-                "creditLineNotInStateForUpdate",
-            );
+            ).to.be.revertedWithCustomError(creditManagerContract, "CreditNotInStateForUpdate");
         });
 
         it("Should not allow extension on a defaulted credit line", async function () {
@@ -9342,10 +9330,7 @@ describe("CreditLine Test", function () {
                 creditManagerContract
                     .connect(eaServiceAccount)
                     .extendRemainingPeriod(borrower.getAddress(), 1),
-            ).to.be.revertedWithCustomError(
-                creditManagerContract,
-                "creditLineNotInStateForUpdate",
-            );
+            ).to.be.revertedWithCustomError(creditManagerContract, "CreditNotInStateForUpdate");
         });
     });
 
@@ -9676,7 +9661,7 @@ describe("CreditLine Test", function () {
                     creditManagerContract
                         .connect(eaServiceAccount)
                         .updateYield(await borrower.getAddress(), 1517),
-                ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+                ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
                 await humaConfigContract.connect(protocolOwner).unpause();
 
                 await poolContract.connect(poolOwner).disablePool();
@@ -9684,7 +9669,7 @@ describe("CreditLine Test", function () {
                     creditManagerContract
                         .connect(eaServiceAccount)
                         .updateYield(await borrower.getAddress(), 1517),
-                ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+                ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
                 await poolContract.connect(poolOwner).enablePool();
             });
 
@@ -9693,7 +9678,7 @@ describe("CreditLine Test", function () {
                     creditManagerContract.updateYield(await borrower.getAddress(), 1517),
                 ).to.be.revertedWithCustomError(
                     creditManagerContract,
-                    "evaluationAgentServiceAccountRequired",
+                    "EvaluationAgentServiceAccountRequired",
                 );
             });
 
@@ -9707,7 +9692,7 @@ describe("CreditLine Test", function () {
                         .updateYield(borrower.getAddress(), 1517),
                 ).to.be.revertedWithCustomError(
                     creditManagerContract,
-                    "creditLineNotInStateForUpdate",
+                    "CreditNotInStateForUpdate",
                 );
             });
 
@@ -9724,7 +9709,7 @@ describe("CreditLine Test", function () {
                         .updateYield(borrower.getAddress(), 1517),
                 ).to.be.revertedWithCustomError(
                     creditManagerContract,
-                    "creditLineNotInStateForUpdate",
+                    "CreditNotInStateForUpdate",
                 );
             });
         });
@@ -10055,7 +10040,7 @@ describe("CreditLine Test", function () {
                         ),
                 ).to.be.revertedWithCustomError(
                     creditManagerContract,
-                    "creditLineNotInStateForUpdate",
+                    "CreditNotInStateForUpdate",
                 );
             });
 
@@ -10076,7 +10061,7 @@ describe("CreditLine Test", function () {
                         ),
                 ).to.be.revertedWithCustomError(
                     creditManagerContract,
-                    "creditLineNotInStateForUpdate",
+                    "CreditNotInStateForUpdate",
                 );
             });
         });
@@ -10246,7 +10231,7 @@ describe("CreditLine Test", function () {
                                 toToken(200_000),
                                 toToken(100_000),
                             ),
-                    ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+                    ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
                     await humaConfigContract.connect(protocolOwner).unpause();
 
                     await poolContract.connect(poolOwner).disablePool();
@@ -10258,7 +10243,7 @@ describe("CreditLine Test", function () {
                                 toToken(200_000),
                                 toToken(100_000),
                             ),
-                    ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+                    ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
                     await poolContract.connect(poolOwner).enablePool();
                 });
 
@@ -10271,7 +10256,7 @@ describe("CreditLine Test", function () {
                         ),
                     ).to.be.revertedWithCustomError(
                         creditManagerContract,
-                        "evaluationAgentServiceAccountRequired",
+                        "EvaluationAgentServiceAccountRequired",
                     );
                 });
 
@@ -10286,7 +10271,7 @@ describe("CreditLine Test", function () {
                             ),
                     ).to.be.revertedWithCustomError(
                         creditManagerContract,
-                        "committedAmountGreaterThanCreditLimit",
+                        "CommittedAmountGreaterThanCreditLimit",
                     );
                 });
             });
@@ -10437,7 +10422,7 @@ describe("CreditLine Test", function () {
                         .waiveLateFee(borrower.getAddress(), toToken(1)),
                 ).to.be.revertedWithCustomError(
                     creditManagerContract,
-                    "creditLineNotInStateForUpdate",
+                    "CreditNotInStateForUpdate",
                 );
             });
 
@@ -10453,7 +10438,7 @@ describe("CreditLine Test", function () {
                         .waiveLateFee(borrower.getAddress(), toToken(1)),
                 ).to.be.revertedWithCustomError(
                     creditManagerContract,
-                    "creditLineNotInStateForUpdate",
+                    "CreditNotInStateForUpdate",
                 );
             });
         });
@@ -10526,7 +10511,7 @@ describe("CreditLine Test", function () {
                     creditManagerContract
                         .connect(eaServiceAccount)
                         .waiveLateFee(borrower.getAddress(), toToken(1)),
-                ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+                ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
                 await humaConfigContract.connect(protocolOwner).unpause();
 
                 await poolContract.connect(poolOwner).disablePool();
@@ -10534,7 +10519,7 @@ describe("CreditLine Test", function () {
                     creditManagerContract
                         .connect(eaServiceAccount)
                         .waiveLateFee(borrower.getAddress(), toToken(1)),
-                ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+                ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
                 await poolContract.connect(poolOwner).enablePool();
             });
 
@@ -10543,7 +10528,7 @@ describe("CreditLine Test", function () {
                     creditManagerContract.waiveLateFee(borrower.getAddress(), toToken(1)),
                 ).to.be.revertedWithCustomError(
                     creditManagerContract,
-                    "evaluationAgentServiceAccountRequired",
+                    "EvaluationAgentServiceAccountRequired",
                 );
             });
         });

@@ -108,7 +108,7 @@ describe("PoolConfigCache Test", function () {
     it("Should not allow non-poolOwner to update pool config cache", async function () {
         await expect(
             juniorTrancheVaultContract.updatePoolConfigData(),
-        ).to.be.revertedWithCustomError(poolConfigContract, "notPoolOwner");
+        ).to.be.revertedWithCustomError(poolConfigContract, "PoolOwnerRequired");
     });
 
     it("Should update pool config cache", async function () {
@@ -124,13 +124,13 @@ describe("PoolConfigCache Test", function () {
     it("Should not set pool config to empty address", async function () {
         await expect(
             seniorTrancheVaultContract.setPoolConfig(ethers.constants.AddressZero),
-        ).to.be.revertedWithCustomError(seniorTrancheVaultContract, "zeroAddressProvided");
+        ).to.be.revertedWithCustomError(seniorTrancheVaultContract, "ZeroAddressProvided");
     });
 
     it("Should not allow non-poolOwner to set new pool config", async function () {
         await expect(
             seniorTrancheVaultContract.setPoolConfig(poolConfigContract.address),
-        ).to.be.revertedWithCustomError(poolConfigContract, "notPoolOwner");
+        ).to.be.revertedWithCustomError(poolConfigContract, "PoolOwnerRequired");
     });
 
     it("Should set new pool config", async function () {
