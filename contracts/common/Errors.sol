@@ -23,7 +23,7 @@ contract Errors {
     error BorrowerOrEARequired(); // 0xedaf53fe
     error PayerRequired(); // 0xb00f9713
     error CoverProviderRequired(); // 0x0c328563
-    error AuthorizedContractCallerRequired(); // 0xf4bc99c7 // 0xd4e75354
+    error AuthorizedContractCallerRequired(); // 0xf4bc99c7
     error EvaluationAgentServiceAccountRequired(); // 0xa770729f
     error SentinelServiceAccountRequired(); // 0x272a85a5
     error TrancheRequired(); // 0x56b15134
@@ -116,9 +116,12 @@ contract Errors {
     error InsufficientAvailableFlowRate(); // 0x0d455f2e
     error AuthorizationExpired(); // 0x0f05f5bf
     error InvalidAuthorization(); // 0x2ce87eeb
+    error NewReceiverSameToOrigin(); // 0xdf9b7a8a
 
     // factory
-    error InvalidPoolId(); // 0x0afa7ee8 // 0x86869e81
-    error InvalidPoolStatus(); // 0x3fad04fd // 0x6ae97ef4
-    error NewReceiverSameToOrigin(); // 0xdf9b7a8a
+    error InvalidPoolId(); // 0x0afa7ee8
+    error InvalidPoolStatus(); // 0x3fad04fd
+    error InvalidTranchesPolicyType(); // 0xdfeca9c2
+    error InvalidCreditType(); // 0x0dcf2e93
+    error DeployerRequired(); // 0x2e2bcb63
 }

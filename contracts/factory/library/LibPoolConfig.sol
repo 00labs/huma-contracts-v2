@@ -26,4 +26,13 @@ library LibPoolConfig {
         });
         PoolConfig(_poolConfigAddress).setPoolSettings(settings);
     }
+
+    function setLPConfig(
+        address _poolConfigAddress,
+        uint96 liquidityCap,
+        uint8 maxSeniorJuniorRatio,
+        uint16 fixedSeniorYieldInBps,
+        uint16 tranchesRiskAdjustmentInBps,
+        uint16 withdrawalLockoutPeriodInDays
+    ) public {}
 }

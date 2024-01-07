@@ -5,12 +5,27 @@ import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/acce
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {PoolConfig, FirstLossCoverConfig, PoolSettings} from "../common/PoolConfig.sol";
-import {IFirstLossCover} from "../liquidity/interfaces/IFirstLossCover.sol";
-import {IPoolConfigCache} from "../common/interfaces/IPoolConfigCache.sol";
-import {ITrancheVault} from "../liquidity/interfaces/ITrancheVault.sol";
 import {Errors} from "../common/Errors.sol";
+import {HumaConfig} from "../common/HumaConfig.sol";
 
 import {LibTimelockController} from "./library/LibTimelockController.sol";
+
+interface IPoolConfigCache {
+    function initialize(address poolConfig) external;
+}
+
+interface IFirstLossCoverLike {
+    function initialize(string memory name, string memory symbol, PoolConfig _poolConfig) external;
+}
+
+interface ITrancheVault {
+    function initialize(
+        string memory name,
+        string memory symbol,
+        PoolConfig _poolConfig,
+        uint8 seniorTrancheOrJuniorTranche
+    ) external;
+}
 
 contract PoolFactory is AccessControlUpgradeable, UUPSUpgradeable {
     /**
@@ -96,8 +111,6 @@ contract PoolFactory is AccessControlUpgradeable, UUPSUpgradeable {
     event PoolAdded(uint256 poolId, address poolAddress, string poolName);
     event PoolClosed(uint256 poolId, address poolAddress, string poolName);
 
-    event OwnershipChanged(address oldOwner, address newOwner);
-
     event PoolStatusUpdated(uint256 poolId, PoolStatus oldStatus, PoolStatus newStatus);
     event timeLockAddedtoPool(uint256 poolId, address poolAddress, address timeLockAddress);
 
@@ -109,33 +122,39 @@ contract PoolFactory is AccessControlUpgradeable, UUPSUpgradeable {
         poolId = 0;
         HUMA_CONFIG_ADDRESS = _humaConfigAddress;
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(DEPLOYER_ROLE, msg.sender);
         __AccessControl_init();
     }
 
     // Add a deployer account
-    function addDeployer(address account) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (account == address(0)) revert Errors.ZeroAddressProvided();
+    function addDeployer(address account) external {
+        _notZeroAddress(account);
+        _onlyFactoryAdmin(msg.sender);
         _grantRole(DEPLOYER_ROLE, account);
         emit DeployerAdded(account);
     }
 
     // Remove a deployer account
-    function removeDeployer(address account) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function removeDeployer(address account) external {
+        _onlyFactoryAdmin(msg.sender);
         _revokeRole(DEPLOYER_ROLE, account);
         emit DeployerRemoved(account);
     }
 
     // Add multiple deployer accounts
-    function addDeployers(address[] memory accounts) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function addDeployers(address[] memory accounts) external {
+        _onlyFactoryAdmin(msg.sender);
         for (uint256 i = 0; i < accounts.length; i++) {
+            _notZeroAddress(accounts[i]);
             _grantRole(DEPLOYER_ROLE, accounts[i]);
             emit DeployerAdded(accounts[i]);
         }
     }
 
     // set protocol and implementation addresses
-    function setCalendarAddress(address newAddress) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (newAddress == address(0)) revert Errors.ZeroAddressProvided();
+    function setCalendarAddress(address newAddress) external {
+        _onlyFactoryAdmin(msg.sender);
+        _notZeroAddress(newAddress);
         address oldAddress = calendarAddress;
         calendarAddress = newAddress;
         emit calendarAddressChanged(oldAddress, newAddress);
@@ -144,140 +163,137 @@ contract PoolFactory is AccessControlUpgradeable, UUPSUpgradeable {
     /**
      * @dev For protocol owner to set the implementation addresses
      */
-    function setFixedSeniorYieldTranchesPolicyImplAddress(
-        address newAddress
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (newAddress == address(0)) revert Errors.ZeroAddressProvided();
+    function setFixedSeniorYieldTranchesPolicyImplAddress(address newAddress) external {
+        _onlyFactoryAdmin(msg.sender);
+        _notZeroAddress(newAddress);
         address oldAddress = fixedSeniorYieldTranchesPolicyImplAddress;
         fixedSeniorYieldTranchesPolicyImplAddress = newAddress;
         emit fixedSeniorYieldTranchesPolicyImplChanged(oldAddress, newAddress);
     }
 
-    function setRiskAdjustedTranchesPolicyImplAddress(
-        address newAddress
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (newAddress == address(0)) revert Errors.ZeroAddressProvided();
+    function setRiskAdjustedTranchesPolicyImplAddress(address newAddress) external {
+        _onlyFactoryAdmin(msg.sender);
+        _notZeroAddress(newAddress);
         address oldAddress = riskAdjustedTranchesPolicyImplAddress;
         riskAdjustedTranchesPolicyImplAddress = newAddress;
         emit riskAdjustedTranchesPolicyImpl(oldAddress, newAddress);
     }
 
-    function setCreditLineImplAddress(address newAddress) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (newAddress == address(0)) revert Errors.ZeroAddressProvided();
+    function setCreditLineImplAddress(address newAddress) external {
+        _onlyFactoryAdmin(msg.sender);
+        _notZeroAddress(newAddress);
         address oldAddress = creditLineImplAddress;
         creditLineImplAddress = newAddress;
         emit creditLineImplChanged(oldAddress, newAddress);
     }
 
-    function setReceivableBackedCreditLineImplAddress(
-        address newAddress
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (newAddress == address(0)) revert Errors.ZeroAddressProvided();
+    function setReceivableBackedCreditLineImplAddress(address newAddress) external {
+        _onlyFactoryAdmin(msg.sender);
+        _notZeroAddress(newAddress);
         address oldAddress = receivableBackedCreditLineImplAddress;
         receivableBackedCreditLineImplAddress = newAddress;
         emit receivableBackedCreditLineImplChanged(oldAddress, newAddress);
     }
 
-    function setReceivableFactoringCreditImplAddress(
-        address newAddress
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (newAddress == address(0)) revert Errors.ZeroAddressProvided();
+    function setReceivableFactoringCreditImplAddress(address newAddress) external {
+        _onlyFactoryAdmin(msg.sender);
+        _notZeroAddress(newAddress);
         address oldAddress = receivableFactoringCreditImplAddress;
         receivableFactoringCreditImplAddress = newAddress;
         emit receivableFactoringCreditImplChanged(oldAddress, newAddress);
     }
 
-    function setBorrowerLevelCreditManagerImplAddress(
-        address newAddress
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (newAddress == address(0)) revert Errors.ZeroAddressProvided();
+    function setBorrowerLevelCreditManagerImplAddress(address newAddress) external {
+        _onlyFactoryAdmin(msg.sender);
+        _notZeroAddress(newAddress);
         address oldAddress = borrowerLevelCreditmanagerImplAddress;
         borrowerLevelCreditmanagerImplAddress = newAddress;
         emit borrowerLevelCreditmanagerImplChanged(oldAddress, newAddress);
     }
 
-    function setReceivableBackedCreditLineManagerImplAddress(
-        address newAddress
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (newAddress == address(0)) revert Errors.ZeroAddressProvided();
+    function setReceivableBackedCreditLineManagerImplAddress(address newAddress) external {
+        _onlyFactoryAdmin(msg.sender);
+        _notZeroAddress(newAddress);
         address oldAddress = receivableBackedCreditLineManagerImplAddress;
         receivableBackedCreditLineManagerImplAddress = newAddress;
         emit receivableBackedCreditLineManagerImplChanged(oldAddress, newAddress);
     }
 
-    function setReceivableLevelCreditManagerImplAddress(
-        address newAddress
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (newAddress == address(0)) revert Errors.ZeroAddressProvided();
+    function setReceivableLevelCreditManagerImplAddress(address newAddress) external {
+        _onlyFactoryAdmin(msg.sender);
+        _notZeroAddress(newAddress);
         address oldAddress = receivableLevelCreditManagerImplAddress;
         receivableLevelCreditManagerImplAddress = newAddress;
         emit receivableLevelCreditManagerImplChanged(oldAddress, newAddress);
     }
 
-    function setPoolConfigImplAddress(address newAddress) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (newAddress == address(0)) revert Errors.ZeroAddressProvided();
+    function setPoolConfigImplAddress(address newAddress) external {
+        _onlyFactoryAdmin(msg.sender);
+        _notZeroAddress(newAddress);
         address oldAddress = poolConfigImplAddress;
         poolConfigImplAddress = newAddress;
         emit poolConfigImplChanged(oldAddress, newAddress);
     }
 
-    function setPoolFeeManagerImplAddress(
-        address newAddress
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (newAddress == address(0)) revert Errors.ZeroAddressProvided();
+    function setPoolFeeManagerImplAddress(address newAddress) external {
+        _onlyFactoryAdmin(msg.sender);
+        _notZeroAddress(newAddress);
         address oldAddress = poolFeeManagerImplAddress;
         poolFeeManagerImplAddress = newAddress;
         emit poolFeeManagerImplChanged(oldAddress, newAddress);
     }
 
-    function setPoolImplAddress(address newAddress) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (newAddress == address(0)) revert Errors.ZeroAddressProvided();
+    function setPoolImplAddress(address newAddress) external {
+        _onlyFactoryAdmin(msg.sender);
+        _notZeroAddress(newAddress);
         address oldAddress = poolImplAddress;
         poolImplAddress = newAddress;
         emit poolImplChanged(oldAddress, newAddress);
     }
 
-    function setPoolSafeImplAddress(address newAddress) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (newAddress == address(0)) revert Errors.ZeroAddressProvided();
+    function setPoolSafeImplAddress(address newAddress) external {
+        _onlyFactoryAdmin(msg.sender);
+        _notZeroAddress(newAddress);
         address oldAddress = poolSafeImplAddress;
         poolSafeImplAddress = newAddress;
         emit poolSafeImplChanged(oldAddress, newAddress);
     }
 
-    function setFirstLossCoverImplAddress(
-        address newAddress
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (newAddress == address(0)) revert Errors.ZeroAddressProvided();
+    function setFirstLossCoverImplAddress(address newAddress) external {
+        _onlyFactoryAdmin(msg.sender);
+        _notZeroAddress(newAddress);
         address oldAddress = firstLossCoverImplAddress;
         firstLossCoverImplAddress = newAddress;
         emit firstLossCoverImplChanged(oldAddress, newAddress);
     }
 
-    function setEpochManagerImplAddress(address newAddress) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (newAddress == address(0)) revert Errors.ZeroAddressProvided();
+    function setEpochManagerImplAddress(address newAddress) external {
+        _onlyFactoryAdmin(msg.sender);
+        _notZeroAddress(newAddress);
         address oldAddress = epochManagerImplAddress;
         epochManagerImplAddress = newAddress;
         emit epochManagerImplChanged(oldAddress, newAddress);
     }
 
-    function setTrancheVaultImplAddress(address newAddress) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (newAddress == address(0)) revert Errors.ZeroAddressProvided();
+    function setTrancheVaultImplAddress(address newAddress) external {
+        _onlyFactoryAdmin(msg.sender);
+        _notZeroAddress(newAddress);
         address oldAddress = trancheVaultImplAddress;
         trancheVaultImplAddress = newAddress;
         emit trancheVaultImplChanged(oldAddress, newAddress);
     }
 
-    function setCreditDueManagerImplAddress(
-        address newAddress
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (newAddress == address(0)) revert Errors.ZeroAddressProvided();
+    function setCreditDueManagerImplAddress(address newAddress) external {
+        _onlyFactoryAdmin(msg.sender);
+        _notZeroAddress(newAddress);
         address oldAddress = creditDueManagerImplAddress;
         creditDueManagerImplAddress = newAddress;
         emit creditDueManagerImplChanged(oldAddress, newAddress);
     }
 
-    function setReceivableImplAddress(address newAddress) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (newAddress == address(0)) revert Errors.ZeroAddressProvided();
+    function setReceivableImplAddress(address newAddress) external {
+        _onlyFactoryAdmin(msg.sender);
+        _notZeroAddress(newAddress);
         address oldAddress = receivableImpl;
         receivableImpl = newAddress;
         emit receivableImplChanged(oldAddress, newAddress);
@@ -321,7 +337,7 @@ contract PoolFactory is AccessControlUpgradeable, UUPSUpgradeable {
         poolConfig.setReceivableAsset(receivable);
 
         address borrowerFirstLossCover = _addFirstLossCover();
-        IFirstLossCover(borrowerFirstLossCover).initialize(
+        IFirstLossCoverLike(borrowerFirstLossCover).initialize(
             "Borrower First Loss Cover",
             "BFLC",
             poolConfig
@@ -333,7 +349,7 @@ contract PoolFactory is AccessControlUpgradeable, UUPSUpgradeable {
             FirstLossCoverConfig(0, 0, 0, 0, 0)
         );
         address insuranceFirstLossCover = _addFirstLossCover();
-        IFirstLossCover(insuranceFirstLossCover).initialize(
+        IFirstLossCoverLike(insuranceFirstLossCover).initialize(
             "Insurance First Loss Cover",
             "IFLC",
             poolConfig
@@ -345,7 +361,7 @@ contract PoolFactory is AccessControlUpgradeable, UUPSUpgradeable {
             FirstLossCoverConfig(0, 0, 0, 0, 0)
         );
         address adminFirstLossCover = _addFirstLossCover();
-        IFirstLossCover(adminFirstLossCover).initialize(
+        IFirstLossCoverLike(adminFirstLossCover).initialize(
             "Admin First Loss Cover",
             "AFLC",
             poolConfig
@@ -381,12 +397,6 @@ contract PoolFactory is AccessControlUpgradeable, UUPSUpgradeable {
 
     function setupPool() external onlyRole(DEPLOYER_ROLE) {}
 
-    function transferOwnership(address newOwner) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _grantRole(DEFAULT_ADMIN_ROLE, newOwner);
-        _revokeRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        emit OwnershipChanged(msg.sender, newOwner);
-    }
-
     function addTimeLock(
         uint256 _poolId,
         address[] memory poolOwners,
@@ -407,10 +417,8 @@ contract PoolFactory is AccessControlUpgradeable, UUPSUpgradeable {
         pools[_poolId].poolTimeLock = timelockAddress;
     }
 
-    function _updatePoolStatus(
-        uint256 _poolId,
-        PoolStatus newStatus
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function _updatePoolStatus(uint256 _poolId, PoolStatus newStatus) external {
+        _onlyFactoryAdmin(msg.sender);
         if (_poolId == 0 || _poolId > poolId) {
             revert Errors.InvalidPoolId();
         }
@@ -431,7 +439,25 @@ contract PoolFactory is AccessControlUpgradeable, UUPSUpgradeable {
         return pools[_poolId];
     }
 
-    function _authorizeUpgrade(address) internal view override onlyRole(DEFAULT_ADMIN_ROLE) {}
+    function _onlyFactoryAdmin(address account) internal view {
+        if (!hasRole(DEFAULT_ADMIN_ROLE, account)) {
+            revert Errors.AdminRequired();
+        }
+    }
+
+    function _onlyDeployer(address account) internal view {
+        if (!hasRole(DEPLOYER_ROLE, account)) {
+            revert Errors.AdminRequired();
+        }
+    }
+
+    function _authorizeUpgrade(address) internal view override {
+        _onlyFactoryAdmin(msg.sender);
+    }
+
+    function _notZeroAddress(address newAddress) internal pure {
+        if (newAddress == address(0)) revert Errors.ZeroAddressProvided();
+    }
 
     function _registerPool(
         address _poolAddress,
@@ -572,7 +598,7 @@ contract PoolFactory is AccessControlUpgradeable, UUPSUpgradeable {
         } else if (keccak256(bytes(tranchesPolicyType)) == keccak256(bytes("adjusted"))) {
             poolAddresses[6] = _addTranchesPolicy(riskAdjustedTranchesPolicyImplAddress);
         } else {
-            revert("Invalid tranchesPolicyType");
+            revert Errors.InvalidTranchesPolicyType();
         }
 
         poolAddresses[7] = _addEpochManager();
@@ -590,7 +616,7 @@ contract PoolFactory is AccessControlUpgradeable, UUPSUpgradeable {
             poolAddresses[10] = _addCredit(creditLineImplAddress);
             poolAddresses[12] = _addCreditManager(borrowerLevelCreditmanagerImplAddress);
         } else {
-            revert("Invalid creditType");
+            revert Errors.InvalidCreditType();
         }
         emit PoolCreated(poolAddresses[0], _poolName);
         return (poolConfigAddress, poolAddresses);
