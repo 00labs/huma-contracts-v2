@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {AFFILIATE_FIRST_LOSS_COVER_INDEX, HUNDRED_PERCENT_IN_BPS} from "../common/SharedDefs.sol";
+import {ADMIN_LOSS_COVER_INDEX, HUNDRED_PERCENT_IN_BPS} from "../common/SharedDefs.sol";
 import {PoolConfig, AdminRnR} from "../common/PoolConfig.sol";
 import {PoolConfigCache} from "../common/PoolConfigCache.sol";
 import {IPool} from "./interfaces/IPool.sol";
@@ -193,7 +193,7 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         humaConfig = HumaConfig(addr);
 
         address oldFirstLossCover = address(firstLossCover);
-        addr = _poolConfig.getFirstLossCover(AFFILIATE_FIRST_LOSS_COVER_INDEX);
+        addr = _poolConfig.getFirstLossCover(ADMIN_LOSS_COVER_INDEX);
         assert(addr != address(0));
         firstLossCover = IFirstLossCover(addr);
         _resetFirstLossCoverAllowance(
