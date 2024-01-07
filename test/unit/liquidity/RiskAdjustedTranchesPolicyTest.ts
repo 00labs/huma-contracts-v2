@@ -127,7 +127,10 @@ describe("RiskAdjustedTranchesPolicy Test", function () {
         const assets = await poolContract.currentTranchesAssets();
         await expect(
             tranchesPolicyContract.distProfitToTranches(0, [...assets]),
-        ).to.be.revertedWithCustomError(tranchesPolicyContract, "AuthorizedContractRequired");
+        ).to.be.revertedWithCustomError(
+            tranchesPolicyContract,
+            "AuthorizedContractCallerRequired",
+        );
     });
 
     it("Should call distProfitToTranches correctly", async function () {

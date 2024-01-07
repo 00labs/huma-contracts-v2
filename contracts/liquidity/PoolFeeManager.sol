@@ -321,7 +321,7 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
 
     function _onlyPoolOwnerTreasury(address account) internal view returns (address) {
         address tempPoolOwnerTreasury = poolConfig.poolOwnerTreasury();
-        if (account != tempPoolOwnerTreasury) revert Errors.AuthorizedContractRequired();
+        if (account != tempPoolOwnerTreasury) revert Errors.AuthorizedContractCallerRequired();
         return tempPoolOwnerTreasury;
     }
 }

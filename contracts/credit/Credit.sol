@@ -606,6 +606,6 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
     }
 
     function _onlyCreditManager() internal view {
-        if (msg.sender != address(creditManager)) revert Errors.AuthorizedContractRequired();
+        if (msg.sender != address(creditManager)) revert Errors.AuthorizedContractCallerRequired();
     }
 }

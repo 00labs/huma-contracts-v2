@@ -584,7 +584,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
     }
 
     function onlyPool(address account) external view {
-        if (account != pool) revert Errors.AuthorizedContractRequired();
+        if (account != pool) revert Errors.AuthorizedContractCallerRequired();
     }
 
     function onlyProtocolAndPoolOn() external view {
@@ -662,7 +662,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         // Treat DEFAULT_ADMIN_ROLE role as owner role
         if (
             !hasRole(DEFAULT_ADMIN_ROLE, account) && account != humaConfig.sentinelServiceAccount()
-        ) revert Errors.AuthorizedContractRequired();
+        ) revert Errors.AuthorizedContractCallerRequired();
     }
 
     /**

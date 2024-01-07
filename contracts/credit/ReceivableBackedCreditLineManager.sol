@@ -28,7 +28,7 @@ contract ReceivableBackedCreditLineManager is
     function approveReceivable(address borrower, uint256 receivableId) external {
         poolConfig.onlyProtocolAndPoolOn();
         if (msg.sender != humaConfig.eaServiceAccount() && msg.sender != address(credit))
-            revert Errors.AuthorizedContractRequired();
+            revert Errors.AuthorizedContractCallerRequired();
 
         if (receivableId == 0) revert Errors.ZeroReceivableIdProvided();
         address existingBorrowerForReceivable = receivableBorrowerMap[receivableId];
@@ -56,7 +56,7 @@ contract ReceivableBackedCreditLineManager is
 
     /// @inheritdoc IReceivableBackedCreditLineManager
     function decreaseCreditLimit(bytes32 creditHash, uint256 amount) external {
-        if (msg.sender != address(credit)) revert Errors.AuthorizedContractRequired();
+        if (msg.sender != address(credit)) revert Errors.AuthorizedContractCallerRequired();
         uint256 availableCredit = getAvailableCredit(creditHash);
         if (amount > availableCredit) revert Errors.CreditLimitExceeded();
         availableCredit -= amount;

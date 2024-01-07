@@ -602,7 +602,7 @@ describe("TrancheVault Test", function () {
                 juniorTrancheVaultContract.connect(lender).makeInitialDeposit(toToken(1)),
             ).to.be.revertedWithCustomError(
                 juniorTrancheVaultContract,
-                "AuthorizedContractRequired",
+                "AuthorizedContractCallerRequired",
             );
         });
 
@@ -2408,7 +2408,7 @@ describe("TrancheVault Test", function () {
                     }),
                 ).to.be.revertedWithCustomError(
                     juniorTrancheVaultContract,
-                    "AuthorizedContractRequired",
+                    "AuthorizedContractCallerRequired",
                 );
             });
 

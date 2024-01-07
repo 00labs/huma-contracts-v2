@@ -932,7 +932,10 @@ describe("CreditLine Test", function () {
                 creditManagerContract
                     .connect(borrower)
                     .startCommittedCredit(borrower.getAddress()),
-            ).to.be.revertedWithCustomError(poolConfigContract, "AuthorizedContractRequired");
+            ).to.be.revertedWithCustomError(
+                poolConfigContract,
+                "AuthorizedContractCallerRequired",
+            );
         });
 
         it("Should not start a credit for a borrower without an approved credit", async function () {
@@ -8581,7 +8584,7 @@ describe("CreditLine Test", function () {
 
             await expect(
                 creditContract.connect(borrower).updateDueInfo(creditHash, cr, dd),
-            ).to.be.revertedWithCustomError(creditContract, "AuthorizedContractRequired");
+            ).to.be.revertedWithCustomError(creditContract, "AuthorizedContractCallerRequired");
         });
     });
 

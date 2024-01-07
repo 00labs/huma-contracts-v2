@@ -23,7 +23,7 @@ contract Errors {
     error BorrowerOrEARequired(); // 0xedaf53fe
     error PayerRequired(); // 0xb00f9713
     error CoverProviderRequired(); // 0x0c328563
-    error AuthorizedContractRequired(); // 0xd4e75354
+    error AuthorizedContractCallerRequired(); // 0xd4e75354
     error EvaluationAgentServiceAccountRequired(); // 0xa770729f
     error SentinelServiceAccountRequired(); // 0x272a85a5
     error TrancheRequired(); // 0x56b15134

@@ -23,7 +23,7 @@ abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
             uint256[] memory profitsForFirstLossCover
         )
     {
-        if (msg.sender != pool) revert Errors.AuthorizedContractRequired();
+        if (msg.sender != pool) revert Errors.AuthorizedContractCallerRequired();
 
         uint256 remainingProfit;
         (

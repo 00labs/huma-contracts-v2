@@ -776,19 +776,28 @@ describe("Pool Test", function () {
                 it("Should not allow non-credit or non-credit manager to distribute profit", async function () {
                     await expect(
                         poolContract.connect(lender).distributeProfit(toToken(1)),
-                    ).to.be.revertedWithCustomError(poolContract, "AuthorizedContractRequired");
+                    ).to.be.revertedWithCustomError(
+                        poolContract,
+                        "AuthorizedContractCallerRequired",
+                    );
                 });
 
                 it("Should not allow non-credit or non-credit manager to distribute loss", async function () {
                     await expect(
                         poolContract.connect(lender).distributeLoss(toToken(1)),
-                    ).to.be.revertedWithCustomError(poolContract, "AuthorizedContractRequired");
+                    ).to.be.revertedWithCustomError(
+                        poolContract,
+                        "AuthorizedContractCallerRequired",
+                    );
                 });
 
                 it("Should not allow non-credit to distribute loss recovery", async function () {
                     await expect(
                         poolContract.connect(lender).distributeLossRecovery(toToken(1)),
-                    ).to.be.revertedWithCustomError(poolContract, "AuthorizedContractRequired");
+                    ).to.be.revertedWithCustomError(
+                        poolContract,
+                        "AuthorizedContractCallerRequired",
+                    );
                 });
             });
 
@@ -979,7 +988,7 @@ describe("Pool Test", function () {
             it("Should not allow non-tranche vault or non-epoch manager to update tranches assets", async function () {
                 await expect(
                     poolContract.connect(lender).updateTranchesAssets(tranchesAssets),
-                ).to.be.revertedWithCustomError(poolContract, "AuthorizedContractRequired");
+                ).to.be.revertedWithCustomError(poolContract, "AuthorizedContractCallerRequired");
             });
         });
 

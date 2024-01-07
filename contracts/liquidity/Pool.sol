@@ -137,7 +137,7 @@ contract Pool is PoolConfigCache, IPool {
     /// @inheritdoc IPool
     /// @custom:access Only Credit contract can call this function
     function distributeLossRecovery(uint256 lossRecovery) external {
-        if (msg.sender != address(credit)) revert Errors.AuthorizedContractRequired();
+        if (msg.sender != address(credit)) revert Errors.AuthorizedContractCallerRequired();
         _distributeLossRecovery(lossRecovery);
     }
 
@@ -426,12 +426,12 @@ contract Pool is PoolConfigCache, IPool {
             account != poolConfig.juniorTranche() &&
             account != poolConfig.seniorTranche() &&
             account != poolConfig.epochManager()
-        ) revert Errors.AuthorizedContractRequired();
+        ) revert Errors.AuthorizedContractCallerRequired();
     }
 
     function _onlyCreditOrCreditManager(address account) internal view {
         if (account != address(credit) && account != address(creditManager)) {
-            revert Errors.AuthorizedContractRequired();
+            revert Errors.AuthorizedContractCallerRequired();
         }
     }
 }

@@ -330,7 +330,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
                         .approveReceivable(borrower.getAddress(), receivableId),
                 ).to.be.revertedWithCustomError(
                     creditManagerContract,
-                    "AuthorizedContractRequired",
+                    "AuthorizedContractCallerRequired",
                 );
             });
 
@@ -570,7 +570,10 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
                 creditManagerContract
                     .connect(borrower)
                     .decreaseCreditLimit(creditHash, receivableAmount),
-            ).to.be.revertedWithCustomError(creditManagerContract, "AuthorizedContractRequired");
+            ).to.be.revertedWithCustomError(
+                creditManagerContract,
+                "AuthorizedContractCallerRequired",
+            );
         });
 
         it("Should not decrease the credit limit beyond what's available", async function () {

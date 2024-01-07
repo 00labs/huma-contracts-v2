@@ -662,7 +662,7 @@ describe("FirstLossCover Tests", function () {
                     .depositCoverFor(assets, evaluationAgent.getAddress()),
             ).to.be.revertedWithCustomError(
                 affiliateFirstLossCoverContract,
-                "AuthorizedContractRequired",
+                "AuthorizedContractCallerRequired",
             );
         });
 
@@ -711,7 +711,10 @@ describe("FirstLossCover Tests", function () {
         it("Should disallow non-pools to add cover assets", async function () {
             await expect(
                 affiliateFirstLossCoverContract.connect(lender).addCoverAssets(assets),
-            ).to.be.revertedWithCustomError(poolConfigContract, "AuthorizedContractRequired");
+            ).to.be.revertedWithCustomError(
+                poolConfigContract,
+                "AuthorizedContractCallerRequired",
+            );
         });
     });
 
@@ -1225,7 +1228,10 @@ describe("FirstLossCover Tests", function () {
             it("Should not allow non-pools to initiate loss coverage", async function () {
                 await expect(
                     affiliateFirstLossCoverContract.connect(lender).coverLoss(toToken(1_000)),
-                ).to.be.revertedWithCustomError(poolConfigContract, "AuthorizedContractRequired");
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "AuthorizedContractCallerRequired",
+                );
             });
         });
 
@@ -1316,7 +1322,10 @@ describe("FirstLossCover Tests", function () {
             it("Should disallow non-pool to recover loss", async function () {
                 await expect(
                     affiliateFirstLossCoverContract.connect(lender).recoverLoss(loss),
-                ).to.be.revertedWithCustomError(poolConfigContract, "AuthorizedContractRequired");
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "AuthorizedContractCallerRequired",
+                );
             });
         });
 

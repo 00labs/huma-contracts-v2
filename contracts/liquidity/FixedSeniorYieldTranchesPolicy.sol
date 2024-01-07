@@ -23,7 +23,7 @@ contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
 
     function refreshYieldTracker(uint96[2] memory assets) external override {
         if (msg.sender != address(poolConfig) && msg.sender != pool) {
-            revert Errors.AuthorizedContractRequired();
+            revert Errors.AuthorizedContractCallerRequired();
         }
 
         (SeniorYieldTracker memory tracker, bool updated) = _getYieldTracker();

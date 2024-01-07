@@ -548,12 +548,12 @@ contract TrancheVault is
     }
 
     function _onlyEpochManager(address account) internal view {
-        if (account != address(epochManager)) revert Errors.AuthorizedContractRequired();
+        if (account != address(epochManager)) revert Errors.AuthorizedContractCallerRequired();
     }
 
     function _onlyAuthorizedInitialDepositor(address account) internal view {
         if (account != poolConfig.poolOwnerTreasury() && account != poolConfig.evaluationAgent())
-            revert Errors.AuthorizedContractRequired();
+            revert Errors.AuthorizedContractCallerRequired();
     }
 
     function _onlyLender(address account) internal view {

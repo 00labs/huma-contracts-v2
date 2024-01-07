@@ -332,7 +332,10 @@ describe("PoolFeeManager Tests", function () {
         it("Should disallow non-pool to distribute pool fees", async function () {
             await expect(
                 poolFeeManagerContract.connect(lender).distributePoolFees(profit),
-            ).to.be.revertedWithCustomError(poolConfigContract, "AuthorizedContractRequired");
+            ).to.be.revertedWithCustomError(
+                poolConfigContract,
+                "AuthorizedContractCallerRequired",
+            );
         });
     });
 
@@ -487,7 +490,10 @@ describe("PoolFeeManager Tests", function () {
         it("Should disallow non-pool owner treasury to withdraw pool owner fees", async function () {
             await expect(
                 poolFeeManagerContract.connect(lender).withdrawPoolOwnerFee(amount),
-            ).to.be.revertedWithCustomError(poolFeeManagerContract, "AuthorizedContractRequired");
+            ).to.be.revertedWithCustomError(
+                poolFeeManagerContract,
+                "AuthorizedContractCallerRequired",
+            );
         });
 
         it("Should disallow withdrawal attempts with amounts higher than the balance", async function () {
@@ -587,7 +593,10 @@ describe("PoolFeeManager Tests", function () {
         it("Should not allow a non-pool owner and non-Sentinel Service account to invest fees", async function () {
             await expect(
                 poolFeeManagerContract.connect(lender).investFeesInFirstLossCover(),
-            ).to.be.revertedWithCustomError(poolConfigContract, "AuthorizedContractRequired");
+            ).to.be.revertedWithCustomError(
+                poolConfigContract,
+                "AuthorizedContractCallerRequired",
+            );
         });
 
         it("Should allow the pool owner to not invest anything if there is no available fees to invest", async function () {

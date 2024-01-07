@@ -181,7 +181,7 @@ describe("EpochManager Test", function () {
     it("Should not allow non-Pool to start new epoch", async function () {
         await expect(epochManagerContract.startNewEpoch()).to.be.revertedWithCustomError(
             poolConfigContract,
-            "AuthorizedContractRequired",
+            "AuthorizedContractCallerRequired",
         );
     });
 

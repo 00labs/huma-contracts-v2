@@ -354,7 +354,8 @@ contract FirstLossCover is
     }
 
     function _onlyPoolFeeManager(address account) internal view {
-        if (account != poolConfig.poolFeeManager()) revert Errors.AuthorizedContractRequired();
+        if (account != poolConfig.poolFeeManager())
+            revert Errors.AuthorizedContractCallerRequired();
     }
 
     function _calcLossRecover(
