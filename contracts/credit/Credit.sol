@@ -601,6 +601,12 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             revert Errors.SentinelServiceAccountRequired();
     }
 
+    /**
+     * @notice Returns from whose account the funds for payment should be extracted.
+     * This function exists because of Auto-pay:
+     * 1. For Auto-pay, the funds should be coming from the borrower's account.
+     * 2. In all other case, the funds should be coming from whoever is initiating the payment.
+     */
     function _getPaymentOriginator(address borrower) internal view returns (address originator) {
         return msg.sender == humaConfig.sentinelServiceAccount() ? borrower : msg.sender;
     }
