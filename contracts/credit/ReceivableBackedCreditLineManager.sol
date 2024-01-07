@@ -28,9 +28,9 @@ contract ReceivableBackedCreditLineManager is
     function approveReceivable(address borrower, uint256 receivableId) external {
         poolConfig.onlyProtocolAndPoolOn();
         if (msg.sender != humaConfig.eaServiceAccount() && msg.sender != address(credit))
-            revert Errors.notAuthorizedCaller();
+            revert Errors.AuthorizedContractCallerRequired();
 
-        if (receivableId == 0) revert Errors.zeroReceivableIdProvided();
+        if (receivableId == 0) revert Errors.ZeroReceivableIdProvided();
         address existingBorrowerForReceivable = receivableBorrowerMap[receivableId];
         if (existingBorrowerForReceivable == borrower) {
             // If a receivable has been previously approved, then early return so that the operation
@@ -40,12 +40,12 @@ contract ReceivableBackedCreditLineManager is
         }
         if (existingBorrowerForReceivable != address(0)) {
             // Revert if the receivable was previously approved but belongs to some other borrower.
-            revert Errors.receivableIdMismatch();
+            revert Errors.ReceivableIdMismatch();
         }
         ReceivableInfo memory receivable = receivableAsset.getReceivable(receivableId);
         // Either the receivable does not exist, or the receivable has a zero amount.
         // We shouldn't approve either way.
-        if (receivable.receivableAmount == 0) revert Errors.zeroReceivableAmount();
+        if (receivable.receivableAmount == 0) revert Errors.ZeroReceivableAmount();
         validateReceivableStatus(receivable.maturityDate, receivable.state);
 
         bytes32 creditHash = getCreditHash(borrower);
@@ -56,22 +56,22 @@ contract ReceivableBackedCreditLineManager is
 
     /// @inheritdoc IReceivableBackedCreditLineManager
     function decreaseCreditLimit(bytes32 creditHash, uint256 amount) external {
-        if (msg.sender != address(credit)) revert Errors.notAuthorizedCaller();
+        if (msg.sender != address(credit)) revert Errors.AuthorizedContractCallerRequired();
         uint256 availableCredit = getAvailableCredit(creditHash);
-        if (amount > availableCredit) revert Errors.creditLineExceeded();
+        if (amount > availableCredit) revert Errors.CreditLimitExceeded();
         availableCredit -= amount;
         _availableCredits[creditHash] = uint96(availableCredit);
     }
 
     /// @inheritdoc IReceivableBackedCreditLineManager
     function validateReceivableOwnership(address borrower, uint256 receivableId) external view {
-        if (receivableBorrowerMap[receivableId] != borrower) revert Errors.receivableIdMismatch();
+        if (receivableBorrowerMap[receivableId] != borrower) revert Errors.ReceivableIdMismatch();
     }
 
     function validateReceivableStatus(uint256 maturityDate, ReceivableState state) public view {
-        if (maturityDate < block.timestamp) revert Errors.receivableAlreadyMatured();
+        if (maturityDate < block.timestamp) revert Errors.ReceivableAlreadyMatured();
         if (state != ReceivableState.Minted && state != ReceivableState.Approved)
-            revert Errors.invalidReceivableState();
+            revert Errors.InvalidReceivableState();
     }
 
     function getAvailableCredit(bytes32 creditHash) public view returns (uint256 availableCredit) {
@@ -91,7 +91,7 @@ contract ReceivableBackedCreditLineManager is
             HUNDRED_PERCENT_IN_BPS;
         availableCredit += incrementalCredit;
         if (availableCredit > cc.creditLimit) {
-            revert Errors.creditLineExceeded();
+            revert Errors.CreditLimitExceeded();
         }
         _availableCredits[creditHash] = uint96(availableCredit);
 

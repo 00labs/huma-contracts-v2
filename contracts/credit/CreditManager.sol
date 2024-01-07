@@ -142,7 +142,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
     }
 
     function onlyCreditBorrower(bytes32 creditHash, address borrower) public view {
-        if (borrower != _creditBorrowerMap[creditHash]) revert Errors.notBorrower();
+        if (borrower != _creditBorrowerMap[creditHash]) revert Errors.BorrowerRequired();
     }
 
     /// Pulls and the addresses of dependent contracts from poolConfig and caches them
@@ -191,15 +191,15 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         // revert.
         assert(creditHash != bytes32(0));
 
-        if (borrower == address(0)) revert Errors.zeroAddressProvided();
-        if (creditLimit == 0) revert Errors.zeroAmountProvided();
-        if (remainingPeriods == 0) revert Errors.zeroPayPeriods();
-        if (committedAmount > creditLimit) revert Errors.committedAmountGreaterThanCreditLimit();
-        // It doesn't make sense for a credit to have no commitment but a non-zero designated start date.
+        if (borrower == address(0)) revert Errors.ZeroAddressProvided();
+        if (creditLimit == 0) revert Errors.ZeroAmountProvided();
+        if (remainingPeriods == 0) revert Errors.ZeroPayPeriods();
+        if (committedAmount > creditLimit) revert Errors.CommittedAmountGreaterThanCreditLimit();
+        // It doesn't make sense for a credit to have no commitment but a non-zero designated startt date.
         if (committedAmount == 0 && designatedStartDate != 0)
-            revert Errors.creditWithoutCommitmentShouldHaveNoDesignatedStartDate();
+            revert Errors.CreditWithoutCommitmentShouldHaveNoDesignatedStartDate();
         if (designatedStartDate > 0 && block.timestamp > designatedStartDate)
-            revert Errors.designatedStartDateInThePast();
+            revert Errors.DesignatedStartDateInThePast();
         if (designatedStartDate > 0 && remainingPeriods <= 1) {
             // Business rule: do not allow credits with designated start date to have only 1 period.
             revert Errors.PayPeriodsTooLowForCreditsWithDesignatedStartDate();
@@ -207,14 +207,14 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
 
         PoolSettings memory ps = poolConfig.getPoolSettings();
         if (creditLimit > ps.maxCreditLine) {
-            revert Errors.greaterThanMaxCreditLine();
+            revert Errors.CreditLimitTooHigh();
         }
 
         // Before a drawdown happens, it is allowed to re-approve a credit to change the terms.
         // Once a drawdown has happened, it is disallowed to re-approve a credit. One has to call
         // other admin functions to change the terms of the credit.
         CreditRecord memory cr = credit.getCreditRecord(creditHash);
-        if (cr.state > CreditState.Approved) revert Errors.creditLineNotInStateForUpdate();
+        if (cr.state > CreditState.Approved) revert Errors.CreditNotInStateForUpdate();
 
         CreditConfig memory cc = getCreditConfig(creditHash);
         cc.creditLimit = creditLimit;
@@ -256,7 +256,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
             // 1. A credit is not yet approved, or has already begun.
             // 2. The due date is 0, meaning the credit has no designated start date.
             // 3. We have not yet reached the designated start date.
-            revert Errors.committedCreditCannotBeStarted();
+            revert Errors.CommittedCreditCannotBeStarted();
         }
         CreditConfig memory cc = getCreditConfig(creditHash);
         DueDetail memory dd = credit.getDueDetail(creditHash);
@@ -275,13 +275,13 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
     function _closeCredit(bytes32 creditHash) internal virtual {
         CreditRecord memory cr = credit.getCreditRecord(creditHash);
         if (cr.nextDue != 0 || cr.totalPastDue != 0 || cr.unbilledPrincipal != 0) {
-            revert Errors.creditLineHasOutstandingBalance();
+            revert Errors.CreditHasOutstandingBalance();
         }
 
         CreditConfig memory cc = getCreditConfig(creditHash);
         if (cr.state != CreditState.Approved && cc.committedAmount > 0 && cr.remainingPeriods > 0)
             // If a credit has started and has unfulfilled commitment, then don't allow it to be closed.
-            revert Errors.creditLineHasUnfulfilledCommitment();
+            revert Errors.CreditHasUnfulfilledCommitment();
 
         // Close the credit by removing relevant record.
         cr.state = CreditState.Deleted;
@@ -340,7 +340,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
     ) internal virtual returns (uint256 principalLoss, uint256 yieldLoss, uint256 feesLoss) {
         // check to make sure the default grace period has passed.
         CreditRecord memory cr = credit.getCreditRecord(creditHash);
-        if (cr.state == CreditState.Defaulted) revert Errors.defaultHasAlreadyBeenTriggered();
+        if (cr.state == CreditState.Defaulted) revert Errors.DefaultHasAlreadyBeenTriggered();
 
         CreditConfig memory cc = getCreditConfig(creditHash);
         DueDetail memory dd = credit.getDueDetail(creditHash);
@@ -348,7 +348,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
 
         // Check if grace period has been exceeded.
         if (!_isDefaultReady(cc.periodDuration, cr.missedPeriods))
-            revert Errors.defaultTriggeredTooEarly();
+            revert Errors.DefaultTriggeredTooEarly();
 
         principalLoss = cr.unbilledPrincipal + cr.nextDue - cr.yieldDue + dd.principalPastDue;
         yieldLoss = cr.yieldDue + dd.yieldPastDue;
@@ -375,13 +375,13 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         // it is still a good practice to bring the account current while we update one of the fields.
         CreditRecord memory cr = credit.getCreditRecord(creditHash);
         if (cr.state != CreditState.GoodStanding) {
-            revert Errors.creditLineNotInStateForUpdate();
+            revert Errors.CreditNotInStateForUpdate();
         }
         CreditConfig memory cc = getCreditConfig(creditHash);
         DueDetail memory dd = credit.getDueDetail(creditHash);
         (cr, dd) = dueManager.getDueInfo(cr, cc, dd, block.timestamp);
         if (cr.state != CreditState.GoodStanding) {
-            revert Errors.creditLineNotInStateForUpdate();
+            revert Errors.CreditNotInStateForUpdate();
         }
 
         cc.numOfPeriods += uint16(extraNumOfPeriods);
@@ -406,7 +406,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
     function _updateYield(bytes32 creditHash, uint256 yieldInBps) internal virtual {
         CreditRecord memory cr = credit.getCreditRecord(creditHash);
         if (cr.state == CreditState.Approved || cr.state == CreditState.Deleted) {
-            revert Errors.creditLineNotInStateForUpdate();
+            revert Errors.CreditNotInStateForUpdate();
         }
         CreditConfig memory cc = getCreditConfig(creditHash);
         DueDetail memory dd = credit.getDueDetail(creditHash);
@@ -471,7 +471,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
     ) internal virtual {
         CreditRecord memory cr = credit.getCreditRecord(creditHash);
         if (cr.state == CreditState.Approved || cr.state == CreditState.Deleted) {
-            revert Errors.creditLineNotInStateForUpdate();
+            revert Errors.CreditNotInStateForUpdate();
         }
         CreditConfig memory cc = getCreditConfig(creditHash);
         DueDetail memory dd = credit.getDueDetail(creditHash);
@@ -526,7 +526,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
     ) internal returns (uint256 amountWaived) {
         CreditRecord memory cr = credit.getCreditRecord(creditHash);
         if (cr.state == CreditState.Approved || cr.state == CreditState.Deleted) {
-            revert Errors.creditLineNotInStateForUpdate();
+            revert Errors.CreditNotInStateForUpdate();
         }
         CreditConfig memory cc = getCreditConfig(creditHash);
         DueDetail memory dd = credit.getDueDetail(creditHash);
@@ -571,6 +571,6 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
     /// "Modifier" function that limits access to eaServiceAccount only
     function _onlyEAServiceAccount() internal view {
         if (msg.sender != humaConfig.eaServiceAccount())
-            revert Errors.evaluationAgentServiceAccountRequired();
+            revert Errors.EvaluationAgentServiceAccountRequired();
     }
 }

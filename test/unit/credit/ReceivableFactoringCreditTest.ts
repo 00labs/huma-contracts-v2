@@ -295,7 +295,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                     creditContract
                         .connect(borrower)
                         .drawdownWithReceivable(borrower.getAddress(), tokenId, borrowAmount),
-                ).to.be.revertedWithCustomError(creditManagerContract, "notBorrower");
+                ).to.be.revertedWithCustomError(creditManagerContract, "BorrowerRequired");
             });
         });
 
@@ -375,7 +375,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                     creditContract
                         .connect(borrower)
                         .drawdownWithReceivable(borrower.getAddress(), tokenId, borrowAmount),
-                ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+                ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
                 await humaConfigContract.connect(protocolOwner).unpause();
 
                 await poolContract.connect(poolOwner).disablePool();
@@ -383,7 +383,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                     creditContract
                         .connect(borrower)
                         .drawdownWithReceivable(borrower.getAddress(), tokenId, borrowAmount),
-                ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+                ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
                 await poolContract.connect(poolOwner).enablePool();
             });
 
@@ -392,7 +392,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                     creditContract
                         .connect(lender)
                         .drawdownWithReceivable(borrower.getAddress(), tokenId, borrowAmount),
-                ).to.be.revertedWithCustomError(creditContract, "notBorrower");
+                ).to.be.revertedWithCustomError(creditContract, "BorrowerRequired");
             });
 
             it("Should not allow drawdown with 0 receivable ID", async function () {
@@ -400,7 +400,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                     creditContract
                         .connect(borrower)
                         .drawdownWithReceivable(borrower.getAddress(), 0, borrowAmount),
-                ).to.be.revertedWithCustomError(creditContract, "zeroReceivableIdProvided");
+                ).to.be.revertedWithCustomError(creditContract, "ZeroReceivableIdProvided");
             });
 
             it("Should not allow drawdown if the borrower does not own the receivable", async function () {
@@ -412,7 +412,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                     creditContract
                         .connect(borrower)
                         .drawdownWithReceivable(borrower.getAddress(), tokenId2, borrowAmount),
-                ).to.be.revertedWithCustomError(creditContract, "notReceivableOwner");
+                ).to.be.revertedWithCustomError(creditContract, "ReceivableOwnerRequired");
 
                 await nftContract.connect(lender).burn(tokenId2);
             });
@@ -476,7 +476,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                     creditContract
                         .connect(borrower)
                         .makePaymentWithReceivable(borrower.getAddress(), tokenId, borrowAmount),
-                ).to.be.revertedWithCustomError(creditManagerContract, "notBorrower");
+                ).to.be.revertedWithCustomError(creditManagerContract, "BorrowerRequired");
             });
 
             it("Should not allow payment if the receivable wasn't transferred to the contract", async function () {
@@ -500,7 +500,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                     creditContract
                         .connect(borrower)
                         .makePaymentWithReceivable(borrower.getAddress(), tokenId2, borrowAmount),
-                ).to.be.revertedWithCustomError(creditContract, "notReceivableOwner");
+                ).to.be.revertedWithCustomError(creditContract, "ReceivableOwnerRequired");
 
                 await nftContract.connect(borrower).burn(tokenId2);
             });
@@ -568,7 +568,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                     creditContract
                         .connect(borrower)
                         .makePaymentWithReceivable(borrower.getAddress(), tokenId, borrowAmount),
-                ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+                ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
                 await humaConfigContract.connect(protocolOwner).unpause();
 
                 await poolContract.connect(poolOwner).disablePool();
@@ -576,7 +576,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                     creditContract
                         .connect(borrower)
                         .makePaymentWithReceivable(borrower.getAddress(), tokenId, borrowAmount),
-                ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+                ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
                 await poolContract.connect(poolOwner).enablePool();
             });
 
@@ -585,7 +585,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                     creditContract
                         .connect(lender)
                         .makePaymentWithReceivable(borrower.getAddress(), tokenId, borrowAmount),
-                ).to.be.revertedWithCustomError(creditContract, "notBorrower");
+                ).to.be.revertedWithCustomError(creditContract, "BorrowerRequired");
             });
 
             it("Should not allow payment with 0 receivable ID", async function () {
@@ -593,7 +593,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                     creditContract
                         .connect(borrower)
                         .makePaymentWithReceivable(borrower.getAddress(), 0, borrowAmount),
-                ).to.be.revertedWithCustomError(creditContract, "zeroReceivableIdProvided");
+                ).to.be.revertedWithCustomError(creditContract, "ZeroReceivableIdProvided");
             });
         });
     });
@@ -671,7 +671,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                     creditContract
                         .connect(payer)
                         .makePaymentWithReceivableByPayer(tokenId2, borrowAmount),
-                ).to.be.revertedWithCustomError(creditContract, "notReceivableOwner");
+                ).to.be.revertedWithCustomError(creditContract, "ReceivableOwnerRequired");
 
                 await nftContract.connect(borrower).burn(tokenId2);
             });
@@ -739,7 +739,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                     creditContract
                         .connect(payer)
                         .makePaymentWithReceivableByPayer(tokenId, borrowAmount),
-                ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+                ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
                 await humaConfigContract.connect(protocolOwner).unpause();
 
                 await poolContract.connect(poolOwner).disablePool();
@@ -747,7 +747,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                     creditContract
                         .connect(payer)
                         .makePaymentWithReceivableByPayer(tokenId, borrowAmount),
-                ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+                ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
                 await poolContract.connect(poolOwner).enablePool();
             });
 
@@ -756,7 +756,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                     creditContract
                         .connect(borrower)
                         .makePaymentWithReceivableByPayer(tokenId, borrowAmount),
-                ).to.be.revertedWithCustomError(creditManagerContract, "permissionDeniedNotPayer");
+                ).to.be.revertedWithCustomError(creditManagerContract, "PayerRequired");
             });
 
             it("Should not allow payment with 0 receivable ID", async function () {
@@ -764,7 +764,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                     creditContract
                         .connect(payer)
                         .makePaymentWithReceivableByPayer(0, borrowAmount),
-                ).to.be.revertedWithCustomError(creditContract, "zeroReceivableIdProvided");
+                ).to.be.revertedWithCustomError(creditContract, "ZeroReceivableIdProvided");
             });
         });
     });

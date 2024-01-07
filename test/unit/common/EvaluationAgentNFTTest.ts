@@ -77,7 +77,7 @@ describe("EvaluationAgentNFT Test", function () {
         it("Shall reject non-owner to burn it", async function () {
             await expect(
                 nftContract.connect(deployer).burn(eaNFTTokenId),
-            ).to.be.revertedWithCustomError(nftContract, "notNFTOwner");
+            ).to.be.revertedWithCustomError(nftContract, "NFTOwnerRequired");
         });
         it("Shall allow NFT owner to burn an NFT", async function () {
             expect(await nftContract.balanceOf(eaUser.address)).to.equal(2);

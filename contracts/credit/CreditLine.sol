@@ -18,7 +18,7 @@ contract CreditLine is Credit, ICreditLine {
         uint256 borrowAmount
     ) external virtual override returns (uint256 netAmountToBorrower) {
         poolConfig.onlyProtocolAndPoolOn();
-        if (borrower != msg.sender) revert Errors.notBorrower();
+        if (borrower != msg.sender) revert Errors.BorrowerRequired();
 
         bytes32 creditHash = getCreditHash(borrower);
         creditManager.onlyCreditBorrower(creditHash, borrower);

@@ -41,7 +41,7 @@ abstract contract PoolConfigCache is Initializable, UUPSUpgradeable {
      * @param _poolConfig The address of the new pool config contract.
      */
     function setPoolConfig(PoolConfig _poolConfig) external {
-        if (address(_poolConfig) == address(0)) revert Errors.zeroAddressProvided();
+        if (address(_poolConfig) == address(0)) revert Errors.ZeroAddressProvided();
         PoolConfig oldPoolConfig = poolConfig;
         oldPoolConfig.onlyPoolOwner(msg.sender);
         poolConfig = _poolConfig;
@@ -52,7 +52,7 @@ abstract contract PoolConfigCache is Initializable, UUPSUpgradeable {
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual;
 
     function _initialize(PoolConfig _poolConfig) internal onlyInitializing {
-        if (address(_poolConfig) == address(0)) revert Errors.zeroAddressProvided();
+        if (address(_poolConfig) == address(0)) revert Errors.ZeroAddressProvided();
         poolConfig = _poolConfig;
         _updatePoolConfigData(_poolConfig);
     }

@@ -141,7 +141,10 @@ describe("FixedSeniorYieldTranchePolicy Test", function () {
     it("Should not allow non-pool or non-poolConfig to call refreshSeniorYield", async function () {
         await expect(
             tranchesPolicyContract.refreshYieldTracker([0, 0]),
-        ).to.be.revertedWithCustomError(tranchesPolicyContract, "todo");
+        ).to.be.revertedWithCustomError(
+            tranchesPolicyContract,
+            "AuthorizedContractCallerRequired",
+        );
     });
 
     describe("getFirstLossCovers", function () {
@@ -158,7 +161,10 @@ describe("FixedSeniorYieldTranchePolicy Test", function () {
             const assets = await poolContract.currentTranchesAssets();
             await expect(
                 tranchesPolicyContract.distProfitToTranches(0, [...assets]),
-            ).to.be.revertedWithCustomError(tranchesPolicyContract, "notAuthorizedCaller");
+            ).to.be.revertedWithCustomError(
+                tranchesPolicyContract,
+                "AuthorizedContractCallerRequired",
+            );
         });
 
         it("Profit is not enough for senior tranche", async function () {

@@ -43,11 +43,12 @@ contract ReceivableFactoringCredit is
     ) external returns (uint256 netAmountToBorrower) {
         poolConfig.onlyProtocolAndPoolOn();
 
-        if (msg.sender != borrower) revert Errors.notBorrower();
-        if (receivableId == 0) revert Errors.zeroReceivableIdProvided();
+        if (msg.sender != borrower) revert Errors.BorrowerRequired();
+        if (receivableId == 0) revert Errors.ZeroReceivableIdProvided();
 
         IERC721 receivableAsset = IERC721(poolConfig.receivableAsset());
-        if (receivableAsset.ownerOf(receivableId) != borrower) revert Errors.notReceivableOwner();
+        if (receivableAsset.ownerOf(receivableId) != borrower)
+            revert Errors.ReceivableOwnerRequired();
 
         bytes32 creditHash = _getCreditHash(receivableId);
         creditManager.onlyCreditBorrower(creditHash, borrower);
@@ -66,15 +67,15 @@ contract ReceivableFactoringCredit is
         uint256 amount
     ) external virtual returns (uint256 amountPaid, bool paidoff) {
         poolConfig.onlyProtocolAndPoolOn();
-        if (msg.sender != borrower) revert Errors.notBorrower();
-        if (receivableId == 0) revert Errors.zeroReceivableIdProvided();
+        if (msg.sender != borrower) revert Errors.BorrowerRequired();
+        if (receivableId == 0) revert Errors.ZeroReceivableIdProvided();
 
         bytes32 creditHash = _getCreditHash(receivableId);
         creditManager.onlyCreditBorrower(creditHash, borrower);
 
         IERC721 receivableAsset = IERC721(poolConfig.receivableAsset());
         if (receivableAsset.ownerOf(receivableId) != address(this))
-            revert Errors.notReceivableOwner();
+            revert Errors.ReceivableOwnerRequired();
 
         (amountPaid, paidoff) = _makePaymentWithReceivable(borrower, creditHash, amount);
         emit PaymentMadeWithReceivable(borrower, receivableId, amount, msg.sender);
@@ -95,11 +96,11 @@ contract ReceivableFactoringCredit is
         uint256 amount
     ) external returns (uint256 amountPaid, bool paidoff) {
         poolConfig.onlyProtocolAndPoolOn();
-        if (receivableId == 0) revert Errors.zeroReceivableIdProvided();
+        if (receivableId == 0) revert Errors.ZeroReceivableIdProvided();
 
         IERC721 receivableAsset = IERC721(poolConfig.receivableAsset());
         if (receivableAsset.ownerOf(receivableId) != address(this))
-            revert Errors.notReceivableOwner();
+            revert Errors.ReceivableOwnerRequired();
 
         bytes32 creditHash = _getCreditHash(receivableId);
         // Restrict access to only payers to prevent money laundering.

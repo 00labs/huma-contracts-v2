@@ -170,19 +170,19 @@ describe("ReceivableLevelCreditManager Test", function () {
         it("Should not allow non-pool owners to add or remove payers", async function () {
             await expect(
                 creditManagerContract.addPayer(payer.getAddress()),
-            ).to.be.revertedWithCustomError(poolConfigContract, "notPoolOwner");
+            ).to.be.revertedWithCustomError(poolConfigContract, "PoolOwnerRequired");
             await expect(
                 creditManagerContract.removePayer(payer.getAddress()),
-            ).to.be.revertedWithCustomError(poolConfigContract, "notPoolOwner");
+            ).to.be.revertedWithCustomError(poolConfigContract, "PoolOwnerRequired");
         });
 
         it("Should not add or remove payers with 0 addresses", async function () {
             await expect(
                 creditManagerContract.connect(poolOwner).addPayer(ethers.constants.AddressZero),
-            ).to.be.revertedWithCustomError(creditManagerContract, "zeroAddressProvided");
+            ).to.be.revertedWithCustomError(creditManagerContract, "ZeroAddressProvided");
             await expect(
                 creditManagerContract.connect(poolOwner).removePayer(ethers.constants.AddressZero),
-            ).to.be.revertedWithCustomError(creditManagerContract, "zeroAddressProvided");
+            ).to.be.revertedWithCustomError(creditManagerContract, "ZeroAddressProvided");
         });
     });
 
@@ -218,7 +218,7 @@ describe("ReceivableLevelCreditManager Test", function () {
                     numOfPeriods,
                     yieldInBps,
                 ),
-            ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+            ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
             await humaConfigContract.connect(protocolOwner).unpause();
 
             await poolContract.connect(poolOwner).disablePool();
@@ -233,7 +233,7 @@ describe("ReceivableLevelCreditManager Test", function () {
                     numOfPeriods,
                     yieldInBps,
                 ),
-            ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+            ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
         });
 
         it("Should not allow non-EA service account to approve", async function () {
@@ -250,7 +250,7 @@ describe("ReceivableLevelCreditManager Test", function () {
                 ),
             ).to.be.revertedWithCustomError(
                 creditManagerContract,
-                "evaluationAgentServiceAccountRequired",
+                "EvaluationAgentServiceAccountRequired",
             );
         });
 
@@ -266,7 +266,7 @@ describe("ReceivableLevelCreditManager Test", function () {
                     numOfPeriods,
                     yieldInBps,
                 ),
-            ).to.be.revertedWithCustomError(creditManagerContract, "insufficientReceivableAmount");
+            ).to.be.revertedWithCustomError(creditManagerContract, "InsufficientReceivableAmount");
         });
 
         it("Should approve a borrower correctly", async function () {
@@ -425,13 +425,13 @@ describe("ReceivableLevelCreditManager Test", function () {
             await humaConfigContract.connect(protocolOwner).pause();
             await expect(
                 creditManagerContract.connect(eaServiceAccount).refreshCredit(tokenId),
-            ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+            ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
             await humaConfigContract.connect(protocolOwner).unpause();
 
             await poolContract.connect(poolOwner).disablePool();
             await expect(
                 creditManagerContract.connect(eaServiceAccount).refreshCredit(tokenId),
-            ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+            ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
         });
     });
 
@@ -545,7 +545,7 @@ describe("ReceivableLevelCreditManager Test", function () {
                 creditManagerContract.connect(eaServiceAccount).triggerDefault(tokenId),
             ).to.be.revertedWithCustomError(
                 creditManagerContract,
-                "defaultHasAlreadyBeenTriggered",
+                "DefaultHasAlreadyBeenTriggered",
             );
         }
 
@@ -563,13 +563,13 @@ describe("ReceivableLevelCreditManager Test", function () {
             await humaConfigContract.connect(protocolOwner).pause();
             await expect(
                 creditManagerContract.connect(eaServiceAccount).triggerDefault(tokenId),
-            ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+            ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
             await humaConfigContract.connect(protocolOwner).unpause();
 
             await poolContract.connect(poolOwner).disablePool();
             await expect(
                 creditManagerContract.connect(eaServiceAccount).triggerDefault(tokenId),
-            ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+            ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
         });
 
         it("Should not allow non-EA service accounts to trigger default", async function () {
@@ -577,7 +577,7 @@ describe("ReceivableLevelCreditManager Test", function () {
                 creditManagerContract.triggerDefault(tokenId),
             ).to.be.revertedWithCustomError(
                 creditManagerContract,
-                "evaluationAgentServiceAccountRequired",
+                "EvaluationAgentServiceAccountRequired",
             );
         });
     });
@@ -601,7 +601,7 @@ describe("ReceivableLevelCreditManager Test", function () {
                     creditManagerContract
                         .connect(lender)
                         .closeCredit(borrower.getAddress(), tokenId),
-                ).to.be.revertedWithCustomError(creditManagerContract, "notBorrowerOrEA");
+                ).to.be.revertedWithCustomError(creditManagerContract, "BorrowerOrEARequired");
             });
 
             it("Should not allow closure when the protocol is paused or pool is not on", async function () {
@@ -610,7 +610,7 @@ describe("ReceivableLevelCreditManager Test", function () {
                     creditManagerContract
                         .connect(borrower)
                         .closeCredit(borrower.getAddress(), tokenId),
-                ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+                ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
                 await humaConfigContract.connect(protocolOwner).unpause();
 
                 await poolContract.connect(poolOwner).disablePool();
@@ -618,7 +618,7 @@ describe("ReceivableLevelCreditManager Test", function () {
                     creditManagerContract
                         .connect(borrower)
                         .closeCredit(borrower.getAddress(), tokenId),
-                ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+                ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
                 await poolContract.connect(poolOwner).enablePool();
             });
         });
@@ -716,13 +716,13 @@ describe("ReceivableLevelCreditManager Test", function () {
             await humaConfigContract.connect(protocolOwner).pause();
             await expect(
                 creditManagerContract.connect(eaServiceAccount).pauseCredit(tokenId),
-            ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+            ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
             await humaConfigContract.connect(protocolOwner).unpause();
 
             await poolContract.connect(poolOwner).disablePool();
             await expect(
                 creditManagerContract.connect(eaServiceAccount).pauseCredit(tokenId),
-            ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+            ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
             await poolContract.connect(poolOwner).enablePool();
         });
 
@@ -732,7 +732,7 @@ describe("ReceivableLevelCreditManager Test", function () {
                 creditManagerContract.connect(borrower).pauseCredit(tokenId),
             ).to.be.revertedWithCustomError(
                 creditManagerContract,
-                "evaluationAgentServiceAccountRequired",
+                "EvaluationAgentServiceAccountRequired",
             );
             let newCR = await creditContract["getCreditRecord(uint256)"](tokenId);
             expect(newCR.state).to.equal(oldCR.state);
@@ -741,7 +741,7 @@ describe("ReceivableLevelCreditManager Test", function () {
                 creditManagerContract.connect(borrower).unpauseCredit(tokenId),
             ).to.be.revertedWithCustomError(
                 creditManagerContract,
-                "evaluationAgentServiceAccountRequired",
+                "EvaluationAgentServiceAccountRequired",
             );
             newCR = await creditContract["getCreditRecord(uint256)"](tokenId);
             expect(newCR.state).to.equal(oldCR.state);
@@ -869,7 +869,7 @@ describe("ReceivableLevelCreditManager Test", function () {
                 creditManagerContract
                     .connect(eaServiceAccount)
                     .updateYield(await borrower.getAddress(), 1517),
-            ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+            ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
             await humaConfigContract.connect(protocolOwner).unpause();
 
             await poolContract.connect(poolOwner).disablePool();
@@ -877,7 +877,7 @@ describe("ReceivableLevelCreditManager Test", function () {
                 creditManagerContract
                     .connect(eaServiceAccount)
                     .updateYield(tokenId, newYieldInBps),
-            ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+            ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
             await poolContract.connect(poolOwner).enablePool();
         });
 
@@ -886,7 +886,7 @@ describe("ReceivableLevelCreditManager Test", function () {
                 creditManagerContract.updateYield(tokenId, newYieldInBps),
             ).to.be.revertedWithCustomError(
                 creditManagerContract,
-                "evaluationAgentServiceAccountRequired",
+                "EvaluationAgentServiceAccountRequired",
             );
         });
     });
@@ -955,7 +955,7 @@ describe("ReceivableLevelCreditManager Test", function () {
                 creditManagerContract
                     .connect(eaServiceAccount)
                     .extendRemainingPeriod(tokenId, numOfPeriods),
-            ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+            ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
             await humaConfigContract.connect(protocolOwner).unpause();
 
             await poolContract.connect(poolOwner).disablePool();
@@ -963,7 +963,7 @@ describe("ReceivableLevelCreditManager Test", function () {
                 creditManagerContract
                     .connect(eaServiceAccount)
                     .extendRemainingPeriod(tokenId, numOfPeriods),
-            ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+            ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
             await poolContract.connect(poolOwner).enablePool();
         });
 
@@ -974,7 +974,7 @@ describe("ReceivableLevelCreditManager Test", function () {
                     .extendRemainingPeriod(tokenId, numOfPeriods),
             ).to.be.revertedWithCustomError(
                 creditManagerContract,
-                "evaluationAgentServiceAccountRequired",
+                "EvaluationAgentServiceAccountRequired",
             );
         });
     });
@@ -1090,13 +1090,13 @@ describe("ReceivableLevelCreditManager Test", function () {
             await humaConfigContract.connect(protocolOwner).pause();
             await expect(
                 creditManagerContract.connect(eaServiceAccount).waiveLateFee(tokenId, toToken(1)),
-            ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+            ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
             await humaConfigContract.connect(protocolOwner).unpause();
 
             await poolContract.connect(poolOwner).disablePool();
             await expect(
                 creditManagerContract.connect(eaServiceAccount).waiveLateFee(tokenId, toToken(1)),
-            ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+            ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
             await poolContract.connect(poolOwner).enablePool();
         });
 
@@ -1105,7 +1105,7 @@ describe("ReceivableLevelCreditManager Test", function () {
                 creditManagerContract.waiveLateFee(tokenId, toToken(1)),
             ).to.be.revertedWithCustomError(
                 creditManagerContract,
-                "evaluationAgentServiceAccountRequired",
+                "EvaluationAgentServiceAccountRequired",
             );
         });
     });

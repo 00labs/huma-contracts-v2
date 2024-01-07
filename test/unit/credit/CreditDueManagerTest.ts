@@ -205,7 +205,7 @@ describe("CreditDueManager Tests", function () {
                 creditDueManagerContract.distBorrowingAmount(borrowAmount),
             ).to.be.revertedWithCustomError(
                 creditDueManagerContract,
-                "borrowingAmountLessThanPlatformFees",
+                "BorrowAmountLessThanPlatformFees",
             );
         });
     });

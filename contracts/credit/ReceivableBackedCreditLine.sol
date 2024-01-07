@@ -62,7 +62,7 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         uint256 amount
     ) public virtual returns (uint256 netAmountToBorrower) {
         poolConfig.onlyProtocolAndPoolOn();
-        if (msg.sender != borrower) revert Errors.notBorrower();
+        if (msg.sender != borrower) revert Errors.BorrowerRequired();
 
         bytes32 creditHash = getCreditHash(borrower);
         creditManager.onlyCreditBorrower(creditHash, borrower);
@@ -94,7 +94,6 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         creditManager.onlyCreditBorrower(creditHash, borrower);
 
         _prepareForPayment(borrower, poolConfig.receivableAsset(), receivableId);
-        // todo update the receivable to indicate it is paid.
 
         (amountPaid, paidoff, ) = _makePayment(borrower, creditHash, amount);
 
@@ -110,7 +109,7 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         uint256 amount
     ) public virtual returns (uint256 amountPaid, bool paidoff) {
         poolConfig.onlyProtocolAndPoolOn();
-        if (msg.sender != borrower) revert Errors.notBorrower();
+        if (msg.sender != borrower) revert Errors.BorrowerRequired();
 
         bytes32 creditHash = getCreditHash(borrower);
         creditManager.onlyCreditBorrower(creditHash, borrower);
@@ -134,15 +133,15 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         uint256 drawdownAmount
     ) public virtual returns (uint256 amountPaid, uint256 netAmountToBorrower, bool paidoff) {
         poolConfig.onlyProtocolAndPoolOn();
-        if (msg.sender != borrower) revert Errors.notBorrower();
+        if (msg.sender != borrower) revert Errors.BorrowerRequired();
 
         bytes32 creditHash = getCreditHash(borrower);
         creditManager.onlyCreditBorrower(creditHash, borrower);
         CreditRecord memory cr = getCreditRecord(creditHash);
         if (cr.state != CreditState.GoodStanding)
-            revert Errors.creditLineNotInStateForMakingPrincipalPayment();
+            revert Errors.CreditNotInStateForMakingPrincipalPayment();
 
-        if (drawdownAmount == 0 || paymentAmount == 0) revert Errors.zeroAmountProvided();
+        if (drawdownAmount == 0 || paymentAmount == 0) revert Errors.ZeroAmountProvided();
 
         uint256 principalOutstanding = cr.unbilledPrincipal + cr.nextDue - cr.yieldDue;
         if (principalOutstanding == 0) {
@@ -199,13 +198,13 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         uint256 receivableId,
         uint256 amount
     ) internal {
-        if (receivableId == 0) revert Errors.zeroReceivableIdProvided();
+        if (receivableId == 0) revert Errors.ZeroReceivableIdProvided();
         ReceivableInfo memory receivable = IReceivable(receivableAsset).getReceivable(
             receivableId
         );
-        if (amount > receivable.receivableAmount) revert Errors.insufficientReceivableAmount();
+        if (amount > receivable.receivableAmount) revert Errors.InsufficientReceivableAmount();
         if (IERC721(receivableAsset).ownerOf(receivableId) != borrower)
-            revert Errors.notReceivableOwner();
+            revert Errors.ReceivableOwnerRequired();
 
         IReceivableBackedCreditLineManager rbclManager = IReceivableBackedCreditLineManager(
             address(creditManager)
@@ -226,13 +225,13 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         address receivableAsset,
         uint256 receivableId
     ) internal view {
-        if (receivableId == 0) revert Errors.zeroReceivableIdProvided();
+        if (receivableId == 0) revert Errors.ZeroReceivableIdProvided();
         IReceivableBackedCreditLineManager(address(creditManager)).validateReceivableOwnership(
             borrower,
             receivableId
         );
         if (IERC721(receivableAsset).ownerOf(receivableId) != address(this))
-            revert Errors.notReceivableOwner();
+            revert Errors.ReceivableOwnerRequired();
     }
 
     function getCreditHash(address borrower) internal view virtual returns (bytes32 creditHash) {

@@ -18,7 +18,7 @@ contract Calendar is ICalendar {
         uint256 endDate
     ) external view returns (uint256 daysRemaining) {
         if (block.timestamp > endDate) {
-            revert Errors.startDateLaterThanEndDate();
+            revert Errors.StartDateLaterThanEndDate();
         }
         uint256 day = DTL.getDay(block.timestamp);
         // If the day falls on the 31st, move it back to the 30th.
@@ -90,7 +90,7 @@ contract Calendar is ICalendar {
         uint256 endDate
     ) public view returns (uint256 daysDiff) {
         if (startDate > endDate) {
-            revert Errors.startDateLaterThanEndDate();
+            revert Errors.StartDateLaterThanEndDate();
         }
         if (startDate == 0) {
             startDate = block.timestamp;
@@ -119,7 +119,7 @@ contract Calendar is ICalendar {
         uint256 endDate
     ) public view returns (uint256 numPeriodsPassed) {
         if (startDate > endDate) {
-            revert Errors.startDateLaterThanEndDate();
+            revert Errors.StartDateLaterThanEndDate();
         }
         if (startDate == endDate) {
             return 0;
