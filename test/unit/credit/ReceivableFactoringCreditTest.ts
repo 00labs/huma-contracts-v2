@@ -580,7 +580,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                 await poolContract.connect(poolOwner).enablePool();
             });
 
-            it("Should not allow payment by non-borrower", async function () {
+            it("Should not allow payment by non-payer", async function () {
                 await expect(
                     creditContract
                         .connect(lender)
@@ -711,7 +711,8 @@ describe("ReceivableFactoringCredit Tests", function () {
                         tokenId,
                         paymentAmount,
                         await payer.getAddress(),
-                    );
+                    )
+                    .to.not.emit(creditContract, "ExtraFundsDisbursed");
 
                 const actualCR = await creditContract["getCreditRecord(uint256)"](tokenId);
                 const expectedCR = {
@@ -728,6 +729,71 @@ describe("ReceivableFactoringCredit Tests", function () {
                     ...oldDD,
                     ...{
                         paid: paymentAmount,
+                    },
+                };
+                checkDueDetailsMatch(actualDD, expectedDD);
+            });
+
+            it("Should allow the payer to make payment and disburse unused funds back to the borrower", async function () {
+                const extraPaymentAmount = toToken(1_000);
+                const oldCR = await creditContract["getCreditRecord(uint256)"](tokenId);
+                const oldDD = await creditContract.getDueDetail(creditHash);
+                const paymentAmount = oldCR.nextDue
+                    .add(oldCR.unbilledPrincipal)
+                    .add(extraPaymentAmount);
+
+                const oldBorrowerBalance = await mockTokenContract.balanceOf(
+                    borrower.getAddress(),
+                );
+                await expect(
+                    creditContract
+                        .connect(payer)
+                        .makePaymentWithReceivableByPayer(tokenId, paymentAmount),
+                )
+                    .to.emit(creditContract, "PaymentMade")
+                    .withArgs(
+                        await borrower.getAddress(),
+                        await payer.getAddress(),
+                        paymentAmount.sub(extraPaymentAmount),
+                        oldCR.yieldDue,
+                        oldCR.nextDue.sub(oldCR.yieldDue),
+                        oldCR.unbilledPrincipal,
+                        0,
+                        0,
+                        0,
+                        await payer.getAddress(),
+                    )
+                    .to.emit(creditContract, "PaymentMadeWithReceivable")
+                    .withArgs(
+                        await borrower.getAddress(),
+                        tokenId,
+                        paymentAmount,
+                        await payer.getAddress(),
+                    )
+                    .to.emit(creditContract, "ExtraFundsDisbursed")
+                    .withArgs(await borrower.getAddress(), extraPaymentAmount);
+                const newBorrowerBalance = await mockTokenContract.balanceOf(
+                    borrower.getAddress(),
+                );
+
+                expect(newBorrowerBalance).to.equal(oldBorrowerBalance.add(extraPaymentAmount));
+
+                const actualCR = await creditContract["getCreditRecord(uint256)"](tokenId);
+                const expectedCR = {
+                    ...oldCR,
+                    ...{
+                        nextDue: 0,
+                        yieldDue: 0,
+                        state: CreditState.Deleted,
+                    },
+                };
+                checkCreditRecordsMatch(actualCR, expectedCR);
+
+                const actualDD = await creditContract.getDueDetail(creditHash);
+                const expectedDD = {
+                    ...oldDD,
+                    ...{
+                        paid: oldCR.yieldDue,
                     },
                 };
                 checkDueDetailsMatch(actualDD, expectedDD);

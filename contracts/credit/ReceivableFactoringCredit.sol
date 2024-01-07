@@ -19,7 +19,7 @@ contract ReceivableFactoringCredit is
 {
     bytes32 public constant PAYER_ROLE = keccak256("PAYER");
 
-    event ExtraFundsDispersed(address indexed receiver, uint256 amount);
+    event ExtraFundsDisbursed(address indexed receiver, uint256 amount);
 
     event DrawdownMadeWithReceivable(
         address indexed borrower,
@@ -151,7 +151,7 @@ contract ReceivableFactoringCredit is
             uint256 disbursedAmount = amount - amountPaid;
             poolSafe.deposit(msg.sender, disbursedAmount);
             poolSafe.withdraw(borrower, disbursedAmount);
-            emit ExtraFundsDispersed(borrower, disbursedAmount);
+            emit ExtraFundsDisbursed(borrower, disbursedAmount);
         }
 
         // Don't delete paid receivable
