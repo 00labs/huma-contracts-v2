@@ -1,0 +1,20 @@
+@startuml
+allowmixing
+
+
+package liquidity <<Rectangle>> #line.dashed {
+  interface IPool
+  interface IPoolSafe
+  interface IFirstLossCover
+}
+
+package credit <<Rectangle>> #line.dashed {
+  class Credit
+  class CreditManager  
+}
+
+Credit --> IPool : distribute profit, loss & loss recovery >
+Credit --> IPoolSafe : transfer funds
+Credit --> IFirstLossCover : check if requirements are met >
+CreditManager --> IPool : distribute profit and loss at default >
+@enduml
