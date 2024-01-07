@@ -1352,7 +1352,7 @@ describe("CreditLine Test", function () {
                     .approveBorrower(
                         borrower.address,
                         toToken(100_000),
-                        1,
+                        2,
                         1217,
                         toToken(10_000),
                         designatedStartDate.unix(),
