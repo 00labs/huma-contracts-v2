@@ -9,6 +9,8 @@ import {DAYS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS, SECONDS_IN_A_DAY} from "../commo
 import {Errors} from "../common/Errors.sol";
 import {PoolConfigCache} from "../common/PoolConfigCache.sol";
 
+import "hardhat/console.sol";
+
 contract CreditDueManager is PoolConfigCache, ICreditDueManager {
     ICalendar public calendar;
 
@@ -76,14 +78,20 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
 
         newCR = _deepCopyCreditRecord(cr);
         newDD = _deepCopyDueDetail(dd);
-        if (newCR.state == CreditState.Approved) newCR.state = CreditState.GoodStanding;
+        if (cr.state == CreditState.Approved) newCR.state = CreditState.GoodStanding;
         // Update periods passed and remaining periods.
         uint256 periodsPassed = 0;
-        if (timestamp > cr.nextDueDate) {
+        if (cr.state != CreditState.Approved && timestamp > cr.nextDueDate) {
+            // If the credit is just approved, then updating `remainingPeriods` will be taken care of when next due
+            // is calculated below. Hence we don't need to update it here.
+            uint256 startDateOfCurrentPeriod = calendar.getStartDateOfPeriod(
+                cc.periodDuration,
+                timestamp
+            );
             periodsPassed = calendar.getNumPeriodsPassed(
                 cc.periodDuration,
                 cr.nextDueDate,
-                timestamp
+                startDateOfCurrentPeriod
             );
             if (cr.remainingPeriods > 0) {
                 newCR.remainingPeriods = cr.remainingPeriods > uint16(periodsPassed)
