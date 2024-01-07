@@ -428,7 +428,7 @@ describe("CreditLine Test", function () {
                     .approveBorrower(
                         borrower.getAddress(),
                         toToken(10_000),
-                        1,
+                        2,
                         1217,
                         0,
                         moment.utc().unix(),
@@ -454,13 +454,39 @@ describe("CreditLine Test", function () {
                     .approveBorrower(
                         borrower.getAddress(),
                         toToken(10_000),
-                        1,
+                        2,
                         1217,
                         toToken(10_000),
                         designatedStartDate.unix(),
                         true,
                     ),
             ).to.be.revertedWithCustomError(creditManagerContract, "designatedStartDateInThePast");
+        });
+
+        it("Should not approve a credit with a designated credit start date and only one period", async function () {
+            const nextBlockTimestamp = await getFutureBlockTime(2);
+            await setNextBlockTimestamp(nextBlockTimestamp);
+            const designatedStartDate = moment
+                .utc(nextBlockTimestamp * 1000)
+                .add(1, "day")
+                .startOf("day");
+
+            await expect(
+                creditManagerContract
+                    .connect(eaServiceAccount)
+                    .approveBorrower(
+                        borrower.getAddress(),
+                        toToken(10_000),
+                        1,
+                        1217,
+                        toToken(10_000),
+                        designatedStartDate.unix(),
+                        true,
+                    ),
+            ).to.be.revertedWithCustomError(
+                creditManagerContract,
+                "PayPeriodsTooLowForCreditsWithDesignatedStartDate",
+            );
         });
 
         it("Should approve a borrower correctly", async function () {
