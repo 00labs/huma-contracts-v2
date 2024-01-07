@@ -137,7 +137,7 @@ describe("ReceivableLevelCreditManager Test", function () {
 
         await nftContract.initialize(mockTokenContract.address, poolSafeContract.address);
         await poolConfigContract.connect(poolOwner).setReceivableAsset(nftContract.address);
-        await creditManagerContract.connect(poolOwner).addPayer(payer.getAddress());
+        await creditManagerContract.connect(poolOperator).addPayer(payer.getAddress());
 
         await borrowerFirstLossCoverContract.connect(poolOwner).addCoverProvider(borrower.address);
         await mockTokenContract
@@ -154,34 +154,38 @@ describe("ReceivableLevelCreditManager Test", function () {
     });
 
     describe("addPayer and removePayer", function () {
-        it("Should allow the pool owner to add and remove payers", async function () {
+        it("Should allow the pool operator to add and remove payers", async function () {
             const payerRole = await creditManagerContract.PAYER_ROLE();
-            await expect(creditManagerContract.connect(poolOwner).addPayer(payer.getAddress()))
+            await expect(creditManagerContract.connect(poolOperator).addPayer(payer.getAddress()))
                 .to.emit(creditManagerContract, "PayerAdded")
                 .withArgs(await payer.getAddress());
             expect(await creditManagerContract.hasRole(payerRole, payer.getAddress())).to.be.true;
 
-            await expect(creditManagerContract.connect(poolOwner).removePayer(payer.getAddress()))
+            await expect(
+                creditManagerContract.connect(poolOperator).removePayer(payer.getAddress()),
+            )
                 .to.emit(creditManagerContract, "PayerRemoved")
                 .withArgs(await payer.getAddress());
             expect(await creditManagerContract.hasRole(payerRole, payer.getAddress())).to.be.false;
         });
 
-        it("Should not allow non-pool owners to add or remove payers", async function () {
+        it("Should not allow non-pool operators to add or remove payers", async function () {
             await expect(
                 creditManagerContract.addPayer(payer.getAddress()),
-            ).to.be.revertedWithCustomError(poolConfigContract, "PoolOwnerRequired");
+            ).to.be.revertedWithCustomError(poolConfigContract, "PoolOperatorRequired");
             await expect(
                 creditManagerContract.removePayer(payer.getAddress()),
-            ).to.be.revertedWithCustomError(poolConfigContract, "PoolOwnerRequired");
+            ).to.be.revertedWithCustomError(poolConfigContract, "PoolOperatorRequired");
         });
 
         it("Should not add or remove payers with 0 addresses", async function () {
             await expect(
-                creditManagerContract.connect(poolOwner).addPayer(ethers.constants.AddressZero),
+                creditManagerContract.connect(poolOperator).addPayer(ethers.constants.AddressZero),
             ).to.be.revertedWithCustomError(creditManagerContract, "ZeroAddressProvided");
             await expect(
-                creditManagerContract.connect(poolOwner).removePayer(ethers.constants.AddressZero),
+                creditManagerContract
+                    .connect(poolOperator)
+                    .removePayer(ethers.constants.AddressZero),
             ).to.be.revertedWithCustomError(creditManagerContract, "ZeroAddressProvided");
         });
     });
