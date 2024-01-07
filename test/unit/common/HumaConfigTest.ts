@@ -312,7 +312,7 @@ describe("HumaConfig Tests", function () {
         it("Should be able to change treasury fee", async function () {
             await expect(configContract.connect(origOwner).setTreasuryFee(2000))
                 .to.emit(configContract, "TreasuryFeeChanged")
-                .withArgs(1000, 2000);
+                .withArgs(500, 2000);
             expect(await configContract.protocolFeeInBps()).to.equal(2000);
         });
     });
