@@ -100,6 +100,8 @@ contract Errors {
     error attemptedDrawdownForNonrevolvingLine(); // 0x35dd2354
     error receivableAlreadyMatured();
     error invalidReceivableState();
+    error DrawdownNotAllowedInFinalPeriodAndBeyond();
+    error PayPeriodsTooLowForCreditsWithDesignatedStartDate();
 
     // first loss cover operation
     error notAllProvidersPaidOut(); // 0xf878b213
