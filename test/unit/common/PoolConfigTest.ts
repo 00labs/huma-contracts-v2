@@ -17,6 +17,8 @@ import {
     PoolConfig,
     PoolFeeManager,
     PoolSafe,
+    Receivable,
+    ReceivableLevelCreditManager,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
 } from "../../../typechain-types";
@@ -70,7 +72,8 @@ let poolConfigContract: PoolConfig,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: MockPoolCredit,
     creditDueManagerContract: CreditDueManager,
-    creditManagerContract: BorrowerLevelCreditManager;
+    creditManagerContract: BorrowerLevelCreditManager,
+    receivableContract: Receivable;
 
 describe("PoolConfig Tests", function () {
     before(async function () {
@@ -147,6 +150,9 @@ describe("PoolConfig Tests", function () {
             creditManagerContract = (await deployProxyContract(
                 CreditManager,
             )) as BorrowerLevelCreditManager;
+
+            const Receivable = await ethers.getContractFactory("Receivable");
+            receivableContract = (await deployProxyContract(Receivable)) as Receivable;
         }
 
         beforeEach(async function () {
@@ -196,11 +202,11 @@ describe("PoolConfig Tests", function () {
                 [
                     humaConfigContract.address,
                     mockTokenContract.address,
-                    poolFeeManagerContract.address,
-                    poolSafeContract.address,
                     calendarContract.address,
-                    tranchesPolicyContract.address,
                     poolContract.address,
+                    poolSafeContract.address,
+                    poolFeeManagerContract.address,
+                    tranchesPolicyContract.address,
                     epochManagerContract.address,
                     seniorTrancheVaultContract.address,
                     juniorTrancheVaultContract.address,
@@ -215,11 +221,11 @@ describe("PoolConfig Tests", function () {
                     .initialize("Base Credit Pool", [
                         humaConfigContract.address,
                         mockTokenContract.address,
-                        poolFeeManagerContract.address,
-                        poolSafeContract.address,
                         calendarContract.address,
-                        tranchesPolicyContract.address,
                         poolContract.address,
+                        poolSafeContract.address,
+                        poolFeeManagerContract.address,
+                        tranchesPolicyContract.address,
                         epochManagerContract.address,
                         seniorTrancheVaultContract.address,
                         juniorTrancheVaultContract.address,
@@ -237,11 +243,11 @@ describe("PoolConfig Tests", function () {
                     .initialize("Base Credit Pool", [
                         ethers.constants.AddressZero,
                         mockTokenContract.address,
-                        poolFeeManagerContract.address,
-                        poolSafeContract.address,
                         calendarContract.address,
-                        tranchesPolicyContract.address,
                         poolContract.address,
+                        poolSafeContract.address,
+                        poolFeeManagerContract.address,
+                        tranchesPolicyContract.address,
                         epochManagerContract.address,
                         seniorTrancheVaultContract.address,
                         juniorTrancheVaultContract.address,
@@ -262,11 +268,11 @@ describe("PoolConfig Tests", function () {
                     .initialize("Base Credit Pool", [
                         humaConfigContract.address,
                         humaConfigContract.address,
-                        poolFeeManagerContract.address,
-                        poolSafeContract.address,
                         calendarContract.address,
-                        tranchesPolicyContract.address,
                         poolContract.address,
+                        poolSafeContract.address,
+                        poolFeeManagerContract.address,
+                        tranchesPolicyContract.address,
                         epochManagerContract.address,
                         seniorTrancheVaultContract.address,
                         juniorTrancheVaultContract.address,
@@ -280,7 +286,7 @@ describe("PoolConfig Tests", function () {
             );
         });
 
-        it("Should reject zero address for poolFeeManager", async function () {
+        it("Should reject zero address for Calendar", async function () {
             await expect(
                 poolConfigContract
                     .connect(poolOwner)
@@ -288,10 +294,10 @@ describe("PoolConfig Tests", function () {
                         humaConfigContract.address,
                         mockTokenContract.address,
                         ethers.constants.AddressZero,
-                        poolSafeContract.address,
-                        calendarContract.address,
-                        tranchesPolicyContract.address,
                         poolContract.address,
+                        poolSafeContract.address,
+                        poolFeeManagerContract.address,
+                        tranchesPolicyContract.address,
                         epochManagerContract.address,
                         seniorTrancheVaultContract.address,
                         juniorTrancheVaultContract.address,
@@ -302,18 +308,18 @@ describe("PoolConfig Tests", function () {
             ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
         });
 
-        it("Should reject zero address for poolSafe", async function () {
+        it("Should reject zero address for Pool", async function () {
             await expect(
                 poolConfigContract
                     .connect(poolOwner)
                     .initialize("Base Credit Pool", [
                         humaConfigContract.address,
                         mockTokenContract.address,
-                        poolFeeManagerContract.address,
-                        ethers.constants.AddressZero,
                         calendarContract.address,
+                        ethers.constants.AddressZero,
+                        poolSafeContract.address,
+                        poolFeeManagerContract.address,
                         tranchesPolicyContract.address,
-                        poolContract.address,
                         epochManagerContract.address,
                         seniorTrancheVaultContract.address,
                         juniorTrancheVaultContract.address,
@@ -324,18 +330,18 @@ describe("PoolConfig Tests", function () {
             ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
         });
 
-        it("Should reject zero address for calendar", async function () {
+        it("Should reject zero address for PoolSafe", async function () {
             await expect(
                 poolConfigContract
                     .connect(poolOwner)
                     .initialize("Base Credit Pool", [
                         humaConfigContract.address,
                         mockTokenContract.address,
-                        poolFeeManagerContract.address,
-                        poolSafeContract.address,
-                        ethers.constants.AddressZero,
-                        tranchesPolicyContract.address,
+                        calendarContract.address,
                         poolContract.address,
+                        ethers.constants.AddressZero,
+                        poolFeeManagerContract.address,
+                        tranchesPolicyContract.address,
                         epochManagerContract.address,
                         seniorTrancheVaultContract.address,
                         juniorTrancheVaultContract.address,
@@ -346,19 +352,18 @@ describe("PoolConfig Tests", function () {
             ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
         });
 
-        it("Should reject zero address for poolOwnerOrEAFirstLossCover", async function () {
+        it("Should reject zero address for PoolFeeManager", async function () {
             await expect(
                 poolConfigContract
                     .connect(poolOwner)
                     .initialize("Base Credit Pool", [
                         humaConfigContract.address,
                         mockTokenContract.address,
-                        poolFeeManagerContract.address,
-                        poolSafeContract.address,
                         calendarContract.address,
+                        poolContract.address,
+                        poolSafeContract.address,
                         ethers.constants.AddressZero,
                         tranchesPolicyContract.address,
-                        poolContract.address,
                         epochManagerContract.address,
                         seniorTrancheVaultContract.address,
                         juniorTrancheVaultContract.address,
@@ -369,39 +374,17 @@ describe("PoolConfig Tests", function () {
             ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
         });
 
-        it("Should reject zero address for tranchePolicy", async function () {
+        it("Should reject zero address for TranchesPolicy", async function () {
             await expect(
                 poolConfigContract
                     .connect(poolOwner)
                     .initialize("Base Credit Pool", [
                         humaConfigContract.address,
                         mockTokenContract.address,
-                        poolFeeManagerContract.address,
-                        poolSafeContract.address,
                         calendarContract.address,
-                        ethers.constants.AddressZero,
                         poolContract.address,
-                        epochManagerContract.address,
-                        seniorTrancheVaultContract.address,
-                        juniorTrancheVaultContract.address,
-                        creditContract.address,
-                        creditDueManagerContract.address,
-                        creditManagerContract.address,
-                    ]),
-            ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
-        });
-
-        it("Should reject zero address for the pool", async function () {
-            await expect(
-                poolConfigContract
-                    .connect(poolOwner)
-                    .initialize("Base Credit Pool", [
-                        humaConfigContract.address,
-                        mockTokenContract.address,
-                        poolFeeManagerContract.address,
                         poolSafeContract.address,
-                        calendarContract.address,
-                        tranchesPolicyContract.address,
+                        poolFeeManagerContract.address,
                         ethers.constants.AddressZero,
                         epochManagerContract.address,
                         seniorTrancheVaultContract.address,
@@ -413,18 +396,18 @@ describe("PoolConfig Tests", function () {
             ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
         });
 
-        it("Should reject zero address for epochManager", async function () {
+        it("Should reject zero address for EpochManager", async function () {
             await expect(
                 poolConfigContract
                     .connect(poolOwner)
                     .initialize("Base Credit Pool", [
                         humaConfigContract.address,
                         mockTokenContract.address,
-                        poolFeeManagerContract.address,
-                        poolSafeContract.address,
                         calendarContract.address,
-                        tranchesPolicyContract.address,
                         poolContract.address,
+                        poolSafeContract.address,
+                        poolFeeManagerContract.address,
+                        tranchesPolicyContract.address,
                         ethers.constants.AddressZero,
                         seniorTrancheVaultContract.address,
                         juniorTrancheVaultContract.address,
@@ -435,61 +418,85 @@ describe("PoolConfig Tests", function () {
             ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
         });
 
-        it("Should reject zero address for seniorTranche", async function () {
-            await expect(
-                poolConfigContract
-                    .connect(poolOwner)
-                    .initialize("Base Credit Pool", [
-                        humaConfigContract.address,
-                        mockTokenContract.address,
-                        poolFeeManagerContract.address,
-                        poolSafeContract.address,
-                        calendarContract.address,
-                        tranchesPolicyContract.address,
-                        poolContract.address,
-                        epochManagerContract.address,
-                        ethers.constants.AddressZero,
-                        juniorTrancheVaultContract.address,
-                        creditContract.address,
-                        creditDueManagerContract.address,
-                        creditManagerContract.address,
-                    ]),
-            ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
-        });
-
-        it("Should reject zero address for juniorTranche", async function () {
-            await expect(
-                poolConfigContract
-                    .connect(poolOwner)
-                    .initialize("Base Credit Pool", [
-                        humaConfigContract.address,
-                        mockTokenContract.address,
-                        poolFeeManagerContract.address,
-                        poolSafeContract.address,
-                        calendarContract.address,
-                        tranchesPolicyContract.address,
-                        poolContract.address,
-                        epochManagerContract.address,
-                        seniorTrancheVaultContract.address,
-                        ethers.constants.AddressZero,
-                        creditContract.address,
-                        creditDueManagerContract.address,
-                        creditManagerContract.address,
-                    ]),
-            ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
-        });
-
-        it("Should reject wrong tranche indices for juniorTranche", async function () {
+        it("Should not allow the EpochManager contract to be initialized twice", async function () {
             await poolConfigContract
                 .connect(poolOwner)
                 .initialize("Base Credit Pool", [
                     humaConfigContract.address,
                     mockTokenContract.address,
-                    poolFeeManagerContract.address,
-                    poolSafeContract.address,
                     calendarContract.address,
-                    tranchesPolicyContract.address,
                     poolContract.address,
+                    poolSafeContract.address,
+                    poolFeeManagerContract.address,
+                    tranchesPolicyContract.address,
+                    epochManagerContract.address,
+                    seniorTrancheVaultContract.address,
+                    juniorTrancheVaultContract.address,
+                    creditContract.address,
+                    creditDueManagerContract.address,
+                    creditManagerContract.address,
+                ]);
+
+            await expect(
+                epochManagerContract.initialize(poolConfigContract.address),
+            ).to.be.revertedWith("Initializable: contract is already initialized");
+        });
+
+        it("Should reject zero address for the senior tranche", async function () {
+            await expect(
+                poolConfigContract
+                    .connect(poolOwner)
+                    .initialize("Base Credit Pool", [
+                        humaConfigContract.address,
+                        mockTokenContract.address,
+                        calendarContract.address,
+                        poolContract.address,
+                        poolSafeContract.address,
+                        poolFeeManagerContract.address,
+                        tranchesPolicyContract.address,
+                        epochManagerContract.address,
+                        ethers.constants.AddressZero,
+                        juniorTrancheVaultContract.address,
+                        creditContract.address,
+                        creditDueManagerContract.address,
+                        creditManagerContract.address,
+                    ]),
+            ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
+        });
+
+        it("Should reject zero address for the junior tranche", async function () {
+            await expect(
+                poolConfigContract
+                    .connect(poolOwner)
+                    .initialize("Base Credit Pool", [
+                        humaConfigContract.address,
+                        mockTokenContract.address,
+                        calendarContract.address,
+                        poolContract.address,
+                        poolSafeContract.address,
+                        poolFeeManagerContract.address,
+                        tranchesPolicyContract.address,
+                        epochManagerContract.address,
+                        seniorTrancheVaultContract.address,
+                        ethers.constants.AddressZero,
+                        creditContract.address,
+                        creditDueManagerContract.address,
+                        creditManagerContract.address,
+                    ]),
+            ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
+        });
+
+        it("Should reject wrong tranche indices for the junior tranche", async function () {
+            await poolConfigContract
+                .connect(poolOwner)
+                .initialize("Base Credit Pool", [
+                    humaConfigContract.address,
+                    mockTokenContract.address,
+                    calendarContract.address,
+                    poolContract.address,
+                    poolSafeContract.address,
+                    poolFeeManagerContract.address,
+                    tranchesPolicyContract.address,
                     epochManagerContract.address,
                     seniorTrancheVaultContract.address,
                     juniorTrancheVaultContract.address,
@@ -507,18 +514,52 @@ describe("PoolConfig Tests", function () {
             ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "InvalidTrancheIndex");
         });
 
-        it("Should reject zero address for credit", async function () {
+        it("Should not allow the junior tranche to be initialized twice", async function () {
+            await poolConfigContract
+                .connect(poolOwner)
+                .initialize("Base Credit Pool", [
+                    humaConfigContract.address,
+                    mockTokenContract.address,
+                    calendarContract.address,
+                    poolContract.address,
+                    poolSafeContract.address,
+                    poolFeeManagerContract.address,
+                    tranchesPolicyContract.address,
+                    epochManagerContract.address,
+                    seniorTrancheVaultContract.address,
+                    juniorTrancheVaultContract.address,
+                    creditContract.address,
+                    creditDueManagerContract.address,
+                    creditManagerContract.address,
+                ]);
+            await juniorTrancheVaultContract["initialize(string,string,address,uint8)"](
+                "Junior Tranche Vault",
+                "JTV",
+                poolConfigContract.address,
+                CONSTANTS.JUNIOR_TRANCHE,
+            );
+            await expect(
+                juniorTrancheVaultContract["initialize(string,string,address,uint8)"](
+                    "Junior Tranche Vault",
+                    "JTV",
+                    poolConfigContract.address,
+                    CONSTANTS.JUNIOR_TRANCHE,
+                ),
+            ).to.be.revertedWith("Initializable: contract is already initialized");
+        });
+
+        it("Should reject zero address for Credit", async function () {
             await expect(
                 poolConfigContract
                     .connect(poolOwner)
                     .initialize("Base Credit Pool", [
                         humaConfigContract.address,
                         mockTokenContract.address,
-                        poolFeeManagerContract.address,
-                        poolSafeContract.address,
                         calendarContract.address,
-                        tranchesPolicyContract.address,
                         poolContract.address,
+                        poolSafeContract.address,
+                        poolFeeManagerContract.address,
+                        tranchesPolicyContract.address,
                         epochManagerContract.address,
                         seniorTrancheVaultContract.address,
                         juniorTrancheVaultContract.address,
@@ -529,18 +570,18 @@ describe("PoolConfig Tests", function () {
             ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
         });
 
-        it("Should reject zero address for creditDueManager", async function () {
+        it("Should reject zero address for CreditDueManager", async function () {
             await expect(
                 poolConfigContract
                     .connect(poolOwner)
                     .initialize("Base Credit Pool", [
                         humaConfigContract.address,
                         mockTokenContract.address,
-                        poolFeeManagerContract.address,
-                        poolSafeContract.address,
                         calendarContract.address,
-                        tranchesPolicyContract.address,
                         poolContract.address,
+                        poolSafeContract.address,
+                        poolFeeManagerContract.address,
+                        tranchesPolicyContract.address,
                         epochManagerContract.address,
                         seniorTrancheVaultContract.address,
                         juniorTrancheVaultContract.address,
@@ -551,18 +592,18 @@ describe("PoolConfig Tests", function () {
             ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
         });
 
-        it("Should reject zero address for creditManager", async function () {
+        it("Should reject zero address for CreditManager", async function () {
             await expect(
                 poolConfigContract
                     .connect(poolOwner)
                     .initialize("Base Credit Pool", [
                         humaConfigContract.address,
                         mockTokenContract.address,
-                        poolFeeManagerContract.address,
-                        poolSafeContract.address,
                         calendarContract.address,
-                        tranchesPolicyContract.address,
                         poolContract.address,
+                        poolSafeContract.address,
+                        poolFeeManagerContract.address,
+                        tranchesPolicyContract.address,
                         epochManagerContract.address,
                         seniorTrancheVaultContract.address,
                         juniorTrancheVaultContract.address,
@@ -573,7 +614,124 @@ describe("PoolConfig Tests", function () {
             ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
         });
 
-        it("Should reject repeated call to initialize()", async function () {
+        it("Should not allow the FirstLossCover contract to be initialized twice", async function () {
+            await poolConfigContract
+                .connect(poolOwner)
+                .initialize("Base Credit Pool", [
+                    humaConfigContract.address,
+                    mockTokenContract.address,
+                    calendarContract.address,
+                    poolContract.address,
+                    poolSafeContract.address,
+                    poolFeeManagerContract.address,
+                    tranchesPolicyContract.address,
+                    epochManagerContract.address,
+                    seniorTrancheVaultContract.address,
+                    juniorTrancheVaultContract.address,
+                    creditContract.address,
+                    creditDueManagerContract.address,
+                    creditManagerContract.address,
+                ]);
+            await borrowerFirstLossCoverContract["initialize(string,string,address)"](
+                "Borrower First Loss Cover",
+                "BFLC",
+                poolConfigContract.address,
+            );
+
+            await expect(
+                borrowerFirstLossCoverContract["initialize(string,string,address)"](
+                    "Borrower First Loss Cover",
+                    "BFLC",
+                    poolConfigContract.address,
+                ),
+            ).to.be.revertedWith("Initializable: contract is already initialized");
+        });
+
+        it("Should not allow the Receivable contract to be initialized twice", async function () {
+            await poolConfigContract
+                .connect(poolOwner)
+                .initialize("Base Credit Pool", [
+                    humaConfigContract.address,
+                    mockTokenContract.address,
+                    calendarContract.address,
+                    poolContract.address,
+                    poolSafeContract.address,
+                    poolFeeManagerContract.address,
+                    tranchesPolicyContract.address,
+                    epochManagerContract.address,
+                    seniorTrancheVaultContract.address,
+                    juniorTrancheVaultContract.address,
+                    creditContract.address,
+                    creditDueManagerContract.address,
+                    creditManagerContract.address,
+                ]);
+            await receivableContract.initialize();
+
+            await expect(receivableContract.initialize()).to.be.revertedWith(
+                "Initializable: contract is already initialized",
+            );
+        });
+
+        it("Should not allow the ReceivableLevelCreditManager contract to be initialized twice", async function () {
+            const CreditManager = await ethers.getContractFactory("ReceivableLevelCreditManager");
+            const receivableLevelManagerContract = (await deployProxyContract(
+                CreditManager,
+            )) as ReceivableLevelCreditManager;
+
+            await poolConfigContract
+                .connect(poolOwner)
+                .initialize("Base Credit Pool", [
+                    humaConfigContract.address,
+                    mockTokenContract.address,
+                    calendarContract.address,
+                    poolContract.address,
+                    poolSafeContract.address,
+                    poolFeeManagerContract.address,
+                    tranchesPolicyContract.address,
+                    epochManagerContract.address,
+                    seniorTrancheVaultContract.address,
+                    juniorTrancheVaultContract.address,
+                    creditContract.address,
+                    creditDueManagerContract.address,
+                    receivableLevelManagerContract.address,
+                ]);
+            await receivableLevelManagerContract.initialize(poolConfigContract.address);
+
+            await expect(
+                receivableLevelManagerContract.initialize(poolConfigContract.address),
+            ).to.be.revertedWith("Initializable: contract is already initialized");
+        });
+
+        it("Should not allow PoolConfigCache to be the 0 address when initializing the ReceivableLevelCreditManager contract to be initialized twice", async function () {
+            const CreditManager = await ethers.getContractFactory("ReceivableLevelCreditManager");
+            const receivableLevelManagerContract = (await deployProxyContract(
+                CreditManager,
+            )) as ReceivableLevelCreditManager;
+
+            await poolConfigContract
+                .connect(poolOwner)
+                .initialize("Base Credit Pool", [
+                    humaConfigContract.address,
+                    mockTokenContract.address,
+                    calendarContract.address,
+                    poolContract.address,
+                    poolSafeContract.address,
+                    poolFeeManagerContract.address,
+                    tranchesPolicyContract.address,
+                    epochManagerContract.address,
+                    seniorTrancheVaultContract.address,
+                    juniorTrancheVaultContract.address,
+                    creditContract.address,
+                    creditDueManagerContract.address,
+                    receivableLevelManagerContract.address,
+                ]);
+
+            await expect(
+                receivableLevelManagerContract.initialize(ethers.constants.AddressZero),
+            ).to.be.revertedWithCustomError(receivableLevelManagerContract, "ZeroAddressProvided");
+        });
+
+        it("Should reject repeated calls to initialize()", async function () {
             await poolConfigContract
                 .connect(poolOwner)
                 .initialize("Base Credit Pool", [
