@@ -86,7 +86,7 @@ contract Receivable is
      * @dev Initializer that sets the default admin role
      */
     function initialize() external initializer {
-        __ERC721_init("Receivable", "REC");
+        __ERC721_init("HumaReceivable", "HREC");
         __ERC721Enumerable_init();
         __ERC721URIStorage_init();
         __ERC721Burnable_init();
