@@ -38,14 +38,14 @@ contract ReceivableLevelCreditManager is
     }
 
     function addPayer(address payer) external virtual {
-        poolConfig.onlyPoolOwner(msg.sender); // TODO operator?
+        poolConfig.onlyPoolOperator(msg.sender);
         if (payer == address(0)) revert Errors.ZeroAddressProvided();
         _grantRole(PAYER_ROLE, payer);
         emit PayerAdded(payer);
     }
 
     function removePayer(address payer) external virtual {
-        poolConfig.onlyPoolOwner(msg.sender); // TODO
+        poolConfig.onlyPoolOperator(msg.sender);
         if (payer == address(0)) revert Errors.ZeroAddressProvided();
         _revokeRole(PAYER_ROLE, payer);
         emit PayerRemoved(payer);

@@ -14,9 +14,8 @@ import {PayPeriodDuration} from "../common/SharedDefs.sol";
 import {Errors} from "../common/Errors.sol";
 import {ICreditDueManager} from "./interfaces/ICreditDueManager.sol";
 
-import "hardhat/console.sol";
-
 abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICreditManager {
+    /// A credit with a committed amount has started
     event CommittedCreditStarted(bytes32 indexed creditHash);
 
     event CreditPaused(bytes32 indexed creditHash);
@@ -35,6 +34,8 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
      * @notice The credit line has been marked as Defaulted.
      * @param creditHash the credit hash
      * @param principalLoss the principal losses to be written off because of the default.
+     * @param yieldLoss the unpaid yield due to be written off
+     * @param feesLoss the unpaid fees to be written off
      * @param by the address who has triggered the default
      */
     event DefaultTriggered(
@@ -60,7 +61,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
     );
 
     /**
-     * @notice The expiration (maturity) date of a credit line has been extended.
+     * @notice The yield of a credit line has been extended.
      * @param creditHash The credit hash.
      * @param oldYieldInBps The old yield in basis points before the update.
      * @param newYieldInBps The new yield in basis points limit after the update.
@@ -78,7 +79,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
     );
 
     /**
-     * @notice The expiration (maturity) date of a credit line has been extended.
+     * @notice The credit limit and committed amount of a credit line have been extended.
      * @param creditHash The credit hash.
      * @param oldLimit The old credit limit before the update.
      * @param newLimit The new credit limit after the update.
@@ -100,7 +101,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
     );
 
     /**
-     * @notice The expiration (maturity) date of a credit line has been extended.
+     * @notice Part or all of the late fee due of a credit line has been extended.
      * @param creditHash The credit hash.
      * @param oldLateFee The amount of late fee before the update.
      * @param newLateFee The amount of late fee after the update.
@@ -113,12 +114,19 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         address by
     );
 
+    /**
+     * @notice Gets the borrower for a given creditHash
+     * @param creditHash The credit hash.
+     * @return address the address of the borrower.
+     */
     function getCreditBorrower(bytes32 creditHash) external view returns (address) {
         return _creditBorrowerMap[creditHash];
     }
 
     /**
      * @notice checks if the credit line is ready to be triggered as defaulted
+     * @param creditHash The credit hash.
+     * @return isReady a boolean flag for ready for default or not
      */
     function isDefaultReady(bytes32 creditHash) public view virtual returns (bool isReady) {
         CreditConfig memory cc = getCreditConfig(creditHash);
@@ -137,6 +145,10 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         if (borrower != _creditBorrowerMap[creditHash]) revert Errors.BorrowerRequired();
     }
 
+    /**
+     * Pulls the addresses of dependent contracts from poolConfig and caches them
+     * Contracts addresses to be cached: Huma Config, Calendar, Credit and Credit Due Manager
+     */
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = address(_poolConfig.humaConfig());
         assert(addr != address(0));
@@ -156,12 +168,15 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
     }
 
     /**
-     * @notice Approves a credit indexed by creditHash
+     * @notice Approves a credit with the specified terms
      * @param borrower the borrower of the credit
      * @param creditHash the credit hash of the credit
      * @param creditLimit the credit limit
      * @param remainingPeriods the number of periods until maturity
      * @param yieldInBps yield of the credit measured in basis points
+     * @param committedAmount the committed amount, i.e., if the borrower does not borrow up to
+     * this amount, this amount will be used in yield calculation.
+     * @param designatedStartDate the required start date of the credit
      * @param revolving whether the credit is revolving or not
      */
     function _approveCredit(
@@ -230,7 +245,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
 
     /**
      * @notice startCommittedCredit helper function.
-     * @dev Access control is done outside of this function.
+     * @custom:access Internal function, access control is done outside of this function.
      */
     function _startCommittedCredit(bytes32 creditHash) internal virtual {
         CreditRecord memory cr = credit.getCreditRecord(creditHash);
@@ -255,7 +270,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
 
     /**
      * @notice Closes a credit record.
-     * @dev The calling function is responsible for access control
+     * @custom:access The calling function is responsible for access control
      * @dev Revert if there is still balance due
      * @dev Revert if the committed amount is non-zero and there are periods remaining
      */
@@ -316,7 +331,9 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
 
     /**
      * @notice Triggers the default process
-     * @return principalLoss the amount of principal loss
+     * @return principalLoss the amount of principal that is written off
+     * @return yieldLoss the unpaid yield due that is written off
+     * @return feesLoss the unpaid fees that are written off
      * @dev It is possible for the borrower to payback even after default, especially in
      * receivable factoring cases.
      */
@@ -350,9 +367,12 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
     /**
      * @notice Extend the expiration (maturity) date of a credit
      * @param creditHash the hashcode of the credit
-     * @param newNumOfPeriods the number of pay periods to be extended
+     * @param extraNumOfPeriods the number of pay periods to be extended
      */
-    function _extendRemainingPeriod(bytes32 creditHash, uint256 newNumOfPeriods) internal virtual {
+    function _extendRemainingPeriod(
+        bytes32 creditHash,
+        uint256 extraNumOfPeriods
+    ) internal virtual {
         // Although not essential to call getDueInfo() to extend the credit line duration,
         // it is still a good practice to bring the account current while we update one of the fields.
         CreditRecord memory cr = credit.getCreditRecord(creditHash);
@@ -366,11 +386,11 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
             revert Errors.CreditNotInStateForUpdate();
         }
 
-        cc.numOfPeriods += uint16(newNumOfPeriods);
+        cc.numOfPeriods += uint16(extraNumOfPeriods);
         _setCreditConfig(creditHash, cc);
 
         uint256 oldRemainingPeriods = cr.remainingPeriods;
-        cr.remainingPeriods += uint16(newNumOfPeriods);
+        cr.remainingPeriods += uint16(extraNumOfPeriods);
         credit.updateDueInfo(creditHash, cr, dd);
 
         emit RemainingPeriodsExtended(
@@ -381,6 +401,10 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         );
     }
 
+    /**
+     * @notice Updates the yield of the credit
+     * @param yieldInBps the new yield in basis points
+     */
     function _updateYield(bytes32 creditHash, uint256 yieldInBps) internal virtual {
         CreditRecord memory cr = credit.getCreditRecord(creditHash);
         if (cr.state == CreditState.Approved || cr.state == CreditState.Deleted) {
@@ -492,6 +516,12 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         );
     }
 
+    /**
+     * @notice Waives the late fee up to the given limit.
+     * @param creditHash the credit hash
+     * @param amount the limit to be waived
+     * @return amountWaived the amount that has been waived
+     */
     function _waiveLateFee(
         bytes32 creditHash,
         uint256 amount

@@ -16,8 +16,6 @@ import {ICreditManager} from "./interfaces/ICreditManager.sol";
 import {ICreditDueManager} from "./interfaces/ICreditDueManager.sol";
 import {BORROWER_FIRST_LOSS_COVER_INDEX} from "../common/SharedDefs.sol";
 
-import "hardhat/console.sol";
-
 /**
  * Credit is the core borrowing concept in Huma Protocol. This abstract contract provides
  * basic operations that applies to all credits in Huma Protocol.
