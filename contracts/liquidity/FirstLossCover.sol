@@ -14,8 +14,6 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IERC20MetadataUpgradeable, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
-import "hardhat/console.sol";
-
 /**
  * @title FirstLossCover
  */
@@ -174,11 +172,11 @@ contract FirstLossCover is
         (remainingRecovery, recoveredAmount) = _calcLossRecover(coveredLoss, recovery);
 
         if (recoveredAmount > 0) {
-            poolSafe.withdraw(address(this), recoveredAmount);
-
             uint256 currCoveredLoss = coveredLoss;
             currCoveredLoss -= recoveredAmount;
             coveredLoss = currCoveredLoss;
+
+            poolSafe.withdraw(address(this), recoveredAmount);
 
             emit LossRecovered(recoveredAmount, currCoveredLoss);
         }

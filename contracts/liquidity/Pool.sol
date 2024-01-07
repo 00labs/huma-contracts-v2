@@ -14,8 +14,6 @@ import {ITranchesPolicy} from "./interfaces/ITranchesPolicy.sol";
 import {ICreditManager} from "../credit/interfaces/ICreditManager.sol";
 import {ICredit} from "../credit/interfaces/ICredit.sol";
 
-import "hardhat/console.sol";
-
 /**
  * @title Pool
  * @notice Pool is a core contract that connects the lender side (via Tranches)
@@ -394,8 +392,9 @@ contract Pool is PoolConfigCache, IPool {
             remainingLossRecovery = remainingLossRecovery - juniorLossRecovery;
         }
 
-        _updateTranchesAssets([assets.seniorTotalAssets, assets.juniorTotalAssets]);
         tranchesLosses = losses;
+
+        _updateTranchesAssets([assets.seniorTotalAssets, assets.juniorTotalAssets]);
 
         emit LossRecoveryDistributed(
             lossRecovery - remainingLossRecovery,
