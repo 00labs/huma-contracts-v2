@@ -5,23 +5,15 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
 import {Errors} from "./Errors.sol";
 
-/** @notice HumaConfig maintains all the global configurations supported by Huma protocol.
+/**
+ * @notice HumaConfig maintains all the global configurations supported by Huma protocol.
  */
 contract HumaConfig is Ownable, Pausable {
-    /// Lower bound of protocol default grace period.
-    uint32 private constant MIN_DEFAULT_GRACE_PERIOD = 1 days;
-
-    /// The initial value for default grace period.
-    uint32 private constant PROTOCOL_DEFAULT_GRACE_PERIOD = 60 days;
-
     /// The default treasury fee in bps.
-    uint16 private constant DEFAULT_TREASURY_FEE = 1000; // 10%
+    uint16 private constant DEFAULT_TREASURY_FEE = 500; // 5%
 
     /// The treasury fee upper bound in bps.
     uint16 private constant TREASURY_FEE_UPPER_BOUND = 5000; // 50%
-
-    /// Seconds passed the due date before a default can be triggered
-    uint32 public protocolDefaultGracePeriodInSeconds;
 
     /// % of platform income that will be reserved in the protocol, measured in basis points
     uint16 public protocolFeeInBps;
@@ -79,7 +71,7 @@ contract HumaConfig is Ownable, Pausable {
 
     /// Makes sure the msg.sender is one of the pausers
     modifier onlyPausers() {
-        if (!pausers[msg.sender]) revert Errors.notPauser();
+        if (!pausers[msg.sender]) revert Errors.PauserRequired();
         _;
     }
 
@@ -90,8 +82,6 @@ contract HumaConfig is Ownable, Pausable {
      * @dev Emit ProtocolInitialized event and HumaTreasuryChanged event
      */
     constructor() {
-        protocolDefaultGracePeriodInSeconds = PROTOCOL_DEFAULT_GRACE_PERIOD;
-
         protocolFeeInBps = DEFAULT_TREASURY_FEE;
 
         emit ProtocolInitialized(msg.sender);
@@ -105,8 +95,8 @@ contract HumaConfig is Ownable, Pausable {
      * @dev Emits a PauserAdded event.
      */
     function addPauser(address _pauser) external onlyOwner {
-        if (_pauser == address(0)) revert Errors.zeroAddressProvided();
-        if (pausers[_pauser]) revert Errors.alreadyAPauser();
+        if (_pauser == address(0)) revert Errors.ZeroAddressProvided();
+        if (pausers[_pauser]) revert Errors.AlreadyAPauser();
 
         pausers[_pauser] = true;
 
@@ -121,8 +111,8 @@ contract HumaConfig is Ownable, Pausable {
      * @dev Emits a PauserAdded event.
      */
     function addPoolAdmin(address _poolAdmin) external onlyOwner {
-        if (_poolAdmin == address(0)) revert Errors.zeroAddressProvided();
-        if (poolAdmins[_poolAdmin]) revert Errors.alreadyPoolAdmin();
+        if (_poolAdmin == address(0)) revert Errors.ZeroAddressProvided();
+        if (poolAdmins[_poolAdmin]) revert Errors.AlreadyPoolAdmin();
 
         poolAdmins[_poolAdmin] = true;
 
@@ -145,8 +135,8 @@ contract HumaConfig is Ownable, Pausable {
      * @dev Emits a PauserRemoved event.
      */
     function removePauser(address _pauser) external onlyOwner {
-        if (_pauser == address(0)) revert Errors.zeroAddressProvided();
-        if (!pausers[_pauser]) revert Errors.notPauser();
+        if (_pauser == address(0)) revert Errors.ZeroAddressProvided();
+        if (!pausers[_pauser]) revert Errors.PauserRequired();
 
         pausers[_pauser] = false;
 
@@ -161,8 +151,8 @@ contract HumaConfig is Ownable, Pausable {
      * @dev Emits a PauserRemoved event.
      */
     function removePoolAdmin(address _poolAdmin) external onlyOwner {
-        if (_poolAdmin == address(0)) revert Errors.zeroAddressProvided();
-        if (!poolAdmins[_poolAdmin]) revert Errors.notPoolOwner();
+        if (_poolAdmin == address(0)) revert Errors.ZeroAddressProvided();
+        if (!poolAdmins[_poolAdmin]) revert Errors.PoolOwnerRequired();
 
         poolAdmins[_poolAdmin] = false;
 
@@ -173,7 +163,7 @@ contract HumaConfig is Ownable, Pausable {
      * @notice Sets the contract address for Evaluation Agent NFT contract. Only proto admin can do so.
      */
     function setEANFTContractAddress(address contractAddress) external onlyOwner {
-        if (contractAddress == address(0)) revert Errors.zeroAddressProvided();
+        if (contractAddress == address(0)) revert Errors.ZeroAddressProvided();
         eaNFTContractAddress = contractAddress;
         emit EANFTContractAddressChanged(contractAddress);
     }
@@ -183,7 +173,7 @@ contract HumaConfig is Ownable, Pausable {
      * that can approve credit requests. Only proto admin can make the change.
      */
     function setEAServiceAccount(address accountAddress) external onlyOwner {
-        if (accountAddress == address(0)) revert Errors.zeroAddressProvided();
+        if (accountAddress == address(0)) revert Errors.ZeroAddressProvided();
         eaServiceAccount = accountAddress;
         emit EAServiceAccountChanged(accountAddress);
     }
@@ -195,7 +185,7 @@ contract HumaConfig is Ownable, Pausable {
      * @dev emit HumaTreasuryChanged(address newTreasury) event
      */
     function setHumaTreasury(address treasury) external onlyOwner {
-        if (treasury == address(0)) revert Errors.zeroAddressProvided();
+        if (treasury == address(0)) revert Errors.ZeroAddressProvided();
         if (treasury != humaTreasury) {
             humaTreasury = treasury;
             emit HumaTreasuryChanged(treasury);
@@ -225,22 +215,9 @@ contract HumaConfig is Ownable, Pausable {
      * a committed credit.
      */
     function setSentinelServiceAccount(address accountAddress) external onlyOwner {
-        if (accountAddress == address(0)) revert Errors.zeroAddressProvided();
+        if (accountAddress == address(0)) revert Errors.ZeroAddressProvided();
         sentinelServiceAccount = accountAddress;
         emit SentinelServiceAccountChanged(accountAddress);
-    }
-
-    /**
-     * @notice Sets the default grace period at the protocol level. Only proto admin can do so.
-     * @param gracePeriod new default grace period in seconds
-     * @dev Rejects any grace period shorter than 1 day to guard against fat finger or attack.
-     * @dev Emits ProtocolDefaultGracePeriodChanged(uint256 newGracePeriod) event
-     */
-    function setProtocolDefaultGracePeriod(uint256 gracePeriod) external onlyOwner {
-        if (gracePeriod < MIN_DEFAULT_GRACE_PERIOD)
-            revert Errors.defaultGracePeriodLessThanMinAllowed();
-        protocolDefaultGracePeriodInSeconds = uint32(gracePeriod);
-        emit ProtocolDefaultGracePeriodChanged(gracePeriod);
     }
 
     /**
@@ -250,7 +227,7 @@ contract HumaConfig is Ownable, Pausable {
      * @dev Emits a TreasuryFeeChanged event
      */
     function setTreasuryFee(uint256 feeInBps) external onlyOwner {
-        if (feeInBps > TREASURY_FEE_UPPER_BOUND) revert Errors.treasuryFeeHighThanUpperLimit();
+        if (feeInBps > TREASURY_FEE_UPPER_BOUND) revert Errors.TreasuryFeeHighThanUpperLimit();
         uint256 oldFee = protocolFeeInBps;
         protocolFeeInBps = uint16(feeInBps);
         emit TreasuryFeeChanged(oldFee, feeInBps);

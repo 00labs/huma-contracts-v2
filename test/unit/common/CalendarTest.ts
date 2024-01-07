@@ -126,7 +126,7 @@ describe("Calendar Test", function () {
                 await mineNextBlockWithTimestamp(nextBlockTime.unix());
                 await expect(
                     calendarContract.getDaysRemainingInPeriod(endDate.unix()),
-                ).to.be.revertedWithCustomError(calendarContract, "startDateLaterThanEndDate");
+                ).to.be.revertedWithCustomError(calendarContract, "StartDateLaterThanEndDate");
             });
         });
 
@@ -210,7 +210,7 @@ describe("Calendar Test", function () {
                 await mineNextBlockWithTimestamp(nextBlockTime.unix());
                 await expect(
                     calendarContract.getDaysRemainingInPeriod(endDate.unix()),
-                ).to.be.revertedWithCustomError(calendarContract, "startDateLaterThanEndDate");
+                ).to.be.revertedWithCustomError(calendarContract, "StartDateLaterThanEndDate");
             });
         });
 
@@ -294,7 +294,7 @@ describe("Calendar Test", function () {
                 await mineNextBlockWithTimestamp(nextBlockTime.unix());
                 await expect(
                     calendarContract.getDaysRemainingInPeriod(endDate.unix()),
-                ).to.be.revertedWithCustomError(calendarContract, "startDateLaterThanEndDate");
+                ).to.be.revertedWithCustomError(calendarContract, "StartDateLaterThanEndDate");
             });
         });
     });
@@ -492,7 +492,7 @@ describe("Calendar Test", function () {
                 });
                 await expect(
                     calendarContract.getDaysDiff(startDate.unix(), endDate.unix()),
-                ).to.be.revertedWithCustomError(calendarContract, "startDateLaterThanEndDate");
+                ).to.be.revertedWithCustomError(calendarContract, "StartDateLaterThanEndDate");
             });
         });
     });
@@ -938,7 +938,7 @@ describe("Calendar Test", function () {
                         startDate.unix(),
                         endDate.unix(),
                     ),
-                ).to.be.revertedWithCustomError(calendarContract, "startDateLaterThanEndDate");
+                ).to.be.revertedWithCustomError(calendarContract, "StartDateLaterThanEndDate");
             });
         });
 
@@ -1075,7 +1075,7 @@ describe("Calendar Test", function () {
                         startDate.unix(),
                         endDate.unix(),
                     ),
-                ).to.be.revertedWithCustomError(calendarContract, "startDateLaterThanEndDate");
+                ).to.be.revertedWithCustomError(calendarContract, "StartDateLaterThanEndDate");
             });
         });
 
@@ -1232,7 +1232,7 @@ describe("Calendar Test", function () {
                         startDate.unix(),
                         endDate.unix(),
                     ),
-                ).to.be.revertedWithCustomError(calendarContract, "startDateLaterThanEndDate");
+                ).to.be.revertedWithCustomError(calendarContract, "StartDateLaterThanEndDate");
             });
         });
     });

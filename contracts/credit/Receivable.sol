@@ -97,9 +97,9 @@ contract Receivable is
 
     /// @inheritdoc IReceivable
     function declarePayment(uint256 tokenId, uint96 paymentAmount) external {
-        if (paymentAmount == 0) revert Errors.zeroAmountProvided();
+        if (paymentAmount == 0) revert Errors.ZeroAmountProvided();
         if (msg.sender != ownerOf(tokenId) && msg.sender != creators[tokenId])
-            revert Errors.notReceivableOwnerOrCreator();
+            revert Errors.ReceivableOwnerOrCreatorRequired();
 
         ReceivableInfo storage receivableInfo = receivableInfoMap[tokenId];
         receivableInfo.paidAmount += paymentAmount;
@@ -122,7 +122,7 @@ contract Receivable is
      */
     function updateReceivableMetadata(uint256 tokenId, string memory uri) external {
         if (msg.sender != ownerOf(tokenId) && msg.sender != creators[tokenId])
-            revert Errors.notReceivableOwnerOrCreator();
+            revert Errors.ReceivableOwnerOrCreatorRequired();
 
         string memory oldTokenURI = tokenURI(tokenId);
         _setTokenURI(tokenId, uri);
@@ -150,7 +150,7 @@ contract Receivable is
         if (bytes(referenceId).length > 0) {
             bytes32 referenceIdCreatorHash = getReferenceIdHash(referenceId, msg.sender);
             uint256 existingTokenId = referenceIdHashToTokenId[referenceIdCreatorHash];
-            if (_exists(existingTokenId)) revert Errors.receivableReferenceIdAlreadyExists();
+            if (_exists(existingTokenId)) revert Errors.ReceivableReferenceIdAlreadyExists();
 
             referenceIdHashToTokenId[referenceIdCreatorHash] = tokenId;
         }

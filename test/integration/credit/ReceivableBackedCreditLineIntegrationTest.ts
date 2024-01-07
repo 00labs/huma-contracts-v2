@@ -271,7 +271,6 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                     borrower.address,
                     0,
                 );
-                console.log(`receivableId: ${receivableId}`);
                 await receivableContract
                     .connect(borrower)
                     .approve(creditContract.address, receivableId);
@@ -311,7 +310,6 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                     borrower.address,
                     0,
                 );
-                console.log(`receivableId: ${receivableId}`);
                 await receivableContract
                     .connect(borrower)
                     .approve(creditContract.address, receivableId);
@@ -348,7 +346,6 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                     borrower.address,
                     0,
                 );
-                console.log(`receivableId: ${receivableId}`);
                 await receivableContract
                     .connect(borrower)
                     .approve(creditContract.address, receivableId);
@@ -385,7 +382,6 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                     borrower.address,
                     0,
                 );
-                console.log(`receivableId: ${receivableId}`);
                 await receivableContract
                     .connect(borrower)
                     .approve(creditContract.address, receivableId);
@@ -442,7 +438,6 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                     borrower.address,
                     0,
                 );
-                console.log(`receivableId: ${receivableId}`);
                 await receivableContract
                     .connect(borrower)
                     .approve(creditContract.address, receivableId);
@@ -479,7 +474,6 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                     borrower.address,
                     0,
                 );
-                console.log(`receivableId: ${receivableId}`);
                 await receivableContract
                     .connect(borrower)
                     .approve(creditContract.address, receivableId);
@@ -531,7 +525,6 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                     borrower.address,
                     0,
                 );
-                console.log(`receivableId: ${receivableId}`);
                 await receivableContract
                     .connect(borrower)
                     .approve(creditContract.address, receivableId);
@@ -577,7 +570,6 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                 .connect(borrower)
                 .createReceivable(1, borrowAmount, maturityDate, "", "");
             const receivableId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
-            console.log(`receivableId: ${receivableId}`);
             await receivableContract
                 .connect(borrower)
                 .approve(creditContract.address, receivableId);
@@ -594,7 +586,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                     ),
             ).to.be.revertedWithCustomError(
                 creditContract,
-                "creditLineNotInStateForMakingPrincipalPayment",
+                "CreditNotInStateForMakingPrincipalPayment",
             );
         });
 
@@ -628,7 +620,6 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
 
         it("Month3 - Day7: make payment and drawdown together", async function () {
             const receivableId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
-            console.log(`receivableId: ${receivableId}`);
 
             await creditContract
                 .connect(borrower)

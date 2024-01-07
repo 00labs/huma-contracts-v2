@@ -172,7 +172,7 @@ describe("Receivable Test", function () {
                 ),
             ).to.be.revertedWithCustomError(
                 receivableContract,
-                "receivableReferenceIdAlreadyExists",
+                "ReceivableReferenceIdAlreadyExists",
             );
 
             const tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
@@ -275,7 +275,10 @@ describe("Receivable Test", function () {
 
             await expect(
                 receivableContract.connect(poolOwner).declarePayment(tokenId, 1000),
-            ).to.be.revertedWithCustomError(receivableContract, "notReceivableOwnerOrCreator");
+            ).to.be.revertedWithCustomError(
+                receivableContract,
+                "ReceivableOwnerOrCreatorRequired",
+            );
         });
 
         it("Should not allow zero payment amount", async function () {
@@ -283,7 +286,7 @@ describe("Receivable Test", function () {
 
             await expect(
                 receivableContract.connect(poolOwner).declarePayment(tokenId, 0),
-            ).to.be.revertedWithCustomError(receivableContract, "zeroAmountProvided");
+            ).to.be.revertedWithCustomError(receivableContract, "ZeroAmountProvided");
         });
     });
 
@@ -332,7 +335,10 @@ describe("Receivable Test", function () {
 
             await expect(
                 receivableContract.connect(poolOwner).updateReceivableMetadata(tokenId, "uri2"),
-            ).to.be.revertedWithCustomError(receivableContract, "notReceivableOwnerOrCreator");
+            ).to.be.revertedWithCustomError(
+                receivableContract,
+                "ReceivableOwnerOrCreatorRequired",
+            );
         });
     });
 

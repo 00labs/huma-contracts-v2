@@ -100,7 +100,7 @@ contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManage
     function closeCredit(address borrower) external virtual override {
         poolConfig.onlyProtocolAndPoolOn();
         if (msg.sender != borrower && msg.sender != humaConfig.eaServiceAccount())
-            revert Errors.notBorrowerOrEA();
+            revert Errors.BorrowerOrEARequired();
 
         bytes32 creditHash = getCreditHash(borrower);
         onlyCreditBorrower(creditHash, borrower);
@@ -154,7 +154,7 @@ contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManage
     ) external virtual override {
         poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
-        if (committedAmount > creditLimit) revert Errors.committedAmountGreaterThanCreditLimit();
+        if (committedAmount > creditLimit) revert Errors.CommittedAmountGreaterThanCreditLimit();
 
         _updateLimitAndCommitment(getCreditHash(borrower), creditLimit, committedAmount);
     }

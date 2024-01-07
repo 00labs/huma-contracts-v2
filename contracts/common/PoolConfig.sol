@@ -50,8 +50,6 @@ struct AdminRnR {
 }
 
 struct LPConfig {
-    // whether approval is required for an LP to participate
-    bool permissioned;
     // The max liquidity allowed for the pool.
     uint96 liquidityCap;
     // The upper bound of senior-to-junior ratio allowed
@@ -102,8 +100,6 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
     // The smallest value that `PoolSettings.minDepositAmount` can be set to. Note that this value is "pre-decimals",
     // i.e. if the underlying token is USDC, then this represents $10 in USDC.
     uint256 private constant MIN_DEPOSIT_AMOUNT_THRESHOLD = 10;
-
-    //using SafeERC20 for IERC20;
 
     string public poolName;
 
@@ -193,7 +189,6 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
     );
 
     event LPConfigChanged(
-        bool permissioned,
         uint96 liquidityCap,
         uint8 maxSeniorJuniorRatio,
         uint16 fixedSeniorYieldInBps,
@@ -242,13 +237,13 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         poolName = _poolName;
 
         for (uint256 i = 0; i < _contracts.length; i++) {
-            if (_contracts[i] == address(0)) revert Errors.zeroAddressProvided();
+            if (_contracts[i] == address(0)) revert Errors.ZeroAddressProvided();
         }
 
         humaConfig = HumaConfig(_contracts[0]);
         address addr = _contracts[1];
         if (!humaConfig.isAssetValid(addr))
-            revert Errors.underlyingTokenNotApprovedForHumaProtocol();
+            revert Errors.UnderlyingTokenNotApprovedForHumaProtocol();
         underlyingToken = addr;
         calendar = _contracts[2];
         pool = _contracts[3];
@@ -272,7 +267,6 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         tempPoolSettings.payPeriodDuration = PayPeriodDuration.Monthly;
         tempPoolSettings.advanceRateInBps = 8000; // 80%
         tempPoolSettings.latePaymentGracePeriodInDays = 5;
-        tempPoolSettings.defaultGracePeriodInDays = 10; // 10 days
         _poolSettings = tempPoolSettings;
 
         AdminRnR memory adminRnRConfig = _adminRnR;
@@ -282,9 +276,11 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         adminRnRConfig.liquidityRateInBpsByPoolOwner = 200; // 2%
         _adminRnR = adminRnRConfig;
 
-        LPConfig memory config = _lpConfig;
-        config.maxSeniorJuniorRatio = 4; // senior : junior = 4:1
-        _lpConfig = config;
+        LPConfig memory lpConfig = _lpConfig;
+        lpConfig.maxSeniorJuniorRatio = 4; // senior : junior = 4:1
+        lpConfig.withdrawalLockoutPeriodInDays = 90;
+        _lpConfig = lpConfig;
+
         __AccessControl_init();
         __UUPSUpgradeable_init();
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -293,11 +289,11 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
     function setPoolOwnerRewardsAndLiquidity(uint256 rewardRate, uint256 liquidityRate) external {
         _onlyOwnerOrHumaMasterAdmin();
         if (rewardRate > HUNDRED_PERCENT_IN_BPS || liquidityRate > HUNDRED_PERCENT_IN_BPS)
-            revert Errors.invalidBasisPointHigherThan10000();
+            revert Errors.InvalidBasisPointHigherThan10000();
         AdminRnR memory tempAdminRnR = _adminRnR;
         if (rewardRate + tempAdminRnR.rewardRateInBpsForEA > HUNDRED_PERCENT_IN_BPS) {
             // Since we split the profit between the pool owner and EA, their combined reward rate cannot exceed 100%.
-            revert Errors.adminRewardRateTooHigh();
+            revert Errors.AdminRewardRateTooHigh();
         }
 
         tempAdminRnR.rewardRateInBpsForPoolOwner = uint16(rewardRate);
@@ -309,11 +305,11 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
     function setEARewardsAndLiquidity(uint256 rewardRate, uint256 liquidityRate) external {
         _onlyOwnerOrHumaMasterAdmin();
         if (rewardRate > HUNDRED_PERCENT_IN_BPS || liquidityRate > HUNDRED_PERCENT_IN_BPS)
-            revert Errors.invalidBasisPointHigherThan10000();
+            revert Errors.InvalidBasisPointHigherThan10000();
         AdminRnR memory tempAdminRnR = _adminRnR;
         if (rewardRate + tempAdminRnR.rewardRateInBpsForPoolOwner > HUNDRED_PERCENT_IN_BPS) {
             // Since we split the profit between the pool owner and EA, their combined reward rate cannot exceed 100%.
-            revert Errors.adminRewardRateTooHigh();
+            revert Errors.AdminRewardRateTooHigh();
         }
 
         tempAdminRnR.rewardRateInBpsForEA = uint16(rewardRate);
@@ -327,11 +323,11 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
      * @param agent the evaluation agent to be added
      */
     function setEvaluationAgent(uint256 eaId, address agent) external {
-        if (agent == address(0)) revert Errors.zeroAddressProvided();
+        if (agent == address(0)) revert Errors.ZeroAddressProvided();
         _onlyOwnerOrHumaMasterAdmin();
 
         if (IERC721(humaConfig.eaNFTContractAddress()).ownerOf(eaId) != agent)
-            revert Errors.proposedEADoesNotOwnProvidedEANFT();
+            revert Errors.ProposedEADoesNotOwnProvidedEANFT();
 
         // Transfer the accrued EA income to the old EA's wallet.
         // Decided not to check if there is enough balance in the pool. If there is
@@ -349,7 +345,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
             if (
                 !IFirstLossCover(_firstLossCovers[AFFILIATE_FIRST_LOSS_COVER_INDEX]).isSufficient()
             ) {
-                revert Errors.lessThanRequiredCover();
+                revert Errors.InsufficientFirstLossCover();
             }
             ITrancheVaultLike juniorTrancheVault = ITrancheVaultLike(juniorTranche);
             checkLiquidityRequirementForEA(juniorTrancheVault.totalAssetsOf(agent));
@@ -363,21 +359,21 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
 
     function setPoolFeeManager(address _poolFeeManager) external {
         _onlyOwnerOrHumaMasterAdmin();
-        if (_poolFeeManager == address(0)) revert Errors.zeroAddressProvided();
+        if (_poolFeeManager == address(0)) revert Errors.ZeroAddressProvided();
         poolFeeManager = _poolFeeManager;
         emit PoolFeeManagerChanged(_poolFeeManager, msg.sender);
     }
 
     function setHumaConfig(address _humaConfig) external {
         _onlyOwnerOrHumaMasterAdmin();
-        if (_humaConfig == address(0)) revert Errors.zeroAddressProvided();
+        if (_humaConfig == address(0)) revert Errors.ZeroAddressProvided();
         humaConfig = HumaConfig(_humaConfig);
         emit HumaConfigChanged(_humaConfig, msg.sender);
     }
 
     function setPool(address _pool) external {
         _onlyOwnerOrHumaMasterAdmin();
-        if (_pool == address(0)) revert Errors.zeroAddressProvided();
+        if (_pool == address(0)) revert Errors.ZeroAddressProvided();
         pool = _pool;
         emit PoolChanged(_pool, msg.sender);
     }
@@ -393,14 +389,14 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
 
     function setPoolOwnerTreasury(address _poolOwnerTreasury) external {
         _onlyOwnerOrHumaMasterAdmin();
-        if (_poolOwnerTreasury == address(0)) revert Errors.zeroAddressProvided();
+        if (_poolOwnerTreasury == address(0)) revert Errors.ZeroAddressProvided();
         poolOwnerTreasury = _poolOwnerTreasury;
         emit PoolOwnerTreasuryChanged(_poolOwnerTreasury, msg.sender);
     }
 
     function setPoolUnderlyingToken(address _underlyingToken) external {
         _onlyOwnerOrHumaMasterAdmin();
-        if (_underlyingToken == address(0)) revert Errors.zeroAddressProvided();
+        if (_underlyingToken == address(0)) revert Errors.ZeroAddressProvided();
         underlyingToken = _underlyingToken;
         emit PoolUnderlyingTokenChanged(_underlyingToken, msg.sender);
     }
@@ -408,7 +404,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
     function setTranches(address _seniorTranche, address _juniorTranche) external {
         _onlyOwnerOrHumaMasterAdmin();
         if (_seniorTranche == address(0) || _juniorTranche == address(0))
-            revert Errors.zeroAddressProvided();
+            revert Errors.ZeroAddressProvided();
         seniorTranche = _seniorTranche;
         juniorTranche = _juniorTranche;
         emit TranchesChanged(_seniorTranche, _juniorTranche, msg.sender);
@@ -416,28 +412,28 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
 
     function setPoolSafe(address _poolSafe) external {
         _onlyOwnerOrHumaMasterAdmin();
-        if (_poolSafe == address(0)) revert Errors.zeroAddressProvided();
+        if (_poolSafe == address(0)) revert Errors.ZeroAddressProvided();
         poolSafe = _poolSafe;
         emit PoolSafeChanged(poolSafe, msg.sender);
     }
 
     function setTranchesPolicy(address _tranchesPolicy) external {
         _onlyOwnerOrHumaMasterAdmin();
-        if (_tranchesPolicy == address(0)) revert Errors.zeroAddressProvided();
+        if (_tranchesPolicy == address(0)) revert Errors.ZeroAddressProvided();
         tranchesPolicy = _tranchesPolicy;
         emit TranchesPolicyChanged(_tranchesPolicy, msg.sender);
     }
 
     function setEpochManager(address _epochManager) external {
         _onlyOwnerOrHumaMasterAdmin();
-        if (_epochManager == address(0)) revert Errors.zeroAddressProvided();
+        if (_epochManager == address(0)) revert Errors.ZeroAddressProvided();
         epochManager = _epochManager;
         emit EpochManagerChanged(epochManager, msg.sender);
     }
 
     function setCredit(address _credit) external {
         _onlyOwnerOrHumaMasterAdmin();
-        if (_credit == address(0)) revert Errors.zeroAddressProvided();
+        if (_credit == address(0)) revert Errors.ZeroAddressProvided();
         credit = _credit;
         emit CreditChanged(_credit, msg.sender);
     }
@@ -465,14 +461,14 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
 
     function setCalendar(address _calendar) external {
         _onlyOwnerOrHumaMasterAdmin();
-        if (_calendar == address(0)) revert Errors.zeroAddressProvided();
+        if (_calendar == address(0)) revert Errors.ZeroAddressProvided();
         calendar = _calendar;
         emit CalendarChanged(_calendar, msg.sender);
     }
 
     function setReceivableAsset(address _receivableAsset) external {
         _onlyOwnerOrHumaMasterAdmin();
-        if (_receivableAsset == address(0)) revert Errors.zeroAddressProvided();
+        if (_receivableAsset == address(0)) revert Errors.ZeroAddressProvided();
         receivableAsset = _receivableAsset;
         emit ReceivableAssetChanged(_receivableAsset, msg.sender);
     }
@@ -483,10 +479,10 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
             settings.minDepositAmount <
             uint96(MIN_DEPOSIT_AMOUNT_THRESHOLD * 10 ** IERC20Metadata(underlyingToken).decimals())
         ) {
-            revert Errors.minDepositAmountTooLow();
+            revert Errors.MinDepositAmountTooLow();
         }
         if (settings.advanceRateInBps > 10000) {
-            revert Errors.invalidBasisPointHigherThan10000();
+            revert Errors.InvalidBasisPointHigherThan10000();
         }
         _poolSettings = settings;
         emit PoolSettingsChanged(
@@ -510,7 +506,6 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         }
         _lpConfig = lpConfig;
         emit LPConfigChanged(
-            lpConfig.permissioned,
             lpConfig.liquidityCap,
             lpConfig.maxSeniorJuniorRatio,
             lpConfig.fixedSeniorYieldInBps,
@@ -584,16 +579,16 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
     }
 
     function onlyPool(address account) external view {
-        if (account != pool) revert Errors.notPool();
+        if (account != pool) revert Errors.AuthorizedContractCallerRequired();
     }
 
     function onlyProtocolAndPoolOn() external view {
-        if (humaConfig.paused()) revert Errors.protocolIsPaused();
-        if (!IPool(pool).isPoolOn()) revert Errors.poolIsNotOn();
+        if (humaConfig.paused()) revert Errors.ProtocolIsPaused();
+        if (!IPool(pool).isPoolOn()) revert Errors.PoolIsNotOn();
     }
 
     function onlyPoolOperator(address account) external view {
-        if (!hasRole(POOL_OPERATOR_ROLE, account)) revert Errors.poolOperatorRequired();
+        if (!hasRole(POOL_OPERATOR_ROLE, account)) revert Errors.PoolOperatorRequired();
     }
 
     /**
@@ -603,17 +598,17 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         IFirstLossCover firstLossCover = IFirstLossCover(
             _firstLossCovers[AFFILIATE_FIRST_LOSS_COVER_INDEX]
         );
-        if (!firstLossCover.isSufficient()) revert Errors.lessThanRequiredCover();
+        if (!firstLossCover.isSufficient()) revert Errors.InsufficientFirstLossCover();
     }
 
     function checkLiquidityRequirementForPoolOwner(uint256 balance) public view {
         if (balance < _getRequiredLiquidityForPoolOwner())
-            revert Errors.poolOwnerNotEnoughLiquidity();
+            revert Errors.PoolOwnerInsufficientLiquidity();
     }
 
     function checkLiquidityRequirementForEA(uint256 balance) public view {
         if (balance < _getRequiredLiquidityForEA())
-            revert Errors.evaluationAgentNotEnoughLiquidity();
+            revert Errors.EvaluationAgentInsufficientLiquidity();
     }
 
     /**
@@ -652,7 +647,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
 
     function onlyPoolOwner(address account) public view {
         // Treat DEFAULT_ADMIN_ROLE role as owner role
-        if (!hasRole(DEFAULT_ADMIN_ROLE, account)) revert Errors.notPoolOwner();
+        if (!hasRole(DEFAULT_ADMIN_ROLE, account)) revert Errors.PoolOwnerRequired();
     }
 
     /**
@@ -662,7 +657,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         // Treat DEFAULT_ADMIN_ROLE role as owner role
         if (
             !hasRole(DEFAULT_ADMIN_ROLE, account) && account != humaConfig.sentinelServiceAccount()
-        ) revert Errors.notAuthorizedCaller();
+        ) revert Errors.AuthorizedContractCallerRequired();
     }
 
     /**
@@ -673,7 +668,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
             !hasRole(DEFAULT_ADMIN_ROLE, account) &&
             account != evaluationAgent &&
             account != address(this)
-        ) revert Errors.notPoolOwnerOrEA();
+        ) revert Errors.PoolOwnerOrEARequired();
         return evaluationAgent;
     }
 
@@ -683,13 +678,13 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
      */
     function onlyOwnerOrHumaMasterAdmin(address account) public view {
         if (!hasRole(DEFAULT_ADMIN_ROLE, account) && account != humaConfig.owner()) {
-            revert Errors.permissionDeniedNotAdmin();
+            revert Errors.AdminRequired();
         }
     }
 
     function onlyHumaMasterAdmin(address account) public view {
         if (account != humaConfig.owner()) {
-            revert Errors.permissionDeniedNotAdmin();
+            revert Errors.AdminRequired();
         }
     }
 

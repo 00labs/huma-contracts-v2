@@ -6,11 +6,11 @@ import {PoolConfigCache} from "../common/PoolConfigCache.sol";
 import {ITranchesPolicy} from "./interfaces/ITranchesPolicy.sol";
 import {JUNIOR_TRANCHE, SENIOR_TRANCHE, HUNDRED_PERCENT_IN_BPS} from "../common/SharedDefs.sol";
 import {IFirstLossCover} from "./interfaces/IFirstLossCover.sol";
-
-import "hardhat/console.sol";
+import {Errors} from "../common/Errors.sol";
 
 abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
     IFirstLossCover[] internal _firstLossCovers;
+    address public pool;
 
     /// @inheritdoc ITranchesPolicy
     function distProfitToTranches(
@@ -23,6 +23,8 @@ abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
             uint256[] memory profitsForFirstLossCover
         )
     {
+        if (msg.sender != pool) revert Errors.AuthorizedContractCallerRequired();
+
         uint256 remainingProfit;
         (
             profitsForTrancheVault[SENIOR_TRANCHE],
@@ -49,6 +51,11 @@ abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
     }
 
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
+        address addr = _poolConfig.pool();
+        assert(addr != address(0));
+        pool = addr;
+
+        delete _firstLossCovers;
         address[16] memory covers = _poolConfig.getFirstLossCovers();
         for (uint256 i = 0; i < covers.length; i++) {
             if (covers[i] != address(0)) {

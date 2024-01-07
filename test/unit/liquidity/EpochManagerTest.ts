@@ -166,6 +166,10 @@ describe("EpochManager Test", function () {
             .connect(lender2)
             .deposit(seniorDepositAmount, lender2.address);
 
+        await overrideLPConfig(poolConfigContract, poolOwner, {
+            withdrawalLockoutPeriodInDays: 0,
+        });
+
         epochChecker = new EpochChecker(
             epochManagerContract,
             seniorTrancheVaultContract,
@@ -181,7 +185,7 @@ describe("EpochManager Test", function () {
     it("Should not allow non-Pool to start new epoch", async function () {
         await expect(epochManagerContract.startNewEpoch()).to.be.revertedWithCustomError(
             poolConfigContract,
-            "notPool",
+            "AuthorizedContractCallerRequired",
         );
     });
 
@@ -249,14 +253,14 @@ describe("EpochManager Test", function () {
         await humaConfigContract.connect(protocolOwner).pause();
         await expect(epochManagerContract.closeEpoch()).to.be.revertedWithCustomError(
             poolConfigContract,
-            "protocolIsPaused",
+            "ProtocolIsPaused",
         );
         await humaConfigContract.connect(protocolOwner).unpause();
 
         await poolContract.connect(poolOwner).disablePool();
         await expect(epochManagerContract.closeEpoch()).to.be.revertedWithCustomError(
             poolConfigContract,
-            "poolIsNotOn",
+            "PoolIsNotOn",
         );
         await poolContract.connect(poolOwner).enablePool();
     });
@@ -264,7 +268,7 @@ describe("EpochManager Test", function () {
     it("Should not close an epoch before end time", async function () {
         await expect(epochManagerContract.closeEpoch()).to.be.revertedWithCustomError(
             epochManagerContract,
-            "closeTooSoon",
+            "EpochClosedTooEarly",
         );
     });
 

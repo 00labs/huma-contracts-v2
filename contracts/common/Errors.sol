@@ -2,149 +2,123 @@
 pragma solidity ^0.8.0;
 
 contract Errors {
-    // common
-    error zeroAddressProvided(); // 0x5ff75ab0
-    error zeroAmountProvided(); // 0x71799f2a
-    error invalidBasisPointHigherThan10000(); // 0x07982d85
-    error allowanceTooLow(); // 0xcd8ef369
-    error insufficientAmountForRequest(); // 0x80615fdf
-    error insufficientSharesForRequest(); // 0x439f3ef3
-    error lessThanRequiredCover(); // 0xd0f0d90e
-    error emptyArray(); // 0x81a5a837
-    error unsupportedFunction(); // 0x47c67999
+    // Common
+    error ZeroAddressProvided(); // 0x84744201
+    error ZeroAmountProvided(); // 0x8b127107
+    error InvalidBasisPointHigherThan10000(); // 0x5995a7a4
+    error InsufficientAmountForRequest(); // 0x66367127
+    error InsufficientSharesForRequest(); // 0xb0ef6d99
+    error UnsupportedFunction(); // 0xea1c702e
 
-    // security
-    error permissionDeniedNotAdmin(); // 0xf2c5b6a7
-    error permissionDeniedNotLender(); // 0x68299b20
-    error evaluationAgentServiceAccountRequired(); // 0x9b3b1ed6
-    error sentinelServiceAccountRequired(); // 0x2fc45e27
-    error poolOperatorRequired(); // 0xdc2dc6d0
-    error notPoolOwner(); // 0xd39208c9
-    error notProtocolOwner(); // 0x97924c20
-    error notPoolOwnerOrEA(); // 0xd6ed9384
-    error notPauser(); // 0xdcdea7c8
-    error notPool(); // 0x26d29bbf
-    error drawdownFunctionUsedInsteadOfDrawdownWithReceivable(); // 0xf7a16c77
-    error notNFTOwner(); // 0x091a5762
-    error notProcessor(); // 0x90409ca1
-    error notBorrower(); // 0xb18f4d11
-    error notBorrowerOrEA(); // 0xa0bb841d
-    error notCurrentEpoch(); // 0x50c5dd13
-    error notCoverProvider(); // 0xed74bd11
-    error notAuthorizedCaller(); // 0x06bc68f5
-    error permissionDeniedNotPayer(); // 0xf3275b9d
+    // Security
+    error AdminRequired(); // 0x92d14c9e
+    error PoolOperatorRequired(); // 0xae7fe070
+    error PoolOwnerRequired(); // 0x8b506451
+    error ProtocolOwnerRequired(); // 0xd99ba4d3
+    error PoolOwnerOrEARequired(); // 0xe54466f3
+    error PauserRequired(); // 0xd4a99e4e
+    error NFTOwnerRequired(); // 0x85179c58
+    error LenderRequired(); // 0x306fd1ae
+    error BorrowerRequired(); // 0xeca877b1
+    error BorrowerOrEARequired(); // 0xedaf53fe
+    error PayerRequired(); // 0xb00f9713
+    error CoverProviderRequired(); // 0x0c328563
+    error AuthorizedContractCallerRequired(); // 0xd4e75354
+    error EvaluationAgentServiceAccountRequired(); // 0xa770729f
+    error SentinelServiceAccountRequired(); // 0x272a85a5
+    error TrancheRequired(); // 0x56b15134
 
-    // system config
-    error defaultGracePeriodLessThanMinAllowed(); // 0xa733ff9c
-    error treasuryFeeHighThanUpperLimit(); // 0x39cda0d1
-    error alreadyAPauser(); // 0x9f694c22
-    error alreadyPoolAdmin(); // 0x7bb356e2
+    // Protocol config
+    error TreasuryFeeHighThanUpperLimit(); // 0x743a9631
+    error AlreadyAPauser(); // 0x2fe391f2
+    error AlreadyPoolAdmin(); // 0xebe277bd
 
-    // fee config
-    error minPrincipalPaymentRateSettingTooHigh(); // 0xc11fc042
+    // Pool config
+    error ProposedEADoesNotOwnProvidedEANFT(); // 0xc7388fc8
+    error UnderlyingTokenNotApprovedForHumaProtocol(); // 0x28918c5b
+    error AdminRewardRateTooHigh(); // 0xa01087e8
+    error PoolOwnerInsufficientLiquidity(); // 0xbd8efe51
+    error EvaluationAgentInsufficientLiquidity(); // 0xc4c087d5
+    error MinDepositAmountTooLow(); // 0xf250b9dc
 
-    // pool config
-    error proposedEADoesNotOwnProvidedEANFT(); // 0x75b0da3b
-    error underlyingTokenNotApprovedForHumaProtocol(); // 0xce179d6d
-    error adminRewardRateTooHigh(); // 0x2d664ed8
-    error poolOwnerNotEnoughLiquidity(); // 0xe95282e2
-    error evaluationAgentNotEnoughLiquidity(); // 0x67e26217
-    error minDepositAmountTooLow(); // 0x1362e346
+    // Pool state
+    error ProtocolIsPaused(); // 0xaf0b004c
+    error PoolIsNotOn(); // 0xf082b5c3
+    error PoolIsNotReadyForFirstLossCoverWithdrawal(); // 0x3c2546a3
 
-    // pool state
-    error protocolIsPaused(); // 0x8f6fa2d4
-    error poolIsNotOn(); // 0x69b355df
-    error poolIsNotReadyForFirstLossCoverWithdrawal(); // 0x20b8b473
+    // Calendar
+    error StartDateLaterThanEndDate(); // 0xc496cd06
 
-    // tranche operation
-    error trancheLiquidityCapExceeded(); // 0xa836f9bb
-    error depositAmountTooLow(); // 0x45b748ec
-    error withdrawTooSoon(); // 0x67982472
-    error invalidTrancheIndex(); // 0xa82f3ece
-    error closeTooSoon(); // 0xa38d0553
-    error alreadyLender(); // 0x7ee8431c
-    error notLender(); // 0xf3150796
-    error nonReinvestYieldLenderCapacityReached(); // 0xfa05f220
+    // Tranche
+    error TrancheLiquidityCapExceeded(); // 0x081917ff
+    error DepositAmountTooLow(); // 0x55fcd027
+    error WithdrawTooEarly(); // 0x64381803
+    error InvalidTrancheIndex(); // 0x4e2a8dfe
+    error EpochClosedTooEarly(); // 0xf6a9c460
+    error AlreadyALender(); // 0xce4108ca
+    error NonReinvestYieldLenderCapacityReached(); // 0x39ad903d
+    error ReinvestYieldOptionAlreadySet(); // 0xb44d305d
 
-    // credit operation
-    error creditHasNoCommitment(); // 0xca0cc99a
-    error creditWithoutCommitmentShouldHaveNoDesignatedStartDate(); // 0x92b2c29f
-    error designatedStartDateInThePast(); // 0xf77f5ddf
-    error committedCreditCannotBeStarted(); // 0x71a215ed
-    error creditExpiredDueToMaturity(); // 0xa52f3c3f
-    error creditLineNotInGoodStandingState(); // 0x96e79474
-    error creditLineNotInStateForMakingPayment(); // 0xf023e48b
-    error creditLineNotInStateForMakingPrincipalPayment(); // 0xb000239a
-    error creditNotInStateForDrawdown(); // 0x41be5540
-    error drawdownNotAllowedInLatePaymentGracePeriod(); // 0xf1020d3b
-    error creditLineExceeded(); // 0xef7d66ff
-    error creditLineAlreadyExists(); // 0x6c5805f2
-    error creditLineGreatThanUpperLimit(); // 0xd8c27d2f
-    error firstDrawdownTooSoon(); // 0x313ba6e8
-    error greaterThanMaxCreditLine(); // 0x8a754ae8
-    error onlyBorrowerOrEACanReduceCreditLine(); // 0xd61dbe31
-    error creditLineNotInApprovedState(); // 0xfc91a989
-    error paymentIdNotUnderReview(); // 0xd1696aaa
-    error creditLineTooHigh(); // 0x552b8377
-    error creditLineOutstanding(); // 0xc64e338c
-    error creditLineNotInStateForUpdate(); // 0x80cc0c6f
-    error creditLineHasOutstandingBalance(); // 0x78272365
-    error creditLineHasUnfulfilledCommitment(); // 0xb0393028
-    error borrowingAmountLessThanPlatformFees(); // 0x97fde118
-    error paymentAlreadyProcessed(); // 0xfd6754cf
-    error settlementTooSoon(); // 0x0453e75e
-    error defaultTriggeredTooEarly(); // 0x7872424e
-    error defaultHasAlreadyBeenTriggered(); // 0xeb8d2ccc
-    error committedAmountGreaterThanCreditLimit(); // 0x4ff6cc6f
-    error insufficientBorrowerFirstLossCover(); // 0x6bf498b9
-    error attemptedDrawdownForNonrevolvingLine(); // 0x35dd2354
-    error receivableAlreadyMatured(); // 0x2bbe2176
-    error invalidReceivableState(); // 0xcc504b49
+    // First loss cover
+    error InsufficientFirstLossCover(); // 0x86fdb63a
+    error FirstLossCoverLiquidityCapExceeded(); // 0x2025075b
+    error TooManyProviders(); // 0x71bcfb10
+    error AlreadyAProvider(); // 0xd9234b22
+    error ProviderHasOutstandingAssets(); // 0xff6a242c
 
-    // first loss cover operation
-    error notAllProvidersPaidOut(); // 0xf878b213
-    error firstLossCoverLiquidityCapExceeded(); // 0x4cb179d9
-    error tooManyProviders(); // 0x8a6d2a02
-    error alreadyProvider(); // 0xd8acb2e6
-    error providerHasOutstandingAssets(); // 0x5b86e16e
-    error notProvider(); // 0xa9f79f68
+    // Credit
+    error ZeroPayPeriods(); // 0x02aef0da
+    error CreditLimitTooHigh(); // 0x8aeadfa3
+    error CommittedAmountGreaterThanCreditLimit(); // 0x40ea97e3
+    error CreditWithoutCommitmentShouldHaveNoDesignatedStartDate(); // 0xdc0b99eb
+    error DesignatedStartDateInThePast(); // 0xd2399737
+    error CommittedCreditCannotBeStarted(); // 0x77ac341b
+    error CreditNotInStateForDrawdown(); // 0x2b02d679
+    error CreditLimitExceeded(); // 0xf2a56cf4
+    error FirstDrawdownTooEarly(); // 0x3cc36a48
+    error AttemptedDrawdownOnNonRevolvingLine(); // 0x6f878c73
+    error InsufficientPoolBalanceForDrawdown(); // 0xd3026e45
+    error BorrowAmountLessThanPlatformFees(); // 0xa21ec6a5
+    error CreditNotInStateForMakingPayment(); // 0x65a28282
+    error CreditNotInStateForMakingPrincipalPayment(); // 0xada2c6d3
+    error CreditNotInStateForUpdate(); // 0xafa449c6
+    error CreditHasOutstandingBalance(); // 0x73388b1a
+    error CreditHasUnfulfilledCommitment(); // 0xb8fdadcc
+    error DefaultTriggeredTooEarly(); // 0xe2e5216d
+    error DefaultHasAlreadyBeenTriggered(); // 0x5c8d0ab5
+    error ReceivableAlreadyMatured(); // 0xbcda5742
+    error InvalidReceivableState(); // 0x185abea4
+    error DrawdownNotAllowedInFinalPeriodAndBeyond(); // 0xda8ff4aa
+    error DrawdownNotAllowedAfterDueDateWithUnpaidDue(); // 0x9e843389
+    error PayPeriodsTooLowForCreditsWithDesignatedStartDate(); // 0x3078367e
 
-    // receivable operation
-    error receivableAssetMismatch(); // 0x41dbeec1
-    error receivableIdMismatch(); // 0x97be2b67
-    error unsupportedReceivableAsset(); // 0xe60c383e
-    error receivableAssetParamMismatch(); // 0x1400a0b4
-    error insufficientReceivableAmount(); // 0xf7f34854
-    error zeroReceivableAmount(); // 0xe32c8fca
-    error zeroReceivableIdProvided(); // 0x7a7c1f4f
-    error notReceivableOwner(); // 0x828f434d
-    error notReceivableOwnerOrCreator(); // 0xc7fb4427
-    error receivableReferenceIdAlreadyExists(); // 0x09ab3996
+    // Receivable
+    error ReceivableIdMismatch(); // 0xbd56e3f5
+    error InsufficientReceivableAmount(); // 0x1ef585b6
+    error ZeroReceivableAmount(); // 0xe7883af2
+    error ZeroReceivableIdProvided(); // 0x936f9c2c
+    error ReceivableOwnerRequired(); // 0x966dff7d
+    error ReceivableOwnerOrCreatorRequired(); // 0x6eae8328
+    error ReceivableReferenceIdAlreadyExists(); // 0x6ff1906a
 
-    // superfluid
-    error durationTooLong(); // 0xf1dd53a8
-    error invalidFlowrate(); // 0xd06a9328
-    error onlySuperfluid(); // 0x3f9cd1c2
-    error borrowerMismatch(); // 0x27d3e640
-    error flowKeyMismatch(); // 0x29d5a5f3
-    error flowIsNotTerminated(); // 0xe9c5922f
-    error invalidSuperfluidCallback(); // 0xd2747f83
-    error invalidSuperfluidAction(); // 0x2f2cd9e9
-    error notTradableStreamOwner(); // 0x5709a724
-    error tradableStreamNotExisting(); // 0xb78e2a5b
-    error tradableStreamNotMatured(); // 0xa42ebb88
-    error notEnoughAvailableFlowrate(); // 0x9c808ab8
+    // Superfluid
+    error DurationTooLong(); // 0x9529f506
+    error InvalidFlowRate(); // 0xfe267e42
+    error OnlySuperfluid(); // 0xfb533448
+    error BorrowerMismatch(); // 0xb41f6d39
+    error FlowKeyMismatch(); // 0x8e6bfecd
+    error FlowIsNotTerminated(); // 0xe00cc45b
+    error InvalidSuperfluidCallback(); // 0xa229468b
+    error InvalidSuperfluidAction(); // 0x6ac91e96
+    error NotTradableStreamOwner(); // 0x03d702ef
+    error TradableStreamNotExisting(); // 0x4c3d6ac0
+    error TradableStreamNotMatured(); // 0x4bbf1794
+    error InsufficientAvailableFlowRate(); // 0x0d455f2e
     error AuthorizationExpired(); // 0x0f05f5bf
     error InvalidAuthorization(); // 0x2ce87eeb
-    error newReceiverSameToOrigin(); // 0x6d79ce50
-
-    error invalidCalendarUnit(); // 0x353226f1
-    error zeroPayPeriods(); // 0xd991f55d
-    error startDateLaterThanEndDate(); // 0x73838ce7
-
-    error todo(); // 0xb47f18a1
 
     // factory
     error invalidPoolId(); // 0x86869e81
     error invalidPoolStatus(); // 0x6ae97ef4
+    error NewReceiverSameToOrigin(); // 0xdf9b7a8a
 }
