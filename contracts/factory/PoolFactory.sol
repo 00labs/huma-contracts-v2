@@ -1,23 +1,25 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {PoolConfig, FirstLossCoverConfig, PoolSettings} from "../common/PoolConfig.sol";
 import {IFirstLossCover} from "../liquidity/interfaces/IFirstLossCover.sol";
 import {IPoolConfigCache} from "../common/interfaces/IPoolConfigCache.sol";
 import {ITrancheVault} from "../liquidity/interfaces/ITrancheVault.sol";
-import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
 import {Errors} from "../common/Errors.sol";
 
-contract PoolFactory is AccessControl {
+import {LibTimelockController} from "./library/LibTimelockController.sol";
+
+contract PoolFactory is AccessControlUpgradeable, UUPSUpgradeable {
     /**
      * @dev Represents the status of a pool.
      */
     enum PoolStatus {
         Created, // the pool is created but not initialized yet
         Initialized, // the pool is initialized and ready for use
-        Deleted // the pool is deleted from the factory
+        Closed // the pool is closed and not in operation anymore
     }
 
     // Struct to store information about a pool
@@ -26,7 +28,7 @@ contract PoolFactory is AccessControl {
         address poolAddress;
         string poolName;
         PoolStatus poolStatus;
-        address poolConfig;
+        address poolConfigAddress;
         address poolTimeLock;
     }
 
@@ -37,7 +39,7 @@ contract PoolFactory is AccessControl {
     uint256 public poolId;
 
     // protocol and implementation addresses
-    address public immutable HUMA_CONFIG_ADDRESS;
+    address public HUMA_CONFIG_ADDRESS;
     address public calendarAddress;
     address public fixedSeniorYieldTranchesPolicyImplAddress;
     address public riskAdjustedTranchesPolicyImplAddress;
@@ -97,11 +99,17 @@ contract PoolFactory is AccessControl {
     event OwnershipChanged(address oldOwner, address newOwner);
 
     event PoolStatusUpdated(uint256 poolId, PoolStatus oldStatus, PoolStatus newStatus);
+    event timeLockAddedtoPool(uint256 poolId, address poolAddress, address timeLockAddress);
 
-    constructor(address _humaConfigAddress) {
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        HUMA_CONFIG_ADDRESS = _humaConfigAddress;
+    constructor() {
+        // _disableInitializers();
+    }
+
+    function initialize(address _humaConfigAddress) external initializer {
         poolId = 0;
+        HUMA_CONFIG_ADDRESS = _humaConfigAddress;
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        __AccessControl_init();
     }
 
     // Add a deployer account
@@ -366,6 +374,7 @@ contract PoolFactory is AccessControl {
                 IPoolConfigCache(poolAddresses[i]).initialize(poolConfigAddress);
             }
         }
+        _registerPool(poolAddresses[3], _poolName, poolConfigAddress, address(0));
     }
 
     function setupPool() external onlyRole(DEPLOYER_ROLE) {}
@@ -377,31 +386,39 @@ contract PoolFactory is AccessControl {
     }
 
     function addTimeLock(
-        address[] memory poolAdmins,
+        uint256 _poolId,
+        address[] memory poolOwners,
         address[] memory poolExecutors
     )
-        public
+        external
         // only one account can be pool admin
         onlyRole(DEPLOYER_ROLE)
-        returns (address)
     {
-        TimelockController timeLock = new TimelockController(
+        address timelockAddress = LibTimelockController.addTimelockController(
             0,
-            poolAdmins,
+            poolOwners,
             poolExecutors,
             address(0)
         );
-        return address(timeLock);
+
+        PoolConfig poolConfig = PoolConfig(pools[_poolId].poolConfigAddress);
+        poolConfig.grantRole(poolConfig.DEFAULT_ADMIN_ROLE(), timelockAddress);
+        poolConfig.renounceRole(poolConfig.DEFAULT_ADMIN_ROLE(), address(this));
+
+        emit timeLockAddedtoPool(_poolId, pools[_poolId].poolAddress, timelockAddress);
+        pools[_poolId].poolTimeLock = timelockAddress;
     }
 
-    // function checkPool(uint256 _poolId) external view returns (PoolRecord memory) {
-    //     if (_poolId == address(0)) {
-    //         revert("INVALID_ID");
-    //     }
-    //     return pools[_poolId];
-    // }
+    function checkPool(uint256 _poolId) external view returns (PoolRecord memory) {
+        if (_poolId == 0 || _poolId > poolId) {
+            revert("INVALID_ID");
+        }
+        return pools[_poolId];
+    }
 
-    function _addExistingPool(
+    function _authorizeUpgrade(address) internal view override onlyRole(DEFAULT_ADMIN_ROLE) {}
+
+    function _registerPool(
         address _poolAddress,
         string memory _poolName,
         address _poolConfigAddress,
