@@ -101,7 +101,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
     );
 
     /**
-     * @notice Part of full of the late fee due of a credit line has been extended.
+     * @notice Part or all of the late fee due of a credit line has been extended.
      * @param creditHash The credit hash.
      * @param oldLateFee The amount of late fee before the update.
      * @param newLateFee The amount of late fee after the update.
@@ -126,7 +126,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
     /**
      * @notice checks if the credit line is ready to be triggered as defaulted
      * @param creditHash The credit hash.
-     * @return isReady a boolean flag for ready for deault or not
+     * @return isReady a boolean flag for ready for default or not
      */
     function isDefaultReady(bytes32 creditHash) public view virtual returns (bool isReady) {
         CreditConfig memory cc = getCreditConfig(creditHash);
@@ -145,8 +145,10 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         if (borrower != _creditBorrowerMap[creditHash]) revert Errors.BorrowerRequired();
     }
 
-    /// Pulls and the addresses of dependent contracts from poolConfig and caches them
-    /// Contracts addresses to be cachesd: Huma Config, Calendar, Credit and Credit Due Manager
+    /**
+     * Pulls the addresses of dependent contracts from poolConfig and caches them
+     * Contracts addresses to be cached: Huma Config, Calendar, Credit and Credit Due Manager
+     */
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = address(_poolConfig.humaConfig());
         assert(addr != address(0));
@@ -517,7 +519,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
     /**
      * @notice Waives the late fee up to the given limit.
      * @param creditHash the credit hash
-     * @param amount the limit to the waived
+     * @param amount the limit to be waived
      * @return amountWaived the amount that has been waived
      */
     function _waiveLateFee(
