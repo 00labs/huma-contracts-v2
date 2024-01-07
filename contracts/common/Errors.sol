@@ -49,7 +49,7 @@ contract Errors {
     error adminRewardRateTooHigh(); // 0x2d664ed8
     error poolOwnerNotEnoughLiquidity(); // 0xe95282e2
     error evaluationAgentNotEnoughLiquidity(); // 0x67e26217
-    error minDepositAmountTooLow();
+    error minDepositAmountTooLow(); // 0x1362e346
 
     // pool state
     error protocolIsPaused(); // 0x8f6fa2d4
@@ -58,7 +58,7 @@ contract Errors {
 
     // tranche operation
     error trancheLiquidityCapExceeded(); // 0xa836f9bb
-    error depositAmountTooLow();
+    error depositAmountTooLow(); // 0x45b748ec
     error withdrawTooSoon(); // 0x67982472
     error invalidTrancheIndex(); // 0xa82f3ece
     error closeTooSoon(); // 0xa38d0553
@@ -98,8 +98,8 @@ contract Errors {
     error committedAmountGreaterThanCreditLimit(); // 0x4ff6cc6f
     error insufficientBorrowerFirstLossCover(); // 0x6bf498b9
     error attemptedDrawdownForNonrevolvingLine(); // 0x35dd2354
-    error receivableAlreadyMatured();
-    error invalidReceivableState();
+    error receivableAlreadyMatured(); // 0x2bbe2176
+    error invalidReceivableState(); // 0xcc504b49
 
     // first loss cover operation
     error notAllProvidersPaidOut(); // 0xf878b213
@@ -143,4 +143,8 @@ contract Errors {
     error startDateLaterThanEndDate(); // 0x73838ce7
 
     error todo(); // 0xb47f18a1
+
+    // factory
+    error invalidPoolId(); // 0x86869e81
+    error invalidPoolStatus(); // 0x6ae97ef4
 }

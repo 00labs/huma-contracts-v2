@@ -13,4 +13,6 @@ interface IPoolConfig {
         address firstLossCover,
         FirstLossCoverConfig memory config
     ) external;
+
+    function setReceivableAsset(address _receivableAsset) external;
 }

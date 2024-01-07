@@ -94,7 +94,7 @@ contract PoolFactory is AccessControlUpgradeable, UUPSUpgradeable {
     // Pool events
     event PoolCreated(address poolAddress, string poolName);
     event PoolAdded(uint256 poolId, address poolAddress, string poolName);
-    event PoolDeleted(uint256 poolId, address poolAddress, string poolName);
+    event PoolClosed(uint256 poolId, address poolAddress, string poolName);
 
     event OwnershipChanged(address oldOwner, address newOwner);
 
@@ -317,6 +317,9 @@ contract PoolFactory is AccessControlUpgradeable, UUPSUpgradeable {
         );
         PoolConfig poolConfig = PoolConfig(poolConfigAddress);
         poolConfig.initialize(_poolName, poolAddresses);
+        address receivable = _addReceivable();
+        poolConfig.setReceivableAsset(receivable);
+
         address borrowerFirstLossCover = _addFirstLossCover();
         IFirstLossCover(borrowerFirstLossCover).initialize(
             "Borrower First Loss Cover",
@@ -353,8 +356,7 @@ contract PoolFactory is AccessControlUpgradeable, UUPSUpgradeable {
             2,
             FirstLossCoverConfig(0, 0, 0, 0, 0)
         );
-        address receivable = _addReceivable();
-        poolConfig.setReceivableAsset(receivable);
+
         for (uint8 i = 3; i < 12; i++) {
             if (i == 8) {
                 ITrancheVault(poolAddresses[i]).initialize(
@@ -389,11 +391,7 @@ contract PoolFactory is AccessControlUpgradeable, UUPSUpgradeable {
         uint256 _poolId,
         address[] memory poolOwners,
         address[] memory poolExecutors
-    )
-        external
-        // only one account can be pool admin
-        onlyRole(DEPLOYER_ROLE)
-    {
+    ) external onlyRole(DEPLOYER_ROLE) {
         address timelockAddress = LibTimelockController.addTimelockController(
             0,
             poolOwners,
@@ -409,9 +407,26 @@ contract PoolFactory is AccessControlUpgradeable, UUPSUpgradeable {
         pools[_poolId].poolTimeLock = timelockAddress;
     }
 
+    function _updatePoolStatus(
+        uint256 _poolId,
+        PoolStatus newStatus
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (_poolId == 0 || _poolId > poolId) {
+            revert Errors.invalidPoolId();
+        }
+        pools[_poolId].poolStatus = newStatus;
+        if (newStatus == PoolStatus.Closed) {
+            emit PoolClosed(_poolId, pools[_poolId].poolAddress, pools[_poolId].poolName);
+        } else if (newStatus == PoolStatus.Initialized) {
+            emit PoolStatusUpdated(_poolId, PoolStatus.Created, PoolStatus.Initialized);
+        } else {
+            revert Errors.invalidPoolStatus();
+        }
+    }
+
     function checkPool(uint256 _poolId) external view returns (PoolRecord memory) {
         if (_poolId == 0 || _poolId > poolId) {
-            revert("INVALID_ID");
+            revert Errors.invalidPoolId();
         }
         return pools[_poolId];
     }
@@ -435,48 +450,6 @@ contract PoolFactory is AccessControlUpgradeable, UUPSUpgradeable {
         );
         emit PoolAdded(poolId, _poolAddress, _poolName);
     }
-
-    // function addExistingPool(
-    //     address _poolAddress,
-    //     string memory _poolName,
-    //     address _poolTimeLock,
-    //     address _hdt,
-    //     address _feeManager,
-    //     address _poolConfig
-    // ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-    //     _addExistingPool(_poolAddress, _poolName, _poolTimeLock, _hdt, _feeManager, _poolConfig);
-    // }
-
-    // function deletePool(address _poolAddress) external onlyRole(DEFAULT_ADMIN_ROLE) {
-    //     if (
-    //         pools[_poolAddress].poolStatus != PoolStatus.Created ||
-    //         pools[_poolAddress].poolStatus != PoolStatus.Initialized
-    //     ) {
-    //         revert("NOT_VALID_POOL");
-    //     }
-    //     pools[_poolAddress].poolStatus = PoolStatus.Deleted;
-
-    //     emit PoolDeleted(_poolAddress);
-    // }
-
-    // function updatePoolStatus(address _poolAddress) external onlyRole(DEPLOYER_ROLE) {
-    //     address poolTimeLock = pools[_poolAddress].poolTimeLock;
-    //     if (LibFeeManager.owner(pools[_poolAddress].feeManager) != poolTimeLock) {
-    //         revert("FEE_MANAGER_NOT_INITIALIZED");
-    //     }
-    //     if (LibHDT.owner(pools[_poolAddress].hdt) != poolTimeLock) {
-    //         revert("HDT_NOT_INITIALIZED");
-    //     }
-    //     if (LibPoolConfig.owner(pools[_poolAddress].poolConfig) != poolTimeLock) {
-    //         revert("POOL_CONFIG_NOT_INITIALIZED");
-    //     }
-    //     if (!LibPool.initialized(_poolAddress)) {
-    //         revert("POOL_NOT_INITIALIZED");
-    //     }
-    //     PoolStatus oldStatus = pools[_poolAddress].poolStatus;
-    //     pools[_poolAddress].poolStatus = PoolStatus.Initialized;
-    //     emit PoolStatusUpdated(oldStatus, PoolStatus.Initialized);
-    // }
 
     function _setFirstLossCover(
         address poolConfigAddress,
