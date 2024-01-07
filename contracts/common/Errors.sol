@@ -101,6 +101,7 @@ contract Errors {
     error receivableAlreadyMatured();
     error invalidReceivableState();
     error DrawdownNotAllowedInFinalPeriodAndBeyond();
+    error PayPeriodsTooLowForCreditsWithDesignatedStartDate();
 
     // first loss cover operation
     error notAllProvidersPaidOut(); // 0xf878b213

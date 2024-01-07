@@ -187,6 +187,8 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
             revert Errors.creditWithoutCommitmentShouldHaveNoDesignatedStartDate();
         if (designatedStartDate > 0 && block.timestamp > designatedStartDate)
             revert Errors.designatedStartDateInThePast();
+        if (designatedStartDate > 0 && remainingPeriods <= 1)
+            revert Errors.PayPeriodsTooLowForCreditsWithDesignatedStartDate();
 
         PoolSettings memory ps = poolConfig.getPoolSettings();
         if (creditLimit > ps.maxCreditLine) {
