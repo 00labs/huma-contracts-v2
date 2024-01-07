@@ -97,6 +97,8 @@ struct ReceivableInfo {
     uint16 currencyCode;
     // The date at which the receivable is expected to be fully paid
     uint64 maturityDate;
+    // Original creator of the Receivable
+    address creator;
     // The state of the receivable
     ReceivableState state;
 }
