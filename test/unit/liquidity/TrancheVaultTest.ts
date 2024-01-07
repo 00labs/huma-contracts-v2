@@ -155,6 +155,10 @@ describe("TrancheVault Test", function () {
             [lender, lender2, lender3, lender4, poolOwnerTreasury, evaluationAgent],
         );
 
+        await overrideLPConfig(poolConfigContract, poolOwner, {
+            withdrawalLockoutPeriodInDays: 0,
+        });
+
         epochChecker = new EpochChecker(
             epochManagerContract,
             seniorTrancheVaultContract,
