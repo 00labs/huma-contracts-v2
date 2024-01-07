@@ -166,6 +166,10 @@ describe("EpochManager Test", function () {
             .connect(lender2)
             .deposit(seniorDepositAmount, lender2.address);
 
+        await overrideLPConfig(poolConfigContract, poolOwner, {
+            withdrawalLockoutPeriodInDays: 0,
+        });
+
         epochChecker = new EpochChecker(
             epochManagerContract,
             seniorTrancheVaultContract,
