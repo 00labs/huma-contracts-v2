@@ -10,7 +10,7 @@ import {IPool} from "../liquidity/interfaces/IPool.sol";
 import {IFirstLossCover} from "../liquidity/interfaces/IFirstLossCover.sol";
 import {ITranchesPolicy} from "../liquidity/interfaces/ITranchesPolicy.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import {AFFILIATE_FIRST_LOSS_COVER_INDEX, HUNDRED_PERCENT_IN_BPS, PayPeriodDuration} from "./SharedDefs.sol";
+import {ADMIN_LOSS_COVER_INDEX, HUNDRED_PERCENT_IN_BPS, PayPeriodDuration} from "./SharedDefs.sol";
 import {HumaConfig} from "./HumaConfig.sol";
 import {Errors} from "./Errors.sol";
 
@@ -74,7 +74,7 @@ struct FeeStructure {
     uint16 yieldInBps;
     // The min % of the outstanding principal to be paid in the statement for each each period
     uint16 minPrincipalRateInBps;
-    // Part of late fee, charged as % of the totaling outstanding balance when a payment is late
+    // Part of late fee, charged as % of the total outstanding balance when a payment is late
     uint16 lateFeeBps;
 }
 
@@ -342,9 +342,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
 
         // Make sure the new EA meets the liquidity requirements.
         if (IPool(pool).isPoolOn()) {
-            if (
-                !IFirstLossCover(_firstLossCovers[AFFILIATE_FIRST_LOSS_COVER_INDEX]).isSufficient()
-            ) {
+            if (!IFirstLossCover(_firstLossCovers[ADMIN_LOSS_COVER_INDEX]).isSufficient()) {
                 revert Errors.InsufficientFirstLossCover();
             }
             ITrancheVaultLike juniorTrancheVault = ITrancheVaultLike(juniorTranche);
@@ -595,9 +593,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
      * @notice Checks whether the affiliate first loss cover has met the liquidity requirements.
      */
     function checkFirstLossCoverRequirementsForAdmin() public view {
-        IFirstLossCover firstLossCover = IFirstLossCover(
-            _firstLossCovers[AFFILIATE_FIRST_LOSS_COVER_INDEX]
-        );
+        IFirstLossCover firstLossCover = IFirstLossCover(_firstLossCovers[ADMIN_LOSS_COVER_INDEX]);
         if (!firstLossCover.isSufficient()) revert Errors.InsufficientFirstLossCover();
     }
 

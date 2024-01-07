@@ -1322,7 +1322,7 @@ describe("CreditLine Test", function () {
                 const coverTotalAssets = await affiliateFirstLossCoverContract.totalAssets();
                 await overrideFirstLossCoverConfig(
                     borrowerFirstLossCoverContract,
-                    CONSTANTS.BORROWER_FIRST_LOSS_COVER_INDEX,
+                    CONSTANTS.BORROWER_LOSS_COVER_INDEX,
                     poolConfigContract,
                     poolOwner,
                     {

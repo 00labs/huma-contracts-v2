@@ -934,7 +934,7 @@ describe("PoolConfig Tests", function () {
                 const coverTotalAssets = await affiliateFirstLossCoverContract.totalAssets();
                 await overrideFirstLossCoverConfig(
                     affiliateFirstLossCoverContract,
-                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                    CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                     poolConfigContract,
                     poolOwner,
                     {
@@ -1456,14 +1456,14 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract
                         .connect(actor)
                         .setFirstLossCover(
-                            CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                            CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                             affiliateFirstLossCoverContract.address,
                             config,
                         ),
                 )
                     .to.emit(poolConfigContract, "FirstLossCoverChanged")
                     .withArgs(
-                        CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                        CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                         affiliateFirstLossCoverContract.address,
                         config.coverRatePerLossInBps,
                         config.coverCapPerLoss,
@@ -1498,7 +1498,7 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract
                         .connect(regularUser)
                         .setFirstLossCover(
-                            CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                            CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                             affiliateFirstLossCoverContract.address,
                             config,
                         ),
@@ -2025,8 +2025,8 @@ describe("PoolConfig Tests", function () {
             it("Should return the correct first loss cover(s)", async function () {
                 const firstLossCovers = await poolConfigContract.getFirstLossCovers();
                 for (const index of [
-                    CONSTANTS.BORROWER_FIRST_LOSS_COVER_INDEX,
-                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                    CONSTANTS.BORROWER_LOSS_COVER_INDEX,
+                    CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                 ]) {
                     const firstLossCover = await poolConfigContract.getFirstLossCover(index);
                     expect(firstLossCover).to.equal(firstLossCovers[index]);
