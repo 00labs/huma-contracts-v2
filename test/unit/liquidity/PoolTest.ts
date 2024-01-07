@@ -188,7 +188,7 @@ describe("Pool Test", function () {
             const coverTotalAssets = await affiliateFirstLossCoverContract.totalAssets();
             await overrideFirstLossCoverConfig(
                 affiliateFirstLossCoverContract,
-                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                 poolConfigContract,
                 poolOwner,
                 {
@@ -207,7 +207,7 @@ describe("Pool Test", function () {
             const coverTotalAssets = await affiliateFirstLossCoverContract.totalAssets();
             await overrideFirstLossCoverConfig(
                 affiliateFirstLossCoverContract,
-                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                 poolConfigContract,
                 poolOwner,
                 {

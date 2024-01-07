@@ -140,7 +140,7 @@ describe("FirstLossCover Tests", function () {
                 loss = toToken(5_000);
             await overrideFirstLossCoverConfig(
                 affiliateFirstLossCoverContract,
-                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                 poolConfigContract,
                 poolOwner,
                 {
@@ -186,7 +186,7 @@ describe("FirstLossCover Tests", function () {
                 creditManagerContract.address,
             ]);
             await newPoolConfigContract.setFirstLossCover(
-                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                 affiliateFirstLossCoverContract.address,
                 {
                     coverRatePerLossInBps: 0,
@@ -445,7 +445,7 @@ describe("FirstLossCover Tests", function () {
 
                     await overrideFirstLossCoverConfig(
                         affiliateFirstLossCoverContract,
-                        CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                        CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                         poolConfigContract,
                         poolOwner,
                         {
@@ -895,7 +895,7 @@ describe("FirstLossCover Tests", function () {
                 const minLiquidity = coverAssets.add(1);
                 await overrideFirstLossCoverConfig(
                     affiliateFirstLossCoverContract,
-                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                    CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                     poolConfigContract,
                     poolOwner,
                     {
@@ -942,7 +942,7 @@ describe("FirstLossCover Tests", function () {
                 const coverTotalAssets = await affiliateFirstLossCoverContract.totalAssets();
                 await overrideFirstLossCoverConfig(
                     affiliateFirstLossCoverContract,
-                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                    CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                     poolConfigContract,
                     poolOwner,
                     {
@@ -999,7 +999,7 @@ describe("FirstLossCover Tests", function () {
             ) {
                 await overrideFirstLossCoverConfig(
                     affiliateFirstLossCoverContract,
-                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                    CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                     poolConfigContract,
                     poolOwner,
                     {
@@ -1136,7 +1136,7 @@ describe("FirstLossCover Tests", function () {
         async function setCoverConfig(coverRatePerLossInBps: BN, coverCapPerLoss: BN) {
             await overrideFirstLossCoverConfig(
                 affiliateFirstLossCoverContract,
-                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                 poolConfigContract,
                 poolOwner,
                 {
@@ -1356,7 +1356,7 @@ describe("FirstLossCover Tests", function () {
 
                 await overrideFirstLossCoverConfig(
                     affiliateFirstLossCoverContract,
-                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                    CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                     poolConfigContract,
                     poolOwner,
                     {
@@ -1373,7 +1373,7 @@ describe("FirstLossCover Tests", function () {
             const totalAssets = await affiliateFirstLossCoverContract.totalAssets();
             await overrideFirstLossCoverConfig(
                 affiliateFirstLossCoverContract,
-                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                 poolConfigContract,
                 poolOwner,
                 {
@@ -1392,7 +1392,7 @@ describe("FirstLossCover Tests", function () {
 
             await overrideFirstLossCoverConfig(
                 affiliateFirstLossCoverContract,
-                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                 poolConfigContract,
                 poolOwner,
                 {
