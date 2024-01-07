@@ -1,0 +1,76 @@
+@startuml
+allowmixing
+
+package "common" <<rectangle>> #line.dashed {
+  class PoolConfig
+  class PoolConfigCache
+}
+
+package "liquidity" <<rectangle>> #line.dashed {
+  interface ITranchesPolicy
+  interface IEpochManager
+  interface IFLC
+  interface IPool
+  interface IPool_FM
+  interface IPoolSafe
+  interface IRedemptionHandler
+  class PoolSafe <<Stablecoin Safe>> #back:lightgreen
+  class Pool
+  class Pool_FM
+  class EpochManager
+  class BaseTranchesPolicy
+  class FixedSeniorYieldTranchePolicy
+  class RiskAdjustedTranchesPolicy
+  class FLC #back:lightgreen
+  class TrancheVault #back:lightgreen
+  class FLC_S <<Storage>> #back:lightblue
+  class TV_S <<Storage>> #back:lightblue
+}
+
+
+TrancheVault -left-> Pool
+EpochManager -right-> Pool
+TrancheVault <-up-> EpochManager
+Pool -right-> ITranchesPolicy
+Pool -down-> FLC
+Pool -down-> Pool_FM
+
+Pool --> PoolSafe 
+Pool .up.|> IPool
+EpochManager -down-> PoolSafe
+FLC -right-> PoolSafe
+TrancheVault --> PoolSafe
+Pool_FM --> PoolSafe
+
+BaseTranchesPolicy ..|> ITranchesPolicy
+FixedSeniorYieldTranchePolicy --|> BaseTranchesPolicy
+RiskAdjustedTranchesPolicy --|> BaseTranchesPolicy
+EpochManager .up.|> IEpochManager
+
+FLC .up.|> IFLC
+FLC -down-|> FLC_S
+
+Pool_FM .right.|> IPool_FM
+
+PoolSafe .right.|> IPoolSafe
+
+TrancheVault ..|> IRedemptionHandler
+TrancheVault -left-|> TV_S
+
+note as N1 
+  <b><font color="green"> Contracts in green holds tokens</b>
+
+  <b><font color="blue"> Contracts in blue have storage</b>
+
+  Abbreviation patterns used to smooth layout:
+  \tFLC:\tFirst Loss Cover
+  \tFM:\tFee Manager
+  \tTV:\tTrancheValue
+  \tS:\tStorage
+end note
+
+liquidity .. N1
+
+
+liquidity -right-> common
+@enduml
