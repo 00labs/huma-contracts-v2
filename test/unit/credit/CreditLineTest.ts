@@ -51,6 +51,7 @@ import {
     borrowerLevelCreditHash,
     getFutureBlockTime,
     getLatestBlock,
+    getMaturityDate,
     getStartOfDay,
     getStartOfNextMonth,
     isCloseTo,
@@ -427,7 +428,7 @@ describe("CreditLine Test", function () {
                     .approveBorrower(
                         borrower.getAddress(),
                         toToken(10_000),
-                        1,
+                        2,
                         1217,
                         0,
                         moment.utc().unix(),
@@ -453,13 +454,39 @@ describe("CreditLine Test", function () {
                     .approveBorrower(
                         borrower.getAddress(),
                         toToken(10_000),
-                        1,
+                        2,
                         1217,
                         toToken(10_000),
                         designatedStartDate.unix(),
                         true,
                     ),
             ).to.be.revertedWithCustomError(creditManagerContract, "designatedStartDateInThePast");
+        });
+
+        it("Should not approve a credit with a designated credit start date and only one period", async function () {
+            const nextBlockTimestamp = await getFutureBlockTime(2);
+            await setNextBlockTimestamp(nextBlockTimestamp);
+            const designatedStartDate = moment
+                .utc(nextBlockTimestamp * 1000)
+                .add(1, "day")
+                .startOf("day");
+
+            await expect(
+                creditManagerContract
+                    .connect(eaServiceAccount)
+                    .approveBorrower(
+                        borrower.getAddress(),
+                        toToken(10_000),
+                        1,
+                        1217,
+                        toToken(10_000),
+                        designatedStartDate.unix(),
+                        true,
+                    ),
+            ).to.be.revertedWithCustomError(
+                creditManagerContract,
+                "PayPeriodsTooLowForCreditsWithDesignatedStartDate",
+            );
         });
 
         it("Should approve a borrower correctly", async function () {
@@ -1067,7 +1094,10 @@ describe("CreditLine Test", function () {
 
                 await expect(
                     creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
-                ).to.be.revertedWithCustomError(creditContract, "creditNotInStateForDrawdown");
+                ).to.be.revertedWithCustomError(
+                    creditContract,
+                    "DrawdownNotAllowedInFinalPeriodAndBeyond",
+                );
             });
 
             it("Should not allow drawdown if the bill enters the late payment grace period for the first time while in good standing", async function () {
@@ -1114,6 +1144,120 @@ describe("CreditLine Test", function () {
                 ).to.be.revertedWithCustomError(
                     creditContract,
                     "drawdownNotAllowedInLatePaymentGracePeriod",
+                );
+            });
+
+            it("Should not allow drawdown in the last period", async function () {
+                await creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000));
+                // Pay off the bill.
+                const creditHash = await borrowerLevelCreditHash(creditContract, borrower);
+                const cr = await creditContract.getCreditRecord(creditHash);
+                const paymentAmount = await creditDueManagerContract.getPayoffAmount(cr);
+                await creditContract
+                    .connect(borrower)
+                    .makePayment(borrower.getAddress(), paymentAmount);
+                // Advance the clock to the final period.
+                const cc = await creditManagerContract.getCreditConfig(creditHash);
+                const currentTS = (await getLatestBlock()).timestamp;
+                const maturityDate = getMaturityDate(
+                    cc.periodDuration,
+                    cr.remainingPeriods,
+                    currentTS,
+                );
+                const drawdownDate = maturityDate - CONSTANTS.SECONDS_IN_A_DAY;
+                await setNextBlockTimestamp(drawdownDate);
+
+                await expect(
+                    creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
+                ).to.be.revertedWithCustomError(
+                    creditContract,
+                    "DrawdownNotAllowedInFinalPeriodAndBeyond",
+                );
+            });
+
+            it("Should not allow drawdown in the last period if refresh credit happens in the last period right before drawdown", async function () {
+                await creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000));
+                // Pay off the bill.
+                const creditHash = await borrowerLevelCreditHash(creditContract, borrower);
+                const cr = await creditContract.getCreditRecord(creditHash);
+                const paymentAmount = await creditDueManagerContract.getPayoffAmount(cr);
+                await creditContract
+                    .connect(borrower)
+                    .makePayment(borrower.getAddress(), paymentAmount);
+                // Advance the clock to the final period.
+                const cc = await creditManagerContract.getCreditConfig(creditHash);
+                const currentTS = (await getLatestBlock()).timestamp;
+                const maturityDate = getMaturityDate(
+                    cc.periodDuration,
+                    cr.remainingPeriods,
+                    currentTS,
+                );
+                const refreshDate = maturityDate - CONSTANTS.SECONDS_IN_A_DAY;
+                await setNextBlockTimestamp(refreshDate);
+                await creditManagerContract.refreshCredit(borrower.getAddress());
+
+                await expect(
+                    creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
+                ).to.be.revertedWithCustomError(
+                    creditContract,
+                    "DrawdownNotAllowedInFinalPeriodAndBeyond",
+                );
+            });
+
+            it("Should not allow drawdown post maturity even if there is no amount due", async function () {
+                await creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000));
+                // Pay off the bill.
+                const creditHash = await borrowerLevelCreditHash(creditContract, borrower);
+                const cr = await creditContract.getCreditRecord(creditHash);
+                const paymentAmount = await creditDueManagerContract.getPayoffAmount(cr);
+                await creditContract
+                    .connect(borrower)
+                    .makePayment(borrower.getAddress(), paymentAmount);
+                // Advance the clock to be after the maturity date.
+                const cc = await creditManagerContract.getCreditConfig(creditHash);
+                const currentTS = (await getLatestBlock()).timestamp;
+                const maturityDate = getMaturityDate(
+                    cc.periodDuration,
+                    cr.remainingPeriods,
+                    currentTS,
+                );
+                const drawdownDate = maturityDate + CONSTANTS.SECONDS_IN_A_DAY;
+                await setNextBlockTimestamp(drawdownDate);
+
+                await expect(
+                    creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
+                ).to.be.revertedWithCustomError(
+                    creditContract,
+                    "DrawdownNotAllowedInFinalPeriodAndBeyond",
+                );
+            });
+
+            it("Should not allow drawdown post maturity if refresh credit happens post maturity but before the drawdown attempt and there is no amount due", async function () {
+                await creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000));
+                // Pay off the bill.
+                const creditHash = await borrowerLevelCreditHash(creditContract, borrower);
+                const cr = await creditContract.getCreditRecord(creditHash);
+                const paymentAmount = await creditDueManagerContract.getPayoffAmount(cr);
+                await creditContract
+                    .connect(borrower)
+                    .makePayment(borrower.getAddress(), paymentAmount);
+                // Advance the clock to be after the maturity date.
+                const cc = await creditManagerContract.getCreditConfig(creditHash);
+                const currentTS = (await getLatestBlock()).timestamp;
+                const maturityDate = getMaturityDate(
+                    cc.periodDuration,
+                    cr.remainingPeriods,
+                    currentTS,
+                );
+                const refreshDate = maturityDate + CONSTANTS.SECONDS_IN_A_DAY;
+                await setNextBlockTimestamp(refreshDate);
+                await creditManagerContract.refreshCredit(borrower.getAddress());
+
+                await expect(
+                    creditContract.connect(borrower).drawdown(borrower.address, toToken(10_000)),
+                ).to.be.revertedWithCustomError(
+                    creditContract,
+                    "DrawdownNotAllowedInFinalPeriodAndBeyond",
                 );
             });
 
@@ -1208,7 +1352,7 @@ describe("CreditLine Test", function () {
                     .approveBorrower(
                         borrower.address,
                         toToken(100_000),
-                        1,
+                        2,
                         1217,
                         toToken(10_000),
                         designatedStartDate.unix(),
@@ -1227,7 +1371,7 @@ describe("CreditLine Test", function () {
                     .approveBorrower(
                         borrower.address,
                         toToken(100_000),
-                        1,
+                        2,
                         1217,
                         toToken(0),
                         0,

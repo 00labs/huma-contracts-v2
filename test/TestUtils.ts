@@ -7,7 +7,7 @@ import {
     FirstLossCoverConfigStruct,
     LPConfigStructOutput,
 } from "../typechain-types/contracts/common/PoolConfig.sol/PoolConfig";
-import { CONSTANTS, FirstLossCoverInfo } from "./BaseTest";
+import { CONSTANTS, FirstLossCoverInfo, PayPeriodDuration } from "./BaseTest";
 
 export function toBN(number: string | number, decimals: number): BN {
     return BN.from(number).mul(BN.from(10).pow(BN.from(decimals)));
@@ -88,6 +88,31 @@ export async function getStartOfNextMonth() {
 
 export async function getLatestBlock() {
     return await ethers.provider.getBlock("latest");
+}
+
+export function getMaturityDate(
+    periodDuration: PayPeriodDuration,
+    numPeriods: number,
+    timestamp: number,
+) {
+    const startDateOfNextPeriod = moment
+        .utc(timestamp * 1000)
+        .add(1, "month")
+        .startOf("month");
+    if (numPeriods === 0) {
+        return startDateOfNextPeriod.unix();
+    }
+    let monthCount = numPeriods;
+    switch (periodDuration) {
+        case PayPeriodDuration.Quarterly:
+            monthCount *= 3;
+            break;
+        case PayPeriodDuration.SemiAnnually:
+            monthCount *= 6;
+            break;
+    }
+    const maturityDate = startDateOfNextPeriod.add(monthCount, "months");
+    return maturityDate.unix();
 }
 
 export function timestampToMoment(timestamp: number, format?: string): moment.Moment {

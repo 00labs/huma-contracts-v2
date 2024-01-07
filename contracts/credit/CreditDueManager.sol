@@ -9,6 +9,8 @@ import {DAYS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS, SECONDS_IN_A_DAY} from "../commo
 import {Errors} from "../common/Errors.sol";
 import {PoolConfigCache} from "../common/PoolConfigCache.sol";
 
+import "hardhat/console.sol";
+
 contract CreditDueManager is PoolConfigCache, ICreditDueManager {
     ICalendar public calendar;
 
@@ -76,7 +78,27 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
 
         newCR = _deepCopyCreditRecord(cr);
         newDD = _deepCopyDueDetail(dd);
-        if (newCR.state == CreditState.Approved) newCR.state = CreditState.GoodStanding;
+        if (cr.state == CreditState.Approved) newCR.state = CreditState.GoodStanding;
+        // Update periods passed and remaining periods.
+        uint256 periodsPassed = 0;
+        if (cr.state != CreditState.Approved && timestamp > cr.nextDueDate) {
+            // If the credit is just approved, then updating `remainingPeriods` will be taken care of when next due
+            // is calculated below. Hence we don't need to update it here.
+            uint256 startDateOfCurrentPeriod = calendar.getStartDateOfPeriod(
+                cc.periodDuration,
+                timestamp
+            );
+            periodsPassed = calendar.getNumPeriodsPassed(
+                cc.periodDuration,
+                cr.nextDueDate,
+                startDateOfCurrentPeriod
+            );
+            if (cr.remainingPeriods > 0) {
+                newCR.remainingPeriods = cr.remainingPeriods > uint16(periodsPassed)
+                    ? cr.remainingPeriods - uint16(periodsPassed)
+                    : 0;
+            }
+        }
 
         uint256 principalRate = 0;
         {
@@ -87,24 +109,12 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
 
         if (isLate) {
             if (timestamp > cr.nextDueDate) {
-                uint256 periodsPassed = calendar.getNumPeriodsPassed(
-                    cc.periodDuration,
-                    cr.nextDueDate,
-                    timestamp
-                );
-
                 newCR.missedPeriods += uint16(
                     cr.nextDue + cr.totalPastDue == 0 &&
                         (cr.unbilledPrincipal > 0 || cc.committedAmount > 0)
                         ? periodsPassed // last due was paid off
                         : periodsPassed + 1 // last due was not paid off
                 );
-
-                if (cr.remainingPeriods > 0) {
-                    newCR.remainingPeriods = cr.remainingPeriods > uint16(periodsPassed)
-                        ? cr.remainingPeriods - uint16(periodsPassed)
-                        : 0;
-                }
 
                 newDD.yieldPastDue += cr.yieldDue;
                 newDD.principalPastDue += cr.nextDue - cr.yieldDue;
@@ -164,9 +174,13 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             } else {
                 daysUntilNextDue = totalDaysInFullPeriod;
             }
+            uint256 totalPrincipal = cr.unbilledPrincipal +
+                cr.nextDue -
+                cr.yieldDue +
+                dd.principalPastDue;
             (newDD.accrued, newDD.committed) = _computeAccruedAndCommittedYieldDue(
                 cc.yieldInBps,
-                cr.unbilledPrincipal + cr.nextDue - cr.yieldDue + dd.principalPastDue,
+                totalPrincipal,
                 cc.committedAmount,
                 daysUntilNextDue
             );
