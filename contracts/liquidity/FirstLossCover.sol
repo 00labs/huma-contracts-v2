@@ -59,40 +59,40 @@ contract FirstLossCover is
 
     function addCoverProvider(address account) external {
         poolConfig.onlyPoolOwner(msg.sender);
-        if (account == address(0)) revert Errors.zeroAddressProvided();
+        if (account == address(0)) revert Errors.ZeroAddressProvided();
 
         if (_coverProviders.length() >= MAX_ALLOWED_NUM_PROVIDERS) {
-            revert Errors.tooManyProviders();
+            revert Errors.TooManyProviders();
         }
         bool newlyAdded = _coverProviders.add(account);
         if (!newlyAdded) {
             // `newlyAdded` being false means the cover provider has been added before.
-            revert Errors.alreadyProvider();
+            revert Errors.AlreadyAProvider();
         }
         emit CoverProviderAdded(account);
     }
 
     function removeCoverProvider(address account) external {
         poolConfig.onlyPoolOwner(msg.sender);
-        if (account == address(0)) revert Errors.zeroAddressProvided();
+        if (account == address(0)) revert Errors.ZeroAddressProvided();
 
         if (balanceOf(account) != 0) {
             // We do not allow providers with assets to be removed, since allowing that would make it possible
             // for the pool owner to remove all other providers and take all yield by themselves.
-            revert Errors.providerHasOutstandingAssets();
+            revert Errors.ProviderHasOutstandingAssets();
         }
         bool removed = _coverProviders.remove(account);
         if (!removed) {
             // `removed` being false means either the account has never been a cover provider,
             // or it has been removed before.
-            revert Errors.notProvider();
+            revert Errors.CoverProviderRequired();
         }
         emit CoverProviderRemoved(account);
     }
 
     /// @inheritdoc IFirstLossCover
     function depositCover(uint256 assets) external returns (uint256 shares) {
-        if (assets == 0) revert Errors.zeroAmountProvided();
+        if (assets == 0) revert Errors.ZeroAmountProvided();
         _onlyCoverProvider(msg.sender);
 
         // Note: we have to mint the shares first by calling _deposit() before transferring the assets.
@@ -104,8 +104,8 @@ contract FirstLossCover is
 
     /// @inheritdoc IFirstLossCover
     function depositCoverFor(uint256 assets, address receiver) external returns (uint256 shares) {
-        if (assets == 0) revert Errors.zeroAmountProvided();
-        if (receiver == address(0)) revert Errors.zeroAddressProvided();
+        if (assets == 0) revert Errors.ZeroAmountProvided();
+        if (receiver == address(0)) revert Errors.ZeroAddressProvided();
         _onlyPoolFeeManager(msg.sender);
 
         // Note: we have to mint the shares first by calling _deposit() before transferring the assets.
@@ -125,8 +125,8 @@ contract FirstLossCover is
 
     /// @inheritdoc IFirstLossCover
     function redeemCover(uint256 shares, address receiver) external returns (uint256 assets) {
-        if (shares == 0) revert Errors.zeroAmountProvided();
-        if (receiver == address(0)) revert Errors.zeroAddressProvided();
+        if (shares == 0) revert Errors.ZeroAmountProvided();
+        if (receiver == address(0)) revert Errors.ZeroAddressProvided();
 
         uint256 minLiquidity = getMinLiquidity();
         uint256 currTotalAssets = totalAssets();
@@ -135,13 +135,13 @@ contract FirstLossCover is
         // If ready, all assets can be withdrawn. Otherwise, only the excessive assets over the minimum
         // liquidity requirement can be withdrawn.
         if (!ready && currTotalAssets <= minLiquidity)
-            revert Errors.poolIsNotReadyForFirstLossCoverWithdrawal();
+            revert Errors.PoolIsNotReadyForFirstLossCoverWithdrawal();
 
-        if (shares > balanceOf(msg.sender)) revert Errors.insufficientSharesForRequest();
+        if (shares > balanceOf(msg.sender)) revert Errors.InsufficientSharesForRequest();
         assets = convertToAssets(shares);
         // Revert if the pool is not ready and the assets to be withdrawn is more than the available value.
         if (!ready && assets > currTotalAssets - minLiquidity)
-            revert Errors.insufficientAmountForRequest();
+            revert Errors.InsufficientAmountForRequest();
 
         ERC20Upgradeable._burn(msg.sender, shares);
         underlyingToken.safeTransfer(receiver, assets);
@@ -226,7 +226,7 @@ contract FirstLossCover is
      * @notice Disables transfer function currently
      */
     function transfer(address, uint256) public virtual override returns (bool) {
-        revert Errors.unsupportedFunction();
+        revert Errors.UnsupportedFunction();
     }
 
     function decimals() public view override returns (uint8) {
@@ -316,10 +316,10 @@ contract FirstLossCover is
     function _deposit(uint256 assets, address account) internal returns (uint256 shares) {
         PoolSettings memory poolSettings = poolConfig.getPoolSettings();
         if (assets < poolSettings.minDepositAmount) {
-            revert Errors.depositAmountTooLow();
+            revert Errors.DepositAmountTooLow();
         }
         if (assets > getAvailableCap()) {
-            revert Errors.firstLossCoverLiquidityCapExceeded();
+            revert Errors.FirstLossCoverLiquidityCapExceeded();
         }
 
         shares = convertToShares(assets);
@@ -349,12 +349,12 @@ contract FirstLossCover is
 
     function _onlyCoverProvider(address account) internal view {
         if (!_coverProviders.contains(account)) {
-            revert Errors.notCoverProvider();
+            revert Errors.CoverProviderRequired();
         }
     }
 
     function _onlyPoolFeeManager(address account) internal view {
-        if (account != poolConfig.poolFeeManager()) revert Errors.notAuthorizedCaller();
+        if (account != poolConfig.poolFeeManager()) revert Errors.AuthorizedContractRequired();
     }
 
     function _calcLossRecover(

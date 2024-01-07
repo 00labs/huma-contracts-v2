@@ -34,7 +34,7 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
 
     /// @inheritdoc IPoolSafe
     function withdraw(address to, uint256 amount) external virtual {
-        if (to == address(0)) revert Errors.zeroAddressProvided();
+        if (to == address(0)) revert Errors.ZeroAddressProvided();
         _onlySystemMoneyMover(msg.sender);
 
         underlyingToken.safeTransfer(to, amount);
@@ -42,16 +42,16 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
 
     /// @inheritdoc IPoolSafe
     function addUnprocessedProfit(address tranche, uint256 profit) external {
-        if (msg.sender != address(pool)) revert Errors.notPool();
+        if (msg.sender != address(pool)) revert Errors.AuthorizedContractRequired();
         if (tranche != poolConfig.seniorTranche() && tranche != poolConfig.juniorTranche())
-            revert Errors.notAuthorizedCaller();
+            revert Errors.TrancheRequired();
         unprocessedTrancheProfit[tranche] += profit;
     }
 
     /// @inheritdoc IPoolSafe
     function resetUnprocessedProfit() external {
         if (msg.sender != poolConfig.seniorTranche() && msg.sender != poolConfig.juniorTranche())
-            revert Errors.notAuthorizedCaller();
+            revert Errors.AuthorizedContractRequired();
         unprocessedTrancheProfit[msg.sender] = 0;
     }
 
@@ -108,6 +108,6 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
             account != poolConfig.credit() &&
             account != poolConfig.poolFeeManager() &&
             !poolConfig.isFirstLossCover(account)
-        ) revert Errors.notAuthorizedCaller();
+        ) revert Errors.AuthorizedContractRequired();
     }
 }

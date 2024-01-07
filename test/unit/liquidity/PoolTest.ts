@@ -178,7 +178,7 @@ describe("Pool Test", function () {
         it("Should not allow non-poolOwner and non-protocolAdmin to enable a pool", async function () {
             await expect(poolContract.enablePool()).to.be.revertedWithCustomError(
                 poolConfigContract,
-                "permissionDeniedNotAdmin",
+                "AdminRequired",
             );
             const isPoolOn = await poolContract.isPoolOn();
             expect(isPoolOn).to.be.false;
@@ -198,7 +198,7 @@ describe("Pool Test", function () {
 
             await expect(
                 poolContract.connect(protocolOwner).enablePool(),
-            ).to.be.revertedWithCustomError(poolConfigContract, "lessThanRequiredCover");
+            ).to.be.revertedWithCustomError(poolConfigContract, "InsufficientFirstLossCover");
             const isPoolOn = await poolContract.isPoolOn();
             expect(isPoolOn).to.be.false;
         });
@@ -217,7 +217,7 @@ describe("Pool Test", function () {
 
             await expect(
                 poolContract.connect(protocolOwner).enablePool(),
-            ).to.be.revertedWithCustomError(poolConfigContract, "lessThanRequiredCover");
+            ).to.be.revertedWithCustomError(poolConfigContract, "InsufficientFirstLossCover");
             const isPoolOn = await poolContract.isPoolOn();
             expect(isPoolOn).to.be.false;
         });
@@ -227,7 +227,7 @@ describe("Pool Test", function () {
 
             await expect(
                 poolContract.connect(protocolOwner).enablePool(),
-            ).to.be.revertedWithCustomError(poolConfigContract, "poolOwnerNotEnoughLiquidity");
+            ).to.be.revertedWithCustomError(poolConfigContract, "PoolOwnerInsufficientLiquidity");
             const isPoolOn = await poolContract.isPoolOn();
             expect(isPoolOn).to.be.false;
         });
@@ -239,7 +239,7 @@ describe("Pool Test", function () {
                 poolContract.connect(protocolOwner).enablePool(),
             ).to.be.revertedWithCustomError(
                 poolConfigContract,
-                "evaluationAgentNotEnoughLiquidity",
+                "EvaluationAgentInsufficientLiquidity",
             );
             const isPoolOn = await poolContract.isPoolOn();
             expect(isPoolOn).to.be.false;
@@ -305,7 +305,7 @@ describe("Pool Test", function () {
         it("Should not allow non-Operator to disable a pool", async function () {
             await expect(poolContract.disablePool()).to.be.revertedWithCustomError(
                 poolConfigContract,
-                "poolOperatorRequired",
+                "PoolOperatorRequired",
             );
         });
 
@@ -776,19 +776,19 @@ describe("Pool Test", function () {
                 it("Should not allow non-credit or non-credit manager to distribute profit", async function () {
                     await expect(
                         poolContract.connect(lender).distributeProfit(toToken(1)),
-                    ).to.be.revertedWithCustomError(poolContract, "notAuthorizedCaller");
+                    ).to.be.revertedWithCustomError(poolContract, "AuthorizedContractRequired");
                 });
 
                 it("Should not allow non-credit or non-credit manager to distribute loss", async function () {
                     await expect(
                         poolContract.connect(lender).distributeLoss(toToken(1)),
-                    ).to.be.revertedWithCustomError(poolContract, "notAuthorizedCaller");
+                    ).to.be.revertedWithCustomError(poolContract, "AuthorizedContractRequired");
                 });
 
                 it("Should not allow non-credit to distribute loss recovery", async function () {
                     await expect(
                         poolContract.connect(lender).distributeLossRecovery(toToken(1)),
-                    ).to.be.revertedWithCustomError(poolContract, "notAuthorizedCaller");
+                    ).to.be.revertedWithCustomError(poolContract, "AuthorizedContractRequired");
                 });
             });
 
@@ -979,7 +979,7 @@ describe("Pool Test", function () {
             it("Should not allow non-tranche vault or non-epoch manager to update tranches assets", async function () {
                 await expect(
                     poolContract.connect(lender).updateTranchesAssets(tranchesAssets),
-                ).to.be.revertedWithCustomError(poolContract, "notAuthorizedCaller");
+                ).to.be.revertedWithCustomError(poolContract, "AuthorizedContractRequired");
             });
         });
 

@@ -65,7 +65,7 @@ contract TrancheVault is
         __UUPSUpgradeable_init();
         _initialize(_poolConfig);
 
-        if (seniorTrancheOrJuniorTranche > 1) revert Errors.invalidTrancheIndex();
+        if (seniorTrancheOrJuniorTranche > 1) revert Errors.InvalidTrancheIndex();
         trancheIndex = seniorTrancheOrJuniorTranche;
     }
 
@@ -76,8 +76,8 @@ contract TrancheVault is
      */
     function addApprovedLender(address lender, bool reinvestYield) external {
         poolConfig.onlyPoolOperator(msg.sender);
-        if (lender == address(0)) revert Errors.zeroAddressProvided();
-        if (hasRole(LENDER_ROLE, lender)) revert Errors.alreadyLender();
+        if (lender == address(0)) revert Errors.ZeroAddressProvided();
+        if (hasRole(LENDER_ROLE, lender)) revert Errors.AlreadyALender();
 
         _grantRole(LENDER_ROLE, lender);
         depositRecords[lender] = DepositRecord({
@@ -87,7 +87,7 @@ contract TrancheVault is
         });
         if (!reinvestYield) {
             if (nonReinvestingLenders.length >= MAX_ALLOWED_NUM_NON_REINVESTING_LENDERS)
-                revert Errors.nonReinvestYieldLenderCapacityReached();
+                revert Errors.NonReinvestYieldLenderCapacityReached();
             nonReinvestingLenders.push(lender);
         }
     }
@@ -98,8 +98,8 @@ contract TrancheVault is
      */
     function removeApprovedLender(address lender) external {
         poolConfig.onlyPoolOperator(msg.sender);
-        if (lender == address(0)) revert Errors.zeroAddressProvided();
-        if (!hasRole(LENDER_ROLE, lender)) revert Errors.notLender();
+        if (lender == address(0)) revert Errors.ZeroAddressProvided();
+        if (!hasRole(LENDER_ROLE, lender)) revert Errors.LenderRequired();
         _revokeRole(LENDER_ROLE, lender);
         if (!depositRecords[lender].reinvestYield) {
             _removeLenderFromNonReinvestingLenders(lender);
@@ -115,12 +115,12 @@ contract TrancheVault is
         poolConfig.onlyPoolOperator(msg.sender);
         DepositRecord memory depositRecord = depositRecords[lender];
         if (depositRecord.reinvestYield == reinvestYield)
-            revert Errors.reinvestYieldOptionAlreadySet();
+            revert Errors.ReinvestYieldOptionAlreadySet();
         if (!depositRecord.reinvestYield && reinvestYield) {
             _removeLenderFromNonReinvestingLenders(lender);
         } else {
             if (nonReinvestingLenders.length >= MAX_ALLOWED_NUM_NON_REINVESTING_LENDERS)
-                revert Errors.nonReinvestYieldLenderCapacityReached();
+                revert Errors.NonReinvestYieldLenderCapacityReached();
             nonReinvestingLenders.push(lender);
         }
         depositRecord.reinvestYield = reinvestYield;
@@ -186,8 +186,8 @@ contract TrancheVault is
      */
     function deposit(uint256 assets, address receiver) external returns (uint256 shares) {
         poolConfig.onlyProtocolAndPoolOn();
-        if (assets == 0) revert Errors.zeroAmountProvided();
-        if (receiver == address(0)) revert Errors.zeroAddressProvided();
+        if (assets == 0) revert Errors.ZeroAmountProvided();
+        if (receiver == address(0)) revert Errors.ZeroAddressProvided();
         _onlyLender(msg.sender);
         _onlyLender(receiver);
 
@@ -199,7 +199,7 @@ contract TrancheVault is
      * @param shares The number of shares the lender wants to redeem
      */
     function addRedemptionRequest(uint256 shares) external {
-        if (shares == 0) revert Errors.zeroAmountProvided();
+        if (shares == 0) revert Errors.ZeroAmountProvided();
         poolConfig.onlyProtocolAndPoolOn();
 
         PoolSettings memory poolSettings = poolConfig.getPoolSettings();
@@ -213,11 +213,11 @@ contract TrancheVault is
             depositRecord.lastDepositTime +
                 poolConfig.getLPConfig().withdrawalLockoutPeriodInDays *
                 SECONDS_IN_A_DAY
-        ) revert Errors.withdrawTooSoon();
+        ) revert Errors.WithdrawTooEarly();
 
         uint256 sharesBalance = ERC20Upgradeable.balanceOf(msg.sender);
         if (shares > sharesBalance) {
-            revert Errors.insufficientSharesForRequest();
+            revert Errors.InsufficientSharesForRequest();
         }
         uint256 assetsAfterRedemption = convertToAssets(sharesBalance - shares);
         poolConfig.checkLiquidityRequirementForRedemption(
@@ -266,7 +266,7 @@ contract TrancheVault is
      * @param shares The number of shares that the lender no longer wants to redeem
      */
     function cancelRedemptionRequest(uint256 shares) external {
-        if (shares == 0) revert Errors.zeroAmountProvided();
+        if (shares == 0) revert Errors.ZeroAmountProvided();
         poolConfig.onlyProtocolAndPoolOn();
 
         uint256 currentEpochId = epochManager.currentEpochId();
@@ -276,7 +276,7 @@ contract TrancheVault is
         );
 
         if (lenderRedemptionRecord.numSharesRequested < shares) {
-            revert Errors.insufficientSharesForRequest();
+            revert Errors.InsufficientSharesForRequest();
         }
 
         DepositRecord memory depositRecord = depositRecords[msg.sender];
@@ -399,7 +399,7 @@ contract TrancheVault is
      * yield payout, profit distribution, etc.) when integrating with DEXs.
      */
     function transfer(address, uint256) public virtual override returns (bool) {
-        revert Errors.unsupportedFunction();
+        revert Errors.UnsupportedFunction();
     }
 
     function decimals() public view override returns (uint8) {
@@ -449,11 +449,11 @@ contract TrancheVault is
     function _deposit(uint256 assets, address receiver) internal returns (uint256 shares) {
         PoolSettings memory poolSettings = poolConfig.getPoolSettings();
         if (assets < poolSettings.minDepositAmount) {
-            revert Errors.depositAmountTooLow();
+            revert Errors.DepositAmountTooLow();
         }
         uint256 availableCap = pool.getTrancheAvailableCap(trancheIndex);
         if (assets > availableCap) {
-            revert Errors.trancheLiquidityCapExceeded();
+            revert Errors.TrancheLiquidityCapExceeded();
         }
 
         poolSafe.deposit(msg.sender, assets);
@@ -548,15 +548,15 @@ contract TrancheVault is
     }
 
     function _onlyEpochManager(address account) internal view {
-        if (account != address(epochManager)) revert Errors.notAuthorizedCaller();
+        if (account != address(epochManager)) revert Errors.AuthorizedContractRequired();
     }
 
     function _onlyAuthorizedInitialDepositor(address account) internal view {
         if (account != poolConfig.poolOwnerTreasury() && account != poolConfig.evaluationAgent())
-            revert Errors.notAuthorizedCaller();
+            revert Errors.AuthorizedContractRequired();
     }
 
     function _onlyLender(address account) internal view {
-        if (!hasRole(LENDER_ROLE, account)) revert Errors.permissionDeniedNotLender();
+        if (!hasRole(LENDER_ROLE, account)) revert Errors.LenderRequired();
     }
 }

@@ -11,32 +11,29 @@ contract Errors {
     error UnsupportedFunction();
 
     // Security
-    error PermissionDeniedNotAdmin();
-    error PermissionDeniedNotLender();
+    error AdminRequired();
+    error PoolOperatorRequired();
+    error PoolOwnerRequired();
+    error ProtocolOwnerRequired();
+    error PoolOwnerOrEARequired();
+    error PauserRequired();
+    error NFTOwnerRequired();
+    error LenderRequired();
+    error BorrowerRequired();
+    error BorrowerOrEARequired();
+    error PayerRequired();
+    error CoverProviderRequired();
+    error AuthorizedContractRequired();
     error EvaluationAgentServiceAccountRequired();
     error SentinelServiceAccountRequired();
-    error PoolOperatorRequired();
-    error NotPoolOwner();
-    error NotProtocolOwner();
-    error NotPoolOwnerOrEA();
-    error NotPauser();
-    error NotPool();
-    error NotNFTOwner();
-    error NotBorrower();
-    error NotBorrowerOrEA();
-    error NotCoverProvider();
-    error NotAuthorizedCaller();
-    error PermissionDeniedNotPayer();
+    error TrancheRequired();
 
     // Protocol config
-    error DefaultGracePeriodLessThanMinAllowed();
     error TreasuryFeeHighThanUpperLimit();
     error AlreadyAPauser();
     error AlreadyPoolAdmin();
 
     // Pool config
-    // TODO: Do we need this?
-    error MinPrincipalPaymentRateSettingTooHigh();
     error ProposedEADoesNotOwnProvidedEANFT();
     error UnderlyingTokenNotApprovedForHumaProtocol();
     error AdminRewardRateTooHigh();
@@ -55,21 +52,19 @@ contract Errors {
     // Tranche
     error TrancheLiquidityCapExceeded();
     error DepositAmountTooLow();
-    error WithdrawTooSoon();
+    error WithdrawTooEarly();
     error InvalidTrancheIndex();
-    error EpochClosureTooSoon();
-    error AlreadyLender();
-    error NotLender();
+    error EpochClosedTooEarly();
+    error AlreadyALender();
     error NonReinvestYieldLenderCapacityReached();
     error ReinvestYieldOptionAlreadySet();
 
     // First loss cover
-    error LessThanRequiredCover();
+    error InsufficientFirstLossCover();
     error FirstLossCoverLiquidityCapExceeded();
     error TooManyProviders();
-    error AlreadyProvider();
+    error AlreadyAProvider();
     error ProviderHasOutstandingAssets();
-    error NotProvider();
 
     // Credit
     error ZeroPayPeriods();
@@ -79,28 +74,31 @@ contract Errors {
     error DesignatedStartDateInThePast();
     error CommittedCreditCannotBeStarted();
     error CreditNotInStateForDrawdown();
-    error CreditLineExceeded();
-    error FirstDrawdownTooSoon();
+    error CreditLimitExceeded();
+    error FirstDrawdownTooEarly();
     error AttemptedDrawdownOnNonRevolvingLine();
     error InsufficientPoolBalanceForDrawdown();
-    error BorrowingAmountLessThanPlatformFees();
-    error CreditLineNotInStateForMakingPayment();
-    error CreditLineNotInStateForMakingPrincipalPayment();
-    error CreditLineNotInStateForUpdate();
-    error CreditLineHasOutstandingBalance();
-    error CreditLineHasUnfulfilledCommitment();
+    error BorrowAmountLessThanPlatformFees();
+    error CreditNotInStateForMakingPayment();
+    error CreditNotInStateForMakingPrincipalPayment();
+    error CreditNotInStateForUpdate();
+    error CreditHasOutstandingBalance();
+    error CreditHasUnfulfilledCommitment();
     error DefaultTriggeredTooEarly();
     error DefaultHasAlreadyBeenTriggered();
     error ReceivableAlreadyMatured();
     error InvalidReceivableState();
+    error DrawdownNotAllowedInFinalPeriodAndBeyond();
+    error DrawdownNotAllowedAfterDueDateWithUnpaidDue();
+    error PayPeriodsTooLowForCreditsWithDesignatedStartDate();
 
     // Receivable
     error ReceivableIdMismatch();
     error InsufficientReceivableAmount();
     error ZeroReceivableAmount();
     error ZeroReceivableIdProvided();
-    error NotReceivableOwner();
-    error NotReceivableOwnerOrCreator();
+    error ReceivableOwnerRequired();
+    error ReceivableOwnerOrCreatorRequired();
     error ReceivableReferenceIdAlreadyExists();
 
     // Superfluid

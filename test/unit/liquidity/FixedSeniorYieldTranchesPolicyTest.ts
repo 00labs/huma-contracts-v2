@@ -141,7 +141,7 @@ describe("FixedSeniorYieldTranchePolicy Test", function () {
     it("Should not allow non-pool or non-poolConfig to call refreshSeniorYield", async function () {
         await expect(
             tranchesPolicyContract.refreshYieldTracker([0, 0]),
-        ).to.be.revertedWithCustomError(tranchesPolicyContract, "todo");
+        ).to.be.revertedWithCustomError(tranchesPolicyContract, "AuthorizedContractRequired");
     });
 
     describe("getFirstLossCovers", function () {
@@ -154,6 +154,13 @@ describe("FixedSeniorYieldTranchePolicy Test", function () {
     });
 
     describe("Distribution", function () {
+        it("Should not allow non-pool to call distProfitToTranches", async function () {
+            const assets = await poolContract.currentTranchesAssets();
+            await expect(
+                tranchesPolicyContract.distProfitToTranches(0, [...assets]),
+            ).to.be.revertedWithCustomError(tranchesPolicyContract, "AuthorizedContractRequired");
+        });
+
         it("Profit is not enough for senior tranche", async function () {
             const deployedAssets = toToken(300_000);
             await creditContract.drawdown(ethers.constants.HashZero, deployedAssets);
@@ -172,6 +179,8 @@ describe("FixedSeniorYieldTranchePolicy Test", function () {
                 tracker,
             );
 
+            await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.address);
+            await tranchesPolicyContract.connect(poolOwner).updatePoolConfigData();
             const result = await tranchesPolicyContract.callStatic.distProfitToTranches(
                 profit,
                 assets,
@@ -210,6 +219,14 @@ describe("FixedSeniorYieldTranchePolicy Test", function () {
         it("Profit is enough for both senior tranche and junior tranche", async function () {
             const deployedAssets = toToken(300_000);
             await creditContract.drawdown(ethers.constants.HashZero, deployedAssets);
+
+            // console.log(`len: ${(await tranchesPolicyContract.getFirstLossCovers()).length}`);
+            const lenFLC = (await tranchesPolicyContract.getFirstLossCovers()).length;
+            await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.address);
+            await tranchesPolicyContract.connect(poolOwner).updatePoolConfigData();
+            expect((await tranchesPolicyContract.getFirstLossCovers()).length).to.equal(lenFLC);
+            // console.log(`len: ${(await tranchesPolicyContract.getFirstLossCovers()).length}`);
+
             const assets = await poolContract.currentTranchesAssets();
             let profit = toToken(1000);
             const lastBlock = await getLatestBlock();
@@ -229,7 +246,7 @@ describe("FixedSeniorYieldTranchePolicy Test", function () {
                 profit,
                 assets,
             );
-            console.log(`result: ${result}`);
+            // console.log(`result: ${result}`);
             expect(result.profitsForTrancheVault[CONSTANTS.SENIOR_TRANCHE]).to.equal(
                 newAssets[CONSTANTS.SENIOR_TRANCHE].sub(assets[CONSTANTS.SENIOR_TRANCHE]),
             );

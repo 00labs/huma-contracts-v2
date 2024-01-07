@@ -26,6 +26,7 @@ import {
 import { LPConfigStructOutput } from "../../../typechain-types/contracts/common/PoolConfig.sol/PoolConfig";
 import {
     CONSTANTS,
+    CreditState,
     EpochChecker,
     FeeCalculator,
     PayPeriodDuration,
@@ -36,7 +37,7 @@ import {
     checkRedemptionRecordByLender,
     checkSeniorYieldTrackersMatch,
     deployPoolContracts,
-    deployProtocolContracts, CreditState
+    deployProtocolContracts,
 } from "../../BaseTest";
 import {
     borrowerLevelCreditHash,
@@ -1012,7 +1013,7 @@ describe("Lender Integration Test", function () {
                     .deposit(toToken(600_000), sLenders[2].address),
             ).to.be.revertedWithCustomError(
                 juniorTrancheVaultContract,
-                "trancheLiquidityCapExceeded",
+                "TrancheLiquidityCapExceeded",
             );
         });
 
@@ -2350,7 +2351,7 @@ describe("Lender Integration Test", function () {
                     .deposit(toToken(600_000), sLenders[2].address),
             ).to.be.revertedWithCustomError(
                 juniorTrancheVaultContract,
-                "trancheLiquidityCapExceeded",
+                "TrancheLiquidityCapExceeded",
             );
         });
 
