@@ -156,7 +156,7 @@ async function deployPool(
     const yieldAmount = toToken(10_000);
     await overrideFirstLossCoverConfig(
         borrowerFirstLossCoverContract,
-        CONSTANTS.BORROWER_FIRST_LOSS_COVER_INDEX,
+        CONSTANTS.BORROWER_LOSS_COVER_INDEX,
         poolConfigContract,
         poolOwner,
         {
@@ -165,7 +165,7 @@ async function deployPool(
     );
     await overrideFirstLossCoverConfig(
         affiliateFirstLossCoverContract,
-        CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+        CONSTANTS.ADMIN_LOSS_COVER_INDEX,
         poolConfigContract,
         poolOwner,
         {

@@ -124,9 +124,9 @@ const BP_FACTOR = BN.from(10000);
 const MONTHS_IN_A_YEAR = 12;
 const SECONDS_IN_A_DAY = 24 * 60 * 60;
 const SECONDS_IN_A_YEAR = 60 * 60 * 24 * 365;
-const BORROWER_FIRST_LOSS_COVER_INDEX = 0;
-const INSURANCE_FIRST_LOSS_COVER_INDEX = 1;
-const AFFILIATE_FIRST_LOSS_COVER_INDEX = 2;
+const BORROWER_LOSS_COVER_INDEX = 0;
+const INSURANCE_LOSS_COVER_INDEX = 1;
+const ADMIN_LOSS_COVER_INDEX = 2;
 
 export const CONSTANTS = {
     DAYS_IN_A_MONTH,
@@ -140,8 +140,8 @@ export const CONSTANTS = {
     MONTHS_IN_A_YEAR,
     SECONDS_IN_A_DAY,
     SECONDS_IN_A_YEAR,
-    BORROWER_FIRST_LOSS_COVER_INDEX,
-    AFFILIATE_FIRST_LOSS_COVER_INDEX,
+    BORROWER_LOSS_COVER_INDEX,
+    ADMIN_LOSS_COVER_INDEX,
 };
 
 export async function deployProxyContract(
@@ -291,7 +291,7 @@ export async function deployPoolContracts(
         creditManagerContract.address,
     ]);
     await poolConfigContract.setFirstLossCover(
-        BORROWER_FIRST_LOSS_COVER_INDEX,
+        BORROWER_LOSS_COVER_INDEX,
         borrowerFirstLossCoverContract.address,
         {
             coverRatePerLossInBps: 0,
@@ -303,7 +303,7 @@ export async function deployPoolContracts(
     );
     await poolConfigContract.setReceivableAsset(receivableContract.address);
     await poolConfigContract.setFirstLossCover(
-        AFFILIATE_FIRST_LOSS_COVER_INDEX,
+        ADMIN_LOSS_COVER_INDEX,
         affiliateFirstLossCoverContract.address,
         {
             coverRatePerLossInBps: 0,
