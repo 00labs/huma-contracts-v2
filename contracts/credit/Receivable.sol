@@ -105,10 +105,10 @@ contract Receivable is
      */
     function declarePayment(uint256 tokenId, uint96 paymentAmount) external {
         if (paymentAmount == 0) revert Errors.ZeroAmountProvided();
-        if (msg.sender != ownerOf(tokenId) && msg.sender != creators[tokenId])
+        ReceivableInfo memory receivableInfo = receivableInfoMap[tokenId];
+        if (msg.sender != ownerOf(tokenId) && msg.sender != receivableInfo.creator)
             revert Errors.ReceivableOwnerOrCreatorRequired();
 
-        ReceivableInfo storage receivableInfo = receivableInfoMap[tokenId];
         receivableInfo.paidAmount += paymentAmount;
 
         if (receivableInfo.paidAmount >= receivableInfo.receivableAmount) {
@@ -117,6 +117,7 @@ contract Receivable is
             assert(receivableInfo.paidAmount > 0);
             receivableInfo.state = ReceivableState.PartiallyPaid;
         }
+        receivableInfoMap[tokenId] = receivableInfo;
 
         emit PaymentDeclared(msg.sender, tokenId, receivableInfo.currencyCode, paymentAmount);
     }
@@ -132,7 +133,9 @@ contract Receivable is
      * off-chain receivable, we will limit the changes to the NFT that the creator can do.
      */
     function updateReceivableMetadata(uint256 tokenId, string memory uri) external {
-        if (msg.sender != ownerOf(tokenId) && msg.sender != creators[tokenId])
+        ReceivableInfo memory receivableInfo = receivableInfoMap[tokenId];
+
+        if (msg.sender != ownerOf(tokenId) && msg.sender != receivableInfo.creator)
             revert Errors.ReceivableOwnerOrCreatorRequired();
 
         string memory oldTokenURI = tokenURI(tokenId);
@@ -174,9 +177,9 @@ contract Receivable is
             0, // paidAmount
             currencyCode,
             maturityDate,
+            msg.sender,
             ReceivableState.Minted // Minted
         );
-        creators[tokenId] = msg.sender;
 
         _setTokenURI(tokenId, uri);
 

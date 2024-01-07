@@ -13,9 +13,6 @@ contract ReceivableStorage {
     // Map tokenId to receivable information
     mapping(uint256 => ReceivableInfo) public receivableInfoMap;
 
-    // Map tokenId to the address of the creator of the receivable
-    mapping(uint256 => address) public creators;
-
     // The original owner of the receivable often has an internal reference id. Map it to tokenid
     mapping(bytes32 => uint256) public referenceIdHashToTokenId;
 
