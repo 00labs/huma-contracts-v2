@@ -1,15 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {PoolConfig} from "../../common/PoolConfig.sol";
-
 /**
  * @title IFirstLossCover
  * @notice Interface for first loss cover
  */
 interface IFirstLossCover {
-    function initialize(string memory name, string memory symbol, PoolConfig _poolConfig) external;
-
     /**
      * @notice Adds assets in the first loss cover
      */
