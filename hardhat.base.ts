@@ -6,6 +6,11 @@ import "hardhat-contract-sizer";
 import "dotenv/config";
 import { HardhatUserConfig } from "hardhat/types";
 
+// Hardhat tasks
+import "./tasks/advance-epoch";
+import "./tasks/prepare-tranches-flc-for-withdraw";
+import "./tasks/withdraw-from-tranches";
+
 const EMPTY_URL = "empty url";
 const EMPTY_PRIVATE_KEY = "0x0000000000000000000000000000000000000000000000000000000000000000";
 
