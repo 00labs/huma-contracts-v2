@@ -192,7 +192,6 @@ describe("FixedSeniorYieldTranchesPolicy Test", function () {
                 profit,
                 assets,
             );
-            console.log(`result: ${result}`);
             expect(result.profitsForTrancheVault[CONSTANTS.SENIOR_TRANCHE]).to.equal(
                 newAssets[CONSTANTS.SENIOR_TRANCHE].sub(assets[CONSTANTS.SENIOR_TRANCHE]),
             );
@@ -227,12 +226,10 @@ describe("FixedSeniorYieldTranchesPolicy Test", function () {
             const deployedAssets = toToken(300_000);
             await creditContract.drawdown(ethers.constants.HashZero, deployedAssets);
 
-            // console.log(`len: ${(await tranchesPolicyContract.getFirstLossCovers()).length}`);
             const lenFLC = (await tranchesPolicyContract.getFirstLossCovers()).length;
             await poolConfigContract.connect(poolOwner).setPool(defaultDeployer.address);
             await tranchesPolicyContract.connect(poolOwner).updatePoolConfigData();
             expect((await tranchesPolicyContract.getFirstLossCovers()).length).to.equal(lenFLC);
-            // console.log(`len: ${(await tranchesPolicyContract.getFirstLossCovers()).length}`);
 
             const assets = await poolContract.currentTranchesAssets();
             let profit = toToken(1000);
@@ -253,7 +250,6 @@ describe("FixedSeniorYieldTranchesPolicy Test", function () {
                 profit,
                 assets,
             );
-            // console.log(`result: ${result}`);
             expect(result.profitsForTrancheVault[CONSTANTS.SENIOR_TRANCHE]).to.equal(
                 newAssets[CONSTANTS.SENIOR_TRANCHE].sub(assets[CONSTANTS.SENIOR_TRANCHE]),
             );
@@ -444,8 +440,6 @@ describe("FixedSeniorYieldTranchesPolicy Test", function () {
             await setNextBlockTimestamp(nextDate);
 
             let tracker = await tranchesPolicyContract.seniorYieldTracker();
-            console.log(`tracker: ${tracker}`);
-
             let newTracker = PnLCalculator.calcLatestSeniorTracker(nextDate, apy, tracker);
 
             await expect(poolConfigContract.connect(poolOwner).setLPConfig(lpConfig))
@@ -457,7 +451,6 @@ describe("FixedSeniorYieldTranchesPolicy Test", function () {
                 );
 
             tracker = await tranchesPolicyContract.seniorYieldTracker();
-            // console.log(`tracker: ${tracker}`);
             checkSeniorYieldTrackersMatch(tracker, newTracker);
             expect(tracker.unpaidYield).to.greaterThan(0);
         });

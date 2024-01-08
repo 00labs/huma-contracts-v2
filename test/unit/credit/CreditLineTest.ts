@@ -3889,10 +3889,6 @@ describe("CreditLine Test", function () {
                     getMaturityDate(cc.periodDuration, cc.numOfPeriods - 1, drawdownDate.unix()) *
                         1000,
                 );
-                console.log(
-                    `drawdown date ${drawdownDate}, cc.numOfPeriods ${cc.numOfPeriods}, cr.remainingPeriods ${cr.remainingPeriods}`,
-                );
-                console.log(`maturity date ${maturityDate}, payment date ${paymentDate}`);
 
                 // Calculate the dues, fees and dates right before the payment is made.
                 let [
@@ -3908,9 +3904,6 @@ describe("CreditLine Test", function () {
                     maturityDate,
                     latePaymentGracePeriodInDays,
                     principalRateInBps,
-                );
-                console.log(
-                    `remainingUnbilledPrincipal ${remainingUnbilledPrincipal}, remainingPrincipalPastDue ${remainingPrincipalPastDue}, remainingPrincipalNextDue ${remainingPrincipalNextDue}`,
                 );
                 let [
                     remainingYieldPastDue,

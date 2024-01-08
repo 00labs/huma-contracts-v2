@@ -152,7 +152,6 @@ describe("RiskAdjustedTranchesPolicy Test", function () {
         const result = await tranchesPolicyContract.callStatic.distProfitToTranches(profit, [
             ...assets,
         ]);
-        console.log(result);
         expect(result.profitsForTrancheVault[CONSTANTS.SENIOR_TRANCHE]).to.equal(
             newAssets[CONSTANTS.SENIOR_TRANCHE].sub(assets[CONSTANTS.SENIOR_TRANCHE]),
         );
