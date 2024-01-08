@@ -41,9 +41,9 @@ struct AdminRnR {
     uint16 rewardRateInBpsForEA;
     // Percentage of pool income allocated to Pool Owner
     uint16 rewardRateInBpsForPoolOwner;
-    // Percentage of the _liquidityCap to be contributed by EA
+    // Percentage of the liquidityCap to be contributed by EA
     uint16 liquidityRateInBpsByEA;
-    // Percentage of the _liquidityCap to be contributed by Pool Owner
+    // Percentage of the liquidityCap to be contributed by Pool Owner
     uint16 liquidityRateInBpsByPoolOwner;
 }
 

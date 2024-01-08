@@ -72,9 +72,9 @@ abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
     /**
      * @notice Internal function that calculates profit to first loss cover (FLC) providers
      * @dev There is a risk multiplier assigned to each first loss cover. To compute the profit
-     * for each PLCs, we first gets the product of the asset amount of each PLC and the risk
+     * for each FLCs, we first gets the product of the asset amount of each FLC and the risk
      * multiplier, then add them together. We then proportionally allocate the profit to each
-     * PLC based on its product of asset amount and risk multiplier. The remainer is left
+     * FLC based on its product of asset amount and risk multiplier. The remainder is left
      * for the junior tranche.
      * @param profit the amount of profit to be distributed between FLC and junior tranche
      * @param juniorTotalAssets the total asset amount for junior tranche
@@ -86,7 +86,7 @@ abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
     ) internal view returns (uint256 juniorProfit, uint256[] memory profitsForFirstLossCovers) {
         uint256 len = _firstLossCovers.length;
         profitsForFirstLossCovers = new uint256[](len);
-        // TotalWeight is the sume of the product of asset amount and risk multiplier for each FLC
+        // `totalWeight` is the sum of the product of asset amount and risk multiplier for each FLC
         // and the junior tranche.
         uint256 totalWeight = juniorTotalAssets;
         for (uint256 i = 0; i < len; i++) {
