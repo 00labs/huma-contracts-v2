@@ -5,8 +5,9 @@ import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/acce
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {PoolConfig, FirstLossCoverConfig, PoolSettings} from "../common/PoolConfig.sol";
+import {PoolSettings, LPConfig, FrontLoadingFeesStructure, FeeStructure} from "../common/PoolConfig.sol";
 import {Errors} from "../common/Errors.sol";
-import {HumaConfig} from "../common/HumaConfig.sol";
+import {PayPeriodDuration} from "../common/SharedDefs.sol";
 
 import {LibTimelockController} from "./library/LibTimelockController.sol";
 
@@ -307,7 +308,8 @@ contract PoolFactory is AccessControlUpgradeable, UUPSUpgradeable {
         uint96 maxLiquidity,
         uint96 minLiquidity,
         uint16 riskYieldMultiplierInBps
-    ) external onlyRole(DEPLOYER_ROLE) {
+    ) external {
+        _onlyDeployer(msg.sender);
         address firstLossCover = _addFirstLossCover();
         FirstLossCoverConfig memory config = FirstLossCoverConfig(
             coverRatePerLossInBps,
@@ -324,7 +326,8 @@ contract PoolFactory is AccessControlUpgradeable, UUPSUpgradeable {
         address assetTokenAddress,
         string memory tranchesPolicyType,
         string memory creditType
-    ) external onlyRole(DEPLOYER_ROLE) {
+    ) external {
+        _onlyDeployer(msg.sender);
         (address poolConfigAddress, address[] memory poolAddresses) = _createPoolContracts(
             _poolName,
             assetTokenAddress,
@@ -395,13 +398,85 @@ contract PoolFactory is AccessControlUpgradeable, UUPSUpgradeable {
         _registerPool(poolAddresses[3], _poolName, poolConfigAddress, address(0));
     }
 
-    function setupPool() external onlyRole(DEPLOYER_ROLE) {}
+    function setPoolSettings(
+        address _poolConfigAddress,
+        uint96 maxCreditLine,
+        uint96 minDepositAmount,
+        PayPeriodDuration payPeriodDuration,
+        uint8 latePaymentGracePeriodIndays,
+        uint16 defaultGracePeriodInDays,
+        uint16 advanceRateInBps,
+        bool receivableAutoApproval
+    ) external {
+        _onlyDeployer(msg.sender);
+        PoolSettings memory settings = PoolSettings({
+            maxCreditLine: maxCreditLine,
+            minDepositAmount: minDepositAmount,
+            payPeriodDuration: payPeriodDuration,
+            latePaymentGracePeriodInDays: latePaymentGracePeriodIndays,
+            defaultGracePeriodInDays: defaultGracePeriodInDays,
+            advanceRateInBps: advanceRateInBps,
+            receivableAutoApproval: receivableAutoApproval
+        });
+        PoolConfig(_poolConfigAddress).setPoolSettings(settings);
+    }
+
+    function setLPConfig(
+        address _poolConfigAddress,
+        uint96 liquidityCap,
+        uint8 maxSeniorJuniorRatio,
+        uint16 fixedSeniorYieldInBps,
+        uint16 tranchesRiskAdjustmentInBps,
+        uint16 withdrawalLockoutPeriodInDays
+    ) external {
+        _onlyDeployer(msg.sender);
+        LPConfig memory lpConfig = LPConfig({
+            liquidityCap: liquidityCap,
+            maxSeniorJuniorRatio: maxSeniorJuniorRatio,
+            fixedSeniorYieldInBps: fixedSeniorYieldInBps,
+            tranchesRiskAdjustmentInBps: tranchesRiskAdjustmentInBps,
+            withdrawalLockoutPeriodInDays: withdrawalLockoutPeriodInDays
+        });
+        PoolConfig(_poolConfigAddress).setLPConfig(lpConfig);
+    }
+
+    function setFees(
+        address _poolConfigAddress,
+        uint96 frontLoadingFeeFlat,
+        uint16 frontLoadingFeeBps,
+        uint16 yieldInBps,
+        uint16 minPrincipalRateInBps,
+        uint16 lateFeeBps,
+        uint256 poolOwnerRewardRate,
+        uint256 poolOwnerLiquidityRate,
+        uint256 eaRewardRate,
+        uint256 eaLiquidityRate
+    ) external {
+        _onlyDeployer(msg.sender);
+        FrontLoadingFeesStructure memory frontLoadingFees = FrontLoadingFeesStructure({
+            frontLoadingFeeFlat: frontLoadingFeeFlat,
+            frontLoadingFeeBps: frontLoadingFeeBps
+        });
+        PoolConfig(_poolConfigAddress).setFrontLoadingFees(frontLoadingFees);
+        FeeStructure memory fees = FeeStructure({
+            yieldInBps: yieldInBps,
+            minPrincipalRateInBps: minPrincipalRateInBps,
+            lateFeeBps: lateFeeBps
+        });
+        PoolConfig(_poolConfigAddress).setFeeStructure(fees);
+        PoolConfig(_poolConfigAddress).setPoolOwnerRewardsAndLiquidity(
+            poolOwnerRewardRate,
+            poolOwnerLiquidityRate
+        );
+        PoolConfig(_poolConfigAddress).setEARewardsAndLiquidity(eaRewardRate, eaLiquidityRate);
+    }
 
     function addTimeLock(
         uint256 _poolId,
         address[] memory poolOwners,
         address[] memory poolExecutors
-    ) external onlyRole(DEPLOYER_ROLE) {
+    ) external {
+        _onlyDeployer(msg.sender);
         address timelockAddress = LibTimelockController.addTimelockController(
             0,
             poolOwners,
