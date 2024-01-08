@@ -14,8 +14,6 @@ import {ADMIN_LOSS_COVER_INDEX, HUNDRED_PERCENT_IN_BPS, PayPeriodDuration} from 
 import {HumaConfig} from "./HumaConfig.sol";
 import {Errors} from "./Errors.sol";
 
-import "hardhat/console.sol";
-
 struct PoolSettings {
     // The maximum credit line for a borrower in terms of the amount of poolTokens
     uint96 maxCreditLine;
