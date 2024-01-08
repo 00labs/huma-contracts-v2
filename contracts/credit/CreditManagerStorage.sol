@@ -16,7 +16,7 @@ contract CreditManagerStorage {
     /// mapping from credit id to the credit config
     mapping(bytes32 => CreditConfig) internal _creditConfigMap;
 
-    // This mapping is used to maintain the relationship between credit and borrower
+    // Mapping from credit hash to the borrower
     mapping(bytes32 => address) internal _creditBorrowerMap;
 
     /**

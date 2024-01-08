@@ -10,7 +10,7 @@ import {PayPeriodDuration} from "../../common/SharedDefs.sol";
 
 interface ICreditDueManager {
     /**
-     * @notice Apply front loading fee, distribute the total amount to borrower, pool, & protocol
+     * @notice Applies the front loading fee, distributes the total amount to borrower, pool & protocol
      * @param borrowAmount the amount of the borrowing
      * @return amtToBorrower the amount that the borrower can take
      * @return platformFees the platform charges

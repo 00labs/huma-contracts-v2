@@ -6,7 +6,6 @@ pragma solidity ^0.8.0;
  * the total number of shares requested, number of shares actually redeemed and the
  * associated amount.
  */
-
 struct EpochRedemptionSummary {
     uint64 epochId;
     // The total number of shares requested for redemption in this epoch
