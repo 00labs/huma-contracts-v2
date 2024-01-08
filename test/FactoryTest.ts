@@ -26,6 +26,8 @@ import {
     RiskAdjustedTranchesPolicy,
     TrancheVault,
 } from "../typechain-types";
+import { deployProxyContract } from "./BaseTest";
+import { toToken } from "./TestUtils";
 type ProtocolContracts = [EvaluationAgentNFT, HumaConfig, MockToken, Calendar];
 type PoolContracts = [
     PoolConfig,
@@ -285,9 +287,16 @@ describe("Factory Test", function () {
         receivableLevelCreditManagerImpl: ReceivableLevelCreditManager,
         receivableImpl: Receivable,
     ): Promise<PoolFactory> {
-        const PoolFactory = await ethers.getContractFactory("PoolFactory");
-        const poolFactoryContract = await PoolFactory.deploy(humaConfigContract.address);
-        await poolFactoryContract.deployed();
+        const LibTimelockController = await ethers.getContractFactory("LibTimelockController");
+        const libTimelockControllerContract = await LibTimelockController.deploy();
+        await libTimelockControllerContract.deployed();
+        const PoolFactory = await ethers.getContractFactory("PoolFactory", {
+            libraries: { LibTimelockController: libTimelockControllerContract.address },
+        });
+
+        const poolFactoryContract = (await deployProxyContract(PoolFactory)) as PoolFactory;
+
+        await poolFactoryContract.initialize(humaConfigContract.address);
 
         await poolFactoryContract.addDeployer(defaultDeployer.getAddress());
 
@@ -398,5 +407,89 @@ describe("Factory Test", function () {
                 "creditline",
             ),
         );
+        const poolRecord = await poolFactoryContract.checkPool(1);
+        await expect(poolRecord.poolName).to.equal("test pool");
+        await expect(poolRecord.poolStatus).to.equal(0);
+    });
+    it("Deploy a pool using factory - non deployer", async function () {
+        await expect(
+            poolFactoryContract
+                .connect(poolOwner)
+                .deployPool("test pool", mockTokenContract.address, "fixed", "creditline"),
+        ).to.be.revertedWithCustomError(poolFactoryContract, "DeployerRequired");
+    });
+    it("Deploy a pool using factory - invalid pool type", async function () {
+        await expect(
+            poolFactoryContract.deployPool("test pool", mockTokenContract.address, "invalid", ""),
+        ).to.be.revertedWithCustomError(poolFactoryContract, "InvalidTranchesPolicyType");
+    });
+    it("Deploy a pool using factory - invalid credit line type", async function () {
+        await expect(
+            poolFactoryContract.deployPool("test pool", mockTokenContract.address, "fixed", ""),
+        ).to.be.revertedWithCustomError(poolFactoryContract, "InvalidCreditType");
+    });
+
+    it("Deploy a pool using factory and initialize the pool", async function () {
+        await poolFactoryContract.deployPool(
+            "test pool",
+            mockTokenContract.address,
+            "fixed",
+            "creditline",
+        );
+        await poolFactoryContract.setPoolSettings(
+            1,
+            toToken(1_000_000),
+            toToken(50_000),
+            1,
+            30,
+            30,
+            10000,
+            true,
+        );
+        await poolFactoryContract.setLPConfig(1, toToken(1_000_000), 4, 1000, 1000, 60);
+        await poolFactoryContract.setFees(1, 0, 1000, 1500, 0, 100, 0, 0, 0, 0);
+        await poolFactoryContract.addPoolOperator(1, poolOperator.getAddress());
+        await poolFactoryContract.updatePoolStatus(1, 1);
+        await expect((await poolFactoryContract.checkPool(1)).poolStatus).to.equal(1);
+    });
+    it("Deploy a pool using factory and initialize the pool, then add timelock", async function () {
+        await poolFactoryContract.deployPool(
+            "test pool",
+            mockTokenContract.address,
+            "fixed",
+            "creditline",
+        );
+        await poolFactoryContract.setPoolSettings(
+            1,
+            toToken(1_000_000),
+            toToken(50_000),
+            1,
+            30,
+            30,
+            10000,
+            true,
+        );
+        await poolFactoryContract.setLPConfig(1, toToken(1_000_000), 4, 1000, 1000, 60);
+        await poolFactoryContract.setFees(1, 0, 1000, 1500, 0, 100, 0, 0, 0, 0);
+        await poolFactoryContract.addPoolOperator(1, poolOperator.getAddress());
+        await poolFactoryContract.updatePoolStatus(1, 1);
+        await expect((await poolFactoryContract.checkPool(1)).poolStatus).to.equal(1);
+        await poolFactoryContract.addTimelock(
+            1,
+            [poolOwner.getAddress()],
+            [poolOwner.getAddress()],
+        );
+        const poolConfigAddress = (await poolFactoryContract.checkPool(1)).poolConfigAddress;
+        const timelockAddress = (await poolFactoryContract.checkPool(1)).poolTimelock;
+        const poolConfig = await ethers.getContractAt("PoolConfig", poolConfigAddress);
+        await expect(
+            await poolConfig.hasRole(
+                await poolConfig.DEFAULT_ADMIN_ROLE(),
+                poolOwner.getAddress(),
+            ),
+        ).to.equal(false);
+        await expect(
+            await poolConfig.hasRole(await poolConfig.DEFAULT_ADMIN_ROLE(), timelockAddress),
+        ).to.equal(true);
     });
 });

@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {PoolConfig, FirstLossCoverConfig, PoolSettings} from "../common/PoolConfig.sol";
 import {PoolSettings, LPConfig, FrontLoadingFeesStructure, FeeStructure} from "../common/PoolConfig.sol";
@@ -19,7 +20,7 @@ interface IFirstLossCoverLike {
     function initialize(string memory name, string memory symbol, PoolConfig _poolConfig) external;
 }
 
-interface ITrancheVault {
+interface ITrancheVaultLike {
     function initialize(
         string memory name,
         string memory symbol,
@@ -28,7 +29,7 @@ interface ITrancheVault {
     ) external;
 }
 
-contract PoolFactory is AccessControlUpgradeable, UUPSUpgradeable {
+contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable {
     /**
      * @dev Represents the status of a pool.
      */
@@ -45,7 +46,7 @@ contract PoolFactory is AccessControlUpgradeable, UUPSUpgradeable {
         string poolName;
         PoolStatus poolStatus;
         address poolConfigAddress;
-        address poolTimeLock;
+        address poolTimelock;
     }
 
     // only deployer can create new pools
@@ -113,7 +114,7 @@ contract PoolFactory is AccessControlUpgradeable, UUPSUpgradeable {
     event PoolClosed(uint256 poolId, address poolAddress, string poolName);
 
     event PoolStatusUpdated(uint256 poolId, PoolStatus oldStatus, PoolStatus newStatus);
-    event timeLockAddedtoPool(uint256 poolId, address poolAddress, address timeLockAddress);
+    event timelockAddedtoPool(uint256 poolId, address poolAddress, address timelockAddress);
 
     constructor() {
         // _disableInitializers();
@@ -378,14 +379,14 @@ contract PoolFactory is AccessControlUpgradeable, UUPSUpgradeable {
 
         for (uint8 i = 3; i < 12; i++) {
             if (i == 8) {
-                ITrancheVault(poolAddresses[i]).initialize(
+                ITrancheVaultLike(poolAddresses[i]).initialize(
                     "Senior Tranche Vault",
                     "STV",
                     poolConfig,
                     0
                 );
             } else if (i == 9) {
-                ITrancheVault(poolAddresses[i]).initialize(
+                ITrancheVaultLike(poolAddresses[i]).initialize(
                     "Junior Tranche Vault",
                     "JTV",
                     poolConfig,
@@ -399,7 +400,7 @@ contract PoolFactory is AccessControlUpgradeable, UUPSUpgradeable {
     }
 
     function setPoolSettings(
-        address _poolConfigAddress,
+        uint256 _poolId,
         uint96 maxCreditLine,
         uint96 minDepositAmount,
         PayPeriodDuration payPeriodDuration,
@@ -418,11 +419,11 @@ contract PoolFactory is AccessControlUpgradeable, UUPSUpgradeable {
             advanceRateInBps: advanceRateInBps,
             receivableAutoApproval: receivableAutoApproval
         });
-        PoolConfig(_poolConfigAddress).setPoolSettings(settings);
+        PoolConfig(pools[_poolId].poolConfigAddress).setPoolSettings(settings);
     }
 
     function setLPConfig(
-        address _poolConfigAddress,
+        uint256 _poolId,
         uint96 liquidityCap,
         uint8 maxSeniorJuniorRatio,
         uint16 fixedSeniorYieldInBps,
@@ -437,11 +438,11 @@ contract PoolFactory is AccessControlUpgradeable, UUPSUpgradeable {
             tranchesRiskAdjustmentInBps: tranchesRiskAdjustmentInBps,
             withdrawalLockoutPeriodInDays: withdrawalLockoutPeriodInDays
         });
-        PoolConfig(_poolConfigAddress).setLPConfig(lpConfig);
+        PoolConfig(pools[_poolId].poolConfigAddress).setLPConfig(lpConfig);
     }
 
     function setFees(
-        address _poolConfigAddress,
+        uint256 _poolId,
         uint96 frontLoadingFeeFlat,
         uint16 frontLoadingFeeBps,
         uint16 yieldInBps,
@@ -457,21 +458,33 @@ contract PoolFactory is AccessControlUpgradeable, UUPSUpgradeable {
             frontLoadingFeeFlat: frontLoadingFeeFlat,
             frontLoadingFeeBps: frontLoadingFeeBps
         });
-        PoolConfig(_poolConfigAddress).setFrontLoadingFees(frontLoadingFees);
+        PoolConfig(pools[_poolId].poolConfigAddress).setFrontLoadingFees(frontLoadingFees);
         FeeStructure memory fees = FeeStructure({
             yieldInBps: yieldInBps,
             minPrincipalRateInBps: minPrincipalRateInBps,
             lateFeeBps: lateFeeBps
         });
-        PoolConfig(_poolConfigAddress).setFeeStructure(fees);
-        PoolConfig(_poolConfigAddress).setPoolOwnerRewardsAndLiquidity(
+        PoolConfig(pools[_poolId].poolConfigAddress).setFeeStructure(fees);
+        PoolConfig(pools[_poolId].poolConfigAddress).setPoolOwnerRewardsAndLiquidity(
             poolOwnerRewardRate,
             poolOwnerLiquidityRate
         );
-        PoolConfig(_poolConfigAddress).setEARewardsAndLiquidity(eaRewardRate, eaLiquidityRate);
+        PoolConfig(pools[_poolId].poolConfigAddress).setEARewardsAndLiquidity(
+            eaRewardRate,
+            eaLiquidityRate
+        );
     }
 
-    function addTimeLock(
+    function addPoolOperator(uint256 _poolId, address poolOperator) external {
+        _onlyDeployer(msg.sender);
+        _notZeroAddress(poolOperator);
+        PoolConfig(pools[_poolId].poolConfigAddress).grantRole(
+            PoolConfig(pools[_poolId].poolConfigAddress).POOL_OPERATOR_ROLE(),
+            poolOperator
+        );
+    }
+
+    function addTimelock(
         uint256 _poolId,
         address[] memory poolOwners,
         address[] memory poolExecutors
@@ -488,11 +501,11 @@ contract PoolFactory is AccessControlUpgradeable, UUPSUpgradeable {
         poolConfig.grantRole(poolConfig.DEFAULT_ADMIN_ROLE(), timelockAddress);
         poolConfig.renounceRole(poolConfig.DEFAULT_ADMIN_ROLE(), address(this));
 
-        emit timeLockAddedtoPool(_poolId, pools[_poolId].poolAddress, timelockAddress);
-        pools[_poolId].poolTimeLock = timelockAddress;
+        emit timelockAddedtoPool(_poolId, pools[_poolId].poolAddress, timelockAddress);
+        pools[_poolId].poolTimelock = timelockAddress;
     }
 
-    function _updatePoolStatus(uint256 _poolId, PoolStatus newStatus) external {
+    function updatePoolStatus(uint256 _poolId, PoolStatus newStatus) external {
         _onlyFactoryAdmin(msg.sender);
         if (_poolId == 0 || _poolId > poolId) {
             revert Errors.InvalidPoolId();
@@ -522,7 +535,7 @@ contract PoolFactory is AccessControlUpgradeable, UUPSUpgradeable {
 
     function _onlyDeployer(address account) internal view {
         if (!hasRole(DEPLOYER_ROLE, account)) {
-            revert Errors.AdminRequired();
+            revert Errors.DeployerRequired();
         }
     }
 
@@ -538,7 +551,7 @@ contract PoolFactory is AccessControlUpgradeable, UUPSUpgradeable {
         address _poolAddress,
         string memory _poolName,
         address _poolConfigAddress,
-        address _poolTimeLockAddress
+        address _poolTimelockAddress
     ) private {
         poolId++;
         pools[poolId] = PoolRecord(
@@ -547,7 +560,7 @@ contract PoolFactory is AccessControlUpgradeable, UUPSUpgradeable {
             _poolName,
             PoolStatus.Created,
             _poolConfigAddress,
-            _poolTimeLockAddress
+            _poolTimelockAddress
         );
         emit PoolAdded(poolId, _poolAddress, _poolName);
     }
