@@ -96,6 +96,7 @@ note as NoteCredit
   CM\tCreditManager 
   DM\tDueManager
   RF\tReceivableFactoring
+  RB\tReceivableBacked
   RP\tReceivablePayable
   S\tStorage
 end note
