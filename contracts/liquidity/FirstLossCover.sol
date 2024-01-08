@@ -43,7 +43,7 @@ contract FirstLossCover is
     );
     event AssetsAdded(uint256 assets);
 
-    event YieldPaidout(address indexed account, uint256 yields);
+    event YieldPaidOut(address indexed account, uint256 yields);
 
     function initialize(
         string memory name,
@@ -169,7 +169,7 @@ contract FirstLossCover is
         poolConfig.onlyPool(msg.sender);
 
         uint256 recoveredAmount;
-        (remainingRecovery, recoveredAmount) = _calcLossRecover(coveredLoss, recovery);
+        (remainingRecovery, recoveredAmount) = _calcLossRecovery(coveredLoss, recovery);
 
         if (recoveredAmount > 0) {
             uint256 currCoveredLoss = coveredLoss;
@@ -183,7 +183,7 @@ contract FirstLossCover is
     }
 
     /**
-     * @notice Pay out yield above the cap to providers. Expects to be called by a cron-like mechanism like autotask.
+     * @notice Pays out yield above the cap to providers. Expects to be called by a cron-like mechanism like autotask.
      */
     function payoutYield() external {
         uint256 maxLiquidity = getMaxLiquidity();
@@ -202,7 +202,7 @@ contract FirstLossCover is
             uint256 payout = (yield * shares) / totalShares;
             remainingShares -= shares;
             underlyingToken.safeTransfer(provider, payout);
-            emit YieldPaidout(provider, payout);
+            emit YieldPaidOut(provider, payout);
         }
 
         assert(remainingShares == 0);
@@ -356,7 +356,7 @@ contract FirstLossCover is
             revert Errors.AuthorizedContractCallerRequired();
     }
 
-    function _calcLossRecover(
+    function _calcLossRecovery(
         uint256 coveredLoss,
         uint256 recoveryAmount
     ) internal pure returns (uint256 remainingRecovery, uint256 recoveredAmount) {

@@ -13,7 +13,7 @@ interface IReceivableFactoringCreditManager {
      * @param creditLimit the credit limit of the credit line
      * @param remainingPeriods the number of periods before the credit line expires
      * @param yieldInBps expected yield expressed in basis points, 1% is 100, 100% is 10000
-     * @dev only Evaluation Agent can call
+     * @custom:access Only the Evaluation Agent can call this function
      */
     function approveReceivable(
         address borrower,
@@ -51,32 +51,33 @@ interface IReceivableFactoringCreditManager {
 
     /**
      * @notice Pauses the credit. No drawdown is allowed for paused credit.
-     * @dev Only EA can call this function
+     * @custom:access Only the EA can call this function
      */
     function pauseCredit(uint256 receivableId) external;
 
     /**
      * @notice Unpauses the credit to return the credit to normal
-     * @dev Only EA can call this function
+     * @custom:access Only the EA can call this function
      */
     function unpauseCredit(uint256 receivableId) external;
 
     /**
      * @notice Updates the yield for the credit.
      * @param yieldInBps the new yield
-     * @dev Only EA can call this function
+     * @custom:access Only the EA can call this function
      */
     function updateYield(uint256 receivableId, uint256 yieldInBps) external;
 
     /**
      * @notice Updates the remaining periods of the credit line
      * @param numOfPeriods the new remaining periods
-     * @dev Only EA can call this function
+     * @custom:access Only the EA can call this function
      */
     function extendRemainingPeriod(uint256 receivableId, uint256 numOfPeriods) external;
 
     /**
-     * @notice Waive late fee
+     * @notice Waives late fee
+     * @custom:access Only the EA can call this function
      */
     function waiveLateFee(uint256 receivableId, uint256 waivedAmount) external;
 

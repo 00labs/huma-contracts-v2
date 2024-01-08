@@ -20,9 +20,9 @@ interface IPool {
 
     /**
      * @notice Distributes loss recovery to senior tranche, junior tranche and first loss covers
-     * @param lossRecovery the amount that was deemed as losses before and has been receovered.
+     * @param lossRecovery the amount that was deemed as losses before and has been recovered.
      * This amount shall be distributed to senior tranche, junior tranche, and first loss covers
-     * in this sequenence to offset the losses that they have experienced before.
+     * in this sequence to offset the losses that they have experienced before.
      */
     function distributeLossRecovery(uint256 lossRecovery) external;
 

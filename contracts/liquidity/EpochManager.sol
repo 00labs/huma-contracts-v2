@@ -72,8 +72,8 @@ contract EpochManager is PoolConfigCache, IEpochManager {
 
     /**
      * @notice Closes current epoch and handles senior and junior tranche redemption requests.
-     * @dev Expects to be called by a cron-like mechanism like autotask,
-     * although anyone can call it to trigger epoch closure.
+     * @dev Expects to be called by a cron-like mechanism like autotask, although anyone can call it to trigger
+     * epoch closure.
      */
     function closeEpoch() external virtual {
         poolConfig.onlyProtocolAndPoolOn();
@@ -175,7 +175,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
     }
 
     /**
-     * @notice Process previously unprocessed redemption requests
+     * @notice Processes previously unprocessed redemption requests
      * @param tranchesAssets tranches assets indexed by SENIOR_ or JUNIOR_TRANCHE, i.e. tranches[0] is the
      * senior tranche assets and tranches[1] is the junior tranche assets
      * @param seniorSummary unprocessed/partially processed redemption summary for the senior tranche
