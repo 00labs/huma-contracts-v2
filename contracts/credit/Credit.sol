@@ -290,7 +290,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
 
         uint256 payoffAmount = dueManager.getPayoffAmount(cr);
         uint256 amountToCollect = amount < payoffAmount ? amount : payoffAmount;
-        PaymentRecord memory paymentRecord;
+        PaymentRecord memory paymentRecord = PaymentRecord(0, 0, 0, 0, 0, 0);
 
         if (amount < payoffAmount) {
             // Apply the payment to past due first.
