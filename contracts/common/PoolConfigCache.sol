@@ -28,7 +28,7 @@ abstract contract PoolConfigCache is Initializable, UUPSUpgradeable {
     }
 
     /**
-     * @notice It should be called immediately to cache depending contract addresses after the contract is deployed.
+     * @notice This function should be called immediately to cache depending contract addresses after the contract is deployed.
      */
     function updatePoolConfigData() external {
         poolConfig.onlyPoolOwner(msg.sender);
@@ -37,8 +37,9 @@ abstract contract PoolConfigCache is Initializable, UUPSUpgradeable {
     }
 
     /**
-     * @notice Set new pool config contract address. It requires pool owner permission in old pool config contract.
+     * @notice Sets new pool config contract address.
      * @param _poolConfig The address of the new pool config contract.
+     * @custom:access Only the pool owner of the old pool config contract can call this function.
      */
     function setPoolConfig(PoolConfig _poolConfig) external {
         if (address(_poolConfig) == address(0)) revert Errors.ZeroAddressProvided();

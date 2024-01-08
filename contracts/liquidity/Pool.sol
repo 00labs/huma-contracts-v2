@@ -202,8 +202,6 @@ contract Pool is PoolConfigCache, IPool {
 
     /**
      * @notice Common function in Huma protocol to retrieve contract addresses from PoolConfig.
-     * Pool contract references PoolSafe, PoolFeeManager, TranchePolicy, EpochManager, Credit,
-     * CreditManager, and FirstLossCover.
      */
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = _poolConfig.poolSafe();

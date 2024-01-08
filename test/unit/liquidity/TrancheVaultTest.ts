@@ -148,7 +148,7 @@ describe("TrancheVault Test", function () {
             defaultDeployer,
             poolOwner,
             "MockPoolCredit",
-            "BorrowerLevelCreditManager",
+            "CreditLineManager",
             evaluationAgent,
             poolOwnerTreasury,
             poolOperator,
@@ -2595,13 +2595,13 @@ describe("TrancheVault Test", function () {
             );
 
             await expect(juniorTrancheVaultContract.processYieldForLenders())
-                .to.emit(juniorTrancheVaultContract, "YieldPaidout")
+                .to.emit(juniorTrancheVaultContract, "YieldPaidOut")
                 .withArgs(
                     await lenders[0].lender.getAddress(),
                     lenders[0].yield,
                     expectedLenderSharesToBurn,
                 )
-                .to.emit(juniorTrancheVaultContract, "YieldPaidout")
+                .to.emit(juniorTrancheVaultContract, "YieldPaidOut")
                 .withArgs(
                     await lenders[1].lender.getAddress(),
                     lenders[1].yield,
@@ -2661,7 +2661,7 @@ describe("TrancheVault Test", function () {
 
             await expect(juniorTrancheVaultContract.processYieldForLenders()).not.to.emit(
                 juniorTrancheVaultContract,
-                "YieldPaidout",
+                "YieldPaidOut",
             );
 
             expect(await juniorTrancheVaultContract.balanceOf(lender.getAddress())).to.equal(
@@ -2714,7 +2714,7 @@ describe("TrancheVault Test", function () {
 
             await expect(juniorTrancheVaultContract.processYieldForLenders()).to.emit(
                 juniorTrancheVaultContract,
-                "YieldPaidout",
+                "YieldPaidOut",
             );
 
             expect(await mockTokenContract.balanceOf(lender.address)).to.equal(

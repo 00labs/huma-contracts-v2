@@ -4,9 +4,9 @@ import { expect } from "chai";
 import { BigNumber as BN } from "ethers";
 import { ethers } from "hardhat";
 import {
-    BorrowerLevelCreditManager,
     Calendar,
     CreditDueManager,
+    CreditLineManager,
     EpochManager,
     EvaluationAgentNFT,
     FirstLossCover,
@@ -61,7 +61,7 @@ let poolConfigContract: PoolConfig,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: MockPoolCredit,
     creditDueManagerContract: CreditDueManager,
-    creditManagerContract: BorrowerLevelCreditManager;
+    creditManagerContract: CreditLineManager;
 
 describe("FirstLossCover Tests", function () {
     before(async function () {
@@ -112,7 +112,7 @@ describe("FirstLossCover Tests", function () {
             defaultDeployer,
             poolOwner,
             "MockPoolCredit",
-            "BorrowerLevelCreditManager",
+            "CreditLineManager",
             evaluationAgent,
             poolOwnerTreasury,
             poolOperator,
@@ -1398,12 +1398,12 @@ describe("FirstLossCover Tests", function () {
             );
 
             await expect(affiliateFirstLossCoverContract.payoutYield())
-                .to.emit(affiliateFirstLossCoverContract, "YieldPaidout")
+                .to.emit(affiliateFirstLossCoverContract, "YieldPaidOut")
                 .withArgs(
                     poolOwnerTreasury.address,
                     yieldAmount.mul(poolOwnerTreasuryShares).div(totalShares),
                 )
-                .to.emit(affiliateFirstLossCoverContract, "YieldPaidout")
+                .to.emit(affiliateFirstLossCoverContract, "YieldPaidOut")
                 .withArgs(
                     evaluationAgent.address,
                     yieldAmount.mul(evaluationAgentShares).div(totalShares),
@@ -1412,7 +1412,7 @@ describe("FirstLossCover Tests", function () {
             // Paying out yield for a second time should do nothing.
             await expect(affiliateFirstLossCoverContract.payoutYield()).to.not.emit(
                 affiliateFirstLossCoverContract,
-                "YieldPaidout",
+                "YieldPaidOut",
             );
 
             expect(await affiliateFirstLossCoverContract.totalAssets()).to.equal(
@@ -1478,7 +1478,7 @@ describe("FirstLossCover Tests", function () {
             );
             const oldEABalance = await mockTokenContract.balanceOf(evaluationAgent.getAddress());
             await expect(affiliateFirstLossCoverContract.payoutYield())
-                .to.emit(affiliateFirstLossCoverContract, "YieldPaidout")
+                .to.emit(affiliateFirstLossCoverContract, "YieldPaidOut")
                 .withArgs(await evaluationAgent.getAddress(), yieldAmount);
             const newPoolOwnerBalance = await mockTokenContract.balanceOf(
                 poolOwnerTreasury.getAddress(),

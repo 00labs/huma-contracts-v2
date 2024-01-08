@@ -48,7 +48,7 @@ contract TrancheVault is
 
     event RedemptionRequestRemoved(address indexed account, uint256 shareAmount, uint256 epochId);
 
-    event YieldPaidout(address indexed account, uint256 yields, uint256 shares);
+    event YieldPaidOut(address indexed account, uint256 yields, uint256 shares);
 
     event YieldReinvested(address indexed account, uint256 yields);
 
@@ -70,6 +70,7 @@ contract TrancheVault is
     }
 
     /**
+     * @notice Adds an approved lender.
      * @notice Lenders need to pass compliance requirements. Pool operator will administer off-chain
      * to make sure potential lenders meet the requirements. Afterwards, the pool operator will
      * call this function to mark a lender as approved.
@@ -80,11 +81,10 @@ contract TrancheVault is
         if (hasRole(LENDER_ROLE, lender)) revert Errors.AlreadyALender();
 
         _grantRole(LENDER_ROLE, lender);
-        depositRecords[lender] = DepositRecord({
-            principal: 0,
-            reinvestYield: reinvestYield,
-            lastDepositTime: 0
-        });
+        _setDepositRecord(
+            lender,
+            DepositRecord({principal: 0, reinvestYield: reinvestYield, lastDepositTime: 0})
+        );
         if (!reinvestYield) {
             if (nonReinvestingLenders.length >= MAX_ALLOWED_NUM_NON_REINVESTING_LENDERS)
                 revert Errors.NonReinvestYieldLenderCapacityReached();
@@ -101,7 +101,7 @@ contract TrancheVault is
         if (lender == address(0)) revert Errors.ZeroAddressProvided();
         if (!hasRole(LENDER_ROLE, lender)) revert Errors.LenderRequired();
         _revokeRole(LENDER_ROLE, lender);
-        if (!depositRecords[lender].reinvestYield) {
+        if (!_getDepositRecord(lender).reinvestYield) {
             _removeLenderFromNonReinvestingLenders(lender);
         }
         // We intentionally do not delete `depositRecord` for the lender so that they can still
@@ -109,11 +109,12 @@ contract TrancheVault is
     }
 
     /**
-     * @notice The pool operator will call this function to mark whether a lender wants to reinvest yield.
+     * @notice Marks whether a lender wants to reinvest yield.
+     * @custom:access Only pool operators can call this function.
      */
     function setReinvestYield(address lender, bool reinvestYield) external {
         poolConfig.onlyPoolOperator(msg.sender);
-        DepositRecord memory depositRecord = depositRecords[lender];
+        DepositRecord memory depositRecord = _getDepositRecord(lender);
         if (depositRecord.reinvestYield == reinvestYield)
             revert Errors.ReinvestYieldOptionAlreadySet();
         if (!depositRecord.reinvestYield && reinvestYield) {
@@ -124,16 +125,16 @@ contract TrancheVault is
             nonReinvestingLenders.push(lender);
         }
         depositRecord.reinvestYield = reinvestYield;
-        depositRecords[lender] = depositRecord;
+        _setDepositRecord(lender, depositRecord);
         emit ReinvestYieldConfigSet(lender, reinvestYield, msg.sender);
     }
 
     /// @inheritdoc IRedemptionHandler
     function executeRedemptionSummary(EpochRedemptionSummary memory summaryProcessed) external {
-        _onlyEpochManager(msg.sender);
+        if (msg.sender != address(epochManager)) revert Errors.AuthorizedContractCallerRequired();
 
         if (summaryProcessed.totalSharesProcessed > 0) {
-            epochRedemptionSummaries[summaryProcessed.epochId] = summaryProcessed;
+            _setEpochRedemptionSummary(summaryProcessed);
             // Burn processed shares of LP tokens.
             ERC20Upgradeable._burn(address(this), summaryProcessed.totalSharesProcessed);
             // Withdraw underlying tokens from the reserve so that LPs can redeem.
@@ -151,7 +152,7 @@ contract TrancheVault is
                 totalSharesProcessed: 0,
                 totalAmountProcessed: 0
             });
-            epochRedemptionSummaries[nextRedemptionSummary.epochId] = nextRedemptionSummary;
+            _setEpochRedemptionSummary(nextRedemptionSummary);
         }
 
         emit EpochProcessed(
@@ -173,13 +174,11 @@ contract TrancheVault is
 
     /**
      * @notice LP deposits to the pool to earn yield, and share losses
-     *
      * @notice All deposits should be made by calling this function and
      * makeInitialDeposit() (for pool owner and EA's initial deposit) only.
      * Please do NOT directly transfer any digital assets to the contracts,
      * which will cause a permanent loss and we cannot help reverse transactions
      * or retrieve assets from the contracts.
-     *
      * @param assets The number of underlyingTokens to be deposited
      * @param receiver The address to receive the minted tranche token
      * @return shares The number of tranche token to be minted
@@ -203,11 +202,11 @@ contract TrancheVault is
         poolConfig.onlyProtocolAndPoolOn();
 
         PoolSettings memory poolSettings = poolConfig.getPoolSettings();
-        uint256 nextEpochStartTime = calendar.getStartDateOfNextPeriod(
+        uint256 nextEpochStartTime = ICalendar(poolConfig.calendar()).getStartDateOfNextPeriod(
             poolSettings.payPeriodDuration,
             block.timestamp
         );
-        DepositRecord memory depositRecord = depositRecords[msg.sender];
+        DepositRecord memory depositRecord = _getDepositRecord(msg.sender);
         if (
             nextEpochStartTime <
             depositRecord.lastDepositTime +
@@ -227,9 +226,9 @@ contract TrancheVault is
         );
 
         uint256 currentEpochId = epochManager.currentEpochId();
-        EpochRedemptionSummary memory currRedemptionSummary = epochRedemptionSummaries[
+        EpochRedemptionSummary memory currRedemptionSummary = _getEpochRedemptionSummary(
             currentEpochId
-        ];
+        );
         if (currRedemptionSummary.totalSharesRequested > 0) {
             // If the current epoch already has redemption requests, then add the new redemption request
             // to it.
@@ -239,7 +238,7 @@ contract TrancheVault is
             currRedemptionSummary.epochId = uint64(currentEpochId);
             currRedemptionSummary.totalSharesRequested = uint96(shares);
         }
-        epochRedemptionSummaries[currentEpochId] = currRedemptionSummary;
+        _setEpochRedemptionSummary(currRedemptionSummary);
 
         LenderRedemptionRecord memory lenderRedemptionRecord = _getLatestLenderRedemptionRecord(
             msg.sender,
@@ -248,13 +247,13 @@ contract TrancheVault is
         lenderRedemptionRecord.numSharesRequested += uint96(shares);
         uint256 principalRequested = (depositRecord.principal * shares) / sharesBalance;
         lenderRedemptionRecord.principalRequested += uint96(principalRequested);
-        lenderRedemptionRecords[msg.sender] = lenderRedemptionRecord;
+        _setLenderRedemptionRecord(msg.sender, lenderRedemptionRecord);
         depositRecord.principal = uint96(
             depositRecord.principal > principalRequested
                 ? depositRecord.principal - principalRequested
                 : 0
         );
-        depositRecords[msg.sender] = depositRecord;
+        _setDepositRecord(msg.sender, depositRecord);
 
         ERC20Upgradeable._transfer(msg.sender, address(this), shares);
 
@@ -279,24 +278,24 @@ contract TrancheVault is
             revert Errors.InsufficientSharesForRequest();
         }
 
-        DepositRecord memory depositRecord = depositRecords[msg.sender];
+        DepositRecord memory depositRecord = _getDepositRecord(msg.sender);
         depositRecord.principal +=
             (lenderRedemptionRecord.principalRequested * uint96(shares)) /
             lenderRedemptionRecord.numSharesRequested;
-        depositRecords[msg.sender] = depositRecord;
+        _setDepositRecord(msg.sender, depositRecord);
 
         uint96 newNumSharesRequested = lenderRedemptionRecord.numSharesRequested - uint96(shares);
         lenderRedemptionRecord.principalRequested =
             (lenderRedemptionRecord.principalRequested * newNumSharesRequested) /
             lenderRedemptionRecord.numSharesRequested;
         lenderRedemptionRecord.numSharesRequested = newNumSharesRequested;
-        lenderRedemptionRecords[msg.sender] = lenderRedemptionRecord;
+        _setLenderRedemptionRecord(msg.sender, lenderRedemptionRecord);
 
-        EpochRedemptionSummary memory currRedemptionSummary = epochRedemptionSummaries[
+        EpochRedemptionSummary memory currRedemptionSummary = _getEpochRedemptionSummary(
             currentEpochId
-        ];
+        );
         currRedemptionSummary.totalSharesRequested -= uint96(shares);
-        epochRedemptionSummaries[currentEpochId] = currRedemptionSummary;
+        _setEpochRedemptionSummary(currRedemptionSummary);
 
         ERC20Upgradeable._transfer(address(this), msg.sender, shares);
 
@@ -313,7 +312,7 @@ contract TrancheVault is
         uint256 withdrawable = record.totalAmountProcessed - record.totalAmountWithdrawn;
         if (withdrawable > 0) {
             record.totalAmountWithdrawn += uint96(withdrawable);
-            lenderRedemptionRecords[msg.sender] = record;
+            _setLenderRedemptionRecord(msg.sender, record);
             underlyingToken.safeTransfer(msg.sender, withdrawable);
             emit LenderFundDisbursed(msg.sender, msg.sender, withdrawable);
         }
@@ -332,16 +331,16 @@ contract TrancheVault is
             address lender = nonReinvestingLenders[i];
             uint256 shares = ERC20Upgradeable.balanceOf(lender);
             uint256 assets = (shares * price) / DEFAULT_DECIMALS_FACTOR;
-            DepositRecord memory depositRecord = depositRecords[lender];
+            DepositRecord memory depositRecord = _getDepositRecord(lender);
             if (assets > depositRecord.principal) {
                 uint256 yield = assets - depositRecord.principal;
+                tranchesAssets[trancheIndex] -= uint96(yield);
                 // Round up the number of shares the lender has to burn in order to receive
                 // the given amount of yield. The result favors the pool.
                 shares = Math.ceilDiv(yield * DEFAULT_DECIMALS_FACTOR, price);
                 ERC20Upgradeable._burn(lender, shares);
                 poolSafe.withdraw(lender, yield);
-                tranchesAssets[trancheIndex] -= uint96(yield);
-                emit YieldPaidout(lender, yield, shares);
+                emit YieldPaidOut(lender, yield, shares);
             }
         }
         poolSafe.resetUnprocessedProfit();
@@ -355,8 +354,7 @@ contract TrancheVault is
         override
         returns (EpochRedemptionSummary memory redemptionSummary)
     {
-        uint256 epochId = epochManager.currentEpochId();
-        redemptionSummary = epochRedemptionSummaries[epochId];
+        redemptionSummary = _getEpochRedemptionSummary(epochManager.currentEpochId());
     }
 
     /**
@@ -376,10 +374,7 @@ contract TrancheVault is
      * @param account The lender's account
      */
     function cancellableRedemptionShares(address account) external view returns (uint256 shares) {
-        LenderRedemptionRecord memory lenderRedemptionRecord = _getLatestLenderRedemptionRecordFor(
-            account
-        );
-        shares = lenderRedemptionRecord.numSharesRequested;
+        shares = _getLatestLenderRedemptionRecordFor(account).numSharesRequested;
     }
 
     function convertToShares(uint256 assets) external view returns (uint256 shares) {
@@ -410,19 +405,12 @@ contract TrancheVault is
         return pool.trancheTotalAssets(trancheIndex);
     }
 
-    function totalSupply() public view override returns (uint256) {
-        return ERC20Upgradeable.totalSupply();
-    }
-
     function convertToAssets(uint256 shares) public view returns (uint256 assets) {
         uint256 tempTotalAssets = totalAssets();
         uint256 tempTotalSupply = ERC20Upgradeable.totalSupply();
         return tempTotalSupply == 0 ? shares : (shares * tempTotalAssets) / tempTotalSupply;
     }
 
-    /**
-     * @notice Gets address for underlyingToken, pool, poolSafe, and epochManager from poolConfig
-     */
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = _poolConfig.underlyingToken();
         assert(addr != address(0));
@@ -440,10 +428,6 @@ contract TrancheVault is
         addr = _poolConfig.epochManager();
         assert(addr != address(0));
         epochManager = IEpochManager(addr);
-
-        addr = _poolConfig.calendar();
-        assert(addr != address(0));
-        calendar = ICalendar(addr);
     }
 
     function _deposit(uint256 assets, address receiver) internal returns (uint256 shares) {
@@ -461,10 +445,10 @@ contract TrancheVault is
         uint256 trancheAssets = tranches[trancheIndex];
         shares = _convertToShares(assets, trancheAssets);
         ERC20Upgradeable._mint(receiver, shares);
-        DepositRecord memory depositRecord = depositRecords[receiver];
+        DepositRecord memory depositRecord = _getDepositRecord(receiver);
         depositRecord.principal += uint96(assets);
         depositRecord.lastDepositTime = uint64(block.timestamp);
-        depositRecords[receiver] = depositRecord;
+        _setDepositRecord(receiver, depositRecord);
 
         tranches[trancheIndex] += uint96(assets);
         pool.updateTranchesAssets(tranches);
@@ -481,6 +465,21 @@ contract TrancheVault is
                 break;
             }
         }
+    }
+
+    function _setLenderRedemptionRecord(
+        address account,
+        LenderRedemptionRecord memory record
+    ) internal {
+        lenderRedemptionRecords[account] = record;
+    }
+
+    function _setEpochRedemptionSummary(EpochRedemptionSummary memory summary) internal {
+        epochRedemptionSummaries[summary.epochId] = summary;
+    }
+
+    function _setDepositRecord(address account, DepositRecord memory record) internal {
+        depositRecords[account] = record;
     }
 
     function _convertToShares(
@@ -521,7 +520,7 @@ contract TrancheVault is
                 epochId < currentEpochId && remainingShares > 0;
                 ++epochId
             ) {
-                EpochRedemptionSummary memory summary = epochRedemptionSummaries[epochId];
+                EpochRedemptionSummary memory summary = _getEpochRedemptionSummary(epochId);
                 if (summary.totalSharesProcessed > 0) {
                     lenderRedemptionRecord.totalAmountProcessed += uint96(
                         (remainingShares * summary.totalAmountProcessed) /
@@ -547,8 +546,14 @@ contract TrancheVault is
         lenderRedemptionRecord.nextEpochIdToProcess = uint64(currentEpochId);
     }
 
-    function _onlyEpochManager(address account) internal view {
-        if (account != address(epochManager)) revert Errors.AuthorizedContractCallerRequired();
+    function _getEpochRedemptionSummary(
+        uint256 epochId
+    ) internal view returns (EpochRedemptionSummary memory) {
+        return epochRedemptionSummaries[epochId];
+    }
+
+    function _getDepositRecord(address account) internal view returns (DepositRecord memory) {
+        return depositRecords[account];
     }
 
     function _onlyAuthorizedInitialDepositor(address account) internal view {

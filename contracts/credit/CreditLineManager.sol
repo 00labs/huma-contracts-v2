@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {IBorrowerLevelCreditManager} from "./interfaces/IBorrowerLevelCreditManager.sol";
+import {ICreditLineManager} from "./interfaces/ICreditLineManager.sol";
 import {CreditManager} from "./CreditManager.sol";
 import {PayPeriodDuration} from "../common/SharedDefs.sol";
 import {Errors} from "../common/Errors.sol";
 
 /**
- * BorrowerLevelCreditManager has a set of administrative functions to manage the settings
+ * @notice CreditLineManager has a set of administrative functions to manage the settings
  * for a borrower-level credit. A borrower-level credit can have many drawdowns and paybacks
  * with or without backing of a collateral or receivable, but the balance is all aggregated
  * at the borrower-level. A classic example of borrower-level credit is credit line.
  */
-contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManager {
+contract CreditLineManager is CreditManager, ICreditLineManager {
     event CreditLineApproved(
         address indexed borrower,
         bytes32 indexed creditHash,
@@ -24,7 +24,7 @@ contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManage
         bool revolving
     );
 
-    /// @inheritdoc IBorrowerLevelCreditManager
+    /// @inheritdoc ICreditLineManager
     function approveBorrower(
         address borrower,
         uint96 creditLimit,
@@ -61,7 +61,7 @@ contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManage
         );
     }
 
-    /// @inheritdoc IBorrowerLevelCreditManager
+    /// @inheritdoc ICreditLineManager
     function startCommittedCredit(address borrower) external virtual override {
         poolConfig.onlyProtocolAndPoolOn();
         poolConfig.onlyPoolOwnerOrSentinelServiceAccount(msg.sender);
@@ -71,7 +71,7 @@ contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManage
         _startCommittedCredit(creditHash);
     }
 
-    /// @inheritdoc IBorrowerLevelCreditManager
+    /// @inheritdoc ICreditLineManager
     function refreshCredit(address borrower) external virtual override {
         poolConfig.onlyProtocolAndPoolOn();
 
@@ -79,7 +79,7 @@ contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManage
         _refreshCredit(creditHash);
     }
 
-    /// @inheritdoc IBorrowerLevelCreditManager
+    /// @inheritdoc ICreditLineManager
     function triggerDefault(
         address borrower
     )
@@ -95,8 +95,8 @@ contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManage
         return _triggerDefault(creditHash);
     }
 
-    /// @inheritdoc IBorrowerLevelCreditManager
-    /// @dev Only the borrower or EA Service account can call this function
+    /// @inheritdoc ICreditLineManager
+    /// @custom:access Only the borrower or EA Service account can call this function
     function closeCredit(address borrower) external virtual override {
         poolConfig.onlyProtocolAndPoolOn();
         if (msg.sender != borrower && msg.sender != humaConfig.eaServiceAccount())
@@ -107,7 +107,7 @@ contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManage
         _closeCredit(creditHash);
     }
 
-    /// @inheritdoc IBorrowerLevelCreditManager
+    /// @inheritdoc ICreditLineManager
     function pauseCredit(address borrower) external virtual override {
         poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
@@ -116,7 +116,7 @@ contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManage
         _pauseCredit(creditHash);
     }
 
-    /// @inheritdoc IBorrowerLevelCreditManager
+    /// @inheritdoc ICreditLineManager
     function unpauseCredit(address borrower) external virtual override {
         poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
@@ -125,7 +125,7 @@ contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManage
         _unpauseCredit(creditHash);
     }
 
-    /// @inheritdoc IBorrowerLevelCreditManager
+    /// @inheritdoc ICreditLineManager
     function updateYield(address borrower, uint256 yieldInBps) external virtual override {
         poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
@@ -134,7 +134,7 @@ contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManage
         _updateYield(creditHash, yieldInBps);
     }
 
-    /// @inheritdoc IBorrowerLevelCreditManager
+    /// @inheritdoc ICreditLineManager
     function extendRemainingPeriod(
         address borrower,
         uint256 numOfPeriods
@@ -146,7 +146,7 @@ contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManage
         _extendRemainingPeriod(creditHash, numOfPeriods);
     }
 
-    /// @inheritdoc IBorrowerLevelCreditManager
+    /// @inheritdoc ICreditLineManager
     function updateLimitAndCommitment(
         address borrower,
         uint256 creditLimit,
@@ -159,7 +159,7 @@ contract BorrowerLevelCreditManager is CreditManager, IBorrowerLevelCreditManage
         _updateLimitAndCommitment(getCreditHash(borrower), creditLimit, committedAmount);
     }
 
-    /// @inheritdoc IBorrowerLevelCreditManager
+    /// @inheritdoc ICreditLineManager
     function waiveLateFee(address borrower, uint256 amount) external {
         poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();

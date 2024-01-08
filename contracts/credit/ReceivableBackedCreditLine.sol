@@ -161,17 +161,16 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
             poolSafe.deposit(msg.sender, paymentAmount);
             poolSafe.withdraw(borrower, paymentAmount);
         } else if (paymentAmount > drawdownAmount) {
-            poolSafe.deposit(msg.sender, drawdownAmount);
-            poolSafe.withdraw(borrower, drawdownAmount);
-
             uint256 amount = paymentAmount - drawdownAmount;
             (amountPaid, paidoff) = _makePrincipalPayment(borrower, creditHash, amount);
+            poolSafe.deposit(msg.sender, drawdownAmount);
+            poolSafe.withdraw(borrower, drawdownAmount);
         } else {
             // paymentAmount < drawdownAmount
-            poolSafe.deposit(msg.sender, paymentAmount);
-            poolSafe.withdraw(borrower, paymentAmount);
             uint256 amount = drawdownAmount - paymentAmount;
             netAmountToBorrower = _drawdown(borrower, creditHash, amount);
+            poolSafe.deposit(msg.sender, paymentAmount);
+            poolSafe.withdraw(borrower, paymentAmount);
         }
 
         emit PrincipalPaymentMadeWithReceivable(

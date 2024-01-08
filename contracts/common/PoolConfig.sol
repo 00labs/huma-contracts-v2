@@ -14,8 +14,6 @@ import {ADMIN_LOSS_COVER_INDEX, HUNDRED_PERCENT_IN_BPS, PayPeriodDuration} from 
 import {HumaConfig} from "./HumaConfig.sol";
 import {Errors} from "./Errors.sol";
 
-import "hardhat/console.sol";
-
 struct PoolSettings {
     // The maximum credit line for a borrower in terms of the amount of poolTokens
     uint96 maxCreditLine;
@@ -43,9 +41,9 @@ struct AdminRnR {
     uint16 rewardRateInBpsForEA;
     // Percentage of pool income allocated to Pool Owner
     uint16 rewardRateInBpsForPoolOwner;
-    // Percentage of the _liquidityCap to be contributed by EA
+    // Percentage of the liquidityCap to be contributed by EA
     uint16 liquidityRateInBpsByEA;
-    // Percentage of the _liquidityCap to be contributed by Pool Owner
+    // Percentage of the liquidityCap to be contributed by Pool Owner
     uint16 liquidityRateInBpsByPoolOwner;
 }
 

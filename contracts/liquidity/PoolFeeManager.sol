@@ -13,8 +13,6 @@ import {Errors} from "../common/Errors.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import "hardhat/console.sol";
-
 contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
     using SafeERC20 for IERC20;
 
@@ -243,9 +241,6 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         ) = _getAvailableFeesToInvestInFirstLossCover();
         if (feesLiquidity == 0) return _accruedIncomes;
 
-        // Transfers tokens from PoolSafe to this contract, firstLossCover will transfer token from this contract
-        // to itself while calling depositCoverFor.
-        poolSafe.withdraw(address(this), feesLiquidity);
         uint256 totalAvailableFees = availableIncomes.protocolIncome +
             availableIncomes.poolOwnerIncome +
             availableIncomes.eaIncome;
@@ -253,16 +248,19 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
 
         uint256 poolOwnerFees = (availableIncomes.poolOwnerIncome * feesLiquidity) /
             totalAvailableFees;
-        firstLossCover.depositCoverFor(poolOwnerFees, poolConfig.poolOwnerTreasury());
         uint256 eaFees = (availableIncomes.eaIncome * feesLiquidity) / totalAvailableFees;
-        firstLossCover.depositCoverFor(eaFees, poolConfig.evaluationAgent());
         uint256 protocolFees = feesLiquidity - poolOwnerFees - eaFees;
-        firstLossCover.depositCoverFor(protocolFees, humaConfig.humaTreasury());
         incomes.protocolIncome -= uint96(protocolFees);
         incomes.poolOwnerIncome -= uint96(poolOwnerFees);
         incomes.eaIncome -= uint96(eaFees);
-
         _accruedIncomes = incomes;
+
+        // Transfers tokens from PoolSafe to this contract, firstLossCover will transfer token from this contract
+        // to itself while calling depositCoverFor.
+        poolSafe.withdraw(address(this), feesLiquidity);
+        firstLossCover.depositCoverFor(poolOwnerFees, poolConfig.poolOwnerTreasury());
+        firstLossCover.depositCoverFor(eaFees, poolConfig.evaluationAgent());
+        firstLossCover.depositCoverFor(protocolFees, humaConfig.humaTreasury());
     }
 
     function _getAvailableIncomes() internal view returns (AccruedIncomes memory incomes) {

@@ -179,10 +179,10 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
     }
 
     /**
-     * @notice drawdown helper function.
+     * @notice Helper function for drawdown.
      * @param creditHash the credit hash
      * @param borrowAmount the amount to borrow
-     * @dev Access control is done outside of this function.
+     * @custom:access Access control is done outside of this function.
      */
     function _drawdown(
         address borrower,
@@ -290,7 +290,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
 
         uint256 payoffAmount = dueManager.getPayoffAmount(cr);
         uint256 amountToCollect = amount < payoffAmount ? amount : payoffAmount;
-        PaymentRecord memory paymentRecord;
+        PaymentRecord memory paymentRecord = PaymentRecord(0, 0, 0, 0, 0, 0);
 
         if (amount < payoffAmount) {
             // Apply the payment to past due first.
@@ -440,7 +440,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
     }
 
     /**
-     * @notice Borrower makes principal payment. The payment is applied towards principal only.
+     * @notice Makes a payment that's applied towards principal only.
      * @param creditHash the hashcode of the credit
      * @param amount the payment amount
      * @return amountPaid the actual amount paid to the contract. When the tendered
@@ -540,11 +540,12 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
     /**
      * @notice Checks if drawdown is allowed for the borrower at this point of time
      * @dev Checks to make sure the following conditions are met:
-     * 1) The borrower has satisfied the first loss obligation
-     * 2) The credit is in Approved or Goodstanding state
-     * 3) For first time drawdown, the approval is not expired
-     * 4) Drawdown amount is no more than available credit
-     * @dev Please note cr.nextDueDate is the credit expiration date for the first drawdown.
+     * 1) If this is not the first drardown, then the drawdown is not happening in the last period
+     * 2) The borrower has satisfied the first loss obligation
+     * 3) The credit is in Approved or GoodStanding state
+     * 4) If there is a designated start date and this is the first drawdown, then the drawdown must happen
+     *    after that date
+     * 5) Drawdown amount is no more than available credit
      */
     function _checkDrawdownEligibility(
         CreditRecord memory cr,

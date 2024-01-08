@@ -6,10 +6,10 @@ import { expect } from "chai";
 import { BigNumber as BN } from "ethers";
 import { ethers } from "hardhat";
 import {
-    BorrowerLevelCreditManager,
     Calendar,
     CreditDueManager,
     CreditLine,
+    CreditLineManager,
     EpochManager,
     EvaluationAgentNFT,
     FirstLossCover,
@@ -88,7 +88,7 @@ let poolConfigContract: PoolConfig,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: CreditLine,
     creditDueManagerContract: CreditDueManager,
-    creditManagerContract: BorrowerLevelCreditManager;
+    creditManagerContract: CreditLineManager;
 
 let feeCalculator: FeeCalculator, pnlCalculator: ProfitAndLossCalculator;
 let epochChecker: EpochChecker;
@@ -622,7 +622,7 @@ describe("Lender Integration Test", function () {
                 defaultDeployer,
                 poolOwner,
                 "CreditLine",
-                "BorrowerLevelCreditManager",
+                "CreditLineManager",
             );
 
             await configPool({ tranchesRiskAdjustmentInBps: RISK_ADJUSTMENT_IN_BPS });
@@ -861,8 +861,6 @@ describe("Lender Integration Test", function () {
             let [expectedTranchesAssets, expectedTranchesProfits, expectedFirstLossCoverProfits] =
                 await pnlCalculator.endRiskAdjustedProfitCalculation(poolProfit);
 
-            // console.log(`expectedTranchesProfits: ${expectedTranchesProfits}`);
-
             await checkAssetsForProfit(
                 expectedTranchesAssets,
                 expectedFirstLossCoverProfits,
@@ -991,10 +989,6 @@ describe("Lender Integration Test", function () {
         it("Epoch 2, day 10: Senior lenders attempt to inject liquidity, but blocked by senior : junior ratio", async function () {
             currentTS = currentTS + 4 * 24 * 3600;
             await setNextBlockTimestamp(currentTS);
-
-            // console.log(
-            //     `junior assets: ${await juniorTrancheVaultContract.totalAssets()}, senior assets: ${await seniorTrancheVaultContract.totalAssets()}`,
-            // );
 
             await expect(
                 seniorTrancheVaultContract
@@ -1148,7 +1142,6 @@ describe("Lender Integration Test", function () {
 
             let [expectedTranchesAssets, expectedTranchesProfits, expectedFirstLossCoverProfits] =
                 await pnlCalculator.endRiskAdjustedProfitCalculation(poolProfit);
-            // console.log(`expectedTranchesProfits: ${expectedTranchesProfits}`);
 
             await checkAssetsForProfit(
                 expectedTranchesAssets,
@@ -1220,10 +1213,6 @@ describe("Lender Integration Test", function () {
             ).to.closeTo(jLenderAmountsProcessed[0], 1);
             juniorShareRequested = jLenderShareRequests[0];
 
-            // console.log(
-            //     `jLenderAmountsProcessed[0]: ${jLenderAmountsProcessed[0]}, jLenderShareRequests[0]: ${jLenderShareRequests[0]}, jLenderPrincipalRequests[0]: ${jLenderPrincipalRequests[0]}`,
-            // );
-
             await creditManagerContract.refreshCredit(borrower.address);
             expect((await creditContract.getCreditRecord(creditHash)).nextDueDate).to.equal(
                 newEndTime,
@@ -1241,8 +1230,6 @@ describe("Lender Integration Test", function () {
         it("Epoch 4, day 10: Pool admins withdraw fees", async function () {
             currentTS = currentTS + 8 * 24 * 3600;
             await setNextBlockTimestamp(currentTS);
-
-            // console.log(`currentTS: ${currentTS}`);
 
             let amount = toToken(100);
 
@@ -1289,15 +1276,8 @@ describe("Lender Integration Test", function () {
             currentTS = cr.nextDueDate.toNumber() + 100;
             await setNextBlockTimestamp(currentTS);
 
-            // console.log(`currentTS: ${currentTS}`);
-
             await juniorTrancheVaultContract.processYieldForLenders();
             await seniorTrancheVaultContract.processYieldForLenders();
-
-            // let epoch = await juniorTrancheVaultContract.epochInfoByEpochId(currentEpochId);
-            // console.log(`junior epoch: ${epoch}`);
-            // epoch = await seniorTrancheVaultContract.epochInfoByEpochId(currentEpochId);
-            // console.log(`senior epoch: ${epoch}`);
 
             let juniorOldAssets = await juniorTrancheVaultContract.totalAssets();
             let juniorOldShares = await juniorTrancheVaultContract.totalSupply();
@@ -1423,7 +1403,6 @@ describe("Lender Integration Test", function () {
 
             let [expectedTranchesAssets, expectedTranchesProfits, expectedFirstLossCoverProfits] =
                 await pnlCalculator.endRiskAdjustedProfitCalculation(poolProfit);
-            // console.log(`expectedTranchesProfits: ${expectedTranchesProfits}`);
 
             await checkAssetsForProfit(
                 expectedTranchesAssets,
@@ -1476,8 +1455,6 @@ describe("Lender Integration Test", function () {
             let [expectedTranchesAssets, expectedTranchesProfits, expectedFirstLossCoverProfits] =
                 await pnlCalculator.endRiskAdjustedProfitCalculation(poolProfit);
 
-            // console.log(`expectedTranchesProfits: ${expectedTranchesProfits}`);
-
             await checkAssetsForProfit(
                 expectedTranchesAssets,
                 expectedFirstLossCoverProfits,
@@ -1504,7 +1481,6 @@ describe("Lender Integration Test", function () {
             let amount = await juniorTrancheVaultContract.withdrawableAssets(
                 jActiveLenders[0].address,
             );
-            // console.log(`withdrawableAssets: ${amount}`);
             let lenderOldBalance = await mockTokenContract.balanceOf(jActiveLenders[0].address);
             let trancheOldBalance = await mockTokenContract.balanceOf(
                 juniorTrancheVaultContract.address,
@@ -1614,10 +1590,6 @@ describe("Lender Integration Test", function () {
 
             currentEpochId = currentEpochId.add(1);
 
-            // console.log(
-            //     `junior assets: ${await juniorTrancheVaultContract.totalAssets()}, senior assets: ${await seniorTrancheVaultContract.totalAssets()}`,
-            // );
-
             let oldFees = await poolFeeManagerContract.getAccruedIncomes();
             let borrowerFLCOldBalance = await mockTokenContract.balanceOf(
                 borrowerFirstLossCoverContract.address,
@@ -1632,8 +1604,6 @@ describe("Lender Integration Test", function () {
             let dd = await creditContract.getDueDetail(creditHash);
             let profit = cr.yieldDue.add(dd.yieldPastDue).add(dd.lateFee);
             let loss = cr.nextDue.add(cr.totalPastDue).add(cr.unbilledPrincipal);
-            // console.log(`dd: ${dd}`);
-            // printCreditRecord("cr", cr);
 
             let [protocolReward, poolOwnerReward, eaReward, poolProfit] =
                 await feeCalculator.calcPoolFeesForProfit(profit);
@@ -1642,26 +1612,12 @@ describe("Lender Integration Test", function () {
             let [expectedTranchesAssets, expectedTranchesLosses, expectedFirstLossCoverLosses] =
                 await pnlCalculator.endRiskAdjustedProfitAndLossCalculation(poolProfit, loss);
 
-            // console.log(`expectedTranchesAssets: ${expectedTranchesAssets}`);
-            // console.log(`expectedTranchesDeltas: ${expectedTranchesDeltas}`);
-            // console.log(`expectedFirstLossCoverDelas: ${expectedFirstLossCoverDelas}`);
-
-            // console.log(
-            //     `junior assets: ${await juniorTrancheVaultContract.totalAssets()}, senior assets: ${await seniorTrancheVaultContract.totalAssets()}`,
-            // );
-
             await checkAssetsForLoss(
                 expectedTranchesAssets,
                 expectedFirstLossCoverLosses,
                 borrowerFLCOldBalance,
                 affiliateFLCOldBalance,
             );
-
-            // console.log(
-            //     `poolSafeOldBalance: ${poolSafeOldBalance}, poolSafeNewBalance: ${await mockTokenContract.balanceOf(
-            //         poolSafeContract.address,
-            //     )}`,
-            // );
 
             let expectedPoolSafeBalanceIncremnet = expectedFirstLossCoverLosses[
                 BORROWER_LOSS_COVER_INDEX
@@ -1760,10 +1716,6 @@ describe("Lender Integration Test", function () {
                     await seniorTrancheVaultContract.balanceOf(sActiveLenders[2].address),
                 ],
             );
-
-            // console.log(
-            //     `seniorShareRequested: ${seniorShareRequested}, juniorShareRequested: ${juniorShareRequested}`,
-            // );
         });
 
         it("Epoch 10, day after the epoch end date: Close epoch and the fulfillment of the redemption requests", async function () {
@@ -1780,9 +1732,6 @@ describe("Lender Integration Test", function () {
             );
             let jAmountProcessed =
                 await juniorTrancheVaultContract.convertToAssets(juniorShareRequested);
-            // console.log(
-            //     `jAmountProcessed: ${jAmountProcessed}, juniorShareRequested: ${juniorShareRequested}`,
-            // );
             let seniorOldAssets = await seniorTrancheVaultContract.totalAssets();
             let seniorOldShares = await seniorTrancheVaultContract.totalSupply();
             let seniorOldBalance = await mockTokenContract.balanceOf(
@@ -1907,18 +1856,13 @@ describe("Lender Integration Test", function () {
                 defaultDeployer,
                 poolOwner,
                 "CreditLine",
-                "BorrowerLevelCreditManager",
+                "CreditLineManager",
             );
 
             await configPool({ fixedSeniorYieldInBps: FIXED_SENIOR_YIELD_IN_BPS });
         }
 
         before(async function () {
-            // console.log(
-            //     `FixedYieldTranchesPolicy before block.timestamp: ${
-            //         (await getLatestBlock()).timestamp
-            //     }`,
-            // );
             sId = await evmSnapshot();
             await prepare();
         });
@@ -1941,12 +1885,10 @@ describe("Lender Integration Test", function () {
             sLenderWithdrawals = Array(NUM_SENIOR_LENDERS).fill(BN.from(0));
             sActiveLenders = [];
             jActiveLenders = [];
-            // console.log("FixedYieldTranchesPolicy after");
         });
 
         it("Epoch 0, day 0: Lenders provide liquidity and the borrower makes initial drawdown", async function () {
             let block = await getLatestBlock();
-            // console.log(`block.timestamp: ${block.timestamp}`);
             currentTS =
                 timestampToMoment(block.timestamp, "YYYY-MM-01").add(1, "month").unix() + 300;
             await setNextBlockTimestamp(currentTS);
@@ -2021,14 +1963,9 @@ describe("Lender Integration Test", function () {
                 expectedFirstLossCoverProfits,
                 newTracker,
             ] = await pnlCalculator.endFixedSeniorYieldProfitCalculation(poolProfit, tracker);
-            // console.log(`expectedTranchesProfits: ${expectedTranchesProfits}`);
 
             tracker = await tranchesPolicyContract.seniorYieldTracker();
             checkSeniorYieldTrackersMatch(tracker, newTracker);
-
-            // console.log(
-            //     `newTracker.totalAssets: ${newTracker.totalAssets}, newTracker.lastUpdatedDate: ${newTracker.lastUpdatedDate}, newTracker.unpaidYield: ${newTracker.unpaidYield}`,
-            // );
 
             await checkAssetsForProfit(
                 expectedTranchesAssets,
@@ -2087,7 +2024,6 @@ describe("Lender Integration Test", function () {
                 expectedFirstLossCoverProfits,
                 newTracker,
             ] = await pnlCalculator.endFixedSeniorYieldProfitCalculation(poolProfit, tracker);
-            // console.log(`expectedTranchesProfits: ${expectedTranchesProfits}`);
 
             tracker = await tranchesPolicyContract.seniorYieldTracker();
             checkSeniorYieldTrackersMatch(tracker, newTracker);
@@ -2177,7 +2113,6 @@ describe("Lender Integration Test", function () {
                 expectedFirstLossCoverProfits,
                 newTracker,
             ] = await pnlCalculator.endFixedSeniorYieldProfitCalculation(poolProfit, tracker);
-            // console.log(`expectedTranchesProfits: ${expectedTranchesProfits}`);
 
             tracker = await tranchesPolicyContract.seniorYieldTracker();
             checkSeniorYieldTrackersMatch(tracker, newTracker);
@@ -2319,10 +2254,6 @@ describe("Lender Integration Test", function () {
         it("Epoch 2, day 10: Senior lenders attempts to inject liquidity, but blocked by senior : junior ratio", async function () {
             currentTS = currentTS + 4 * 24 * 3600;
             await setNextBlockTimestamp(currentTS);
-
-            // console.log(
-            //     `junior assets: ${await juniorTrancheVaultContract.totalAssets()}, senior assets: ${await seniorTrancheVaultContract.totalAssets()}`,
-            // );
 
             await expect(
                 seniorTrancheVaultContract
@@ -2481,7 +2412,6 @@ describe("Lender Integration Test", function () {
                 expectedFirstLossCoverProfits,
                 newTracker,
             ] = await pnlCalculator.endFixedSeniorYieldProfitCalculation(poolProfit, tracker);
-            // console.log(`expectedTranchesProfits: ${expectedTranchesProfits}`);
 
             tracker = await tranchesPolicyContract.seniorYieldTracker();
             checkSeniorYieldTrackersMatch(tracker, newTracker);
@@ -2556,10 +2486,6 @@ describe("Lender Integration Test", function () {
             ).to.closeTo(jLenderAmountsProcessed[0], 1);
             juniorShareRequested = jLenderShareRequests[0];
 
-            // console.log(
-            //     `jLenderAmountsProcessed[0]: ${jLenderAmountsProcessed[0]}, jLenderShareRequests[0]: ${jLenderShareRequests[0]}, jLenderPrincipalRequests[0]: ${jLenderPrincipalRequests[0]}`,
-            // );
-
             await creditManagerContract.refreshCredit(borrower.address);
             expect((await creditContract.getCreditRecord(creditHash)).nextDueDate).to.equal(
                 newEndTime,
@@ -2577,8 +2503,6 @@ describe("Lender Integration Test", function () {
         it("Epoch 4, day 10: Pool admins withdraws fees", async function () {
             currentTS = currentTS + 8 * 24 * 3600;
             await setNextBlockTimestamp(currentTS);
-
-            // console.log(`currentTS: ${currentTS}`);
 
             let amount = toToken(100);
 
@@ -2625,15 +2549,8 @@ describe("Lender Integration Test", function () {
             currentTS = cr.nextDueDate.toNumber() + 100;
             await setNextBlockTimestamp(currentTS);
 
-            // console.log(`currentTS: ${currentTS}`);
-
             await juniorTrancheVaultContract.processYieldForLenders();
             await seniorTrancheVaultContract.processYieldForLenders();
-
-            // let epoch = await juniorTrancheVaultContract.epochInfoByEpochId(currentEpochId);
-            // console.log(`junior epoch: ${epoch}`);
-            // epoch = await seniorTrancheVaultContract.epochInfoByEpochId(currentEpochId);
-            // console.log(`senior epoch: ${epoch}`);
 
             let juniorOldAssets = await juniorTrancheVaultContract.totalAssets();
             let juniorOldShares = await juniorTrancheVaultContract.totalSupply();
@@ -2764,7 +2681,6 @@ describe("Lender Integration Test", function () {
                 expectedFirstLossCoverProfits,
                 newTracker,
             ] = await pnlCalculator.endFixedSeniorYieldProfitCalculation(poolProfit, tracker);
-            // console.log(`expectedTranchesProfits: ${expectedTranchesProfits}`);
 
             tracker = await tranchesPolicyContract.seniorYieldTracker();
             checkSeniorYieldTrackersMatch(tracker, newTracker);
@@ -2824,7 +2740,6 @@ describe("Lender Integration Test", function () {
                 expectedFirstLossCoverProfits,
                 newTracker,
             ] = await pnlCalculator.endFixedSeniorYieldProfitCalculation(poolProfit, tracker);
-            // console.log(`expectedTranchesProfits: ${expectedTranchesProfits}`);
 
             tracker = await tranchesPolicyContract.seniorYieldTracker();
             checkSeniorYieldTrackersMatch(tracker, newTracker);
@@ -2863,14 +2778,7 @@ describe("Lender Integration Test", function () {
             currentTS = cr.nextDueDate.toNumber() + 100;
             await setNextBlockTimestamp(currentTS);
 
-            // console.log(`currentTS: ${currentTS}`);
-
             await testYieldPayout();
-
-            // let epoch = await juniorTrancheVaultContract.epochInfoByEpochId(currentEpochId);
-            // console.log(`junior epoch: ${epoch}`);
-            // epoch = await seniorTrancheVaultContract.epochInfoByEpochId(currentEpochId);
-            // console.log(`senior epoch: ${epoch}`);
 
             let seniorOldAssets = await seniorTrancheVaultContract.totalAssets();
             let seniorOldShares = await seniorTrancheVaultContract.totalSupply();
@@ -2961,10 +2869,6 @@ describe("Lender Integration Test", function () {
 
             currentEpochId = currentEpochId.add(1);
 
-            // console.log(
-            //     `junior assets: ${await juniorTrancheVaultContract.totalAssets()}, senior assets: ${await seniorTrancheVaultContract.totalAssets()}`,
-            // );
-
             let oldFees = await poolFeeManagerContract.getAccruedIncomes();
             let borrowerFLCOldBalance = await mockTokenContract.balanceOf(
                 borrowerFirstLossCoverContract.address,
@@ -2980,8 +2884,6 @@ describe("Lender Integration Test", function () {
             let dd = await creditContract.getDueDetail(creditHash);
             let profit = cr.yieldDue.add(dd.yieldPastDue).add(dd.lateFee);
             let loss = cr.nextDue.add(cr.totalPastDue).add(cr.unbilledPrincipal);
-            // console.log(`dd: ${dd}`);
-            // printCreditRecord("cr", cr);
 
             let [protocolReward, poolOwnerReward, eaReward, poolProfit] =
                 await feeCalculator.calcPoolFeesForProfit(profit);
@@ -3001,26 +2903,12 @@ describe("Lender Integration Test", function () {
             tracker = await tranchesPolicyContract.seniorYieldTracker();
             checkSeniorYieldTrackersMatch(tracker, newTracker);
 
-            // console.log(`expectedTranchesAssets: ${expectedTranchesAssets}`);
-            // console.log(`expectedTranchesLosses: ${expectedTranchesLosses}`);
-            // console.log(`expectedFirstLossCoverLosses: ${expectedFirstLossCoverLosses}`);
-
-            // console.log(
-            //     `junior assets: ${await juniorTrancheVaultContract.totalAssets()}, senior assets: ${await seniorTrancheVaultContract.totalAssets()}`,
-            // );
-
             await checkAssetsForLoss(
                 expectedTranchesAssets,
                 expectedFirstLossCoverLosses,
                 borrowerFLCOldBalance,
                 affiliateFLCOldBalance,
             );
-
-            // console.log(
-            //     `poolSafeOldBalance: ${poolSafeOldBalance}, poolSafeNewBalance: ${await mockTokenContract.balanceOf(
-            //         poolSafeContract.address,
-            //     )}`,
-            // );
 
             let expectedPoolSafeBalanceIncremnet = expectedFirstLossCoverLosses[
                 BORROWER_LOSS_COVER_INDEX
@@ -3119,10 +3007,6 @@ describe("Lender Integration Test", function () {
                     await seniorTrancheVaultContract.balanceOf(sActiveLenders[2].address),
                 ],
             );
-
-            // console.log(
-            //     `seniorShareRequested: ${seniorShareRequested}, juniorShareRequested: ${juniorShareRequested}`,
-            // );
         });
 
         it("Epoch 10, day after the epoch end date: Close epoch and the fulfillment of the redemption requests", async function () {
@@ -3139,9 +3023,6 @@ describe("Lender Integration Test", function () {
             );
             let jAmountProcessed =
                 await juniorTrancheVaultContract.convertToAssets(juniorShareRequested);
-            // console.log(
-            //     `jAmountProcessed: ${jAmountProcessed}, juniorShareRequested: ${juniorShareRequested}`,
-            // );
             let seniorOldAssets = await seniorTrancheVaultContract.totalAssets();
             let seniorOldShares = await seniorTrancheVaultContract.totalSupply();
             let seniorOldBalance = await mockTokenContract.balanceOf(

@@ -9,7 +9,6 @@ import {PoolConfig, FirstLossCoverConfig, PoolSettings} from "../common/PoolConf
 import {PoolSettings, LPConfig, FrontLoadingFeesStructure, FeeStructure} from "../common/PoolConfig.sol";
 import {Errors} from "../common/Errors.sol";
 import {PayPeriodDuration} from "../common/SharedDefs.sol";
-
 import {LibTimelockController} from "./library/LibTimelockController.sol";
 
 interface IPoolConfigCacheLike {
@@ -20,7 +19,7 @@ interface IFirstLossCoverLike {
     function initialize(string memory name, string memory symbol, PoolConfig _poolConfig) external;
 }
 
-interface ITrancheVaultLike {
+interface IVaultLike {
     function initialize(
         string memory name,
         string memory symbol,
@@ -65,9 +64,9 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
     address public creditLineImplAddress;
     address public receivableBackedCreditLineImplAddress;
     address public receivableFactoringCreditImplAddress;
-    address public borrowerLevelCreditmanagerImplAddress;
+    address public CreditLineManagerImplAddress;
     address public receivableBackedCreditLineManagerImplAddress;
-    address public receivableLevelCreditManagerImplAddress;
+    address public receivableFactoringCreditManagerImplAddress;
 
     // pool implementation addresses
     address public poolConfigImplAddress;
@@ -91,25 +90,25 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
     uint256[100] private __gap;
 
     // events for implementation address changes
-    event poolConfigImplChanged(address oldAddress, address newAddress);
-    event poolFeeManagerImplChanged(address oldAddress, address newAddress);
-    event poolImplChanged(address oldAddress, address newAddress);
-    event poolSafeImplChanged(address oldAddress, address newAddress);
-    event firstLossCoverImplChanged(address oldAddress, address newAddress);
-    event tranchesPolicyImplChanged(address oldAddress, address newAddress);
-    event epochManagerImplChanged(address oldAddress, address newAddress);
-    event trancheVaultImplChanged(address oldAddress, address newAddress);
-    event creditDueManagerImplChanged(address oldAddress, address newAddress);
-    event receivableImplChanged(address oldAddress, address newAddress);
-    event calendarAddressChanged(address oldAddress, address newAddress);
-    event receivableBackedCreditLineImplChanged(address oldAddress, address newAddress);
-    event fixedSeniorYieldTranchesPolicyImplChanged(address oldAddress, address newAddress);
-    event riskAdjustedTranchesPolicyImpl(address oldAddress, address newAddress);
-    event borrowerLevelCreditmanagerImplChanged(address oldAddress, address newAddress);
-    event receivableBackedCreditLineManagerImplChanged(address oldAddress, address newAddress);
-    event receivableLevelCreditManagerImplChanged(address oldAddress, address newAddress);
-    event creditLineImplChanged(address oldAddress, address newAddress);
-    event receivableFactoringCreditImplChanged(address oldAddress, address newAddress);
+    event PoolConfigImplChanged(address oldAddress, address newAddress);
+    event PoolFeeManagerImplChanged(address oldAddress, address newAddress);
+    event PoolImplChanged(address oldAddress, address newAddress);
+    event PoolSafeImplChanged(address oldAddress, address newAddress);
+    event FirstLossCoverImplChanged(address oldAddress, address newAddress);
+    event TranchesPolicyImplChanged(address oldAddress, address newAddress);
+    event EpochManagerImplChanged(address oldAddress, address newAddress);
+    event TrancheVaultImplChanged(address oldAddress, address newAddress);
+    event CreditDueManagerImplChanged(address oldAddress, address newAddress);
+    event ReceivableImplChanged(address oldAddress, address newAddress);
+    event CalendarAddressChanged(address oldAddress, address newAddress);
+    event ReceivableBackedCreditLineImplChanged(address oldAddress, address newAddress);
+    event FixedSeniorYieldTranchesPolicyImplChanged(address oldAddress, address newAddress);
+    event RiskAdjustedTranchesPolicyImpl(address oldAddress, address newAddress);
+    event CreditLineManagerImplChanged(address oldAddress, address newAddress);
+    event ReceivableBackedCreditLineManagerImplChanged(address oldAddress, address newAddress);
+    event ReceivableFactoringCreditManagerImplChanged(address oldAddress, address newAddress);
+    event CreditLineImplChanged(address oldAddress, address newAddress);
+    event ReceivableFactoringCreditImplChanged(address oldAddress, address newAddress);
 
     // deployer events
     event DeployerAdded(address deployerAddress);
@@ -123,7 +122,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
     event ReceivableCreated(address receivableAddress);
 
     event PoolStatusUpdated(uint256 poolId, PoolStatus oldStatus, PoolStatus newStatus);
-    event timelockAddedtoPool(uint256 poolId, address poolAddress, address timelockAddress);
+    event TimelockAddedToPool(uint256 poolId, address poolAddress, address timelockAddress);
 
     constructor() {
         _disableInitializers();
@@ -159,7 +158,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         _notZeroAddress(newAddress);
         address oldAddress = calendarAddress;
         calendarAddress = newAddress;
-        emit calendarAddressChanged(oldAddress, newAddress);
+        emit CalendarAddressChanged(oldAddress, newAddress);
     }
 
     /**
@@ -170,7 +169,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         _notZeroAddress(newAddress);
         address oldAddress = fixedSeniorYieldTranchesPolicyImplAddress;
         fixedSeniorYieldTranchesPolicyImplAddress = newAddress;
-        emit fixedSeniorYieldTranchesPolicyImplChanged(oldAddress, newAddress);
+        emit FixedSeniorYieldTranchesPolicyImplChanged(oldAddress, newAddress);
     }
 
     function setRiskAdjustedTranchesPolicyImplAddress(address newAddress) external {
@@ -178,7 +177,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         _notZeroAddress(newAddress);
         address oldAddress = riskAdjustedTranchesPolicyImplAddress;
         riskAdjustedTranchesPolicyImplAddress = newAddress;
-        emit riskAdjustedTranchesPolicyImpl(oldAddress, newAddress);
+        emit RiskAdjustedTranchesPolicyImpl(oldAddress, newAddress);
     }
 
     function setCreditLineImplAddress(address newAddress) external {
@@ -186,7 +185,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         _notZeroAddress(newAddress);
         address oldAddress = creditLineImplAddress;
         creditLineImplAddress = newAddress;
-        emit creditLineImplChanged(oldAddress, newAddress);
+        emit CreditLineImplChanged(oldAddress, newAddress);
     }
 
     function setReceivableBackedCreditLineImplAddress(address newAddress) external {
@@ -194,7 +193,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         _notZeroAddress(newAddress);
         address oldAddress = receivableBackedCreditLineImplAddress;
         receivableBackedCreditLineImplAddress = newAddress;
-        emit receivableBackedCreditLineImplChanged(oldAddress, newAddress);
+        emit ReceivableBackedCreditLineImplChanged(oldAddress, newAddress);
     }
 
     function setReceivableFactoringCreditImplAddress(address newAddress) external {
@@ -202,15 +201,15 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         _notZeroAddress(newAddress);
         address oldAddress = receivableFactoringCreditImplAddress;
         receivableFactoringCreditImplAddress = newAddress;
-        emit receivableFactoringCreditImplChanged(oldAddress, newAddress);
+        emit ReceivableFactoringCreditImplChanged(oldAddress, newAddress);
     }
 
-    function setBorrowerLevelCreditManagerImplAddress(address newAddress) external {
+    function setCreditLineManagerImplAddress(address newAddress) external {
         _onlyFactoryAdmin(msg.sender);
         _notZeroAddress(newAddress);
-        address oldAddress = borrowerLevelCreditmanagerImplAddress;
-        borrowerLevelCreditmanagerImplAddress = newAddress;
-        emit borrowerLevelCreditmanagerImplChanged(oldAddress, newAddress);
+        address oldAddress = CreditLineManagerImplAddress;
+        CreditLineManagerImplAddress = newAddress;
+        emit CreditLineManagerImplChanged(oldAddress, newAddress);
     }
 
     function setReceivableBackedCreditLineManagerImplAddress(address newAddress) external {
@@ -218,15 +217,15 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         _notZeroAddress(newAddress);
         address oldAddress = receivableBackedCreditLineManagerImplAddress;
         receivableBackedCreditLineManagerImplAddress = newAddress;
-        emit receivableBackedCreditLineManagerImplChanged(oldAddress, newAddress);
+        emit ReceivableBackedCreditLineManagerImplChanged(oldAddress, newAddress);
     }
 
-    function setReceivableLevelCreditManagerImplAddress(address newAddress) external {
+    function setReceivableFactoringCreditManagerImplAddress(address newAddress) external {
         _onlyFactoryAdmin(msg.sender);
         _notZeroAddress(newAddress);
-        address oldAddress = receivableLevelCreditManagerImplAddress;
-        receivableLevelCreditManagerImplAddress = newAddress;
-        emit receivableLevelCreditManagerImplChanged(oldAddress, newAddress);
+        address oldAddress = receivableFactoringCreditManagerImplAddress;
+        receivableFactoringCreditManagerImplAddress = newAddress;
+        emit ReceivableFactoringCreditManagerImplChanged(oldAddress, newAddress);
     }
 
     function setPoolConfigImplAddress(address newAddress) external {
@@ -234,7 +233,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         _notZeroAddress(newAddress);
         address oldAddress = poolConfigImplAddress;
         poolConfigImplAddress = newAddress;
-        emit poolConfigImplChanged(oldAddress, newAddress);
+        emit PoolConfigImplChanged(oldAddress, newAddress);
     }
 
     function setPoolFeeManagerImplAddress(address newAddress) external {
@@ -242,7 +241,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         _notZeroAddress(newAddress);
         address oldAddress = poolFeeManagerImplAddress;
         poolFeeManagerImplAddress = newAddress;
-        emit poolFeeManagerImplChanged(oldAddress, newAddress);
+        emit PoolFeeManagerImplChanged(oldAddress, newAddress);
     }
 
     function setPoolImplAddress(address newAddress) external {
@@ -250,7 +249,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         _notZeroAddress(newAddress);
         address oldAddress = poolImplAddress;
         poolImplAddress = newAddress;
-        emit poolImplChanged(oldAddress, newAddress);
+        emit PoolImplChanged(oldAddress, newAddress);
     }
 
     function setPoolSafeImplAddress(address newAddress) external {
@@ -258,7 +257,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         _notZeroAddress(newAddress);
         address oldAddress = poolSafeImplAddress;
         poolSafeImplAddress = newAddress;
-        emit poolSafeImplChanged(oldAddress, newAddress);
+        emit PoolSafeImplChanged(oldAddress, newAddress);
     }
 
     function setFirstLossCoverImplAddress(address newAddress) external {
@@ -266,7 +265,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         _notZeroAddress(newAddress);
         address oldAddress = firstLossCoverImplAddress;
         firstLossCoverImplAddress = newAddress;
-        emit firstLossCoverImplChanged(oldAddress, newAddress);
+        emit FirstLossCoverImplChanged(oldAddress, newAddress);
     }
 
     function setEpochManagerImplAddress(address newAddress) external {
@@ -274,7 +273,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         _notZeroAddress(newAddress);
         address oldAddress = epochManagerImplAddress;
         epochManagerImplAddress = newAddress;
-        emit epochManagerImplChanged(oldAddress, newAddress);
+        emit EpochManagerImplChanged(oldAddress, newAddress);
     }
 
     function setTrancheVaultImplAddress(address newAddress) external {
@@ -282,7 +281,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         _notZeroAddress(newAddress);
         address oldAddress = trancheVaultImplAddress;
         trancheVaultImplAddress = newAddress;
-        emit trancheVaultImplChanged(oldAddress, newAddress);
+        emit TrancheVaultImplChanged(oldAddress, newAddress);
     }
 
     function setCreditDueManagerImplAddress(address newAddress) external {
@@ -290,7 +289,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         _notZeroAddress(newAddress);
         address oldAddress = creditDueManagerImplAddress;
         creditDueManagerImplAddress = newAddress;
-        emit creditDueManagerImplChanged(oldAddress, newAddress);
+        emit CreditDueManagerImplChanged(oldAddress, newAddress);
     }
 
     function setReceivableImplAddress(address newAddress) external {
@@ -298,7 +297,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         _notZeroAddress(newAddress);
         address oldAddress = receivableImpl;
         receivableImpl = newAddress;
-        emit receivableImplChanged(oldAddress, newAddress);
+        emit ReceivableImplChanged(oldAddress, newAddress);
     }
 
     function setFirstLossCover(
@@ -384,14 +383,14 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
             // when index is 8 or 9, it is senior or junior tranche vault
             // trancheVault uses different initialize function
             if (i == 8) {
-                ITrancheVaultLike(poolAddresses[i]).initialize(
+                IVaultLike(poolAddresses[i]).initialize(
                     "Senior Tranche Vault",
                     "STV",
                     poolConfig,
                     0
                 );
             } else if (i == 9) {
-                ITrancheVaultLike(poolAddresses[i]).initialize(
+                IVaultLike(poolAddresses[i]).initialize(
                     "Junior Tranche Vault",
                     "JTV",
                     poolConfig,
@@ -506,7 +505,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         poolConfig.grantRole(poolConfig.DEFAULT_ADMIN_ROLE(), timelockAddress);
         poolConfig.renounceRole(poolConfig.DEFAULT_ADMIN_ROLE(), address(this));
 
-        emit timelockAddedtoPool(_poolId, pools[_poolId].poolAddress, timelockAddress);
+        emit TimelockAddedToPool(_poolId, pools[_poolId].poolAddress, timelockAddress);
         pools[_poolId].poolTimelock = timelockAddress;
     }
 
@@ -705,10 +704,10 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
             poolAddresses[12] = _addCreditManager(receivableBackedCreditLineManagerImplAddress);
         } else if (keccak256(bytes(creditType)) == keccak256(bytes("receivablefactoring"))) {
             poolAddresses[10] = _addCredit(receivableFactoringCreditImplAddress);
-            poolAddresses[12] = _addCreditManager(receivableLevelCreditManagerImplAddress);
+            poolAddresses[12] = _addCreditManager(receivableFactoringCreditManagerImplAddress);
         } else if (keccak256(bytes(creditType)) == keccak256(bytes("creditline"))) {
             poolAddresses[10] = _addCredit(creditLineImplAddress);
-            poolAddresses[12] = _addCreditManager(borrowerLevelCreditmanagerImplAddress);
+            poolAddresses[12] = _addCreditManager(CreditLineManagerImplAddress);
         } else {
             revert Errors.InvalidCreditType();
         }
