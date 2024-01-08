@@ -6,8 +6,6 @@ import {Credit} from "./Credit.sol";
 import {CreditRecord, DueDetail} from "./CreditStructs.sol";
 import {Errors} from "../common/Errors.sol";
 
-import "hardhat/console.sol";
-
 /**
  * Credit Line is one of the most common forms of credit on Huma.
  * The borrower can drawdown and payback repeatedly against a pre-approved
@@ -20,7 +18,7 @@ contract CreditLine is Credit, ICreditLine {
         uint256 borrowAmount
     ) external virtual override returns (uint256 netAmountToBorrower) {
         poolConfig.onlyProtocolAndPoolOn();
-        if (borrower != msg.sender) revert Errors.notBorrower();
+        if (borrower != msg.sender) revert Errors.BorrowerRequired();
 
         bytes32 creditHash = getCreditHash(borrower);
         creditManager.onlyCreditBorrower(creditHash, borrower);

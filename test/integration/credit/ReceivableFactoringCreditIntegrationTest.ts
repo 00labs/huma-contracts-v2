@@ -1,5 +1,6 @@
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { expect } from "chai";
 import { BigNumber as BN } from "ethers";
 import { ethers } from "hardhat";
 import {
@@ -25,6 +26,7 @@ import {
     CreditState,
     PayPeriodDuration,
     calcYield,
+    calcYieldDue,
     checkCreditRecordsMatch,
     checkDueDetailsMatch,
     deployAndSetupPoolContracts,
@@ -254,6 +256,12 @@ describe("ReceivableFactoringCredit Integration Tests", function () {
                 cc.periodDuration,
                 nextTimestamp,
             );
+            const [accruedYieldDue, committedYieldDue] = calcYieldDue(
+                cc,
+                borrowAmount,
+                CONSTANTS.DAYS_IN_A_MONTH,
+            );
+            expect(accruedYieldDue).to.be.gt(committedYieldDue);
             const lateFeeUpdatedDate = await calendarContract.getStartOfNextDay(nextTimestamp);
             const daysPassed = await calendarContract.getDaysDiff(
                 oldCR.nextDueDate,
@@ -264,8 +272,8 @@ describe("ReceivableFactoringCredit Integration Tests", function () {
             const expectedCR = {
                 unbilledPrincipal: 0,
                 nextDueDate,
-                nextDue: 0,
-                yieldDue: 0,
+                nextDue: accruedYieldDue,
+                yieldDue: accruedYieldDue,
                 totalPastDue: borrowAmount.add(lateFee),
                 missedPeriods: 1,
                 remainingPeriods: 0,
@@ -278,14 +286,19 @@ describe("ReceivableFactoringCredit Integration Tests", function () {
                 lateFeeUpdatedDate,
                 lateFee,
                 principalPastDue: borrowAmount,
+                accrued: accruedYieldDue,
+                committed: committedYieldDue,
             });
             checkDueDetailsMatch(actualDD, expectedDD);
         });
 
         it("Payer pays for the receivable in full", async function () {
             const oldCR = await creditContract["getCreditRecord(bytes32)"](creditHash);
+            const oldDD = await creditContract.getDueDetail(creditHash);
 
-            await nftContract.connect(payer).payOwner(tokenId, creditLimit);
+            await nftContract
+                .connect(payer)
+                .payOwner(tokenId, oldCR.nextDue.add(oldCR.totalPastDue));
 
             const actualCR = await creditContract["getCreditRecord(bytes32)"](creditHash);
             const expectedCR = {
@@ -301,7 +314,11 @@ describe("ReceivableFactoringCredit Integration Tests", function () {
             checkCreditRecordsMatch(actualCR, expectedCR);
 
             const actualDD = await creditContract.getDueDetail(creditHash);
-            const expectedDD = genDueDetail({});
+            const expectedDD = genDueDetail({
+                accrued: oldDD.accrued,
+                committed: oldDD.committed,
+                paid: oldCR.yieldDue,
+            });
             checkDueDetailsMatch(actualDD, expectedDD);
         });
     });

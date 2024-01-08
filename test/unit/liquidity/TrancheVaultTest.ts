@@ -155,6 +155,10 @@ describe("TrancheVault Test", function () {
             [lender, lender2, lender3, lender4, poolOwnerTreasury, evaluationAgent],
         );
 
+        await overrideLPConfig(poolConfigContract, poolOwner, {
+            withdrawalLockoutPeriodInDays: 0,
+        });
+
         epochChecker = new EpochChecker(
             epochManagerContract,
             seniorTrancheVaultContract,
@@ -230,7 +234,7 @@ describe("TrancheVault Test", function () {
         it("Should not allow non-Operator to add a lender", async function () {
             await expect(
                 juniorTrancheVaultContract.addApprovedLender(defaultDeployer.address, false),
-            ).to.be.revertedWithCustomError(poolConfigContract, "poolOperatorRequired");
+            ).to.be.revertedWithCustomError(poolConfigContract, "PoolOperatorRequired");
         });
 
         it("Should reject lenders with zero addresses", async function () {
@@ -238,7 +242,7 @@ describe("TrancheVault Test", function () {
                 juniorTrancheVaultContract
                     .connect(poolOperator)
                     .addApprovedLender(ethers.constants.AddressZero, false),
-            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "zeroAddressProvided");
+            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "ZeroAddressProvided");
         });
 
         it("Should not allow a lender to be added twice", async function () {
@@ -250,7 +254,7 @@ describe("TrancheVault Test", function () {
                 juniorTrancheVaultContract
                     .connect(poolOperator)
                     .addApprovedLender(poolOwner.address, false),
-            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "alreadyLender");
+            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "AlreadyALender");
         });
 
         it("Should not allow lenders who do not reinvest their yield to be added if the capacity has been reached", async function () {
@@ -267,7 +271,7 @@ describe("TrancheVault Test", function () {
                     .addApprovedLender(poolOwner.address, false),
             ).to.be.revertedWithCustomError(
                 juniorTrancheVaultContract,
-                "nonReinvestYieldLenderCapacityReached",
+                "NonReinvestYieldLenderCapacityReached",
             );
         });
 
@@ -308,7 +312,7 @@ describe("TrancheVault Test", function () {
         it("Should not allow non-Operator to remove a lender", async function () {
             await expect(
                 juniorTrancheVaultContract.removeApprovedLender(defaultDeployer.address),
-            ).to.be.revertedWithCustomError(poolConfigContract, "poolOperatorRequired");
+            ).to.be.revertedWithCustomError(poolConfigContract, "PoolOperatorRequired");
         });
 
         it("Should reject lenders with zero addresses", async function () {
@@ -316,7 +320,7 @@ describe("TrancheVault Test", function () {
                 juniorTrancheVaultContract
                     .connect(poolOperator)
                     .removeApprovedLender(ethers.constants.AddressZero),
-            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "zeroAddressProvided");
+            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "ZeroAddressProvided");
         });
 
         it("Should not allow a lender to be removed twice", async function () {
@@ -328,7 +332,7 @@ describe("TrancheVault Test", function () {
                 juniorTrancheVaultContract
                     .connect(poolOperator)
                     .removeApprovedLender(lender4.address),
-            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "notLender");
+            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "LenderRequired");
         });
 
         it("Should allow pool operators to remove a lender that was added first", async function () {
@@ -448,7 +452,10 @@ describe("TrancheVault Test", function () {
                 juniorTrancheVaultContract
                     .connect(poolOperator)
                     .setReinvestYield(defaultDeployer.address, true),
-            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "todo");
+            ).to.be.revertedWithCustomError(
+                juniorTrancheVaultContract,
+                "ReinvestYieldOptionAlreadySet",
+            );
         });
 
         it("Should not allow the reinvestYield option to be set to false if it's already false for the lender", async function () {
@@ -460,7 +467,10 @@ describe("TrancheVault Test", function () {
                 juniorTrancheVaultContract
                     .connect(poolOperator)
                     .setReinvestYield(defaultDeployer.address, false),
-            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "todo");
+            ).to.be.revertedWithCustomError(
+                juniorTrancheVaultContract,
+                "ReinvestYieldOptionAlreadySet",
+            );
         });
 
         it("Should not allow the reinvestYield option to be set to false if there are already enough lenders with the option set to false", async function () {
@@ -480,7 +490,7 @@ describe("TrancheVault Test", function () {
                     .setReinvestYield(poolOwner.address, false),
             ).to.be.revertedWithCustomError(
                 juniorTrancheVaultContract,
-                "nonReinvestYieldLenderCapacityReached",
+                "NonReinvestYieldLenderCapacityReached",
             );
         });
 
@@ -594,7 +604,10 @@ describe("TrancheVault Test", function () {
         it("Should now allow anyone else to make the initial deposit", async function () {
             await expect(
                 juniorTrancheVaultContract.connect(lender).makeInitialDeposit(toToken(1)),
-            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "notAuthorizedCaller");
+            ).to.be.revertedWithCustomError(
+                juniorTrancheVaultContract,
+                "AuthorizedContractCallerRequired",
+            );
         });
 
         it("Should now allow deposit amount less than the min requirement", async function () {
@@ -603,7 +616,7 @@ describe("TrancheVault Test", function () {
                 juniorTrancheVaultContract
                     .connect(poolOwnerTreasury)
                     .makeInitialDeposit(poolSettings.minDepositAmount.sub(toToken(1))),
-            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "depositAmountTooLow");
+            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "DepositAmountTooLow");
         });
     });
 
@@ -612,44 +625,38 @@ describe("TrancheVault Test", function () {
             await humaConfigContract.connect(protocolOwner).pause();
             await expect(
                 juniorTrancheVaultContract.connect(lender).deposit(toToken(1), lender.address),
-            ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+            ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
             await humaConfigContract.connect(protocolOwner).unpause();
 
             await poolContract.connect(poolOwner).disablePool();
             await expect(
                 juniorTrancheVaultContract.connect(lender).deposit(toToken(1), lender.address),
-            ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+            ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
             await poolContract.connect(poolOwner).enablePool();
         });
 
         it("Should not allow deposits with 0 amount", async function () {
             await expect(
                 juniorTrancheVaultContract.connect(lender).deposit(0, lender.address),
-            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "zeroAmountProvided");
+            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "ZeroAmountProvided");
         });
 
         it("Should not allow the receiver address to be 0", async function () {
             await expect(
                 juniorTrancheVaultContract.deposit(toToken(1), ethers.constants.AddressZero),
-            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "zeroAddressProvided");
+            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "ZeroAddressProvided");
         });
 
         it("Should not allow a non-Lender to deposit", async function () {
             await expect(
                 juniorTrancheVaultContract.deposit(toToken(1), lender.address),
-            ).to.be.revertedWithCustomError(
-                juniorTrancheVaultContract,
-                "permissionDeniedNotLender",
-            );
+            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "LenderRequired");
 
             await expect(
                 juniorTrancheVaultContract
                     .connect(lender)
                     .deposit(toToken(1), defaultDeployer.address),
-            ).to.be.revertedWithCustomError(
-                juniorTrancheVaultContract,
-                "permissionDeniedNotLender",
-            );
+            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "LenderRequired");
         });
 
         it("Should now allow deposit amount less than the min requirement", async function () {
@@ -658,7 +665,7 @@ describe("TrancheVault Test", function () {
                 juniorTrancheVaultContract
                     .connect(lender)
                     .deposit(poolSettings.minDepositAmount.sub(toToken(1)), lender.getAddress()),
-            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "depositAmountTooLow");
+            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "DepositAmountTooLow");
         });
 
         it("Should not allow deposits that would result in the liquidity cap being exceeded", async function () {
@@ -669,7 +676,7 @@ describe("TrancheVault Test", function () {
                     .deposit(lpConfig.liquidityCap.add(BN.from(1)), lender.address),
             ).to.be.revertedWithCustomError(
                 juniorTrancheVaultContract,
-                "trancheLiquidityCapExceeded",
+                "TrancheLiquidityCapExceeded",
             );
         });
 
@@ -683,7 +690,7 @@ describe("TrancheVault Test", function () {
                     .deposit(seniorDepositAmount, lender.address),
             ).to.be.revertedWithCustomError(
                 seniorTrancheVaultContract,
-                "trancheLiquidityCapExceeded",
+                "TrancheLiquidityCapExceeded",
             );
         });
 
@@ -982,7 +989,7 @@ describe("TrancheVault Test", function () {
                     juniorTrancheVaultContract
                         .connect(lender)
                         .transfer(lender2.address, toToken(100)),
-                ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "unsupportedFunction");
+                ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "UnsupportedFunction");
             });
         });
 
@@ -993,7 +1000,7 @@ describe("TrancheVault Test", function () {
                         juniorTrancheVaultContract.connect(lender).addRedemptionRequest(0),
                     ).to.be.revertedWithCustomError(
                         juniorTrancheVaultContract,
-                        "zeroAmountProvided",
+                        "ZeroAmountProvided",
                     );
                 });
 
@@ -1001,13 +1008,13 @@ describe("TrancheVault Test", function () {
                     await humaConfigContract.connect(protocolOwner).pause();
                     await expect(
                         juniorTrancheVaultContract.connect(lender).addRedemptionRequest(1),
-                    ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+                    ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
                     await humaConfigContract.connect(protocolOwner).unpause();
 
                     await poolContract.connect(poolOwner).disablePool();
                     await expect(
                         juniorTrancheVaultContract.connect(lender).addRedemptionRequest(1),
-                    ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+                    ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
                     await poolContract.connect(poolOwner).enablePool();
                 });
 
@@ -1019,7 +1026,7 @@ describe("TrancheVault Test", function () {
                             .addRedemptionRequest(shares.add(BN.from(1))),
                     ).to.be.revertedWithCustomError(
                         juniorTrancheVaultContract,
-                        "insufficientSharesForRequest",
+                        "InsufficientSharesForRequest",
                     );
                 });
 
@@ -1030,7 +1037,7 @@ describe("TrancheVault Test", function () {
                             .addRedemptionRequest(BN.from(1)),
                     ).to.be.revertedWithCustomError(
                         poolConfigContract,
-                        "poolOwnerNotEnoughLiquidity",
+                        "PoolOwnerInsufficientLiquidity",
                     );
                 });
 
@@ -1041,7 +1048,7 @@ describe("TrancheVault Test", function () {
                             .addRedemptionRequest(BN.from(1)),
                     ).to.be.revertedWithCustomError(
                         poolConfigContract,
-                        "evaluationAgentNotEnoughLiquidity",
+                        "EvaluationAgentInsufficientLiquidity",
                     );
                 });
 
@@ -1056,7 +1063,10 @@ describe("TrancheVault Test", function () {
                         juniorTrancheVaultContract
                             .connect(lender)
                             .addRedemptionRequest(BN.from(1)),
-                    ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "withdrawTooSoon");
+                    ).to.be.revertedWithCustomError(
+                        juniorTrancheVaultContract,
+                        "WithdrawTooEarly",
+                    );
                 });
 
                 it("Should allow lenders to request redemption in the same epoch", async function () {
@@ -1449,7 +1459,7 @@ describe("TrancheVault Test", function () {
                         juniorTrancheVaultContract.connect(lender).cancelRedemptionRequest(0),
                     ).to.be.revertedWithCustomError(
                         juniorTrancheVaultContract,
-                        "zeroAmountProvided",
+                        "ZeroAmountProvided",
                     );
                 });
 
@@ -1457,13 +1467,13 @@ describe("TrancheVault Test", function () {
                     await humaConfigContract.connect(protocolOwner).pause();
                     await expect(
                         juniorTrancheVaultContract.connect(lender).cancelRedemptionRequest(1),
-                    ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+                    ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
                     await humaConfigContract.connect(protocolOwner).unpause();
 
                     await poolContract.connect(poolOwner).disablePool();
                     await expect(
                         juniorTrancheVaultContract.connect(lender).cancelRedemptionRequest(1),
-                    ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+                    ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
                     await poolContract.connect(poolOwner).enablePool();
                 });
 
@@ -1476,7 +1486,7 @@ describe("TrancheVault Test", function () {
                             .cancelRedemptionRequest(shares.mul(BN.from(2))),
                     ).to.be.revertedWithCustomError(
                         juniorTrancheVaultContract,
-                        "insufficientSharesForRequest",
+                        "InsufficientSharesForRequest",
                     );
                 });
 
@@ -1943,13 +1953,13 @@ describe("TrancheVault Test", function () {
                 await humaConfigContract.connect(protocolOwner).pause();
                 await expect(
                     juniorTrancheVaultContract.connect(lender).disburse(),
-                ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+                ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
                 await humaConfigContract.connect(protocolOwner).unpause();
 
                 await poolContract.connect(poolOwner).disablePool();
                 await expect(
                     juniorTrancheVaultContract.connect(lender).disburse(),
-                ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+                ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
                 await poolContract.connect(poolOwner).enablePool();
             });
 
@@ -2400,7 +2410,10 @@ describe("TrancheVault Test", function () {
                         totalSharesProcessed: 0,
                         totalAmountProcessed: 0,
                     }),
-                ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "notAuthorizedCaller");
+                ).to.be.revertedWithCustomError(
+                    juniorTrancheVaultContract,
+                    "AuthorizedContractCallerRequired",
+                );
             });
 
             it("Should process one epoch fully", async function () {

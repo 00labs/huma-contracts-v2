@@ -14,8 +14,12 @@ import {IReceivable} from "./interfaces/IReceivable.sol";
 import {ReceivableInfo, ReceivableState} from "./CreditStructs.sol";
 
 /**
- * @title RealWorldReceivable
- * @dev ERC721 tokens that represent off-chain payable receivables
+ * @title Receivable
+ * @dev ERC721 tokens that represent off-chain payable receivables on chain. The NFT metadata
+ * can be updated to reflect changes (e.g. payment received) to the real world receivable.
+ *
+ * Note: The NFT itself does not assert ownership of the real world asset. It needs to be
+ * accompanied by off-chain legal agreements to assert ownership of the real world receivable.
  */
 contract Receivable is
     IReceivable,
@@ -82,7 +86,7 @@ contract Receivable is
      * @dev Initializer that sets the default admin role
      */
     function initialize() external initializer {
-        __ERC721_init("Receivable", "REC");
+        __ERC721_init("HumaReceivable", "HREC");
         __ERC721Enumerable_init();
         __ERC721URIStorage_init();
         __ERC721Burnable_init();
@@ -91,17 +95,20 @@ contract Receivable is
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
 
-        // Start the token counter at 1
+        // Start the token counter at 1 to avoid the difficulty to validate a tokenId 0
         _tokenIdCounter.increment();
     }
 
-    /// @inheritdoc IReceivable
+    /**
+     * @inheritdoc IReceivable
+     * @custom:access Only the token owner or original creator can access
+     */
     function declarePayment(uint256 tokenId, uint96 paymentAmount) external {
-        if (paymentAmount == 0) revert Errors.zeroAmountProvided();
-        if (msg.sender != ownerOf(tokenId) && msg.sender != creators[tokenId])
-            revert Errors.notReceivableOwnerOrCreator();
+        if (paymentAmount == 0) revert Errors.ZeroAmountProvided();
+        ReceivableInfo memory receivableInfo = receivableInfoMap[tokenId];
+        if (msg.sender != ownerOf(tokenId) && msg.sender != receivableInfo.creator)
+            revert Errors.ReceivableOwnerOrCreatorRequired();
 
-        ReceivableInfo storage receivableInfo = receivableInfoMap[tokenId];
         receivableInfo.paidAmount += paymentAmount;
 
         if (receivableInfo.paidAmount >= receivableInfo.receivableAmount) {
@@ -110,6 +117,7 @@ contract Receivable is
             assert(receivableInfo.paidAmount > 0);
             receivableInfo.state = ReceivableState.PartiallyPaid;
         }
+        receivableInfoMap[tokenId] = receivableInfo;
 
         emit PaymentDeclared(msg.sender, tokenId, receivableInfo.currencyCode, paymentAmount);
     }
@@ -119,10 +127,16 @@ contract Receivable is
      * @custom:access Only the owner or the original creator of the token can update the metadata URI
      * @param tokenId The ID of the receivable token
      * @param uri The new metadata URI of the receivable
+     * @custom:access Only the token owner or original creator can access. Since the main purpose of
+     * the NFT to serve as a transparency layer for the receivables, it is fine for the creator to
+     * be able to make changes. In a future version when the NFT owner has true ownership of the
+     * off-chain receivable, we will limit the changes to the NFT that the creator can do.
      */
     function updateReceivableMetadata(uint256 tokenId, string memory uri) external {
-        if (msg.sender != ownerOf(tokenId) && msg.sender != creators[tokenId])
-            revert Errors.notReceivableOwnerOrCreator();
+        ReceivableInfo memory receivableInfo = receivableInfoMap[tokenId];
+
+        if (msg.sender != ownerOf(tokenId) && msg.sender != receivableInfo.creator)
+            revert Errors.ReceivableOwnerOrCreatorRequired();
 
         string memory oldTokenURI = tokenURI(tokenId);
         _setTokenURI(tokenId, uri);
@@ -150,7 +164,7 @@ contract Receivable is
         if (bytes(referenceId).length > 0) {
             bytes32 referenceIdCreatorHash = getReferenceIdHash(referenceId, msg.sender);
             uint256 existingTokenId = referenceIdHashToTokenId[referenceIdCreatorHash];
-            if (_exists(existingTokenId)) revert Errors.receivableReferenceIdAlreadyExists();
+            if (_exists(existingTokenId)) revert Errors.ReceivableReferenceIdAlreadyExists();
 
             referenceIdHashToTokenId[referenceIdCreatorHash] = tokenId;
         }
@@ -163,9 +177,9 @@ contract Receivable is
             0, // paidAmount
             currencyCode,
             maturityDate,
+            msg.sender,
             ReceivableState.Minted // Minted
         );
-        creators[tokenId] = msg.sender;
 
         _setTokenURI(tokenId, uri);
 

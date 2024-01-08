@@ -1,0 +1,104 @@
+@startuml
+allowmixing
+
+rectangle "common" #line.dashed {
+  interface ICalendar
+  class Calendar
+  class HumaConfig
+  class PoolConfig
+  class PoolConfigCache
+  class EvaluationAgentNFT
+  class SharedDefs
+  ICalendar <|.. Calendar
+}
+
+
+package credit <<Rectangle>> #line.dashed {
+  interface I_BL_CreditMgr
+  interface ICredit
+  interface ICredit_DM
+  interface ICreditLine
+  interface ICreditManager
+  interface IReceivable
+  interface I_RB_CL_Mgr
+  interface I_RF_Credit
+  interface I_RF_CreditFor
+  interface I_RL_CM
+
+  class BL_CreditMgr #back:aqua
+  abstract class Credit
+  class Credit_DM
+  class CreditLine #back:lightpink
+  abstract class CreditManager
+  class CM_S <<storage>> #back:lightblue
+  class CreditStorage
+  class CreditStructs
+  class Receivable
+  class RB_CL #back:lightpink
+  class RB_CL_Mgr #back:aqua
+  class RB_CL_Mgr_S <<storage>> #back:lightblue
+  class RF_Credit #back:lightpink
+  class RL_CM #back:aqua
+  class ReceivableStorage <<storage>> #back:lightblue
+
+
+BL_CreditMgr .up.|> I_BL_CreditMgr
+BL_CreditMgr --|> CreditManager
+
+Credit .up.|> ICredit
+Credit -up-|> CreditStorage
+
+Credit_DM .up.|> ICredit_DM
+
+CreditLine ..|> ICreditLine
+CreditLine -up-|> Credit
+
+CreditManager ..|> ICreditManager 
+CreditManager --|> CM_S
+
+
+Receivable ..|> IReceivable
+Receivable --|> ReceivableStorage
+Receivable --|> ERC721Upgradable
+  
+RB_CL -up-|> Credit
+
+RB_CL_Mgr ..|> I_RB_CL_Mgr
+RB_CL_Mgr --|> BL_CreditMgr
+RB_CL_Mgr --|> RB_CL_Mgr_S
+
+RF_Credit ..|> I_RF_Credit
+RF_Credit ..|> I_RF_CreditFor
+RF_Credit -up-|> Credit
+RF_Credit -up-> IERC721
+
+RL_CM -right-|> CreditManager
+
+RL_CM ..|>I_RL_CM
+
+Receivable <-up- RB_CL
+Receivable <-up- RB_CL_Mgr
+
+Credit -right-> CreditManager
+Credit -up-> Credit_DM
+
+}
+
+
+
+note as NoteCredit
+  <b><font color="green"> Contracts in pink are different credit types</b>
+  <b><font color="aqua"> Contracts in aqua are different credit ana</b>
+  <b><font color="blue"> Contracts in blue have storage</b>
+
+  Abbreviations:
+  CL\tCreditLine
+  CM\tCreditManager 
+  BL\tBorrowerLevel
+  RL\tReceivableLevel
+  S\tStorage
+end note
+
+credit --> common
+
+@enduml

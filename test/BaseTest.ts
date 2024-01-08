@@ -1,6 +1,6 @@
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
-import { BigNumber as BN, BigNumber, ContractFactory } from "ethers";
+import { BigNumber as BN, ContractFactory } from "ethers";
 import { ethers } from "hardhat";
 import moment from "moment";
 import {
@@ -124,8 +124,9 @@ const BP_FACTOR = BN.from(10000);
 const MONTHS_IN_A_YEAR = 12;
 const SECONDS_IN_A_DAY = 24 * 60 * 60;
 const SECONDS_IN_A_YEAR = 60 * 60 * 24 * 365;
-const BORROWER_FIRST_LOSS_COVER_INDEX = 0;
-const AFFILIATE_FIRST_LOSS_COVER_INDEX = 1;
+const BORROWER_LOSS_COVER_INDEX = 0;
+const INSURANCE_LOSS_COVER_INDEX = 1;
+const ADMIN_LOSS_COVER_INDEX = 2;
 
 export const CONSTANTS = {
     DAYS_IN_A_MONTH,
@@ -139,8 +140,8 @@ export const CONSTANTS = {
     MONTHS_IN_A_YEAR,
     SECONDS_IN_A_DAY,
     SECONDS_IN_A_YEAR,
-    BORROWER_FIRST_LOSS_COVER_INDEX,
-    AFFILIATE_FIRST_LOSS_COVER_INDEX,
+    BORROWER_LOSS_COVER_INDEX,
+    ADMIN_LOSS_COVER_INDEX,
 };
 
 export async function deployProxyContract(
@@ -290,7 +291,7 @@ export async function deployPoolContracts(
         creditManagerContract.address,
     ]);
     await poolConfigContract.setFirstLossCover(
-        BORROWER_FIRST_LOSS_COVER_INDEX,
+        BORROWER_LOSS_COVER_INDEX,
         borrowerFirstLossCoverContract.address,
         {
             coverRatePerLossInBps: 0,
@@ -302,7 +303,7 @@ export async function deployPoolContracts(
     );
     await poolConfigContract.setReceivableAsset(receivableContract.address);
     await poolConfigContract.setFirstLossCover(
-        AFFILIATE_FIRST_LOSS_COVER_INDEX,
+        ADMIN_LOSS_COVER_INDEX,
         affiliateFirstLossCoverContract.address,
         {
             coverRatePerLossInBps: 0,
@@ -1259,11 +1260,7 @@ export function checkSeniorYieldTrackersMatch(
     expect(actualST.lastUpdatedDate).to.be.closeTo(expectedST.lastUpdatedDate, delta);
 }
 
-export function calcYieldDue(
-    cc: CreditConfigStruct,
-    principal: BigNumber,
-    daysPassed: number,
-): [BigNumber, BigNumber] {
+export function calcYieldDue(cc: CreditConfigStruct, principal: BN, daysPassed: number): [BN, BN] {
     if (daysPassed == 0) {
         return [BN.from(0), BN.from(0)];
     }
@@ -1278,9 +1275,8 @@ export async function calcYieldDueNew(
     cr: CreditRecordStructOutput,
     dd: DueDetailStructOutput,
     currentDate: moment.Moment,
-    maturityDate: moment.Moment,
     latePaymentGracePeriodInDays: number,
-): Promise<[BigNumber, BigNumber, [BigNumber, BigNumber]]> {
+): Promise<[BN, BN, [BN, BN]]> {
     const nextBillRefreshDate = getNextBillRefreshDate(
         cr,
         currentDate,
@@ -1311,21 +1307,12 @@ export async function calcYieldDueNew(
             [accruedYieldNextDue, committedYieldNextDue],
         ];
     }
-    let daysOverdue, daysUntilNextDue;
-    if (currentDate.isAfter(maturityDate)) {
-        daysOverdue = await calendarContract.getDaysDiff(cr.nextDueDate, maturityDate.unix());
-        daysUntilNextDue = BN.from(0);
-    } else {
-        const periodStartDate = await calendarContract.getStartDateOfPeriod(
-            cc.periodDuration,
-            currentDate.unix(),
-        );
-        daysOverdue = await calendarContract.getDaysDiff(cr.nextDueDate, periodStartDate);
-        daysUntilNextDue = await calendarContract.getDaysDiff(
-            periodStartDate,
-            minBigNumber(BN.from(maturityDate.unix()), nextDueDate),
-        );
-    }
+    const periodStartDate = await calendarContract.getStartDateOfPeriod(
+        cc.periodDuration,
+        currentDate.unix(),
+    );
+    const daysOverdue = await calendarContract.getDaysDiff(cr.nextDueDate, periodStartDate);
+    const daysUntilNextDue = await calendarContract.getDaysDiff(periodStartDate, nextDueDate);
 
     const [accruedYieldPastDue, committedYieldPastDue] = calcYieldDue(
         cc,

@@ -14,9 +14,7 @@ import {IPoolSafe} from "../liquidity/interfaces/IPoolSafe.sol";
 import {ICredit} from "./interfaces/ICredit.sol";
 import {ICreditManager} from "./interfaces/ICreditManager.sol";
 import {ICreditDueManager} from "./interfaces/ICreditDueManager.sol";
-import {BORROWER_FIRST_LOSS_COVER_INDEX} from "../common/SharedDefs.sol";
-
-import "hardhat/console.sol";
+import {BORROWER_LOSS_COVER_INDEX} from "../common/SharedDefs.sol";
 
 /**
  * Credit is the core borrowing concept in Huma Protocol. This abstract contract provides
@@ -191,7 +189,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         bytes32 creditHash,
         uint256 borrowAmount
     ) internal virtual returns (uint256 netAmountToBorrower) {
-        if (borrowAmount == 0) revert Errors.zeroAmountProvided();
+        if (borrowAmount == 0) revert Errors.ZeroAmountProvided();
 
         CreditRecord memory cr = getCreditRecord(creditHash);
         CreditConfig memory cc = _getCreditConfig(creditHash);
@@ -203,21 +201,26 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             // Sets the principal, generates the first bill and sets credit status.
             cr.unbilledPrincipal = uint96(borrowAmount);
             (cr, dd) = dueManager.getDueInfo(cr, cc, dd, block.timestamp);
+            // Note that we don't need to check whether we are in the last period or beyond here because in the absence
+            // of the designated credit start date, it's the initial drawdown that kicks off a credit line, i.e.
+            // the initial drawdown always happens in the first period.
             cr.state = CreditState.GoodStanding;
         } else {
             // Disallow repeated drawdown for non-revolving credit
-            if (!cc.revolving) revert Errors.attemptedDrawdownForNonrevolvingLine();
+            if (!cc.revolving) revert Errors.AttemptedDrawdownOnNonRevolvingLine();
 
             if (block.timestamp > cr.nextDueDate) {
                 // Bring the credit current and check if it is still in good standing.
                 (cr, dd) = dueManager.getDueInfo(cr, cc, dd, block.timestamp);
+                if (cr.remainingPeriods == 0)
+                    revert Errors.DrawdownNotAllowedInFinalPeriodAndBeyond();
                 if (cr.state != CreditState.GoodStanding)
-                    revert Errors.creditLineNotInGoodStandingState();
+                    revert Errors.CreditNotInStateForDrawdown();
             }
 
             if (
                 borrowAmount > (cc.creditLimit - cr.unbilledPrincipal - (cr.nextDue - cr.yieldDue))
-            ) revert Errors.creditLineExceeded();
+            ) revert Errors.CreditLimitExceeded();
 
             // Add the yield of new borrowAmount for the remainder of the period
             (uint256 additionalYieldAccrued, uint256 additionalPrincipalDue) = dueManager
@@ -274,11 +277,11 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         bytes32 creditHash,
         uint256 amount
     ) internal returns (uint256 amountPaid, bool paidoff, bool isReviewRequired) {
-        if (amount == 0) revert Errors.zeroAmountProvided();
+        if (amount == 0) revert Errors.ZeroAmountProvided();
 
         CreditRecord memory cr = getCreditRecord(creditHash);
         if (cr.state == CreditState.Approved || cr.state == CreditState.Deleted) {
-            revert Errors.creditLineNotInStateForMakingPayment();
+            revert Errors.CreditNotInStateForMakingPayment();
         }
         CreditConfig memory cc = _getCreditConfig(creditHash);
         DueDetail memory dd = getDueDetail(creditHash);
@@ -449,18 +452,18 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         bytes32 creditHash,
         uint256 amount
     ) internal returns (uint256 amountPaid, bool paidoff) {
-        if (amount == 0) revert Errors.zeroAmountProvided();
+        if (amount == 0) revert Errors.ZeroAmountProvided();
 
         CreditRecord memory cr = getCreditRecord(creditHash);
         DueDetail memory dd = getDueDetail(creditHash);
         if (cr.state != CreditState.GoodStanding) {
-            revert Errors.creditLineNotInStateForMakingPrincipalPayment();
+            revert Errors.CreditNotInStateForMakingPrincipalPayment();
         }
         if (block.timestamp > cr.nextDueDate) {
             CreditConfig memory cc = _getCreditConfig(creditHash);
             (cr, dd) = dueManager.getDueInfo(cr, cc, dd, block.timestamp);
             if (cr.state != CreditState.GoodStanding) {
-                revert Errors.creditLineNotInStateForMakingPrincipalPayment();
+                revert Errors.CreditNotInStateForMakingPrincipalPayment();
             }
         }
 
@@ -525,7 +528,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         assert(addr != address(0));
         poolSafe = IPoolSafe(addr);
 
-        addr = _poolConfig.getFirstLossCover(BORROWER_FIRST_LOSS_COVER_INDEX);
+        addr = _poolConfig.getFirstLossCover(BORROWER_LOSS_COVER_INDEX);
         assert(addr != address(0));
         firstLossCover = IFirstLossCover(addr);
 
@@ -548,27 +551,25 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         uint256 borrowAmount,
         uint256 creditLimit
     ) internal view {
-        if (!firstLossCover.isSufficient()) revert Errors.insufficientBorrowerFirstLossCover();
-
-        if (borrowAmount > poolSafe.getAvailableBalanceForPool()) revert Errors.todo();
-
+        if (cr.remainingPeriods == 0) revert Errors.DrawdownNotAllowedInFinalPeriodAndBeyond();
+        if (!firstLossCover.isSufficient()) revert Errors.InsufficientFirstLossCover();
+        if (borrowAmount > poolSafe.getAvailableBalanceForPool())
+            revert Errors.InsufficientPoolBalanceForDrawdown();
         if (cr.state == CreditState.Approved) {
             // After the credit approval, if the credit has commitment and a designated start date, then the
             // credit will kick start on that whether the borrower has initiated the drawdown or not.
             // The date is set in `cr.nextDueDate` in `approveCredit()`.
             if (cr.nextDueDate > 0 && block.timestamp < cr.nextDueDate)
-                revert Errors.firstDrawdownTooSoon();
+                revert Errors.FirstDrawdownTooEarly();
 
-            if (borrowAmount > creditLimit) revert Errors.creditLineExceeded();
+            if (borrowAmount > creditLimit) revert Errors.CreditLimitExceeded();
         } else if (cr.state != CreditState.GoodStanding) {
-            revert Errors.creditNotInStateForDrawdown();
+            revert Errors.CreditNotInStateForDrawdown();
         } else if (cr.nextDue != 0 && block.timestamp > cr.nextDueDate) {
             // Prevent drawdown if the credit is in good standing, but has due outstanding and is currently in the
             // late payment grace period or later. In this case, we want the borrower to pay off the due before being
             // able to make further drawdown.
-            // TODO(jiatu): this error name is misleading since the drawdown may not necessarily be in the late payment grace period.
-            // Rename it.
-            revert Errors.drawdownNotAllowedInLatePaymentGracePeriod();
+            revert Errors.DrawdownNotAllowedAfterDueDateWithUnpaidDue();
         }
     }
 
@@ -595,14 +596,20 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
     /// "Modifier" function that limits access to Sentinel Service account only.
     function _onlySentinelServiceAccount() internal view {
         if (msg.sender != humaConfig.sentinelServiceAccount())
-            revert Errors.sentinelServiceAccountRequired();
+            revert Errors.SentinelServiceAccountRequired();
     }
 
+    /**
+     * @notice Returns from whose account the funds for payment should be extracted.
+     * This function exists because of Auto-pay:
+     * 1. For Auto-pay, the funds should be coming from the borrower's account.
+     * 2. In all other case, the funds should be coming from whoever is initiating the payment.
+     */
     function _getPaymentOriginator(address borrower) internal view returns (address originator) {
         return msg.sender == humaConfig.sentinelServiceAccount() ? borrower : msg.sender;
     }
 
     function _onlyCreditManager() internal view {
-        if (msg.sender != address(creditManager)) revert Errors.notAuthorizedCaller();
+        if (msg.sender != address(creditManager)) revert Errors.AuthorizedContractCallerRequired();
     }
 }

@@ -33,7 +33,7 @@ contract EvaluationAgentNFT is ERC721URIStorage, Ownable {
     }
 
     function burn(uint256 tokenId) external returns (uint256) {
-        if (msg.sender != ownerOf(tokenId)) revert Errors.notNFTOwner();
+        if (msg.sender != ownerOf(tokenId)) revert Errors.NFTOwnerRequired();
         _burn(tokenId);
         return tokenId;
     }

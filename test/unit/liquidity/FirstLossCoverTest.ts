@@ -140,7 +140,7 @@ describe("FirstLossCover Tests", function () {
                 loss = toToken(5_000);
             await overrideFirstLossCoverConfig(
                 affiliateFirstLossCoverContract,
-                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                 poolConfigContract,
                 poolOwner,
                 {
@@ -186,7 +186,7 @@ describe("FirstLossCover Tests", function () {
                 creditManagerContract.address,
             ]);
             await newPoolConfigContract.setFirstLossCover(
-                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                 affiliateFirstLossCoverContract.address,
                 {
                     coverRatePerLossInBps: 0,
@@ -325,7 +325,7 @@ describe("FirstLossCover Tests", function () {
                 affiliateFirstLossCoverContract
                     .connect(poolOwner)
                     .addCoverProvider(evaluationAgent2.getAddress()),
-            ).to.be.revertedWithCustomError(affiliateFirstLossCoverContract, "alreadyProvider");
+            ).to.be.revertedWithCustomError(affiliateFirstLossCoverContract, "AlreadyAProvider");
             const providers = await affiliateFirstLossCoverContract.getCoverProviders();
             expect(providers.includes(await evaluationAgent2.getAddress())).to.be.true;
         });
@@ -333,7 +333,7 @@ describe("FirstLossCover Tests", function () {
         it("Should disallow non-pool owners to add cover providers", async function () {
             await expect(
                 affiliateFirstLossCoverContract.addCoverProvider(evaluationAgent2.getAddress()),
-            ).to.be.revertedWithCustomError(poolConfigContract, "notPoolOwner");
+            ).to.be.revertedWithCustomError(poolConfigContract, "PoolOwnerRequired");
         });
 
         it("Should disallow the cover provider address to be the zero address", async function () {
@@ -343,7 +343,7 @@ describe("FirstLossCover Tests", function () {
                     .addCoverProvider(ethers.constants.AddressZero),
             ).to.be.revertedWithCustomError(
                 affiliateFirstLossCoverContract,
-                "zeroAddressProvided",
+                "ZeroAddressProvided",
             );
         });
 
@@ -361,7 +361,7 @@ describe("FirstLossCover Tests", function () {
                 affiliateFirstLossCoverContract
                     .connect(poolOwner)
                     .addCoverProvider(evaluationAgent2.getAddress()),
-            ).to.be.revertedWithCustomError(affiliateFirstLossCoverContract, "tooManyProviders");
+            ).to.be.revertedWithCustomError(affiliateFirstLossCoverContract, "TooManyProviders");
         });
     });
 
@@ -372,7 +372,10 @@ describe("FirstLossCover Tests", function () {
                     affiliateFirstLossCoverContract
                         .connect(poolOwner)
                         .removeCoverProvider(evaluationAgent2.getAddress()),
-                ).to.be.revertedWithCustomError(affiliateFirstLossCoverContract, "notProvider");
+                ).to.be.revertedWithCustomError(
+                    affiliateFirstLossCoverContract,
+                    "CoverProviderRequired",
+                );
             });
         });
 
@@ -407,7 +410,7 @@ describe("FirstLossCover Tests", function () {
                             .removeCoverProvider(evaluationAgent2.getAddress()),
                     ).to.be.revertedWithCustomError(
                         affiliateFirstLossCoverContract,
-                        "notProvider",
+                        "CoverProviderRequired",
                     );
 
                     const newProviders = await affiliateFirstLossCoverContract.getCoverProviders();
@@ -419,7 +422,7 @@ describe("FirstLossCover Tests", function () {
                         affiliateFirstLossCoverContract
                             .connect(lender)
                             .removeCoverProvider(evaluationAgent2.getAddress()),
-                    ).to.be.revertedWithCustomError(poolConfigContract, "notPoolOwner");
+                    ).to.be.revertedWithCustomError(poolConfigContract, "PoolOwnerRequired");
                 });
 
                 it("Should not remove providers with zero address", async function () {
@@ -427,7 +430,7 @@ describe("FirstLossCover Tests", function () {
                         affiliateFirstLossCoverContract
                             .connect(poolOwner)
                             .removeCoverProvider(ethers.constants.AddressZero),
-                    ).to.be.revertedWithCustomError(poolConfigContract, "zeroAddressProvided");
+                    ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
                 });
             });
 
@@ -442,7 +445,7 @@ describe("FirstLossCover Tests", function () {
 
                     await overrideFirstLossCoverConfig(
                         affiliateFirstLossCoverContract,
-                        CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                        CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                         poolConfigContract,
                         poolOwner,
                         {
@@ -475,7 +478,7 @@ describe("FirstLossCover Tests", function () {
                         .withArgs(await evaluationAgent2.getAddress())
                         .to.be.revertedWithCustomError(
                             affiliateFirstLossCoverContract,
-                            "providerHasOutstandingAssets",
+                            "ProviderHasOutstandingAssets",
                         );
                 });
             });
@@ -535,13 +538,16 @@ describe("FirstLossCover Tests", function () {
                 affiliateFirstLossCoverContract
                     .connect(evaluationAgent)
                     .depositCover(ethers.constants.Zero),
-            ).to.be.revertedWithCustomError(affiliateFirstLossCoverContract, "zeroAmountProvided");
+            ).to.be.revertedWithCustomError(affiliateFirstLossCoverContract, "ZeroAmountProvided");
         });
 
         it("Should disallow non-cover providers to make deposits", async function () {
             await expect(
                 affiliateFirstLossCoverContract.connect(lender).depositCover(assets),
-            ).to.be.revertedWithCustomError(affiliateFirstLossCoverContract, "notCoverProvider");
+            ).to.be.revertedWithCustomError(
+                affiliateFirstLossCoverContract,
+                "CoverProviderRequired",
+            );
         });
 
         it("Should disallow deposits with amounts lower than the min requirement", async function () {
@@ -552,7 +558,7 @@ describe("FirstLossCover Tests", function () {
                     .depositCover(poolSettings.minDepositAmount.sub(toToken(1))),
             ).to.be.revertedWithCustomError(
                 affiliateFirstLossCoverContract,
-                "depositAmountTooLow",
+                "DepositAmountTooLow",
             );
         });
 
@@ -570,7 +576,7 @@ describe("FirstLossCover Tests", function () {
                     .depositCover(depositAmount),
             ).to.be.revertedWithCustomError(
                 affiliateFirstLossCoverContract,
-                "firstLossCoverLiquidityCapExceeded",
+                "FirstLossCoverLiquidityCapExceeded",
             );
         });
     });
@@ -634,7 +640,7 @@ describe("FirstLossCover Tests", function () {
                     ethers.constants.Zero,
                     evaluationAgent.getAddress(),
                 ),
-            ).to.be.revertedWithCustomError(affiliateFirstLossCoverContract, "zeroAmountProvided");
+            ).to.be.revertedWithCustomError(affiliateFirstLossCoverContract, "ZeroAmountProvided");
         });
 
         it("Should disallow zero address as the receiver", async function () {
@@ -645,7 +651,7 @@ describe("FirstLossCover Tests", function () {
                 ),
             ).to.be.revertedWithCustomError(
                 affiliateFirstLossCoverContract,
-                "zeroAddressProvided",
+                "ZeroAddressProvided",
             );
         });
 
@@ -656,7 +662,7 @@ describe("FirstLossCover Tests", function () {
                     .depositCoverFor(assets, evaluationAgent.getAddress()),
             ).to.be.revertedWithCustomError(
                 affiliateFirstLossCoverContract,
-                "notAuthorizedCaller",
+                "AuthorizedContractCallerRequired",
             );
         });
 
@@ -669,7 +675,7 @@ describe("FirstLossCover Tests", function () {
                 ),
             ).to.be.revertedWithCustomError(
                 affiliateFirstLossCoverContract,
-                "depositAmountTooLow",
+                "DepositAmountTooLow",
             );
         });
     });
@@ -705,7 +711,10 @@ describe("FirstLossCover Tests", function () {
         it("Should disallow non-pools to add cover assets", async function () {
             await expect(
                 affiliateFirstLossCoverContract.connect(lender).addCoverAssets(assets),
-            ).to.be.revertedWithCustomError(poolConfigContract, "notPool");
+            ).to.be.revertedWithCustomError(
+                poolConfigContract,
+                "AuthorizedContractCallerRequired",
+            );
         });
     });
 
@@ -886,7 +895,7 @@ describe("FirstLossCover Tests", function () {
                 const minLiquidity = coverAssets.add(1);
                 await overrideFirstLossCoverConfig(
                     affiliateFirstLossCoverContract,
-                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                    CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                     poolConfigContract,
                     poolOwner,
                     {
@@ -905,7 +914,7 @@ describe("FirstLossCover Tests", function () {
                         .redeemCover(sharesToRedeem, evaluationAgent.getAddress()),
                 ).to.be.revertedWithCustomError(
                     affiliateFirstLossCoverContract,
-                    "poolIsNotReadyForFirstLossCoverWithdrawal",
+                    "PoolIsNotReadyForFirstLossCoverWithdrawal",
                 );
             });
 
@@ -925,7 +934,7 @@ describe("FirstLossCover Tests", function () {
                         .redeemCover(eaShares.add(1), evaluationAgent.getAddress()),
                 ).to.be.revertedWithCustomError(
                     affiliateFirstLossCoverContract,
-                    "insufficientSharesForRequest",
+                    "InsufficientSharesForRequest",
                 );
             });
 
@@ -933,7 +942,7 @@ describe("FirstLossCover Tests", function () {
                 const coverTotalAssets = await affiliateFirstLossCoverContract.totalAssets();
                 await overrideFirstLossCoverConfig(
                     affiliateFirstLossCoverContract,
-                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                    CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                     poolConfigContract,
                     poolOwner,
                     {
@@ -950,7 +959,7 @@ describe("FirstLossCover Tests", function () {
                         .redeemCover(sharesToRedeem, evaluationAgent.getAddress()),
                 ).to.be.revertedWithCustomError(
                     affiliateFirstLossCoverContract,
-                    "insufficientAmountForRequest",
+                    "InsufficientAmountForRequest",
                 );
             });
 
@@ -961,7 +970,7 @@ describe("FirstLossCover Tests", function () {
                         .redeemCover(ethers.constants.Zero, evaluationAgent.getAddress()),
                 ).to.be.revertedWithCustomError(
                     affiliateFirstLossCoverContract,
-                    "zeroAmountProvided",
+                    "ZeroAmountProvided",
                 );
             });
 
@@ -972,7 +981,7 @@ describe("FirstLossCover Tests", function () {
                         .redeemCover(toToken(5_000), ethers.constants.AddressZero),
                 ).to.be.revertedWithCustomError(
                     affiliateFirstLossCoverContract,
-                    "zeroAddressProvided",
+                    "ZeroAddressProvided",
                 );
             });
         });
@@ -990,7 +999,7 @@ describe("FirstLossCover Tests", function () {
             ) {
                 await overrideFirstLossCoverConfig(
                     affiliateFirstLossCoverContract,
-                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                    CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                     poolConfigContract,
                     poolOwner,
                     {
@@ -1082,7 +1091,7 @@ describe("FirstLossCover Tests", function () {
                         .redeemCover(eaShares.add(1), evaluationAgent.getAddress()),
                 ).to.be.revertedWithCustomError(
                     affiliateFirstLossCoverContract,
-                    "insufficientSharesForRequest",
+                    "InsufficientSharesForRequest",
                 );
             });
 
@@ -1093,7 +1102,7 @@ describe("FirstLossCover Tests", function () {
                         .redeemCover(ethers.constants.Zero, evaluationAgent.getAddress()),
                 ).to.be.revertedWithCustomError(
                     affiliateFirstLossCoverContract,
-                    "zeroAmountProvided",
+                    "ZeroAmountProvided",
                 );
             });
 
@@ -1104,7 +1113,7 @@ describe("FirstLossCover Tests", function () {
                         .redeemCover(toToken(5_000), ethers.constants.AddressZero),
                 ).to.be.revertedWithCustomError(
                     affiliateFirstLossCoverContract,
-                    "zeroAddressProvided",
+                    "ZeroAddressProvided",
                 );
             });
         });
@@ -1118,7 +1127,7 @@ describe("FirstLossCover Tests", function () {
                     .transfer(lender.address, toToken(100)),
             ).to.be.revertedWithCustomError(
                 affiliateFirstLossCoverContract,
-                "unsupportedFunction",
+                "UnsupportedFunction",
             );
         });
     });
@@ -1127,7 +1136,7 @@ describe("FirstLossCover Tests", function () {
         async function setCoverConfig(coverRatePerLossInBps: BN, coverCapPerLoss: BN) {
             await overrideFirstLossCoverConfig(
                 affiliateFirstLossCoverContract,
-                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                 poolConfigContract,
                 poolOwner,
                 {
@@ -1219,7 +1228,10 @@ describe("FirstLossCover Tests", function () {
             it("Should not allow non-pools to initiate loss coverage", async function () {
                 await expect(
                     affiliateFirstLossCoverContract.connect(lender).coverLoss(toToken(1_000)),
-                ).to.be.revertedWithCustomError(poolConfigContract, "notPool");
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "AuthorizedContractCallerRequired",
+                );
             });
         });
 
@@ -1310,7 +1322,10 @@ describe("FirstLossCover Tests", function () {
             it("Should disallow non-pool to recover loss", async function () {
                 await expect(
                     affiliateFirstLossCoverContract.connect(lender).recoverLoss(loss),
-                ).to.be.revertedWithCustomError(poolConfigContract, "notPool");
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "AuthorizedContractCallerRequired",
+                );
             });
         });
 
@@ -1341,7 +1356,7 @@ describe("FirstLossCover Tests", function () {
 
                 await overrideFirstLossCoverConfig(
                     affiliateFirstLossCoverContract,
-                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                    CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                     poolConfigContract,
                     poolOwner,
                     {
@@ -1354,30 +1369,13 @@ describe("FirstLossCover Tests", function () {
     });
 
     describe("payoutYield", function () {
-        it("Should do nothing if the yield is 0", async function () {
-            const totalAssets = await affiliateFirstLossCoverContract.totalAssets();
-            await overrideFirstLossCoverConfig(
-                affiliateFirstLossCoverContract,
-                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
-                poolConfigContract,
-                poolOwner,
-                {
-                    maxLiquidity: totalAssets,
-                },
-            );
-
-            await affiliateFirstLossCoverContract.payoutYield();
-
-            expect(await affiliateFirstLossCoverContract.totalAssets()).to.equal(totalAssets);
-        });
-
         it("Should pay out yield to all providers ", async function () {
             const totalAssets = await affiliateFirstLossCoverContract.totalAssets();
             const yieldAmount = toToken(8273);
 
             await overrideFirstLossCoverConfig(
                 affiliateFirstLossCoverContract,
-                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                 poolConfigContract,
                 poolOwner,
                 {
@@ -1403,13 +1401,19 @@ describe("FirstLossCover Tests", function () {
                 .to.emit(affiliateFirstLossCoverContract, "YieldPaidout")
                 .withArgs(
                     poolOwnerTreasury.address,
-                    poolOwnerTreasuryShares.mul(yieldAmount).div(totalShares),
+                    yieldAmount.mul(poolOwnerTreasuryShares).div(totalShares),
                 )
                 .to.emit(affiliateFirstLossCoverContract, "YieldPaidout")
                 .withArgs(
                     evaluationAgent.address,
-                    evaluationAgentShares.mul(yieldAmount).div(totalShares),
+                    yieldAmount.mul(evaluationAgentShares).div(totalShares),
                 );
+
+            // Paying out yield for a second time should do nothing.
+            await expect(affiliateFirstLossCoverContract.payoutYield()).to.not.emit(
+                affiliateFirstLossCoverContract,
+                "YieldPaidout",
+            );
 
             expect(await affiliateFirstLossCoverContract.totalAssets()).to.equal(
                 totalAssets.sub(yieldAmount),
@@ -1424,6 +1428,68 @@ describe("FirstLossCover Tests", function () {
                     evaluationAgentShares.mul(yieldAmount).div(totalShares),
                 ),
             );
+        });
+
+        it("Should do nothing if the yield is 0", async function () {
+            const totalAssets = await affiliateFirstLossCoverContract.totalAssets();
+            await overrideFirstLossCoverConfig(
+                affiliateFirstLossCoverContract,
+                CONSTANTS.ADMIN_LOSS_COVER_INDEX,
+                poolConfigContract,
+                poolOwner,
+                {
+                    maxLiquidity: totalAssets,
+                },
+            );
+
+            await affiliateFirstLossCoverContract.payoutYield();
+
+            expect(await affiliateFirstLossCoverContract.totalAssets()).to.equal(totalAssets);
+        });
+
+        it("Should do nothing if a provider has no shares", async function () {
+            const poolOwnerShares = await affiliateFirstLossCoverContract.balanceOf(
+                poolOwnerTreasury.getAddress(),
+            );
+            // Let the pool owner redeem all cover assets so that their number of shares becomes 0, and consequently
+            // won't be able to get any yield payout.
+            await affiliateFirstLossCoverContract
+                .connect(poolOwnerTreasury)
+                .redeemCover(poolOwnerShares, poolOwnerTreasury.getAddress());
+            expect(
+                await affiliateFirstLossCoverContract.balanceOf(poolOwnerTreasury.getAddress()),
+            ).to.equal(0);
+
+            const totalAssets = await affiliateFirstLossCoverContract.totalAssets();
+            const yieldAmount = toToken(8273);
+            await overrideFirstLossCoverConfig(
+                affiliateFirstLossCoverContract,
+                CONSTANTS.ADMIN_LOSS_COVER_INDEX,
+                poolConfigContract,
+                poolOwner,
+                {
+                    maxLiquidity: totalAssets.sub(yieldAmount),
+                    minLiquidity: 0,
+                },
+            );
+
+            const oldPoolOwnerBalance = await mockTokenContract.balanceOf(
+                poolOwnerTreasury.getAddress(),
+            );
+            const oldEABalance = await mockTokenContract.balanceOf(evaluationAgent.getAddress());
+            await expect(affiliateFirstLossCoverContract.payoutYield())
+                .to.emit(affiliateFirstLossCoverContract, "YieldPaidout")
+                .withArgs(await evaluationAgent.getAddress(), yieldAmount);
+            const newPoolOwnerBalance = await mockTokenContract.balanceOf(
+                poolOwnerTreasury.getAddress(),
+            );
+            const newEABalance = await mockTokenContract.balanceOf(evaluationAgent.getAddress());
+
+            expect(await affiliateFirstLossCoverContract.totalAssets()).to.equal(
+                totalAssets.sub(yieldAmount),
+            );
+            expect(newPoolOwnerBalance).to.equal(oldPoolOwnerBalance);
+            expect(newEABalance).to.equal(oldEABalance.add(yieldAmount));
         });
     });
 });

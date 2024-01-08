@@ -14,8 +14,6 @@ import {ITranchesPolicy} from "./interfaces/ITranchesPolicy.sol";
 import {ICreditManager} from "../credit/interfaces/ICreditManager.sol";
 import {ICredit} from "../credit/interfaces/ICredit.sol";
 
-import "hardhat/console.sol";
-
 /**
  * @title Pool
  * @notice Pool is a core contract that connects the lender side (via Tranches)
@@ -137,7 +135,7 @@ contract Pool is PoolConfigCache, IPool {
     /// @inheritdoc IPool
     /// @custom:access Only Credit contract can call this function
     function distributeLossRecovery(uint256 lossRecovery) external {
-        if (msg.sender != address(credit)) revert Errors.notAuthorizedCaller();
+        if (msg.sender != address(credit)) revert Errors.AuthorizedContractCallerRequired();
         _distributeLossRecovery(lossRecovery);
     }
 
@@ -232,6 +230,7 @@ contract Pool is PoolConfigCache, IPool {
         assert(addr != address(0));
         creditManager = ICreditManager(addr);
 
+        delete _firstLossCovers;
         address[16] memory covers = _poolConfig.getFirstLossCovers();
         for (uint256 i = 0; i < covers.length; i++) {
             if (covers[i] != address(0)) {
@@ -393,8 +392,9 @@ contract Pool is PoolConfigCache, IPool {
             remainingLossRecovery = remainingLossRecovery - juniorLossRecovery;
         }
 
-        _updateTranchesAssets([assets.seniorTotalAssets, assets.juniorTotalAssets]);
         tranchesLosses = losses;
+
+        _updateTranchesAssets([assets.seniorTotalAssets, assets.juniorTotalAssets]);
 
         emit LossRecoveryDistributed(
             lossRecovery - remainingLossRecovery,
@@ -425,12 +425,12 @@ contract Pool is PoolConfigCache, IPool {
             account != poolConfig.juniorTranche() &&
             account != poolConfig.seniorTranche() &&
             account != poolConfig.epochManager()
-        ) revert Errors.notAuthorizedCaller();
+        ) revert Errors.AuthorizedContractCallerRequired();
     }
 
     function _onlyCreditOrCreditManager(address account) internal view {
         if (account != address(credit) && account != address(creditManager)) {
-            revert Errors.notAuthorizedCaller();
+            revert Errors.AuthorizedContractCallerRequired();
         }
     }
 }

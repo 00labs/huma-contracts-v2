@@ -138,17 +138,13 @@ describe("PoolSafe Tests", function () {
         it("Should allow first loss covers to make deposit into the safe", async function () {
             await poolConfigContract
                 .connect(poolOwner)
-                .setFirstLossCover(
-                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
-                    defaultDeployer.address,
-                    {
-                        coverRatePerLossInBps: 0,
-                        coverCapPerLoss: 0,
-                        maxLiquidity: 0,
-                        minLiquidity: 0,
-                        riskYieldMultiplierInBps: 0,
-                    },
-                );
+                .setFirstLossCover(CONSTANTS.ADMIN_LOSS_COVER_INDEX, defaultDeployer.address, {
+                    coverRatePerLossInBps: 0,
+                    coverCapPerLoss: 0,
+                    maxLiquidity: 0,
+                    minLiquidity: 0,
+                    riskYieldMultiplierInBps: 0,
+                });
             await testDeposit();
         });
 
@@ -165,7 +161,7 @@ describe("PoolSafe Tests", function () {
         it("Should disallow non-qualified addresses to make deposits", async function () {
             await expect(
                 poolSafeContract.connect(lender).deposit(lender.address, amount),
-            ).to.be.revertedWithCustomError(poolSafeContract, "notAuthorizedCaller");
+            ).to.be.revertedWithCustomError(poolSafeContract, "AuthorizedContractCallerRequired");
         });
     });
 
@@ -195,17 +191,13 @@ describe("PoolSafe Tests", function () {
         it("Should allow first loss covers to withdraw from the safe", async function () {
             await poolConfigContract
                 .connect(poolOwner)
-                .setFirstLossCover(
-                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
-                    defaultDeployer.address,
-                    {
-                        coverRatePerLossInBps: 0,
-                        coverCapPerLoss: 0,
-                        maxLiquidity: 0,
-                        minLiquidity: 0,
-                        riskYieldMultiplierInBps: 0,
-                    },
-                );
+                .setFirstLossCover(CONSTANTS.ADMIN_LOSS_COVER_INDEX, defaultDeployer.address, {
+                    coverRatePerLossInBps: 0,
+                    coverCapPerLoss: 0,
+                    maxLiquidity: 0,
+                    minLiquidity: 0,
+                    riskYieldMultiplierInBps: 0,
+                });
             await testWithdrawal();
         });
 
@@ -222,13 +214,13 @@ describe("PoolSafe Tests", function () {
         it("Should disallow withdrawal to the zero address", async function () {
             await expect(
                 poolSafeContract.connect(lender).withdraw(ethers.constants.AddressZero, amount),
-            ).to.be.revertedWithCustomError(poolSafeContract, "zeroAddressProvided");
+            ).to.be.revertedWithCustomError(poolSafeContract, "ZeroAddressProvided");
         });
 
         it("Should disallow non-qualified addresses to withdraw", async function () {
             await expect(
                 poolSafeContract.connect(lender).withdraw(lender.address, amount),
-            ).to.be.revertedWithCustomError(poolSafeContract, "notAuthorizedCaller");
+            ).to.be.revertedWithCustomError(poolSafeContract, "AuthorizedContractCallerRequired");
         });
     });
 
@@ -259,7 +251,7 @@ describe("PoolSafe Tests", function () {
                 poolSafeContract
                     .connect(lender)
                     .addUnprocessedProfit(seniorTrancheVaultContract.address, profit),
-            ).to.be.revertedWithCustomError(poolSafeContract, "notPool");
+            ).to.be.revertedWithCustomError(poolSafeContract, "AuthorizedContractCallerRequired");
         });
 
         it("Should not allow unprocessed profits to be added for non-tranches", async function () {
@@ -268,7 +260,7 @@ describe("PoolSafe Tests", function () {
                     affiliateFirstLossCoverContract.address,
                     profit,
                 ),
-            ).to.be.revertedWithCustomError(poolSafeContract, "todo");
+            ).to.be.revertedWithCustomError(poolSafeContract, "TrancheRequired");
         });
     });
 
@@ -299,7 +291,7 @@ describe("PoolSafe Tests", function () {
         it("Should not allow non-tranches to reset unprocessed profit", async function () {
             await expect(
                 poolSafeContract.connect(lender).resetUnprocessedProfit(),
-            ).to.be.revertedWithCustomError(poolSafeContract, "notAuthorizedCaller");
+            ).to.be.revertedWithCustomError(poolSafeContract, "AuthorizedContractCallerRequired");
         });
     });
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {AFFILIATE_FIRST_LOSS_COVER_INDEX, HUNDRED_PERCENT_IN_BPS} from "../common/SharedDefs.sol";
+import {ADMIN_LOSS_COVER_INDEX, HUNDRED_PERCENT_IN_BPS} from "../common/SharedDefs.sol";
 import {PoolConfig, AdminRnR} from "../common/PoolConfig.sol";
 import {PoolConfigCache} from "../common/PoolConfigCache.sol";
 import {IPool} from "./interfaces/IPool.sol";
@@ -74,12 +74,12 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
     }
 
     function withdrawProtocolFee(uint256 amount) external {
-        if (msg.sender != humaConfig.owner()) revert Errors.notProtocolOwner();
+        if (msg.sender != humaConfig.owner()) revert Errors.ProtocolOwnerRequired();
         // Invests available fees in FirstLossCover first
         AccruedIncomes memory incomes = _investFeesInFirstLossCover();
         uint256 incomeWithdrawn = protocolIncomeWithdrawn;
         if (incomeWithdrawn + amount > incomes.protocolIncome)
-            revert Errors.insufficientAmountForRequest();
+            revert Errors.InsufficientAmountForRequest();
 
         protocolIncomeWithdrawn = incomeWithdrawn + amount;
 
@@ -98,11 +98,11 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         // Invests available fees in FirstLossCover first
         AccruedIncomes memory incomes = _investFeesInFirstLossCover();
         // Checks if the required cover is sufficient
-        if (!firstLossCover.isSufficient()) revert Errors.lessThanRequiredCover();
+        if (!firstLossCover.isSufficient()) revert Errors.InsufficientFirstLossCover();
 
         uint256 incomeWithdrawn = poolOwnerIncomeWithdrawn;
         if (incomeWithdrawn + amount > incomes.poolOwnerIncome)
-            revert Errors.insufficientAmountForRequest();
+            revert Errors.InsufficientAmountForRequest();
 
         poolOwnerIncomeWithdrawn = incomeWithdrawn + amount;
         poolSafe.withdraw(poolOwnerTreasury, amount);
@@ -116,11 +116,11 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         // Invests available fees in FirstLossCover first
         AccruedIncomes memory incomes = _investFeesInFirstLossCover();
         // Checks if the required cover is sufficient
-        if (!firstLossCover.isSufficient()) revert Errors.lessThanRequiredCover();
+        if (!firstLossCover.isSufficient()) revert Errors.InsufficientFirstLossCover();
 
         uint256 incomeWithdrawn = eaIncomeWithdrawn;
         if (incomeWithdrawn + amount > incomes.eaIncome)
-            revert Errors.insufficientAmountForRequest();
+            revert Errors.InsufficientAmountForRequest();
 
         eaIncomeWithdrawn = incomeWithdrawn + amount;
         poolSafe.withdraw(ea, amount);
@@ -193,7 +193,7 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         humaConfig = HumaConfig(addr);
 
         address oldFirstLossCover = address(firstLossCover);
-        addr = _poolConfig.getFirstLossCover(AFFILIATE_FIRST_LOSS_COVER_INDEX);
+        addr = _poolConfig.getFirstLossCover(ADMIN_LOSS_COVER_INDEX);
         assert(addr != address(0));
         firstLossCover = IFirstLossCover(addr);
         _resetFirstLossCoverAllowance(
@@ -321,7 +321,7 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
 
     function _onlyPoolOwnerTreasury(address account) internal view returns (address) {
         address tempPoolOwnerTreasury = poolConfig.poolOwnerTreasury();
-        if (account != tempPoolOwnerTreasury) revert Errors.notAuthorizedCaller();
+        if (account != tempPoolOwnerTreasury) revert Errors.AuthorizedContractCallerRequired();
         return tempPoolOwnerTreasury;
     }
 }

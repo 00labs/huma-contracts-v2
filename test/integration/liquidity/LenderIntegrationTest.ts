@@ -26,6 +26,7 @@ import {
 import { LPConfigStructOutput } from "../../../typechain-types/contracts/common/PoolConfig.sol/PoolConfig";
 import {
     CONSTANTS,
+    CreditState,
     EpochChecker,
     FeeCalculator,
     PayPeriodDuration,
@@ -36,7 +37,7 @@ import {
     checkRedemptionRecordByLender,
     checkSeniorYieldTrackersMatch,
     deployPoolContracts,
-    deployProtocolContracts, CreditState
+    deployProtocolContracts,
 } from "../../BaseTest";
 import {
     borrowerLevelCreditHash,
@@ -53,6 +54,9 @@ import {
 // 2 initial lenders (sLender1, sLender2) in the senior tranche.
 // The number of lenders will change as the test progresses.
 // 1 credit line
+
+const BORROWER_LOSS_COVER_INDEX = 0;
+const ADMIN_LOSS_COVER_INDEX = 1;
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
@@ -176,7 +180,7 @@ async function configPool(lpConfig: Partial<LPConfigStructOutput>) {
     await poolConfigContract
         .connect(poolOwner)
         .setFirstLossCover(
-            CONSTANTS.BORROWER_FIRST_LOSS_COVER_INDEX,
+            CONSTANTS.BORROWER_LOSS_COVER_INDEX,
             borrowerFirstLossCoverContract.address,
             {
                 coverRatePerLossInBps: 1_000,
@@ -189,7 +193,7 @@ async function configPool(lpConfig: Partial<LPConfigStructOutput>) {
     await poolConfigContract
         .connect(poolOwner)
         .setFirstLossCover(
-            CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+            CONSTANTS.ADMIN_LOSS_COVER_INDEX,
             affiliateFirstLossCoverContract.address,
             {
                 coverRatePerLossInBps: 1_000,
@@ -350,15 +354,11 @@ async function checkAssetsForProfit(
     expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
         expectedTranchesAssets[CONSTANTS.JUNIOR_TRANCHE],
     );
-    expect(expectedFirstLossCoverProfits[CONSTANTS.BORROWER_FIRST_LOSS_COVER_INDEX]).to.equal(0);
+    expect(expectedFirstLossCoverProfits[BORROWER_LOSS_COVER_INDEX]).to.equal(0);
     expect(await borrowerFirstLossCoverContract.totalAssets()).to.equal(borrowerFLCOldBalance);
-    expect(
-        expectedFirstLossCoverProfits[CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX],
-    ).to.greaterThan(0);
+    expect(expectedFirstLossCoverProfits[ADMIN_LOSS_COVER_INDEX]).to.greaterThan(0);
     expect(await affiliateFirstLossCoverContract.totalAssets()).to.equal(
-        affiliateFLCOldBalance.add(
-            expectedFirstLossCoverProfits[CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX],
-        ),
+        affiliateFLCOldBalance.add(expectedFirstLossCoverProfits[ADMIN_LOSS_COVER_INDEX]),
     );
 }
 
@@ -374,19 +374,13 @@ async function checkAssetsForLoss(
     expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
         expectedTranchesAssets[CONSTANTS.JUNIOR_TRANCHE],
     );
-    expect(expectedFirstLossCoverLosses[CONSTANTS.BORROWER_FIRST_LOSS_COVER_INDEX]).to.lessThan(0);
+    expect(expectedFirstLossCoverLosses[BORROWER_LOSS_COVER_INDEX]).to.lessThan(0);
     expect(await borrowerFirstLossCoverContract.totalAssets()).to.equal(
-        borrowerFLCOldBalance.add(
-            expectedFirstLossCoverLosses[CONSTANTS.BORROWER_FIRST_LOSS_COVER_INDEX],
-        ),
+        borrowerFLCOldBalance.add(expectedFirstLossCoverLosses[BORROWER_LOSS_COVER_INDEX]),
     );
-    expect(expectedFirstLossCoverLosses[CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX]).to.lessThan(
-        0,
-    );
+    expect(expectedFirstLossCoverLosses[ADMIN_LOSS_COVER_INDEX]).to.lessThan(0);
     expect(await affiliateFirstLossCoverContract.totalAssets()).to.equal(
-        affiliateFLCOldBalance.add(
-            expectedFirstLossCoverLosses[CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX],
-        ),
+        affiliateFLCOldBalance.add(expectedFirstLossCoverLosses[ADMIN_LOSS_COVER_INDEX]),
     );
 }
 
@@ -796,9 +790,7 @@ describe("Lender Integration Test", function () {
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
                 poolSafeOldBalance
                     .add(payment)
-                    .sub(
-                        expectedFirstLossCoverProfits[CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX],
-                    ),
+                    .sub(expectedFirstLossCoverProfits[ADMIN_LOSS_COVER_INDEX]),
             );
 
             await checkUserAssets(expectedTranchesAssets);
@@ -881,9 +873,7 @@ describe("Lender Integration Test", function () {
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
                 poolSafeOldBalance
                     .add(payment)
-                    .sub(
-                        expectedFirstLossCoverProfits[CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX],
-                    ),
+                    .sub(expectedFirstLossCoverProfits[ADMIN_LOSS_COVER_INDEX]),
             );
 
             await checkUserAssets(expectedTranchesAssets);
@@ -1012,7 +1002,7 @@ describe("Lender Integration Test", function () {
                     .deposit(toToken(600_000), sLenders[2].address),
             ).to.be.revertedWithCustomError(
                 juniorTrancheVaultContract,
-                "trancheLiquidityCapExceeded",
+                "TrancheLiquidityCapExceeded",
             );
         });
 
@@ -1170,9 +1160,7 @@ describe("Lender Integration Test", function () {
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
                 poolSafeOldBalance
                     .add(payment)
-                    .sub(
-                        expectedFirstLossCoverProfits[CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX],
-                    ),
+                    .sub(expectedFirstLossCoverProfits[ADMIN_LOSS_COVER_INDEX]),
             );
 
             await checkUserAssets(expectedTranchesAssets);
@@ -1447,9 +1435,7 @@ describe("Lender Integration Test", function () {
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
                 poolSafeOldBalance
                     .add(payment)
-                    .sub(
-                        expectedFirstLossCoverProfits[CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX],
-                    ),
+                    .sub(expectedFirstLossCoverProfits[ADMIN_LOSS_COVER_INDEX]),
             );
 
             await checkUserAssets(expectedTranchesAssets);
@@ -1678,10 +1664,8 @@ describe("Lender Integration Test", function () {
             // );
 
             let expectedPoolSafeBalanceIncremnet = expectedFirstLossCoverLosses[
-                CONSTANTS.BORROWER_FIRST_LOSS_COVER_INDEX
-            ]
-                .add(expectedFirstLossCoverLosses[CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX])
-                .mul(-1);
+                BORROWER_LOSS_COVER_INDEX
+            ].add(expectedFirstLossCoverLosses[ADMIN_LOSS_COVER_INDEX]).mul(-1);
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
                 poolSafeOldBalance.add(expectedPoolSafeBalanceIncremnet),
             );
@@ -2118,9 +2102,7 @@ describe("Lender Integration Test", function () {
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
                 poolSafeOldBalance
                     .add(payment)
-                    .sub(
-                        expectedFirstLossCoverProfits[CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX],
-                    ),
+                    .sub(expectedFirstLossCoverProfits[ADMIN_LOSS_COVER_INDEX]),
             );
 
             await checkUserAssets(expectedTranchesAssets);
@@ -2210,9 +2192,7 @@ describe("Lender Integration Test", function () {
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
                 poolSafeOldBalance
                     .add(payment)
-                    .sub(
-                        expectedFirstLossCoverProfits[CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX],
-                    ),
+                    .sub(expectedFirstLossCoverProfits[ADMIN_LOSS_COVER_INDEX]),
             );
 
             await checkUserAssets(expectedTranchesAssets);
@@ -2350,7 +2330,7 @@ describe("Lender Integration Test", function () {
                     .deposit(toToken(600_000), sLenders[2].address),
             ).to.be.revertedWithCustomError(
                 juniorTrancheVaultContract,
-                "trancheLiquidityCapExceeded",
+                "TrancheLiquidityCapExceeded",
             );
         });
 
@@ -2516,9 +2496,7 @@ describe("Lender Integration Test", function () {
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
                 poolSafeOldBalance
                     .add(payment)
-                    .sub(
-                        expectedFirstLossCoverProfits[CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX],
-                    ),
+                    .sub(expectedFirstLossCoverProfits[ADMIN_LOSS_COVER_INDEX]),
             );
 
             await checkUserAssets(expectedTranchesAssets);
@@ -2801,9 +2779,7 @@ describe("Lender Integration Test", function () {
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
                 poolSafeOldBalance
                     .add(payment)
-                    .sub(
-                        expectedFirstLossCoverProfits[CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX],
-                    ),
+                    .sub(expectedFirstLossCoverProfits[ADMIN_LOSS_COVER_INDEX]),
             );
 
             await checkUserAssets(expectedTranchesAssets);
@@ -3047,10 +3023,8 @@ describe("Lender Integration Test", function () {
             // );
 
             let expectedPoolSafeBalanceIncremnet = expectedFirstLossCoverLosses[
-                CONSTANTS.BORROWER_FIRST_LOSS_COVER_INDEX
-            ]
-                .add(expectedFirstLossCoverLosses[CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX])
-                .mul(-1);
+                BORROWER_LOSS_COVER_INDEX
+            ].add(expectedFirstLossCoverLosses[ADMIN_LOSS_COVER_INDEX]).mul(-1);
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
                 poolSafeOldBalance.add(expectedPoolSafeBalanceIncremnet),
             );

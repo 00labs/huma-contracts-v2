@@ -6,7 +6,7 @@ import {ERC165Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/intro
 import {Credit} from "./Credit.sol";
 import {CreditRecord, DueDetail} from "./CreditStructs.sol";
 import {IReceivableFactoringCredit} from "./interfaces/IReceivableFactoringCredit.sol";
-import {IReceivableFactoringCreditForContract} from "./interfaces/IReceivableFactoringCreditForContract.sol";
+import {IReceivablePayable} from "./interfaces/IReceivablePayable.sol";
 import {IReceivableLevelCreditManager} from "./interfaces/IReceivableLevelCreditManager.sol";
 import {Errors} from "../common/Errors.sol";
 
@@ -15,11 +15,11 @@ contract ReceivableFactoringCredit is
     Credit,
     IERC721Receiver,
     IReceivableFactoringCredit,
-    IReceivableFactoringCreditForContract
+    IReceivablePayable
 {
     bytes32 public constant PAYER_ROLE = keccak256("PAYER");
 
-    event ExtraFundsDispersed(address indexed receiver, uint256 amount);
+    event ExtraFundsDisbursed(address indexed receiver, uint256 amount);
 
     event DrawdownMadeWithReceivable(
         address indexed borrower,
@@ -43,11 +43,12 @@ contract ReceivableFactoringCredit is
     ) external returns (uint256 netAmountToBorrower) {
         poolConfig.onlyProtocolAndPoolOn();
 
-        if (msg.sender != borrower) revert Errors.notBorrower();
-        if (receivableId == 0) revert Errors.zeroReceivableIdProvided();
+        if (msg.sender != borrower) revert Errors.BorrowerRequired();
+        if (receivableId == 0) revert Errors.ZeroReceivableIdProvided();
 
         IERC721 receivableAsset = IERC721(poolConfig.receivableAsset());
-        if (receivableAsset.ownerOf(receivableId) != borrower) revert Errors.notReceivableOwner();
+        if (receivableAsset.ownerOf(receivableId) != borrower)
+            revert Errors.ReceivableOwnerRequired();
 
         bytes32 creditHash = _getCreditHash(receivableId);
         creditManager.onlyCreditBorrower(creditHash, borrower);
@@ -66,15 +67,15 @@ contract ReceivableFactoringCredit is
         uint256 amount
     ) external virtual returns (uint256 amountPaid, bool paidoff) {
         poolConfig.onlyProtocolAndPoolOn();
-        if (msg.sender != borrower) revert Errors.notBorrower();
-        if (receivableId == 0) revert Errors.zeroReceivableIdProvided();
+        if (msg.sender != borrower) revert Errors.BorrowerRequired();
+        if (receivableId == 0) revert Errors.ZeroReceivableIdProvided();
 
         bytes32 creditHash = _getCreditHash(receivableId);
         creditManager.onlyCreditBorrower(creditHash, borrower);
 
         IERC721 receivableAsset = IERC721(poolConfig.receivableAsset());
         if (receivableAsset.ownerOf(receivableId) != address(this))
-            revert Errors.notReceivableOwner();
+            revert Errors.ReceivableOwnerRequired();
 
         (amountPaid, paidoff) = _makePaymentWithReceivable(borrower, creditHash, amount);
         emit PaymentMadeWithReceivable(borrower, receivableId, amount, msg.sender);
@@ -89,17 +90,17 @@ contract ReceivableFactoringCredit is
         return this.onERC721Received.selector;
     }
 
-    /// @inheritdoc IReceivableFactoringCreditForContract
+    /// @inheritdoc IReceivablePayable
     function makePaymentWithReceivableByPayer(
         uint256 receivableId,
         uint256 amount
     ) external returns (uint256 amountPaid, bool paidoff) {
         poolConfig.onlyProtocolAndPoolOn();
-        if (receivableId == 0) revert Errors.zeroReceivableIdProvided();
+        if (receivableId == 0) revert Errors.ZeroReceivableIdProvided();
 
         IERC721 receivableAsset = IERC721(poolConfig.receivableAsset());
         if (receivableAsset.ownerOf(receivableId) != address(this))
-            revert Errors.notReceivableOwner();
+            revert Errors.ReceivableOwnerRequired();
 
         bytes32 creditHash = _getCreditHash(receivableId);
         // Restrict access to only payers to prevent money laundering.
@@ -136,7 +137,7 @@ contract ReceivableFactoringCredit is
 
     function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
         return
-            interfaceId == type(IReceivableFactoringCreditForContract).interfaceId ||
+            interfaceId == type(IReceivablePayable).interfaceId ||
             super.supportsInterface(interfaceId);
     }
 
@@ -150,7 +151,7 @@ contract ReceivableFactoringCredit is
             uint256 disbursedAmount = amount - amountPaid;
             poolSafe.deposit(msg.sender, disbursedAmount);
             poolSafe.withdraw(borrower, disbursedAmount);
-            emit ExtraFundsDispersed(borrower, disbursedAmount);
+            emit ExtraFundsDisbursed(borrower, disbursedAmount);
         }
 
         // Don't delete paid receivable

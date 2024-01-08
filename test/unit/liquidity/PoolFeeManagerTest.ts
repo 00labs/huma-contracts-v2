@@ -141,7 +141,7 @@ describe("PoolFeeManager Tests", function () {
             // Make sure the first loss cover has room for investment.
             await overrideFirstLossCoverConfig(
                 affiliateFirstLossCoverContract,
-                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                 poolConfigContract,
                 poolOwner,
                 {
@@ -190,7 +190,7 @@ describe("PoolFeeManager Tests", function () {
                 creditManagerContract.address,
             ]);
             await newPoolConfigContract.setFirstLossCover(
-                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                 newFirstLossCoverContract.address,
                 {
                     coverRatePerLossInBps: 0,
@@ -332,7 +332,10 @@ describe("PoolFeeManager Tests", function () {
         it("Should disallow non-pool to distribute pool fees", async function () {
             await expect(
                 poolFeeManagerContract.connect(lender).distributePoolFees(profit),
-            ).to.be.revertedWithCustomError(poolConfigContract, "notPool");
+            ).to.be.revertedWithCustomError(
+                poolConfigContract,
+                "AuthorizedContractCallerRequired",
+            );
         });
     });
 
@@ -348,7 +351,7 @@ describe("PoolFeeManager Tests", function () {
             // this function easier.
             await overrideFirstLossCoverConfig(
                 affiliateFirstLossCoverContract,
-                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                 poolConfigContract,
                 poolOwner,
                 {
@@ -394,7 +397,7 @@ describe("PoolFeeManager Tests", function () {
         it("Should disallow non-protocol owner owner to withdraw protocol fees", async function () {
             await expect(
                 poolFeeManagerContract.connect(lender).withdrawProtocolFee(amount),
-            ).to.be.revertedWithCustomError(poolFeeManagerContract, "notProtocolOwner");
+            ).to.be.revertedWithCustomError(poolFeeManagerContract, "ProtocolOwnerRequired");
         });
 
         it("Should disallow withdrawal attempts with amounts higher than the balance", async function () {
@@ -402,7 +405,7 @@ describe("PoolFeeManager Tests", function () {
                 poolFeeManagerContract.connect(protocolOwner).withdrawProtocolFee(amount),
             ).to.be.revertedWithCustomError(
                 poolFeeManagerContract,
-                "insufficientAmountForRequest",
+                "InsufficientAmountForRequest",
             );
         });
     });
@@ -417,7 +420,7 @@ describe("PoolFeeManager Tests", function () {
         it("Should allow the pool owner to withdraw the fees", async function () {
             await overrideFirstLossCoverConfig(
                 affiliateFirstLossCoverContract,
-                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                 poolConfigContract,
                 poolOwner,
                 {
@@ -471,7 +474,7 @@ describe("PoolFeeManager Tests", function () {
                 const coverTotalAssets = await affiliateFirstLossCoverContract.totalAssets();
                 await overrideFirstLossCoverConfig(
                     affiliateFirstLossCoverContract,
-                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                    CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                     poolConfigContract,
                     poolOwner,
                     {
@@ -480,14 +483,17 @@ describe("PoolFeeManager Tests", function () {
                 );
                 await expect(
                     poolFeeManagerContract.connect(poolOwnerTreasury).withdrawPoolOwnerFee(amount),
-                ).to.be.revertedWithCustomError(poolConfigContract, "lessThanRequiredCover");
+                ).to.be.revertedWithCustomError(poolConfigContract, "InsufficientFirstLossCover");
             },
         );
 
         it("Should disallow non-pool owner treasury to withdraw pool owner fees", async function () {
             await expect(
                 poolFeeManagerContract.connect(lender).withdrawPoolOwnerFee(amount),
-            ).to.be.revertedWithCustomError(poolFeeManagerContract, "notAuthorizedCaller");
+            ).to.be.revertedWithCustomError(
+                poolFeeManagerContract,
+                "AuthorizedContractCallerRequired",
+            );
         });
 
         it("Should disallow withdrawal attempts with amounts higher than the balance", async function () {
@@ -495,7 +501,7 @@ describe("PoolFeeManager Tests", function () {
                 poolFeeManagerContract.connect(poolOwnerTreasury).withdrawPoolOwnerFee(amount),
             ).to.be.revertedWithCustomError(
                 poolFeeManagerContract,
-                "insufficientAmountForRequest",
+                "InsufficientAmountForRequest",
             );
         });
     });
@@ -510,7 +516,7 @@ describe("PoolFeeManager Tests", function () {
         it("Should allow the EA to withdraw the fees", async function () {
             await overrideFirstLossCoverConfig(
                 affiliateFirstLossCoverContract,
-                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                 poolConfigContract,
                 poolOwner,
                 {
@@ -547,7 +553,7 @@ describe("PoolFeeManager Tests", function () {
             const coverTotalAssets = await affiliateFirstLossCoverContract.totalAssets();
             await overrideFirstLossCoverConfig(
                 affiliateFirstLossCoverContract,
-                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                 poolConfigContract,
                 poolOwner,
                 {
@@ -556,13 +562,13 @@ describe("PoolFeeManager Tests", function () {
             );
             await expect(
                 poolFeeManagerContract.connect(evaluationAgent).withdrawEAFee(amount),
-            ).to.be.revertedWithCustomError(poolConfigContract, "lessThanRequiredCover");
+            ).to.be.revertedWithCustomError(poolConfigContract, "InsufficientFirstLossCover");
         });
 
         it("Should disallow non-pool owner or EA to withdraw EA fees", async function () {
             await expect(
                 poolFeeManagerContract.connect(lender).withdrawEAFee(amount),
-            ).to.be.revertedWithCustomError(poolConfigContract, "notPoolOwnerOrEA");
+            ).to.be.revertedWithCustomError(poolConfigContract, "PoolOwnerOrEARequired");
         });
 
         it("Should disallow withdrawal attempts with amounts higher than the balance", async function () {
@@ -570,7 +576,7 @@ describe("PoolFeeManager Tests", function () {
                 poolFeeManagerContract.connect(evaluationAgent).withdrawEAFee(amount),
             ).to.be.revertedWithCustomError(
                 poolFeeManagerContract,
-                "insufficientAmountForRequest",
+                "InsufficientAmountForRequest",
             );
         });
     });
@@ -587,14 +593,17 @@ describe("PoolFeeManager Tests", function () {
         it("Should not allow a non-pool owner and non-Sentinel Service account to invest fees", async function () {
             await expect(
                 poolFeeManagerContract.connect(lender).investFeesInFirstLossCover(),
-            ).to.be.revertedWithCustomError(poolConfigContract, "notAuthorizedCaller");
+            ).to.be.revertedWithCustomError(
+                poolConfigContract,
+                "AuthorizedContractCallerRequired",
+            );
         });
 
         it("Should allow the pool owner to not invest anything if there is no available fees to invest", async function () {
             // Zero-out the first loss cover capacity so that the fees cannot be invested.
             await overrideFirstLossCoverConfig(
                 affiliateFirstLossCoverContract,
-                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                 poolConfigContract,
                 poolOwner,
                 {
@@ -632,7 +641,7 @@ describe("PoolFeeManager Tests", function () {
             async function () {
                 await overrideFirstLossCoverConfig(
                     affiliateFirstLossCoverContract,
-                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                    CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                     poolConfigContract,
                     poolOwner,
                     {
@@ -681,7 +690,7 @@ describe("PoolFeeManager Tests", function () {
                 // Make the first loss cover available capacity less than the total available fees.
                 await overrideFirstLossCoverConfig(
                     affiliateFirstLossCoverContract,
-                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                    CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                     poolConfigContract,
                     poolOwner,
                     {
@@ -751,7 +760,7 @@ describe("PoolFeeManager Tests", function () {
             // Make the first loss cover available capacity less than the total available fees.
             await overrideFirstLossCoverConfig(
                 affiliateFirstLossCoverContract,
-                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                 poolConfigContract,
                 poolOwner,
                 {
@@ -821,7 +830,7 @@ describe("PoolFeeManager Tests", function () {
             // Set the max liquidity to be 0 so that admins can withdraw however much they want.
             await overrideFirstLossCoverConfig(
                 affiliateFirstLossCoverContract,
-                CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                 poolConfigContract,
                 poolOwner,
                 {
@@ -876,7 +885,7 @@ describe("PoolFeeManager Tests", function () {
                 // Make sure the first loss cover cap is large enough.
                 await overrideFirstLossCoverConfig(
                     affiliateFirstLossCoverContract,
-                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                    CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                     poolConfigContract,
                     poolOwner,
                     {
@@ -904,7 +913,7 @@ describe("PoolFeeManager Tests", function () {
                 // Make sure the first loss cover cap is large enough.
                 await overrideFirstLossCoverConfig(
                     affiliateFirstLossCoverContract,
-                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                    CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                     poolConfigContract,
                     poolOwner,
                     {
@@ -939,7 +948,7 @@ describe("PoolFeeManager Tests", function () {
                 // Make sure the first loss cover cap is large enough.
                 await overrideFirstLossCoverConfig(
                     affiliateFirstLossCoverContract,
-                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+                    CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                     poolConfigContract,
                     poolOwner,
                     {

@@ -167,7 +167,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
                     creditManagerContract
                         .connect(eaServiceAccount)
                         .approveReceivable(borrower.getAddress(), receivableId),
-                ).to.be.revertedWithCustomError(creditManagerContract, "notBorrower");
+                ).to.be.revertedWithCustomError(creditManagerContract, "BorrowerRequired");
             });
         });
 
@@ -294,7 +294,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
                     creditManagerContract
                         .connect(eaServiceAccount)
                         .approveReceivable(borrower.getAddress(), receivableId3),
-                ).to.be.revertedWithCustomError(creditManagerContract, "creditLineExceeded");
+                ).to.be.revertedWithCustomError(creditManagerContract, "CreditLimitExceeded");
                 // There should be no change to the available credit.
                 expect(await creditManagerContract.getAvailableCredit(creditHash)).to.equal(
                     expectedAvailableCredit,
@@ -311,7 +311,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
                     creditManagerContract
                         .connect(eaServiceAccount)
                         .approveReceivable(borrower.getAddress(), receivableId),
-                ).to.be.revertedWithCustomError(poolConfigContract, "protocolIsPaused");
+                ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
                 await humaConfigContract.connect(protocolOwner).unpause();
 
                 await poolContract.connect(poolOwner).disablePool();
@@ -319,7 +319,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
                     creditManagerContract
                         .connect(eaServiceAccount)
                         .approveReceivable(borrower.getAddress(), receivableId),
-                ).to.be.revertedWithCustomError(poolConfigContract, "poolIsNotOn");
+                ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
                 await poolContract.connect(poolOwner).enablePool();
             });
 
@@ -328,7 +328,10 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
                     creditManagerContract
                         .connect(borrower)
                         .approveReceivable(borrower.getAddress(), receivableId),
-                ).to.be.revertedWithCustomError(creditManagerContract, "notAuthorizedCaller");
+                ).to.be.revertedWithCustomError(
+                    creditManagerContract,
+                    "AuthorizedContractCallerRequired",
+                );
             });
 
             it("Should not approve a receivable with 0 ID", async function () {
@@ -336,7 +339,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
                     creditManagerContract
                         .connect(eaServiceAccount)
                         .approveReceivable(borrower.getAddress(), 0),
-                ).to.be.revertedWithCustomError(creditManagerContract, "zeroReceivableIdProvided");
+                ).to.be.revertedWithCustomError(creditManagerContract, "ZeroReceivableIdProvided");
             });
 
             it("Should not approve a receivable that was previously approved to someone else", async function () {
@@ -349,7 +352,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
                     creditManagerContract
                         .connect(eaServiceAccount)
                         .approveReceivable(borrower2.getAddress(), receivableId),
-                ).to.be.revertedWithCustomError(creditManagerContract, "receivableIdMismatch");
+                ).to.be.revertedWithCustomError(creditManagerContract, "ReceivableIdMismatch");
             });
 
             it("Should not approve a receivable that does not exist in the Receivable contract", async function () {
@@ -359,7 +362,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
                     creditManagerContract
                         .connect(eaServiceAccount)
                         .approveReceivable(borrower.getAddress(), numReceivables.add(1)),
-                ).to.be.revertedWithCustomError(creditManagerContract, "zeroReceivableAmount");
+                ).to.be.revertedWithCustomError(creditManagerContract, "ZeroReceivableAmount");
             });
 
             it("Should not approve a receivable with 0 amount", async function () {
@@ -379,7 +382,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
                     creditManagerContract
                         .connect(eaServiceAccount)
                         .approveReceivable(borrower.getAddress(), receivableId2),
-                ).to.be.revertedWithCustomError(creditManagerContract, "zeroReceivableAmount");
+                ).to.be.revertedWithCustomError(creditManagerContract, "ZeroReceivableAmount");
 
                 await receivableContract.connect(borrower).burn(receivableId2);
             });
@@ -404,7 +407,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
                     creditManagerContract
                         .connect(eaServiceAccount)
                         .approveReceivable(borrower.getAddress(), receivableId2),
-                ).to.be.revertedWithCustomError(creditManagerContract, "receivableAlreadyMatured");
+                ).to.be.revertedWithCustomError(creditManagerContract, "ReceivableAlreadyMatured");
 
                 await receivableContract.connect(borrower).burn(receivableId2);
             });
@@ -431,7 +434,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
                     creditManagerContract
                         .connect(eaServiceAccount)
                         .approveReceivable(borrower.getAddress(), receivableId2),
-                ).to.be.revertedWithCustomError(creditManagerContract, "invalidReceivableState");
+                ).to.be.revertedWithCustomError(creditManagerContract, "InvalidReceivableState");
 
                 await receivableContract.connect(borrower).burn(receivableId2);
             });
@@ -442,7 +445,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
         it("Should reject receivables not owned by the borrower", async function () {
             await expect(
                 creditManagerContract.validateReceivableOwnership(borrower.getAddress(), 1),
-            ).to.be.revertedWithCustomError(creditManagerContract, "receivableIdMismatch");
+            ).to.be.revertedWithCustomError(creditManagerContract, "ReceivableIdMismatch");
         });
     });
 
@@ -485,7 +488,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
                 creditManagerContract
                     .connect(eaServiceAccount)
                     .validateReceivableStatus(receivable.maturityDate, receivable.state),
-            ).to.be.revertedWithCustomError(creditManagerContract, "receivableAlreadyMatured");
+            ).to.be.revertedWithCustomError(creditManagerContract, "ReceivableAlreadyMatured");
         });
 
         it("Should reject receivables that are in the wrong state", async function () {
@@ -498,7 +501,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
                 creditManagerContract
                     .connect(eaServiceAccount)
                     .validateReceivableStatus(receivable.maturityDate, receivable.state),
-            ).to.be.revertedWithCustomError(creditManagerContract, "invalidReceivableState");
+            ).to.be.revertedWithCustomError(creditManagerContract, "InvalidReceivableState");
         });
     });
 
@@ -567,7 +570,10 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
                 creditManagerContract
                     .connect(borrower)
                     .decreaseCreditLimit(creditHash, receivableAmount),
-            ).to.be.revertedWithCustomError(creditManagerContract, "notAuthorizedCaller");
+            ).to.be.revertedWithCustomError(
+                creditManagerContract,
+                "AuthorizedContractCallerRequired",
+            );
         });
 
         it("Should not decrease the credit limit beyond what's available", async function () {
@@ -576,7 +582,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
                     creditHash,
                     receivableAmount.add(toToken(1)),
                 ),
-            ).to.be.revertedWithCustomError(creditManagerContract, "creditLineExceeded");
+            ).to.be.revertedWithCustomError(creditManagerContract, "CreditLimitExceeded");
         });
     });
 });

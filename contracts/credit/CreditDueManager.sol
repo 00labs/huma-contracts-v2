@@ -18,7 +18,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
     ) external view virtual returns (uint256 amtToBorrower, uint256 platformFees) {
         // Calculate platform fee, which includes protocol fee and pool fee
         platformFees = calcFrontLoadingFee(borrowAmount);
-        if (borrowAmount < platformFees) revert Errors.borrowingAmountLessThanPlatformFees();
+        if (borrowAmount < platformFees) revert Errors.BorrowAmountLessThanPlatformFees();
         amtToBorrower = borrowAmount - platformFees;
         return (amtToBorrower, platformFees);
     }
@@ -76,7 +76,27 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
 
         newCR = _deepCopyCreditRecord(cr);
         newDD = _deepCopyDueDetail(dd);
-        if (newCR.state == CreditState.Approved) newCR.state = CreditState.GoodStanding;
+        if (cr.state == CreditState.Approved) newCR.state = CreditState.GoodStanding;
+        // Update periods passed and remaining periods.
+        uint256 periodsPassed = 0;
+        if (cr.state != CreditState.Approved && timestamp > cr.nextDueDate) {
+            // If the credit is just approved, then updating `remainingPeriods` will be taken care of when next due
+            // is calculated below. Hence we don't need to update it here.
+            uint256 startDateOfCurrentPeriod = calendar.getStartDateOfPeriod(
+                cc.periodDuration,
+                timestamp
+            );
+            periodsPassed = calendar.getNumPeriodsPassed(
+                cc.periodDuration,
+                cr.nextDueDate,
+                startDateOfCurrentPeriod
+            );
+            if (cr.remainingPeriods > 0) {
+                newCR.remainingPeriods = cr.remainingPeriods > uint16(periodsPassed)
+                    ? cr.remainingPeriods - uint16(periodsPassed)
+                    : 0;
+            }
+        }
 
         uint256 principalRate = 0;
         {
@@ -87,58 +107,43 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
 
         if (isLate) {
             if (timestamp > cr.nextDueDate) {
-                uint256 periodsForPastDueComputation = 0;
-                {
-                    uint256 periodsPassed = calendar.getNumPeriodsPassed(
-                        cc.periodDuration,
-                        cr.nextDueDate,
-                        timestamp
-                    );
+                newCR.missedPeriods += uint16(
+                    cr.nextDue + cr.totalPastDue == 0 &&
+                        (cr.unbilledPrincipal > 0 || cc.committedAmount > 0)
+                        ? periodsPassed // last due was paid off
+                        : periodsPassed + 1 // last due was not paid off
+                );
 
-                    newCR.missedPeriods += uint16(
-                        cr.nextDue + cr.totalPastDue == 0 &&
-                            (cr.unbilledPrincipal > 0 || cc.committedAmount > 0)
-                            ? periodsPassed // last due was paid off
-                            : periodsPassed + 1 // last due was not paid off
-                    );
+                newDD.yieldPastDue += cr.yieldDue;
+                newDD.principalPastDue += cr.nextDue - cr.yieldDue;
 
-                    if (cr.remainingPeriods > 0) {
-                        periodsForPastDueComputation = periodsPassed > cr.remainingPeriods
-                            ? cr.remainingPeriods
-                            : periodsPassed;
-
-                        newCR.remainingPeriods = uint16(
-                            cr.remainingPeriods - periodsForPastDueComputation
-                        );
-                    }
-
-                    newDD.yieldPastDue += cr.yieldDue;
-                    newDD.principalPastDue += cr.nextDue - cr.yieldDue;
-                }
-
-                if (periodsForPastDueComputation > 0) {
+                if (periodsPassed > 0) {
                     newDD.yieldPastDue += uint96(
                         _computeYieldNextDue(
                             cc.yieldInBps,
                             cr.unbilledPrincipal + cr.nextDue - cr.yieldDue + dd.principalPastDue,
                             cc.committedAmount,
-                            periodsForPastDueComputation * totalDaysInFullPeriod
+                            periodsPassed * totalDaysInFullPeriod
                         )
                     );
 
-                    if (principalRate > 0) {
-                        uint256 principalPastDue = _computePrincipalDueForFullPeriods(
-                            cr.unbilledPrincipal,
-                            principalRate,
-                            periodsForPastDueComputation
-                        );
-                        newDD.principalPastDue += uint96(principalPastDue);
-                        newCR.unbilledPrincipal = uint96(cr.unbilledPrincipal - principalPastDue);
-                    }
+                    if (cr.unbilledPrincipal > 0) {
+                        if (principalRate > 0) {
+                            uint256 principalPastDue = _computePrincipalDueForFullPeriods(
+                                cr.unbilledPrincipal,
+                                principalRate,
+                                periodsPassed
+                            );
+                            newDD.principalPastDue += uint96(principalPastDue);
+                            newCR.unbilledPrincipal = uint96(
+                                cr.unbilledPrincipal - principalPastDue
+                            );
+                        }
 
-                    if (newCR.remainingPeriods == 0) {
-                        newDD.principalPastDue += newCR.unbilledPrincipal;
-                        newCR.unbilledPrincipal = 0;
+                        if (newCR.remainingPeriods == 0) {
+                            newDD.principalPastDue += newCR.unbilledPrincipal;
+                            newCR.unbilledPrincipal = 0;
+                        }
                     }
                 }
             }
@@ -159,41 +164,46 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
             newCR.nextDueDate = uint64(
                 calendar.getStartDateOfNextPeriod(cc.periodDuration, timestamp)
             );
-            newCR.nextDue = 0;
-            newCR.yieldDue = 0;
             newDD.paid = 0;
-            newDD.accrued = 0;
-            newDD.committed = 0;
-            if (newCR.remainingPeriods > 0) {
-                uint256 daysUntilNextDue;
-                if (cr.state == CreditState.Approved) {
-                    daysUntilNextDue = calendar.getDaysDiff(timestamp, newCR.nextDueDate);
-                } else {
-                    daysUntilNextDue = totalDaysInFullPeriod;
-                }
-                (newDD.accrued, newDD.committed) = _computeAccruedAndCommittedYieldDue(
-                    cc.yieldInBps,
-                    cr.unbilledPrincipal + cr.nextDue - cr.yieldDue + dd.principalPastDue,
-                    cc.committedAmount,
-                    daysUntilNextDue
-                );
-                newCR.yieldDue = newDD.committed > newDD.accrued ? newDD.committed : newDD.accrued;
-                newCR.nextDue = newCR.yieldDue;
 
-                if (principalRate > 0) {
-                    uint256 principalDue = _computePrincipalDueForPartialPeriod(
-                        newCR.unbilledPrincipal,
-                        principalRate,
-                        daysUntilNextDue,
-                        totalDaysInFullPeriod
-                    );
-                    newCR.unbilledPrincipal -= uint96(principalDue);
-                    newCR.nextDue += uint96(principalDue);
-                }
+            uint256 daysUntilNextDue;
+            if (cr.state == CreditState.Approved) {
+                daysUntilNextDue = calendar.getDaysDiff(timestamp, newCR.nextDueDate);
+            } else {
+                daysUntilNextDue = totalDaysInFullPeriod;
+            }
+            uint256 totalPrincipal = cr.unbilledPrincipal +
+                cr.nextDue -
+                cr.yieldDue +
+                dd.principalPastDue;
+            (newDD.accrued, newDD.committed) = _computeAccruedAndCommittedYieldDue(
+                cc.yieldInBps,
+                totalPrincipal,
+                cc.committedAmount,
+                daysUntilNextDue
+            );
+            newCR.yieldDue = newDD.committed > newDD.accrued ? newDD.committed : newDD.accrued;
+            newCR.nextDue = newCR.yieldDue;
+
+            if (newCR.remainingPeriods > 0) {
                 newCR.remainingPeriods -= 1;
-                if (newCR.remainingPeriods == 0) {
-                    newCR.nextDue += newCR.unbilledPrincipal;
-                    newCR.unbilledPrincipal = 0;
+
+                if (newCR.unbilledPrincipal > 0) {
+                    if (principalRate > 0) {
+                        uint256 principalDue = _computePrincipalDueForPartialPeriod(
+                            newCR.unbilledPrincipal,
+                            principalRate,
+                            daysUntilNextDue,
+                            totalDaysInFullPeriod
+                        );
+                        newCR.unbilledPrincipal -= uint96(principalDue);
+                        newCR.nextDue += uint96(principalDue);
+                    }
+
+                    if (newCR.remainingPeriods == 0) {
+                        newCR.nextDue += newCR.unbilledPrincipal;
+                        newCR.unbilledPrincipal = 0;
+                    }
                 }
             }
         }
