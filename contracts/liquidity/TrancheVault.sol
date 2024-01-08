@@ -48,7 +48,7 @@ contract TrancheVault is
 
     event RedemptionRequestRemoved(address indexed account, uint256 shareAmount, uint256 epochId);
 
-    event YieldPaidout(address indexed account, uint256 yields, uint256 shares);
+    event YieldPaidOut(address indexed account, uint256 yields, uint256 shares);
 
     event YieldReinvested(address indexed account, uint256 yields);
 
@@ -70,6 +70,7 @@ contract TrancheVault is
     }
 
     /**
+     * @notice Adds an approved lender.
      * @notice Lenders need to pass compliance requirements. Pool operator will administer off-chain
      * to make sure potential lenders meet the requirements. Afterwards, the pool operator will
      * call this function to mark a lender as approved.
@@ -108,7 +109,8 @@ contract TrancheVault is
     }
 
     /**
-     * @notice The pool operator will call this function to mark whether a lender wants to reinvest yield.
+     * @notice Marks whether a lender wants to reinvest yield.
+     * @custom:access Only pool operators can call this function.
      */
     function setReinvestYield(address lender, bool reinvestYield) external {
         poolConfig.onlyPoolOperator(msg.sender);
@@ -172,13 +174,11 @@ contract TrancheVault is
 
     /**
      * @notice LP deposits to the pool to earn yield, and share losses
-     *
      * @notice All deposits should be made by calling this function and
      * makeInitialDeposit() (for pool owner and EA's initial deposit) only.
      * Please do NOT directly transfer any digital assets to the contracts,
      * which will cause a permanent loss and we cannot help reverse transactions
      * or retrieve assets from the contracts.
-     *
      * @param assets The number of underlyingTokens to be deposited
      * @param receiver The address to receive the minted tranche token
      * @return shares The number of tranche token to be minted
@@ -340,7 +340,7 @@ contract TrancheVault is
                 ERC20Upgradeable._burn(lender, shares);
                 poolSafe.withdraw(lender, yield);
                 tranchesAssets[trancheIndex] -= uint96(yield);
-                emit YieldPaidout(lender, yield, shares);
+                emit YieldPaidOut(lender, yield, shares);
             }
         }
         poolSafe.resetUnprocessedProfit();
@@ -411,9 +411,6 @@ contract TrancheVault is
         return tempTotalSupply == 0 ? shares : (shares * tempTotalAssets) / tempTotalSupply;
     }
 
-    /**
-     * @notice Gets address for underlyingToken, pool, poolSafe, and epochManager from poolConfig
-     */
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = _poolConfig.underlyingToken();
         assert(addr != address(0));

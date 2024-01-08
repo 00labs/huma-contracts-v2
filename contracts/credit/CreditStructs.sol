@@ -3,8 +3,10 @@ pragma solidity ^0.8.0;
 
 import {PayPeriodDuration} from "../common/SharedDefs.sol";
 
-// CreditConfig keeps track of the static settings of a credit.
-// A CreditConfig is created after the approval of each credit.
+/**
+ * @notice CreditConfig keeps track of the static settings of a credit.
+ * A CreditConfig is created after the approval of each credit.
+ */
 struct CreditConfig {
     uint96 creditLimit;
     uint96 committedAmount;
@@ -21,8 +23,10 @@ struct CreditConfig {
     bool receivableAutoApproval;
 }
 
-// CreditRecord keep track of the dynamic stats of a credit that change
-// from pay period to pay period, e.g. due info for each bill.
+/**
+ * @notice CreditRecord keep track of the dynamic stats of a credit that change
+ * from pay period to pay period, e.g. due info for each bill.
+ */
 struct CreditRecord {
     uint96 unbilledPrincipal; // the amount of principal not included in the bill
     uint64 nextDueDate; // the due date of the next payment

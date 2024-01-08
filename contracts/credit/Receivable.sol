@@ -34,7 +34,7 @@ contract Receivable is
     using CountersUpgradeable for CountersUpgradeable.Counter;
 
     /**
-     * @dev Emitted when the owner of a receivable calls the declarePayment function
+     * @notice Emitted when the owner of a receivable calls the declarePayment function
      * @param from The address of the owner of the receivable
      * @param tokenId The ID of the receivable token
      * @param currencyCode The ISO 4217 currency code that the receivable is denominated in
@@ -48,7 +48,7 @@ contract Receivable is
     );
 
     /**
-     * @dev Emitted when a receivable is created
+     * @notice Emitted when a receivable is created
      * @param owner The address of the owner of the receivable
      * @param tokenId The ID of the receivable token
      * @param receivableAmount The total expected payment amount of the receivable
@@ -64,7 +64,7 @@ contract Receivable is
     );
 
     /**
-     * @dev Emitted when a receivable metadata URI is updated
+     * @notice Emitted when a receivable metadata URI is updated
      * @param owner The address of the owner of the receivable
      * @param tokenId The ID of the newly created receivable update token
      * @param oldTokenURI The old metadata URI of the receivable
@@ -83,7 +83,7 @@ contract Receivable is
     }
 
     /**
-     * @dev Initializer that sets the default admin role
+     * @notice Initializer that sets the default admin role
      */
     function initialize() external initializer {
         __ERC721_init("HumaReceivable", "HREC");

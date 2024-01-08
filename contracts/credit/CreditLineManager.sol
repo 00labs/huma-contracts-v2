@@ -7,7 +7,7 @@ import {PayPeriodDuration} from "../common/SharedDefs.sol";
 import {Errors} from "../common/Errors.sol";
 
 /**
- * CreditLineManager has a set of administrative functions to manage the settings
+ * @notice CreditLineManager has a set of administrative functions to manage the settings
  * for a borrower-level credit. A borrower-level credit can have many drawdowns and paybacks
  * with or without backing of a collateral or receivable, but the balance is all aggregated
  * at the borrower-level. A classic example of borrower-level credit is credit line.
@@ -96,7 +96,7 @@ contract CreditLineManager is CreditManager, ICreditLineManager {
     }
 
     /// @inheritdoc ICreditLineManager
-    /// @dev Only the borrower or EA Service account can call this function
+    /// @custom:access Only the borrower or EA Service account can call this function
     function closeCredit(address borrower) external virtual override {
         poolConfig.onlyProtocolAndPoolOn();
         if (msg.sender != borrower && msg.sender != humaConfig.eaServiceAccount())

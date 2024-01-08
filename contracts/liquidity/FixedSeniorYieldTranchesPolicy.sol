@@ -7,7 +7,7 @@ import {BaseTranchesPolicy} from "./BaseTranchesPolicy.sol";
 import {SENIOR_TRANCHE, SECONDS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS} from "../common/SharedDefs.sol";
 
 /**
- * @notice Tranche policy when the yield for the senior tranche is fixed as long as
+ * @notice Tranche policy where the yield for the senior tranche is fixed as long as
  * the risk loss does not make it impossible.
  */
 contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {

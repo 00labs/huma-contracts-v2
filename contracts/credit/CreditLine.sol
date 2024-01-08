@@ -7,7 +7,7 @@ import {CreditRecord, DueDetail} from "./CreditStructs.sol";
 import {Errors} from "../common/Errors.sol";
 
 /**
- * Credit Line is one of the most common forms of credit on Huma.
+ * @notice Credit Line is one of the most common forms of credit on Huma.
  * The borrower can drawdown and payback repeatedly against a pre-approved
  * credit line as long as they stay under the approved credit limit.
  */

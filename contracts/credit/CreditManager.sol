@@ -124,7 +124,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
     }
 
     /**
-     * @notice checks if the credit line is ready to be triggered as defaulted
+     * @notice Checks if the credit line is ready to be triggered as defaulted
      * @param creditHash The credit hash.
      * @return isReady a boolean flag for ready for default or not
      */
@@ -146,7 +146,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
     }
 
     /**
-     * Pulls the addresses of dependent contracts from poolConfig and caches them
+     * @notice Pulls the addresses of dependent contracts from poolConfig and caches them
      * Contracts addresses to be cached: Huma Config, Calendar, Credit and Credit Due Manager
      */
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
@@ -244,7 +244,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
     }
 
     /**
-     * @notice startCommittedCredit helper function.
+     * @notice Helper function for `startCommittedCredit`.
      * @custom:access Internal function, access control is done outside of this function.
      */
     function _startCommittedCredit(bytes32 creditHash) internal virtual {
@@ -365,7 +365,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
     }
 
     /**
-     * @notice Extend the expiration (maturity) date of a credit
+     * @notice Extends the expiration (maturity) date of a credit
      * @param creditHash the hashcode of the credit
      * @param extraNumOfPeriods the number of pay periods to be extended
      */
