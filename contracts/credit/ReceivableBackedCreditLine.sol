@@ -8,8 +8,6 @@ import {Errors} from "../common/Errors.sol";
 import {IReceivableBackedCreditLineManager} from "./interfaces/IReceivableBackedCreditLineManager.sol";
 import {IReceivable} from "./interfaces/IReceivable.sol";
 
-import "hardhat/console.sol";
-
 contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
     event PrincipalPaymentMadeWithReceivable(
         address indexed borrower,

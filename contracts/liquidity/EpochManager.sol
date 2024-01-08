@@ -95,18 +95,19 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         EpochRedemptionSummary memory juniorSummary = juniorTranche.currentRedemptionSummary();
         uint256 unprocessedAmount;
 
+        _createNextEpoch(ce);
+
         if (seniorSummary.totalSharesRequested > 0 || juniorSummary.totalSharesRequested > 0) {
-            _processEpoch(tranchesAssets, seniorSummary, seniorPrice, juniorSummary, juniorPrice);
-
-            seniorTranche.executeRedemptionSummary(seniorSummary);
-            juniorTranche.executeRedemptionSummary(juniorSummary);
-
             unprocessedAmount =
                 (((seniorSummary.totalSharesRequested - seniorSummary.totalSharesProcessed) *
                     seniorPrice) +
                     ((juniorSummary.totalSharesRequested - juniorSummary.totalSharesProcessed) *
                         juniorPrice)) /
                 DEFAULT_DECIMALS_FACTOR;
+
+            _processEpoch(tranchesAssets, seniorSummary, seniorPrice, juniorSummary, juniorPrice);
+            seniorTranche.executeRedemptionSummary(seniorSummary);
+            juniorTranche.executeRedemptionSummary(juniorSummary);
         }
 
         pool.updateTranchesAssets(tranchesAssets);
@@ -119,7 +120,6 @@ contract EpochManager is PoolConfigCache, IEpochManager {
             juniorPrice,
             unprocessedAmount
         );
-        _createNextEpoch(ce);
     }
 
     function currentEpochId() external view returns (uint256) {
