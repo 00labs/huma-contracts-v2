@@ -12,10 +12,10 @@ async function submitRedemptionRequestToTranche(
     const TrancheVault = await hre.ethers.getContractFactory("TrancheVault");
     const trancheVaultContract = TrancheVault.attach(trancheVaultContractAddr);
     const redemptionShares = await trancheVaultContract.balanceOf(redemptionRequester.address);
-    const redemptionRequest = await trancheVaultContract
+    const addRedemptionRequestTx = await trancheVaultContract
         .connect(redemptionRequester)
         .addRedemptionRequest(redemptionShares);
-    await redemptionRequest.wait();
+    await addRedemptionRequestTx.wait();
 }
 
 async function withdrawFromFLC(
@@ -23,14 +23,14 @@ async function withdrawFromFLC(
     redemptionRequester: SignerWithAddress,
 ): Promise<void> {
     const redemptionShares = await flcContract.balanceOf(redemptionRequester.address);
-    const redemptionRequest = await flcContract
+    const redeemCoverTx = await flcContract
         .connect(redemptionRequester)
         .redeemCover(redemptionShares, redemptionRequester.address);
-    await redemptionRequest.wait();
+    await redeemCoverTx.wait();
 }
 
 task(
-    "prepareTranchesFlcForWithdraw",
+    "prepareTranchesFlcForWithdrawal",
     "Submit withdrawal and redemption requests and prepare pool for closing",
 )
     .addParam(
