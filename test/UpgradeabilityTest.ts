@@ -132,7 +132,7 @@ describe("Upgradeability Test", function () {
         await poolConfigNewImpl.deployed();
         await expect(
             poolConfigContract.connect(poolOwner).upgradeTo(poolConfigNewImpl.address),
-        ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+        ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
     });
 
     // A test that checks upgradeability of a Pool contract
@@ -152,12 +152,12 @@ describe("Upgradeability Test", function () {
         await poolNewImpl.deployed();
         await expect(
             poolContract.connect(poolOwner).upgradeTo(poolNewImpl.address),
-        ).to.be.revertedWithCustomError(poolConfigContract, "permissionDeniedNotAdmin");
+        ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
     });
 
     // A test that checks upgradeability of the TranchedVault contract
     it("TrancheVault upgrade test", async function () {
-        const TrancheVault = await ethers.getContractFactory("TrancheVault");
+        const TrancheVault = await ethers.getContractFactory("AdminRequired");
         const trancheVaultNewImpl = await TrancheVault.deploy();
         await trancheVaultNewImpl.deployed();
         await expect(
