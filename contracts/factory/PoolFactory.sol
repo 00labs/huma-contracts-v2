@@ -64,7 +64,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
     address public creditLineImplAddress;
     address public receivableBackedCreditLineImplAddress;
     address public receivableFactoringCreditImplAddress;
-    address public CreditLineManagerImplAddress;
+    address public creditLineManagerImplAddress;
     address public receivableBackedCreditLineManagerImplAddress;
     address public receivableFactoringCreditManagerImplAddress;
 
@@ -207,8 +207,8 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
     function setCreditLineManagerImplAddress(address newAddress) external {
         _onlyFactoryAdmin(msg.sender);
         _notZeroAddress(newAddress);
-        address oldAddress = CreditLineManagerImplAddress;
-        CreditLineManagerImplAddress = newAddress;
+        address oldAddress = creditLineManagerImplAddress;
+        creditLineManagerImplAddress = newAddress;
         emit CreditLineManagerImplChanged(oldAddress, newAddress);
     }
 
@@ -707,7 +707,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
             poolAddresses[12] = _addCreditManager(receivableFactoringCreditManagerImplAddress);
         } else if (keccak256(bytes(creditType)) == keccak256(bytes("creditline"))) {
             poolAddresses[10] = _addCredit(creditLineImplAddress);
-            poolAddresses[12] = _addCreditManager(CreditLineManagerImplAddress);
+            poolAddresses[12] = _addCreditManager(creditLineManagerImplAddress);
         } else {
             revert Errors.InvalidCreditType();
         }
