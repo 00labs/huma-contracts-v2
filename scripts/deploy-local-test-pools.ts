@@ -3,13 +3,13 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { BigNumber as BN } from "ethers";
 import { ethers } from "hardhat";
 import {
-    CONSTANTS,
     CreditContractName,
     CreditManagerContractName,
     deployAndSetupPoolContracts,
     deployProtocolContracts,
     PayPeriodDuration,
 } from "../test/BaseTest";
+import { CONSTANTS } from "../test/constants";
 import { overrideFirstLossCoverConfig, toToken } from "../test/TestUtils";
 import {
     BorrowerLevelCreditManager,
