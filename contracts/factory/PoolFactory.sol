@@ -336,7 +336,6 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
             creditType
         );
         PoolConfig poolConfig = PoolConfig(poolConfigAddress);
-        poolConfig.initialize(_poolName, poolAddresses);
 
         if (receivableAddress != address(0)) {
             poolConfig.setReceivableAsset(receivableAddress);
@@ -677,7 +676,6 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         string memory tranchesPolicyType,
         string memory creditType
     ) private onlyRole(DEPLOYER_ROLE) returns (address, address[] memory) {
-        address poolConfigAddress = _addPoolConfig();
         address[] memory poolAddresses = new address[](13); // 13 is the number of contracts in a pool
         poolAddresses[0] = humaConfigAddress;
         poolAddresses[1] = assetTokenAddress;
@@ -711,7 +709,9 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         } else {
             revert Errors.InvalidCreditType();
         }
-        emit PoolCreated(poolAddresses[0], _poolName);
+        address poolConfigAddress = _addPoolConfig();
+        PoolConfig(poolConfigAddress).initialize(_poolName, poolAddresses);
+        emit PoolCreated(poolAddresses[3], _poolName);
         return (poolConfigAddress, poolAddresses);
     }
 }
