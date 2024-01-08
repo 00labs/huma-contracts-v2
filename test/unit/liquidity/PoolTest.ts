@@ -972,7 +972,6 @@ describe("Pool Test", function () {
                     .setTranches(defaultDeployer.getAddress(), defaultDeployer.getAddress());
                 await poolContract.updateTranchesAssets(tranchesAssets);
 
-                console.log(await poolContract.currentTranchesAssets());
                 expect(await poolContract.currentTranchesAssets()).to.eql(tranchesAssets);
             });
 

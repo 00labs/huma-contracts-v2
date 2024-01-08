@@ -39,7 +39,6 @@ contract TrancheVaultStorage {
     IPool public pool;
     IPoolSafe public poolSafe;
     IEpochManager public epochManager;
-    ICalendar public calendar;
 
     mapping(uint256 => EpochRedemptionSummary) public epochRedemptionSummaries;
 
