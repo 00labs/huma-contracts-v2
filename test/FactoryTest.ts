@@ -84,6 +84,8 @@ let poolConfigImpl: PoolConfig,
 
 let poolFactoryContract: PoolFactory;
 
+let receivableAddress: string;
+
 describe("Factory Test", function () {
     before(async function () {
         [
@@ -391,6 +393,15 @@ describe("Factory Test", function () {
             receivableLevelCreditManagerImpl,
             receivableImpl,
         );
+
+        await poolFactoryContract.addReceivable();
+        const tx = await poolFactoryContract.addReceivable();
+        const receipt = await tx.wait();
+        for (const evt of receipt.events!) {
+            if (evt.event === "ReceivableCreated") {
+                receivableAddress = evt.args!.receivableAddress;
+            }
+        }
     }
 
     beforeEach(async function () {
@@ -403,6 +414,7 @@ describe("Factory Test", function () {
             await poolFactoryContract.deployPool(
                 "test pool",
                 mockTokenContract.address,
+                receivableAddress,
                 "fixed",
                 "creditline",
             ),
@@ -415,17 +427,35 @@ describe("Factory Test", function () {
         await expect(
             poolFactoryContract
                 .connect(poolOwner)
-                .deployPool("test pool", mockTokenContract.address, "fixed", "creditline"),
+                .deployPool(
+                    "test pool",
+                    mockTokenContract.address,
+                    receivableAddress,
+                    "fixed",
+                    "creditline",
+                ),
         ).to.be.revertedWithCustomError(poolFactoryContract, "DeployerRequired");
     });
     it("Deploy a pool using factory - invalid pool type", async function () {
         await expect(
-            poolFactoryContract.deployPool("test pool", mockTokenContract.address, "invalid", ""),
+            poolFactoryContract.deployPool(
+                "test pool",
+                mockTokenContract.address,
+                receivableAddress,
+                "invalid",
+                "",
+            ),
         ).to.be.revertedWithCustomError(poolFactoryContract, "InvalidTranchesPolicyType");
     });
     it("Deploy a pool using factory - invalid credit line type", async function () {
         await expect(
-            poolFactoryContract.deployPool("test pool", mockTokenContract.address, "fixed", ""),
+            poolFactoryContract.deployPool(
+                "test pool",
+                mockTokenContract.address,
+                receivableAddress,
+                "fixed",
+                "",
+            ),
         ).to.be.revertedWithCustomError(poolFactoryContract, "InvalidCreditType");
     });
 
@@ -433,6 +463,7 @@ describe("Factory Test", function () {
         await poolFactoryContract.deployPool(
             "test pool",
             mockTokenContract.address,
+            receivableAddress,
             "fixed",
             "creditline",
         );
@@ -456,6 +487,7 @@ describe("Factory Test", function () {
         await poolFactoryContract.deployPool(
             "test pool",
             mockTokenContract.address,
+            receivableAddress,
             "fixed",
             "creditline",
         );
