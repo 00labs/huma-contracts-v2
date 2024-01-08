@@ -249,13 +249,14 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         uint256 principal
     ) external view returns (uint256 updatedYield) {
         uint256 daysRemaining = calendar.getDaysRemainingInPeriod(nextDueDate);
-        // Since the new APY may be smaller than the APY, we need to work with signed integers.
-        int256 yieldInBpsDiff = int256(newYieldInBps) - int256(oldYieldInBps);
-        // -1 since the new yield takes effect the next day.
-        int256 yieldDiff = (int256((daysRemaining - 1) * principal) * yieldInBpsDiff);
+        uint256 newYieldDueForDaysRemaining = principal * newYieldInBps * (daysRemaining - 1);
+        uint256 oldYieldDueForDaysRemaining = principal * oldYieldInBps * (daysRemaining - 1);
         return
-            uint256(int256(oldYieldDue * HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR) + yieldDiff) /
-            (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR);
+            (oldYieldDue *
+                HUNDRED_PERCENT_IN_BPS *
+                DAYS_IN_A_YEAR +
+                newYieldDueForDaysRemaining -
+                oldYieldDueForDaysRemaining) / (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR);
     }
 
     /// @inheritdoc ICreditDueManager
@@ -267,12 +268,18 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         uint256 yieldInBps
     ) external view returns (uint256 updatedYield) {
         uint256 daysRemaining = calendar.getDaysRemainingInPeriod(nextDueDate);
-        int256 committedAmountDiff = int256(newCommittedAmount) - int256(oldCommittedAmount);
-        int256 yieldDiff = (int256((daysRemaining - 1) * yieldInBps) * committedAmountDiff);
+        uint256 newYieldDueForDaysRemaining = newCommittedAmount *
+            yieldInBps *
+            (daysRemaining - 1);
+        uint256 oldYieldDueForDaysRemaining = oldCommittedAmount *
+            yieldInBps *
+            (daysRemaining - 1);
         return
-            uint256(
-                int256(oldCommittedYieldDue * HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR) + yieldDiff
-            ) / (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR);
+            (oldCommittedYieldDue *
+                HUNDRED_PERCENT_IN_BPS *
+                DAYS_IN_A_YEAR +
+                newYieldDueForDaysRemaining -
+                oldYieldDueForDaysRemaining) / (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR);
     }
 
     function getNextBillRefreshDate(

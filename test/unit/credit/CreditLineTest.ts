@@ -46,7 +46,6 @@ import {
     genDueDetail,
     getLatePaymentGracePeriodDeadline,
     getNextBillRefreshDate,
-    printCreditRecord,
 } from "../../BaseTest";
 import {
     borrowerLevelCreditHash,
@@ -8687,7 +8686,6 @@ describe("CreditLine Test", function () {
                 await creditManagerContract
                     .connect(eaServiceAccount)
                     .updateYield(borrower.getAddress(), 0);
-                printCreditRecord("", await creditContract.getCreditRecord(creditHash));
 
                 const cc = await creditManagerContract.getCreditConfig(creditHash);
                 const currentBlockTS = (await getLatestBlock()).timestamp;
