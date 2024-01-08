@@ -4,9 +4,9 @@ import { expect } from "chai";
 import { BigNumber as BN } from "ethers";
 import { ethers } from "hardhat";
 import {
-    BorrowerLevelCreditManager,
     Calendar,
     CreditDueManager,
+    CreditLineManager,
     EpochManager,
     EvaluationAgentNFT,
     FirstLossCover,
@@ -18,7 +18,7 @@ import {
     PoolFeeManager,
     PoolSafe,
     Receivable,
-    ReceivableLevelCreditManager,
+    ReceivableFactoringCreditManager,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
 } from "../../../typechain-types";
@@ -72,7 +72,7 @@ let poolConfigContract: PoolConfig,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: MockPoolCredit,
     creditDueManagerContract: CreditDueManager,
-    creditManagerContract: BorrowerLevelCreditManager,
+    creditManagerContract: CreditLineManager,
     receivableContract: Receivable;
 
 describe("PoolConfig Tests", function () {
@@ -146,10 +146,10 @@ describe("PoolConfig Tests", function () {
                 CreditDueManager,
             )) as CreditDueManager;
 
-            const CreditManager = await ethers.getContractFactory("BorrowerLevelCreditManager");
+            const CreditManager = await ethers.getContractFactory("CreditLineManager");
             creditManagerContract = (await deployProxyContract(
                 CreditManager,
-            )) as BorrowerLevelCreditManager;
+            )) as CreditLineManager;
 
             const Receivable = await ethers.getContractFactory("Receivable");
             receivableContract = (await deployProxyContract(Receivable)) as Receivable;
@@ -672,11 +672,13 @@ describe("PoolConfig Tests", function () {
             );
         });
 
-        it("Should not allow the ReceivableLevelCreditManager contract to be initialized twice", async function () {
-            const CreditManager = await ethers.getContractFactory("ReceivableLevelCreditManager");
-            const receivableLevelManagerContract = (await deployProxyContract(
+        it("Should not allow the ReceivableFactoringCreditManager.sol contract to be initialized twice", async function () {
+            const CreditManager = await ethers.getContractFactory(
+                "ReceivableFactoringCreditManager",
+            );
+            const receivableFactoringCreditManagerContract = (await deployProxyContract(
                 CreditManager,
-            )) as ReceivableLevelCreditManager;
+            )) as ReceivableFactoringCreditManager;
 
             await poolConfigContract
                 .connect(poolOwner)
@@ -693,20 +695,22 @@ describe("PoolConfig Tests", function () {
                     juniorTrancheVaultContract.address,
                     creditContract.address,
                     creditDueManagerContract.address,
-                    receivableLevelManagerContract.address,
+                    receivableFactoringCreditManagerContract.address,
                 ]);
-            await receivableLevelManagerContract.initialize(poolConfigContract.address);
+            await receivableFactoringCreditManagerContract.initialize(poolConfigContract.address);
 
             await expect(
-                receivableLevelManagerContract.initialize(poolConfigContract.address),
+                receivableFactoringCreditManagerContract.initialize(poolConfigContract.address),
             ).to.be.revertedWith("Initializable: contract is already initialized");
         });
 
-        it("Should not allow PoolConfigCache to be the 0 address when initializing the ReceivableLevelCreditManager contract to be initialized twice", async function () {
-            const CreditManager = await ethers.getContractFactory("ReceivableLevelCreditManager");
-            const receivableLevelManagerContract = (await deployProxyContract(
+        it("Should not allow PoolConfigCache to be the 0 address when initializing the ReceivableFactoringCreditManager.sol contract to be initialized twice", async function () {
+            const CreditManager = await ethers.getContractFactory(
+                "ReceivableFactoringCreditManager",
+            );
+            const receivableFactoringCreditManagerContract = (await deployProxyContract(
                 CreditManager,
-            )) as ReceivableLevelCreditManager;
+            )) as ReceivableFactoringCreditManager;
 
             await poolConfigContract
                 .connect(poolOwner)
@@ -723,12 +727,15 @@ describe("PoolConfig Tests", function () {
                     juniorTrancheVaultContract.address,
                     creditContract.address,
                     creditDueManagerContract.address,
-                    receivableLevelManagerContract.address,
+                    receivableFactoringCreditManagerContract.address,
                 ]);
 
             await expect(
-                receivableLevelManagerContract.initialize(ethers.constants.AddressZero),
-            ).to.be.revertedWithCustomError(receivableLevelManagerContract, "ZeroAddressProvided");
+                receivableFactoringCreditManagerContract.initialize(ethers.constants.AddressZero),
+            ).to.be.revertedWithCustomError(
+                receivableFactoringCreditManagerContract,
+                "ZeroAddressProvided",
+            );
         });
 
         it("Should reject repeated calls to initialize()", async function () {
@@ -801,7 +808,7 @@ describe("PoolConfig Tests", function () {
                 defaultDeployer,
                 poolOwner,
                 "MockPoolCredit",
-                "BorrowerLevelCreditManager",
+                "CreditLineManager",
                 evaluationAgent,
                 poolOwnerTreasury,
                 poolOperator,

@@ -5,10 +5,10 @@ import { BigNumber as BN } from "ethers";
 import { ethers } from "hardhat";
 import moment from "moment";
 import {
-    BorrowerLevelCreditManager,
     Calendar,
     CreditDueManager,
     CreditLine,
+    CreditLineManager,
     EpochManager,
     EvaluationAgentNFT,
     FirstLossCover,
@@ -91,7 +91,7 @@ let poolConfigContract: PoolConfig,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: CreditLine,
     creditDueManagerContract: CreditDueManager,
-    creditManagerContract: BorrowerLevelCreditManager;
+    creditManagerContract: CreditLineManager;
 
 describe("CreditLine Test", function () {
     before(async function () {
@@ -143,7 +143,7 @@ describe("CreditLine Test", function () {
             defaultDeployer,
             poolOwner,
             "CreditLine",
-            "BorrowerLevelCreditManager",
+            "CreditLineManager",
             evaluationAgent,
             poolOwnerTreasury,
             poolOperator,

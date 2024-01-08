@@ -99,7 +99,7 @@ describe("PoolSafe Tests", function () {
             defaultDeployer,
             poolOwner,
             "MockPoolCredit",
-            "BorrowerLevelCreditManager",
+            "CreditLineManager",
             evaluationAgent,
             poolOwnerTreasury,
             poolOperator,
