@@ -7,12 +7,12 @@ import {PoolConfig} from "../common/PoolConfig.sol";
 import {Errors} from "../common/Errors.sol";
 import {ReceivableInput} from "./CreditStructs.sol";
 import {PayPeriodDuration} from "../common/SharedDefs.sol";
-import {IReceivableLevelCreditManager} from "./interfaces/IReceivableLevelCreditManager.sol";
+import {IReceivableFactoringCreditManager} from "./interfaces/IReceivableFactoringCreditManager.sol";
 
-contract ReceivableLevelCreditManager is
+contract ReceivableFactoringCreditManager is
     CreditManager,
     AccessControlUpgradeable,
-    IReceivableLevelCreditManager
+    IReceivableFactoringCreditManager
 {
     bytes32 public constant PAYER_ROLE = keccak256("PAYER");
 
@@ -51,7 +51,7 @@ contract ReceivableLevelCreditManager is
         emit PayerRemoved(payer);
     }
 
-    /// @inheritdoc IReceivableLevelCreditManager
+    /// @inheritdoc IReceivableFactoringCreditManager
     function approveReceivable(
         address borrower,
         ReceivableInput memory receivableInput,
@@ -88,7 +88,7 @@ contract ReceivableLevelCreditManager is
         );
     }
 
-    /// @inheritdoc IReceivableLevelCreditManager
+    /// @inheritdoc IReceivableFactoringCreditManager
     function refreshCredit(uint256 receivableId) external virtual {
         poolConfig.onlyProtocolAndPoolOn();
 
@@ -96,7 +96,7 @@ contract ReceivableLevelCreditManager is
         _refreshCredit(creditHash);
     }
 
-    /// @inheritdoc IReceivableLevelCreditManager
+    /// @inheritdoc IReceivableFactoringCreditManager
     function triggerDefault(
         uint256 receivableId
     ) external virtual returns (uint256 principalLoss, uint256 yieldLoss, uint256 feesLoss) {
@@ -107,7 +107,7 @@ contract ReceivableLevelCreditManager is
         return _triggerDefault(creditHash);
     }
 
-    /// @inheritdoc IReceivableLevelCreditManager
+    /// @inheritdoc IReceivableFactoringCreditManager
     function closeCredit(address borrower, uint256 receivableId) external virtual {
         poolConfig.onlyProtocolAndPoolOn();
         if (msg.sender != borrower && msg.sender != humaConfig.eaServiceAccount())
@@ -118,7 +118,7 @@ contract ReceivableLevelCreditManager is
         _closeCredit(creditHash);
     }
 
-    /// @inheritdoc IReceivableLevelCreditManager
+    /// @inheritdoc IReceivableFactoringCreditManager
     function pauseCredit(uint256 receivableId) external virtual {
         poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
@@ -127,7 +127,7 @@ contract ReceivableLevelCreditManager is
         _pauseCredit(creditHash);
     }
 
-    /// @inheritdoc IReceivableLevelCreditManager
+    /// @inheritdoc IReceivableFactoringCreditManager
     function unpauseCredit(uint256 receivableId) external virtual {
         poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
@@ -136,7 +136,7 @@ contract ReceivableLevelCreditManager is
         _unpauseCredit(creditHash);
     }
 
-    /// @inheritdoc IReceivableLevelCreditManager
+    /// @inheritdoc IReceivableFactoringCreditManager
     function updateYield(uint256 receivableId, uint256 yieldInBps) external virtual {
         poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
@@ -145,7 +145,7 @@ contract ReceivableLevelCreditManager is
         _updateYield(creditHash, yieldInBps);
     }
 
-    /// @inheritdoc IReceivableLevelCreditManager
+    /// @inheritdoc IReceivableFactoringCreditManager
     function extendRemainingPeriod(uint256 receivableId, uint256 numOfPeriods) external virtual {
         poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
@@ -154,7 +154,7 @@ contract ReceivableLevelCreditManager is
         _extendRemainingPeriod(creditHash, numOfPeriods);
     }
 
-    /// @inheritdoc IReceivableLevelCreditManager
+    /// @inheritdoc IReceivableFactoringCreditManager
     function waiveLateFee(uint256 receivableId, uint256 waivedAmount) external virtual {
         poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
@@ -163,7 +163,7 @@ contract ReceivableLevelCreditManager is
         _waiveLateFee(creditHash, waivedAmount);
     }
 
-    /// @inheritdoc IReceivableLevelCreditManager
+    /// @inheritdoc IReceivableFactoringCreditManager
     function onlyPayer(address account, bytes32 creditHash) external view returns (address) {
         if (!hasRole(PAYER_ROLE, account)) revert Errors.PayerRequired();
         return _creditBorrowerMap[creditHash];

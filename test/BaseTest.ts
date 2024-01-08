@@ -5,10 +5,10 @@ import { ethers } from "hardhat";
 import moment from "moment";
 import {
     BaseTranchesPolicy,
-    BorrowerLevelCreditManager,
     Calendar,
     CreditDueManager,
     CreditLine,
+    CreditLineManager,
     EpochManager,
     EvaluationAgentNFT,
     FirstLossCover,
@@ -23,7 +23,7 @@ import {
     ReceivableBackedCreditLine,
     ReceivableBackedCreditLineManager,
     ReceivableFactoringCredit,
-    ReceivableLevelCreditManager,
+    ReceivableFactoringCreditManager,
     TrancheVault,
 } from "../typechain-types";
 import { FirstLossCoverConfigStruct } from "../typechain-types/contracts/common/PoolConfig.sol/PoolConfig";
@@ -47,9 +47,9 @@ export type CreditContractType =
     | ReceivableBackedCreditLine
     | ReceivableFactoringCredit;
 export type CreditManagerContractType =
-    | BorrowerLevelCreditManager
+    | CreditLineManager
     | ReceivableBackedCreditLineManager
-    | ReceivableLevelCreditManager;
+    | ReceivableFactoringCreditManager;
 export type ProtocolContracts = [EvaluationAgentNFT, HumaConfig, MockToken];
 export type PoolContracts = [
     PoolConfig,
@@ -77,9 +77,9 @@ export type CreditContractName =
     | "ReceivableFactoringCredit"
     | "MockPoolCredit";
 export type CreditManagerContractName =
-    | "BorrowerLevelCreditManager"
+    | "CreditLineManager"
     | "ReceivableBackedCreditLineManager"
-    | "ReceivableLevelCreditManager";
+    | "ReceivableFactoringCreditManager";
 
 export enum PayPeriodDuration {
     Monthly,
@@ -1625,11 +1625,11 @@ async function getCreditManagerContractFactory(
     // The TypeScript compiler cannot deduce the specific return types based solely on the input values,
     // so this approach ensures correct type association for each possible input.
     switch (creditManagerContractName) {
-        case "BorrowerLevelCreditManager":
+        case "CreditLineManager":
             return await ethers.getContractFactory(creditManagerContractName);
         case "ReceivableBackedCreditLineManager":
             return await ethers.getContractFactory(creditManagerContractName);
-        case "ReceivableLevelCreditManager":
+        case "ReceivableFactoringCreditManager":
             return await ethers.getContractFactory(creditManagerContractName);
         default:
             throw new Error("Invalid creditManagerContractName");

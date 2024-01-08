@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-interface IBorrowerLevelCreditManager {
+interface ICreditLineManager {
     /**
      * @notice Approves the credit with the terms provided.
      * @param borrower the borrower address

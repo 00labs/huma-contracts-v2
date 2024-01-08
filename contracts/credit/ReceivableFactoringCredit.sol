@@ -7,7 +7,7 @@ import {Credit} from "./Credit.sol";
 import {CreditRecord, DueDetail} from "./CreditStructs.sol";
 import {IReceivableFactoringCredit} from "./interfaces/IReceivableFactoringCredit.sol";
 import {IReceivablePayable} from "./interfaces/IReceivablePayable.sol";
-import {IReceivableLevelCreditManager} from "./interfaces/IReceivableLevelCreditManager.sol";
+import {IReceivableFactoringCreditManager} from "./interfaces/IReceivableFactoringCreditManager.sol";
 import {Errors} from "../common/Errors.sol";
 
 contract ReceivableFactoringCredit is
@@ -104,7 +104,7 @@ contract ReceivableFactoringCredit is
 
         bytes32 creditHash = _getCreditHash(receivableId);
         // Restrict access to only payers to prevent money laundering.
-        address borrower = IReceivableLevelCreditManager(address(creditManager)).onlyPayer(
+        address borrower = IReceivableFactoringCreditManager(address(creditManager)).onlyPayer(
             msg.sender,
             creditHash
         );

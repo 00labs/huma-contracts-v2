@@ -17,7 +17,7 @@ import {
     PoolFeeManager,
     PoolSafe,
     ReceivableFactoringCredit,
-    ReceivableLevelCreditManager,
+    ReceivableFactoringCreditManager,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
 } from "../../../typechain-types";
@@ -68,7 +68,7 @@ let poolConfigContract: PoolConfig,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: ReceivableFactoringCredit,
     creditDueManagerContract: CreditDueManager,
-    creditManagerContract: ReceivableLevelCreditManager,
+    creditManagerContract: ReceivableFactoringCreditManager,
     nftContract: MockNFT;
 
 describe("ReceivableFactoringCredit Integration Tests", function () {
@@ -121,7 +121,7 @@ describe("ReceivableFactoringCredit Integration Tests", function () {
             defaultDeployer,
             poolOwner,
             "ReceivableFactoringCredit",
-            "ReceivableLevelCreditManager",
+            "ReceivableFactoringCreditManager",
             evaluationAgent,
             poolOwnerTreasury,
             poolOperator,

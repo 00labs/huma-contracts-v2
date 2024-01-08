@@ -4,9 +4,9 @@ import { expect } from "chai";
 import { BigNumber as BN } from "ethers";
 import { ethers } from "hardhat";
 import {
-    BorrowerLevelCreditManager,
     Calendar,
     CreditDueManager,
+    CreditLineManager,
     EpochManager,
     EvaluationAgentNFT,
     FirstLossCover,
@@ -55,7 +55,7 @@ let poolConfigContract: PoolConfig,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: MockPoolCredit,
     creditDueManagerContract: CreditDueManager,
-    creditManagerContract: BorrowerLevelCreditManager;
+    creditManagerContract: CreditLineManager;
 
 let profit: BN;
 let expectedProtocolIncome: BN, expectedPoolOwnerIncome: BN, expectedEAIncome: BN, totalFees: BN;
@@ -108,7 +108,7 @@ describe("PoolFeeManager Tests", function () {
             defaultDeployer,
             poolOwner,
             "MockPoolCredit",
-            "BorrowerLevelCreditManager",
+            "CreditLineManager",
             evaluationAgent,
             poolOwnerTreasury,
             poolOperator,

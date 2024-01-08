@@ -4,10 +4,10 @@ import { BigNumber as BN } from "ethers";
 import { ethers } from "hardhat";
 import moment from "moment";
 import {
-    BorrowerLevelCreditManager,
     Calendar,
     CreditDueManager,
     CreditLine,
+    CreditLineManager,
     EpochManager,
     EvaluationAgentNFT,
     FirstLossCover,
@@ -82,7 +82,7 @@ let poolConfigContract: PoolConfig,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: CreditLine,
     creditDueManagerContract: CreditDueManager,
-    creditManagerContract: BorrowerLevelCreditManager,
+    creditManagerContract: CreditLineManager,
     receivableContract: Receivable;
 
 let feeCalculator: FeeCalculator;
@@ -230,7 +230,7 @@ describe("CreditLine Integration Test", function () {
             defaultDeployer,
             poolOwner,
             "CreditLine",
-            "BorrowerLevelCreditManager",
+            "CreditLineManager",
             evaluationAgent,
             poolOwnerTreasury,
             poolOperator,

@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {ReceivableInput} from "../CreditStructs.sol";
 
-interface IReceivableLevelCreditManager {
+interface IReceivableFactoringCreditManager {
     /**
      * @notice Approves the credit with the terms provided.
      * @param borrower the borrower address

@@ -12,10 +12,10 @@ import {
 import { CONSTANTS } from "../test/constants";
 import { overrideFirstLossCoverConfig, toToken } from "../test/TestUtils";
 import {
-    BorrowerLevelCreditManager,
     Calendar,
     CreditDueManager,
     CreditLine,
+    CreditLineManager,
     EpochManager,
     EvaluationAgentNFT,
     FirstLossCover,
@@ -65,7 +65,7 @@ let poolConfigContract: PoolConfig,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: CreditLine,
     creditDueManagerContract: CreditDueManager,
-    creditManagerContract: BorrowerLevelCreditManager;
+    creditManagerContract: CreditLineManager;
 
 async function depositFirstLossCover(coverContract: FirstLossCover, account: SignerWithAddress) {
     await coverContract.connect(poolOwner).addCoverProvider(account.address);
@@ -270,7 +270,7 @@ export async function deployPools(onlyDeployPoolName?: PoolName) {
     }[] = [
         {
             creditContract: "CreditLine",
-            manager: "BorrowerLevelCreditManager",
+            manager: "CreditLineManager",
             poolName: PoolName.CreditLine,
         },
         {
