@@ -56,7 +56,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
     uint256 public poolId;
 
     // protocol and implementation addresses
-    address public HUMA_CONFIG_ADDRESS;
+    address public humaConfigAddress;
     address public calendarAddress;
     address public fixedSeniorYieldTranchesPolicyImplAddress;
     address public riskAdjustedTranchesPolicyImplAddress;
@@ -82,6 +82,13 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
 
     // poolId => PoolRecord
     mapping(uint256 => PoolRecord) private pools;
+
+    /**
+     * @dev This empty reserved space is put in place to allow future versions to add new
+     * variables without shifting down storage in the inheritance chain.
+     * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
+     */
+    uint256[100] private __gap;
 
     // events for implementation address changes
     event poolConfigImplChanged(address oldAddress, address newAddress);
@@ -113,6 +120,8 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
     event PoolAdded(uint256 poolId, address poolAddress, string poolName);
     event PoolClosed(uint256 poolId, address poolAddress, string poolName);
 
+    event ReceivableCreated(address receivableAddress);
+
     event PoolStatusUpdated(uint256 poolId, PoolStatus oldStatus, PoolStatus newStatus);
     event timelockAddedtoPool(uint256 poolId, address poolAddress, address timelockAddress);
 
@@ -122,10 +131,11 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
 
     function initialize(address _humaConfigAddress) external initializer {
         poolId = 0;
-        HUMA_CONFIG_ADDRESS = _humaConfigAddress;
+        humaConfigAddress = _humaConfigAddress;
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(DEPLOYER_ROLE, msg.sender);
         __AccessControl_init();
+        __UUPSUpgradeable_init();
     }
 
     // Add a deployer account
@@ -141,16 +151,6 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         _onlyFactoryAdmin(msg.sender);
         _revokeRole(DEPLOYER_ROLE, account);
         emit DeployerRemoved(account);
-    }
-
-    // Add multiple deployer accounts
-    function addDeployers(address[] memory accounts) external {
-        _onlyFactoryAdmin(msg.sender);
-        for (uint256 i = 0; i < accounts.length; i++) {
-            _notZeroAddress(accounts[i]);
-            _grantRole(DEPLOYER_ROLE, accounts[i]);
-            emit DeployerAdded(accounts[i]);
-        }
     }
 
     // set protocol and implementation addresses
@@ -303,7 +303,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
 
     function setFirstLossCover(
         address poolConfigAddress,
-        uint8 index,
+        uint8 poolCoverIndex,
         uint16 coverRatePerLossInBps,
         uint96 coverCapPerLoss,
         uint96 maxLiquidity,
@@ -319,12 +319,13 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
             minLiquidity,
             riskYieldMultiplierInBps
         );
-        _setFirstLossCover(poolConfigAddress, firstLossCover, index, config);
+        _setFirstLossCover(poolConfigAddress, firstLossCover, poolCoverIndex, config);
     }
 
     function deployPool(
         string memory _poolName,
         address assetTokenAddress,
+        address receivableAddress,
         string memory tranchesPolicyType,
         string memory creditType
     ) external {
@@ -337,8 +338,10 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         );
         PoolConfig poolConfig = PoolConfig(poolConfigAddress);
         poolConfig.initialize(_poolName, poolAddresses);
-        address receivable = _addReceivable();
-        poolConfig.setReceivableAsset(receivable);
+
+        if (receivableAddress != address(0)) {
+            poolConfig.setReceivableAsset(receivableAddress);
+        }
 
         address borrowerFirstLossCover = _addFirstLossCover();
         IFirstLossCoverLike(borrowerFirstLossCover).initialize(
@@ -378,6 +381,8 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         );
 
         for (uint8 i = 3; i < 12; i++) {
+            // when index is 8 or 9, it is senior or junior tranche vault
+            // trancheVault uses different initialize function
             if (i == 8) {
                 ITrancheVaultLike(poolAddresses[i]).initialize(
                     "Senior Tranche Vault",
@@ -520,6 +525,14 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         }
     }
 
+    // add receivable proxy
+    function addReceivable() external {
+        _onlyDeployer(msg.sender);
+        if (receivableImpl == address(0)) revert Errors.ZeroAddressProvided();
+        address receivable = _addProxy(receivableImpl);
+        emit ReceivableCreated(receivable);
+    }
+
     function checkPool(uint256 _poolId) external view returns (PoolRecord memory) {
         if (_poolId == 0 || _poolId > poolId) {
             revert Errors.InvalidPoolId();
@@ -658,14 +671,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         return creditManager;
     }
 
-    // add receivable proxy
-    function _addReceivable() private returns (address) {
-        if (receivableImpl == address(0)) revert Errors.ZeroAddressProvided();
-        address receivable = _addProxy(receivableImpl);
-        return receivable;
-    }
-
-    // create a new pool
+    // create a new pool, returns an array of addresses of the pool contracts
     function _createPoolContracts(
         string memory _poolName,
         address assetTokenAddress,
@@ -673,8 +679,8 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         string memory creditType
     ) private onlyRole(DEPLOYER_ROLE) returns (address, address[] memory) {
         address poolConfigAddress = _addPoolConfig();
-        address[] memory poolAddresses = new address[](13);
-        poolAddresses[0] = HUMA_CONFIG_ADDRESS;
+        address[] memory poolAddresses = new address[](13); // 13 is the number of contracts in a pool
+        poolAddresses[0] = humaConfigAddress;
         poolAddresses[1] = assetTokenAddress;
         poolAddresses[2] = calendarAddress;
         poolAddresses[3] = _addPool();
