@@ -76,14 +76,24 @@ interface ICreditDueManager {
     ) external view returns (uint256 additionalYieldAccrued, uint256 additionalPrincipalDue);
 
     /**
-     * @notice Returns the difference in yield due to the value that the yield is calculated from changed from the old
-     * value to the new value.
+     * @notice Re-computes the yield due after the change in the APY.
      */
-    function computeUpdatedYieldDue(
+    function recomputeYieldDue(
         uint256 nextDueDate,
-        uint256 oldYield,
-        uint256 oldValue,
-        uint256 newValue,
+        uint256 oldYieldDue,
+        uint256 oldYieldInBps,
+        uint256 newYieldInBps,
         uint256 principal
+    ) external view returns (uint256 updatedYield);
+
+    /**
+     * @notice Re-computes the yield due after the change in the committed amount.
+     */
+    function recomputeCommittedYieldDueAfterCommitmentChange(
+        uint256 nextDueDate,
+        uint256 oldCommittedYieldDue,
+        uint256 oldCommittedAmount,
+        uint256 newCommittedAmount,
+        uint256 yieldInBps
     ) external view returns (uint256 updatedYield);
 }
