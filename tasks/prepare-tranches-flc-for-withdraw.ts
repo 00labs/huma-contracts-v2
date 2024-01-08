@@ -23,19 +23,10 @@ async function withdrawFromFLC(
     redemptionRequester: SignerWithAddress,
 ): Promise<void> {
     const redemptionShares = await flcContract.balanceOf(redemptionRequester.address);
-    console.log(
-        redemptionShares,
-        " ",
-        redemptionRequester.address,
-        " ",
-        await flcContract.totalSupply(),
-    );
     const redemptionRequest = await flcContract
         .connect(redemptionRequester)
         .redeemCover(redemptionShares, redemptionRequester.address);
     await redemptionRequest.wait();
-    const b = await flcContract.balanceOf(redemptionRequester.address);
-    console.log(b, " ", redemptionRequester.address, " ", await flcContract.totalSupply());
 }
 
 task(
