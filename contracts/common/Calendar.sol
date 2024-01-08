@@ -45,24 +45,6 @@ contract Calendar is ICalendar {
     }
 
     /// @inheritdoc ICalendar
-    function getMaturityDate(
-        PayPeriodDuration periodDuration,
-        uint256 numPeriods,
-        uint256 timestamp
-    ) external pure returns (uint256 maturityDate) {
-        // The first period may be a partial period, so advance to the next period and only count full
-        // periods.
-        uint256 startDate = _getStartDateOfNextPeriod(periodDuration, timestamp);
-        uint256 monthCount = numPeriods - 1;
-        if (periodDuration == PayPeriodDuration.Quarterly) {
-            monthCount *= 3;
-        } else if (periodDuration == PayPeriodDuration.SemiAnnually) {
-            monthCount *= 6;
-        }
-        return DTL.addMonths(startDate, monthCount);
-    }
-
-    /// @inheritdoc ICalendar
     function getStartOfNextDay(uint256 timestamp) external pure returns (uint256 startOfNextDay) {
         return DTL.addDays(_getStartOfDay(timestamp), 1);
     }
