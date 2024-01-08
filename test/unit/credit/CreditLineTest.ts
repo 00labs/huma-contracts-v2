@@ -2662,12 +2662,13 @@ describe("CreditLine Test", function () {
                 await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
 
                 const cc = await creditManagerContract.getCreditConfig(creditHash);
-                const maturityDate = await calendarContract.getMaturityDate(
+                let cr = await creditContract.getCreditRecord(creditHash);
+                const maturityDate = getMaturityDate(
                     cc.periodDuration,
-                    cc.numOfPeriods,
+                    cr.remainingPeriods,
                     drawdownDate,
                 );
-                const nextTime = maturityDate.toNumber() - 600;
+                const nextTime = maturityDate - 600;
                 await setNextBlockTimestamp(nextTime);
 
                 const startDateOfLastPeriod = await calendarContract.getStartDateOfPeriod(
@@ -2681,7 +2682,7 @@ describe("CreditLine Test", function () {
                 expect(accruedYieldDue).to.be.lt(committedYieldDue);
                 const nextDue = committedYieldDue.add(borrowAmount);
 
-                let cr = await creditContract.getCreditRecord(creditHash);
+                cr = await creditContract.getCreditRecord(creditHash);
                 let totalPastDue = cr.nextDue;
                 totalPastDue = totalPastDue.add(
                     calcYieldDue(
@@ -2740,12 +2741,13 @@ describe("CreditLine Test", function () {
                 await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
 
                 const cc = await creditManagerContract.getCreditConfig(creditHash);
-                const maturityDate = await calendarContract.getMaturityDate(
+                let cr = await creditContract.getCreditRecord(creditHash);
+                const maturityDate = getMaturityDate(
                     cc.periodDuration,
-                    cc.numOfPeriods,
+                    cr.remainingPeriods,
                     drawdownDate,
                 );
-                const firstRefreshDate = maturityDate.toNumber() + 600;
+                const firstRefreshDate = maturityDate + 600;
                 await setNextBlockTimestamp(firstRefreshDate);
 
                 const oldCR = await creditContract.getCreditRecord(creditHash);
@@ -2873,18 +2875,19 @@ describe("CreditLine Test", function () {
                 await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
 
                 const cc = await creditManagerContract.getCreditConfig(creditHash);
+                let cr = await creditContract.getCreditRecord(creditHash);
                 // First refresh is performed before maturity.
-                const maturityDate = await calendarContract.getMaturityDate(
+                const maturityDate = getMaturityDate(
                     cc.periodDuration,
-                    cc.numOfPeriods,
+                    cr.remainingPeriods,
                     drawdownDate,
                 );
-                const firstRefreshDate = maturityDate.toNumber() - 600;
+                const firstRefreshDate = maturityDate - 600;
                 await setNextBlockTimestamp(firstRefreshDate);
                 await creditManagerContract.refreshCredit(borrower.address);
 
                 // Second refresh is performed post-maturity.
-                const secondRefreshDate = maturityDate.toNumber() + 600;
+                const secondRefreshDate = maturityDate + 600;
                 await setNextBlockTimestamp(secondRefreshDate);
 
                 const oldCR = await creditContract.getCreditRecord(creditHash);
@@ -3284,12 +3287,13 @@ describe("CreditLine Test", function () {
                 await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
 
                 const cc = await creditManagerContract.getCreditConfig(creditHash);
-                const maturityDate = await calendarContract.getMaturityDate(
+                let cr = await creditContract.getCreditRecord(creditHash);
+                const maturityDate = getMaturityDate(
                     cc.periodDuration,
-                    cc.numOfPeriods,
+                    cr.remainingPeriods,
                     drawdownDate,
                 );
-                const nextTime = maturityDate.toNumber() - 600;
+                const nextTime = maturityDate - 600;
                 await setNextBlockTimestamp(nextTime);
 
                 const startDateOfLastPeriod = await calendarContract.getStartDateOfPeriod(
@@ -3300,7 +3304,6 @@ describe("CreditLine Test", function () {
                     await calendarContract.getDaysDiff(startDateOfLastPeriod, maturityDate)
                 ).toNumber();
                 const [accruedYieldDue, committedYieldDue] = calcYieldDue(cc, borrowAmount, days);
-                const cr = await creditContract.getCreditRecord(creditHash);
                 let principalPastDue = calcPrincipalDueForFullPeriods(
                     cr.unbilledPrincipal,
                     principalRate,
@@ -3446,12 +3449,13 @@ describe("CreditLine Test", function () {
                 await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
 
                 const cc = await creditManagerContract.getCreditConfig(creditHash);
-                const maturityDate = await calendarContract.getMaturityDate(
+                let cr = await creditContract.getCreditRecord(creditHash);
+                const maturityDate = getMaturityDate(
                     cc.periodDuration,
-                    cc.numOfPeriods,
+                    cr.remainingPeriods,
                     drawdownDate,
                 );
-                const firstRefreshDate = maturityDate.toNumber() + 600;
+                const firstRefreshDate = maturityDate + 600;
                 await setNextBlockTimestamp(firstRefreshDate);
 
                 const oldCR = await creditContract.getCreditRecord(creditHash);
@@ -3610,9 +3614,10 @@ describe("CreditLine Test", function () {
                 await creditContract.connect(borrower).drawdown(borrower.address, borrowAmount);
 
                 const cc = await creditManagerContract.getCreditConfig(creditHash);
-                const maturityDate = await calendarContract.getMaturityDate(
+                let cr = await creditContract.getCreditRecord(creditHash);
+                const maturityDate = getMaturityDate(
                     cc.periodDuration,
-                    cc.numOfPeriods,
+                    cr.remainingPeriods,
                     drawdownDate,
                 );
                 const firstRefreshDate =
@@ -3705,17 +3710,18 @@ describe("CreditLine Test", function () {
 
                 // First refresh is performed before maturity.
                 const cc = await creditManagerContract.getCreditConfig(creditHash);
-                const maturityDate = await calendarContract.getMaturityDate(
+                let cr = await creditContract.getCreditRecord(creditHash);
+                const maturityDate = getMaturityDate(
                     cc.periodDuration,
-                    cc.numOfPeriods,
+                    cr.remainingPeriods,
                     drawdownDate,
                 );
-                const firstRefreshDate = maturityDate.toNumber() - 600;
+                const firstRefreshDate = maturityDate - 600;
                 await setNextBlockTimestamp(firstRefreshDate);
                 await creditManagerContract.refreshCredit(borrower.address);
 
                 // Second refresh is performed post-maturity.
-                const secondRefreshDate = maturityDate.toNumber() + 600;
+                const secondRefreshDate = maturityDate + 600;
                 await setNextBlockTimestamp(secondRefreshDate);
 
                 const oldCR = await creditContract.getCreditRecord(creditHash);
@@ -3880,14 +3886,13 @@ describe("CreditLine Test", function () {
                 const cr = await creditContract.getCreditRecord(creditHash);
                 const dd = await creditContract.getDueDetail(creditHash);
                 const maturityDate = moment.utc(
-                    (
-                        await calendarContract.getMaturityDate(
-                            cc.periodDuration,
-                            cc.numOfPeriods,
-                            drawdownDate.unix(),
-                        )
-                    ).toNumber() * 1000,
+                    getMaturityDate(cc.periodDuration, cc.numOfPeriods - 1, drawdownDate.unix()) *
+                        1000,
                 );
+                console.log(
+                    `drawdown date ${drawdownDate}, cc.numOfPeriods ${cc.numOfPeriods}, cr.remainingPeriods ${cr.remainingPeriods}`,
+                );
+                console.log(`maturity date ${maturityDate}, payment date ${paymentDate}`);
 
                 // Calculate the dues, fees and dates right before the payment is made.
                 let [
@@ -3903,6 +3908,9 @@ describe("CreditLine Test", function () {
                     maturityDate,
                     latePaymentGracePeriodInDays,
                     principalRateInBps,
+                );
+                console.log(
+                    `remainingUnbilledPrincipal ${remainingUnbilledPrincipal}, remainingPrincipalPastDue ${remainingPrincipalPastDue}, remainingPrincipalNextDue ${remainingPrincipalNextDue}`,
                 );
                 let [
                     remainingYieldPastDue,
@@ -4265,11 +4273,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [, yieldNextDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -4287,11 +4290,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [, yieldNextDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -4313,11 +4311,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [, yieldNextDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -4335,11 +4328,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [, yieldNextDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -4357,11 +4345,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [, yieldNextDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -4379,11 +4362,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [, yieldNextDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -4427,11 +4405,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [, yieldNextDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -4449,11 +4422,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [, yieldNextDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -4471,11 +4439,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [, yieldNextDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -4493,11 +4456,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [, yieldNextDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -4515,11 +4473,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             let cr = await creditContract.getCreditRecord(creditHash);
                             let dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             let [, yieldNextDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -4584,11 +4537,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -4606,11 +4554,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -4628,11 +4571,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -4659,11 +4597,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -4690,11 +4623,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -4724,11 +4652,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -4759,11 +4682,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -4829,11 +4747,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -4851,11 +4764,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -4873,11 +4781,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -4904,11 +4807,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -4935,11 +4833,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -4979,11 +4872,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -5014,11 +4902,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             let cr = await creditContract.getCreditRecord(creditHash);
                             let dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -5118,11 +5001,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -5140,11 +5018,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -5162,11 +5035,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -5206,11 +5074,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -5241,11 +5104,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             let cr = await creditContract.getCreditRecord(creditHash);
                             let dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -5350,11 +5208,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -5372,11 +5225,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -5394,11 +5242,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -5425,11 +5268,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -5456,11 +5294,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -5490,11 +5323,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             let cr = await creditContract.getCreditRecord(creditHash);
                             let dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -5583,11 +5411,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -5605,11 +5428,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -5627,11 +5445,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -5658,11 +5471,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -5689,11 +5497,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -5723,11 +5526,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             let cr = await creditContract.getCreditRecord(creditHash);
                             let dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -5844,11 +5642,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -5866,11 +5659,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -5888,11 +5676,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -5919,11 +5702,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -5950,11 +5728,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -5984,11 +5757,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             let cr = await creditContract.getCreditRecord(creditHash);
                             let dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue, yieldNextDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -6068,11 +5836,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [, yieldNextDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -6090,11 +5853,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [, yieldNextDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -6112,9 +5870,9 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
+                            const maturityDate = getMaturityDate(
                                 cc.periodDuration,
-                                cc.numOfPeriods,
+                                cr.remainingPeriods,
                                 drawdownDate.unix(),
                             );
 
@@ -6132,7 +5890,7 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
+                                moment.utc(maturityDate * 1000),
                                 latePaymentGracePeriodInDays,
                                 principalRateInBps,
                             );
@@ -6146,9 +5904,9 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
+                            const maturityDate = getMaturityDate(
                                 cc.periodDuration,
-                                cc.numOfPeriods,
+                                cr.remainingPeriods,
                                 drawdownDate.unix(),
                             );
 
@@ -6167,7 +5925,7 @@ describe("CreditLine Test", function () {
                                     cr,
                                     dd,
                                     makePaymentDate,
-                                    moment.utc(maturityDate.toNumber() * 1000),
+                                    moment.utc(maturityDate * 1000),
                                     latePaymentGracePeriodInDays,
                                     principalRateInBps,
                                 );
@@ -6181,9 +5939,9 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
+                            const maturityDate = getMaturityDate(
                                 cc.periodDuration,
-                                cc.numOfPeriods,
+                                cr.remainingPeriods,
                                 drawdownDate.unix(),
                             );
 
@@ -6202,7 +5960,7 @@ describe("CreditLine Test", function () {
                                     cr,
                                     dd,
                                     makePaymentDate,
-                                    moment.utc(maturityDate.toNumber() * 1000),
+                                    moment.utc(maturityDate * 1000),
                                     latePaymentGracePeriodInDays,
                                     principalRateInBps,
                                 );
@@ -6217,9 +5975,9 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
+                            const maturityDate = getMaturityDate(
                                 cc.periodDuration,
-                                cc.numOfPeriods,
+                                cr.remainingPeriods,
                                 drawdownDate.unix(),
                             );
 
@@ -6238,7 +5996,7 @@ describe("CreditLine Test", function () {
                                     cr,
                                     dd,
                                     makePaymentDate,
-                                    moment.utc(maturityDate.toNumber() * 1000),
+                                    moment.utc(maturityDate * 1000),
                                     latePaymentGracePeriodInDays,
                                     principalRateInBps,
                                 );
@@ -6280,11 +6038,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [, yieldNextDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -6302,11 +6055,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [, yieldNextDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -6324,9 +6072,9 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
+                            const maturityDate = getMaturityDate(
                                 cc.periodDuration,
-                                cc.numOfPeriods,
+                                cr.remainingPeriods,
                                 drawdownDate.unix(),
                             );
 
@@ -6344,7 +6092,7 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
+                                moment.utc(maturityDate * 1000),
                                 latePaymentGracePeriodInDays,
                                 principalRateInBps,
                             );
@@ -6358,9 +6106,9 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
+                            const maturityDate = getMaturityDate(
                                 cc.periodDuration,
-                                cc.numOfPeriods,
+                                cr.remainingPeriods,
                                 drawdownDate.unix(),
                             );
 
@@ -6379,7 +6127,7 @@ describe("CreditLine Test", function () {
                                     cr,
                                     dd,
                                     makePaymentDate,
-                                    moment.utc(maturityDate.toNumber() * 1000),
+                                    moment.utc(maturityDate * 1000),
                                     latePaymentGracePeriodInDays,
                                     principalRateInBps,
                                 );
@@ -6393,9 +6141,9 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
+                            const maturityDate = getMaturityDate(
                                 cc.periodDuration,
-                                cc.numOfPeriods,
+                                cr.remainingPeriods,
                                 drawdownDate.unix(),
                             );
 
@@ -6414,7 +6162,7 @@ describe("CreditLine Test", function () {
                                     cr,
                                     dd,
                                     makePaymentDate,
-                                    moment.utc(maturityDate.toNumber() * 1000),
+                                    moment.utc(maturityDate * 1000),
                                     latePaymentGracePeriodInDays,
                                     principalRateInBps,
                                 );
@@ -6429,9 +6177,9 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
+                            const maturityDate = getMaturityDate(
                                 cc.periodDuration,
-                                cc.numOfPeriods,
+                                cr.remainingPeriods,
                                 drawdownDate.unix(),
                             );
 
@@ -6450,7 +6198,7 @@ describe("CreditLine Test", function () {
                                     cr,
                                     dd,
                                     makePaymentDate,
-                                    moment.utc(maturityDate.toNumber() * 1000),
+                                    moment.utc(maturityDate * 1000),
                                     latePaymentGracePeriodInDays,
                                     principalRateInBps,
                                 );
@@ -6492,11 +6240,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -6514,11 +6257,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -6536,11 +6274,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -6567,9 +6300,9 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
+                            const maturityDate = getMaturityDate(
                                 cc.periodDuration,
-                                cc.numOfPeriods,
+                                cr.remainingPeriods,
                                 drawdownDate.unix(),
                             );
 
@@ -6587,7 +6320,7 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
+                                moment.utc(maturityDate * 1000),
                                 latePaymentGracePeriodInDays,
                                 principalRateInBps,
                             );
@@ -6611,9 +6344,9 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
+                            const maturityDate = getMaturityDate(
                                 cc.periodDuration,
-                                cc.numOfPeriods,
+                                cr.remainingPeriods,
                                 drawdownDate.unix(),
                             );
 
@@ -6631,7 +6364,7 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
+                                moment.utc(maturityDate * 1000),
                                 latePaymentGracePeriodInDays,
                                 principalRateInBps,
                             );
@@ -6656,9 +6389,9 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
+                            const maturityDate = getMaturityDate(
                                 cc.periodDuration,
-                                cc.numOfPeriods,
+                                cr.remainingPeriods,
                                 drawdownDate.unix(),
                             );
 
@@ -6677,7 +6410,7 @@ describe("CreditLine Test", function () {
                                     cr,
                                     dd,
                                     makePaymentDate,
-                                    moment.utc(maturityDate.toNumber() * 1000),
+                                    moment.utc(maturityDate * 1000),
                                     latePaymentGracePeriodInDays,
                                     principalRateInBps,
                                 );
@@ -6703,9 +6436,9 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
+                            const maturityDate = getMaturityDate(
                                 cc.periodDuration,
-                                cc.numOfPeriods,
+                                cr.remainingPeriods,
                                 drawdownDate.unix(),
                             );
 
@@ -6724,7 +6457,7 @@ describe("CreditLine Test", function () {
                                     cr,
                                     dd,
                                     makePaymentDate,
-                                    moment.utc(maturityDate.toNumber() * 1000),
+                                    moment.utc(maturityDate * 1000),
                                     latePaymentGracePeriodInDays,
                                     principalRateInBps,
                                 );
@@ -6741,9 +6474,9 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
+                            const maturityDate = getMaturityDate(
                                 cc.periodDuration,
-                                cc.numOfPeriods,
+                                cr.remainingPeriods,
                                 drawdownDate.unix(),
                             );
 
@@ -6762,7 +6495,7 @@ describe("CreditLine Test", function () {
                                     cr,
                                     dd,
                                     makePaymentDate,
-                                    moment.utc(maturityDate.toNumber() * 1000),
+                                    moment.utc(maturityDate * 1000),
                                     latePaymentGracePeriodInDays,
                                     principalRateInBps,
                                 );
@@ -6826,11 +6559,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -6848,11 +6576,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -6870,11 +6593,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -6901,9 +6619,9 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
+                            const maturityDate = getMaturityDate(
                                 cc.periodDuration,
-                                cc.numOfPeriods,
+                                cr.remainingPeriods,
                                 drawdownDate.unix(),
                             );
 
@@ -6921,7 +6639,7 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
+                                moment.utc(maturityDate * 1000),
                                 latePaymentGracePeriodInDays,
                                 principalRateInBps,
                             );
@@ -6945,9 +6663,9 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
+                            const maturityDate = getMaturityDate(
                                 cc.periodDuration,
-                                cc.numOfPeriods,
+                                cr.remainingPeriods,
                                 drawdownDate.unix(),
                             );
 
@@ -6965,7 +6683,7 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
+                                moment.utc(maturityDate * 1000),
                                 latePaymentGracePeriodInDays,
                                 principalRateInBps,
                             );
@@ -6990,9 +6708,9 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
+                            const maturityDate = getMaturityDate(
                                 cc.periodDuration,
-                                cc.numOfPeriods,
+                                cr.remainingPeriods,
                                 drawdownDate.unix(),
                             );
 
@@ -7011,7 +6729,7 @@ describe("CreditLine Test", function () {
                                     cr,
                                     dd,
                                     makePaymentDate,
-                                    moment.utc(maturityDate.toNumber() * 1000),
+                                    moment.utc(maturityDate * 1000),
                                     latePaymentGracePeriodInDays,
                                     principalRateInBps,
                                 );
@@ -7047,9 +6765,9 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
+                            const maturityDate = getMaturityDate(
                                 cc.periodDuration,
-                                cc.numOfPeriods,
+                                cr.remainingPeriods,
                                 drawdownDate.unix(),
                             );
 
@@ -7068,7 +6786,7 @@ describe("CreditLine Test", function () {
                                     cr,
                                     dd,
                                     makePaymentDate,
-                                    moment.utc(maturityDate.toNumber() * 1000),
+                                    moment.utc(maturityDate * 1000),
                                     latePaymentGracePeriodInDays,
                                     principalRateInBps,
                                 );
@@ -7099,11 +6817,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -7121,11 +6834,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -7143,11 +6851,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -7174,9 +6877,9 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
+                            const maturityDate = getMaturityDate(
                                 cc.periodDuration,
-                                cc.numOfPeriods,
+                                cr.remainingPeriods,
                                 drawdownDate.unix(),
                             );
 
@@ -7195,7 +6898,7 @@ describe("CreditLine Test", function () {
                                     cr,
                                     dd,
                                     makePaymentDate,
-                                    moment.utc(maturityDate.toNumber() * 1000),
+                                    moment.utc(maturityDate * 1000),
                                     latePaymentGracePeriodInDays,
                                     principalRateInBps,
                                 );
@@ -7231,9 +6934,9 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
+                            const maturityDate = getMaturityDate(
                                 cc.periodDuration,
-                                cc.numOfPeriods,
+                                cr.remainingPeriods,
                                 drawdownDate.unix(),
                             );
 
@@ -7252,7 +6955,7 @@ describe("CreditLine Test", function () {
                                     cr,
                                     dd,
                                     makePaymentDate,
-                                    moment.utc(maturityDate.toNumber() * 1000),
+                                    moment.utc(maturityDate * 1000),
                                     latePaymentGracePeriodInDays,
                                     principalRateInBps,
                                 );
@@ -7301,11 +7004,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -7323,11 +7021,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -7345,11 +7038,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -7376,9 +7064,9 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
+                            const maturityDate = getMaturityDate(
                                 cc.periodDuration,
-                                cc.numOfPeriods,
+                                cr.remainingPeriods,
                                 drawdownDate.unix(),
                             );
 
@@ -7396,7 +7084,7 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
+                                moment.utc(maturityDate * 1000),
                                 latePaymentGracePeriodInDays,
                                 principalRateInBps,
                             );
@@ -7420,9 +7108,9 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
+                            const maturityDate = getMaturityDate(
                                 cc.periodDuration,
-                                cc.numOfPeriods,
+                                cr.remainingPeriods,
                                 drawdownDate.unix(),
                             );
 
@@ -7440,7 +7128,7 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
+                                moment.utc(maturityDate * 1000),
                                 latePaymentGracePeriodInDays,
                                 principalRateInBps,
                             );
@@ -7465,9 +7153,9 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
+                            const maturityDate = getMaturityDate(
                                 cc.periodDuration,
-                                cc.numOfPeriods,
+                                cr.remainingPeriods,
                                 drawdownDate.unix(),
                             );
 
@@ -7486,7 +7174,7 @@ describe("CreditLine Test", function () {
                                     cr,
                                     dd,
                                     makePaymentDate,
-                                    moment.utc(maturityDate.toNumber() * 1000),
+                                    moment.utc(maturityDate * 1000),
                                     latePaymentGracePeriodInDays,
                                     principalRateInBps,
                                 );
@@ -7523,11 +7211,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -7545,11 +7228,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -7567,11 +7245,6 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            );
 
                             const [yieldPastDue] = await calcYieldDueNew(
                                 calendarContract,
@@ -7598,9 +7271,9 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
+                            const maturityDate = getMaturityDate(
                                 cc.periodDuration,
-                                cc.numOfPeriods,
+                                cr.remainingPeriods,
                                 drawdownDate.unix(),
                             );
 
@@ -7618,7 +7291,7 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
+                                moment.utc(maturityDate * 1000),
                                 latePaymentGracePeriodInDays,
                                 principalRateInBps,
                             );
@@ -7642,9 +7315,9 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
+                            const maturityDate = getMaturityDate(
                                 cc.periodDuration,
-                                cc.numOfPeriods,
+                                cr.remainingPeriods,
                                 drawdownDate.unix(),
                             );
 
@@ -7662,7 +7335,7 @@ describe("CreditLine Test", function () {
                                 cr,
                                 dd,
                                 makePaymentDate,
-                                moment.utc(maturityDate.toNumber() * 1000),
+                                moment.utc(maturityDate * 1000),
                                 latePaymentGracePeriodInDays,
                                 principalRateInBps,
                             );
@@ -7687,9 +7360,9 @@ describe("CreditLine Test", function () {
                             const cc = await creditManagerContract.getCreditConfig(creditHash);
                             const cr = await creditContract.getCreditRecord(creditHash);
                             const dd = await creditContract.getDueDetail(creditHash);
-                            const maturityDate = await calendarContract.getMaturityDate(
+                            const maturityDate = getMaturityDate(
                                 cc.periodDuration,
-                                cc.numOfPeriods,
+                                cr.remainingPeriods,
                                 drawdownDate.unix(),
                             );
 
@@ -7708,7 +7381,7 @@ describe("CreditLine Test", function () {
                                     cr,
                                     dd,
                                     makePaymentDate,
-                                    moment.utc(maturityDate.toNumber() * 1000),
+                                    moment.utc(maturityDate * 1000),
                                     latePaymentGracePeriodInDays,
                                     principalRateInBps,
                                 );
@@ -8063,18 +7736,8 @@ describe("CreditLine Test", function () {
                 });
 
                 it("Should allow the borrower to make multiple payments for the unbilled principal within the same period", async function () {
-                    const cc = await creditManagerContract.getCreditConfig(creditHash);
                     const cr = await creditContract.getCreditRecord(creditHash);
                     const dd = await creditContract.getDueDetail(creditHash);
-                    const maturityDate = moment.utc(
-                        (
-                            await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            )
-                        ).toNumber() * 1000,
-                    );
 
                     makePaymentDate = drawdownDate
                         .clone()
@@ -8148,13 +7811,11 @@ describe("CreditLine Test", function () {
                     const cr = await creditContract.getCreditRecord(creditHash);
                     const dd = await creditContract.getDueDetail(creditHash);
                     const maturityDate = moment.utc(
-                        (
-                            await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            )
-                        ).toNumber() * 1000,
+                        getMaturityDate(
+                            cc.periodDuration,
+                            cr.remainingPeriods,
+                            drawdownDate.unix(),
+                        ) * 1000,
                     );
 
                     // First payment pays off everything except the unbilled principal.
@@ -8340,13 +8001,11 @@ describe("CreditLine Test", function () {
                     const cr = await creditContract.getCreditRecord(creditHash);
                     const dd = await creditContract.getDueDetail(creditHash);
                     const maturityDate = moment.utc(
-                        (
-                            await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            )
-                        ).toNumber() * 1000,
+                        getMaturityDate(
+                            cc.periodDuration,
+                            cr.remainingPeriods,
+                            drawdownDate.unix(),
+                        ) * 1000,
                     );
 
                     makePaymentDate = drawdownDate
@@ -8392,13 +8051,11 @@ describe("CreditLine Test", function () {
                     const cr = await creditContract.getCreditRecord(creditHash);
                     const dd = await creditContract.getDueDetail(creditHash);
                     const maturityDate = moment.utc(
-                        (
-                            await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            )
-                        ).toNumber() * 1000,
+                        getMaturityDate(
+                            cc.periodDuration,
+                            cr.remainingPeriods,
+                            drawdownDate.unix(),
+                        ) * 1000,
                     );
 
                     // First payment pays for part of the principal next due in the current billing cycle.
@@ -8473,13 +8130,11 @@ describe("CreditLine Test", function () {
                     let cr = await creditContract.getCreditRecord(creditHash);
                     let dd = await creditContract.getDueDetail(creditHash);
                     const maturityDate = moment.utc(
-                        (
-                            await calendarContract.getMaturityDate(
-                                cc.periodDuration,
-                                cc.numOfPeriods,
-                                drawdownDate.unix(),
-                            )
-                        ).toNumber() * 1000,
+                        getMaturityDate(
+                            cc.periodDuration,
+                            cr.remainingPeriods,
+                            drawdownDate.unix(),
+                        ) * 1000,
                     );
 
                     // First payment pays off the all past due and yield next due.
