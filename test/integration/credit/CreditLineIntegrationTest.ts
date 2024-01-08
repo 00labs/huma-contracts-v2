@@ -259,7 +259,7 @@ describe("CreditLine Integration Test", function () {
         const firstLossCoverMaxLiquidity = toToken(1_000_000);
         await overrideFirstLossCoverConfig(
             borrowerFirstLossCoverContract,
-            CONSTANTS.BORROWER_FIRST_LOSS_COVER_INDEX,
+            CONSTANTS.BORROWER_LOSS_COVER_INDEX,
             poolConfigContract,
             poolOwner,
             {
@@ -274,7 +274,7 @@ describe("CreditLine Integration Test", function () {
 
         await overrideFirstLossCoverConfig(
             affiliateFirstLossCoverContract,
-            CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
+            CONSTANTS.ADMIN_LOSS_COVER_INDEX,
             poolConfigContract,
             poolOwner,
             {

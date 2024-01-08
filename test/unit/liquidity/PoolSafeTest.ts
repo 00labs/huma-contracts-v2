@@ -138,17 +138,13 @@ describe("PoolSafe Tests", function () {
         it("Should allow first loss covers to make deposit into the safe", async function () {
             await poolConfigContract
                 .connect(poolOwner)
-                .setFirstLossCover(
-                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
-                    defaultDeployer.address,
-                    {
-                        coverRatePerLossInBps: 0,
-                        coverCapPerLoss: 0,
-                        maxLiquidity: 0,
-                        minLiquidity: 0,
-                        riskYieldMultiplierInBps: 0,
-                    },
-                );
+                .setFirstLossCover(CONSTANTS.ADMIN_LOSS_COVER_INDEX, defaultDeployer.address, {
+                    coverRatePerLossInBps: 0,
+                    coverCapPerLoss: 0,
+                    maxLiquidity: 0,
+                    minLiquidity: 0,
+                    riskYieldMultiplierInBps: 0,
+                });
             await testDeposit();
         });
 
@@ -195,17 +191,13 @@ describe("PoolSafe Tests", function () {
         it("Should allow first loss covers to withdraw from the safe", async function () {
             await poolConfigContract
                 .connect(poolOwner)
-                .setFirstLossCover(
-                    CONSTANTS.AFFILIATE_FIRST_LOSS_COVER_INDEX,
-                    defaultDeployer.address,
-                    {
-                        coverRatePerLossInBps: 0,
-                        coverCapPerLoss: 0,
-                        maxLiquidity: 0,
-                        minLiquidity: 0,
-                        riskYieldMultiplierInBps: 0,
-                    },
-                );
+                .setFirstLossCover(CONSTANTS.ADMIN_LOSS_COVER_INDEX, defaultDeployer.address, {
+                    coverRatePerLossInBps: 0,
+                    coverCapPerLoss: 0,
+                    maxLiquidity: 0,
+                    minLiquidity: 0,
+                    riskYieldMultiplierInBps: 0,
+                });
             await testWithdrawal();
         });
 

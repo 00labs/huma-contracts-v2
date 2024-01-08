@@ -46,6 +46,7 @@ import {
     genDueDetail,
     getLatePaymentGracePeriodDeadline,
     getNextBillRefreshDate,
+    printCreditRecord,
 } from "../../BaseTest";
 import {
     borrowerLevelCreditHash,
@@ -1322,7 +1323,7 @@ describe("CreditLine Test", function () {
                 const coverTotalAssets = await affiliateFirstLossCoverContract.totalAssets();
                 await overrideFirstLossCoverConfig(
                     borrowerFirstLossCoverContract,
-                    CONSTANTS.BORROWER_FIRST_LOSS_COVER_INDEX,
+                    CONSTANTS.BORROWER_LOSS_COVER_INDEX,
                     poolConfigContract,
                     poolOwner,
                     {
@@ -9017,34 +9018,47 @@ describe("CreditLine Test", function () {
                     .makePrincipalPayment(borrower.getAddress(), totalPrincipal);
 
                 const newCR = await creditContract.getCreditRecord(creditHash);
-                expect(newCR.nextDue).to.be.gt(0);
+                expect(newCR.yieldDue).to.be.gt(0);
+                expect(newCR.nextDue).to.equal(newCR.yieldDue);
+                expect(newCR.unbilledPrincipal).to.equal(0);
                 await testCloseCreditReversion(borrower, "CreditHasOutstandingBalance");
             });
 
-            it("Should not allow the borrower to close a credit that has past due", async function () {
-                const amount = toToken(1_000);
+            it("Should not allow the borrower to close a credit that has past due only", async function () {
+                const amount = toToken(10_000);
                 await creditContract.connect(borrower).drawdown(borrower.getAddress(), amount);
-                const poolSettings = await poolConfigContract.getPoolSettings();
 
-                // Advance the clock so that all due becomes past due.
+                const poolSettings = await poolConfigContract.getPoolSettings();
+                const oldCR = await creditContract.getCreditRecord(creditHash);
+                const paymentAmount = oldCR.unbilledPrincipal.add(
+                    oldCR.nextDue.sub(oldCR.yieldDue),
+                );
+                await creditContract
+                    .connect(borrower)
+                    .makePrincipalPayment(borrower.getAddress(), paymentAmount);
+                await creditManagerContract
+                    .connect(eaServiceAccount)
+                    .updateYield(borrower.getAddress(), 0);
+                printCreditRecord("", await creditContract.getCreditRecord(creditHash));
+
                 const cc = await creditManagerContract.getCreditConfig(creditHash);
-                const currentBlockTimestamp = (await getLatestBlock()).timestamp;
-                const nextBlockTimestamp =
-                    (
-                        await calendarContract.getStartDateOfNextPeriod(
-                            cc.periodDuration,
-                            currentBlockTimestamp,
-                        )
-                    ).toNumber() +
-                    poolSettings.latePaymentGracePeriodInDays * CONSTANTS.SECONDS_IN_A_DAY +
-                    100;
-                await setNextBlockTimestamp(nextBlockTimestamp);
+                const currentBlockTS = (await getLatestBlock()).timestamp;
+                const nextPeriodStartDate = await calendarContract.getStartDateOfNextPeriod(
+                    cc.periodDuration,
+                    currentBlockTS,
+                );
+                await setNextBlockTimestamp(
+                    nextPeriodStartDate.add(
+                        (poolSettings.latePaymentGracePeriodInDays + 1) *
+                            CONSTANTS.SECONDS_IN_A_DAY,
+                    ),
+                );
                 await creditManagerContract.refreshCredit(borrower.getAddress());
 
-                const cr = await creditContract.getCreditRecord(creditHash);
-                expect(cr.nextDue).to.be.gt(0);
-                expect(cr.totalPastDue).to.be.gt(0);
-                expect(cr.unbilledPrincipal).to.equal(0);
+                const newCR = await creditContract.getCreditRecord(creditHash);
+                expect(newCR.nextDue).to.equal(0);
+                expect(newCR.totalPastDue).to.be.gt(0);
+                expect(newCR.unbilledPrincipal).to.equal(0);
                 await testCloseCreditReversion(borrower, "CreditHasOutstandingBalance");
             });
 

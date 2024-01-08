@@ -6,7 +6,7 @@ import {ERC165Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/intro
 import {Credit} from "./Credit.sol";
 import {CreditRecord, DueDetail} from "./CreditStructs.sol";
 import {IReceivableFactoringCredit} from "./interfaces/IReceivableFactoringCredit.sol";
-import {IReceivableFactoringCreditForContract} from "./interfaces/IReceivableFactoringCreditForContract.sol";
+import {IReceivablePayable} from "./interfaces/IReceivablePayable.sol";
 import {IReceivableLevelCreditManager} from "./interfaces/IReceivableLevelCreditManager.sol";
 import {Errors} from "../common/Errors.sol";
 
@@ -15,11 +15,11 @@ contract ReceivableFactoringCredit is
     Credit,
     IERC721Receiver,
     IReceivableFactoringCredit,
-    IReceivableFactoringCreditForContract
+    IReceivablePayable
 {
     bytes32 public constant PAYER_ROLE = keccak256("PAYER");
 
-    event ExtraFundsDispersed(address indexed receiver, uint256 amount);
+    event ExtraFundsDisbursed(address indexed receiver, uint256 amount);
 
     event DrawdownMadeWithReceivable(
         address indexed borrower,
@@ -90,7 +90,7 @@ contract ReceivableFactoringCredit is
         return this.onERC721Received.selector;
     }
 
-    /// @inheritdoc IReceivableFactoringCreditForContract
+    /// @inheritdoc IReceivablePayable
     function makePaymentWithReceivableByPayer(
         uint256 receivableId,
         uint256 amount
@@ -137,7 +137,7 @@ contract ReceivableFactoringCredit is
 
     function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
         return
-            interfaceId == type(IReceivableFactoringCreditForContract).interfaceId ||
+            interfaceId == type(IReceivablePayable).interfaceId ||
             super.supportsInterface(interfaceId);
     }
 
@@ -151,7 +151,7 @@ contract ReceivableFactoringCredit is
             uint256 disbursedAmount = amount - amountPaid;
             poolSafe.deposit(msg.sender, disbursedAmount);
             poolSafe.withdraw(borrower, disbursedAmount);
-            emit ExtraFundsDispersed(borrower, disbursedAmount);
+            emit ExtraFundsDisbursed(borrower, disbursedAmount);
         }
 
         // Don't delete paid receivable

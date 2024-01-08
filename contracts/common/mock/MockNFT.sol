@@ -9,7 +9,7 @@ import {ERC721URIStorageUpgradeable} from "@openzeppelin/contracts-upgradeable/t
 import {ERC721BurnableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721BurnableUpgradeable.sol";
 import {CountersUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/CountersUpgradeable.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
-import {IReceivableFactoringCreditForContract} from "../../credit/interfaces/IReceivableFactoringCreditForContract.sol";
+import {IReceivablePayable} from "../../credit/interfaces/IReceivablePayable.sol";
 
 contract MockNFT is
     ERC721Upgradeable,
@@ -36,12 +36,9 @@ contract MockNFT is
 
     function payOwner(uint256 tokenId, uint256 amount) external {
         address owner = ownerOf(tokenId);
-        if (owner.supportsInterface(type(IReceivableFactoringCreditForContract).interfaceId)) {
+        if (owner.supportsInterface(type(IReceivablePayable).interfaceId)) {
             IERC20(tokenAddress).safeTransferFrom(msg.sender, address(this), amount);
-            IReceivableFactoringCreditForContract(owner).makePaymentWithReceivableByPayer(
-                tokenId,
-                amount
-            );
+            IReceivablePayable(owner).makePaymentWithReceivableByPayer(tokenId, amount);
         } else {
             IERC20(tokenAddress).safeTransferFrom(msg.sender, owner, amount);
         }

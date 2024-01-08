@@ -14,7 +14,7 @@ import {IPoolSafe} from "../liquidity/interfaces/IPoolSafe.sol";
 import {ICredit} from "./interfaces/ICredit.sol";
 import {ICreditManager} from "./interfaces/ICreditManager.sol";
 import {ICreditDueManager} from "./interfaces/ICreditDueManager.sol";
-import {BORROWER_FIRST_LOSS_COVER_INDEX} from "../common/SharedDefs.sol";
+import {BORROWER_LOSS_COVER_INDEX} from "../common/SharedDefs.sol";
 
 /**
  * Credit is the core borrowing concept in Huma Protocol. This abstract contract provides
@@ -528,7 +528,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         assert(addr != address(0));
         poolSafe = IPoolSafe(addr);
 
-        addr = _poolConfig.getFirstLossCover(BORROWER_FIRST_LOSS_COVER_INDEX);
+        addr = _poolConfig.getFirstLossCover(BORROWER_LOSS_COVER_INDEX);
         assert(addr != address(0));
         firstLossCover = IFirstLossCover(addr);
 
@@ -599,6 +599,12 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             revert Errors.SentinelServiceAccountRequired();
     }
 
+    /**
+     * @notice Returns from whose account the funds for payment should be extracted.
+     * This function exists because of Auto-pay:
+     * 1. For Auto-pay, the funds should be coming from the borrower's account.
+     * 2. In all other case, the funds should be coming from whoever is initiating the payment.
+     */
     function _getPaymentOriginator(address borrower) internal view returns (address originator) {
         return msg.sender == humaConfig.sentinelServiceAccount() ? borrower : msg.sender;
     }
