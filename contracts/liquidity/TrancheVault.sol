@@ -130,7 +130,7 @@ contract TrancheVault is
 
     /// @inheritdoc IRedemptionHandler
     function executeRedemptionSummary(EpochRedemptionSummary memory summaryProcessed) external {
-        _onlyEpochManager(msg.sender);
+        if (msg.sender != address(epochManager)) revert Errors.AuthorizedContractCallerRequired();
 
         if (summaryProcessed.totalSharesProcessed > 0) {
             epochRedemptionSummaries[summaryProcessed.epochId] = summaryProcessed;
@@ -203,7 +203,7 @@ contract TrancheVault is
         poolConfig.onlyProtocolAndPoolOn();
 
         PoolSettings memory poolSettings = poolConfig.getPoolSettings();
-        uint256 nextEpochStartTime = calendar.getStartDateOfNextPeriod(
+        uint256 nextEpochStartTime = ICalendar(poolConfig.calendar()).getStartDateOfNextPeriod(
             poolSettings.payPeriodDuration,
             block.timestamp
         );
@@ -248,7 +248,7 @@ contract TrancheVault is
         lenderRedemptionRecord.numSharesRequested += uint96(shares);
         uint256 principalRequested = (depositRecord.principal * shares) / sharesBalance;
         lenderRedemptionRecord.principalRequested += uint96(principalRequested);
-        lenderRedemptionRecords[msg.sender] = lenderRedemptionRecord;
+        _setLenderRedemptionRecord(msg.sender, lenderRedemptionRecord);
         depositRecord.principal = uint96(
             depositRecord.principal > principalRequested
                 ? depositRecord.principal - principalRequested
@@ -290,7 +290,7 @@ contract TrancheVault is
             (lenderRedemptionRecord.principalRequested * newNumSharesRequested) /
             lenderRedemptionRecord.numSharesRequested;
         lenderRedemptionRecord.numSharesRequested = newNumSharesRequested;
-        lenderRedemptionRecords[msg.sender] = lenderRedemptionRecord;
+        _setLenderRedemptionRecord(msg.sender, lenderRedemptionRecord);
 
         EpochRedemptionSummary memory currRedemptionSummary = epochRedemptionSummaries[
             currentEpochId
@@ -313,7 +313,7 @@ contract TrancheVault is
         uint256 withdrawable = record.totalAmountProcessed - record.totalAmountWithdrawn;
         if (withdrawable > 0) {
             record.totalAmountWithdrawn += uint96(withdrawable);
-            lenderRedemptionRecords[msg.sender] = record;
+            _setLenderRedemptionRecord(msg.sender, record);
             underlyingToken.safeTransfer(msg.sender, withdrawable);
             emit LenderFundDisbursed(msg.sender, msg.sender, withdrawable);
         }
@@ -376,10 +376,7 @@ contract TrancheVault is
      * @param account The lender's account
      */
     function cancellableRedemptionShares(address account) external view returns (uint256 shares) {
-        LenderRedemptionRecord memory lenderRedemptionRecord = _getLatestLenderRedemptionRecordFor(
-            account
-        );
-        shares = lenderRedemptionRecord.numSharesRequested;
+        shares = _getLatestLenderRedemptionRecordFor(account).numSharesRequested;
     }
 
     function convertToShares(uint256 assets) external view returns (uint256 shares) {
@@ -410,10 +407,6 @@ contract TrancheVault is
         return pool.trancheTotalAssets(trancheIndex);
     }
 
-    function totalSupply() public view override returns (uint256) {
-        return ERC20Upgradeable.totalSupply();
-    }
-
     function convertToAssets(uint256 shares) public view returns (uint256 assets) {
         uint256 tempTotalAssets = totalAssets();
         uint256 tempTotalSupply = ERC20Upgradeable.totalSupply();
@@ -440,10 +433,6 @@ contract TrancheVault is
         addr = _poolConfig.epochManager();
         assert(addr != address(0));
         epochManager = IEpochManager(addr);
-
-        addr = _poolConfig.calendar();
-        assert(addr != address(0));
-        calendar = ICalendar(addr);
     }
 
     function _deposit(uint256 assets, address receiver) internal returns (uint256 shares) {
@@ -481,6 +470,13 @@ contract TrancheVault is
                 break;
             }
         }
+    }
+
+    function _setLenderRedemptionRecord(
+        address account,
+        LenderRedemptionRecord memory record
+    ) internal {
+        lenderRedemptionRecords[account] = record;
     }
 
     function _convertToShares(
@@ -545,10 +541,6 @@ contract TrancheVault is
             }
         }
         lenderRedemptionRecord.nextEpochIdToProcess = uint64(currentEpochId);
-    }
-
-    function _onlyEpochManager(address account) internal view {
-        if (account != address(epochManager)) revert Errors.AuthorizedContractCallerRequired();
     }
 
     function _onlyAuthorizedInitialDepositor(address account) internal view {
