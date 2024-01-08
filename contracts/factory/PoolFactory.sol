@@ -19,7 +19,7 @@ interface IFirstLossCoverLike {
     function initialize(string memory name, string memory symbol, PoolConfig _poolConfig) external;
 }
 
-interface ITrancheVaultLike {
+interface IVaultLike {
     function initialize(
         string memory name,
         string memory symbol,
@@ -383,14 +383,14 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
             // when index is 8 or 9, it is senior or junior tranche vault
             // trancheVault uses different initialize function
             if (i == 8) {
-                ITrancheVaultLike(poolAddresses[i]).initialize(
+                IVaultLike(poolAddresses[i]).initialize(
                     "Senior Tranche Vault",
                     "STV",
                     poolConfig,
                     0
                 );
             } else if (i == 9) {
-                ITrancheVaultLike(poolAddresses[i]).initialize(
+                IVaultLike(poolAddresses[i]).initialize(
                     "Junior Tranche Vault",
                     "JTV",
                     poolConfig,
