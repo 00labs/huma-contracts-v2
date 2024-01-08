@@ -426,7 +426,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         // 1. Deduct the yield that was computed with the previous rate from tomorrow onwards, and
         // 2. Incorporate the yield calculated with the new rate, also beginning tomorrow.
         dd.accrued = uint96(
-            dueManager.computeUpdatedYieldDue(
+            dueManager.recomputeYieldDue(
                 cr.nextDueDate,
                 dd.accrued,
                 oldYieldInBps,
@@ -435,7 +435,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
             )
         );
         dd.committed = uint96(
-            dueManager.computeUpdatedYieldDue(
+            dueManager.recomputeYieldDue(
                 cr.nextDueDate,
                 dd.committed,
                 oldYieldInBps,
@@ -489,7 +489,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         _setCreditConfig(creditHash, cc);
 
         dd.committed = uint96(
-            dueManager.computeUpdatedYieldDue(
+            dueManager.recomputeCommittedYieldDueAfterCommitmentChange(
                 cr.nextDueDate,
                 dd.committed,
                 oldCommittedAmount,
