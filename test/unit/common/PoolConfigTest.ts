@@ -30,7 +30,6 @@ import {
     PoolSettingsStructOutput,
 } from "../../../typechain-types/contracts/common/PoolConfig.sol/PoolConfig";
 import {
-    CONSTANTS,
     PayPeriodDuration,
     deployAndSetupPoolContracts,
     deployProtocolContracts,
@@ -43,6 +42,7 @@ import {
     overrideFirstLossCoverConfig,
     toToken,
 } from "../../TestUtils";
+import { CONSTANTS } from "../../constants";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,

@@ -26,7 +26,6 @@ import {
     DueDetailStruct,
 } from "../../../typechain-types/contracts/credit/CreditDueManager";
 import {
-    CONSTANTS,
     CreditState,
     PayPeriodDuration,
     calcLateFee,
@@ -45,6 +44,7 @@ import {
     maxBigNumber,
     toToken,
 } from "../../TestUtils";
+import { CONSTANTS } from "../../constants";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,

@@ -3,8 +3,9 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import moment from "moment";
 import { Calendar } from "../../../typechain-types";
-import { CONSTANTS, PayPeriodDuration } from "../../BaseTest";
+import { PayPeriodDuration } from "../../BaseTest";
 import { evmRevert, evmSnapshot, mineNextBlockWithTimestamp } from "../../TestUtils";
+import { CONSTANTS } from "../../constants";
 
 let calendarContract: Calendar;
 

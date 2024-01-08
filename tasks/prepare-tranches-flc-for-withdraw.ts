@@ -1,8 +1,8 @@
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { task } from "hardhat/config";
 import { HardhatRuntimeEnvironment } from "hardhat/types";
+import { CONSTANTS } from "../test/constants";
 import { FirstLossCover } from "../typechain-types";
-import { CONSTANTS } from "./common";
 
 async function submitRedemptionRequestToTranche(
     hre: HardhatRuntimeEnvironment,

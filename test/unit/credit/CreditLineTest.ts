@@ -26,7 +26,6 @@ import {
     DueDetailStruct,
 } from "../../../typechain-types/contracts/credit/Credit";
 import {
-    CONSTANTS,
     CreditClosureReason,
     CreditState,
     PayPeriodDuration,
@@ -63,6 +62,7 @@ import {
     setNextBlockTimestamp,
     toToken,
 } from "../../TestUtils";
+import { CONSTANTS } from "../../constants";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,

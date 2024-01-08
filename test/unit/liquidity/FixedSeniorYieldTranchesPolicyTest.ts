@@ -20,7 +20,6 @@ import {
     TrancheVault,
 } from "../../../typechain-types";
 import {
-    CONSTANTS,
     PnLCalculator,
     SeniorYieldTracker,
     checkSeniorYieldTrackersMatch,
@@ -35,6 +34,7 @@ import {
     setNextBlockTimestamp,
     toToken,
 } from "../../TestUtils";
+import { CONSTANTS } from "../../constants";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,

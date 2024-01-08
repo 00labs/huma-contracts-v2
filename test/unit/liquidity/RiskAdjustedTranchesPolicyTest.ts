@@ -20,12 +20,12 @@ import {
     TrancheVault,
 } from "../../../typechain-types";
 import {
-    CONSTANTS,
     PnLCalculator,
     deployAndSetupPoolContracts,
     deployProtocolContracts,
 } from "../../BaseTest";
 import { overrideLPConfig, toToken } from "../../TestUtils";
+import { CONSTANTS } from "../../constants";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
