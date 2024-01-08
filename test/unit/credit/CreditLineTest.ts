@@ -3785,7 +3785,7 @@ describe("CreditLine Test", function () {
         });
     });
 
-    describe.only("makePayment", function () {
+    describe("makePayment", function () {
         const yieldInBps = 1217,
             lateFeeBps = 300,
             latePaymentGracePeriodInDays = 5,
