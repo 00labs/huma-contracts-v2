@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {BorrowerLevelCreditManager} from "./BorrowerLevelCreditManager.sol";
+import {CreditLineManager} from "./CreditLineManager.sol";
 import {ReceivableBackedCreditLineManagerStorage} from "./ReceivableBackedCreditLineManagerStorage.sol";
 import {CreditConfig, ReceivableInfo, ReceivableState} from "./CreditStructs.sol";
 import {Errors} from "../common/Errors.sol";
@@ -13,7 +13,7 @@ import {CreditManager} from "./CreditManager.sol";
 
 contract ReceivableBackedCreditLineManager is
     IReceivableBackedCreditLineManager,
-    BorrowerLevelCreditManager,
+    CreditLineManager,
     ReceivableBackedCreditLineManagerStorage
 {
     event ReceivableApproved(

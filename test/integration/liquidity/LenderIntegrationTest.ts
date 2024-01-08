@@ -6,10 +6,10 @@ import { expect } from "chai";
 import { BigNumber as BN } from "ethers";
 import { ethers } from "hardhat";
 import {
-    BorrowerLevelCreditManager,
     Calendar,
     CreditDueManager,
     CreditLine,
+    CreditLineManager,
     EpochManager,
     EvaluationAgentNFT,
     FirstLossCover,
@@ -88,7 +88,7 @@ let poolConfigContract: PoolConfig,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: CreditLine,
     creditDueManagerContract: CreditDueManager,
-    creditManagerContract: BorrowerLevelCreditManager;
+    creditManagerContract: CreditLineManager;
 
 let feeCalculator: FeeCalculator, pnlCalculator: ProfitAndLossCalculator;
 let epochChecker: EpochChecker;
@@ -622,7 +622,7 @@ describe("Lender Integration Test", function () {
                 defaultDeployer,
                 poolOwner,
                 "CreditLine",
-                "BorrowerLevelCreditManager",
+                "CreditLineManager",
             );
 
             await configPool({ tranchesRiskAdjustmentInBps: RISK_ADJUSTMENT_IN_BPS });
@@ -1907,7 +1907,7 @@ describe("Lender Integration Test", function () {
                 defaultDeployer,
                 poolOwner,
                 "CreditLine",
-                "BorrowerLevelCreditManager",
+                "CreditLineManager",
             );
 
             await configPool({ fixedSeniorYieldInBps: FIXED_SENIOR_YIELD_IN_BPS });
