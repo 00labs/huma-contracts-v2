@@ -93,7 +93,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         // get unprocessed redemption requests
         EpochRedemptionSummary memory seniorSummary = seniorTranche.currentRedemptionSummary();
         EpochRedemptionSummary memory juniorSummary = juniorTranche.currentRedemptionSummary();
-        uint256 unprocessedAmount;
+        uint256 unprocessedAmount = 0;
 
         _createNextEpoch(ce);
 

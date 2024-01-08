@@ -334,12 +334,12 @@ contract TrancheVault is
             DepositRecord memory depositRecord = _getDepositRecord(lender);
             if (assets > depositRecord.principal) {
                 uint256 yield = assets - depositRecord.principal;
+                tranchesAssets[trancheIndex] -= uint96(yield);
                 // Round up the number of shares the lender has to burn in order to receive
                 // the given amount of yield. The result favors the pool.
                 shares = Math.ceilDiv(yield * DEFAULT_DECIMALS_FACTOR, price);
                 ERC20Upgradeable._burn(lender, shares);
                 poolSafe.withdraw(lender, yield);
-                tranchesAssets[trancheIndex] -= uint96(yield);
                 emit YieldPaidOut(lender, yield, shares);
             }
         }
