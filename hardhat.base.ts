@@ -8,7 +8,7 @@ import { HardhatUserConfig } from "hardhat/types";
 
 // Hardhat tasks
 import "./tasks/advance-epoch";
-import "./tasks/prepare-tranches-flc-for-withdraw";
+import "./tasks/prepare-tranches-flc-for-withdrawal";
 import "./tasks/withdraw-from-tranches";
 
 const EMPTY_URL = "empty url";
