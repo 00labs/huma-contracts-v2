@@ -60,7 +60,7 @@ let poolConfigContract: PoolConfig,
     poolSafeContract: PoolSafe,
     calendarContract: Calendar,
     borrowerFirstLossCoverContract: FirstLossCover,
-    affiliateFirstLossCoverContract: FirstLossCover,
+    adminFirstLossCoverContract: FirstLossCover,
     tranchesPolicyContract: RiskAdjustedTranchesPolicy,
     poolContract: Pool,
     epochManagerContract: EpochManager,
@@ -132,7 +132,7 @@ describe("TrancheVault Test", function () {
             poolSafeContract,
             calendarContract,
             borrowerFirstLossCoverContract,
-            affiliateFirstLossCoverContract,
+            adminFirstLossCoverContract,
             tranchesPolicyContract,
             poolContract,
             epochManagerContract,
@@ -828,7 +828,7 @@ describe("TrancheVault Test", function () {
                 ];
                 const profitAfterFees = await feeCalculator.calcPoolFeeDistribution(profit);
                 const firstLossCoverInfos = await Promise.all(
-                    [borrowerFirstLossCoverContract, affiliateFirstLossCoverContract].map(
+                    [borrowerFirstLossCoverContract, adminFirstLossCoverContract].map(
                         async (contract) =>
                             await getFirstLossCoverInfo(contract, poolConfigContract),
                     ),

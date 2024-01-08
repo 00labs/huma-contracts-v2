@@ -42,7 +42,7 @@ let poolConfigContract: PoolConfig,
     poolSafeContract: PoolSafe,
     calendarContract: Calendar,
     borrowerFirstLossCoverContract: FirstLossCover,
-    affiliateFirstLossCoverContract: FirstLossCover,
+    adminFirstLossCoverContract: FirstLossCover,
     tranchesPolicyContract: RiskAdjustedTranchesPolicy,
     poolContract: Pool,
     epochManagerContract: EpochManager,
@@ -83,7 +83,7 @@ describe("PoolSafe Tests", function () {
             poolSafeContract,
             calendarContract,
             borrowerFirstLossCoverContract,
-            affiliateFirstLossCoverContract,
+            adminFirstLossCoverContract,
             tranchesPolicyContract,
             poolContract,
             epochManagerContract,
@@ -256,10 +256,7 @@ describe("PoolSafe Tests", function () {
 
         it("Should not allow unprocessed profits to be added for non-tranches", async function () {
             await expect(
-                poolSafeContract.addUnprocessedProfit(
-                    affiliateFirstLossCoverContract.address,
-                    profit,
-                ),
+                poolSafeContract.addUnprocessedProfit(adminFirstLossCoverContract.address, profit),
             ).to.be.revertedWithCustomError(poolSafeContract, "TrancheRequired");
         });
     });

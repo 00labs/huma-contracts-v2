@@ -81,7 +81,7 @@ let poolConfigContract: PoolConfig,
     poolSafeContract: PoolSafe,
     calendarContract: Calendar,
     borrowerFirstLossCoverContract: FirstLossCover,
-    affiliateFirstLossCoverContract: FirstLossCover,
+    adminFirstLossCoverContract: FirstLossCover,
     poolContract: Pool,
     epochManagerContract: EpochManager,
     seniorTrancheVaultContract: TrancheVault,
@@ -192,17 +192,13 @@ async function configPool(lpConfig: Partial<LPConfigStructOutput>) {
         );
     await poolConfigContract
         .connect(poolOwner)
-        .setFirstLossCover(
-            CONSTANTS.ADMIN_LOSS_COVER_INDEX,
-            affiliateFirstLossCoverContract.address,
-            {
-                coverRatePerLossInBps: 1_000,
-                coverCapPerLoss: toToken(30_000),
-                maxLiquidity: toToken(250_000),
-                minLiquidity: 0,
-                riskYieldMultiplierInBps: ADMIN_FIRST_LOSS_COVER_RISK_YIELD_MULTIPLIER_IN_BPS,
-            },
-        );
+        .setFirstLossCover(CONSTANTS.ADMIN_LOSS_COVER_INDEX, adminFirstLossCoverContract.address, {
+            coverRatePerLossInBps: 1_000,
+            coverCapPerLoss: toToken(30_000),
+            maxLiquidity: toToken(250_000),
+            minLiquidity: 0,
+            riskYieldMultiplierInBps: ADMIN_FIRST_LOSS_COVER_RISK_YIELD_MULTIPLIER_IN_BPS,
+        });
 
     await poolConfigContract
         .connect(poolOwner)
@@ -245,14 +241,14 @@ async function configPool(lpConfig: Partial<LPConfigStructOutput>) {
 
     await mockTokenContract
         .connect(poolOwnerTreasury)
-        .approve(affiliateFirstLossCoverContract.address, ethers.constants.MaxUint256);
+        .approve(adminFirstLossCoverContract.address, ethers.constants.MaxUint256);
     await mockTokenContract
         .connect(evaluationAgent)
-        .approve(affiliateFirstLossCoverContract.address, ethers.constants.MaxUint256);
-    await affiliateFirstLossCoverContract
+        .approve(adminFirstLossCoverContract.address, ethers.constants.MaxUint256);
+    await adminFirstLossCoverContract
         .connect(poolOwner)
         .addCoverProvider(poolOwnerTreasury.getAddress());
-    await affiliateFirstLossCoverContract
+    await adminFirstLossCoverContract
         .connect(poolOwner)
         .addCoverProvider(evaluationAgent.getAddress());
 
@@ -268,10 +264,10 @@ async function configPool(lpConfig: Partial<LPConfigStructOutput>) {
         .setReinvestYield(evaluationAgent.address, true);
 
     // Deposit 1% of the pool liquidity cap as the first loss cover.
-    await affiliateFirstLossCoverContract
+    await adminFirstLossCoverContract
         .connect(poolOwnerTreasury)
         .depositCover(POOL_LIQUIDITY_CAP.div(100));
-    await affiliateFirstLossCoverContract
+    await adminFirstLossCoverContract
         .connect(evaluationAgent)
         .depositCover(POOL_LIQUIDITY_CAP.div(100));
     await poolContract.connect(poolOwner).setReadyForFirstLossCoverWithdrawal(true);
@@ -321,7 +317,7 @@ async function configPool(lpConfig: Partial<LPConfigStructOutput>) {
     feeCalculator = new FeeCalculator(humaConfigContract, poolConfigContract);
     pnlCalculator = new ProfitAndLossCalculator(poolConfigContract, poolContract, [
         borrowerFirstLossCoverContract,
-        affiliateFirstLossCoverContract,
+        adminFirstLossCoverContract,
     ]);
     epochChecker = new EpochChecker(
         epochManagerContract,
@@ -346,7 +342,7 @@ async function checkAssetsForProfit(
     expectedTranchesAssets: BN[],
     expectedFirstLossCoverProfits: BN[],
     borrowerFLCOldBalance: BN,
-    affiliateFLCOldBalance: BN,
+    adminFLCOldBalance: BN,
 ) {
     expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
         expectedTranchesAssets[CONSTANTS.SENIOR_TRANCHE],
@@ -357,8 +353,8 @@ async function checkAssetsForProfit(
     expect(expectedFirstLossCoverProfits[BORROWER_LOSS_COVER_INDEX]).to.equal(0);
     expect(await borrowerFirstLossCoverContract.totalAssets()).to.equal(borrowerFLCOldBalance);
     expect(expectedFirstLossCoverProfits[ADMIN_LOSS_COVER_INDEX]).to.greaterThan(0);
-    expect(await affiliateFirstLossCoverContract.totalAssets()).to.equal(
-        affiliateFLCOldBalance.add(expectedFirstLossCoverProfits[ADMIN_LOSS_COVER_INDEX]),
+    expect(await adminFirstLossCoverContract.totalAssets()).to.equal(
+        adminFLCOldBalance.add(expectedFirstLossCoverProfits[ADMIN_LOSS_COVER_INDEX]),
     );
 }
 
@@ -366,7 +362,7 @@ async function checkAssetsForLoss(
     expectedTranchesAssets: BN[],
     expectedFirstLossCoverLosses: BN[],
     borrowerFLCOldBalance: BN,
-    affiliateFLCOldBalance: BN,
+    adminFLCOldBalance: BN,
 ) {
     expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
         expectedTranchesAssets[CONSTANTS.SENIOR_TRANCHE],
@@ -379,8 +375,8 @@ async function checkAssetsForLoss(
         borrowerFLCOldBalance.add(expectedFirstLossCoverLosses[BORROWER_LOSS_COVER_INDEX]),
     );
     expect(expectedFirstLossCoverLosses[ADMIN_LOSS_COVER_INDEX]).to.lessThan(0);
-    expect(await affiliateFirstLossCoverContract.totalAssets()).to.equal(
-        affiliateFLCOldBalance.add(expectedFirstLossCoverLosses[ADMIN_LOSS_COVER_INDEX]),
+    expect(await adminFirstLossCoverContract.totalAssets()).to.equal(
+        adminFLCOldBalance.add(expectedFirstLossCoverLosses[ADMIN_LOSS_COVER_INDEX]),
     );
 }
 
@@ -606,7 +602,7 @@ describe("Lender Integration Test", function () {
                 poolSafeContract,
                 calendarContract,
                 borrowerFirstLossCoverContract,
-                affiliateFirstLossCoverContract,
+                adminFirstLossCoverContract,
                 tranchesPolicyContract,
                 poolContract,
                 epochManagerContract,
@@ -707,8 +703,8 @@ describe("Lender Integration Test", function () {
             let borrowerFLCOldBalance = await mockTokenContract.balanceOf(
                 borrowerFirstLossCoverContract.address,
             );
-            let affiliateFLCOldBalance = await mockTokenContract.balanceOf(
-                affiliateFirstLossCoverContract.address,
+            let adminFLCOldBalance = await mockTokenContract.balanceOf(
+                adminFirstLossCoverContract.address,
             );
             let poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
             await pnlCalculator.beginProfitCalculation();
@@ -729,7 +725,7 @@ describe("Lender Integration Test", function () {
                 expectedTranchesAssets,
                 expectedFirstLossCoverProfits,
                 borrowerFLCOldBalance,
-                affiliateFLCOldBalance,
+                adminFLCOldBalance,
             );
 
             let expectedPoolSafeBalanceIncrement = protocolReward
@@ -762,8 +758,8 @@ describe("Lender Integration Test", function () {
             let borrowerFLCOldBalance = await mockTokenContract.balanceOf(
                 borrowerFirstLossCoverContract.address,
             );
-            let affiliateFLCOldBalance = await mockTokenContract.balanceOf(
-                affiliateFirstLossCoverContract.address,
+            let adminFLCOldBalance = await mockTokenContract.balanceOf(
+                adminFirstLossCoverContract.address,
             );
             let poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
             await pnlCalculator.beginProfitCalculation();
@@ -784,7 +780,7 @@ describe("Lender Integration Test", function () {
                 expectedTranchesAssets,
                 expectedFirstLossCoverProfits,
                 borrowerFLCOldBalance,
-                affiliateFLCOldBalance,
+                adminFLCOldBalance,
             );
 
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
@@ -845,8 +841,8 @@ describe("Lender Integration Test", function () {
             let borrowerFLCOldBalance = await mockTokenContract.balanceOf(
                 borrowerFirstLossCoverContract.address,
             );
-            let affiliateFLCOldBalance = await mockTokenContract.balanceOf(
-                affiliateFirstLossCoverContract.address,
+            let adminFLCOldBalance = await mockTokenContract.balanceOf(
+                adminFirstLossCoverContract.address,
             );
             let poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
             await pnlCalculator.beginProfitCalculation();
@@ -865,7 +861,7 @@ describe("Lender Integration Test", function () {
                 expectedTranchesAssets,
                 expectedFirstLossCoverProfits,
                 borrowerFLCOldBalance,
-                affiliateFLCOldBalance,
+                adminFLCOldBalance,
             );
 
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
@@ -1124,8 +1120,8 @@ describe("Lender Integration Test", function () {
             let borrowerFLCOldBalance = await mockTokenContract.balanceOf(
                 borrowerFirstLossCoverContract.address,
             );
-            let affiliateFLCOldBalance = await mockTokenContract.balanceOf(
-                affiliateFirstLossCoverContract.address,
+            let adminFLCOldBalance = await mockTokenContract.balanceOf(
+                adminFirstLossCoverContract.address,
             );
             let poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
             await pnlCalculator.beginProfitCalculation();
@@ -1147,7 +1143,7 @@ describe("Lender Integration Test", function () {
                 expectedTranchesAssets,
                 expectedFirstLossCoverProfits,
                 borrowerFLCOldBalance,
-                affiliateFLCOldBalance,
+                adminFLCOldBalance,
             );
 
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
@@ -1385,8 +1381,8 @@ describe("Lender Integration Test", function () {
             let borrowerFLCOldBalance = await mockTokenContract.balanceOf(
                 borrowerFirstLossCoverContract.address,
             );
-            let affiliateFLCOldBalance = await mockTokenContract.balanceOf(
-                affiliateFirstLossCoverContract.address,
+            let adminFLCOldBalance = await mockTokenContract.balanceOf(
+                adminFirstLossCoverContract.address,
             );
             let poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
             await pnlCalculator.beginProfitCalculation();
@@ -1408,7 +1404,7 @@ describe("Lender Integration Test", function () {
                 expectedTranchesAssets,
                 expectedFirstLossCoverProfits,
                 borrowerFLCOldBalance,
-                affiliateFLCOldBalance,
+                adminFLCOldBalance,
             );
 
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
@@ -1438,8 +1434,8 @@ describe("Lender Integration Test", function () {
             let borrowerFLCOldBalance = await mockTokenContract.balanceOf(
                 borrowerFirstLossCoverContract.address,
             );
-            let affiliateFLCOldBalance = await mockTokenContract.balanceOf(
-                affiliateFirstLossCoverContract.address,
+            let adminFLCOldBalance = await mockTokenContract.balanceOf(
+                adminFirstLossCoverContract.address,
             );
             let poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
             await pnlCalculator.beginProfitCalculation();
@@ -1459,7 +1455,7 @@ describe("Lender Integration Test", function () {
                 expectedTranchesAssets,
                 expectedFirstLossCoverProfits,
                 borrowerFLCOldBalance,
-                affiliateFLCOldBalance,
+                adminFLCOldBalance,
             );
 
             let expectedPoolSafeBalanceIncremnet = protocolReward
@@ -1594,8 +1590,8 @@ describe("Lender Integration Test", function () {
             let borrowerFLCOldBalance = await mockTokenContract.balanceOf(
                 borrowerFirstLossCoverContract.address,
             );
-            let affiliateFLCOldBalance = await mockTokenContract.balanceOf(
-                affiliateFirstLossCoverContract.address,
+            let adminFLCOldBalance = await mockTokenContract.balanceOf(
+                adminFirstLossCoverContract.address,
             );
             let poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
             await pnlCalculator.beginProfitCalculation();
@@ -1616,7 +1612,7 @@ describe("Lender Integration Test", function () {
                 expectedTranchesAssets,
                 expectedFirstLossCoverLosses,
                 borrowerFLCOldBalance,
-                affiliateFLCOldBalance,
+                adminFLCOldBalance,
             );
 
             let expectedPoolSafeBalanceIncremnet = expectedFirstLossCoverLosses[
@@ -1639,7 +1635,7 @@ describe("Lender Integration Test", function () {
             let seniorOldAssets = await seniorTrancheVaultContract.totalAssets();
             let juniorOldAssets = await juniorTrancheVaultContract.totalAssets();
             let borrowerFLCOldAssets = await borrowerFirstLossCoverContract.totalAssets();
-            let affiliateFLCOldAssets = await affiliateFirstLossCoverContract.totalAssets();
+            let adminFLCOldAssets = await adminFirstLossCoverContract.totalAssets();
             let poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
             await creditContract.connect(borrower).makePayment(borrower.address, amount);
             expect(await mockTokenContract.balanceOf(borrower.address)).to.equal(
@@ -1652,9 +1648,7 @@ describe("Lender Integration Test", function () {
             expect(await borrowerFirstLossCoverContract.totalAssets()).to.equal(
                 borrowerFLCOldAssets,
             );
-            expect(await affiliateFirstLossCoverContract.totalAssets()).to.equal(
-                affiliateFLCOldAssets,
-            );
+            expect(await adminFirstLossCoverContract.totalAssets()).to.equal(adminFLCOldAssets);
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
                 poolSafeOldBalance.add(amount),
             );
@@ -1840,7 +1834,7 @@ describe("Lender Integration Test", function () {
                 poolSafeContract,
                 calendarContract,
                 borrowerFirstLossCoverContract,
-                affiliateFirstLossCoverContract,
+                adminFirstLossCoverContract,
                 tranchesPolicyContract as unknown,
                 poolContract,
                 epochManagerContract,
@@ -1941,8 +1935,8 @@ describe("Lender Integration Test", function () {
             let borrowerFLCOldBalance = await mockTokenContract.balanceOf(
                 borrowerFirstLossCoverContract.address,
             );
-            let affiliateFLCOldBalance = await mockTokenContract.balanceOf(
-                affiliateFirstLossCoverContract.address,
+            let adminFLCOldBalance = await mockTokenContract.balanceOf(
+                adminFirstLossCoverContract.address,
             );
             let poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
             await pnlCalculator.beginProfitCalculation();
@@ -1971,7 +1965,7 @@ describe("Lender Integration Test", function () {
                 expectedTranchesAssets,
                 expectedFirstLossCoverProfits,
                 borrowerFLCOldBalance,
-                affiliateFLCOldBalance,
+                adminFLCOldBalance,
             );
 
             let expectedPoolSafeBalanceIncremnet = protocolReward
@@ -2004,8 +1998,8 @@ describe("Lender Integration Test", function () {
             let borrowerFLCOldBalance = await mockTokenContract.balanceOf(
                 borrowerFirstLossCoverContract.address,
             );
-            let affiliateFLCOldBalance = await mockTokenContract.balanceOf(
-                affiliateFirstLossCoverContract.address,
+            let adminFLCOldBalance = await mockTokenContract.balanceOf(
+                adminFirstLossCoverContract.address,
             );
             let poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
             await pnlCalculator.beginProfitCalculation();
@@ -2032,7 +2026,7 @@ describe("Lender Integration Test", function () {
                 expectedTranchesAssets,
                 expectedFirstLossCoverProfits,
                 borrowerFLCOldBalance,
-                affiliateFLCOldBalance,
+                adminFLCOldBalance,
             );
 
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
@@ -2093,8 +2087,8 @@ describe("Lender Integration Test", function () {
             let borrowerFLCOldBalance = await mockTokenContract.balanceOf(
                 borrowerFirstLossCoverContract.address,
             );
-            let affiliateFLCOldBalance = await mockTokenContract.balanceOf(
-                affiliateFirstLossCoverContract.address,
+            let adminFLCOldBalance = await mockTokenContract.balanceOf(
+                adminFirstLossCoverContract.address,
             );
             let poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
             await pnlCalculator.beginProfitCalculation();
@@ -2121,7 +2115,7 @@ describe("Lender Integration Test", function () {
                 expectedTranchesAssets,
                 expectedFirstLossCoverProfits,
                 borrowerFLCOldBalance,
-                affiliateFLCOldBalance,
+                adminFLCOldBalance,
             );
 
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
@@ -2389,8 +2383,8 @@ describe("Lender Integration Test", function () {
             let borrowerFLCOldBalance = await mockTokenContract.balanceOf(
                 borrowerFirstLossCoverContract.address,
             );
-            let affiliateFLCOldBalance = await mockTokenContract.balanceOf(
-                affiliateFirstLossCoverContract.address,
+            let adminFLCOldBalance = await mockTokenContract.balanceOf(
+                adminFirstLossCoverContract.address,
             );
             let poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
             await pnlCalculator.beginProfitCalculation();
@@ -2420,7 +2414,7 @@ describe("Lender Integration Test", function () {
                 expectedTranchesAssets,
                 expectedFirstLossCoverProfits,
                 borrowerFLCOldBalance,
-                affiliateFLCOldBalance,
+                adminFLCOldBalance,
             );
 
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
@@ -2658,8 +2652,8 @@ describe("Lender Integration Test", function () {
             let borrowerFLCOldBalance = await mockTokenContract.balanceOf(
                 borrowerFirstLossCoverContract.address,
             );
-            let affiliateFLCOldBalance = await mockTokenContract.balanceOf(
-                affiliateFirstLossCoverContract.address,
+            let adminFLCOldBalance = await mockTokenContract.balanceOf(
+                adminFirstLossCoverContract.address,
             );
             let poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
             await pnlCalculator.beginProfitCalculation();
@@ -2689,7 +2683,7 @@ describe("Lender Integration Test", function () {
                 expectedTranchesAssets,
                 expectedFirstLossCoverProfits,
                 borrowerFLCOldBalance,
-                affiliateFLCOldBalance,
+                adminFLCOldBalance,
             );
 
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
@@ -2719,8 +2713,8 @@ describe("Lender Integration Test", function () {
             let borrowerFLCOldBalance = await mockTokenContract.balanceOf(
                 borrowerFirstLossCoverContract.address,
             );
-            let affiliateFLCOldBalance = await mockTokenContract.balanceOf(
-                affiliateFirstLossCoverContract.address,
+            let adminFLCOldBalance = await mockTokenContract.balanceOf(
+                adminFirstLossCoverContract.address,
             );
             let poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
             await pnlCalculator.beginProfitCalculation();
@@ -2748,7 +2742,7 @@ describe("Lender Integration Test", function () {
                 expectedTranchesAssets,
                 expectedFirstLossCoverProfits,
                 borrowerFLCOldBalance,
-                affiliateFLCOldBalance,
+                adminFLCOldBalance,
             );
 
             let expectedPoolSafeBalanceIncremnet = protocolReward
@@ -2873,8 +2867,8 @@ describe("Lender Integration Test", function () {
             let borrowerFLCOldBalance = await mockTokenContract.balanceOf(
                 borrowerFirstLossCoverContract.address,
             );
-            let affiliateFLCOldBalance = await mockTokenContract.balanceOf(
-                affiliateFirstLossCoverContract.address,
+            let adminFLCOldBalance = await mockTokenContract.balanceOf(
+                adminFirstLossCoverContract.address,
             );
             let poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
             await pnlCalculator.beginProfitCalculation();
@@ -2907,7 +2901,7 @@ describe("Lender Integration Test", function () {
                 expectedTranchesAssets,
                 expectedFirstLossCoverLosses,
                 borrowerFLCOldBalance,
-                affiliateFLCOldBalance,
+                adminFLCOldBalance,
             );
 
             let expectedPoolSafeBalanceIncremnet = expectedFirstLossCoverLosses[
@@ -2930,7 +2924,7 @@ describe("Lender Integration Test", function () {
             let seniorOldAssets = await seniorTrancheVaultContract.totalAssets();
             let juniorOldAssets = await juniorTrancheVaultContract.totalAssets();
             let borrowerFLCOldAssets = await borrowerFirstLossCoverContract.totalAssets();
-            let affiliateFLCOldAssets = await affiliateFirstLossCoverContract.totalAssets();
+            let adminFLCOldAssets = await adminFirstLossCoverContract.totalAssets();
             let poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
             await creditContract.connect(borrower).makePayment(borrower.address, amount);
             expect(await mockTokenContract.balanceOf(borrower.address)).to.equal(
@@ -2943,9 +2937,7 @@ describe("Lender Integration Test", function () {
             expect(await borrowerFirstLossCoverContract.totalAssets()).to.equal(
                 borrowerFLCOldAssets,
             );
-            expect(await affiliateFirstLossCoverContract.totalAssets()).to.equal(
-                affiliateFLCOldAssets,
-            );
+            expect(await adminFirstLossCoverContract.totalAssets()).to.equal(adminFLCOldAssets);
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
                 poolSafeOldBalance.add(amount),
             );

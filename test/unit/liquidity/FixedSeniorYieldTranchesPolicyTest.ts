@@ -55,7 +55,7 @@ let poolConfigContract: PoolConfig,
     poolSafeContract: PoolSafe,
     calendarContract: Calendar,
     borrowerFirstLossCoverContract: FirstLossCover,
-    affiliateFirstLossCoverContract: FirstLossCover,
+    adminFirstLossCoverContract: FirstLossCover,
     tranchesPolicyContract: FixedSeniorYieldTranchePolicy,
     poolContract: Pool,
     epochManagerContract: EpochManager,
@@ -97,7 +97,7 @@ describe("FixedSeniorYieldTranchesPolicy Test", function () {
             poolSafeContract,
             calendarContract,
             borrowerFirstLossCoverContract,
-            affiliateFirstLossCoverContract,
+            adminFirstLossCoverContract,
             tranchesPolicyContract as unknown,
             poolContract,
             epochManagerContract,
@@ -152,7 +152,7 @@ describe("FixedSeniorYieldTranchesPolicy Test", function () {
         it("Should return the first loss covers", async function () {
             expect(await tranchesPolicyContract.getFirstLossCovers()).to.eql([
                 borrowerFirstLossCoverContract.address,
-                affiliateFirstLossCoverContract.address,
+                adminFirstLossCoverContract.address,
             ]);
         });
     });

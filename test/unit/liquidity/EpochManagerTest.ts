@@ -57,7 +57,7 @@ let poolConfigContract: PoolConfig,
     poolSafeContract: PoolSafe,
     calendarContract: Calendar,
     borrowerFirstLossCoverContract: FirstLossCover,
-    affiliateFirstLossCoverContract: FirstLossCover,
+    adminFirstLossCoverContract: FirstLossCover,
     tranchesPolicyContract: RiskAdjustedTranchesPolicy,
     poolContract: Pool,
     epochManagerContract: EpochManager,
@@ -125,7 +125,7 @@ describe("EpochManager Test", function () {
             poolSafeContract,
             calendarContract,
             borrowerFirstLossCoverContract,
-            affiliateFirstLossCoverContract,
+            adminFirstLossCoverContract,
             tranchesPolicyContract,
             poolContract,
             epochManagerContract,
@@ -281,7 +281,7 @@ describe("EpochManager Test", function () {
         const assets = [assetInfo[CONSTANTS.SENIOR_TRANCHE], assetInfo[CONSTANTS.JUNIOR_TRANCHE]];
         const profitAfterFees = await feeCalculator.calcPoolFeeDistribution(profit);
         const firstLossCoverInfos = await Promise.all(
-            [borrowerFirstLossCoverContract, affiliateFirstLossCoverContract].map(
+            [borrowerFirstLossCoverContract, adminFirstLossCoverContract].map(
                 async (contract) => await getFirstLossCoverInfo(contract, poolConfigContract),
             ),
         );
@@ -1194,10 +1194,7 @@ describe("EpochManager Test", function () {
         it("Should close epochs with the correct LP token prices successfully even if junior redemption requests cannot be processed due to the potential of breaching the senior : junior asset ratio", async function () {
             // Deplete all junior assets through loss so that no redemption request can be processed.
             const juniorAssets = await poolContract.trancheTotalAssets(CONSTANTS.JUNIOR_TRANCHE);
-            const firstLossCovers = [
-                borrowerFirstLossCoverContract,
-                affiliateFirstLossCoverContract,
-            ];
+            const firstLossCovers = [borrowerFirstLossCoverContract, adminFirstLossCoverContract];
             const coverTotalAssets = sumBNArray(
                 await Promise.all(firstLossCovers.map((cover) => cover.totalAssets())),
             );

@@ -588,7 +588,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
     }
 
     /**
-     * @notice Checks whether the affiliate first loss cover has met the liquidity requirements.
+     * @notice Checks whether the admin first loss cover has met the liquidity requirements.
      */
     function checkFirstLossCoverRequirementsForAdmin() public view {
         IFirstLossCover firstLossCover = IFirstLossCover(_firstLossCovers[ADMIN_LOSS_COVER_INDEX]);
