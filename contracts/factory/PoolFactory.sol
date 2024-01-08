@@ -12,7 +12,7 @@ import {PayPeriodDuration} from "../common/SharedDefs.sol";
 
 import {LibTimelockController} from "./library/LibTimelockController.sol";
 
-interface IPoolConfigCache {
+interface IPoolConfigCacheLike {
     function initialize(address poolConfig) external;
 }
 
@@ -117,7 +117,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
     event timelockAddedtoPool(uint256 poolId, address poolAddress, address timelockAddress);
 
     constructor() {
-        // _disableInitializers();
+        _disableInitializers();
     }
 
     function initialize(address _humaConfigAddress) external initializer {
@@ -393,7 +393,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
                     1
                 );
             } else {
-                IPoolConfigCache(poolAddresses[i]).initialize(poolConfigAddress);
+                IPoolConfigCacheLike(poolAddresses[i]).initialize(poolConfigAddress);
             }
         }
         _registerPool(poolAddresses[3], _poolName, poolConfigAddress, address(0));
