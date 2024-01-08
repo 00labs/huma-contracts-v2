@@ -30,7 +30,7 @@ interface IPoolSafe {
 
     /**
      * @notice Resets processed profit to 0
-     * @custom:access: Only TrancheVault contracts can call this function.
+     * @custom:access Only TrancheVault contracts can call this function.
      */
     function resetUnprocessedProfit() external;
 
