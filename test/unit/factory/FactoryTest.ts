@@ -3,10 +3,10 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import {
-    BorrowerLevelCreditManager,
     Calendar,
     CreditDueManager,
     CreditLine,
+    CreditLineManager,
     EpochManager,
     EvaluationAgentNFT,
     FirstLossCover,
@@ -22,7 +22,7 @@ import {
     ReceivableBackedCreditLine,
     ReceivableBackedCreditLineManager,
     ReceivableFactoringCredit,
-    ReceivableLevelCreditManager,
+    ReceivableFactoringCreditManager,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
 } from "../../../typechain-types";
@@ -43,9 +43,9 @@ type PoolContracts = [
     ReceivableBackedCreditLine,
     ReceivableFactoringCredit,
     CreditDueManager,
-    BorrowerLevelCreditManager,
+    CreditLineManager,
     ReceivableBackedCreditLineManager,
-    ReceivableLevelCreditManager,
+    ReceivableFactoringCreditManager,
     Receivable,
 ];
 
@@ -75,11 +75,11 @@ let poolConfigImpl: PoolConfig,
     TrancheVaultImpl: TrancheVault,
     creditLineImpl: CreditLine,
     creditDueManagerImpl: CreditDueManager,
-    borrowerLevelCreditManagerImpl: BorrowerLevelCreditManager,
+    borrowerLevelCreditManagerImpl: CreditLineManager,
     receivableBackedCreditLineImpl: ReceivableBackedCreditLine,
     receivableBackedCreditLineManagerImpl: ReceivableBackedCreditLineManager,
     receivableFactoringCreditImpl: ReceivableFactoringCredit,
-    receivableLevelCreditManagerImpl: ReceivableLevelCreditManager,
+    receivableLevelCreditManagerImpl: ReceivableFactoringCreditManager,
     receivableImpl: Receivable;
 
 let poolFactoryContract: PoolFactory;
@@ -205,11 +205,9 @@ describe("Factory Test", function () {
         const creditDueManagerContract = await CreditDueManager.deploy();
         await creditDueManagerContract.deployed();
 
-        // Deploy BorrowerLevelCreditManager
-        const BorrowerLevelCreditManager = await ethers.getContractFactory(
-            "BorrowerLevelCreditManager",
-        );
-        const borrowerLevelCreditManagerContract = await BorrowerLevelCreditManager.deploy();
+        // Deploy CreditLineManager
+        const CreditLineManager = await ethers.getContractFactory("CreditLineManager");
+        const borrowerLevelCreditManagerContract = await CreditLineManager.deploy();
         await borrowerLevelCreditManagerContract.deployed();
 
         // Deploy ReceivableBackedCreditLine
@@ -234,11 +232,12 @@ describe("Factory Test", function () {
         const receivableFactoringCreditContract = await ReceivableFactoringCredit.deploy();
         await receivableFactoringCreditContract.deployed();
 
-        // Deploy ReceivableLevelCreditManager
-        const ReceivableLevelCreditManager = await ethers.getContractFactory(
-            "ReceivableLevelCreditManager",
+        // Deploy ReceivableFactoringCreditManager
+        const ReceivableFactoringCreditManager = await ethers.getContractFactory(
+            "ReceivableFactoringCreditManager",
         );
-        const receivableLevelCreditManagerContract = await ReceivableLevelCreditManager.deploy();
+        const receivableLevelCreditManagerContract =
+            await ReceivableFactoringCreditManager.deploy();
         await receivableLevelCreditManagerContract.deployed();
 
         // Deploy Receivable
@@ -284,9 +283,9 @@ describe("Factory Test", function () {
         receivableBackedCreditLineImpl: ReceivableBackedCreditLine,
         receivableFactoringCreditImpl: ReceivableFactoringCredit,
         creditDueManagerImpl: CreditDueManager,
-        borrowerLevelCreditManagerImpl: BorrowerLevelCreditManager,
+        borrowerLevelCreditManagerImpl: CreditLineManager,
         receivableBackedCreditLineManagerImpl: ReceivableBackedCreditLineManager,
-        receivableLevelCreditManagerImpl: ReceivableLevelCreditManager,
+        receivableLevelCreditManagerImpl: ReceivableFactoringCreditManager,
         receivableImpl: Receivable,
     ): Promise<PoolFactory> {
         const LibTimelockController = await ethers.getContractFactory("LibTimelockController");
@@ -318,13 +317,13 @@ describe("Factory Test", function () {
         await poolFactoryContract.setReceivableFactoringCreditImplAddress(
             receivableFactoringCreditImpl.address,
         );
-        await poolFactoryContract.setReceivableLevelCreditManagerImplAddress(
+        await poolFactoryContract.setReceivableFactoringCreditManagerImplAddress(
             receivableLevelCreditManagerImpl.address,
         );
         await poolFactoryContract.setReceivableBackedCreditLineManagerImplAddress(
             receivableBackedCreditLineManagerImpl.address,
         );
-        await poolFactoryContract.setBorrowerLevelCreditManagerImplAddress(
+        await poolFactoryContract.setCreditLineManagerImplAddress(
             borrowerLevelCreditManagerImpl.address,
         );
 
