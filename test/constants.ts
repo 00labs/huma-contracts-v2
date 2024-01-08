@@ -30,3 +30,8 @@ export const CONSTANTS = {
     BORROWER_LOSS_COVER_INDEX,
     ADMIN_LOSS_COVER_INDEX,
 };
+
+export enum LocalPoolName {
+    CreditLine = "CreditLine",
+    ReceivableBackedCreditLine = "ReceivableBackedCreditLine",
+}

@@ -21,7 +21,7 @@ task(
         "poolConfigAddr",
         "The address of the Pool Config whose epoch you wish to advance to next",
     )
-    .addParam("poolType", "The type of pool this is (e.g. CreditLine, ArfV2)")
+    .addParam("poolType", "The type of pool this is (e.g. CreditLine, ReceivableBackedCreditLine)")
     .setAction(async (taskArgs: any, hre: HardhatRuntimeEnvironment) => {
         let juniorLender: SignerWithAddress,
             seniorLender: SignerWithAddress,
@@ -42,7 +42,7 @@ task(
             // Submit redemption requests
             await redeemFromTranche(hre, juniorTranche, juniorLender);
             await redeemFromTranche(hre, seniorTranche, seniorLender);
-        } else if (taskArgs.poolType === "ArfV2") {
+        } else if (taskArgs.poolType === "ReceivableBackedCreditLine") {
             // todo fill in this section
         }
     });

@@ -6,7 +6,7 @@ task("advanceEpoch", "Advances time in the local blockchain based on options")
         "poolConfigAddr",
         "The address of the Pool Config whose epoch you wish to advance to next",
     )
-    .setAction(async (taskArgs: any, hre: any) => {
+    .setAction(async (taskArgs: { poolConfigAddr: string }, hre: any) => {
         console.log("Advancing to next epoch");
         let timeToAdvance;
         const PoolConfig = await hre.ethers.getContractFactory("PoolConfig");

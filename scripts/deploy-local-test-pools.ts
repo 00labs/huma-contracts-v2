@@ -9,7 +9,7 @@ import {
     deployProtocolContracts,
     PayPeriodDuration,
 } from "../test/BaseTest";
-import { CONSTANTS } from "../test/constants";
+import { CONSTANTS, LocalPoolName } from "../test/constants";
 import { overrideFirstLossCoverConfig, toToken } from "../test/TestUtils";
 import {
     Calendar,
@@ -83,7 +83,7 @@ export enum PoolName {
 async function deployPool(
     creditContractName: CreditContractName,
     creditManagerContractName: CreditManagerContractName,
-    poolName?: PoolName,
+    poolName?: LocalPoolName,
 ) {
     console.log("=====================================");
     console.log(`Deploying pool with ${creditContractName} and ${creditManagerContractName}`);
@@ -193,7 +193,7 @@ async function deployPool(
         frontLoadingFeeBps: frontLoadingFeeBps,
     });
 
-    if (poolName === PoolName.CreditLine) {
+    if (poolName === LocalPoolName.CreditLine) {
         console.log("Drawing down from CreditLine");
         await creditManagerContract.connect(eaServiceAccount).approveBorrower(
             borrowerActive.address,
@@ -210,7 +210,7 @@ async function deployPool(
         await creditContract
             .connect(borrowerActive)
             .drawdown(borrowerActive.address, borrowAmount);
-    } else if (poolName === PoolName.ArfV2) {
+    } else if (poolName === LocalPoolName.ReceivableBackedCreditLine) {
         const latePaymentGracePeriodInDays = 5;
         const yieldInBps = 1200;
         const lateFeeBps = 2400;
@@ -262,21 +262,21 @@ async function deployPool(
     console.log(`Current block timestamp: ${await time.latest()}`);
 }
 
-export async function deployPools(onlyDeployPoolName?: PoolName) {
+export async function deployPools(onlyDeployPoolName?: LocalPoolName) {
     const poolsToDeploy: {
         creditContract: CreditContractName;
         manager: CreditManagerContractName;
-        poolName: PoolName;
+        poolName: LocalPoolName;
     }[] = [
         {
             creditContract: "CreditLine",
             manager: "CreditLineManager",
-            poolName: PoolName.CreditLine,
+            poolName: LocalPoolName.CreditLine,
         },
         {
             creditContract: "ReceivableBackedCreditLine",
             manager: "ReceivableBackedCreditLineManager",
-            poolName: PoolName.ArfV2,
+            poolName: LocalPoolName.ReceivableBackedCreditLine,
         },
         // Add more pools as needed
     ];
