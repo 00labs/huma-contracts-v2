@@ -285,13 +285,13 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
             // If a credit has started and has unfulfilled commitment, then don't allow it to be closed.
             revert Errors.CreditHasUnfulfilledCommitment();
 
+        cc.creditLimit = 0;
+        _setCreditConfig(creditHash, cc);
+
         // Close the credit by removing relevant record.
         cr.state = CreditState.Deleted;
         cr.remainingPeriods = 0;
         credit.setCreditRecord(creditHash, cr);
-
-        cc.creditLimit = 0;
-        _setCreditConfig(creditHash, cc);
 
         emit CreditClosed(creditHash, CreditClosureReason.AdminClosure, msg.sender);
     }

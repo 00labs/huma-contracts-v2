@@ -9,8 +9,6 @@ import {DAYS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS, SECONDS_IN_A_DAY} from "../commo
 import {Errors} from "../common/Errors.sol";
 import {PoolConfigCache} from "../common/PoolConfigCache.sol";
 
-import "hardhat/console.sol";
-
 contract CreditDueManager is PoolConfigCache, ICreditDueManager {
     ICalendar public calendar;
 
