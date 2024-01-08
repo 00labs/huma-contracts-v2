@@ -17,7 +17,7 @@
   "BorrowerOrEARequired()": "0xedaf53fe",
   "PayerRequired()": "0xb00f9713",
   "CoverProviderRequired()": "0x0c328563",
-  "AuthorizedContractRequired()": "0xd4e75354",
+  "AuthorizedContractCallerRequired()": "0xf4bc99c7",
   "EvaluationAgentServiceAccountRequired()": "0xa770729f",
   "SentinelServiceAccountRequired()": "0x272a85a5",
   "TrancheRequired()": "0x56b15134",
@@ -92,5 +92,10 @@
   "InsufficientAvailableFlowRate()": "0x0d455f2e",
   "AuthorizationExpired()": "0x0f05f5bf",
   "InvalidAuthorization()": "0x2ce87eeb",
-  "NewReceiverSameToOrigin()": "0xdf9b7a8a"
+  "NewReceiverSameToOrigin()": "0xdf9b7a8a",
+  "InvalidPoolId()": "0x0afa7ee8",
+  "InvalidPoolStatus()": "0x3fad04fd",
+  "InvalidTranchesPolicyType()": "0xdfeca9c2",
+  "InvalidCreditType()": "0x0dcf2e93",
+  "DeployerRequired()": "0x2e2bcb63"
 }
