@@ -64,7 +64,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
     address public creditLineImplAddress;
     address public receivableBackedCreditLineImplAddress;
     address public receivableFactoringCreditImplAddress;
-    address public CreditLineManagerImplAddress;
+    address public creditLineManagerImplAddress;
     address public receivableBackedCreditLineManagerImplAddress;
     address public receivableFactoringCreditManagerImplAddress;
 
@@ -207,8 +207,8 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
     function setCreditLineManagerImplAddress(address newAddress) external {
         _onlyFactoryAdmin(msg.sender);
         _notZeroAddress(newAddress);
-        address oldAddress = CreditLineManagerImplAddress;
-        CreditLineManagerImplAddress = newAddress;
+        address oldAddress = creditLineManagerImplAddress;
+        creditLineManagerImplAddress = newAddress;
         emit CreditLineManagerImplChanged(oldAddress, newAddress);
     }
 
@@ -336,7 +336,6 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
             creditType
         );
         PoolConfig poolConfig = PoolConfig(poolConfigAddress);
-        poolConfig.initialize(_poolName, poolAddresses);
 
         if (receivableAddress != address(0)) {
             poolConfig.setReceivableAsset(receivableAddress);
@@ -379,7 +378,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
             FirstLossCoverConfig(0, 0, 0, 0, 0)
         );
 
-        for (uint8 i = 3; i < 12; i++) {
+        for (uint8 i = 3; i <= 12; i++) {
             // when index is 8 or 9, it is senior or junior tranche vault
             // trancheVault uses different initialize function
             if (i == 8) {
@@ -528,7 +527,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
     function addReceivable() external {
         _onlyDeployer(msg.sender);
         if (receivableImpl == address(0)) revert Errors.ZeroAddressProvided();
-        address receivable = _addProxy(receivableImpl);
+        address receivable = _addProxy(receivableImpl, abi.encodeWithSignature("initialize()"));
         emit ReceivableCreated(receivable);
     }
 
@@ -587,86 +586,92 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
     }
 
     // add a proxy
-    function _addProxy(address _implAddress) private returns (address) {
+    function _addProxy(address _implAddress, bytes memory _calldata) private returns (address) {
         if (_implAddress == address(0)) revert Errors.ZeroAddressProvided();
-        ERC1967Proxy proxy = new ERC1967Proxy(_implAddress, "");
+        ERC1967Proxy proxy = new ERC1967Proxy(_implAddress, _calldata);
         return address(proxy);
     }
 
     // add poolConfig proxy
-    function _addPoolConfig() private returns (address) {
+    function _addPoolConfig(
+        string memory _poolName,
+        address[] memory _poolAddresses
+    ) private returns (address) {
         if (poolConfigImplAddress == address(0)) revert Errors.ZeroAddressProvided();
-        address poolConfig = _addProxy(poolConfigImplAddress);
+        address poolConfig = _addProxy(
+            poolConfigImplAddress,
+            abi.encodeWithSignature("initialize(string,address[])", _poolName, _poolAddresses)
+        );
         return poolConfig;
     }
 
     // add poolFeeManager proxy
     function _addPoolFeeManager() private returns (address) {
         if (poolFeeManagerImplAddress == address(0)) revert Errors.ZeroAddressProvided();
-        address poolFeeManager = _addProxy(poolFeeManagerImplAddress);
+        address poolFeeManager = _addProxy(poolFeeManagerImplAddress, "");
         return poolFeeManager;
     }
 
     // add pool proxy
     function _addPool() private returns (address) {
         if (poolImplAddress == address(0)) revert Errors.ZeroAddressProvided();
-        address pool = _addProxy(poolImplAddress);
+        address pool = _addProxy(poolImplAddress, "");
         return pool;
     }
 
     // add pool safe proxy
     function _addPoolSafe() private returns (address) {
         if (poolSafeImplAddress == address(0)) revert Errors.ZeroAddressProvided();
-        address poolSafe = _addProxy(poolSafeImplAddress);
+        address poolSafe = _addProxy(poolSafeImplAddress, "");
         return poolSafe;
     }
 
     // add firstLossCover proxy
     function _addFirstLossCover() private returns (address) {
         if (firstLossCoverImplAddress == address(0)) revert Errors.ZeroAddressProvided();
-        address firstLossCover = _addProxy(firstLossCoverImplAddress);
+        address firstLossCover = _addProxy(firstLossCoverImplAddress, "");
         return firstLossCover;
     }
 
     // add tranchesPolicy proxies
     function _addTranchesPolicy(address tranchesPolicyImpl) private returns (address) {
         if (tranchesPolicyImpl == address(0)) revert Errors.ZeroAddressProvided();
-        address tranchesPolicy = _addProxy(tranchesPolicyImpl);
+        address tranchesPolicy = _addProxy(tranchesPolicyImpl, "");
         return tranchesPolicy;
     }
 
     // add epochManager proxy
     function _addEpochManager() private returns (address) {
         if (epochManagerImplAddress == address(0)) revert Errors.ZeroAddressProvided();
-        address epochManager = _addProxy(epochManagerImplAddress);
+        address epochManager = _addProxy(epochManagerImplAddress, "");
         return epochManager;
     }
 
     // add trancheVault proxy
     function _addTrancheVault() private returns (address) {
         if (trancheVaultImplAddress == address(0)) revert Errors.ZeroAddressProvided();
-        address trancheVault = _addProxy(trancheVaultImplAddress);
+        address trancheVault = _addProxy(trancheVaultImplAddress, "");
         return trancheVault;
     }
 
     // add credit proxy
     function _addCredit(address creditImplAddress) private returns (address) {
         if (creditImplAddress == address(0)) revert Errors.ZeroAddressProvided();
-        address credit = _addProxy(creditImplAddress);
+        address credit = _addProxy(creditImplAddress, "");
         return credit;
     }
 
     // add creditDueManager proxy
     function _addCreditDueManager() private returns (address) {
         if (creditDueManagerImplAddress == address(0)) revert Errors.ZeroAddressProvided();
-        address creditDueManager = _addProxy(creditDueManagerImplAddress);
+        address creditDueManager = _addProxy(creditDueManagerImplAddress, "");
         return creditDueManager;
     }
 
     // add creditManager proxy
     function _addCreditManager(address creditManagerImplAddress) private returns (address) {
         if (creditManagerImplAddress == address(0)) revert Errors.ZeroAddressProvided();
-        address creditManager = _addProxy(creditManagerImplAddress);
+        address creditManager = _addProxy(creditManagerImplAddress, "");
         return creditManager;
     }
 
@@ -676,8 +681,8 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         address assetTokenAddress,
         string memory tranchesPolicyType,
         string memory creditType
-    ) private onlyRole(DEPLOYER_ROLE) returns (address, address[] memory) {
-        address poolConfigAddress = _addPoolConfig();
+    ) private returns (address, address[] memory) {
+        _onlyDeployer(msg.sender);
         address[] memory poolAddresses = new address[](13); // 13 is the number of contracts in a pool
         poolAddresses[0] = humaConfigAddress;
         poolAddresses[1] = assetTokenAddress;
@@ -707,11 +712,12 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
             poolAddresses[12] = _addCreditManager(receivableFactoringCreditManagerImplAddress);
         } else if (keccak256(bytes(creditType)) == keccak256(bytes("creditline"))) {
             poolAddresses[10] = _addCredit(creditLineImplAddress);
-            poolAddresses[12] = _addCreditManager(CreditLineManagerImplAddress);
+            poolAddresses[12] = _addCreditManager(creditLineManagerImplAddress);
         } else {
             revert Errors.InvalidCreditType();
         }
-        emit PoolCreated(poolAddresses[0], _poolName);
+        address poolConfigAddress = _addPoolConfig(_poolName, poolAddresses);
+        emit PoolCreated(poolAddresses[3], _poolName);
         return (poolConfigAddress, poolAddresses);
     }
 }
