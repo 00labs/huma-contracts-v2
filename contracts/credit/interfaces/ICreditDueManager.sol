@@ -10,11 +10,11 @@ import {PayPeriodDuration} from "../../common/SharedDefs.sol";
 
 interface ICreditDueManager {
     /**
-     * @notice Applies the front loading fee, distributes the total amount to borrower, pool & protocol
-     * @param borrowAmount the amount of the borrowing
-     * @return amtToBorrower the amount that the borrower can take
-     * @return platformFees the platform charges
-     * @dev the protocol always takes a percentage of the total fee generated
+     * @notice Applies the front loading fee, distributes the total amount to borrower, pool & protocol.
+     * @param borrowAmount The amount of the borrowing
+     * @return amtToBorrower The amount that the borrower can take
+     * @return platformFees The platform charges
+     * @dev The protocol always takes a percentage of the total fee generated
      */
     function distBorrowingAmount(
         uint256 borrowAmount
@@ -23,14 +23,30 @@ interface ICreditDueManager {
     /**
      * @notice Computes the front loading fee, which is also known as origination fee.
      * @param _amount the borrowing amount
-     * @return fees the amount of fees to be charged for this borrowing
+     * @return fees The amount of fees to be charged for this borrowing
      */
     function calcFrontLoadingFee(uint256 _amount) external view returns (uint256 fees);
 
+    /**
+     * @notice Returns the date the bill should be refreshed.
+     * @param cr The CreditRecord associated with the account
+     * @return refreshDate The date the bill should be refreshed
+     */
     function getNextBillRefreshDate(
         CreditRecord memory cr
     ) external view returns (uint256 refreshDate);
 
+    /**
+     * @notice Returns the updated late fee for a bill that's late.
+     * @param _cr The CreditRecord associated with the account.
+     * @param _dd The DueDetail associated with the account.
+     * @param periodDuration The pay period duration.
+     * @param committedAmount The committed amount of the credit.
+     * @param timestamp The timestamp until when the late fee should be calculated.
+     * @return lateFeeUpdatedDate When the late fee should be updated until. This should be the end of the day
+     * `timestamp` is in.
+     * @return lateFee The updated late fee.
+     */
     function refreshLateFee(
         CreditRecord memory _cr,
         DueDetail memory _dd,
@@ -47,10 +63,12 @@ interface ICreditDueManager {
      * @dev This is a view only function, it does not update the account status. It is used to
      * help the borrowers to get their balances without paying gases.
      * @dev The difference between nextDue and yieldDue is the required principal payment.
-     * @param cr The credit record associated with the account.
-     * @param cc The credit config associated with with account.
-     * @param dd The due details associated with the account.
+     * @param cr The CreditRecord associated with the account.
+     * @param cc The CreditConfig associated with with account.
+     * @param dd The DueDetail associated with the account.
      * @param timestamp The timestamp at which the due info should be computed.
+     * @return newCR The new CreditRecord with updated due information.
+     * @return newDD The dew DueDetail with updated due information.
      */
     function getDueInfo(
         CreditRecord memory cr,
@@ -59,12 +77,17 @@ interface ICreditDueManager {
         uint256 timestamp
     ) external view returns (CreditRecord memory newCR, DueDetail memory newDD);
 
+    /**
+     * @notice Returns the payoff amount for the bill.
+     * @param cr The CreditRecord associated with the account
+     * @return payoffAmount The amount needed to pay off the bill
+     */
     function getPayoffAmount(CreditRecord memory cr) external view returns (uint256 payoffAmount);
 
     /**
      * @notice Returns the additional yield accrued and principal due for the amount being drawn down.
      * @param periodDuration The pay period duration
-     * @param borrowAmount The amount being drawndown
+     * @param borrowAmount The amount being drawn down
      * @param nextDueDate The next due date of the bill
      * @param yieldInBps The APY expressed in BPs
      */
