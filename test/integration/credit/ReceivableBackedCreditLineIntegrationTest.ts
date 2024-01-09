@@ -22,7 +22,6 @@ import {
     TrancheVault,
 } from "../../../typechain-types";
 import {
-    CONSTANTS,
     CreditState,
     PayPeriodDuration,
     calcLateFeeNew,
@@ -42,6 +41,7 @@ import {
     timestampToMoment,
     toToken,
 } from "../../TestUtils";
+import { CONSTANTS } from "../../constants";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,

@@ -22,7 +22,6 @@ import {
     TrancheVault,
 } from "../../../typechain-types";
 import {
-    CONSTANTS,
     CreditState,
     FeeCalculator,
     FirstLossCoverInfo,
@@ -54,6 +53,7 @@ import {
     sumBNArray,
     toToken,
 } from "../../TestUtils";
+import { CONSTANTS } from "../../constants";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
