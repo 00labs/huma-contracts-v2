@@ -1,5 +1,4 @@
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { ethers } from "hardhat";
 import { task } from "hardhat/config";
 import { HardhatRuntimeEnvironment } from "hardhat/types";
 
@@ -8,7 +7,7 @@ async function redeemFromTranche(
     trancheVaultContractAddr: string,
     redemptionRequester: SignerWithAddress,
 ): Promise<void> {
-    const TrancheVault = await ethers.getContractFactory("TrancheVault");
+    const TrancheVault = await hre.ethers.getContractFactory("TrancheVault");
     const trancheVaultContract = TrancheVault.attach(trancheVaultContractAddr);
     const redemptionRequest = await trancheVaultContract.connect(redemptionRequester).disburse();
     await redemptionRequest.wait();
@@ -34,9 +33,9 @@ task(
                 borrowerActive: SignerWithAddress;
 
             [, , , , , , , , , juniorLender, seniorLender, poolAffiliate, , borrowerActive] =
-                await ethers.getSigners();
+                await hre.ethers.getSigners();
 
-            const PoolConfig = await ethers.getContractFactory("PoolConfig");
+            const PoolConfig = await hre.ethers.getContractFactory("PoolConfig");
             const poolConfigContract = PoolConfig.attach(taskArgs.poolConfigAddr);
 
             if (taskArgs.poolType === "CreditLine") {
