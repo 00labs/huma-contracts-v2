@@ -10,11 +10,12 @@ import {PayPeriodDuration} from "../../common/SharedDefs.sol";
 
 interface ICreditDueManager {
     /**
-     * @notice Applies the front loading fee, distributes the total amount to borrower, pool & protocol.
-     * @param borrowAmount The amount of the borrowing
-     * @return amtToBorrower The amount that the borrower can take
-     * @return platformFees The platform charges
-     * @dev The protocol always takes a percentage of the total fee generated
+     * @notice Applies the front loading fee and returns the amount that should be distributed to borrower,
+     * pool & protocol.
+     * @notice The protocol always takes a percentage of the total fee generated.
+     * @param borrowAmount The amount of the borrowing.
+     * @return amtToBorrower The amount that the borrower can take.
+     * @return platformFees The platform charges.
      */
     function distBorrowingAmount(
         uint256 borrowAmount
@@ -22,15 +23,15 @@ interface ICreditDueManager {
 
     /**
      * @notice Computes the front loading fee, which is also known as origination fee.
-     * @param _amount the borrowing amount
-     * @return fees The amount of fees to be charged for this borrowing
+     * @param _amount the borrowing amount.
+     * @return fees The amount of fees to be charged for this borrowing.
      */
     function calcFrontLoadingFee(uint256 _amount) external view returns (uint256 fees);
 
     /**
      * @notice Returns the date the bill should be refreshed.
-     * @param cr The CreditRecord associated with the account
-     * @return refreshDate The date the bill should be refreshed
+     * @param cr The CreditRecord associated with the account.
+     * @return refreshDate The date the bill should be refreshed.
      */
     function getNextBillRefreshDate(
         CreditRecord memory cr
@@ -79,17 +80,19 @@ interface ICreditDueManager {
 
     /**
      * @notice Returns the payoff amount for the bill.
-     * @param cr The CreditRecord associated with the account
-     * @return payoffAmount The amount needed to pay off the bill
+     * @param cr The CreditRecord associated with the account.
+     * @return payoffAmount The amount needed to pay off the bill.
      */
     function getPayoffAmount(CreditRecord memory cr) external view returns (uint256 payoffAmount);
 
     /**
      * @notice Returns the additional yield accrued and principal due for the amount being drawn down.
-     * @param periodDuration The pay period duration
-     * @param borrowAmount The amount being drawn down
-     * @param nextDueDate The next due date of the bill
-     * @param yieldInBps The APY expressed in BPs
+     * @param periodDuration The pay period duration.
+     * @param borrowAmount The amount being drawn down.
+     * @param nextDueDate The next due date of the bill.
+     * @param yieldInBps The APY expressed in BPs.
+     * @return additionalYieldAccrued The additional accrued yield due to the drawdown.
+     * @return additionalPrincipalDue The additional principal due from the amount being drawn down.
      */
     function computeAdditionalYieldAccruedAndPrincipalDueForDrawdown(
         PayPeriodDuration periodDuration,
@@ -100,6 +103,12 @@ interface ICreditDueManager {
 
     /**
      * @notice Re-computes the yield due after the change in the APY.
+     * @param nextDueDate The next due date of the bill.
+     * @param oldYieldDue The old amount of yield due prior to the update.
+     * @param oldYieldInBps The old APY expressed in basis points prior to the update.
+     * @param newYieldInBps The new APY expressed in bases points after the update.
+     * @param principal The principal or committed amount that the yield computation will be based on.
+     * @return updatedYield The updated yield due.
      */
     function recomputeYieldDue(
         uint256 nextDueDate,
@@ -111,6 +120,12 @@ interface ICreditDueManager {
 
     /**
      * @notice Re-computes the yield due after the change in the committed amount.
+     * @param nextDueDate The next due date of the bill.
+     * @param oldCommittedYieldDue The old amount of committed yield due prior to the update.
+     * @param oldCommittedAmount The old old committed amount prior to the update.
+     * @param newCommittedAmount The new committed amount after the update.
+     * @param yieldInBps The APY expressed in basis points that the yield computation will be based on.
+     * @return updatedYield The updated yield due.
      */
     function recomputeCommittedYieldDueAfterCommitmentChange(
         uint256 nextDueDate,

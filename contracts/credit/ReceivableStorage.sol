@@ -10,10 +10,10 @@ contract ReceivableStorage {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     CountersUpgradeable.Counter internal _tokenIdCounter;
 
-    // Map tokenId to receivable information
+    // Map token ID to receivable information
     mapping(uint256 => ReceivableInfo) public receivableInfoMap;
 
-    // The original owner of the receivable often has an internal reference id. Map it to tokenid
+    // The original owner of the receivable often has an internal reference id. Map it to token ID.
     mapping(bytes32 => uint256) public referenceIdHashToTokenId;
 
     /**
