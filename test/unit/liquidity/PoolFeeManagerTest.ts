@@ -21,12 +21,12 @@ import {
     TrancheVault,
 } from "../../../typechain-types";
 import {
-    CONSTANTS,
     deployAndSetupPoolContracts,
     deployProtocolContracts,
     deployProxyContract,
 } from "../../BaseTest";
 import { overrideFirstLossCoverConfig, toToken } from "../../TestUtils";
+import { CONSTANTS } from "../../constants";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,

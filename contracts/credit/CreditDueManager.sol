@@ -82,6 +82,8 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         if (cr.state != CreditState.Approved && timestamp > cr.nextDueDate) {
             // If the credit is just approved, then updating `remainingPeriods` will be taken care of when next due
             // is calculated below. Hence we don't need to update it here.
+            // Otherwise, compute the number of periods passed since the last due date until the beginning of the
+            // period that `timestamp` is in.
             uint256 startDateOfCurrentPeriod = calendar.getStartDateOfPeriod(
                 cc.periodDuration,
                 timestamp
@@ -92,6 +94,9 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                 startDateOfCurrentPeriod
             );
             if (cr.remainingPeriods > 0) {
+                // Update the number of remaining periods by subtracting the number of periods passed.
+                // Note that `periodsPassed` can be greater than `remainingPeriods` since the bill could
+                // have gone past the maturity date.
                 newCR.remainingPeriods = cr.remainingPeriods > uint16(periodsPassed)
                     ? cr.remainingPeriods - uint16(periodsPassed)
                     : 0;
@@ -107,6 +112,14 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
 
         if (isLate) {
             if (timestamp > cr.nextDueDate) {
+                // Update the number of periods that the bill has missed if the bill is late. First note that
+                // `periodsPassed` does not include the period that `cr` was in, since it's the number of periods
+                // passed between `cr.nextDueDate` and the beginning of the period `timestamp` is in.
+                // With that in mind, there are two cases to consider:
+                // 1. If all the amount due has been paid off on the bill represented by `cr`, then the period that `cr`
+                //    was in should not be counted as a missed period. This is the `true` part of the ternary below.
+                // 2. Otherwise, since there was unpaid due, the period `cr` was in should be counted as a missed
+                //    period, hence the +1 in the `false` part of the ternary below.
                 newCR.missedPeriods += uint16(
                     cr.nextDue + cr.totalPastDue == 0 &&
                         (cr.unbilledPrincipal > 0 || cc.committedAmount > 0)
@@ -114,10 +127,16 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                         : periodsPassed + 1 // last due was not paid off
                 );
 
+                // Move the previous next due on `cr` to past due first.
                 newDD.yieldPastDue += cr.yieldDue;
                 newDD.principalPastDue += cr.nextDue - cr.yieldDue;
 
                 if (periodsPassed > 0) {
+                    // If the number of periods passed is non-zero, then we need to compute the additional yield and
+                    // principal past due for the periods that were "skipped". For example, suppose the bill has
+                    // monthly pay period, `cr.nextDueDate` is Feb 1, and `timestamp` is May 15, then March and April
+                    // were "skipped", and we need to compute the yield and principal due that were supposed to happen
+                    // in those two months and add the amounts to past due.
                     newDD.yieldPastDue += uint96(
                         _computeYieldNextDue(
                             cc.yieldInBps,
@@ -141,6 +160,8 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                         }
 
                         if (newCR.remainingPeriods == 0) {
+                            // If `remainingPeriods` is 0, then the bill has gone past the maturity date, and all
+                            // principal is past due.
                             newDD.principalPastDue += newCR.unbilledPrincipal;
                             newCR.unbilledPrincipal = 0;
                         }
@@ -148,6 +169,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                 }
             }
 
+            // Refreshes the late fee up to the end of the day that `timestamp` is in.
             (newDD.lateFeeUpdatedDate, newDD.lateFee) = refreshLateFee(
                 cr,
                 dd,
@@ -161,17 +183,25 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         }
 
         if (shouldAdvanceToNextPeriod) {
+            // Advance the next due date to the beginning of the next period.
             newCR.nextDueDate = uint64(
                 calendar.getStartDateOfNextPeriod(cc.periodDuration, timestamp)
             );
+            // Set `paid` to 0 since we are starting a new period.
             newDD.paid = 0;
 
             uint256 daysUntilNextDue;
             if (cr.state == CreditState.Approved) {
+                // If the credit is just approved, then we are in the first period, which may be a partial period.
+                // Hence we need to count the number of days from now until the start of the next period.
                 daysUntilNextDue = calendar.getDaysDiff(timestamp, newCR.nextDueDate);
             } else {
+                // All other periods are full periods.
                 daysUntilNextDue = totalDaysInFullPeriod;
             }
+
+            // Computes yield due. Note that there is yield due as long as there is unpaid principal, even if the bill
+            // has gone past maturity.
             uint256 totalPrincipal = cr.unbilledPrincipal +
                 cr.nextDue -
                 cr.yieldDue +
@@ -182,10 +212,12 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                 cc.committedAmount,
                 daysUntilNextDue
             );
+            // Yield due is the larger of the accrued and committed amount.
             newCR.yieldDue = newDD.committed > newDD.accrued ? newDD.committed : newDD.accrued;
             newCR.nextDue = newCR.yieldDue;
 
             if (newCR.remainingPeriods > 0) {
+                // Subtract the current period from `remainingPeriods`.
                 newCR.remainingPeriods -= 1;
 
                 if (newCR.unbilledPrincipal > 0) {
@@ -201,6 +233,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
                     }
 
                     if (newCR.remainingPeriods == 0) {
+                        // If we are in the final period, then all principal is due.
                         newCR.nextDue += newCR.unbilledPrincipal;
                         newCR.unbilledPrincipal = 0;
                     }
@@ -249,6 +282,8 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         uint256 principal
     ) external view returns (uint256 updatedYield) {
         uint256 daysRemaining = calendar.getDaysRemainingInPeriod(nextDueDate);
+        // Note that we do not divide by `(HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR)` here since division rounds down.
+        // We will do summation before division at the end for better precision.
         uint256 newYieldDueForDaysRemaining = principal * newYieldInBps * (daysRemaining - 1);
         uint256 oldYieldDueForDaysRemaining = principal * oldYieldInBps * (daysRemaining - 1);
         return

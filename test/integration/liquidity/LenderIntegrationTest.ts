@@ -25,7 +25,6 @@ import {
 } from "../../../typechain-types";
 import { LPConfigStructOutput } from "../../../typechain-types/contracts/common/PoolConfig.sol/PoolConfig";
 import {
-    CONSTANTS,
     CreditState,
     EpochChecker,
     FeeCalculator,
@@ -49,6 +48,7 @@ import {
     timestampToMoment,
     toToken,
 } from "../../TestUtils";
+import { CONSTANTS } from "../../constants";
 
 // 2 initial lenders (jLender1, jLender2) in the junior tranche;
 // 2 initial lenders (sLender1, sLender2) in the senior tranche.

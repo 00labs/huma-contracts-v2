@@ -22,13 +22,14 @@ import {
     RiskAdjustedTranchesPolicy,
     TrancheVault,
 } from "../../../typechain-types";
-import { CONSTANTS, deployAndSetupPoolContracts, deployProtocolContracts } from "../../BaseTest";
+import { deployAndSetupPoolContracts, deployProtocolContracts } from "../../BaseTest";
 import {
     borrowerLevelCreditHash,
     getFutureBlockTime,
     mineNextBlockWithTimestamp,
     toToken,
 } from "../../TestUtils";
+import { CONSTANTS } from "../../constants";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
