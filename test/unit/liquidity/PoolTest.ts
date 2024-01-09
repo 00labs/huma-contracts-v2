@@ -59,7 +59,7 @@ let poolConfigContract: PoolConfig,
     poolSafeContract: PoolSafe,
     calendarContract: Calendar,
     borrowerFirstLossCoverContract: FirstLossCover,
-    affiliateFirstLossCoverContract: FirstLossCover,
+    adminFirstLossCoverContract: FirstLossCover,
     tranchesPolicyContract: RiskAdjustedTranchesPolicy,
     poolContract: Pool,
     epochManagerContract: EpochManager,
@@ -105,7 +105,7 @@ describe("Pool Test", function () {
                 poolSafeContract,
                 calendarContract,
                 borrowerFirstLossCoverContract,
-                affiliateFirstLossCoverContract,
+                adminFirstLossCoverContract,
                 tranchesPolicyContract,
                 poolContract,
                 epochManagerContract,
@@ -131,7 +131,7 @@ describe("Pool Test", function () {
             await poolConfigContract
                 .connect(poolOwner)
                 .setPoolOwnerTreasury(poolOwnerTreasury.address);
-            await affiliateFirstLossCoverContract
+            await adminFirstLossCoverContract
                 .connect(poolOwner)
                 .addCoverProvider(poolOwnerTreasury.address);
 
@@ -146,7 +146,7 @@ describe("Pool Test", function () {
             await poolConfigContract
                 .connect(poolOwner)
                 .setEvaluationAgent(eaNFTTokenId, evaluationAgent.address);
-            await affiliateFirstLossCoverContract
+            await adminFirstLossCoverContract
                 .connect(poolOwner)
                 .addCoverProvider(evaluationAgent.address);
 
@@ -185,9 +185,9 @@ describe("Pool Test", function () {
         });
 
         it("Should not enable a pool when there is not enough first loss cover for the pool owner", async function () {
-            const coverTotalAssets = await affiliateFirstLossCoverContract.totalAssets();
+            const coverTotalAssets = await adminFirstLossCoverContract.totalAssets();
             await overrideFirstLossCoverConfig(
-                affiliateFirstLossCoverContract,
+                adminFirstLossCoverContract,
                 CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                 poolConfigContract,
                 poolOwner,
@@ -204,9 +204,9 @@ describe("Pool Test", function () {
         });
 
         it("Should not enable a pool when there is not enough first loss cover for the EA", async function () {
-            const coverTotalAssets = await affiliateFirstLossCoverContract.totalAssets();
+            const coverTotalAssets = await adminFirstLossCoverContract.totalAssets();
             await overrideFirstLossCoverConfig(
-                affiliateFirstLossCoverContract,
+                adminFirstLossCoverContract,
                 CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                 poolConfigContract,
                 poolOwner,
@@ -272,7 +272,7 @@ describe("Pool Test", function () {
                 poolSafeContract,
                 calendarContract,
                 borrowerFirstLossCoverContract,
-                affiliateFirstLossCoverContract,
+                adminFirstLossCoverContract,
                 tranchesPolicyContract,
                 poolContract,
                 epochManagerContract,
@@ -331,10 +331,7 @@ describe("Pool Test", function () {
 
                 // Override the config so that first loss covers cover
                 // all losses up to the amount of their total assets.
-                firstLossCovers = [
-                    borrowerFirstLossCoverContract,
-                    affiliateFirstLossCoverContract,
-                ];
+                firstLossCovers = [borrowerFirstLossCoverContract, adminFirstLossCoverContract];
                 // Make sure both first loss covers have some assets.
                 await mockTokenContract.mint(borrower.getAddress(), toToken(1_000_000_000));
                 await mockTokenContract
@@ -348,9 +345,9 @@ describe("Pool Test", function () {
                     .depositCover(toToken(100_000));
                 const borrowerFLCAssets = await borrowerFirstLossCoverContract.totalAssets();
                 expect(borrowerFLCAssets).to.be.gt(0);
-                const affiliateFLCAssets = await affiliateFirstLossCoverContract.totalAssets();
-                expect(affiliateFLCAssets).to.be.gt(0);
-                coverTotalAssets = borrowerFLCAssets.add(affiliateFLCAssets);
+                const adminFLCAssets = await adminFirstLossCoverContract.totalAssets();
+                expect(adminFLCAssets).to.be.gt(0);
+                coverTotalAssets = borrowerFLCAssets.add(adminFLCAssets);
                 for (const [index, cover] of firstLossCovers.entries()) {
                     await overrideFirstLossCoverConfig(
                         cover,
@@ -397,7 +394,7 @@ describe("Pool Test", function () {
 
                     if (profit.gt(0)) {
                         firstLossCoverInfos = await Promise.all(
-                            [borrowerFirstLossCoverContract, affiliateFirstLossCoverContract].map(
+                            [borrowerFirstLossCoverContract, adminFirstLossCoverContract].map(
                                 (contract) => getFirstLossCoverInfo(contract, poolConfigContract),
                             ),
                         );
@@ -448,7 +445,7 @@ describe("Pool Test", function () {
                         expect(totalAssets).to.equal(seniorAssets.add(juniorAssets));
 
                         newFirstLossCoverInfos = await Promise.all(
-                            [borrowerFirstLossCoverContract, affiliateFirstLossCoverContract].map(
+                            [borrowerFirstLossCoverContract, adminFirstLossCoverContract].map(
                                 (contract) => getFirstLossCoverInfo(contract, poolConfigContract),
                             ),
                         );
@@ -464,7 +461,7 @@ describe("Pool Test", function () {
 
                     if (loss.gt(0)) {
                         firstLossCoverInfos = await Promise.all(
-                            [borrowerFirstLossCoverContract, affiliateFirstLossCoverContract].map(
+                            [borrowerFirstLossCoverContract, adminFirstLossCoverContract].map(
                                 (contract) => getFirstLossCoverInfo(contract, poolConfigContract),
                             ),
                         );
@@ -513,7 +510,7 @@ describe("Pool Test", function () {
 
                         for (const [index, cover] of [
                             borrowerFirstLossCoverContract,
-                            affiliateFirstLossCoverContract,
+                            adminFirstLossCoverContract,
                         ].entries()) {
                             expect(await cover.coveredLoss()).to.equal(
                                 lossesCoveredByFirstLossCovers[index],
@@ -524,7 +521,7 @@ describe("Pool Test", function () {
 
                     if (recovery.gt(0)) {
                         firstLossCoverInfos = await Promise.all(
-                            [borrowerFirstLossCoverContract, affiliateFirstLossCoverContract].map(
+                            [borrowerFirstLossCoverContract, adminFirstLossCoverContract].map(
                                 (contract) => getFirstLossCoverInfo(contract, poolConfigContract),
                             ),
                         );
@@ -571,7 +568,7 @@ describe("Pool Test", function () {
                         expect(totalAssets).to.equal(seniorAssets.add(juniorAssets));
 
                         newFirstLossCoverInfos = await Promise.all(
-                            [borrowerFirstLossCoverContract, affiliateFirstLossCoverContract].map(
+                            [borrowerFirstLossCoverContract, adminFirstLossCoverContract].map(
                                 (contract) => getFirstLossCoverInfo(contract, poolConfigContract),
                             ),
                         );
@@ -602,9 +599,7 @@ describe("Pool Test", function () {
                     await testDistribution(profit, loss, recovery);
 
                     expect(await borrowerFirstLossCoverContract.totalAssets()).to.equal(0);
-                    expect(await affiliateFirstLossCoverContract.totalAssets()).to.equal(
-                        toToken(1),
-                    );
+                    expect(await adminFirstLossCoverContract.totalAssets()).to.equal(toToken(1));
                     expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
                         assets[CONSTANTS.JUNIOR_TRANCHE],
                     );
@@ -624,7 +619,7 @@ describe("Pool Test", function () {
                     await testDistribution(profit, loss, recovery);
 
                     expect(await borrowerFirstLossCoverContract.totalAssets()).to.equal(0);
-                    expect(await affiliateFirstLossCoverContract.totalAssets()).to.equal(0);
+                    expect(await adminFirstLossCoverContract.totalAssets()).to.equal(0);
                     expect(await juniorTrancheVaultContract.totalAssets()).to.equal(toToken(1));
                     expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
                         assets[CONSTANTS.SENIOR_TRANCHE],
@@ -643,7 +638,7 @@ describe("Pool Test", function () {
                     await testDistribution(profit, loss, recovery);
 
                     expect(await borrowerFirstLossCoverContract.totalAssets()).to.equal(0);
-                    expect(await affiliateFirstLossCoverContract.totalAssets()).to.equal(0);
+                    expect(await adminFirstLossCoverContract.totalAssets()).to.equal(0);
                     expect(await juniorTrancheVaultContract.totalAssets()).to.equal(0);
                     expect(await seniorTrancheVaultContract.totalAssets()).to.equal(toToken(1));
                 });
@@ -659,7 +654,7 @@ describe("Pool Test", function () {
                     await testDistribution(profit, loss, recovery);
 
                     expect(await borrowerFirstLossCoverContract.totalAssets()).to.equal(0);
-                    expect(await affiliateFirstLossCoverContract.totalAssets()).to.equal(0);
+                    expect(await adminFirstLossCoverContract.totalAssets()).to.equal(0);
                     expect(await juniorTrancheVaultContract.totalAssets()).to.equal(0);
                     expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
                         assets[CONSTANTS.SENIOR_TRANCHE].sub(toToken(1)),
@@ -677,14 +672,14 @@ describe("Pool Test", function () {
                     await testDistribution(profit, loss, recovery);
 
                     expect(await borrowerFirstLossCoverContract.totalAssets()).to.equal(0);
-                    expect(await affiliateFirstLossCoverContract.totalAssets()).to.equal(0);
+                    expect(await adminFirstLossCoverContract.totalAssets()).to.equal(0);
                     expect(await juniorTrancheVaultContract.totalAssets()).to.equal(toToken(1));
                     expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
                         assets[CONSTANTS.SENIOR_TRANCHE],
                     );
                 });
 
-                it("Should distribute loss recovery correctly when the affiliate first loss can be partially recovered", async function () {
+                it("Should distribute loss recovery correctly when the admin first loss can be partially recovered", async function () {
                     const assets = await poolContract.currentTranchesAssets();
                     const profit = toToken(0);
                     const loss = coverTotalAssets.add(
@@ -697,9 +692,7 @@ describe("Pool Test", function () {
                     await testDistribution(profit, loss, recovery);
 
                     expect(await borrowerFirstLossCoverContract.totalAssets()).to.equal(0);
-                    expect(await affiliateFirstLossCoverContract.totalAssets()).to.equal(
-                        toToken(1),
-                    );
+                    expect(await adminFirstLossCoverContract.totalAssets()).to.equal(toToken(1));
                     expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
                         assets[CONSTANTS.JUNIOR_TRANCHE],
                     );
@@ -710,12 +703,12 @@ describe("Pool Test", function () {
 
                 it("Should distribute loss recovery correctly when the borrower first loss can be partially recovered", async function () {
                     const assets = await poolContract.currentTranchesAssets();
-                    const affiliateFLCAssets = await affiliateFirstLossCoverContract.totalAssets();
+                    const adminFLCAssets = await adminFirstLossCoverContract.totalAssets();
                     const profit = toToken(0);
                     const loss = coverTotalAssets
                         .add(assets[CONSTANTS.JUNIOR_TRANCHE])
                         .add(assets[CONSTANTS.SENIOR_TRANCHE]);
-                    const recovery = affiliateFLCAssets
+                    const recovery = adminFLCAssets
                         .add(assets[CONSTANTS.JUNIOR_TRANCHE])
                         .add(assets[CONSTANTS.SENIOR_TRANCHE])
                         .add(toToken(1));
@@ -725,8 +718,8 @@ describe("Pool Test", function () {
                     expect(await borrowerFirstLossCoverContract.totalAssets()).to.equal(
                         toToken(1),
                     );
-                    expect(await affiliateFirstLossCoverContract.totalAssets()).to.equal(
-                        affiliateFLCAssets,
+                    expect(await adminFirstLossCoverContract.totalAssets()).to.equal(
+                        adminFLCAssets,
                     );
                     expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
                         assets[CONSTANTS.JUNIOR_TRANCHE],
@@ -739,13 +732,13 @@ describe("Pool Test", function () {
                 it("Should distribute loss recovery correctly when all loss can be fully recovered", async function () {
                     const assets = await poolContract.currentTranchesAssets();
                     const borrowerFLCAssets = await borrowerFirstLossCoverContract.totalAssets();
-                    const affiliateFLCAssets = await affiliateFirstLossCoverContract.totalAssets();
+                    const adminFLCAssets = await adminFirstLossCoverContract.totalAssets();
                     const profit = toToken(0);
                     const loss = coverTotalAssets.add(
                         assets[CONSTANTS.JUNIOR_TRANCHE].add(assets[CONSTANTS.SENIOR_TRANCHE]),
                     );
                     const recovery = borrowerFLCAssets
-                        .add(affiliateFLCAssets)
+                        .add(adminFLCAssets)
                         .add(assets[CONSTANTS.JUNIOR_TRANCHE])
                         .add(assets[CONSTANTS.SENIOR_TRANCHE]);
 
@@ -754,8 +747,8 @@ describe("Pool Test", function () {
                     expect(await borrowerFirstLossCoverContract.totalAssets()).to.equal(
                         borrowerFLCAssets,
                     );
-                    expect(await affiliateFirstLossCoverContract.totalAssets()).to.equal(
-                        affiliateFLCAssets,
+                    expect(await adminFirstLossCoverContract.totalAssets()).to.equal(
+                        adminFLCAssets,
                     );
                     expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
                         assets[CONSTANTS.JUNIOR_TRANCHE],
@@ -824,7 +817,7 @@ describe("Pool Test", function () {
                         BN.from(adjustment),
                     );
                     const firstLossCoverInfos = await Promise.all(
-                        [borrowerFirstLossCoverContract, affiliateFirstLossCoverContract].map(
+                        [borrowerFirstLossCoverContract, adminFirstLossCoverContract].map(
                             (contract) => getFirstLossCoverInfo(contract, poolConfigContract),
                         ),
                     );
@@ -1081,7 +1074,7 @@ describe("Pool Test", function () {
             it("Should return the first loss covers", async function () {
                 expect(await poolContract.getFirstLossCovers()).to.eql([
                     borrowerFirstLossCoverContract.address,
-                    affiliateFirstLossCoverContract.address,
+                    adminFirstLossCoverContract.address,
                 ]);
             });
         });
