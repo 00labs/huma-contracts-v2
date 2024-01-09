@@ -16,6 +16,17 @@ contract ReceivableFactoringCreditManager is
 {
     bytes32 public constant PAYER_ROLE = keccak256("PAYER");
 
+    /**
+     * @notice A receivable factoring credit has been approved.
+     * @param borrower The address of the borrower.
+     * @param creditHash The hash of the credit.
+     * @param receivableId The ID of the receivable.
+     * @param receivableAmount The total expected payment amount of the receivable.
+     * @param creditLimit The maximum amount that can be borrowed.
+     * @param periodDuration The duration of each pay period, e.g. monthly, quarterly or semi-annually.
+     * @param remainingPeriods The number of periods before the credit expires.
+     * @param yieldInBps The expected yield expressed in basis points, 1% is 100, 100% is 10000.
+     */
     event ReceivableFactoringCreditApproved(
         address indexed borrower,
         bytes32 indexed creditHash,
@@ -27,8 +38,16 @@ contract ReceivableFactoringCreditManager is
         uint256 yieldInBps
     );
 
+    /**
+     * @notice A payer has been added.
+     * @param payer The address of the payer being added.
+     */
     event PayerAdded(address indexed payer);
 
+    /**
+     * @notice A payer has been removed.
+     * @param payer The address of the payer being removed.
+     */
     event PayerRemoved(address indexed payer);
 
     function initialize(PoolConfig _poolConfig) external virtual override initializer {

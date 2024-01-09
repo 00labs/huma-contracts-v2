@@ -13,6 +13,18 @@ import {Errors} from "../common/Errors.sol";
  * at the borrower-level. A classic example of borrower-level credit is credit line.
  */
 contract CreditLineManager is CreditManager, ICreditLineManager {
+    /**
+     * @notice A credit line has been approved.
+     * @param borrower The address of the borrower.
+     * @param creditHash The hash of the credit.
+     * @param creditLimit The maximum amount that can be borrowed.
+     * @param periodDuration The duration of each pay period, e.g. monthly, quarterly or semi-annually.
+     * @param remainingPeriods The number of periods before the credit expires.
+     * @param yieldInBps The expected yield expressed in basis points, 1% is 100, 100% is 10000.
+     * @param committedAmount The amount that the borrower has committed to use. If the used credit
+     * is less than this amount, the borrower will be charged yield using this amount.
+     * @param revolving A flag indicating if the repeated borrowing is allowed.
+     */
     event CreditLineApproved(
         address indexed borrower,
         bytes32 indexed creditHash,
@@ -96,7 +108,6 @@ contract CreditLineManager is CreditManager, ICreditLineManager {
     }
 
     /// @inheritdoc ICreditLineManager
-    /// @custom:access Only the borrower or EA Service account can call this function
     function closeCredit(address borrower) external virtual override {
         poolConfig.onlyProtocolAndPoolOn();
         if (msg.sender != borrower && msg.sender != humaConfig.eaServiceAccount())

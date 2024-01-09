@@ -6,10 +6,10 @@ import {IReceivable} from "./interfaces/IReceivable.sol";
 contract ReceivableBackedCreditLineManagerStorage {
     IReceivable public receivableAsset;
 
-    /// Mapping from credit hash to the amount of available credit
+    /// Mapping from credit hash to the amount of available credit.
     mapping(bytes32 => uint96) internal _availableCredits;
 
-    /// Map tokenId to borrower
+    /// Map token ID to borrower.
     mapping(uint256 => address) public receivableBorrowerMap;
 
     /**
