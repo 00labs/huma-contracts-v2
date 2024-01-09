@@ -20,7 +20,6 @@ import {
     TrancheVault,
 } from "../../../typechain-types";
 import {
-    CONSTANTS,
     EpochChecker,
     FeeCalculator,
     PnLCalculator,
@@ -37,6 +36,7 @@ import {
     sumBNArray,
     toToken,
 } from "../../TestUtils";
+import { CONSTANTS } from "../../constants";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
