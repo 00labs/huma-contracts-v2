@@ -1,8 +1,9 @@
 import { ethers } from "hardhat";
+import moment from "moment";
 
 export const advanceChainTime = async (date: moment.Moment) => {
     console.log("Advancing to fix date");
-    const LOCAL_PROVIDER = new ethers.providers.JsonRpcProvider("http://localhost:8545");
+    const LOCAL_PROVIDER = new ethers.providers.JsonRpcProvider("http://127.0.0.1:8545");
     let block = await LOCAL_PROVIDER.getBlock("latest");
     const timeToAdvance = date.unix() - block.timestamp;
 
