@@ -13,6 +13,11 @@ import {Errors} from "../common/Errors.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
+/**
+ * @title PoolFeeManager
+ * @notice PoolFeeManager manages the fees for the protocol and pool admins, including
+ * protocol owner, pool owner, and the Evaluation Agent, who underwrites the credits.
+ */
 contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
     using SafeERC20 for IERC20;
 
@@ -28,11 +33,29 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
     IFirstLossCover public firstLossCover;
     IERC20 public underlyingToken;
 
+    // The accrued incomes for the admins. Since the withdrawn amount is tracked separately,
+    // this amount only goes up.
     AccruedIncomes internal _accruedIncomes;
+
+    // The accumulative withdrawn amount by the protocol owner
     uint256 public protocolIncomeWithdrawn;
+
+    // The accumulative withdrawn amount by the pool owner
     uint256 public poolOwnerIncomeWithdrawn;
+
+    // The accumulative withdrawn amount by the evaluation agent
     uint256 public eaIncomeWithdrawn;
 
+    /**
+     * @notice Income has been distributed to the admins
+     * @param protocolIncome income distributed to the protocol owner in this transaction
+     * @param poolOwnerIncome income distributed to the pool owner in this transaction
+     * @param eaIncome income distributed to the evaluation agent in this transaction
+     * @param remaining the remaining income after finishing distributing to the admins
+     * @param accruedProtocolIncome the accrued income for the protocol owner
+     * @param accruedPoolOwnerIncome the accrued income for the pool owner
+     * @param accruedEAIncome the accrued income for the evaluation agent
+     */
     event IncomeDistributed(
         uint256 protocolIncome,
         uint256 poolOwnerIncome,
@@ -44,9 +67,17 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
     );
 
     event PoolRewardsWithdrawn(address receiver, uint256 amount, address by);
+
     event ProtocolRewardsWithdrawn(address receiver, uint256 amount, address by);
+
     event EvaluationAgentRewardsWithdrawn(address receiver, uint256 amount, address by);
 
+    /**
+     * @notice Distribute profit to the admins
+     * @param profit The total profit to be distributed including the admins and the LPs
+     * @return remaining The remaining profit after distributing to the pool admins
+     * @custom:access Only the pool contract can call this function to distribute profit.
+     */
     function distributePoolFees(uint256 profit) external returns (uint256) {
         poolConfig.onlyPool(msg.sender);
 
@@ -71,6 +102,14 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         return remaining;
     }
 
+    /**
+     * @notice Allows protocol owner to withdraw the protocol income
+     * @notice If the admins are required to provide first loss cover, the income for all
+     * the admins including protocol owner is deposited into the loss cover. Only until
+     * after the cap of the loss cover has reached, protocol owner can withdraw profit
+     * @param amount the amount to be withdrawn
+     * @custom:access Only protocol owner can call to withdraw
+     */
     function withdrawProtocolFee(uint256 amount) external {
         if (msg.sender != humaConfig.owner()) revert Errors.ProtocolOwnerRequired();
         // Invests available fees in FirstLossCover first
@@ -91,6 +130,14 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         emit ProtocolRewardsWithdrawn(treasuryAddress, amount, msg.sender);
     }
 
+    /**
+     * @notice Allows pool owner to withdraw the pool income
+     * @notice If the admins are required to provide first loss cover, the income for all
+     * the admins including pool owner is deposited into the loss cover. Only until
+     * after the cap of the loss cover has reached, the pool owner can withdraw profit
+     * @param amount the amount to be withdrawn
+     * @custom:access Only pool owner treasury can call to withdraw
+     */
     function withdrawPoolOwnerFee(uint256 amount) external {
         address poolOwnerTreasury = _onlyPoolOwnerTreasury(msg.sender);
         // Invests available fees in FirstLossCover first
@@ -107,9 +154,16 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         emit PoolRewardsWithdrawn(poolOwnerTreasury, amount, msg.sender);
     }
 
+    /**
+     * @notice Allows evaluation agent to withdraw the evaluation agent income
+     * @notice If the admins are required to provide first loss cover, the income for all
+     * the admins including EA is deposited into the loss cover. Only until
+     * after the cap of the loss cover has reached, the EA can withdraw profit
+     * @param amount the amount to be withdrawn
+     * @custom:access Either Pool owner or EA can trigger reward withdraw for EA.
+     * When it is triggered by pool owner, the fund still flows to the EA's account.
+     */
     function withdrawEAFee(uint256 amount) external {
-        // Either Pool owner or EA can trigger reward withdraw for EA.
-        // When it is triggered by pool owner, the fund still flows to the EA's account.
         address ea = poolConfig.onlyPoolOwnerOrEA(msg.sender);
         // Invests available fees in FirstLossCover first
         AccruedIncomes memory incomes = _investFeesInFirstLossCover();
@@ -144,6 +198,12 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         return incomes.protocolIncome + incomes.poolOwnerIncome + incomes.eaIncome;
     }
 
+    /**
+     * @notice Gets the withdrawable amount for the admins (protocol, pool owner, and EA)
+     * @return protocolWithdrawable withdrawable amount for the protocol
+     * @return poolOwnerWithdrawable withdrawable amount for the pool owner
+     * @return eaWithdrawable withdrawable amount for the EA
+     */
     function getWithdrawables()
         external
         view
@@ -166,12 +226,13 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
     }
 
     /**
-     * @notice PoolOwner can call this function to know if there are some available fees to be able to invested in FirstLossCover.
+     * @notice Gets the available amount that the admins can invest in FirstLossCover.
      */
     function getAvailableFeesToInvestInFirstLossCover() external view returns (uint256 fees) {
         (fees, ) = _getAvailableFeesToInvestInFirstLossCover();
     }
 
+    /// Utility function to cache the dependent contract addresses
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address oldUnderlyingToken = address(underlyingToken);
         address newUnderlyingToken = _poolConfig.underlyingToken();
@@ -234,6 +295,10 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         IERC20(newUnderlyingToken).safeIncreaseAllowance(newFirstLossCover, type(uint256).max);
     }
 
+    /**
+     * @notice Invests admins income into first loss cover
+     * @return incomes the updated AccruedIncomes for the admins
+     */
     function _investFeesInFirstLossCover() internal returns (AccruedIncomes memory incomes) {
         (
             uint256 feesLiquidity,
@@ -255,8 +320,8 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         incomes.eaIncome -= uint96(eaFees);
         _accruedIncomes = incomes;
 
-        // Transfers tokens from PoolSafe to this contract, firstLossCover will transfer token from this contract
-        // to itself while calling depositCoverFor.
+        // Transfers tokens from PoolSafe to this contract first, firstLossCover then will transfer
+        // token from this contract to itself while calling depositCoverFor.
         poolSafe.withdraw(address(this), feesLiquidity);
         firstLossCover.depositCoverFor(poolOwnerFees, poolConfig.poolOwnerTreasury());
         firstLossCover.depositCoverFor(eaFees, poolConfig.evaluationAgent());
@@ -272,11 +337,12 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
 
     /**
      * @notice Returns the available fees to be invested in FirstLossCover.
-     * @return availableFees The available fees which meet
-     *   1. the available liquidity of PoolSafe
-     *   2. the available cap of FirstLossCover
-     *   3. the available value of _accruedIncomes
+     * @return availableFees The available fees for investing in FirstLossCover.
      * @return availableIncomes The available incomes of the Huma protocol, pool owner and EA.
+     * @dev To get the available fees, we first get available income for the admins,
+     * then check against the available cap for the first loss cover to get the amount
+     * allowed for the deposit, then check against available liquidity in poolSafe
+     * to determine the actual available amount for investing in FirstLossCover
      */
     function _getAvailableFeesToInvestInFirstLossCover()
         internal
@@ -294,8 +360,11 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
     }
 
     /**
-     * @notice Returns the incomes of the Huma protocol, pool owner and EA and the remaining profit
-     * after deducting the incomes as fees.
+     * @notice View function to see the effect of distributing profit to the admins and the pool
+     * @param profit the amount to be distributed
+     * @return incomes the updated AccruedIncomes for the admins after getting their portion
+     * from profit
+     * @return remaining the remaining amount after substracting the admin fees
      */
     function _getPoolFees(
         uint256 profit
