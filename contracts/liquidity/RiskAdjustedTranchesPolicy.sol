@@ -22,6 +22,10 @@ contract RiskAdjustedTranchesPolicy is BaseTranchesPolicy {
         uint256 juniorAssets = assets[JUNIOR_TRANCHE];
 
         LPConfig memory lpConfig = poolConfig.getLPConfig();
+        // If we disregard rounding errors, the following calculation is mathematically equivalent to:
+        // seniorProfit = profit * seniorAssets / (seniorAssets + juniorAssets)
+        // seniorProfit -= seniorProfit * lpConfig.tranchesRiskAdjustmentInBps / HUNDRED_PERCENT_IN_BPS
+        // The two steps are combined into one to minimize rounding errors due to integer division.
         seniorProfit =
             (profit *
                 seniorAssets *

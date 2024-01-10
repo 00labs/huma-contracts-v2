@@ -11,16 +11,27 @@ contract EvaluationAgentNFT is ERC721URIStorage, Ownable {
     using Counters for Counters.Counter;
     Counters.Counter private _tokenIds;
 
+    /**
+     * @notice An EA NFT has been created.
+     * @param tokenId The ID of the EA NFT.
+     * @param recipient The recipient of the EA NFT.
+     */
     event NFTGenerated(uint256 tokenId, address recipient);
+
+    /**
+     * @notice The URI of an EA NFT has been set.
+     * @param tokenId The ID of the EA NFT.
+     * @param tokenURI The new URI of the EA NFT.
+     */
     event SetURI(uint256 tokenId, string tokenURI);
 
     constructor() ERC721("EvaluationAgentNFT", "EANFT") {}
 
     /**
-     * @notice Minting an NFT only gets a placeholder for an EA
-     * the NFT has attributes such as "status" that can only be updated by
+     * @notice Minting an NFT only gets a placeholder for an EA.
+     * The NFT has attributes such as "status" that can only be updated by
      * Huma to indicate whether the corresponding EA is approved or not.
-     * Merely owning an EANFT does NOT mean the owner has any authority
+     * Merely owning an EA NFT does NOT mean the owner has any authority.
      */
     function mintNFT(address recipient) external returns (uint256) {
         _tokenIds.increment();

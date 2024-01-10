@@ -26,7 +26,6 @@ import {
     DueDetailStruct,
 } from "../../../typechain-types/contracts/credit/CreditDueManager";
 import {
-    CONSTANTS,
     CreditState,
     PayPeriodDuration,
     calcLateFee,
@@ -45,6 +44,7 @@ import {
     maxBigNumber,
     toToken,
 } from "../../TestUtils";
+import { CONSTANTS } from "../../constants";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
@@ -65,7 +65,7 @@ let poolConfigContract: PoolConfig,
     poolSafeContract: PoolSafe,
     calendarContract: Calendar,
     borrowerFirstLossCoverContract: FirstLossCover,
-    affiliateFirstLossCoverContract: FirstLossCover,
+    adminFirstLossCoverContract: FirstLossCover,
     tranchesPolicyContract: RiskAdjustedTranchesPolicy,
     poolContract: Pool,
     epochManagerContract: EpochManager,
@@ -114,7 +114,7 @@ describe("CreditDueManager Tests", function () {
             poolSafeContract,
             calendarContract,
             borrowerFirstLossCoverContract,
-            affiliateFirstLossCoverContract,
+            adminFirstLossCoverContract,
             tranchesPolicyContract,
             poolContract,
             epochManagerContract,

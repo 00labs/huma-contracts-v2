@@ -26,7 +26,6 @@ import {
     DueDetailStruct,
 } from "../../../typechain-types/contracts/credit/Credit";
 import {
-    CONSTANTS,
     CreditClosureReason,
     CreditState,
     PayPeriodDuration,
@@ -62,6 +61,7 @@ import {
     setNextBlockTimestamp,
     toToken,
 } from "../../TestUtils";
+import { CONSTANTS } from "../../constants";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
@@ -82,7 +82,7 @@ let poolConfigContract: PoolConfig,
     poolSafeContract: PoolSafe,
     calendarContract: Calendar,
     borrowerFirstLossCoverContract: FirstLossCover,
-    affiliateFirstLossCoverContract: FirstLossCover,
+    adminFirstLossCoverContract: FirstLossCover,
     tranchesPolicyContract: RiskAdjustedTranchesPolicy,
     poolContract: Pool,
     epochManagerContract: EpochManager,
@@ -125,7 +125,7 @@ describe("CreditLine Test", function () {
             poolSafeContract,
             calendarContract,
             borrowerFirstLossCoverContract,
-            affiliateFirstLossCoverContract,
+            adminFirstLossCoverContract,
             tranchesPolicyContract,
             poolContract,
             epochManagerContract,
@@ -1319,7 +1319,7 @@ describe("CreditLine Test", function () {
             });
 
             it("Should not allow drawdown if the borrower doesn't meet the first loss cover requirement", async function () {
-                const coverTotalAssets = await affiliateFirstLossCoverContract.totalAssets();
+                const coverTotalAssets = await adminFirstLossCoverContract.totalAssets();
                 await overrideFirstLossCoverConfig(
                     borrowerFirstLossCoverContract,
                     CONSTANTS.BORROWER_LOSS_COVER_INDEX,

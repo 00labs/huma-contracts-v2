@@ -16,6 +16,15 @@ contract ReceivableBackedCreditLineManager is
     CreditLineManager,
     ReceivableBackedCreditLineManagerStorage
 {
+    /**
+     * @notice A receivable has been approved and may be used for future drawdown.
+     * @param borrower The address of the borrower.
+     * @param receivableId The ID of the receivable.
+     * @param receivableAmount The amount of the receivable.
+     * @param incrementalCredit The incremental amount of credit available for drawdown
+     * due to the approval of the receivable.
+     * @param availableCredit The updated total amount of credit available for drawdown.
+     */
     event ReceivableApproved(
         address borrower,
         uint256 receivableId,
@@ -68,6 +77,7 @@ contract ReceivableBackedCreditLineManager is
         if (receivableBorrowerMap[receivableId] != borrower) revert Errors.ReceivableIdMismatch();
     }
 
+    /// @inheritdoc IReceivableBackedCreditLineManager
     function validateReceivableStatus(uint256 maturityDate, ReceivableState state) public view {
         if (maturityDate < block.timestamp) revert Errors.ReceivableAlreadyMatured();
         if (state != ReceivableState.Minted && state != ReceivableState.Approved)
