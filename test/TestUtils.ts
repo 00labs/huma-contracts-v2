@@ -7,7 +7,8 @@ import {
     FirstLossCoverConfigStruct,
     LPConfigStructOutput,
 } from "../typechain-types/contracts/common/PoolConfig.sol/PoolConfig";
-import { CONSTANTS, FirstLossCoverInfo, PayPeriodDuration } from "./BaseTest";
+import { FirstLossCoverInfo, PayPeriodDuration } from "./BaseTest";
+import { CONSTANTS } from "./constants";
 
 export function toBN(number: string | number, decimals: number): BN {
     return BN.from(number).mul(BN.from(10).pow(BN.from(decimals)));

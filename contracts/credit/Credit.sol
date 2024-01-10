@@ -17,10 +17,14 @@ import {ICreditDueManager} from "./interfaces/ICreditDueManager.sol";
 import {BORROWER_LOSS_COVER_INDEX} from "../common/SharedDefs.sol";
 
 /**
- * Credit is the core borrowing concept in Huma Protocol. This abstract contract provides
- * basic operations that applies to all credits in Huma Protocol.
+ * @notice Credit is the core borrowing concept in Huma Protocol. This abstract contract operates at the
+ * creditHash level and provides basic operations that applies to all types of credits.
  */
 abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
+    /**
+     * @notice Keeps track of the payment amount applied towards each part of the bill due.
+     * @dev This struct is used to get around the "Stack too deep" error in _makePayment().
+     */
     struct PaymentRecord {
         uint256 principalDuePaid;
         uint256 yieldDuePaid;
@@ -30,7 +34,12 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         uint256 lateFeePaid;
     }
 
-    /// Account billing info refreshed with the updated due amount and date
+    /**
+     * @notice Account billing info refreshed with the updated due amount and date.
+     * @param creditHash The hash of the credit.
+     * @param newDueDate The updated due date of the bill.
+     * @param amountDue The amount due on the bill.
+     */
     event BillRefreshed(bytes32 indexed creditHash, uint256 newDueDate, uint256 amountDue);
 
     /**
@@ -59,10 +68,10 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
     );
 
     /**
-     * @notice A borrowing event has happened to the credit line
-     * @param borrower the address of the borrower
-     * @param borrowAmount the amount the user has borrowed
-     * @param netAmountToBorrower the borrowing amount minus the fees that are charged upfront
+     * @notice A borrowing event has happened to the credit.
+     * @param borrower The address of the borrower.
+     * @param borrowAmount The amount the user has borrowed.
+     * @param netAmountToBorrower The borrowing amount minus the fees that are charged upfront.
      */
     event DrawdownMade(
         address indexed borrower,
@@ -71,17 +80,17 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
     );
 
     /**
-     * @notice A payment has been made against the credit line
-     * @param borrower the address of the borrower
-     * @param payer the address from which the money is coming
-     * @param amount the payback amount
-     * @param yieldDuePaid the amount of this payment applied to yield due in the current billing cycle
-     * @param principalDuePaid the amount of this payment applied to principal due in the current billing cycle
-     * @param unbilledPrincipalPaid the amount of this payment applied to unbilled principal
-     * @param yieldPastDuePaid the amount of this payment applied to yield past due
-     * @param lateFeePaid the amount of this payment applied to late fee
-     * @param principalPastDuePaid the amount of this payment applied to principal past due
-     * @param by the address that has triggered the process of marking the payment made.
+     * @notice A payment has been made against the credit.
+     * @param borrower The address of the borrower.
+     * @param payer The address from which the money is coming.
+     * @param amount The payback amount.
+     * @param yieldDuePaid The amount of this payment applied to yield due in the current billing cycle.
+     * @param principalDuePaid The amount of this payment applied to principal due in the current billing cycle.
+     * @param unbilledPrincipalPaid The amount of this payment applied to unbilled principal.
+     * @param yieldPastDuePaid The amount of this payment applied to yield past due.
+     * @param lateFeePaid The amount of this payment applied to late fee.
+     * @param principalPastDuePaid The amount of this payment applied to principal past due.
+     * @param by The address that has triggered the process of marking the payment made.
      */
     event PaymentMade(
         address indexed borrower,
@@ -97,16 +106,16 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
     );
 
     /**
-     * @notice A payment has been made against the credit line
-     * @param borrower the address of the borrower
-     * @param payer the address from which the money is coming
-     * @param amount the payback amount
-     * @param nextDueDate the due date of the next payment
-     * @param principalDue the principal due on the credit line after processing the payment
-     * @param unbilledPrincipal the unbilled principal on the credit line after processing the payment
-     * @param principalDuePaid the amount of this payment applied to principal due
-     * @param unbilledPrincipalPaid the amount of this payment applied to unbilled principal
-     * @param by the address that has triggered the process of marking the payment made.
+     * @notice A principal payment has been made against the credit.
+     * @param borrower The address of the borrower.
+     * @param payer The address from which the money is coming.
+     * @param amount The payback amount.
+     * @param nextDueDate The due date of the next payment.
+     * @param principalDue The principal due on the credit after processing the payment.
+     * @param unbilledPrincipal The unbilled principal on the credit after processing the payment.
+     * @param principalDuePaid The amount of this payment applied to principal due.
+     * @param unbilledPrincipalPaid The amount of this payment applied to unbilled principal.
+     * @param by The address that has triggered the process of marking the payment made.
      */
     event PrincipalPaymentMade(
         address indexed borrower,
@@ -121,20 +130,19 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
     );
 
     /**
-     * @notice An existing credit has been closed
-     * @param creditHash the credit hash
-     * @param by the address who has triggered the default
+     * @notice An existing credit has been closed.
+     * @param creditHash The credit hash.
+     * @param by The address who triggered the pay off that closed the credit.
      */
     event CreditClosedAfterPayOff(bytes32 indexed creditHash, address by);
 
-    /// Shared setter to the credit record mapping for contract size consideration
-    /// @custom:access Only CreditManager can access this function
+    /// @inheritdoc ICredit
     function setCreditRecord(bytes32 creditHash, CreditRecord memory cr) external {
         _onlyCreditManager();
         _setCreditRecord(creditHash, cr);
     }
 
-    /// @custom:access Only CreditManager can access this function
+    /// @inheritdoc ICredit
     function updateDueInfo(
         bytes32 creditHash,
         CreditRecord memory cr,
@@ -144,12 +152,12 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         return _updateDueInfo(creditHash, cr, dd);
     }
 
-    /// Shared accessor to the credit record mapping for contract size consideration
+    /// @inheritdoc ICredit
     function getCreditRecord(bytes32 creditHash) public view returns (CreditRecord memory) {
         return _creditRecordMap[creditHash];
     }
 
-    /// Shared accessor to DueDetail for contract size consideration
+    /// @inheritdoc ICredit
     function getDueDetail(bytes32 creditHash) public view returns (DueDetail memory) {
         return _dueDetailMap[creditHash];
     }
@@ -165,8 +173,10 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
     }
 
     /**
-     * @notice Stores CreditRecord and DueDetail passed in for `creditHash`.
-     * @param creditHash the hash of the credit
+     * @notice Stores CreditRecord and DueDetail passed in for creditHash.
+     * @param creditHash The hash of the credit.
+     * @param cr The CreditRecord to set.
+     * @param dd The DueDetail to set.
      */
     function _updateDueInfo(
         bytes32 creditHash,
@@ -180,8 +190,10 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
 
     /**
      * @notice Helper function for drawdown.
-     * @param creditHash the credit hash
-     * @param borrowAmount the amount to borrow
+     * @param borrower The address of the borrower.
+     * @param creditHash The hash of the credit.
+     * @param borrowAmount The amount to borrow.
+     * @return netAmountToBorrower The borrowing amount minus the fees that are charged upfront.
      * @custom:access Access control is done outside of this function.
      */
     function _drawdown(
@@ -202,7 +214,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             cr.unbilledPrincipal = uint96(borrowAmount);
             (cr, dd) = dueManager.getDueInfo(cr, cc, dd, block.timestamp);
             // Note that we don't need to check whether we are in the last period or beyond here because in the absence
-            // of the designated credit start date, it's the initial drawdown that kicks off a credit line, i.e.
+            // of the designated credit start date, it's the initial drawdown that kicks off a credit, i.e.
             // the initial drawdown always happens in the first period.
             cr.state = CreditState.GoodStanding;
         } else {
@@ -264,11 +276,11 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
      * @notice Makes one payment. If the payment amount is equal to or higher
      * than the payoff amount, it automatically triggers the payoff process. The protocol
      * never accepts payment amount that is higher than the payoff amount.
-     * @param creditHash the hashcode of the credit
-     * @param amount the payment amount
-     * @return amountPaid the actual amount paid to the contract. When the tendered
+     * @param creditHash The hashcode of the credit.
+     * @param amount The payment amount.
+     * @return amountPaid The actual amount paid to the contract. When the tendered
      * amount is larger than the payoff amount, the contract only accepts the payoff amount.
-     * @return paidoff a flag indicating whether the account has been paid off.
+     * @return paidoff A flag indicating whether the account has been paid off.
      * @return isReviewRequired a flag indicating whether this payment transaction has been
      * flagged for review.
      */
@@ -306,7 +318,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
                     dd.lateFeeUpdatedDate = 0;
                     cr.totalPastDue = 0;
                     cr.missedPeriods = 0;
-                    // Moves account to GoodStanding if it was delayed.
+                    // Moves account to GoodStanding if it was Delayed.
                     if (cr.state == CreditState.Delayed) cr.state = CreditState.GoodStanding;
                 } else {
                     // If the payment is not enough to cover the total amount past due, then
@@ -399,7 +411,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             cr.totalPastDue = 0;
             cr.missedPeriods = 0;
 
-            // Closes the credit line if it is in the final period
+            // Close the credit if it is in the final period
             if (cr.remainingPeriods == 0) {
                 cr.state = CreditState.Deleted;
                 emit CreditClosedAfterPayOff(creditHash, msg.sender);
@@ -441,9 +453,9 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
 
     /**
      * @notice Makes a payment that's applied towards principal only.
-     * @param creditHash the hashcode of the credit
-     * @param amount the payment amount
-     * @return amountPaid the actual amount paid to the contract. When the tendered
+     * @param creditHash The hashcode of the credit.
+     * @param amount The payment amount.
+     * @return amountPaid The actual amount paid to the contract. When the tendered
      * amount is larger than the payoff amount, the contract only accepts the payoff amount.
      * @return paidoff a flag indicating whether the account has been paid off.
      */
@@ -488,7 +500,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         }
 
         if (cr.nextDue == 0 && cr.unbilledPrincipal == 0 && cr.remainingPeriods == 0) {
-            // Close the credit line if all outstanding balance has been paid off.
+            // Close the credit if all outstanding balance has been paid off.
             cr.state = CreditState.Deleted;
             emit CreditClosedAfterPayOff(creditHash, msg.sender);
         }
@@ -538,14 +550,10 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
     }
 
     /**
-     * @notice Checks if drawdown is allowed for the borrower at this point of time
-     * @dev Checks to make sure the following conditions are met:
-     * 1) If this is not the first drardown, then the drawdown is not happening in the last period
-     * 2) The borrower has satisfied the first loss obligation
-     * 3) The credit is in Approved or GoodStanding state
-     * 4) If there is a designated start date and this is the first drawdown, then the drawdown must happen
-     *    after that date
-     * 5) Drawdown amount is no more than available credit
+     * @notice Checks if drawdown is allowed for the borrower at this point in time.
+     * @param cr The CreditRecord to check against.
+     * @param borrowAmount The amount the borrower wants to borrow.
+     * @param creditLimit The maximum amount that can be borrowed from the credit.
      */
     function _checkDrawdownEligibility(
         CreditRecord memory cr,
@@ -594,7 +602,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         return creditManager.getCreditConfig(creditHash);
     }
 
-    /// "Modifier" function that limits access to Sentinel Service account only.
+    /// "Modifier" function that limits access to the Sentinel Service account only.
     function _onlySentinelServiceAccount() internal view {
         if (msg.sender != humaConfig.sentinelServiceAccount())
             revert Errors.SentinelServiceAccountRequired();
@@ -602,9 +610,11 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
 
     /**
      * @notice Returns from whose account the funds for payment should be extracted.
-     * This function exists because of Auto-pay:
+     * @notice This function exists because of Auto-pay:
      * 1. For Auto-pay, the funds should be coming from the borrower's account.
      * 2. In all other case, the funds should be coming from whoever is initiating the payment.
+     * @param borrower The credit borrower.
+     * @return originator The account where the funds of payment should be coming from.
      */
     function _getPaymentOriginator(address borrower) internal view returns (address originator) {
         return msg.sender == humaConfig.sentinelServiceAccount() ? borrower : msg.sender;

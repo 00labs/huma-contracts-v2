@@ -4,15 +4,15 @@ pragma solidity ^0.8.0;
 interface ICreditLineManager {
     /**
      * @notice Approves the credit with the terms provided.
-     * @param borrower the borrower address
-     * @param creditLimit the credit limit of the credit line
-     * @param remainingPeriods the number of periods before the credit line expires
-     * @param yieldInBps expected yield expressed in basis points, 1% is 100, 100% is 10000
-     * @param committedAmount the credit that the borrower has committed to use. If the used credit
-     * is less than this amount, the borrower will charged yield using this amount.
+     * @param borrower The address of the borrower.
+     * @param creditLimit The credit limit of the credit line.
+     * @param remainingPeriods The number of periods before the credit line expires.
+     * @param yieldInBps The expected yield expressed in basis points, 1% is 100, 100% is 10000.
+     * @param committedAmount The amount that the borrower has committed to use. If the used credit
+     * is less than this amount, the borrower will be charged yield using this amount.
      * @param designatedStartDate The date on which the credit should be initiated, if the credit has commitment.
-     * @param revolving indicates if the underlying credit line is revolving or not
-     * @dev only Evaluation Agent can call
+     * @param revolving A flag indicating if the repeated borrowing is allowed.
+     * @custom:access Only the EA can call this function.
      */
     function approveBorrower(
         address borrower,
@@ -29,23 +29,27 @@ interface ICreditLineManager {
      * This function is intended to be used for credit lines where there is a minimum borrowing
      * commitment. If the borrower fails to drawdown the committed amount within the set timeframe,
      * this function activates the credit line and applies yield based on the committed amount.
-     * @param borrower Address of the borrower
+     * @param borrower The address of the borrower.
+     * @custom:access Only the pool owner and the Sentinel Service can call this function
      */
     function startCommittedCredit(address borrower) external;
 
     /**
-     * @notice Updates the account and brings its billing status current
-     * @dev If the account is defaulted, no need to update the account anymore.
+     * @notice Updates the account and brings its billing status current.
+     * @param borrower The address of the borrower.
+     * @custom:access Anyone can call this function.
      */
     function refreshCredit(address borrower) external;
 
     /**
-     * @notice Triggers the default process
-     * @return principalLoss the amount of principal loss
-     * @return yieldLoss the amount of yield loss
-     * @return feesLoss the amount of fees loss
+     * @notice Triggers the default process.
+     * @param borrower The address of the borrower.
+     * @return principalLoss The amount of principal loss.
+     * @return yieldLoss The amount of yield loss.
+     * @return feesLoss The amount of fees loss.
      * @dev It is possible for the borrower to payback even after default, especially in
      * receivable factoring cases.
+     * @custom:access Only the EA can call this function
      */
     function triggerDefault(
         address borrower
@@ -53,41 +57,40 @@ interface ICreditLineManager {
 
     /**
      * @notice Closes a credit record.
-     * @dev Only borrower or EA Service account can call this function
-     * @dev Revert if there is still balance due
-     * @dev Revert if the committed amount is non-zero and there are periods remaining
+     * @param borrower The address of the borrower.
+     * @custom:access Only the borrower or EA Service account can call this function.
      */
     function closeCredit(address borrower) external;
 
     /**
      * @notice Pauses the credit. No drawdown is allowed for paused credit.
-     * @param borrower the address of the borrower
-     * @dev Only EA can call this function
+     * @param borrower The address of the borrower.
+     * @custom:access Only the EA can call this function
      */
     function pauseCredit(address borrower) external;
 
     /**
-     * @notice Unpauses the credit to return the credit to normal
-     * @param borrower the address of the borrower
-     * @dev Only EA can call this function
+     * @notice Unpauses the credit to return the credit to normal.
+     * @param borrower The address of the borrower.
+     * @custom:access Only the EA can call this function.
      */
     function unpauseCredit(address borrower) external;
 
     /**
      * @notice Updates the yield for the credit.
-     * @param borrower the address of the borrower
-     * @param yieldInBps the new yield
-     * @dev Only EA can call this function
+     * @param borrower The address of the borrower.
+     * @param yieldInBps The new yield expressed in basis points.
+     * @custom:access Only the EA can call this function.
      */
     function updateYield(address borrower, uint256 yieldInBps) external;
 
     /**
      * @notice Updates the limit and commitment amount for this credit
-     * @param borrower the borrower address of the credit line
-     * @param creditLimit the credit limit
-     * @param committedAmount the committed amount. The borrower will be charged interest for
+     * @param borrower The address of the borrower.
+     * @param creditLimit The new credit limit to set.
+     * @param committedAmount The new committed amount. The borrower will be charged interest for
      * this amount even if the daily average borrowing amount in a month is less than this amount.
-     * @dev Only EA can call this function
+     * @custom:access Only the EA can call this function.
      */
     function updateLimitAndCommitment(
         address borrower,
@@ -97,14 +100,18 @@ interface ICreditLineManager {
 
     /**
      * @notice Updates the remaining periods of the credit line
-     * @param borrower the borrower address of the credit line
-     * @param numOfPeriods the new remaining periods
-     * @dev Only EA can call this function
+     * @param borrower The address of the borrower.
+     * @param numOfPeriods The number of periods to add onto the credit line.
+     * @custom:access Only the EA can call this function.
      */
     function extendRemainingPeriod(address borrower, uint256 numOfPeriods) external;
 
     /**
-     * @notice Waive late fee
+     * @notice Waives the late fee up to the given limit.
+     * @param borrower The address of the borrower.
+     * @param waivedAmount The amount of late fee to waive. The actual amount waived is the smaller of
+     * this value and the actual amount of late fee due.
+     * @custom:access Only the EA can call this function.
      */
     function waiveLateFee(address borrower, uint256 waivedAmount) external;
 }
