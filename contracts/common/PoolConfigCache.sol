@@ -11,11 +11,20 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
  * All pool level contracts need to inherit PoolConfigCache.
  * PoolConfigCache is responsible for managing PoolConfig and caching the addresses of depending contracts.
  */
-
 abstract contract PoolConfigCache is Initializable, UUPSUpgradeable {
     PoolConfig public poolConfig;
 
+    /**
+     * @notice The pool config cache has changed.
+     * @param poolConfig The address of the PoolConfig contract based on which the cache is updated.
+     */
     event PoolConfigCacheUpdated(address indexed poolConfig);
+
+    /**
+     * @notice The pool config cache has changed.
+     * @param newPoolConfig The address of the new PoolConfig contract.
+     * @param oldPoolConfig The address of the old PoolConfig contract.
+     */
     event PoolConfigChanged(address indexed newPoolConfig, address indexed oldPoolConfig);
 
     constructor() {
@@ -29,6 +38,7 @@ abstract contract PoolConfigCache is Initializable, UUPSUpgradeable {
 
     /**
      * @notice This function should be called immediately to cache depending contract addresses after the contract is deployed.
+     * @custom:access Only the pool owner can call this function.
      */
     function updatePoolConfigData() external {
         poolConfig.onlyPoolOwner(msg.sender);
