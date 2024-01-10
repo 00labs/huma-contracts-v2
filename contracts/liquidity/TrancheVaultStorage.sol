@@ -33,23 +33,26 @@ contract TrancheVaultStorage {
 
     IERC20 public underlyingToken;
     uint8 internal _decimals;
-    // Senior or junior tranche index
+    /// Senior or junior tranche index.
     uint8 public trancheIndex;
 
     IPool public pool;
     IPoolSafe public poolSafe;
     IEpochManager public epochManager;
 
-    // Map from epochId to the redemption summary for that epoch
+    /// Maps from epochId to the redemption summary for that epoch
     mapping(uint256 => EpochRedemptionSummary) public epochRedemptionSummaries;
 
-    // Map from an account address to the redemption record for that lender
+    /// Maps from an account address to the redemption record for that lender
     mapping(address => LenderRedemptionRecord) public lenderRedemptionRecords;
 
-    // This mapping contains the amount of underlying tokens deposited by lenders
+    /// This mapping contains the amount of underlying tokens deposited by lenders
     mapping(address => DepositRecord) public depositRecords;
 
-    // The list of lenders who receive yield each period. The list is currently capped at 100.
+    /**
+     * The list of lenders who wish to receive yield in each period instead of reinvesting them back
+     * into the pool. The list is currently capped at 100.
+     */
     address[] public nonReinvestingLenders;
 
     /**

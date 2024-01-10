@@ -20,7 +20,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
  * @title TrancheVault
  * @notice TrancheVault is the vault for a tranche. It is the primary interface for lenders
  * to participate in a tranche by depositing into or withdrawing from the tranche.
- * @dev It is upgradable
+ * @dev This contract is upgradable.
  */
 contract TrancheVault is
     AccessControlUpgradeable,
@@ -45,11 +45,11 @@ contract TrancheVault is
     uint256 private constant MAX_ALLOWED_NUM_NON_REINVESTING_LENDERS = 100;
 
     /**
-     * @notice An epoch has been processed
-     * @param epochId The epoch id
-     * @param sharesRequested Number of tranche shares that were requested for redemption
-     * @param sharesProcessed Number of tranche shares that have been redeemed
-     * @param amountProcessed The amount of the underlying pool asset token redeemed in this epoch
+     * @notice An epoch has been processed.
+     * @param epochId The epoch ID.
+     * @param sharesRequested The number of tranche shares that were requested for redemption.
+     * @param sharesProcessed The number of tranche shares that have been redeemed.
+     * @param amountProcessed The amount of the underlying pool asset token redeemed in this epoch.
      */
     event EpochProcessed(
         uint256 indexed epochId,
@@ -59,11 +59,11 @@ contract TrancheVault is
     );
 
     /**
-     * @notice A deposit has been made to the tranche
-     * @param sender The address that made the deposit
-     * @param receiver The address of the beneficiary of the deposit. It owns the tranche token
-     * @param assetAmount The amount measured in the underlying asset
-     * @param shareAmount The number of shares minted for this deposit
+     * @notice A deposit has been made to the tranche.
+     * @param sender The address that made the deposit.
+     * @param receiver The address of the beneficiary of the deposit. It owns the tranche token.
+     * @param assetAmount The amount measured in the underlying asset.
+     * @param shareAmount The number of shares minted for this deposit.
      */
     event LiquidityDeposited(
         address indexed sender,
@@ -73,60 +73,60 @@ contract TrancheVault is
     );
 
     /**
-     * @notice A disbursement to the lender for a processed redemption
-     * @param account The account whose shares have been redeemed
-     * @param receiver The account that receives the disbursement
-     * @param withdrawnAmount The amount of the disbursement
+     * @notice A disbursement to the lender for a processed redemption.
+     * @param account The account whose shares have been redeemed.
+     * @param receiver The account that receives the disbursement.
+     * @param withdrawnAmount The amount of the disbursement.
      */
     event LenderFundDisbursed(address indexed account, address receiver, uint256 withdrawnAmount);
 
     /**
-     * @notice A redemption request has been added
-     * @param account The account whose shares to be redeemed
-     * @param shareAmount The number of shares to be redeemed
-     * @param epochId The epoch id
+     * @notice A redemption request has been added.
+     * @param account The account whose shares to be redeemed.
+     * @param shareAmount The number of shares to be redeemed.
+     * @param epochId The epoch ID.
      */
     event RedemptionRequestAdded(address indexed account, uint256 shareAmount, uint256 epochId);
 
     /**
-     * @notice A redemption request has been cancelled
-     * @param account The account whose request to be cancelled
-     * @param shareAmount The number of shares to be included in the cancellation
-     * @param epochId The epoch id
+     * @notice A redemption request has been canceled.
+     * @param account The account whose request to be canceled.
+     * @param shareAmount The number of shares to be included in the cancellation.
+     * @param epochId The epoch ID.
      */
     event RedemptionRequestRemoved(address indexed account, uint256 shareAmount, uint256 epochId);
 
     /**
-     * @notice Yield has been paid to the investor
-     * @param account The account who has received the yield distribution
-     * @param yields The amount of yield distributed
-     * @param shares The number of shares burned for this distribution
+     * @notice Yield has been paid to the investor.
+     * @param account The account who has received the yield distribution.
+     * @param yields The amount of yield distributed.
+     * @param shares The number of shares burned for this distribution.
      */
     event YieldPaidOut(address indexed account, uint256 yields, uint256 shares);
 
     /**
-     * @notice Yield has been reinvested into the tranche
-     * @param account The account whose yield has been reinvested
-     * @param yields The yield amount reinvested
+     * @notice Yield has been reinvested into the tranche.
+     * @param account The account whose yield has been reinvested.
+     * @param yields The yield amount reinvested.
      */
     event YieldReinvested(address indexed account, uint256 yields);
 
     /**
-     * @notice The yield reinvestment setting has been updated
-     * @param account The account whose setting has been updated
-     * @param reinvestYield A boolean indicating whether it is reinvesting or not
-     * @param by The address who has made the change
+     * @notice The yield reinvestment setting has been updated.
+     * @param account The account whose setting has been updated.
+     * @param reinvestYield A boolean indicating whether it is reinvesting or not.
+     * @param by The address who has made the change.
      */
     event ReinvestYieldConfigSet(address indexed account, bool reinvestYield, address by);
 
     /**
-     * @notice Initializes the tranche
-     * @param name The name of the tranche token
-     * @param symbol The symbol of the tranche token
-     * @param _poolConfig PoolConfig that has various settings of the pool
+     * @notice Initializes the tranche.
+     * @param name The name of the tranche token.
+     * @param symbol The symbol of the tranche token.
+     * @param _poolConfig PoolConfig that has various settings of the pool.
      * @param seniorTrancheOrJuniorTranche Indicator of junior or senior tranche. Since only
-     * junior and senior tranches are supported right now, this param needs to be 0 or 1
-     * @custom:access Initialize can be called when the contract is initialized
+     * junior and senior tranches are supported right now, this param needs to be 0 or 1.
+     * @custom:access Initialize can be called when the contract is initialized.
      */
     function initialize(
         string memory name,
@@ -148,12 +148,12 @@ contract TrancheVault is
      * @notice Lenders need to pass compliance requirements. Pool operator will administer off-chain
      * to make sure potential lenders meet the requirements. Afterwards, the pool operator will
      * call this function to mark a lender as approved.
-     * @param lender The lender address
+     * @param lender The lender address.
      * @param reinvestYield Whether the lender will reinvest yield or receives yield payout. Please
      * note there is a 100 cap on the number of lenders who receive yield payout. If this flag is
      * false and that cap has returned, the approval will fail. The approver has to resubmit with
      * a true flag.
-     * @custom:access Only pool operator can access to approve lenders
+     * @custom:access Only pool operators can access to approve lenders.
      */
     function addApprovedLender(address lender, bool reinvestYield) external {
         poolConfig.onlyPoolOperator(msg.sender);
@@ -175,14 +175,14 @@ contract TrancheVault is
     /**
      * @notice Removes a lender. This prevents the lender from making more deposits.
      * The capital that the lender has contributed can continue to work as normal.
-     * @notice If a lender receives yield payout before, when they are removed as a lender,
+     * @notice If a lender has received yield payout before, when they are removed as a lender,
      * they will be converted to auto reinvesting.
-     * @dev It is intentional not to delete `depositRecord` for the lender so that they do not
+     * @dev It is intentional not to delete depositRecord for the lender so that they do not
      * lose existing investment. They can request redemption post removal as a lender.
      * @dev Because of lockup period and pool liquidity constraint, we cannot automatically
      * redeem the investment by this lender.
-     * @param lender The lender address
-     * @custom:access Only pool operator can access to remove lenders
+     * @param lender The lender address.
+     * @custom:access Only pool operators can access to remove lenders.
      */
     function removeApprovedLender(address lender) external {
         poolConfig.onlyPoolOperator(msg.sender);
@@ -195,7 +195,7 @@ contract TrancheVault is
     }
 
     /**
-     * @notice Sets if a lender is going to reinvest yield received
+     * @notice Sets if a lender is going to reinvest the yield they receive.
      * @custom:access Only pool operators can call this function.
      */
     function setReinvestYield(address lender, bool reinvestYield) external {
@@ -231,7 +231,7 @@ contract TrancheVault is
             summaryProcessed.totalSharesProcessed;
 
         if (unprocessed > 0) {
-            // Move unprocessed redemption to next epoch
+            // Move unprocessed redemption to next epoch.
             EpochRedemptionSummary memory nextRedemptionSummary = EpochRedemptionSummary({
                 epochId: summaryProcessed.epochId + 1,
                 totalSharesRequested: uint96(unprocessed),
@@ -250,8 +250,9 @@ contract TrancheVault is
     }
 
     /**
-     * @notice Allows the pool owner and EA to make initial deposit before the pool goes live
-     * @param assets The amount of underlyingTokens to be deposited
+     * @notice Allows the pool owner and EA to make initial deposit before the pool goes live.
+     * @param assets The amount of underlyingTokens to be deposited.
+     * @return shares The number of tranche token to be minted.
      */
     function makeInitialDeposit(uint256 assets) external returns (uint256 shares) {
         _onlyAuthorizedInitialDepositor(msg.sender);
@@ -259,16 +260,16 @@ contract TrancheVault is
     }
 
     /**
-     * @notice LP deposits to the pool to earn yield, and share losses
+     * @notice LP deposits to the pool to earn yield and share losses.
      * @notice All deposits should be made by calling this function and
      * makeInitialDeposit() (for pool owner and EA's initial deposit) only.
      * Please do NOT directly transfer any digital assets to the contracts,
      * which will cause a permanent loss and we cannot help reverse transactions
      * or retrieve assets from the contracts.
-     * @param assets The number of underlyingTokens to be deposited
-     * @param receiver The address to receive the minted tranche token
-     * @return shares The number of tranche token to be minted
-     * @custom:access Any approved lender can call to deposit
+     * @param assets The number of underlyingTokens to be deposited.
+     * @param receiver The address to receive the minted tranche token.
+     * @return shares The number of tranche token to be minted.
+     * @custom:access Any approved lender can call to deposit.
      */
     function deposit(uint256 assets, address receiver) external returns (uint256 shares) {
         poolConfig.onlyProtocolAndPoolOn();
@@ -282,8 +283,8 @@ contract TrancheVault is
 
     /**
      * @notice Records a new redemption request.
-     * @param shares The number of shares the lender wants to redeem
-     * @custom:access Only the lender can submit for themselves
+     * @param shares The number of shares the lender wants to redeem.
+     * @custom:access Only the lender can submit for themselves.
      */
     function addRedemptionRequest(uint256 shares) external {
         if (shares == 0) revert Errors.ZeroAmountProvided();
@@ -295,7 +296,7 @@ contract TrancheVault is
             block.timestamp
         );
 
-        // Checks against withdrawal lockup period
+        // Checks against withdrawal lockup period.
         DepositRecord memory depositRecord = _getDepositRecord(msg.sender);
         if (
             nextEpochStartTime <
@@ -352,8 +353,8 @@ contract TrancheVault is
 
     /**
      * @notice Cancels a redemption request submitted before.
-     * @param shares The number of shares in the redemption request to be cancelled
-     * @custom:access Only the lender can submit for themselves
+     * @param shares The number of shares in the redemption request to be canceled.
+     * @custom:access Only the lender can submit for themselves.
      */
     function cancelRedemptionRequest(uint256 shares) external {
         if (shares == 0) revert Errors.ZeroAmountProvided();
@@ -394,8 +395,8 @@ contract TrancheVault is
     }
 
     /**
-     * @notice Transfers all the amount that has been redeemed but not yet dispursed to the lender
-     * @custom:access Only the lender can submit for themselves
+     * @notice Transfers all the amount that has been redeemed but not yet disbursed to the lender.
+     * @custom:access Only the lender can submit for themselves.
      */
     function disburse() external {
         poolConfig.onlyProtocolAndPoolOn();
@@ -415,7 +416,7 @@ contract TrancheVault is
      * distribution at the end of each period. Their tokens will be burned for the payout and
      * their investment in the pool measured by dollar amount remains unchanged.
      * @custom:access Anyone can call to trigger the processing. In reality, we expect
-     * the protocol's autotask to trigger it.
+     * a cron-like mechanism like autotask to trigger it.
      */
     function processYieldForLenders() external {
         uint256 len = nonReinvestingLenders.length;
@@ -453,9 +454,9 @@ contract TrancheVault is
     }
 
     /**
-     * @notice Returns the withdrawable assets value of the given account
-     * @param account the account
-     * @param assets the withdrawable amount
+     * @notice Returns the withdrawable assets value of the given account.
+     * @param account The account whose withdrawable assets should be calculated.
+     * @param assets The withdrawable amount.
      */
     function withdrawableAssets(address account) external view returns (uint256 assets) {
         LenderRedemptionRecord memory lenderRedemptionRecord = _getLatestLenderRedemptionRecordFor(
@@ -468,7 +469,7 @@ contract TrancheVault is
 
     /**
      * @notice Returns the number of shares previously requested for redemption that can be cancelled.
-     * @param account The lender's account
+     * @param account The lender's account.
      */
     function cancellableRedemptionShares(address account) external view returns (uint256 shares) {
         shares = _getLatestLenderRedemptionRecordFor(account).numSharesRequested;
@@ -482,13 +483,13 @@ contract TrancheVault is
         return convertToAssets(ERC20Upgradeable.balanceOf(account));
     }
 
-    /// Gets the list of lenders who are receiving yield distribution in each period
+    /// Gets the list of lenders who are receiving yield distribution in each period.
     function getNonReinvestingLendersLength() external view returns (uint256) {
         return nonReinvestingLenders.length;
     }
 
     /**
-     * @notice Disables transfer function currently, need to consider how to support it later
+     * @notice Disables the transfer functionality.
      */
     function transfer(address, uint256) public virtual override returns (bool) {
         revert Errors.UnsupportedFunction();
@@ -508,7 +509,7 @@ contract TrancheVault is
         return tempTotalSupply == 0 ? shares : (shares * tempTotalAssets) / tempTotalSupply;
     }
 
-    /// Utility function to cache the dependent contract addresses
+    /// Utility function to cache the dependent contract addresses.
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = _poolConfig.underlyingToken();
         assert(addr != address(0));
@@ -529,10 +530,10 @@ contract TrancheVault is
     }
 
     /**
-     * @notice Internal function to support LP deposit into the tranche
-     * @param assets The number of underlyingTokens to be deposited
-     * @param receiver The address to receive the minted tranche token
-     * @return shares The number of tranche token to be minted
+     * @notice Internal function to support LP deposit into the tranche.
+     * @param assets The number of underlyingTokens to be deposited.
+     * @param receiver The address to receive the minted tranche token.
+     * @return shares The number of tranche token to be minted.
      */
     function _deposit(uint256 assets, address receiver) internal returns (uint256 shares) {
         PoolSettings memory poolSettings = poolConfig.getPoolSettings();
@@ -563,9 +564,9 @@ contract TrancheVault is
     /**
      * @notice Internal function to remove a lender from the list of lenders who receive yield
      * distribution in each period.
-     * @param lender the lender to be removed.
+     * @param lender The lender to be removed.
      * @dev The function scans through the list. Since the list is capped at 100, and the caller
-     * is a pool operator, gas fee is less an issue.
+     * is a pool operator, gas fee is not much of an issue.
      */
     function _removeLenderFromNonReinvestingLenders(address lender) internal {
         uint256 len = nonReinvestingLenders.length;
@@ -580,7 +581,7 @@ contract TrancheVault is
         }
     }
 
-    /// Utility set function to reduce contract size
+    /// Utility set function to reduce contract size.
     function _setLenderRedemptionRecord(
         address account,
         LenderRedemptionRecord memory record
@@ -588,20 +589,21 @@ contract TrancheVault is
         lenderRedemptionRecords[account] = record;
     }
 
-    /// Utility set function to reduce contract size
+    /// Utility set function to reduce contract size.
     function _setEpochRedemptionSummary(EpochRedemptionSummary memory summary) internal {
         epochRedemptionSummaries[summary.epochId] = summary;
     }
 
-    /// Utility set function to reduce contract size
+    /// Utility set function to reduce contract size.
     function _setDepositRecord(address account, DepositRecord memory record) internal {
         depositRecords[account] = record;
     }
 
     /**
-     * @notice Converts assets to shares of this tranche token
-     * @param _assets the amount of the underlying assets
-     * @param _totalAssets the total amount of the underlying assets in the tranche
+     * @notice Converts assets to shares of this tranche token.
+     * @param _assets The amount of the underlying assets.
+     * @param _totalAssets The total amount of the underlying assets in the tranche.
+     * @return shares The corresponding number of shares for the given assets.
      */
     function _convertToShares(
         uint256 _assets,
@@ -626,6 +628,8 @@ contract TrancheVault is
      * processing of further redemption requests since the lender's last update. This function addresses this
      * by iterating through all epochs executed since the last update, ensuring the redemption record is current
      * and accurate.
+     * @param account The address for which the latest RedemptionRecord should be computed.
+     * @param currentEpochId The ID of the current epoch.
      * @return lenderRedemptionRecord The lender's updated processed redemption request record.
      */
     function _getLatestLenderRedemptionRecord(
@@ -649,7 +653,7 @@ contract TrancheVault is
                     );
                     // Round up the number of shares the lender burned for the redemption requests that
                     // have been processed, so that the remaining number of shares is rounded down.
-                    // The applies the favor-the-pool principle for roundings.
+                    // This applies the favor-the-pool principle for roundings.
                     remainingShares -= Math.ceilDiv(
                         remainingShares * summary.totalSharesProcessed,
                         summary.totalSharesRequested
