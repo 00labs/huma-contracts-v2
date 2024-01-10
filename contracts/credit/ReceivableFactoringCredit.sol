@@ -19,8 +19,21 @@ contract ReceivableFactoringCredit is
 {
     bytes32 public constant PAYER_ROLE = keccak256("PAYER");
 
+    /**
+     * @notice The funds not used for payment has been disbursed to the receiver. This happens when
+     * the payer paid more than the payoff amount of the credit.
+     * @param receiver The receiver of the funds being disbursed.
+     * @param amount The amount disbursed.
+     */
     event ExtraFundsDisbursed(address indexed receiver, uint256 amount);
 
+    /**
+     * @notice A borrowing event has happened to the credit.
+     * @param borrower The address of the borrower.
+     * @param receivableId The ID of the receivable.
+     * @param amount The payback amount.
+     * @param by The address that initiated the payment.
+     */
     event DrawdownMadeWithReceivable(
         address indexed borrower,
         uint256 indexed receivableId,
@@ -28,6 +41,13 @@ contract ReceivableFactoringCredit is
         address by
     );
 
+    /**
+     * @notice A payment has been made against the credit.
+     * @param borrower The address of the borrower.
+     * @param receivableId The ID of the receivable.
+     * @param amount The payback amount.
+     * @param by The address that initiated the payment.
+     */
     event PaymentMadeWithReceivable(
         address indexed borrower,
         uint256 indexed receivableId,
@@ -148,13 +168,15 @@ contract ReceivableFactoringCredit is
     ) internal returns (uint256 amountPaid, bool paidoff) {
         (amountPaid, paidoff, ) = _makePayment(borrower, creditHash, amount);
         if (amount > amountPaid && msg.sender != borrower) {
+            // If the payer paid more than the payoff amount, then disburse the remaining amount
+            // to the borrower.
             uint256 disbursedAmount = amount - amountPaid;
             poolSafe.deposit(msg.sender, disbursedAmount);
             poolSafe.withdraw(borrower, disbursedAmount);
             emit ExtraFundsDisbursed(borrower, disbursedAmount);
         }
 
-        // Don't delete paid receivable
+        // Don't delete the paid receivable.
     }
 
     function _getCreditHash(

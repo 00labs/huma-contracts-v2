@@ -80,6 +80,7 @@ contract Calendar is ICalendar {
 
         (uint256 startYear, uint256 startMonth, uint256 startDay) = DTL.timestampToDate(startDate);
         (uint256 endYear, uint256 endMonth, uint256 endDay) = DTL.timestampToDate(endDate);
+        // If the day falls on the 31st, move it back to the 30th.
         startDay = startDay > DAYS_IN_A_MONTH ? DAYS_IN_A_MONTH : startDay;
         endDay = endDay > DAYS_IN_A_MONTH ? DAYS_IN_A_MONTH : endDay;
         if (startYear == endYear && startMonth == endMonth) {
