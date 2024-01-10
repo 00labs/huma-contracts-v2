@@ -34,7 +34,7 @@ struct PoolSettings {
 }
 
 /**
- * @notice Rewards and Responsibilities for various admins
+ * @notice Rewards and Responsibilities for various admins.
  */
 struct AdminRnR {
     // Percentage of pool income allocated to EA
@@ -96,8 +96,8 @@ interface ITrancheVaultLike {
 
 contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable {
     bytes32 public constant POOL_OPERATOR_ROLE = keccak256("POOL_OPERATOR");
-    // The smallest value that `PoolSettings.minDepositAmount` can be set to. Note that this value is "pre-decimals",
-    // i.e. if the underlying token is USDC, then this represents $10 in USDC.
+    /// The smallest value that `PoolSettings.minDepositAmount` can be set to. Note that this value is "pre-decimals",
+    /// i.e. if the underlying token is USDC, then this represents $10 in USDC.
     uint256 private constant MIN_DEPOSIT_AMOUNT_THRESHOLD = 10;
 
     string public poolName;
@@ -117,14 +117,14 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
 
     HumaConfig public humaConfig;
 
-    // The ERC20 token this pool manages
+    /// The ERC20 token this pool manages.
     address public underlyingToken;
 
-    // Evaluation Agents (EA) are the risk underwriting agents that associated with the pool.
+    /// Evaluation Agents (EA) are the risk underwriting agents that associated with the pool.
     address public evaluationAgent;
     uint256 public evaluationAgentId;
 
-    // The maximum number of first loss covers we allow is 16, which should be sufficient for now.
+    /// The maximum number of first loss covers we allow is 16, which should be sufficient for now.
     address[16] internal _firstLossCovers;
     mapping(address => FirstLossCoverConfig) internal _firstLossCoverConfigs;
 
@@ -134,8 +134,8 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
     FrontLoadingFeesStructure internal _frontFees;
     FeeStructure internal _feeStructure;
 
-    // Address for the account that handles the treasury functions for the pool owner:
-    // liquidity deposits, liquidity withdrawals, and reward withdrawals
+    /// Address for the account that handles the treasury functions for the pool owner:
+    /// liquidity deposits, liquidity withdrawals, and reward withdrawals.
     address public poolOwnerTreasury;
 
     address public receivableAsset;
@@ -212,9 +212,9 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
     }
 
     /**
-     * @notice Initialize the pool configuration
-     * @param _poolName The name of the pool
-     * @param _contracts The addresses of the contracts that are used by the pool
+     * @notice Initialize the pool configuration.
+     * @param _poolName The name of the pool.
+     * @param _contracts The addresses of the contracts that are used by the pool.
      *   _contracts[0]: address of HumaConfig
      *   _contracts[1]: address of underlyingToken
      *   _contracts[2]: address of calendar
@@ -285,6 +285,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
+    /// @custom:access Only the pool owner and the Huma master admin can call this function.
     function setPoolOwnerRewardsAndLiquidity(uint256 rewardRate, uint256 liquidityRate) external {
         _onlyOwnerOrHumaMasterAdmin();
         if (rewardRate > HUNDRED_PERCENT_IN_BPS || liquidityRate > HUNDRED_PERCENT_IN_BPS)
@@ -301,6 +302,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         emit PoolOwnerRewardsAndLiquidityChanged(rewardRate, liquidityRate, msg.sender);
     }
 
+    /// @custom:access Only the pool owner and the Huma master admin can call this function.
     function setEARewardsAndLiquidity(uint256 rewardRate, uint256 liquidityRate) external {
         _onlyOwnerOrHumaMasterAdmin();
         if (rewardRate > HUNDRED_PERCENT_IN_BPS || liquidityRate > HUNDRED_PERCENT_IN_BPS)
@@ -318,8 +320,9 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
     }
 
     /**
-     * @notice Adds an evaluation agent to the list who can approve loans.
-     * @param agent the evaluation agent to be added
+     * @notice Adds an Evaluation Agent to the list who can approve loans.
+     * @param agent The Evaluation Agent to be added.
+     * @custom:access Only the pool owner and the Huma master admin can call this function.
      */
     function setEvaluationAgent(uint256 eaId, address agent) external {
         if (agent == address(0)) revert Errors.ZeroAddressProvided();
@@ -354,6 +357,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         emit EvaluationAgentChanged(oldEA, agent, eaId, msg.sender);
     }
 
+    /// @custom:access Only the pool owner and the Huma master admin can call this function.
     function setPoolFeeManager(address _poolFeeManager) external {
         _onlyOwnerOrHumaMasterAdmin();
         if (_poolFeeManager == address(0)) revert Errors.ZeroAddressProvided();
@@ -361,6 +365,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         emit PoolFeeManagerChanged(_poolFeeManager, msg.sender);
     }
 
+    /// @custom:access Only the pool owner and the Huma master admin can call this function.
     function setHumaConfig(address _humaConfig) external {
         _onlyOwnerOrHumaMasterAdmin();
         if (_humaConfig == address(0)) revert Errors.ZeroAddressProvided();
@@ -368,6 +373,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         emit HumaConfigChanged(_humaConfig, msg.sender);
     }
 
+    /// @custom:access Only the pool owner and the Huma master admin can call this function.
     function setPool(address _pool) external {
         _onlyOwnerOrHumaMasterAdmin();
         if (_pool == address(0)) revert Errors.ZeroAddressProvided();
@@ -375,15 +381,14 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         emit PoolChanged(_pool, msg.sender);
     }
 
-    /**
-     * @notice Change pool name
-     */
+    /// @custom:access Only the pool owner and the Huma master admin can call this function.
     function setPoolName(string memory newName) external {
         _onlyOwnerOrHumaMasterAdmin();
         poolName = newName;
         emit PoolNameChanged(newName, msg.sender);
     }
 
+    /// @custom:access Only the pool owner and the Huma master admin can call this function.
     function setPoolOwnerTreasury(address _poolOwnerTreasury) external {
         _onlyOwnerOrHumaMasterAdmin();
         if (_poolOwnerTreasury == address(0)) revert Errors.ZeroAddressProvided();
@@ -391,6 +396,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         emit PoolOwnerTreasuryChanged(_poolOwnerTreasury, msg.sender);
     }
 
+    /// @custom:access Only the pool owner and the Huma master admin can call this function.
     function setPoolUnderlyingToken(address _underlyingToken) external {
         _onlyOwnerOrHumaMasterAdmin();
         if (_underlyingToken == address(0)) revert Errors.ZeroAddressProvided();
@@ -398,6 +404,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         emit PoolUnderlyingTokenChanged(_underlyingToken, msg.sender);
     }
 
+    /// @custom:access Only the pool owner and the Huma master admin can call this function.
     function setTranches(address _seniorTranche, address _juniorTranche) external {
         _onlyOwnerOrHumaMasterAdmin();
         if (_seniorTranche == address(0) || _juniorTranche == address(0))
@@ -407,6 +414,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         emit TranchesChanged(_seniorTranche, _juniorTranche, msg.sender);
     }
 
+    /// @custom:access Only the pool owner and the Huma master admin can call this function.
     function setPoolSafe(address _poolSafe) external {
         _onlyOwnerOrHumaMasterAdmin();
         if (_poolSafe == address(0)) revert Errors.ZeroAddressProvided();
@@ -414,6 +422,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         emit PoolSafeChanged(poolSafe, msg.sender);
     }
 
+    /// @custom:access Only the pool owner and the Huma master admin can call this function.
     function setTranchesPolicy(address _tranchesPolicy) external {
         _onlyOwnerOrHumaMasterAdmin();
         if (_tranchesPolicy == address(0)) revert Errors.ZeroAddressProvided();
@@ -421,6 +430,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         emit TranchesPolicyChanged(_tranchesPolicy, msg.sender);
     }
 
+    /// @custom:access Only the pool owner and the Huma master admin can call this function.
     function setEpochManager(address _epochManager) external {
         _onlyOwnerOrHumaMasterAdmin();
         if (_epochManager == address(0)) revert Errors.ZeroAddressProvided();
@@ -428,6 +438,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         emit EpochManagerChanged(epochManager, msg.sender);
     }
 
+    /// @custom:access Only the pool owner and the Huma master admin can call this function.
     function setCredit(address _credit) external {
         _onlyOwnerOrHumaMasterAdmin();
         if (_credit == address(0)) revert Errors.ZeroAddressProvided();
@@ -435,6 +446,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         emit CreditChanged(_credit, msg.sender);
     }
 
+    /// @custom:access Only the pool owner and the Huma master admin can call this function.
     function setFirstLossCover(
         uint8 index,
         address firstLossCover,
@@ -456,6 +468,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         );
     }
 
+    /// @custom:access Only the pool owner and the Huma master admin can call this function.
     function setCalendar(address _calendar) external {
         _onlyOwnerOrHumaMasterAdmin();
         if (_calendar == address(0)) revert Errors.ZeroAddressProvided();
@@ -463,6 +476,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         emit CalendarChanged(_calendar, msg.sender);
     }
 
+    /// @custom:access Only the pool owner and the Huma master admin can call this function.
     function setReceivableAsset(address _receivableAsset) external {
         _onlyOwnerOrHumaMasterAdmin();
         if (_receivableAsset == address(0)) revert Errors.ZeroAddressProvided();
@@ -470,6 +484,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         emit ReceivableAssetChanged(_receivableAsset, msg.sender);
     }
 
+    /// @custom:access Only the pool owner and the Huma master admin can call this function.
     function setPoolSettings(PoolSettings memory settings) external {
         _onlyOwnerOrHumaMasterAdmin();
         if (
@@ -494,6 +509,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         );
     }
 
+    /// @custom:access Only the pool owner and the Huma master admin can call this function.
     function setLPConfig(LPConfig memory lpConfig) external {
         _onlyOwnerOrHumaMasterAdmin();
         if (lpConfig.fixedSeniorYieldInBps != _lpConfig.fixedSeniorYieldInBps) {
@@ -512,6 +528,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         );
     }
 
+    /// @custom:access Only the pool owner and the Huma master admin can call this function.
     function setFrontLoadingFees(FrontLoadingFeesStructure memory frontFees) external {
         _onlyOwnerOrHumaMasterAdmin();
         _frontFees = frontFees;
@@ -522,6 +539,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         );
     }
 
+    /// @custom:access Only the pool owner and the Huma master admin can call this function.
     function setFeeStructure(FeeStructure memory feeStructure) external {
         _onlyOwnerOrHumaMasterAdmin();
         _feeStructure = feeStructure;
@@ -619,9 +637,9 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
 
     /**
      * @notice Checks whether the lender can still meet the liquidity requirements after redemption.
-     * @param lender The lender address
-     * @param trancheVault The tranche vault address
-     * @param newBalance The resulting balance of the lender after redemption
+     * @param lender The lender address.
+     * @param trancheVault The tranche vault address.
+     * @param newBalance The resulting balance of the lender after redemption.
      */
     function checkLiquidityRequirementForRedemption(
         address lender,
@@ -669,7 +687,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
 
     /**
      * @notice Allow for sensitive pool functions only to be called by
-     * the pool owner and the huma master admin
+     * the pool owner and the huma master admin.
      */
     function onlyOwnerOrHumaMasterAdmin(address account) public view {
         if (!hasRole(DEFAULT_ADMIN_ROLE, account) && account != humaConfig.owner()) {
@@ -684,7 +702,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
     }
 
     /**
-     * @notice "Modifier" function that limits access to pool owner or Huma protocol owner
+     * @notice "Modifier" function that limits access to pool owner or Huma protocol owner.
      */
     function _onlyOwnerOrHumaMasterAdmin() internal view {
         onlyOwnerOrHumaMasterAdmin(msg.sender);
