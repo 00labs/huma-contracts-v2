@@ -25,6 +25,8 @@ import {
     PoolConfig,
     PoolFeeManager,
     PoolSafe,
+    Receivable,
+    ReceivableBackedCreditLine,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
 } from "../typechain-types";
@@ -62,9 +64,10 @@ let poolConfigContract: PoolConfig,
     epochManagerContract: EpochManager,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
-    creditContract: CreditLine,
+    creditContract: CreditLine | ReceivableBackedCreditLine,
     creditDueManagerContract: CreditDueManager,
-    creditManagerContract: CreditLineManager;
+    creditManagerContract: CreditLineManager,
+    receivableContract: Receivable;
 
 async function depositFirstLossCover(coverContract: FirstLossCover, account: SignerWithAddress) {
     await coverContract.connect(poolOwner).addCoverProvider(account.address);
@@ -135,6 +138,7 @@ async function deployPool(
         creditContract as unknown,
         creditDueManagerContract,
         creditManagerContract as unknown,
+        receivableContract,
     ] = await deployAndSetupPoolContracts(
         humaConfigContract,
         mockTokenContract,
@@ -205,7 +209,7 @@ async function deployPool(
         const borrowAmount = toToken(100_000);
 
         // Drawing down credit line
-        await creditContract
+        await (creditContract as CreditLine)
             .connect(borrowerActive)
             .drawdown(borrowerActive.address, borrowAmount);
     } else if (poolName === LocalPoolName.ReceivableBackedCreditLine) {
@@ -230,6 +234,32 @@ async function deployPool(
             minPrincipalRateInBps: principalRate,
             lateFeeBps,
         });
+
+        console.log("Drawing down from CreditLine");
+        await creditManagerContract.connect(eaServiceAccount).approveBorrower(
+            borrowerActive.address,
+            toToken(100_000),
+            5, // numOfPeriods
+            1217, // yieldInBps
+            toToken(0),
+            0,
+            true,
+        );
+        const borrowAmount = toToken(100_000);
+
+        await receivableContract
+            .connect(borrowerActive)
+            .createReceivable(1, borrowAmount, 1704839449, "", "");
+        const receivableId = await receivableContract.tokenOfOwnerByIndex(
+            borrowerActive.address,
+            0,
+        );
+        await receivableContract
+            .connect(borrowerActive)
+            .approve(creditContract.address, receivableId);
+        await (creditContract as ReceivableBackedCreditLine)
+            .connect(borrowerActive)
+            .drawdownWithReceivable(borrowerActive.address, receivableId, borrowAmount);
     }
 
     console.log("=====================================");
