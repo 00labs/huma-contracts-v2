@@ -3,6 +3,7 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { BigNumber as BN } from "ethers";
 import { ethers } from "hardhat";
 import moment from "moment";
+
 import {
     CreditContractName,
     CreditManagerContractName,
@@ -31,6 +32,7 @@ import {
     RiskAdjustedTranchesPolicy,
     TrancheVault,
 } from "../typechain-types";
+import { advanceChainTime } from "./utils";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
@@ -309,8 +311,20 @@ async function deployPool(
     console.log(`Current block timestamp: ${await time.latest()}`);
 }
 
-export async function deployPools(onlyDeployPoolName?: LocalPoolName) {
+export async function deployPools({
+    onlyDeployPoolName = undefined,
+    shouldAdvanceTime = true,
+}: {
+    onlyDeployPoolName?: LocalPoolName;
+    shouldAdvanceTime?: boolean;
+}) {
     try {
+        if (shouldAdvanceTime) {
+            // always set the date to the 8th of the next month
+            const blockchainStartDate = moment().utc().add(1, "month").date(8).startOf("day");
+            await advanceChainTime(blockchainStartDate);
+        }
+
         if (onlyDeployPoolName) {
             const poolToDeploy = poolsToDeploy.find(
                 (pool) => pool.poolName === onlyDeployPoolName,
