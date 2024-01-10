@@ -2,6 +2,7 @@ import { time } from "@nomicfoundation/hardhat-network-helpers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { BigNumber as BN } from "ethers";
 import { ethers } from "hardhat";
+import moment from "moment";
 import {
     CreditContractName,
     CreditManagerContractName,
@@ -267,7 +268,7 @@ async function deployPool(
 
         await receivableContract
             .connect(borrowerActive)
-            .createReceivable(1, borrowAmount, 1704839449, "", "");
+            .createReceivable(1, borrowAmount, moment().add(7, "days").hour(0).unix(), "", "");
         const receivableId = await receivableContract.tokenOfOwnerByIndex(
             borrowerActive.address,
             0,
