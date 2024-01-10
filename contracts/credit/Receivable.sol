@@ -34,11 +34,11 @@ contract Receivable is
     using CountersUpgradeable for CountersUpgradeable.Counter;
 
     /**
-     * @notice Emitted when the owner of a receivable calls the declarePayment function
-     * @param from The address of the owner of the receivable
-     * @param tokenId The ID of the receivable token
-     * @param currencyCode The ISO 4217 currency code that the receivable is denominated in
-     * @param amount The amount that was declared paid
+     * @notice Emitted when the owner of a receivable calls the declarePayment function.
+     * @param from The address of the owner of the receivable.
+     * @param tokenId The ID of the receivable token.
+     * @param currencyCode The ISO 4217 currency code that the receivable is denominated in.
+     * @param amount The amount that was declared paid.
      */
     event PaymentDeclared(
         address indexed from,
@@ -48,12 +48,12 @@ contract Receivable is
     );
 
     /**
-     * @notice Emitted when a receivable is created
-     * @param owner The address of the owner of the receivable
-     * @param tokenId The ID of the receivable token
-     * @param receivableAmount The total expected payment amount of the receivable
-     * @param maturityDate The date at which the receivable becomes due
-     * @param currencyCode The ISO 4217 currency code that the receivable is denominated in
+     * @notice Emitted when a receivable is created.
+     * @param owner The address of the owner of the receivable.
+     * @param tokenId The ID of the receivable token.
+     * @param receivableAmount The total expected payment amount of the receivable.
+     * @param maturityDate The date at which the receivable becomes due.
+     * @param currencyCode The ISO 4217 currency code that the receivable is denominated in.
      */
     event ReceivableCreated(
         address indexed owner,
@@ -64,11 +64,11 @@ contract Receivable is
     );
 
     /**
-     * @notice Emitted when a receivable metadata URI is updated
-     * @param owner The address of the owner of the receivable
-     * @param tokenId The ID of the newly created receivable update token
-     * @param oldTokenURI The old metadata URI of the receivable
-     * @param newTokenURI The new metadata URI of the receivable
+     * @notice Emitted when a receivable metadata URI is updated.
+     * @param owner The address of the owner of the receivable.
+     * @param tokenId The ID of the newly created receivable update token.
+     * @param oldTokenURI The old metadata URI of the receivable.
+     * @param newTokenURI The new metadata URI of the receivable.
      */
     event ReceivableMetadataUpdated(
         address indexed owner,
@@ -83,7 +83,7 @@ contract Receivable is
     }
 
     /**
-     * @notice Initializer that sets the default admin role
+     * @notice Initializer that sets the default admin role.
      */
     function initialize() external initializer {
         __ERC721_init("HumaReceivable", "HREC");
@@ -101,7 +101,6 @@ contract Receivable is
 
     /**
      * @inheritdoc IReceivable
-     * @custom:access Only the token owner or original creator can access
      */
     function declarePayment(uint256 tokenId, uint96 paymentAmount) external {
         if (paymentAmount == 0) revert Errors.ZeroAmountProvided();
@@ -123,10 +122,9 @@ contract Receivable is
     }
 
     /**
-     * @notice Updates the metadata URI of a receivable
-     * @custom:access Only the owner or the original creator of the token can update the metadata URI
-     * @param tokenId The ID of the receivable token
-     * @param uri The new metadata URI of the receivable
+     * @notice Updates the metadata URI of a receivable.
+     * @param tokenId The ID of the receivable token.
+     * @param uri The new metadata URI of the receivable.
      * @custom:access Only the token owner or original creator can access. Since the main purpose of
      * the NFT to serve as a transparency layer for the receivables, it is fine for the creator to
      * be able to make changes. In a future version when the NFT owner has true ownership of the
@@ -178,7 +176,7 @@ contract Receivable is
             currencyCode,
             maturityDate,
             msg.sender,
-            ReceivableState.Minted // Minted
+            ReceivableState.Minted
         );
 
         _setTokenURI(tokenId, uri);
@@ -236,7 +234,7 @@ contract Receivable is
     ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
 
     // The following functions are overrides required by Solidity.
-    // super calls functions from right-to-left in the inheritance hierarchy: https://solidity-by-example.org/inheritance/#multiple-inheritance-order
+    // Super calls functions from right-to-left in the inheritance hierarchy: https://solidity-by-example.org/inheritance/#multiple-inheritance-order
     function _beforeTokenTransfer(
         address from,
         address to,

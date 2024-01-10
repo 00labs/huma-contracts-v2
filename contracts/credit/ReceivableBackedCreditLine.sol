@@ -9,6 +9,13 @@ import {IReceivableBackedCreditLineManager} from "./interfaces/IReceivableBacked
 import {IReceivable} from "./interfaces/IReceivable.sol";
 
 contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
+    /**
+     * @notice A principal payment has been made against the credit line.
+     * @param borrower The address of the borrower.
+     * @param receivableId The ID of the receivable.
+     * @param amount The payback amount.
+     * @param by The address that initiated the principal payment.
+     */
     event PrincipalPaymentMadeWithReceivable(
         address indexed borrower,
         uint256 indexed receivableId,
@@ -16,6 +23,13 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         address by
     );
 
+    /**
+     * @notice A payment has been made against the credit line.
+     * @param borrower The address of the borrower.
+     * @param receivableId The ID of the receivable.
+     * @param amount The payback amount.
+     * @param by The address that initiated the payment.
+     */
     event PaymentMadeWithReceivable(
         address indexed borrower,
         uint256 indexed receivableId,
@@ -23,6 +37,13 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         address by
     );
 
+    /**
+     * @notice A borrowing event has happened to the credit line.
+     * @param borrower The address of the borrower.
+     * @param receivableId The ID of the receivable.
+     * @param amount The payback amount.
+     * @param by The address that initiated the payment.
+     */
     event DrawdownMadeWithReceivable(
         address indexed borrower,
         uint256 indexed receivableId,

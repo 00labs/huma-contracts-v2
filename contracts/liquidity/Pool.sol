@@ -17,7 +17,7 @@ import {ICredit} from "../credit/interfaces/ICredit.sol";
 /**
  * @title Pool
  * @notice Pool is a core contract that connects the lender side (via Tranches)
- * and the borrower side (via Credit)
+ * and the borrower side (via Credit).
  */
 contract Pool is PoolConfigCache, IPool {
     struct TranchesAssets {
@@ -51,8 +51,23 @@ contract Pool is PoolConfigCache, IPool {
 
     bool public readyForFirstLossCoverWithdrawal;
 
+    /**
+     * @notice The pool has been disabled.
+     * @param by The address that disabled the pool.
+     */
     event PoolDisabled(address indexed by);
+
+    /**
+     * @notice The pool has been enabled.
+     * @param by The address that enabled the pool.
+     */
     event PoolEnabled(address indexed by);
+
+    /**
+     * @notice The ready for first loss cover withdrawal status has been updated.
+     * @param by The address that updated the status.
+     * @param ready Whether the pool is now ready for first loss cover withdrawal.
+     */
     event PoolReadyForFirstLossCoverWithdrawal(address indexed by, bool ready);
 
     event PoolAssetsRefreshed(
@@ -66,7 +81,21 @@ contract Pool is PoolConfigCache, IPool {
         uint256 juniorTotalLoss
     );
 
+    /**
+     * @notice Pool profit has been distributed.
+     * @param profit The amount of profit distributed.
+     * @param seniorTotalAssets The total amount of senior assets post profit distribution.
+     * @param juniorTotalAssets The total amount of junior assets post profit distribution.
+     */
     event ProfitDistributed(uint256 profit, uint256 seniorTotalAssets, uint256 juniorTotalAssets);
+
+    /**
+     * @notice Loss has been distributed.
+     * @param seniorTotalAssets The total amount of senior assets post loss distribution.
+     * @param juniorTotalAssets The total amount of junior assets post loss distribution.
+     * @param seniorTotalLoss The total amount of loss the the senior tranche suffered post loss distribution.
+     * @param juniorTotalLoss The total amount of loss the the junior tranche suffered post loss distribution.
+     */
     event LossDistributed(
         uint256 loss,
         uint256 seniorTotalAssets,
@@ -74,6 +103,16 @@ contract Pool is PoolConfigCache, IPool {
         uint256 seniorTotalLoss,
         uint256 juniorTotalLoss
     );
+
+    /**
+     * @notice Loss recovery has been distributed.
+     * @param seniorTotalAssets The total amount of senior assets post loss recovery distribution.
+     * @param juniorTotalAssets The total amount of junior assets post loss recovery distribution.
+     * @param seniorTotalLoss The remaining amount of loss the the senior tranche suffered post loss recovery
+     * distribution.
+     * @param juniorTotalLoss The remaining amount of loss the the junior tranche suffered post loss recovery
+     * distribution.
+     */
     event LossRecoveryDistributed(
         uint256 lossRecovery,
         uint256 seniorTotalAssets,
@@ -83,8 +122,8 @@ contract Pool is PoolConfigCache, IPool {
     );
 
     /**
-     * @notice Turns on the pool. Before a pool is turned on, the required First loss cover
-     * and liquidity must be deposited first.
+     * @notice Turns on the pool. Before a pool is turned on, the required first loss cover
+     * and tranche liquidity must be deposited first.
      * @custom:access Only the pool owner or protocol owner can enable a pool.
      */
     function enablePool() external {
@@ -109,7 +148,7 @@ contract Pool is PoolConfigCache, IPool {
     }
 
     /**
-     * @notice Enables or disables the first loss cover investors to withdraw capital
+     * @notice Enables or disables the first loss cover investors to withdraw capital.
      * @custom:access Only pool owner or Huma protocol owner can call this function.
      */
     function setReadyForFirstLossCoverWithdrawal(bool isReady) external {
@@ -139,31 +178,25 @@ contract Pool is PoolConfigCache, IPool {
         _distributeLossRecovery(lossRecovery);
     }
 
-    /**
-     * @notice Updates the tranche assets with the given asset values
-     * @param assets an array that represents the tranche asset
-     * @custom:access Only TrancheVault or Epoch Manager can call this function
-     */
+    /// @inheritdoc IPool
+    /// @custom:access Only TrancheVault or Epoch Manager can call this function
     function updateTranchesAssets(uint96[2] memory assets) external {
         _onlyTrancheVaultOrEpochManager(msg.sender);
         _updateTranchesAssets(assets);
     }
 
-    /**
-     * @notice Gets the total asset of a tranche
-     * @param index the tranche index.
-     * @return the total asset of the tranche.
-     */
+    /// @inheritdoc IPool
     function trancheTotalAssets(uint256 index) external view returns (uint256) {
         uint96[2] memory assets = currentTranchesAssets();
         return assets[index];
     }
 
-    /// Gets the on/off status of the pool
+    /// @inheritdoc IPool
     function isPoolOn() external view returns (bool status) {
         return _status == PoolStatus.On;
     }
 
+    /// @inheritdoc IPool
     function getTrancheAvailableCap(uint256 index) external view returns (uint256 availableCap) {
         if (index != SENIOR_TRANCHE && index != JUNIOR_TRANCHE) return 0;
         LPConfig memory config = poolConfig.getLPConfig();
@@ -171,6 +204,9 @@ contract Pool is PoolConfigCache, IPool {
         uint256 poolAssets = assets[SENIOR_TRANCHE] + assets[JUNIOR_TRANCHE];
         availableCap = config.liquidityCap > poolAssets ? config.liquidityCap - poolAssets : 0;
         if (index == SENIOR_TRANCHE) {
+            // The available cap for the senior tranche is subject to the additional constraint of the
+            // max senior : junior asset ratio, i.e. the total assets in the senior tranche must not exceed
+            // assets[JUNIOR_TRANCHE] * maxSeniorJuniorRatio at all times.
             uint256 seniorAvailableCap = assets[JUNIOR_TRANCHE] *
                 config.maxSeniorJuniorRatio -
                 assets[SENIOR_TRANCHE];
@@ -182,19 +218,13 @@ contract Pool is PoolConfigCache, IPool {
         return _firstLossCovers;
     }
 
-    /**
-     * @notice Gets the combined total asset of junior tranche and senior tranche.
-     * @return - the total asset of both junior and senior tranches
-     */
+    /// @inheritdoc IPool
     function totalAssets() public view returns (uint256) {
         uint96[2] memory assets = currentTranchesAssets();
         return assets[SENIOR_TRANCHE] + assets[JUNIOR_TRANCHE];
     }
 
-    /**
-     * @notice Gets the assets for each tranche
-     * @return assets the tranche assets in an array.
-     */
+    /// @inheritdoc IPool
     function currentTranchesAssets() public view returns (uint96[2] memory assets) {
         TranchesAssets memory tempTranchesAssets = tranchesAssets;
         return [tempTranchesAssets.seniorTotalAssets, tempTranchesAssets.juniorTotalAssets];
@@ -240,13 +270,13 @@ contract Pool is PoolConfigCache, IPool {
     /**
      * @notice Internal function that distributes profit to admins, senior and junior tranches,
      * and first loss covers in this sequence.
-     * @param profit the amount of profit to be distributed
-     * @custom:access Internal function without access restriction. Caller needs to control access
+     * @param profit The amount of profit to be distributed.
+     * @custom:access Internal function without access restriction. Caller needs to control access.
      */
     function _distributeProfit(uint256 profit) internal {
         TranchesAssets memory assets = tranchesAssets;
 
-        // distributes to pool admins first
+        // Distributes to pool admins first.
         uint256 poolProfit = feeManager.distributePoolFees(profit);
 
         if (poolProfit > 0) {
@@ -294,10 +324,10 @@ contract Pool is PoolConfigCache, IPool {
     }
 
     /**
-     * @notice Utility function that distributes loss to different tranches。
-     * The loss is distributed to first loss cover first, then junior tranche, and senior tranche
-     * @param loss the amount of loss to be distributed
-     * @custom:access Internal function without access restriction. Caller needs to control access
+     * @notice Utility function that distributes loss to first loss covers and tranches.
+     * The loss is distributed to first loss covers first, then the junior tranche, and the senior tranche last.
+     * @param loss The amount of loss to be distributed.
+     * @custom:access Internal function without access restriction. Caller needs to control access.
      */
     function _distributeLoss(uint256 loss) internal {
         if (loss > 0) {
@@ -314,13 +344,13 @@ contract Pool is PoolConfigCache, IPool {
     }
 
     /**
-     * @notice Distributes loss to tranches
-     * @param loss the loss amount
+     * @notice Distributes loss to tranches.
+     * @param loss The amount of loss to distribute.
      */
     function _distLossToTranches(uint256 loss) internal {
         TranchesAssets memory assets = tranchesAssets;
         uint256 juniorTotalAssets = assets.juniorTotalAssets;
-        // Distribute losses to junior tranche up to the total junior asset
+        // Distribute losses to junior tranche up to the total junior asset.
         uint256 juniorLoss = juniorTotalAssets >= loss ? loss : juniorTotalAssets;
         uint256 seniorLoss = loss - juniorLoss;
 
@@ -344,9 +374,9 @@ contract Pool is PoolConfigCache, IPool {
     /**
      * @notice Utility function that distributes loss recovery to different tranches and
      * First Loss Covers (FLCs). The distribution sequence is: senior tranche, junior tranche,
-     * followed by FLCs
-     * @param lossRecovery the amount of loss to be distributed
-     * @custom:access Internal function without access restriction. Caller needs to control access
+     * followed by FLCs.
+     * @param lossRecovery The amount of loss to be distributed.
+     * @custom:access Internal function without access restriction. Caller needs to control access.
      */
     function _distributeLossRecovery(uint256 lossRecovery) internal {
         if (lossRecovery > 0) {
@@ -362,9 +392,9 @@ contract Pool is PoolConfigCache, IPool {
     }
 
     /**
-     * @notice Distributes loss recovery to tranches
-     * @param lossRecovery the loss recovery amount
-     * @return remainingLossRecovery the remaining loss recovery after distributing among tranches
+     * @notice Distributes loss recovery to tranches.
+     * @param lossRecovery The loss recovery amount.
+     * @return remainingLossRecovery The remaining loss recovery after distributing among tranches.
      */
     function _distLossRecoveryToTranches(
         uint256 lossRecovery
@@ -406,9 +436,9 @@ contract Pool is PoolConfigCache, IPool {
     }
 
     /**
-     * @notice Utility function to update tranche assets
-     * @param assets an array that represents the desired tranche asset
-     * @custom:access Internal function without access restriction. Caller needs to control access
+     * @notice Utility function to update tranche assets.
+     * @param assets The array that represents the desired tranche asset.
+     * @custom:access Internal function without access restriction. Caller needs to control access.
      */
     function _updateTranchesAssets(uint96[2] memory assets) internal {
         tranchesAssets = TranchesAssets({

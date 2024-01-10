@@ -30,7 +30,6 @@ import {
     PoolSettingsStructOutput,
 } from "../../../typechain-types/contracts/common/PoolConfig.sol/PoolConfig";
 import {
-    CONSTANTS,
     PayPeriodDuration,
     deployAndSetupPoolContracts,
     deployProtocolContracts,
@@ -43,6 +42,7 @@ import {
     overrideFirstLossCoverConfig,
     toToken,
 } from "../../TestUtils";
+import { CONSTANTS } from "../../constants";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
@@ -64,7 +64,7 @@ let poolConfigContract: PoolConfig,
     poolSafeContract: PoolSafe,
     calendarContract: Calendar,
     borrowerFirstLossCoverContract: FirstLossCover,
-    affiliateFirstLossCoverContract: FirstLossCover,
+    adminFirstLossCoverContract: FirstLossCover,
     tranchesPolicyContract: RiskAdjustedTranchesPolicy,
     poolContract: Pool,
     epochManagerContract: EpochManager,
@@ -114,7 +114,7 @@ describe("PoolConfig Tests", function () {
             borrowerFirstLossCoverContract = (await deployProxyContract(
                 FirstLossCover,
             )) as FirstLossCover;
-            affiliateFirstLossCoverContract = (await deployProxyContract(
+            adminFirstLossCoverContract = (await deployProxyContract(
                 FirstLossCover,
             )) as FirstLossCover;
 
@@ -792,7 +792,7 @@ describe("PoolConfig Tests", function () {
                 poolSafeContract,
                 calendarContract,
                 borrowerFirstLossCoverContract,
-                affiliateFirstLossCoverContract,
+                adminFirstLossCoverContract,
                 tranchesPolicyContract,
                 poolContract,
                 epochManagerContract,
@@ -977,12 +977,12 @@ describe("PoolConfig Tests", function () {
                 }
 
                 // Set the EA to be a cover provider.
-                await affiliateFirstLossCoverContract
+                await adminFirstLossCoverContract
                     .connect(poolOwner)
                     .addCoverProvider(evaluationAgent2.getAddress());
 
                 minFirstLossCoverRequirement = await getMinFirstLossCoverRequirement(
-                    affiliateFirstLossCoverContract,
+                    adminFirstLossCoverContract,
                     poolConfigContract,
                 );
                 minLiquidity = await getMinLiquidityRequirementForEA(poolConfigContract);
@@ -1034,7 +1034,7 @@ describe("PoolConfig Tests", function () {
                 await mockTokenContract
                     .connect(evaluationAgent2)
                     .approve(
-                        affiliateFirstLossCoverContract.address,
+                        adminFirstLossCoverContract.address,
                         minFirstLossCoverRequirement.add(minLiquidity),
                     );
                 await juniorTrancheVaultContract
@@ -1096,9 +1096,9 @@ describe("PoolConfig Tests", function () {
             });
 
             it("Should reject the new EA if the first loss cover requirement is not met", async function () {
-                const coverTotalAssets = await affiliateFirstLossCoverContract.totalAssets();
+                const coverTotalAssets = await adminFirstLossCoverContract.totalAssets();
                 await overrideFirstLossCoverConfig(
-                    affiliateFirstLossCoverContract,
+                    adminFirstLossCoverContract,
                     CONSTANTS.ADMIN_LOSS_COVER_INDEX,
                     poolConfigContract,
                     poolOwner,
@@ -1114,7 +1114,7 @@ describe("PoolConfig Tests", function () {
                 await mockTokenContract
                     .connect(evaluationAgent2)
                     .approve(
-                        affiliateFirstLossCoverContract.address,
+                        adminFirstLossCoverContract.address,
                         minFirstLossCoverRequirement.add(minLiquidity),
                     );
                 await juniorTrancheVaultContract
@@ -1622,14 +1622,14 @@ describe("PoolConfig Tests", function () {
                         .connect(actor)
                         .setFirstLossCover(
                             CONSTANTS.ADMIN_LOSS_COVER_INDEX,
-                            affiliateFirstLossCoverContract.address,
+                            adminFirstLossCoverContract.address,
                             config,
                         ),
                 )
                     .to.emit(poolConfigContract, "FirstLossCoverChanged")
                     .withArgs(
                         CONSTANTS.ADMIN_LOSS_COVER_INDEX,
-                        affiliateFirstLossCoverContract.address,
+                        adminFirstLossCoverContract.address,
                         config.coverRatePerLossInBps,
                         config.coverCapPerLoss,
                         config.maxLiquidity,
@@ -1639,7 +1639,7 @@ describe("PoolConfig Tests", function () {
                     );
 
                 const coverConfig = await poolConfigContract.getFirstLossCoverConfig(
-                    affiliateFirstLossCoverContract.address,
+                    adminFirstLossCoverContract.address,
                 );
                 expect(coverConfig.coverRatePerLossInBps).to.equal(config.coverRatePerLossInBps);
                 expect(coverConfig.coverCapPerLoss).to.equal(config.coverCapPerLoss);
@@ -1664,7 +1664,7 @@ describe("PoolConfig Tests", function () {
                         .connect(regularUser)
                         .setFirstLossCover(
                             CONSTANTS.ADMIN_LOSS_COVER_INDEX,
-                            affiliateFirstLossCoverContract.address,
+                            adminFirstLossCoverContract.address,
                             config,
                         ),
                 ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");

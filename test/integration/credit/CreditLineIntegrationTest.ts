@@ -22,7 +22,6 @@ import {
     TrancheVault,
 } from "../../../typechain-types";
 import {
-    CONSTANTS,
     CreditState,
     FeeCalculator,
     FirstLossCoverInfo,
@@ -54,6 +53,7 @@ import {
     sumBNArray,
     toToken,
 } from "../../TestUtils";
+import { CONSTANTS } from "../../constants";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
@@ -74,7 +74,7 @@ let poolConfigContract: PoolConfig,
     poolSafeContract: PoolSafe,
     calendarContract: Calendar,
     borrowerFirstLossCoverContract: FirstLossCover,
-    affiliateFirstLossCoverContract: FirstLossCover,
+    adminFirstLossCoverContract: FirstLossCover,
     tranchesPolicyContract: RiskAdjustedTranchesPolicy,
     poolContract: Pool,
     epochManagerContract: EpochManager,
@@ -121,7 +121,7 @@ describe("CreditLine Integration Test", function () {
         const losses = [lossInfo[CONSTANTS.SENIOR_TRANCHE], lossInfo[CONSTANTS.JUNIOR_TRANCHE]];
         const profitAfterFees = await feeCalculator.calcPoolFeeDistribution(profit);
         const firstLossCoverInfos = await Promise.all(
-            [borrowerFirstLossCoverContract, affiliateFirstLossCoverContract].map(
+            [borrowerFirstLossCoverContract, adminFirstLossCoverContract].map(
                 async (contract) => await getFirstLossCoverInfo(contract, poolConfigContract),
             ),
         );
@@ -139,7 +139,7 @@ describe("CreditLine Integration Test", function () {
 
     async function getFirstLossCoverInfos() {
         return await Promise.all(
-            [borrowerFirstLossCoverContract, affiliateFirstLossCoverContract].map((contract) =>
+            [borrowerFirstLossCoverContract, adminFirstLossCoverContract].map((contract) =>
                 getFirstLossCoverInfo(contract, poolConfigContract),
             ),
         );
@@ -213,7 +213,7 @@ describe("CreditLine Integration Test", function () {
             poolSafeContract,
             calendarContract,
             borrowerFirstLossCoverContract,
-            affiliateFirstLossCoverContract,
+            adminFirstLossCoverContract,
             tranchesPolicyContract,
             poolContract,
             epochManagerContract,
@@ -273,7 +273,7 @@ describe("CreditLine Integration Test", function () {
             .depositCover(firstLossCoverMaxLiquidity);
 
         await overrideFirstLossCoverConfig(
-            affiliateFirstLossCoverContract,
+            adminFirstLossCoverContract,
             CONSTANTS.ADMIN_LOSS_COVER_INDEX,
             poolConfigContract,
             poolOwner,
@@ -283,10 +283,10 @@ describe("CreditLine Integration Test", function () {
                 maxLiquidity: firstLossCoverMaxLiquidity,
             },
         );
-        await affiliateFirstLossCoverContract
+        await adminFirstLossCoverContract
             .connect(poolOwnerTreasury)
             .depositCover(firstLossCoverMaxLiquidity.div(2));
-        // await affiliateFirstLossCoverContract
+        // await adminFirstLossCoverContract
         //     .connect(evaluationAgent)
         //     .depositCover(firstLossCoverMaxLiquidity.div(2));
 
@@ -1567,7 +1567,7 @@ describe("CreditLine Integration Test", function () {
             },
         });
         const firstLossCoverConfigs = [];
-        const firstLossCovers = [borrowerFirstLossCoverContract, affiliateFirstLossCoverContract];
+        const firstLossCovers = [borrowerFirstLossCoverContract, adminFirstLossCoverContract];
         for (let i = 0; i < firstLossCovers.length; ++i) {
             const config = await poolConfigContract.getFirstLossCoverConfig(
                 firstLossCovers[i].address,
@@ -1602,7 +1602,7 @@ describe("CreditLine Integration Test", function () {
             "FirstLossCoverLiquidityCapExceeded",
         );
         await expect(
-            affiliateFirstLossCoverContract
+            adminFirstLossCoverContract
                 .connect(poolOwnerTreasury)
                 .depositCover(poolSettings.minDepositAmount),
         ).to.be.revertedWithCustomError(
@@ -1610,7 +1610,7 @@ describe("CreditLine Integration Test", function () {
             "FirstLossCoverLiquidityCapExceeded",
         );
         await expect(
-            affiliateFirstLossCoverContract
+            adminFirstLossCoverContract
                 .connect(evaluationAgent)
                 .depositCover(poolSettings.minDepositAmount),
         ).to.be.revertedWithCustomError(

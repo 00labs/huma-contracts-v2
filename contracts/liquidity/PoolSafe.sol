@@ -25,14 +25,20 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
     // The key is junior/senior tranche address, the value is the unprocessed profit.
     mapping(address => uint256) public unprocessedTrancheProfit;
 
-    /// @inheritdoc IPoolSafe
+    /**
+     * @inheritdoc IPoolSafe
+     * @custom:access Only contracts that are approved to move money can access this function
+     */
     function deposit(address from, uint256 amount) external virtual {
         _onlySystemMoneyMover(msg.sender);
 
         underlyingToken.safeTransferFrom(from, address(this), amount);
     }
 
-    /// @inheritdoc IPoolSafe
+    /**
+     * @inheritdoc IPoolSafe
+     * @custom:access Only contracts that are approved to move money can access this function
+     */
     function withdraw(address to, uint256 amount) external virtual {
         if (to == address(0)) revert Errors.ZeroAddressProvided();
         _onlySystemMoneyMover(msg.sender);
@@ -40,7 +46,10 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
         underlyingToken.safeTransfer(to, amount);
     }
 
-    /// @inheritdoc IPoolSafe
+    /**
+     * @inheritdoc IPoolSafe
+     * @custom:access Only pool contract can access this function
+     */
     function addUnprocessedProfit(address tranche, uint256 profit) external {
         if (msg.sender != address(pool)) revert Errors.AuthorizedContractCallerRequired();
         if (tranche != poolConfig.seniorTranche() && tranche != poolConfig.juniorTranche())
@@ -48,7 +57,10 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
         unprocessedTrancheProfit[tranche] += profit;
     }
 
-    /// @inheritdoc IPoolSafe
+    /**
+     * @inheritdoc IPoolSafe
+     * @custom:access Only the TrancheVault can access this function
+     */
     function resetUnprocessedProfit() external {
         if (msg.sender != poolConfig.seniorTranche() && msg.sender != poolConfig.juniorTranche())
             revert Errors.AuthorizedContractCallerRequired();
@@ -85,6 +97,7 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
         availableBalance = balance > reserved ? balance - reserved : 0;
     }
 
+    /// Utility function to cache the dependent contract addresses
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = _poolConfig.underlyingToken();
         assert(addr != address(0));
@@ -99,6 +112,12 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
         pool = IPool(addr);
     }
 
+    /**
+     * @notice Checks if the given account is one of the contracts that are approved
+     * to transfer funds
+     * @dev Only the TrancheVault contracts for senior and junior tranches, the credit contract
+     * the pool fee manager contract, and first loss cover contract are allowed to move money
+     */
     function _onlySystemMoneyMover(address account) internal view {
         // Account is a contract address, pass only when it is a tranche contract, pool fee manager contract,
         // credit contract or first loss cover contract.

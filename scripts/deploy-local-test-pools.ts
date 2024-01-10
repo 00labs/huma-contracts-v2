@@ -2,14 +2,16 @@ import { time } from "@nomicfoundation/hardhat-network-helpers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { BigNumber as BN } from "ethers";
 import { ethers } from "hardhat";
+import moment from "moment";
+
 import {
-    CONSTANTS,
     CreditContractName,
     CreditManagerContractName,
     deployAndSetupPoolContracts,
     deployProtocolContracts,
     PayPeriodDuration,
 } from "../test/BaseTest";
+import { CONSTANTS, LocalPoolName } from "../test/constants";
 import { overrideFirstLossCoverConfig, toToken } from "../test/TestUtils";
 import {
     Calendar,
@@ -25,9 +27,12 @@ import {
     PoolConfig,
     PoolFeeManager,
     PoolSafe,
+    Receivable,
+    ReceivableBackedCreditLine,
     RiskAdjustedTranchesPolicy,
     TrancheVault,
 } from "../typechain-types";
+import { advanceChainTime } from "./utils";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
@@ -40,7 +45,6 @@ let poolOwner: SignerWithAddress,
     poolOperator: SignerWithAddress;
 let juniorLender: SignerWithAddress,
     seniorLender: SignerWithAddress,
-    poolAffiliate: SignerWithAddress,
     lenderRedemptionActive: SignerWithAddress,
     borrowerActive: SignerWithAddress,
     borrowerApproved: SignerWithAddress,
@@ -57,15 +61,34 @@ let poolConfigContract: PoolConfig,
     poolSafeContract: PoolSafe,
     calendarContract: Calendar,
     borrowerFirstLossCoverContract: FirstLossCover,
-    affiliateFirstLossCoverContract: FirstLossCover,
+    adminFirstLossCoverContract: FirstLossCover,
     tranchesPolicyContract: RiskAdjustedTranchesPolicy,
     poolContract: Pool,
     epochManagerContract: EpochManager,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
-    creditContract: CreditLine,
+    creditContract: CreditLine | ReceivableBackedCreditLine,
     creditDueManagerContract: CreditDueManager,
-    creditManagerContract: CreditLineManager;
+    creditManagerContract: CreditLineManager,
+    receivableContract: Receivable;
+
+const poolsToDeploy: {
+    creditContract: CreditContractName;
+    manager: CreditManagerContractName;
+    poolName: LocalPoolName;
+}[] = [
+    {
+        creditContract: "CreditLine",
+        manager: "CreditLineManager",
+        poolName: LocalPoolName.CreditLine,
+    },
+    {
+        creditContract: "ReceivableBackedCreditLine",
+        manager: "ReceivableBackedCreditLineManager",
+        poolName: LocalPoolName.ReceivableBackedCreditLine,
+    },
+    // Add more pools as needed
+];
 
 async function depositFirstLossCover(coverContract: FirstLossCover, account: SignerWithAddress) {
     await coverContract.connect(poolOwner).addCoverProvider(account.address);
@@ -75,10 +98,15 @@ async function depositFirstLossCover(coverContract: FirstLossCover, account: Sig
     await coverContract.connect(account).depositCover(toToken(20_000));
 }
 
+export enum PoolName {
+    CreditLine = "CreditLine",
+    ArfV2 = "ArfV2",
+}
+
 async function deployPool(
     creditContractName: CreditContractName,
     creditManagerContractName: CreditManagerContractName,
-    poolName?: "ArfV2",
+    poolName?: LocalPoolName,
 ) {
     console.log("=====================================");
     console.log(`Deploying pool with ${creditContractName} and ${creditManagerContractName}`);
@@ -98,7 +126,6 @@ async function deployPool(
         poolOperator,
         juniorLender,
         seniorLender,
-        poolAffiliate,
         lenderRedemptionActive,
         borrowerActive,
         borrowerApproved,
@@ -123,7 +150,7 @@ async function deployPool(
         poolSafeContract,
         calendarContract,
         borrowerFirstLossCoverContract,
-        affiliateFirstLossCoverContract,
+        adminFirstLossCoverContract,
         tranchesPolicyContract,
         poolContract,
         epochManagerContract,
@@ -132,6 +159,7 @@ async function deployPool(
         creditContract as unknown,
         creditDueManagerContract,
         creditManagerContract as unknown,
+        receivableContract,
     ] = await deployAndSetupPoolContracts(
         humaConfigContract,
         mockTokenContract,
@@ -144,7 +172,7 @@ async function deployPool(
         evaluationAgent,
         poolOwnerTreasury,
         poolOperator,
-        [juniorLender, seniorLender, poolAffiliate, lenderRedemptionActive, borrowerActive],
+        [juniorLender, seniorLender, lenderRedemptionActive, borrowerActive],
     );
 
     // Deposit first loss cover
@@ -152,7 +180,7 @@ async function deployPool(
 
     // Set first loss cover liquidity cap
     const totalAssetsBorrowerFLC = await borrowerFirstLossCoverContract.totalAssets();
-    const totalAssetsAffiliateFLC = await affiliateFirstLossCoverContract.totalAssets();
+    const totalAssetsAdminFLC = await adminFirstLossCoverContract.totalAssets();
     const yieldAmount = toToken(10_000);
     await overrideFirstLossCoverConfig(
         borrowerFirstLossCoverContract,
@@ -164,12 +192,12 @@ async function deployPool(
         },
     );
     await overrideFirstLossCoverConfig(
-        affiliateFirstLossCoverContract,
+        adminFirstLossCoverContract,
         CONSTANTS.ADMIN_LOSS_COVER_INDEX,
         poolConfigContract,
         poolOwner,
         {
-            maxLiquidity: totalAssetsAffiliateFLC.add(yieldAmount),
+            maxLiquidity: totalAssetsAdminFLC.add(yieldAmount),
         },
     );
 
@@ -188,7 +216,24 @@ async function deployPool(
         frontLoadingFeeBps: frontLoadingFeeBps,
     });
 
-    if (poolName === "ArfV2") {
+    if (poolName === LocalPoolName.CreditLine) {
+        console.log("Drawing down from CreditLine");
+        await creditManagerContract.connect(eaServiceAccount).approveBorrower(
+            borrowerActive.address,
+            toToken(100_000),
+            5, // numOfPeriods
+            1217, // yieldInBps
+            toToken(0),
+            0,
+            true,
+        );
+        const borrowAmount = toToken(100_000);
+
+        // Drawing down credit line
+        await (creditContract as CreditLine)
+            .connect(borrowerActive)
+            .drawdown(borrowerActive.address, borrowAmount);
+    } else if (poolName === LocalPoolName.ReceivableBackedCreditLine) {
         const latePaymentGracePeriodInDays = 5;
         const yieldInBps = 1200;
         const lateFeeBps = 2400;
@@ -210,6 +255,32 @@ async function deployPool(
             minPrincipalRateInBps: principalRate,
             lateFeeBps,
         });
+
+        console.log("Drawing down from CreditLine");
+        await creditManagerContract.connect(eaServiceAccount).approveBorrower(
+            borrowerActive.address,
+            toToken(100_000),
+            5, // numOfPeriods
+            1217, // yieldInBps
+            toToken(0),
+            0,
+            true,
+        );
+        const borrowAmount = toToken(100_000);
+
+        await receivableContract
+            .connect(borrowerActive)
+            .createReceivable(1, borrowAmount, moment().add(7, "days").hour(0).unix(), "", "");
+        const receivableId = await receivableContract.tokenOfOwnerByIndex(
+            borrowerActive.address,
+            0,
+        );
+        await receivableContract
+            .connect(borrowerActive)
+            .approve(creditContract.address, receivableId);
+        await (creditContract as ReceivableBackedCreditLine)
+            .connect(borrowerActive)
+            .drawdownWithReceivable(borrowerActive.address, receivableId, borrowAmount);
     }
 
     console.log("=====================================");
@@ -224,7 +295,6 @@ async function deployPool(
     console.log("=====================================");
     console.log("Addresses:");
     console.log(`Pool:            ${poolContract.address}`);
-    console.log("     (note: pool is ready for junior redemption epoch processing)");
     console.log(`Epoch manager:   ${epochManagerContract.address}`);
     console.log(`Pool config:     ${poolConfigContract.address}`);
     console.log(`Pool credit:     ${creditContract.address}`);
@@ -235,24 +305,47 @@ async function deployPool(
     console.log(`Credit:          ${creditContract.address}`);
     console.log(`Credit manager:  ${creditManagerContract.address}`);
     console.log(`Borrower FLC:    ${borrowerFirstLossCoverContract.address}`);
-    console.log(`Affiliate FLC:   ${affiliateFirstLossCoverContract.address}`);
+    console.log(`Admin FLC:   ${adminFirstLossCoverContract.address}`);
 
     console.log("=====================================");
     console.log(`Current block timestamp: ${await time.latest()}`);
 }
 
-async function deployPools() {
+export async function deployPools({
+    onlyDeployPoolName = undefined,
+    shouldAdvanceTime = true,
+}: {
+    onlyDeployPoolName?: LocalPoolName;
+    shouldAdvanceTime?: boolean;
+}) {
     try {
-        await deployPool("CreditLine", "CreditLineManager");
-        await deployPool(
-            "ReceivableBackedCreditLine",
-            "ReceivableBackedCreditLineManager",
-            "ArfV2",
-        );
+        if (shouldAdvanceTime) {
+            // always set the date to the 8th of the next month
+            const blockchainStartDate = moment().utc().add(1, "month").date(8).startOf("day");
+            await advanceChainTime(blockchainStartDate);
+        }
+
+        if (onlyDeployPoolName) {
+            const poolToDeploy = poolsToDeploy.find(
+                (pool) => pool.poolName === onlyDeployPoolName,
+            );
+            if (poolToDeploy) {
+                await deployPool(
+                    poolToDeploy.creditContract,
+                    poolToDeploy.manager,
+                    poolToDeploy.poolName,
+                );
+            } else {
+                console.error(`Pool with name '${onlyDeployPoolName}' not found.`);
+                process.exitCode = 1;
+            }
+        } else {
+            for (const pool of poolsToDeploy) {
+                await deployPool(pool.creditContract, pool.manager, pool.poolName);
+            }
+        }
     } catch (error) {
         console.error(error);
         process.exitCode = 1;
     }
 }
-
-deployPools();
