@@ -125,11 +125,11 @@ async function verifyContracts() {
     const verifyBorrowerFirstLossCover = await verifyContract("BorrowerFirstLossCover");
     console.log(`Verify BorrowerFirstLossCover result: ${verifyBorrowerFirstLossCover}`);
 
-    const verifyAffiliateFirstLossCoverImpl = await verifyContract("AffiliateFirstLossCoverImpl");
-    console.log(`Verify AffiliateFirstLossCoverImpl result: ${verifyAffiliateFirstLossCoverImpl}`);
+    const verifyAdminFirstLossCoverImpl = await verifyContract("AdminFirstLossCoverImpl");
+    console.log(`Verify AdminFirstLossCoverImpl result: ${verifyAdminFirstLossCoverImpl}`);
 
-    const verifyAffiliateFirstLossCover = await verifyContract("AffiliateFirstLossCover");
-    console.log(`Verify AffiliateFirstLossCover result: ${verifyAffiliateFirstLossCover}`);
+    const verifyAdminFirstLossCover = await verifyContract("AdminFirstLossCover");
+    console.log(`Verify AdminFirstLossCover result: ${verifyAdminFirstLossCover}`);
 
     const verifyFixedSeniorYieldTranchePolicyImpl = await verifyContract(
         "FixedSeniorYieldTranchePolicyImpl",
