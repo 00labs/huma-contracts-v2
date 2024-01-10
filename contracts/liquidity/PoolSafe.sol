@@ -12,7 +12,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 
 /**
  * @title PoolSafe
- * @notice PoolSafe tracks the in flow and out flow of underlying tokens
+ * @notice PoolSafe tracks the in flow and out flow of underlying tokens.
  */
 contract PoolSafe is PoolConfigCache, IPoolSafe {
     using SafeERC20 for IERC20;
@@ -21,8 +21,10 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
     IPool public pool;
     IPoolFeeManager public poolFeeManager;
 
-    // Maps tranche addresses to unprocessed profits.
-    // The key is junior/senior tranche address, the value is the unprocessed profit.
+    /**
+     * Maps tranche addresses to unprocessed profits.
+     * The key is junior/senior tranche address, the value is the unprocessed profit.
+     */
     mapping(address => uint256) public unprocessedTrancheProfit;
 
     /**
@@ -46,10 +48,7 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
         underlyingToken.safeTransfer(to, amount);
     }
 
-    /**
-     * @inheritdoc IPoolSafe
-     * @custom:access Only pool contract can access this function
-     */
+    /// @inheritdoc IPoolSafe
     function addUnprocessedProfit(address tranche, uint256 profit) external {
         if (msg.sender != address(pool)) revert Errors.AuthorizedContractCallerRequired();
         if (tranche != poolConfig.seniorTranche() && tranche != poolConfig.juniorTranche())
@@ -57,10 +56,7 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
         unprocessedTrancheProfit[tranche] += profit;
     }
 
-    /**
-     * @inheritdoc IPoolSafe
-     * @custom:access Only the TrancheVault can access this function
-     */
+    /// @inheritdoc IPoolSafe
     function resetUnprocessedProfit() external {
         if (msg.sender != poolConfig.seniorTranche() && msg.sender != poolConfig.juniorTranche())
             revert Errors.AuthorizedContractCallerRequired();
@@ -74,7 +70,7 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
         virtual
         returns (uint256 availableBalance)
     {
-        // Deducts balance reserved for unprocessed yield and balance reserved for admin fees
+        // Deducts balance reserved for unprocessed yield and balance reserved for admin fees.
         uint256 reserved = poolFeeManager.getTotalAvailableFees();
         reserved +=
             unprocessedTrancheProfit[poolConfig.seniorTranche()] +
@@ -90,14 +86,14 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
 
     /// @inheritdoc IPoolSafe
     function getAvailableBalanceForFees() external view returns (uint256 availableBalance) {
-        // Deducts balance reserved for unprocessed yield
+        // Deducts balance reserved for unprocessed yield.
         uint256 reserved = unprocessedTrancheProfit[poolConfig.seniorTranche()] +
             unprocessedTrancheProfit[poolConfig.juniorTranche()];
         uint256 balance = underlyingToken.balanceOf(address(this));
         availableBalance = balance > reserved ? balance - reserved : 0;
     }
 
-    /// Utility function to cache the dependent contract addresses
+    /// Utility function to cache the dependent contract addresses.
     function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
         address addr = _poolConfig.underlyingToken();
         assert(addr != address(0));
@@ -113,14 +109,11 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
     }
 
     /**
-     * @notice Checks if the given account is one of the contracts that are approved
-     * to transfer funds
-     * @dev Only the TrancheVault contracts for senior and junior tranches, the credit contract
-     * the pool fee manager contract, and first loss cover contract are allowed to move money
+     * @notice Checks if the given account is one of the contracts that are approved to transfer funds.
+     * @dev Only the TrancheVault contracts for senior and junior tranches, the Credit contract
+     * the PoolFeeManager contract, and FirstLossCover contracts are allowed to move money.
      */
     function _onlySystemMoneyMover(address account) internal view {
-        // Account is a contract address, pass only when it is a tranche contract, pool fee manager contract,
-        // credit contract or first loss cover contract.
         if (
             account != poolConfig.seniorTranche() &&
             account != poolConfig.juniorTranche() &&

@@ -18,9 +18,9 @@ struct EpochRedemptionSummary {
 
 interface IRedemptionHandler {
     /**
-     * @notice Executes the redemption bundle by transferring assets
-     * @param processedRedemptionSummary a processed redemption summary with information on how many shares
-     * have been approved to redeem
+     * @notice Executes the redemption requests in contained in the redemption summary by transferring assets.
+     * @param processedRedemptionSummary A processed redemption summary with information on how many shares
+     * have been approved to redeem.
      */
     function executeRedemptionSummary(
         EpochRedemptionSummary memory processedRedemptionSummary
@@ -28,6 +28,7 @@ interface IRedemptionHandler {
 
     /**
      * @notice Returns unprocessed epoch info.
+     * @return The current EpochRedemptionSummary.
      */
     function currentRedemptionSummary() external view returns (EpochRedemptionSummary memory);
 }
