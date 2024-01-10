@@ -286,6 +286,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
      * @param tranchesAssets Tranches assets indexed by SENIOR_ and JUNIOR_TRANCHE, i.e. tranches[0] is the
      * senior tranche assets and tranches[1] is the junior tranche assets.
      * @param lpTokenPrice The price of the junior LP tokens.
+     * @param maxSeniorJuniorRatio The max senior : junior asset ratio that needs to be maintained.
      * @param redemptionSummary RedemptionSummary for the junior tranche.
      * @param availableAmount The total amount available for redemption.
      * @dev This function is side-effectual and mutates the following incoming params:
