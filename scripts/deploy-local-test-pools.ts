@@ -69,6 +69,24 @@ let poolConfigContract: PoolConfig,
     creditManagerContract: CreditLineManager,
     receivableContract: Receivable;
 
+const poolsToDeploy: {
+    creditContract: CreditContractName;
+    manager: CreditManagerContractName;
+    poolName: LocalPoolName;
+}[] = [
+    {
+        creditContract: "CreditLine",
+        manager: "CreditLineManager",
+        poolName: LocalPoolName.CreditLine,
+    },
+    {
+        creditContract: "ReceivableBackedCreditLine",
+        manager: "ReceivableBackedCreditLineManager",
+        poolName: LocalPoolName.ReceivableBackedCreditLine,
+    },
+    // Add more pools as needed
+];
+
 async function depositFirstLossCover(coverContract: FirstLossCover, account: SignerWithAddress) {
     await coverContract.connect(poolOwner).addCoverProvider(account.address);
     await mockTokenContract
@@ -291,24 +309,6 @@ async function deployPool(
 }
 
 export async function deployPools(onlyDeployPoolName?: LocalPoolName) {
-    const poolsToDeploy: {
-        creditContract: CreditContractName;
-        manager: CreditManagerContractName;
-        poolName: LocalPoolName;
-    }[] = [
-        {
-            creditContract: "CreditLine",
-            manager: "CreditLineManager",
-            poolName: LocalPoolName.CreditLine,
-        },
-        {
-            creditContract: "ReceivableBackedCreditLine",
-            manager: "ReceivableBackedCreditLineManager",
-            poolName: LocalPoolName.ReceivableBackedCreditLine,
-        },
-        // Add more pools as needed
-    ];
-
     try {
         if (onlyDeployPoolName) {
             const poolToDeploy = poolsToDeploy.find(

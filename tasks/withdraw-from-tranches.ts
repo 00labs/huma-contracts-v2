@@ -9,8 +9,8 @@ async function redeemFromTranche(
 ): Promise<void> {
     const TrancheVault = await hre.ethers.getContractFactory("TrancheVault");
     const trancheVaultContract = TrancheVault.attach(trancheVaultContractAddr);
-    const redemptionRequest = await trancheVaultContract.connect(redemptionRequester).disburse();
-    await redemptionRequest.wait();
+    const disburseTx = await trancheVaultContract.connect(redemptionRequester).disburse();
+    await disburseTx.wait();
 }
 
 task(
