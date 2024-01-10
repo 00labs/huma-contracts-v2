@@ -20,7 +20,11 @@ import {
     RiskAdjustedTranchesPolicy,
     TrancheVault,
 } from "../../../typechain-types";
-import { deployAndSetupPoolContracts, deployProtocolContracts } from "../../BaseTest";
+import {
+    deployAndSetupPoolContracts,
+    deployProtocolContracts,
+    deployProxyContract,
+} from "../../BaseTest";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
@@ -197,5 +201,21 @@ describe("Upgradeability Test", function () {
         await expect(
             receivableContract.connect(protocolOwner).upgradeTo(receivableNewImpl.address),
         ).to.be.revertedWith(/AccessControl: account .* is missing role .*/);
+    });
+
+    //Accounts other than factory admin tries to upgrade PoolFactory contract
+    it("PoolFactory upgrade test - non factory admin", async function () {
+        const LibTimelockController = await ethers.getContractFactory("LibTimelockController");
+        const libTimelockControllerContract = await LibTimelockController.deploy();
+        await libTimelockControllerContract.deployed();
+        const PoolFactory = await ethers.getContractFactory("PoolFactory", {
+            libraries: { LibTimelockController: libTimelockControllerContract.address },
+        });
+        const poolFactoryContract = await deployProxyContract(PoolFactory);
+        const poolFactoryNewImpl = await PoolFactory.deploy();
+        await poolFactoryNewImpl.deployed();
+        await expect(
+            poolFactoryContract.connect(lender).upgradeTo(poolFactoryNewImpl.address),
+        ).to.be.revertedWithCustomError(poolFactoryContract, "AdminRequired");
     });
 });

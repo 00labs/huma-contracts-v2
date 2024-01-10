@@ -26,28 +26,14 @@ import {
     RiskAdjustedTranchesPolicy,
     TrancheVault,
 } from "../../../typechain-types";
-import { deployProxyContract } from "../../BaseTest";
+import {
+    deployFactory,
+    deployImplementationContracts,
+    deployPoolWithFactory,
+    deployProtocolContracts,
+    deployReceivableWithFactory,
+} from "../../BaseTest";
 import { toToken } from "../../TestUtils";
-type ProtocolContracts = [EvaluationAgentNFT, HumaConfig, MockToken, Calendar];
-type PoolContracts = [
-    PoolConfig,
-    PoolFeeManager,
-    PoolSafe,
-    FirstLossCover,
-    RiskAdjustedTranchesPolicy,
-    FixedSeniorYieldTranchePolicy,
-    Pool,
-    EpochManager,
-    TrancheVault,
-    CreditLine,
-    ReceivableBackedCreditLine,
-    ReceivableFactoringCredit,
-    CreditDueManager,
-    CreditLineManager,
-    ReceivableBackedCreditLineManager,
-    ReceivableFactoringCreditManager,
-    Receivable,
-];
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
@@ -84,7 +70,7 @@ let poolConfigImpl: PoolConfig,
 
 let poolFactoryContract: PoolFactory;
 
-let receivableAddress: string;
+let receivableContract: Receivable;
 
 describe("Factory Test", function () {
     before(async function () {
@@ -101,253 +87,15 @@ describe("Factory Test", function () {
             lender,
         ] = await ethers.getSigners();
     });
-    async function deployProtocolContracts(
-        protocolOwner: SignerWithAddress,
-        treasury: SignerWithAddress,
-        eaServiceAccount: SignerWithAddress,
-        sentinelServiceAccount: SignerWithAddress,
-        poolOwner: SignerWithAddress,
-    ): Promise<ProtocolContracts> {
-        // Deploy EvaluationAgentNFT
-        const EvaluationAgentNFT = await ethers.getContractFactory("EvaluationAgentNFT");
-        const eaNFTContract = await EvaluationAgentNFT.deploy();
-        await eaNFTContract.deployed();
-
-        // Deploy HumaConfig
-        const HumaConfig = await ethers.getContractFactory("HumaConfig");
-        let humaConfigContract = await HumaConfig.deploy();
-        await humaConfigContract.deployed();
-
-        await humaConfigContract.setHumaTreasury(treasury.getAddress());
-        await humaConfigContract.setEANFTContractAddress(eaNFTContract.address);
-        await humaConfigContract.setEAServiceAccount(eaServiceAccount.getAddress());
-        await humaConfigContract.setSentinelServiceAccount(sentinelServiceAccount.getAddress());
-
-        await humaConfigContract.addPauser(protocolOwner.getAddress());
-        await humaConfigContract.addPauser(poolOwner.getAddress());
-
-        await humaConfigContract.transferOwnership(protocolOwner.getAddress());
-        if (await humaConfigContract.connect(protocolOwner).paused())
-            await humaConfigContract.connect(protocolOwner).unpause();
-
-        const MockToken = await ethers.getContractFactory("MockToken");
-        const mockTokenContract = await MockToken.deploy();
-        await mockTokenContract.deployed();
-
-        await humaConfigContract
-            .connect(protocolOwner)
-            .setLiquidityAsset(mockTokenContract.address, true);
-
-        // Deploy Calendar
-        const Calendar = await ethers.getContractFactory("Calendar");
-        const calendarContract = await Calendar.deploy();
-        await calendarContract.deployed();
-
-        return [eaNFTContract, humaConfigContract, mockTokenContract, calendarContract];
-    }
-    async function deployImplementationContracts(): Promise<PoolContracts> {
-        // Deploy PoolConfig
-        const PoolConfig = await ethers.getContractFactory("PoolConfig");
-        const poolConfigContract = await PoolConfig.deploy();
-        await poolConfigContract.deployed();
-
-        // Deploy PoolFeeManager
-        const PoolFeeManager = await ethers.getContractFactory("PoolFeeManager");
-        const poolFeeManagerContract = await PoolFeeManager.deploy();
-        await poolFeeManagerContract.deployed();
-
-        // Deploy PoolSafe
-        const PoolSafe = await ethers.getContractFactory("PoolSafe");
-        const poolSafeContract = await PoolSafe.deploy();
-        await poolSafeContract.deployed();
-
-        // Deploy FirstLossCover
-        const FirstLossCover = await ethers.getContractFactory("FirstLossCover");
-        const firstLossCoverContract = await FirstLossCover.deploy();
-        await firstLossCoverContract.deployed();
-
-        // Deploy RiskAdjustedTranchesPolicy
-        const RiskAdjustedTranchesPolicy = await ethers.getContractFactory(
-            "RiskAdjustedTranchesPolicy",
-        );
-        const riskAdjustedTranchesPolicyContract = await RiskAdjustedTranchesPolicy.deploy();
-        await riskAdjustedTranchesPolicyContract.deployed();
-
-        // Deploy FixedSeniorYieldTranchePolicy
-        const FixedSeniorYieldTranchePolicy = await ethers.getContractFactory(
-            "FixedSeniorYieldTranchePolicy",
-        );
-        const fixedSeniorYieldTranchePolicyContract = await FixedSeniorYieldTranchePolicy.deploy();
-        await fixedSeniorYieldTranchePolicyContract.deployed();
-
-        // Deploy Pool
-        const Pool = await ethers.getContractFactory("Pool");
-        const poolContract = await Pool.deploy();
-        await poolContract.deployed();
-
-        // Deploy EpochManager
-        const EpochManager = await ethers.getContractFactory("EpochManager");
-        const epochManagerContract = await EpochManager.deploy();
-        await epochManagerContract.deployed();
-
-        // Deploy TrancheVault
-        const TrancheVault = await ethers.getContractFactory("TrancheVault");
-        const trancheVaultContract = await TrancheVault.deploy();
-        await trancheVaultContract.deployed();
-
-        // Deploy CreditLine
-        const CreditLine = await ethers.getContractFactory("CreditLine");
-        const creditLineContract = await CreditLine.deploy();
-        await creditLineContract.deployed();
-
-        // Deploy CreditDueManager
-        const CreditDueManager = await ethers.getContractFactory("CreditDueManager");
-        const creditDueManagerContract = await CreditDueManager.deploy();
-        await creditDueManagerContract.deployed();
-
-        // Deploy CreditLineManager
-        const CreditLineManager = await ethers.getContractFactory("CreditLineManager");
-        const borrowerLevelCreditManagerContract = await CreditLineManager.deploy();
-        await borrowerLevelCreditManagerContract.deployed();
-
-        // Deploy ReceivableBackedCreditLine
-        const ReceivableBackedCreditLine = await ethers.getContractFactory(
-            "ReceivableBackedCreditLine",
-        );
-        const receivableBackedCreditLineContract = await ReceivableBackedCreditLine.deploy();
-        await receivableBackedCreditLineContract.deployed();
-
-        // Deploy ReceivableBackedCreditLineManager
-        const ReceivableBackedCreditLineManager = await ethers.getContractFactory(
-            "ReceivableBackedCreditLineManager",
-        );
-        const receivableBackedCreditLineManagerContract =
-            await ReceivableBackedCreditLineManager.deploy();
-        await receivableBackedCreditLineManagerContract.deployed();
-
-        // Deploy ReceivableFactoringCredit
-        const ReceivableFactoringCredit = await ethers.getContractFactory(
-            "ReceivableFactoringCredit",
-        );
-        const receivableFactoringCreditContract = await ReceivableFactoringCredit.deploy();
-        await receivableFactoringCreditContract.deployed();
-
-        // Deploy ReceivableFactoringCreditManager
-        const ReceivableFactoringCreditManager = await ethers.getContractFactory(
-            "ReceivableFactoringCreditManager",
-        );
-        const receivableLevelCreditManagerContract =
-            await ReceivableFactoringCreditManager.deploy();
-        await receivableLevelCreditManagerContract.deployed();
-
-        // Deploy Receivable
-        const Receivable = await ethers.getContractFactory("Receivable");
-        const receivableContract = await Receivable.deploy();
-        await receivableContract.deployed();
-
-        return [
-            poolConfigContract,
-            poolFeeManagerContract,
-            poolSafeContract,
-            firstLossCoverContract,
-            riskAdjustedTranchesPolicyContract,
-            fixedSeniorYieldTranchePolicyContract,
-            poolContract,
-            epochManagerContract,
-            trancheVaultContract,
-            creditLineContract,
-            receivableBackedCreditLineContract,
-            receivableFactoringCreditContract,
-            creditDueManagerContract,
-            borrowerLevelCreditManagerContract,
-            receivableBackedCreditLineManagerContract,
-            receivableLevelCreditManagerContract,
-            receivableContract,
-        ];
-    }
-
-    // a function that deploys the pool factory and sets implementation addresses
-    async function deployPoolFactory(
-        humaConfigContract: HumaConfig,
-        calendarContract: Calendar,
-        poolConfigImpl: PoolConfig,
-        poolFeeManagerImpl: PoolFeeManager,
-        poolSafeImpl: PoolSafe,
-        firstLossCoverImpl: FirstLossCover,
-        riskAdjustedTranchesPolicyImpl: RiskAdjustedTranchesPolicy,
-        fixedSeniorYieldTranchePolicyImpl: FixedSeniorYieldTranchePolicy,
-        poolImpl: Pool,
-        epochManagerImpl: EpochManager,
-        TrancheVaultImpl: TrancheVault,
-        creditLineImpl: CreditLine,
-        receivableBackedCreditLineImpl: ReceivableBackedCreditLine,
-        receivableFactoringCreditImpl: ReceivableFactoringCredit,
-        creditDueManagerImpl: CreditDueManager,
-        borrowerLevelCreditManagerImpl: CreditLineManager,
-        receivableBackedCreditLineManagerImpl: ReceivableBackedCreditLineManager,
-        receivableLevelCreditManagerImpl: ReceivableFactoringCreditManager,
-        receivableImpl: Receivable,
-    ): Promise<PoolFactory> {
-        const LibTimelockController = await ethers.getContractFactory("LibTimelockController");
-        const libTimelockControllerContract = await LibTimelockController.deploy();
-        await libTimelockControllerContract.deployed();
-        const PoolFactory = await ethers.getContractFactory("PoolFactory", {
-            libraries: { LibTimelockController: libTimelockControllerContract.address },
-        });
-
-        const poolFactoryContract = (await deployProxyContract(PoolFactory)) as PoolFactory;
-
-        await poolFactoryContract.initialize(humaConfigContract.address);
-
-        await poolFactoryContract.addDeployer(defaultDeployer.getAddress());
-
-        // set protocol addresses
-        await poolFactoryContract.setCalendarAddress(calendarContract.address);
-        await poolFactoryContract.setRiskAdjustedTranchesPolicyImplAddress(
-            riskAdjustedTranchesPolicyImpl.address,
-        );
-        await poolFactoryContract.setFixedSeniorYieldTranchesPolicyImplAddress(
-            fixedSeniorYieldTranchePolicyImpl.address,
-        );
-
-        await poolFactoryContract.setCreditLineImplAddress(creditLineImpl.address);
-        await poolFactoryContract.setReceivableBackedCreditLineImplAddress(
-            receivableBackedCreditLineImpl.address,
-        );
-        await poolFactoryContract.setReceivableFactoringCreditImplAddress(
-            receivableFactoringCreditImpl.address,
-        );
-        await poolFactoryContract.setReceivableFactoringCreditManagerImplAddress(
-            receivableLevelCreditManagerImpl.address,
-        );
-        await poolFactoryContract.setReceivableBackedCreditLineManagerImplAddress(
-            receivableBackedCreditLineManagerImpl.address,
-        );
-        await poolFactoryContract.setCreditLineManagerImplAddress(
-            borrowerLevelCreditManagerImpl.address,
-        );
-
-        await poolFactoryContract.setPoolConfigImplAddress(poolConfigImpl.address);
-        await poolFactoryContract.setPoolFeeManagerImplAddress(poolFeeManagerImpl.address);
-        await poolFactoryContract.setPoolSafeImplAddress(poolSafeImpl.address);
-        await poolFactoryContract.setFirstLossCoverImplAddress(firstLossCoverImpl.address);
-        await poolFactoryContract.setPoolImplAddress(poolImpl.address);
-        await poolFactoryContract.setEpochManagerImplAddress(epochManagerImpl.address);
-        await poolFactoryContract.setTrancheVaultImplAddress(TrancheVaultImpl.address);
-        await poolFactoryContract.setCreditDueManagerImplAddress(creditDueManagerImpl.address);
-        await poolFactoryContract.setReceivableImplAddress(receivableImpl.address);
-        return poolFactoryContract;
-    }
 
     async function prepare() {
-        [eaNFTContract, humaConfigContract, mockTokenContract, calendarContract] =
-            await deployProtocolContracts(
-                protocolOwner,
-                treasury,
-                eaServiceAccount,
-                pdsServiceAccount,
-                poolOwner,
-            );
+        [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+            protocolOwner,
+            treasury,
+            eaServiceAccount,
+            pdsServiceAccount,
+            poolOwner,
+        );
 
         // deploy implementation contracts
         [
@@ -370,8 +118,13 @@ describe("Factory Test", function () {
             receivableImpl,
         ] = await deployImplementationContracts();
 
+        const Calendar = await ethers.getContractFactory("Calendar");
+        const calendarContract = (await Calendar.deploy()) as Calendar;
+        await calendarContract.deployed();
+
         // deploy pool factory
-        poolFactoryContract = await deployPoolFactory(
+        poolFactoryContract = await deployFactory(
+            defaultDeployer,
             humaConfigContract,
             calendarContract,
             poolConfigImpl,
@@ -393,32 +146,52 @@ describe("Factory Test", function () {
             receivableImpl,
         );
 
-        await poolFactoryContract.addReceivable();
-        const tx = await poolFactoryContract.addReceivable();
-        const receipt = await tx.wait();
-        for (const evt of receipt.events!) {
-            if (evt.event === "ReceivableCreated") {
-                receivableAddress = evt.args!.receivableAddress;
-            }
-        }
+        receivableContract = await deployReceivableWithFactory(poolFactoryContract, poolOwner);
     }
 
     beforeEach(async function () {
         await loadFixture(prepare);
     });
-
-    // A test that checks the pool factory contract
-    it("Deploy a pool using factory", async function () {
+    it("Set zero address to receivable implementation", async function () {
         await expect(
-            await poolFactoryContract.deployPool(
-                "test pool",
-                mockTokenContract.address,
-                receivableAddress,
-                "fixed",
-                "creditline",
+            poolFactoryContract.setReceivableImplAddress(ethers.constants.AddressZero),
+        ).to.be.revertedWithCustomError(poolFactoryContract, "ZeroAddressProvided");
+    });
+    it("Deployer role test", async function () {
+        await poolFactoryContract.addDeployer(poolOperator.getAddress());
+        await expect(
+            await poolFactoryContract.hasRole(
+                poolFactoryContract.DEPLOYER_ROLE(),
+                poolOperator.getAddress(),
             ),
+        ).to.equal(true);
+        await poolFactoryContract.removeDeployer(poolOperator.getAddress());
+        await expect(
+            await poolFactoryContract.hasRole(
+                poolFactoryContract.DEPLOYER_ROLE(),
+                poolOperator.getAddress(),
+            ),
+        ).to.equal(false);
+    });
+    it("Non Factory Admin cannot add or remove deployer", async function () {
+        await expect(
+            poolFactoryContract.connect(poolOperator).addDeployer(poolOperator.getAddress()),
+        ).to.be.revertedWithCustomError(poolFactoryContract, "AdminRequired");
+        await expect(
+            poolFactoryContract.connect(poolOperator).removeDeployer(defaultDeployer.getAddress()),
+        ).to.be.revertedWithCustomError(poolFactoryContract, "AdminRequired");
+    });
+    it("Deploy a pool using factory", async function () {
+        const poolRecord = await deployPoolWithFactory(
+            poolFactoryContract,
+            mockTokenContract,
+            receivableContract,
+            defaultDeployer,
+            poolOwner,
+            "creditline",
+            "fixed",
+            "test pool",
         );
-        const poolRecord = await poolFactoryContract.checkPool(1);
         await expect(poolRecord.poolName).to.equal("test pool");
         await expect(poolRecord.poolStatus).to.equal(0);
     });
@@ -429,7 +202,7 @@ describe("Factory Test", function () {
                 .deployPool(
                     "test pool",
                     mockTokenContract.address,
-                    receivableAddress,
+                    receivableContract.address,
                     "fixed",
                     "creditline",
                 ),
@@ -440,7 +213,7 @@ describe("Factory Test", function () {
             poolFactoryContract.deployPool(
                 "test pool",
                 mockTokenContract.address,
-                receivableAddress,
+                receivableContract.address,
                 "invalid",
                 "",
             ),
@@ -451,7 +224,7 @@ describe("Factory Test", function () {
             poolFactoryContract.deployPool(
                 "test pool",
                 mockTokenContract.address,
-                receivableAddress,
+                receivableContract.address,
                 "fixed",
                 "",
             ),
@@ -462,7 +235,7 @@ describe("Factory Test", function () {
         await poolFactoryContract.deployPool(
             "test pool",
             mockTokenContract.address,
-            receivableAddress,
+            receivableContract.address,
             "fixed",
             "creditline",
         );
@@ -486,7 +259,7 @@ describe("Factory Test", function () {
         await poolFactoryContract.deployPool(
             "test pool",
             mockTokenContract.address,
-            receivableAddress,
+            receivableContract.address,
             "fixed",
             "creditline",
         );
@@ -522,5 +295,88 @@ describe("Factory Test", function () {
         await expect(
             await poolConfig.hasRole(await poolConfig.DEFAULT_ADMIN_ROLE(), timelockAddress),
         ).to.equal(true);
+    });
+    it("Set first loss cover", async function () {
+        await poolFactoryContract.deployPool(
+            "test pool",
+            mockTokenContract.address,
+            receivableContract.address,
+            "fixed",
+            "creditline",
+        );
+        const poolId = await poolFactoryContract.poolId();
+        await poolFactoryContract.setPoolSettings(
+            poolId,
+            toToken(1_000_000),
+            toToken(50_000),
+            1,
+            30,
+            30,
+            10000,
+            true,
+        );
+        await poolFactoryContract.setLPConfig(poolId, toToken(1_000_000), 4, 1000, 1000, 60);
+        await poolFactoryContract.setFees(poolId, 0, 1000, 1500, 0, 100, 0, 0, 0, 0);
+        await poolFactoryContract.addPoolOperator(poolId, poolOperator.getAddress());
+        await poolFactoryContract.updatePoolStatus(poolId, 1);
+
+        await expect((await poolFactoryContract.checkPool(poolId)).poolStatus).to.equal(1);
+        const poolConfigAddress = (await poolFactoryContract.checkPool(poolId)).poolConfigAddress;
+        await poolFactoryContract.setFirstLossCover(
+            poolConfigAddress,
+            1,
+            10000,
+            toToken(5000),
+            toToken(10000),
+            toToken(5000),
+            15000,
+        );
+    });
+    it("Non deployer cannot set first loss cover", async function () {
+        await poolFactoryContract.deployPool(
+            "test pool",
+            mockTokenContract.address,
+            receivableContract.address,
+            "adjusted",
+            "receivablebacked",
+        );
+        const poolId = await poolFactoryContract.poolId();
+        const poolConfigAddress = (await poolFactoryContract.checkPool(poolId)).poolConfigAddress;
+        await expect(
+            poolFactoryContract
+                .connect(poolOperator)
+                .setFirstLossCover(
+                    poolFactoryContract.address,
+                    1,
+                    10000,
+                    toToken(5000),
+                    toToken(10000),
+                    toToken(5000),
+                    15000,
+                ),
+        ).to.be.revertedWithCustomError(poolFactoryContract, "DeployerRequired");
+    });
+    it("Close a pool", async function () {
+        await poolFactoryContract.deployPool(
+            "test pool",
+            mockTokenContract.address,
+            receivableContract.address,
+            "adjusted",
+            "receivablefactoring",
+        );
+        const poolId = await poolFactoryContract.poolId();
+        await poolFactoryContract.updatePoolStatus(poolId, 2);
+        await expect((await poolFactoryContract.checkPool(poolId)).poolStatus).to.equal(2);
+    });
+    it("Test invalid poolId", async function () {
+        const poolId = await poolFactoryContract.poolId();
+        await expect(poolFactoryContract.checkPool(poolId.add(1))).to.be.revertedWithCustomError(
+            poolFactoryContract,
+            "InvalidPoolId",
+        );
+        await expect(poolFactoryContract.checkPool(0)).to.be.revertedWithCustomError(
+            poolFactoryContract,
+            "InvalidPoolId",
+        );
     });
 });
