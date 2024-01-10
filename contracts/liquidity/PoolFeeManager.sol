@@ -37,13 +37,13 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
     // this amount only goes up.
     AccruedIncomes internal _accruedIncomes;
 
-    // The accumulative withdrawn amount by the protocol owner
+    // The cumulative withdrawn amount by the protocol owner
     uint256 public protocolIncomeWithdrawn;
 
-    // The accumulative withdrawn amount by the pool owner
+    // The cumulative withdrawn amount by the pool owner
     uint256 public poolOwnerIncomeWithdrawn;
 
-    // The accumulative withdrawn amount by the evaluation agent
+    // The cumulative withdrawn amount by the evaluation agent
     uint256 public eaIncomeWithdrawn;
 
     /**
@@ -73,9 +73,7 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
     event EvaluationAgentRewardsWithdrawn(address receiver, uint256 amount, address by);
 
     /**
-     * @notice Distribute profit to the admins
-     * @param profit The total profit to be distributed including the admins and the LPs
-     * @return remaining The remaining profit after distributing to the pool admins
+     * @inheritdoc IPoolFeeManager
      * @custom:access Only the pool contract can call this function to distribute profit.
      */
     function distributePoolFees(uint256 profit) external returns (uint256) {
@@ -103,11 +101,7 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
     }
 
     /**
-     * @notice Allows protocol owner to withdraw the protocol income
-     * @notice If the admins are required to provide first loss cover, the income for all
-     * the admins including protocol owner is deposited into the loss cover. Only until
-     * after the cap of the loss cover has reached, protocol owner can withdraw profit
-     * @param amount the amount to be withdrawn
+     * @inheritdoc IPoolFeeManager
      * @custom:access Only protocol owner can call to withdraw
      */
     function withdrawProtocolFee(uint256 amount) external {
@@ -131,11 +125,7 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
     }
 
     /**
-     * @notice Allows pool owner to withdraw the pool income
-     * @notice If the admins are required to provide first loss cover, the income for all
-     * the admins including pool owner is deposited into the loss cover. Only until
-     * after the cap of the loss cover has reached, the pool owner can withdraw profit
-     * @param amount the amount to be withdrawn
+     * @inheritdoc IPoolFeeManager
      * @custom:access Only pool owner treasury can call to withdraw
      */
     function withdrawPoolOwnerFee(uint256 amount) external {
@@ -155,11 +145,7 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
     }
 
     /**
-     * @notice Allows evaluation agent to withdraw the evaluation agent income
-     * @notice If the admins are required to provide first loss cover, the income for all
-     * the admins including EA is deposited into the loss cover. Only until
-     * after the cap of the loss cover has reached, the EA can withdraw profit
-     * @param amount the amount to be withdrawn
+     * @inheritdoc IPoolFeeManager
      * @custom:access Either Pool owner or EA can trigger reward withdraw for EA.
      * When it is triggered by pool owner, the fund still flows to the EA's account.
      */
@@ -198,12 +184,7 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         return incomes.protocolIncome + incomes.poolOwnerIncome + incomes.eaIncome;
     }
 
-    /**
-     * @notice Gets the withdrawable amount for the admins (protocol, pool owner, and EA)
-     * @return protocolWithdrawable withdrawable amount for the protocol
-     * @return poolOwnerWithdrawable withdrawable amount for the pool owner
-     * @return eaWithdrawable withdrawable amount for the EA
-     */
+    /// @inheritdoc IPoolFeeManager
     function getWithdrawables()
         external
         view
