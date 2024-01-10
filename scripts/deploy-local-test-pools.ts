@@ -311,11 +311,13 @@ async function deployPool(
     console.log(`Current block timestamp: ${await time.latest()}`);
 }
 
-export async function deployPools(onlyDeployPoolName?: LocalPoolName) {
+export async function deployPools(onlyDeployPoolName?: LocalPoolName, shouldAdvanceTime = true) {
     try {
-        // always set the date to the 8th of the next month
-        const blockchainStartDate = moment().utc().add(1, "month").date(8).hour(0);
-        await advanceChainTime(blockchainStartDate);
+        if (shouldAdvanceTime) {
+            // always set the date to the 8th of the next month
+            const blockchainStartDate = moment().utc().add(1, "month").date(8).hour(0);
+            await advanceChainTime(blockchainStartDate);
+        }
 
         if (onlyDeployPoolName) {
             const poolToDeploy = poolsToDeploy.find(
