@@ -30,7 +30,7 @@ interface IVaultLike {
 
 contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable {
     /**
-     * @dev Represents the status of a pool for bookkeeping
+     * @notice Represents the status of a pool for bookkeeping
      */
     enum PoolStatus {
         Created, // the pool is created but not initialized yet
@@ -132,9 +132,9 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
 
     /**
      * @dev Initialize function grants DEFAULT_ADMIN_ROLE and DEPLOYER_ROLE to the deployer.
-     * @dev After deployment and initia setup of the factory, deploy should grant the
+     * @dev After deployment and initial setup of the factory, the deploy should grant the
      * DEFAULT_ADMIN_ROLE to the protocol owner, meanwhile renounce the role from the deployer.
-     * @param _humaConfigAddress Sets the address of the HumaConfig contract.
+     * @param _humaConfigAddress The address of the HumaConfig contract.
      */
     function initialize(address _humaConfigAddress) external initializer {
         poolId = 0;
@@ -321,6 +321,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         uint96 minLiquidity,
         uint16 riskYieldMultiplierInBps
     ) external {
+        _notZeroAddress(poolConfigAddress);
         _onlyDeployer(msg.sender);
         address firstLossCover = _addFirstLossCover();
         FirstLossCoverConfig memory config = FirstLossCoverConfig(
@@ -426,7 +427,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         _registerPool(poolAddresses[3], _poolName, poolConfigAddress, address(0));
     }
 
-    // After deploy a new pool, the deployer needs to set pool parameters using this function
+    // After deploying a new pool, the deployer needs to set pool parameters using this function
     function setPoolSettings(
         uint256 _poolId,
         uint96 maxCreditLine,
@@ -450,7 +451,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         PoolConfig(pools[_poolId].poolConfigAddress).setPoolSettings(settings);
     }
 
-    // After deploy a new pool, the deployer needs to set pool parameters using this function
+    // After deploying a new pool, the deployer needs to set pool parameters using this function
     function setLPConfig(
         uint256 _poolId,
         uint96 liquidityCap,
@@ -470,7 +471,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         PoolConfig(pools[_poolId].poolConfigAddress).setLPConfig(lpConfig);
     }
 
-    // After deploy a new pool, the deployer needs to set pool parameters using this function
+    // After deploying a new pool, the deployer needs to set pool parameters using this function
     function setFees(
         uint256 _poolId,
         uint96 frontLoadingFeeFlat,
@@ -505,7 +506,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         );
     }
 
-    // After deploy a new pool, the deployer needs to set pool parameters using this function
+    // After deploying a new pool, the deployer needs to set pool parameters using this function
     // if the deployer has the details of pool operators, the deployer can set them using this function
     // otherwise, the pool owner can set them later
     function addPoolOperator(uint256 _poolId, address poolOperator) external {
@@ -517,7 +518,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         );
     }
 
-    // Huma require all pools to have a timelock controller, this function adds a timelock controller to a pool
+    // Huma requires all pools to have a timelock controller, this function adds a timelock controller to a pool
     function addTimelock(
         uint256 _poolId,
         address[] memory poolOwners,
@@ -540,7 +541,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
     }
 
     // After pool parameters are set, and timelock is added, the pool status can be updated to Initialized
-    // which meanns the pool is ready for operation
+    // which means the pool is ready for operation
     function updatePoolStatus(uint256 _poolId, PoolStatus newStatus) external {
         _onlyFactoryAdmin(msg.sender);
         if (_poolId == 0 || _poolId > poolId) {
@@ -560,8 +561,8 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
      * @dev Adds a new receivable contract with the specified owner.
      * Only the deployer of the contract can call this function.
      * The `receivableOwner` parameter must be a non-zero address.
-     * The deployer is granted the DEFAULT_ADMIN_ROLE on the receivable contract,
-     * and then renounces the role, transferring ownership to `receivableOwner`.
+     * @custom:access The deployer is granted the DEFAULT_ADMIN_ROLE on the receivable contract,
+     * @custom:access and then renounces the role, transferring ownership to `receivableOwner`.
      * Emits a `ReceivableCreated` event with the address of the newly created receivable contract.
      */
     function addReceivable(address receivableOwner) external {
@@ -575,7 +576,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         emit ReceivableCreated(receivable);
     }
 
-    // return the corresponding poolRecord for a poolId
+    // Returns the corresponding poolRecord for a poolId
     function checkPool(uint256 _poolId) external view returns (PoolRecord memory) {
         if (_poolId == 0 || _poolId > poolId) {
             revert Errors.InvalidPoolId();
@@ -595,7 +596,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         }
     }
 
-    // only DEFAULT_ADMIN_ROLE can upgrade the implementation addresses
+    // Only DEFAULT_ADMIN_ROLE can upgrade the implementation addresses
     function _authorizeUpgrade(address) internal view override {
         _onlyFactoryAdmin(msg.sender);
     }
