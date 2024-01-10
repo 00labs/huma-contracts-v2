@@ -12,11 +12,13 @@ import {
     EpochManager,
     EvaluationAgentNFT,
     FirstLossCover,
+    FixedSeniorYieldTranchePolicy,
     HumaConfig,
     MockPoolCredit,
     MockToken,
     Pool,
     PoolConfig,
+    PoolFactory,
     PoolFeeManager,
     PoolSafe,
     Receivable,
@@ -24,6 +26,7 @@ import {
     ReceivableBackedCreditLineManager,
     ReceivableFactoringCredit,
     ReceivableFactoringCreditManager,
+    RiskAdjustedTranchesPolicy,
     TrancheVault,
 } from "../typechain-types";
 import { FirstLossCoverConfigStruct } from "../typechain-types/contracts/common/PoolConfig.sol/PoolConfig";
@@ -67,6 +70,37 @@ export type PoolContracts = [
     CreditManagerContractType,
     Receivable,
 ];
+export type PoolImplementations = [
+    PoolConfig,
+    PoolFeeManager,
+    PoolSafe,
+    FirstLossCover,
+    RiskAdjustedTranchesPolicy,
+    FixedSeniorYieldTranchePolicy,
+    Pool,
+    EpochManager,
+    TrancheVault,
+    CreditLine,
+    ReceivableBackedCreditLine,
+    ReceivableFactoringCredit,
+    CreditDueManager,
+    CreditLineManager,
+    ReceivableBackedCreditLineManager,
+    ReceivableFactoringCreditManager,
+    Receivable,
+];
+
+export type PoolRecord = {
+    poolId: BN;
+    poolAddress: string;
+    poolName: string;
+    poolStatus: PoolStatus;
+    poolConfigAddress: string;
+    poolTimelock: string;
+};
+
+type CreditType = "creditline" | "receivablebcked" | "receivablefactoring";
+type TranchesPolicyType = "fixed" | "adjusted";
 export type TranchesPolicyContractName =
     | "FixedSeniorYieldTranchePolicy"
     | "RiskAdjustedTranchesPolicy";
@@ -111,6 +145,12 @@ export enum CreditClosureReason {
     CreditLimitChangedToBeZero,
     OverwrittenByNewLine,
     AdminClosure,
+}
+
+export enum PoolStatus {
+    Created,
+    Initialized,
+    Closed,
 }
 
 const DAYS_IN_A_MONTH = 30;
@@ -371,6 +411,233 @@ export async function deployPoolContracts(
         creditManagerContract,
         receivableContract,
     ];
+}
+
+export async function deployImplementationContracts(): Promise<PoolImplementations> {
+    // Deploy PoolConfig
+    const PoolConfig = await ethers.getContractFactory("PoolConfig");
+    const poolConfigImpl = await PoolConfig.deploy();
+    await poolConfigImpl.deployed();
+
+    // Deploy PoolFeeManager
+    const PoolFeeManager = await ethers.getContractFactory("PoolFeeManager");
+    const poolFeeManagerImpl = await PoolFeeManager.deploy();
+    await poolFeeManagerImpl.deployed();
+
+    // Deploy PoolSafe
+    const PoolSafe = await ethers.getContractFactory("PoolSafe");
+    const poolSafeImpl = await PoolSafe.deploy();
+    await poolSafeImpl.deployed();
+
+    // Deploy FirstLossCover
+    const FirstLossCover = await ethers.getContractFactory("FirstLossCover");
+    const firstLossCoverImpl = await FirstLossCover.deploy();
+    await firstLossCoverImpl.deployed();
+
+    // Deploy RiskAdjustedTranchesPolicy
+    const RiskAdjustedTranchesPolicy = await ethers.getContractFactory(
+        "RiskAdjustedTranchesPolicy",
+    );
+    const riskAdjustedTranchesPolicyImpl = await RiskAdjustedTranchesPolicy.deploy();
+    await riskAdjustedTranchesPolicyImpl.deployed();
+
+    // Deploy FixedSeniorYieldTranchePolicy
+    const FixedSeniorYieldTranchePolicy = await ethers.getContractFactory(
+        "FixedSeniorYieldTranchePolicy",
+    );
+    const fixedSeniorYieldTranchePolicyImpl = await FixedSeniorYieldTranchePolicy.deploy();
+    await fixedSeniorYieldTranchePolicyImpl.deployed();
+
+    // Deploy Pool
+    const Pool = await ethers.getContractFactory("Pool");
+    const poolImpl = await Pool.deploy();
+    await poolImpl.deployed();
+
+    // Deploy EpochManager
+    const EpochManager = await ethers.getContractFactory("EpochManager");
+    const epochManagerImpl = await EpochManager.deploy();
+    await epochManagerImpl.deployed();
+
+    // Deploy TrancheVault
+    const TrancheVault = await ethers.getContractFactory("TrancheVault");
+    const trancheVaultImpl = await TrancheVault.deploy();
+    await trancheVaultImpl.deployed();
+
+    // Deploy CreditLine
+    const CreditLine = await ethers.getContractFactory("CreditLine");
+    const creditLineImpl = await CreditLine.deploy();
+    await creditLineImpl.deployed();
+
+    // Deploy CreditDueManager
+    const CreditDueManager = await ethers.getContractFactory("CreditDueManager");
+    const creditDueManagerImpl = await CreditDueManager.deploy();
+    await creditDueManagerImpl.deployed();
+
+    // Deploy CreditLineManager
+    const CreditLineManager = await ethers.getContractFactory("CreditLineManager");
+    const creditLineManagerImpl = await CreditLineManager.deploy();
+    await creditLineManagerImpl.deployed();
+
+    // Deploy ReceivableBackedCreditLine
+    const ReceivableBackedCreditLine = await ethers.getContractFactory(
+        "ReceivableBackedCreditLine",
+    );
+    const receivableBackedCreditLineImpl = await ReceivableBackedCreditLine.deploy();
+    await receivableBackedCreditLineImpl.deployed();
+
+    // Deploy ReceivableBackedCreditLineManager
+    const ReceivableBackedCreditLineManager = await ethers.getContractFactory(
+        "ReceivableBackedCreditLineManager",
+    );
+    const receivableBackedCreditLineManagerImpl = await ReceivableBackedCreditLineManager.deploy();
+    await receivableBackedCreditLineManagerImpl.deployed();
+
+    // Deploy ReceivableFactoringCredit
+    const ReceivableFactoringCredit = await ethers.getContractFactory("ReceivableFactoringCredit");
+    const receivableFactoringCreditImpl = await ReceivableFactoringCredit.deploy();
+    await receivableFactoringCreditImpl.deployed();
+
+    // Deploy ReceivableFactoringCreditManager
+    const ReceivableFactoringCreditManager = await ethers.getContractFactory(
+        "ReceivableFactoringCreditManager",
+    );
+    const receivableFactoringCreditManagerImpl = await ReceivableFactoringCreditManager.deploy();
+    await receivableFactoringCreditManagerImpl.deployed();
+
+    // deploy Receivable
+    const Receivable = await ethers.getContractFactory("Receivable");
+    const receivableImpl = await Receivable.deploy();
+    await receivableImpl.deployed();
+
+    return [
+        poolConfigImpl,
+        poolFeeManagerImpl,
+        poolSafeImpl,
+        firstLossCoverImpl,
+        riskAdjustedTranchesPolicyImpl,
+        fixedSeniorYieldTranchePolicyImpl,
+        poolImpl,
+        epochManagerImpl,
+        trancheVaultImpl,
+        creditLineImpl,
+        receivableBackedCreditLineImpl,
+        receivableFactoringCreditImpl,
+        creditDueManagerImpl,
+        creditLineManagerImpl,
+        receivableBackedCreditLineManagerImpl,
+        receivableFactoringCreditManagerImpl,
+        receivableImpl,
+    ];
+}
+
+export async function deployFactory(
+    deployer: SignerWithAddress,
+    humaConfigContract: HumaConfig,
+    calendarContract: Calendar,
+    poolConfigImpl: PoolConfig,
+    poolFeeManagerImpl: PoolFeeManager,
+    poolSafeImpl: PoolSafe,
+    firstLossCoverImpl: FirstLossCover,
+    riskAdjustedTranchesPolicyImpl: RiskAdjustedTranchesPolicy,
+    fixedSeniorYieldTranchePolicyImpl: FixedSeniorYieldTranchePolicy,
+    poolImpl: Pool,
+    epochManagerImpl: EpochManager,
+    TrancheVaultImpl: TrancheVault,
+    creditLineImpl: CreditLine,
+    receivableBackedCreditLineImpl: ReceivableBackedCreditLine,
+    receivableFactoringCreditImpl: ReceivableFactoringCredit,
+    creditDueManagerImpl: CreditDueManager,
+    borrowerLevelCreditManagerImpl: CreditLineManager,
+    receivableBackedCreditLineManagerImpl: ReceivableBackedCreditLineManager,
+    receivableLevelCreditManagerImpl: ReceivableFactoringCreditManager,
+    receivableImpl: Receivable,
+): Promise<PoolFactory> {
+    const LibTimelockController = await ethers.getContractFactory("LibTimelockController");
+    const libTimelockControllerContract = await LibTimelockController.deploy();
+    await libTimelockControllerContract.deployed();
+    const PoolFactory = await ethers.getContractFactory("PoolFactory", {
+        libraries: { LibTimelockController: libTimelockControllerContract.address },
+    });
+
+    const poolFactoryContract = (await deployProxyContract(PoolFactory)) as PoolFactory;
+
+    await poolFactoryContract.initialize(humaConfigContract.address);
+
+    await poolFactoryContract.addDeployer(deployer.getAddress());
+
+    // set protocol addresses
+    await poolFactoryContract.setCalendarAddress(calendarContract.address);
+    await poolFactoryContract.setRiskAdjustedTranchesPolicyImplAddress(
+        riskAdjustedTranchesPolicyImpl.address,
+    );
+    await poolFactoryContract.setFixedSeniorYieldTranchesPolicyImplAddress(
+        fixedSeniorYieldTranchePolicyImpl.address,
+    );
+
+    await poolFactoryContract.setCreditLineImplAddress(creditLineImpl.address);
+    await poolFactoryContract.setReceivableBackedCreditLineImplAddress(
+        receivableBackedCreditLineImpl.address,
+    );
+    await poolFactoryContract.setReceivableFactoringCreditImplAddress(
+        receivableFactoringCreditImpl.address,
+    );
+    await poolFactoryContract.setReceivableFactoringCreditManagerImplAddress(
+        receivableLevelCreditManagerImpl.address,
+    );
+    await poolFactoryContract.setReceivableBackedCreditLineManagerImplAddress(
+        receivableBackedCreditLineManagerImpl.address,
+    );
+    await poolFactoryContract.setCreditLineManagerImplAddress(
+        borrowerLevelCreditManagerImpl.address,
+    );
+
+    await poolFactoryContract.setPoolConfigImplAddress(poolConfigImpl.address);
+    await poolFactoryContract.setPoolFeeManagerImplAddress(poolFeeManagerImpl.address);
+    await poolFactoryContract.setPoolSafeImplAddress(poolSafeImpl.address);
+    await poolFactoryContract.setFirstLossCoverImplAddress(firstLossCoverImpl.address);
+    await poolFactoryContract.setPoolImplAddress(poolImpl.address);
+    await poolFactoryContract.setEpochManagerImplAddress(epochManagerImpl.address);
+    await poolFactoryContract.setTrancheVaultImplAddress(TrancheVaultImpl.address);
+    await poolFactoryContract.setCreditDueManagerImplAddress(creditDueManagerImpl.address);
+    await poolFactoryContract.setReceivableImplAddress(receivableImpl.address);
+    return poolFactoryContract;
+}
+
+export async function deployReceivableWithFactory(
+    poolFactoryContract: PoolFactory,
+    receivableOwner: SignerWithAddress,
+): Promise<Receivable> {
+    const tx = await poolFactoryContract.addReceivable(receivableOwner.getAddress());
+    const receipt = await tx.wait();
+    let receivableAddress;
+    for (const evt of receipt.events!) {
+        if (evt.event === "ReceivableCreated") {
+            receivableAddress = evt.args!.receivableAddress;
+        }
+    }
+    return await ethers.getContractAt("Receivable", receivableAddress);
+}
+
+export async function deployPoolWithFactory(
+    poolFactoryContract: PoolFactory,
+    mockTokenContract: MockToken,
+    receivableContract: Receivable,
+    deployer: SignerWithAddress,
+    poolOwner: SignerWithAddress,
+    creditType: CreditType,
+    trachesPolicyType: TranchesPolicyType,
+    poolName: string,
+): Promise<PoolRecord> {
+    await poolFactoryContract.deployPool(
+        poolName,
+        mockTokenContract.address,
+        receivableContract.address,
+        trachesPolicyType,
+        creditType,
+    );
+    const poolId = await poolFactoryContract.poolId();
+    const poolRecords = await poolFactoryContract.checkPool(poolId);
+    return poolRecords;
 }
 
 export async function setupPoolContracts(

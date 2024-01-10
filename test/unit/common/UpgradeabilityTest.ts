@@ -20,7 +20,11 @@ import {
     RiskAdjustedTranchesPolicy,
     TrancheVault,
 } from "../../../typechain-types";
-import { deployAndSetupPoolContracts, deployProtocolContracts } from "../../BaseTest";
+import {
+    deployAndSetupPoolContracts,
+    deployProtocolContracts,
+    deployProxyContract,
+} from "../../BaseTest";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
@@ -196,6 +200,38 @@ describe("Upgradeability Test", function () {
         await receivableNewImpl.deployed();
         await expect(
             receivableContract.connect(protocolOwner).upgradeTo(receivableNewImpl.address),
+        ).to.be.revertedWith(/AccessControl: account .* is missing role .*/);
+    });
+
+    //Checks upgradeability of the PoolFacory contract
+    it("PoolFactory upgrade test", async function () {
+        const LibTimelockController = await ethers.getContractFactory("LibTimelockController");
+        const libTimelockControllerContract = await LibTimelockController.deploy();
+        await libTimelockControllerContract.deployed();
+        const PoolFactory = await ethers.getContractFactory("PoolFactory", {
+            libraries: { LibTimelockController: libTimelockControllerContract.address },
+        });
+        const poolFactoryContract = await deployProxyContract(PoolFactory);
+        const poolFactoryNewImpl = await PoolFactory.deploy();
+        await poolFactoryNewImpl.deployed();
+        await expect(poolConfigContract.upgradeTo(poolFactoryNewImpl.address))
+            .to.emit(poolConfigContract, "Upgraded")
+            .withArgs(poolFactoryNewImpl.address);
+    });
+
+    //Accounts other than factory admin tries to upgrade PoolFactory contract
+    it("PoolFactory upgrade test - non factory admin", async function () {
+        const LibTimelockController = await ethers.getContractFactory("LibTimelockController");
+        const libTimelockControllerContract = await LibTimelockController.deploy();
+        await libTimelockControllerContract.deployed();
+        const PoolFactory = await ethers.getContractFactory("PoolFactory", {
+            libraries: { LibTimelockController: libTimelockControllerContract.address },
+        });
+        const poolFactoryContract = await deployProxyContract(PoolFactory);
+        const poolFactoryNewImpl = await PoolFactory.deploy();
+        await poolFactoryNewImpl.deployed();
+        await expect(
+            poolConfigContract.connect(lender).upgradeTo(poolFactoryNewImpl.address),
         ).to.be.revertedWith(/AccessControl: account .* is missing role .*/);
     });
 });
