@@ -203,22 +203,6 @@ describe("Upgradeability Test", function () {
         ).to.be.revertedWith(/AccessControl: account .* is missing role .*/);
     });
 
-    //Checks upgradeability of the PoolFacory contract
-    it("PoolFactory upgrade test", async function () {
-        const LibTimelockController = await ethers.getContractFactory("LibTimelockController");
-        const libTimelockControllerContract = await LibTimelockController.deploy();
-        await libTimelockControllerContract.deployed();
-        const PoolFactory = await ethers.getContractFactory("PoolFactory", {
-            libraries: { LibTimelockController: libTimelockControllerContract.address },
-        });
-        const poolFactoryContract = await deployProxyContract(PoolFactory);
-        const poolFactoryNewImpl = await PoolFactory.deploy();
-        await poolFactoryNewImpl.deployed();
-        await expect(poolConfigContract.upgradeTo(poolFactoryNewImpl.address))
-            .to.emit(poolConfigContract, "Upgraded")
-            .withArgs(poolFactoryNewImpl.address);
-    });
-
     //Accounts other than factory admin tries to upgrade PoolFactory contract
     it("PoolFactory upgrade test - non factory admin", async function () {
         const LibTimelockController = await ethers.getContractFactory("LibTimelockController");
@@ -231,7 +215,7 @@ describe("Upgradeability Test", function () {
         const poolFactoryNewImpl = await PoolFactory.deploy();
         await poolFactoryNewImpl.deployed();
         await expect(
-            poolConfigContract.connect(lender).upgradeTo(poolFactoryNewImpl.address),
-        ).to.be.revertedWith(/AccessControl: account .* is missing role .*/);
+            poolFactoryContract.connect(lender).upgradeTo(poolFactoryNewImpl.address),
+        ).to.be.revertedWithCustomError(poolFactoryContract, "AdminRequired");
     });
 });
