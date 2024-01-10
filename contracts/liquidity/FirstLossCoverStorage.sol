@@ -12,7 +12,7 @@ contract FirstLossCoverStorage {
     IERC20 public underlyingToken;
 
     uint8 internal _decimals;
-    // The cumulative amount of loss covered.
+    /// The cumulative amount of loss covered.
     uint256 public coveredLoss;
 
     EnumerableSet.AddressSet internal _coverProviders;

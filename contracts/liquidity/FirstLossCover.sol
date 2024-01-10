@@ -26,23 +26,65 @@ contract FirstLossCover is
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.AddressSet;
 
+    /// The maximum number of cover providers that can supply assets to the first loss cover.
     uint256 private constant MAX_ALLOWED_NUM_PROVIDERS = 100;
 
+    /**
+     * @notice A cover provider has been added.
+     * @param account The address of the newly added cover provider.
+     */
     event CoverProviderAdded(address indexed account);
+    /**
+     * @notice A cover provider has been removed.
+     * @param account The address of the newly removed cover provider.
+     */
     event CoverProviderRemoved(address indexed account);
 
+    /**
+     * @notice Loss has been covered by the first loss cover.
+     * @param covered The amount covered by the first loss cover.
+     * @param remaining The remaining amount of loss that the first loss cover was not able to cover.
+     * @param coveredLoss The cumulative amount of loss covered so far.
+     */
     event LossCovered(uint256 covered, uint256 remaining, uint256 coveredLoss);
+    /**
+     * @notice Loss recovery has been distributed to the first loss cover.
+     * @param recovered The amount of loss recovery distributed.
+     * @param coveredLoss The cumulative amount of loss covered after the recovery was applied.
+     */
     event LossRecovered(uint256 recovered, uint256 coveredLoss);
 
+    /**
+     * @notice A cover provider has deposited assets into the first loss cover.
+     * @param account The address of the cover provider.
+     * @param assets The amount of assets deposited by the cover provider.
+     * @param shares The number of shares received by the cover provider.
+     */
     event CoverDeposited(address indexed account, uint256 assets, uint256 shares);
+    /**
+     * @notice Assets has been redeemed and withdrawn from the first loss cover.
+     * @param by The address that initiated the redemption.
+     * @param receiver The receiver of the redeemed assets.
+     * @param shares The number of shares burned by the redeemer.
+     * @param assets The amount of assets redeemed by the redeemer.
+     */
     event CoverRedeemed(
         address indexed by,
         address indexed receiver,
         uint256 shares,
         uint256 assets
     );
+    /**
+     * @notice Assets has been added to the first loss cover.
+     * @param assets The amount of assets added.
+     */
     event AssetsAdded(uint256 assets);
 
+    /**
+     * @notice Yield has been paid out to the cover providers.
+     * @param account The address of the cover provider that received the yield.
+     * @param yields The amount of yield paid out to the cover provider.
+     */
     event YieldPaidOut(address indexed account, uint256 yields);
 
     function initialize(
@@ -183,7 +225,8 @@ contract FirstLossCover is
     }
 
     /**
-     * @notice Pays out yield above the cap to providers. Expects to be called by a cron-like mechanism like autotask.
+     * @notice Pays out yield above the max liquidity to providers.
+     * @notice Yield payout is expected to be handled by a cron-like mechanism like autotask.
      */
     function payoutYield() external {
         uint256 maxLiquidity = getMaxLiquidity();
@@ -205,6 +248,8 @@ contract FirstLossCover is
             emit YieldPaidOut(provider, payout);
         }
 
+        // We expect all yield to be paid out in one go. It's technically impossible for remainingShares
+        // to be non-zero, but adding an assertion here just to be safe.
         assert(remainingShares == 0);
     }
 
@@ -221,7 +266,7 @@ contract FirstLossCover is
     }
 
     /**
-     * @notice Disables transfer function currently
+     * @notice Disables the transfer function so that first loss cover tokens cannot be transferred.
      */
     function transfer(address, uint256) public virtual override returns (bool) {
         revert Errors.UnsupportedFunction();
@@ -256,11 +301,13 @@ contract FirstLossCover is
         return maxLiquidity > coverTotalAssets ? maxLiquidity - coverTotalAssets : 0;
     }
 
+    /// @inheritdoc IFirstLossCover
     function getMaxLiquidity() public view returns (uint256 maxLiquidity) {
         FirstLossCoverConfig memory config = poolConfig.getFirstLossCoverConfig(address(this));
         return config.maxLiquidity;
     }
 
+    /// @inheritdoc IFirstLossCover
     function getMinLiquidity() public view returns (uint256 minLiquidity) {
         FirstLossCoverConfig memory config = poolConfig.getFirstLossCoverConfig(address(this));
         return config.minLiquidity;
@@ -326,11 +373,22 @@ contract FirstLossCover is
         emit CoverDeposited(account, assets, shares);
     }
 
+    /**
+     * @notice Calculates the amount of loss that can be covered by the fist loss cover.
+     * @param loss The total amount of loss to cover.
+     * @return remainingLoss The remaining amount of loss not covered.
+     * @return coveredAmount The amount of loss covered.
+     */
     function _calcLossCover(
         uint256 loss
     ) internal view returns (uint256 remainingLoss, uint256 coveredAmount) {
         FirstLossCoverConfig memory config = poolConfig.getFirstLossCoverConfig(address(this));
 
+        // The covered amount is the minimum of:
+        // 1. The total loss.
+        // 2. loss * coverRatePerLossInBps, i.e. how ratio to cover per occurrence of the loss.
+        // 3. coverCapPerLoss, i.e. the maximum amount to cover per occurrence of the loss.
+        // 4. The available amount of assets in the first loss cover.
         uint256 availableAmount = (loss * config.coverRatePerLossInBps) / HUNDRED_PERCENT_IN_BPS;
         if (availableAmount >= config.coverCapPerLoss) {
             availableAmount = config.coverCapPerLoss;

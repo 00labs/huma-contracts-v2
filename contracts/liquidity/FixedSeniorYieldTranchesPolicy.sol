@@ -11,6 +11,12 @@ import {SENIOR_TRANCHE, SECONDS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS} from "../comm
  * the risk loss does not make it impossible.
  */
 contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
+    /**
+     * @notice Tracks the amount of assets and unpaid yield for the senior tranche.
+     * @param totalAssets The total assets in the senior tranche.
+     * @param unpaidYield The amount of unpaid yield to the senior tranche.
+     * @param lastUpdatedDate The last time the tracker was updated.
+     */
     struct SeniorYieldTracker {
         uint96 totalAssets;
         uint96 unpaidYield;
@@ -19,8 +25,15 @@ contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
 
     SeniorYieldTracker public seniorYieldTracker;
 
+    /**
+     * @notice The senior yield tracker has been refreshed.
+     * @param totalAssets The total assets in the senior tranche after the refresh.
+     * @param unpaidYield The amount of unpaid yield to the senior tranche after the refresh.
+     * @param lastUpdatedDate The last time the tracker was updated after the refresh.
+     */
     event YieldTrackerRefreshed(uint256 totalAssets, uint256 unpaidYield, uint256 lastUpdatedDate);
 
+    /// @inheritdoc BaseTranchesPolicy
     function refreshYieldTracker(uint96[2] memory assets) external override {
         if (msg.sender != address(poolConfig) && msg.sender != pool) {
             revert Errors.AuthorizedContractCallerRequired();
@@ -45,7 +58,6 @@ contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
         uint256 profit,
         uint96[2] memory assets
     ) internal virtual override returns (uint256 seniorProfit, uint256 remainingProfit) {
-        // Accrues senior tranches yield to the current block timestamp first
         (SeniorYieldTracker memory tracker, ) = _getYieldTracker();
 
         seniorProfit = tracker.unpaidYield > profit ? profit : tracker.unpaidYield;
@@ -64,6 +76,12 @@ contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
         return (seniorProfit, remainingProfit);
     }
 
+    /**
+     * @notice Calculates the amount of yield that the senior tranche should have earned until the current
+     * block timestamp.
+     * @return The (potentially) updated SeniorYieldTracker.
+     * @return updated Whether the SeniorYieldTracker has been updated.
+     */
     function _getYieldTracker() internal view returns (SeniorYieldTracker memory, bool updated) {
         SeniorYieldTracker memory tracker = seniorYieldTracker;
         if (block.timestamp > tracker.lastUpdatedDate) {

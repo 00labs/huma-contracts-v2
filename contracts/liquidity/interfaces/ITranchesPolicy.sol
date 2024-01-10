@@ -6,12 +6,13 @@ pragma solidity ^0.8.0;
  */
 interface ITranchesPolicy {
     /**
-     * @notice Distributes profit to tranches
-     * @dev Passing asset value for the tranches as a parameter to make the function stateless
-     * @param profit the profit amount
-     * @param assets assets for each tranche, assets[0] for senior and assets[1] for junior
-     * @return profitsForTrancheVault distributed profits for tranche vaults, index 0 for senior, 1 for junior
-     * @return profitsForFirstLossCover distributed profits for first loss covers
+     * @notice Distributes profit to tranches and first loss covers.
+     * @dev Passing asset value for the tranches as a parameter to make the function stateless.
+     * @param profit The amount of profit to distribute.
+     * @param assets The assets for each tranche, assets[0] for the senior tranche and assets[1] for the junior tranche.
+     * @return profitsForTrancheVault Distributed profits for tranche vaults, index 0 for senior, 1 for junior.
+     * @return profitsForFirstLossCover Distributed profits for first loss covers.
+     * @custom:access Only the Pool contract can call this function.
      */
     function distProfitToTranches(
         uint256 profit,
@@ -24,10 +25,9 @@ interface ITranchesPolicy {
         );
 
     /**
-     * @notice Refreshes the policy yield tracker, it is used for FixedSeniorYieldTranchesPolicy to update latest senior yield data
-     * @dev Accrues senior tranches yield to the current block timestamp before senior debt changes, this function won't
-     * update the senior total assets which is updated when distributing profit/loss/loss recovery
-     * @param assets assets for each tranche, assets[0] for senior and assets[1] for junior
+     * @notice Refreshes the amount of assets and unpaid yield for the senior tranche.
+     * @param assets The assets for each tranche, assets[0] for the senior tranche and assets[1] for the junior tranche.
+     * @custom:access Only the PoolConfig and Pool contracts can call this function.
      */
     function refreshYieldTracker(uint96[2] memory assets) external;
 }

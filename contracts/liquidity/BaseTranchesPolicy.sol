@@ -25,12 +25,14 @@ abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
     {
         if (msg.sender != pool) revert Errors.AuthorizedContractCallerRequired();
 
+        // Distributes profits to the senior tranche first.
         uint256 remainingProfit;
         (
             profitsForTrancheVault[SENIOR_TRANCHE],
             remainingProfit
         ) = _distributeProfitForSeniorTranche(profit, assets);
 
+        // Then distribute the remainder to the junior tranche and first loss covers.
         if (remainingProfit > 0) {
             (
                 profitsForTrancheVault[JUNIOR_TRANCHE],
@@ -43,7 +45,8 @@ abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
 
     /// @inheritdoc ITranchesPolicy
     function refreshYieldTracker(uint96[2] memory assets) external virtual {
-        // Empty function for RiskAdjustedTranchePolicy
+        // Intentionally left empty for the default implementation since most tranche policies don't need
+        // to refresh the yield tracker.
     }
 
     function getFirstLossCovers() external view returns (IFirstLossCover[] memory) {
@@ -64,21 +67,32 @@ abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
         }
     }
 
+    /**
+     * @notice Calculates the amount of profit that should be distributed to the senior tranche.
+     * @dev Concrete tranche policies should override this function and define their own policy for distribution.
+     * @param profit The total amount of profit to distribute among tranches and first loss covers.
+     * @param assets The assets for each tranche, assets[0] for the senior tranche and assets[1] for the junior tranche.
+     * @return seniorProfit The amount of profit that should be distributed to the senior tranche.
+     * @return remainingProfit The remaining amount of profit that should be distributed to other parties.
+     */
     function _distributeProfitForSeniorTranche(
         uint256 profit,
         uint96[2] memory assets
     ) internal virtual returns (uint256 seniorProfit, uint256 remainingProfit);
 
     /**
-     * @notice Internal function that calculates profit to first loss cover (FLC) providers
+     * @notice Internal function that calculates the profit distribution between the junior trnache and
+     * first loss covers (FLCs).
      * @dev There is a risk multiplier assigned to each first loss cover. To compute the profit
-     * for each FLCs, we first gets the product of the asset amount of each FLC and the risk
+     * for each FLCs, we first get the product of the asset amount of each FLC and the risk
      * multiplier, then add them together. We then proportionally allocate the profit to each
      * FLC based on its product of asset amount and risk multiplier. The remainder is left
      * for the junior tranche.
-     * @param profit the amount of profit to be distributed between FLC and junior tranche
-     * @param juniorTotalAssets the total asset amount for junior tranche
-     * @custom:access Internal function without access restriction. Caller needs to control access
+     * @param profit The amount of profit to be distributed between FLC and junior tranche.
+     * @param juniorTotalAssets The total amount of asset for junior tranche.
+     * @return juniorProfit The amount of profit that the junior tranche will take.
+     * @return profitsForFirstLossCovers The amount of profit that each FLC will take.
+     * @custom:access Internal function without access restriction. Callers need to control access.
      */
     function _calcProfitForFirstLossCovers(
         uint256 profit,
