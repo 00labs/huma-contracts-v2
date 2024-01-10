@@ -83,7 +83,7 @@ interface IFirstLossCover {
 
     /**
      * @notice Returns the minimum amount of assets that the first loss cover can take.
-     * @return maxLiquidity The minimum amount assets the first loss cover can take.
+     * @return minLiquidity The minimum amount assets the first loss cover can take.
      */
     function getMinLiquidity() external view returns (uint256 minLiquidity);
 }
