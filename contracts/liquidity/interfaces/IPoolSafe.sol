@@ -7,16 +7,16 @@ pragma solidity ^0.8.0;
  */
 interface IPoolSafe {
     /**
-     * @notice Deposits underlying tokens into the pool
-     * @param from the address that supplies the underlying tokens
-     * @param amount amount of underlying tokens to deposit
+     * @notice Deposits underlying tokens into the pool.
+     * @param from The address that supplies the underlying tokens.
+     * @param amount The amount of underlying tokens to deposit.
      */
     function deposit(address from, uint256 amount) external;
 
     /**
-     * @notice Withdraws underlying tokens from the pool
-     * @param to the address to receive underlying tokens
-     * @param amount amount of underlying tokens to withdraw
+     * @notice Withdraws underlying tokens from the pool.
+     * @param to The address to receive underlying tokens.
+     * @param amount The amount of underlying tokens to withdraw.
      */
     function withdraw(address to, uint256 amount) external;
 
@@ -29,26 +29,25 @@ interface IPoolSafe {
     function addUnprocessedProfit(address tranche, uint256 interest) external;
 
     /**
-     * @notice Resets processed profit to 0
-     * @custom:access Only TrancheVault contracts can call this function.
+     * @notice Resets processed profit to 0.
+     * @custom:access Only the TrancheVault contracts can call this function..
      */
     function resetUnprocessedProfit() external;
 
     /**
-     * @notice Gets the total available underlying tokens in the pool
-     * @return availableBalance the quantity of underlying tokens in the pool
+     * @notice Gets the total available underlying tokens in the pool.
+     * @return availableBalance The quantity of underlying tokens in the pool.
      */
     function getAvailableBalanceForPool() external view returns (uint256 availableBalance);
 
     /**
-     * @notice Gets total available balance of pool safe. Pool calls this function for profit and loss recoevery cases.
+     * @notice Gets the total balance of the PoolSafe.
+     * @return balance The total balance in the pool safe.
      */
     function totalBalance() external view returns (uint256 balance);
 
     /**
-     * @notice Gets total available balance of admin fees. PoolFeeManager calls this function to
-     * 1. invest in FirstLossCover if there is still room.
-     * 2. withdraw by admins
+     * @notice Gets the available balance of the PoolSafe that can be used to pay for admin fees.
      */
     function getAvailableBalanceForFees() external view returns (uint256 availableBalance);
 }
