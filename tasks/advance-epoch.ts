@@ -23,7 +23,7 @@ task("advanceEpoch", "Advances time in the local blockchain based on options")
             poolSettings.payPeriodDuration,
             currentBlockTimestamp,
         );
-        const timestampToAdvance = nextEpochStartTime.toNumber() - currentBlockTimestamp;
+        const timestampToAdvance = nextEpochStartTime.toNumber();
 
         if (timestampToAdvance < currentBlockTimestamp) {
             console.log("The selected milestone is in the past. Exiting.");

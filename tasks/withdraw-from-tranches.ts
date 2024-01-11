@@ -9,6 +9,9 @@ async function redeemFromTranche(
 ): Promise<void> {
     const TrancheVault = await hre.ethers.getContractFactory("TrancheVault");
     const trancheVaultContract = TrancheVault.attach(trancheVaultContractAddr);
+    const redemptionShares = await trancheVaultContract.balanceOf(redemptionRequester.address);
+    console.log(redemptionShares.toNumber());
+    console.log(await trancheVaultContract.totalSupply());
     const disburseTx = await trancheVaultContract.connect(redemptionRequester).disburse();
     await disburseTx.wait();
 }
@@ -21,33 +24,24 @@ task(
         "poolConfigAddr",
         "The address of the Pool Config whose epoch you wish to advance to next",
     )
-    .addParam("poolType", "The type of pool this is (e.g. CreditLine, ReceivableBackedCreditLine)")
-    .setAction(
-        async (
-            taskArgs: { poolConfigAddr: string; poolType: string },
-            hre: HardhatRuntimeEnvironment,
-        ) => {
-            let juniorLender: SignerWithAddress,
-                seniorLender: SignerWithAddress,
-                poolAffiliate: SignerWithAddress,
-                borrowerActive: SignerWithAddress;
+    .setAction(async (taskArgs: { poolConfigAddr: string }, hre: HardhatRuntimeEnvironment) => {
+        let juniorLender: SignerWithAddress,
+            seniorLender: SignerWithAddress,
+            poolOwnerTreasury: SignerWithAddress,
+            evaluationAgent: SignerWithAddress;
+        [, , , , , , poolOwnerTreasury, evaluationAgent, , juniorLender, seniorLender] =
+            await hre.ethers.getSigners();
 
-            [, , , , , , , , , juniorLender, seniorLender, poolAffiliate, , borrowerActive] =
-                await hre.ethers.getSigners();
+        const PoolConfig = await hre.ethers.getContractFactory("PoolConfig");
+        const poolConfigContract = PoolConfig.attach(taskArgs.poolConfigAddr);
 
-            const PoolConfig = await hre.ethers.getContractFactory("PoolConfig");
-            const poolConfigContract = PoolConfig.attach(taskArgs.poolConfigAddr);
+        console.log("Withdrawing from pool tranches");
+        const juniorTranche = await poolConfigContract.juniorTranche();
+        const seniorTranche = await poolConfigContract.seniorTranche();
 
-            if (taskArgs.poolType === "CreditLine") {
-                console.log("Withdrawing from CreditLine pool tranches");
-                const juniorTranche = await poolConfigContract.juniorTranche();
-                const seniorTranche = await poolConfigContract.seniorTranche();
-
-                // Submit redemption requests
-                await redeemFromTranche(hre, juniorTranche, juniorLender);
-                await redeemFromTranche(hre, seniorTranche, seniorLender);
-            } else if (taskArgs.poolType === "ReceivableBackedCreditLine") {
-                // todo fill in this section
-            }
-        },
-    );
+        // Submit redemption requests
+        await redeemFromTranche(hre, juniorTranche, juniorLender);
+        await redeemFromTranche(hre, juniorTranche, poolOwnerTreasury);
+        await redeemFromTranche(hre, juniorTranche, evaluationAgent);
+        await redeemFromTranche(hre, seniorTranche, seniorLender);
+    });

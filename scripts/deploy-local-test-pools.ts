@@ -268,9 +268,16 @@ async function deployPool(
         );
         const borrowAmount = toToken(100_000);
 
+        const currentBlockTimestamp = await time.latest();
         await receivableContract
             .connect(borrowerActive)
-            .createReceivable(1, borrowAmount, moment().add(7, "days").hour(0).unix(), "", "");
+            .createReceivable(
+                1,
+                borrowAmount,
+                moment.unix(currentBlockTimestamp).add(7, "days").hour(0).unix(),
+                "",
+                "",
+            );
         const receivableId = await receivableContract.tokenOfOwnerByIndex(
             borrowerActive.address,
             0,
@@ -285,14 +292,14 @@ async function deployPool(
 
     console.log("=====================================");
     console.log("Accounts:");
-    console.log(`Junior lender: ${juniorLender.address}`);
-    console.log(`Senior lender: ${seniorLender.address}`);
-    console.log(`Borrower:      ${borrowerActive.address}`);
+    console.log(`Junior lender:      ${juniorLender.address}`);
+    console.log(`Senior lender:      ${seniorLender.address}`);
+    console.log(`Borrower:           ${borrowerActive.address}`);
     console.log(`Sentinel Service:   ${sentinelServiceAccount.address}`);
-    console.log(`Pool owner:   ${poolOwner.address}`);
-    console.log(`EA service:   ${eaServiceAccount.address}`);
+    console.log(`Pool owner:         ${poolOwner.address}`);
+    console.log(`EA service:         ${eaServiceAccount.address}`);
 
-    console.log("=====================================");
+    console.log("-------------------------------------");
     console.log("Addresses:");
     console.log(`Pool:            ${poolContract.address}`);
     console.log(`Epoch manager:   ${epochManagerContract.address}`);
@@ -305,10 +312,12 @@ async function deployPool(
     console.log(`Credit:          ${creditContract.address}`);
     console.log(`Credit manager:  ${creditManagerContract.address}`);
     console.log(`Borrower FLC:    ${borrowerFirstLossCoverContract.address}`);
-    console.log(`Admin FLC:   ${adminFirstLossCoverContract.address}`);
+    console.log(`Admin FLC:       ${adminFirstLossCoverContract.address}`);
+    if (poolName === LocalPoolName.ReceivableBackedCreditLine) {
+        console.log(`Receivable:      ${receivableContract.address}`);
+    }
 
     console.log("=====================================");
-    console.log(`Current block timestamp: ${await time.latest()}`);
 }
 
 export async function deployPools({
@@ -320,8 +329,8 @@ export async function deployPools({
 }) {
     try {
         if (shouldAdvanceTime) {
-            // always set the date to the 8th of the next month
-            const blockchainStartDate = moment().utc().add(1, "month").date(8).startOf("day");
+            // always set the date to the 1st of the next month
+            const blockchainStartDate = moment().utc().add(1, "month").date(1).startOf("day");
             await advanceChainTime(blockchainStartDate);
         }
 
