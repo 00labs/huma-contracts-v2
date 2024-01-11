@@ -105,6 +105,12 @@ describe("PoolConfigCache Test", function () {
         await loadFixture(prepare);
     });
 
+    it("Should not allow pool cache to be initialized twice", async function () {
+        await expect(poolSafeContract.initialize(poolConfigContract.address)).to.be.revertedWith(
+            "Initializable: contract is already initialized",
+        );
+    });
+
     it("Should not allow non-poolOwner to update pool config cache", async function () {
         await expect(
             juniorTrancheVaultContract.updatePoolConfigData(),
