@@ -12,10 +12,12 @@ async function submitRedemptionRequestToTranche(
     const TrancheVault = await hre.ethers.getContractFactory("TrancheVault");
     const trancheVaultContract = TrancheVault.attach(trancheVaultContractAddr);
     const redemptionShares = await trancheVaultContract.balanceOf(redemptionRequester.address);
-    const addRedemptionRequestTx = await trancheVaultContract
-        .connect(redemptionRequester)
-        .addRedemptionRequest(redemptionShares);
-    await addRedemptionRequestTx.wait();
+    if (redemptionShares.gt(0)) {
+        const addRedemptionRequestTx = await trancheVaultContract
+            .connect(redemptionRequester)
+            .addRedemptionRequest(redemptionShares);
+        await addRedemptionRequestTx.wait();
+    }
 }
 
 async function withdrawFromFLC(
@@ -23,10 +25,12 @@ async function withdrawFromFLC(
     redemptionRequester: SignerWithAddress,
 ): Promise<void> {
     const redemptionShares = await flcContract.balanceOf(redemptionRequester.address);
-    const redeemCoverTx = await flcContract
-        .connect(redemptionRequester)
-        .redeemCover(redemptionShares, redemptionRequester.address);
-    await redeemCoverTx.wait();
+    if (redemptionShares.gt(0)) {
+        const redeemCoverTx = await flcContract
+            .connect(redemptionRequester)
+            .redeemCover(redemptionShares, redemptionRequester.address);
+        await redeemCoverTx.wait();
+    }
 }
 
 task(
