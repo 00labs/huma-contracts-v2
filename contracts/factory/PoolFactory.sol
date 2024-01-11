@@ -571,7 +571,6 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
     function addReceivable(address receivableOwner) external {
         _onlyDeployer(msg.sender);
         _notZeroAddress(receivableOwner);
-        if (receivableImpl == address(0)) revert Errors.ZeroAddressProvided();
         address receivable = _addProxy(receivableImpl, abi.encodeWithSignature("initialize()"));
         AccessControlUpgradeable receivableContract = AccessControlUpgradeable(receivable);
         receivableContract.grantRole(receivableContract.DEFAULT_ADMIN_ROLE(), receivableOwner);
@@ -642,7 +641,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
 
     // add a proxy
     function _addProxy(address _implAddress, bytes memory _calldata) private returns (address) {
-        if (_implAddress == address(0)) revert Errors.ZeroAddressProvided();
+        _notZeroAddress(_implAddress);
         ERC1967Proxy proxy = new ERC1967Proxy(_implAddress, _calldata);
         return address(proxy);
     }
@@ -652,7 +651,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         string memory _poolName,
         address[] memory _poolAddresses
     ) private returns (address) {
-        if (poolConfigImplAddress == address(0)) revert Errors.ZeroAddressProvided();
+        _notZeroAddress(poolConfigImplAddress);
         address poolConfig = _addProxy(
             poolConfigImplAddress,
             abi.encodeWithSignature("initialize(string,address[])", _poolName, _poolAddresses)
@@ -662,70 +661,70 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
 
     // add poolFeeManager proxy
     function _addPoolFeeManager() private returns (address) {
-        if (poolFeeManagerImplAddress == address(0)) revert Errors.ZeroAddressProvided();
+        _notZeroAddress(poolFeeManagerImplAddress);
         address poolFeeManager = _addProxy(poolFeeManagerImplAddress, "");
         return poolFeeManager;
     }
 
     // add pool proxy
     function _addPool() private returns (address) {
-        if (poolImplAddress == address(0)) revert Errors.ZeroAddressProvided();
+        _notZeroAddress(poolImplAddress);
         address pool = _addProxy(poolImplAddress, "");
         return pool;
     }
 
     // add pool safe proxy
     function _addPoolSafe() private returns (address) {
-        if (poolSafeImplAddress == address(0)) revert Errors.ZeroAddressProvided();
+        _notZeroAddress(poolSafeImplAddress);
         address poolSafe = _addProxy(poolSafeImplAddress, "");
         return poolSafe;
     }
 
     // add firstLossCover proxy
     function _addFirstLossCover() private returns (address) {
-        if (firstLossCoverImplAddress == address(0)) revert Errors.ZeroAddressProvided();
+        _notZeroAddress(firstLossCoverImplAddress);
         address firstLossCover = _addProxy(firstLossCoverImplAddress, "");
         return firstLossCover;
     }
 
     // add tranchesPolicy proxies
     function _addTranchesPolicy(address tranchesPolicyImpl) private returns (address) {
-        if (tranchesPolicyImpl == address(0)) revert Errors.ZeroAddressProvided();
+        _notZeroAddress(tranchesPolicyImpl);
         address tranchesPolicy = _addProxy(tranchesPolicyImpl, "");
         return tranchesPolicy;
     }
 
     // add epochManager proxy
     function _addEpochManager() private returns (address) {
-        if (epochManagerImplAddress == address(0)) revert Errors.ZeroAddressProvided();
+        _notZeroAddress(epochManagerImplAddress);
         address epochManager = _addProxy(epochManagerImplAddress, "");
         return epochManager;
     }
 
     // add trancheVault proxy
     function _addTrancheVault() private returns (address) {
-        if (trancheVaultImplAddress == address(0)) revert Errors.ZeroAddressProvided();
+        _notZeroAddress(trancheVaultImplAddress);
         address trancheVault = _addProxy(trancheVaultImplAddress, "");
         return trancheVault;
     }
 
     // add credit proxy
     function _addCredit(address creditImplAddress) private returns (address) {
-        if (creditImplAddress == address(0)) revert Errors.ZeroAddressProvided();
+        _notZeroAddress(creditImplAddress);
         address credit = _addProxy(creditImplAddress, "");
         return credit;
     }
 
     // add creditDueManager proxy
     function _addCreditDueManager() private returns (address) {
-        if (creditDueManagerImplAddress == address(0)) revert Errors.ZeroAddressProvided();
+        _notZeroAddress(creditDueManagerImplAddress);
         address creditDueManager = _addProxy(creditDueManagerImplAddress, "");
         return creditDueManager;
     }
 
     // add creditManager proxy
     function _addCreditManager(address creditManagerImplAddress) private returns (address) {
-        if (creditManagerImplAddress == address(0)) revert Errors.ZeroAddressProvided();
+        _notZeroAddress(creditManagerImplAddress);
         address creditManager = _addProxy(creditManagerImplAddress, "");
         return creditManager;
     }
