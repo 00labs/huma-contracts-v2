@@ -119,11 +119,16 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
     // Pool events
     event PoolCreated(address poolAddress, string poolName);
     event PoolAdded(uint256 poolId, address poolAddress, string poolName);
-    event PoolClosed(uint256 poolId, address poolAddress, string poolName);
+    event PoolStatusUpdated(
+        uint256 poolId,
+        address poolAddress,
+        string poolName,
+        PoolStatus oldAddress,
+        PoolStatus newStatus
+    );
 
     event ReceivableCreated(address receivableAddress);
 
-    event PoolStatusUpdated(uint256 poolId, PoolStatus oldStatus, PoolStatus newStatus);
     event TimelockAddedToPool(uint256 poolId, address poolAddress, address timelockAddress);
 
     constructor() {
@@ -543,18 +548,16 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
     // After pool parameters are set, and timelock is added, the pool status can be updated to Initialized
     // which means the pool is ready for operation
     function updatePoolStatus(uint256 _poolId, PoolStatus newStatus) external {
-        _onlyFactoryAdmin(msg.sender);
-        if (_poolId == 0 || _poolId > poolId) {
-            revert Errors.InvalidPoolId();
-        }
+        _onlyDeployer(msg.sender);
+        _validPoolId(_poolId);
+        emit PoolStatusUpdated(
+            _poolId,
+            pools[_poolId].poolAddress,
+            pools[_poolId].poolName,
+            pools[_poolId].poolStatus,
+            newStatus
+        );
         pools[_poolId].poolStatus = newStatus;
-        if (newStatus == PoolStatus.Closed) {
-            emit PoolClosed(_poolId, pools[_poolId].poolAddress, pools[_poolId].poolName);
-        } else if (newStatus == PoolStatus.Initialized) {
-            emit PoolStatusUpdated(_poolId, PoolStatus.Created, PoolStatus.Initialized);
-        } else {
-            revert Errors.InvalidPoolStatus();
-        }
     }
 
     /**
@@ -578,10 +581,14 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
 
     // Returns the corresponding poolRecord for a poolId
     function checkPool(uint256 _poolId) external view returns (PoolRecord memory) {
+        _validPoolId(_poolId);
+        return pools[_poolId];
+    }
+
+    function _validPoolId(uint256 _poolId) internal view {
         if (_poolId == 0 || _poolId > poolId) {
             revert Errors.InvalidPoolId();
         }
-        return pools[_poolId];
     }
 
     function _onlyFactoryAdmin(address account) internal view {
@@ -612,7 +619,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         address _poolConfigAddress,
         address _poolTimelockAddress
     ) private {
-        poolId++;
+        poolId = poolId + 1;
         pools[poolId] = PoolRecord(
             poolId,
             _poolAddress,
