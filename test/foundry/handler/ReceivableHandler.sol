@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity 0.8.23;
 
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {Receivable} from "../../../contracts/credit/Receivable.sol";
 import {Test} from "forge-std/Test.sol";
 import {StdInvariant} from "forge-std/StdInvariant.sol";
@@ -14,8 +15,15 @@ contract ReceivableHandler is Test {
     address[] public actors;
     address internal currentActor;
 
+    modifier useActor(uint256 actorIndexSeed) {
+        currentActor = actors[bound(actorIndexSeed, 0, actors.length - 1)];
+        vm.startPrank(currentActor);
+        _;
+        vm.stopPrank();
+    }
+
     constructor() {
-        receivable = new Receivable();
+        receivable = Receivable(address(new ERC1967Proxy(address(new Receivable()), "")));
         receivable.initialize();
 
         // Minter user
@@ -74,12 +82,5 @@ contract ReceivableHandler is Test {
         uint256 actorIndexSeed
     ) external useActor(actorIndexSeed) {
         receivable.declarePayment(tokenId, paymentAmount);
-    }
-
-    modifier useActor(uint256 actorIndexSeed) {
-        currentActor = actors[bound(actorIndexSeed, 0, actors.length - 1)];
-        vm.startPrank(currentActor);
-        _;
-        vm.stopPrank();
     }
 }
