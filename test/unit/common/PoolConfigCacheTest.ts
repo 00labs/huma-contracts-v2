@@ -167,4 +167,13 @@ describe("PoolConfigCache Test", function () {
             mockTokenContract.address,
         );
     });
+
+    it("Should not let non initializer to _initialize in PoolConfigCache", async function () {
+        const PoolConfigCacheChild = await ethers.getContractFactory("PoolConfigCacheChild");
+        const poolConfigCacheChildContract = await deployProxyContract(PoolConfigCacheChild);
+        await poolConfigCacheChildContract.deployed();
+        await expect(
+            poolConfigCacheChildContract.otherInitialize(poolConfigContract.address),
+        ).to.be.revertedWith("Initializable: contract is not initializing");
+    });
 });
