@@ -233,9 +233,9 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         }
 
         // Process junior tranche redemption requests.
-        LPConfig memory lpConfig = poolConfig.getLPConfig();
-        uint256 maxSeniorJuniorRatio = lpConfig.maxSeniorJuniorRatio;
         if (juniorSummary.totalSharesRequested > 0) {
+            LPConfig memory lpConfig = poolConfig.getLPConfig();
+            uint256 maxSeniorJuniorRatio = lpConfig.maxSeniorJuniorRatio;
             availableAmount = _processJuniorRedemptionRequests(
                 tranchesAssets,
                 juniorPrice,
@@ -314,24 +314,17 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         uint256 sharesToRedeem = redemptionSummary.totalSharesRequested;
 
         uint256 redemptionAmountWithDecimal = sharesToRedeem * lpTokenPrice;
-        uint256 tempAmountWithDecimal = availableAmount * DEFAULT_DECIMALS_FACTOR;
-        if (tempAmountWithDecimal < redemptionAmountWithDecimal) {
+        uint256 maxRedeemableAmountWithDecimal = Math.min(availableAmount, maxRedeemableAmount) *
+            DEFAULT_DECIMALS_FACTOR;
+        if (maxRedeemableAmountWithDecimal < redemptionAmountWithDecimal) {
             // Recalculate the number of shares to redeem using the remaining balance in the pool if it's
             // lower than the amount requested.
-            redemptionAmountWithDecimal = tempAmountWithDecimal;
+            redemptionAmountWithDecimal = maxRedeemableAmountWithDecimal;
             // Following the favoring-the-pool principle from ERC4626, round up the number of shares the lender
             // has to burn for the amount they wish to receive.
             sharesToRedeem = Math.ceilDiv(redemptionAmountWithDecimal, lpTokenPrice);
         }
 
-        tempAmountWithDecimal = maxRedeemableAmount * DEFAULT_DECIMALS_FACTOR;
-        if (tempAmountWithDecimal < redemptionAmountWithDecimal) {
-            // Recalculate the number of shares to redeem using the max redeemable amount if it's
-            // lower than the amount requested.
-            redemptionAmountWithDecimal = tempAmountWithDecimal;
-            // Round up the number of shares here as well.
-            sharesToRedeem = Math.ceilDiv(tempAmountWithDecimal, lpTokenPrice);
-        }
         uint256 redemptionAmount = redemptionAmountWithDecimal / DEFAULT_DECIMALS_FACTOR;
 
         redemptionSummary.totalSharesProcessed = uint96(sharesToRedeem);
