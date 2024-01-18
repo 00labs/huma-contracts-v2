@@ -875,7 +875,7 @@ describe("PoolFeeManager Tests", function () {
             await poolFeeManagerContract.distributePoolFees(profit);
 
             await poolFeeManagerContract
-                .connect(protocolOwner)
+                .connect(protocolTreasury)
                 .withdrawProtocolFee(withdrawalAmount);
             await poolFeeManagerContract
                 .connect(poolOwnerTreasury)
