@@ -346,7 +346,7 @@ describe("PoolFeeManager Tests", function () {
             amount = toToken(1_000);
         });
 
-        it("Should allow the protocol owner to withdraw the fees", async function () {
+        it("Should allow the Huma treasury to withdraw the fees", async function () {
             // Make the cap 0 so that there is no room to invest to make the testing of
             // this function easier.
             await overrideFirstLossCoverConfig(
@@ -372,11 +372,15 @@ describe("PoolFeeManager Tests", function () {
             );
             await expect(
                 poolFeeManagerContract
-                    .connect(protocolOwner)
+                    .connect(protocolTreasury)
                     .withdrawProtocolFee(expectedProtocolIncome),
             )
                 .to.emit(poolFeeManagerContract, "ProtocolRewardsWithdrawn")
-                .withArgs(protocolTreasury.address, expectedProtocolIncome, protocolOwner.address);
+                .withArgs(
+                    protocolTreasury.address,
+                    expectedProtocolIncome,
+                    protocolTreasury.address,
+                );
             const newProtocolIncomeWithdrawn =
                 await poolFeeManagerContract.protocolIncomeWithdrawn();
             const newProtocolTreasuryBalance = await mockTokenContract.balanceOf(
@@ -397,12 +401,32 @@ describe("PoolFeeManager Tests", function () {
         it("Should disallow non-protocol owner owner to withdraw protocol fees", async function () {
             await expect(
                 poolFeeManagerContract.connect(lender).withdrawProtocolFee(amount),
-            ).to.be.revertedWithCustomError(poolFeeManagerContract, "ProtocolOwnerRequired");
+            ).to.be.revertedWithCustomError(poolFeeManagerContract, "HumaTreasuryRequired");
         });
+
+        it(
+            "Should disallow the Huma treasury to withdraw protocol fees" +
+                " if the first loss cover is insufficient",
+            async function () {
+                const coverTotalAssets = await adminFirstLossCoverContract.totalAssets();
+                await overrideFirstLossCoverConfig(
+                    adminFirstLossCoverContract,
+                    CONSTANTS.ADMIN_LOSS_COVER_INDEX,
+                    poolConfigContract,
+                    poolOwner,
+                    {
+                        minLiquidity: coverTotalAssets.add(toToken(1)),
+                    },
+                );
+                await expect(
+                    poolFeeManagerContract.connect(protocolTreasury).withdrawProtocolFee(amount),
+                ).to.be.revertedWithCustomError(poolConfigContract, "InsufficientFirstLossCover");
+            },
+        );
 
         it("Should disallow withdrawal attempts with amounts higher than the balance", async function () {
             await expect(
-                poolFeeManagerContract.connect(protocolOwner).withdrawProtocolFee(amount),
+                poolFeeManagerContract.connect(protocolTreasury).withdrawProtocolFee(amount),
             ).to.be.revertedWithCustomError(
                 poolFeeManagerContract,
                 "InsufficientAmountForRequest",

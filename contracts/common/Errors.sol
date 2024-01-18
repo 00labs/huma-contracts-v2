@@ -14,7 +14,7 @@ contract Errors {
     error AdminRequired(); // 0x92d14c9e
     error PoolOperatorRequired(); // 0xae7fe070
     error PoolOwnerRequired(); // 0x8b506451
-    error ProtocolOwnerRequired(); // 0xd99ba4d3
+    error HumaTreasuryRequired(); // 0x6e0a9ac9
     error PoolOwnerOrEARequired(); // 0xe54466f3
     error PauserRequired(); // 0xd4a99e4e
     error NFTOwnerRequired(); // 0x85179c58
