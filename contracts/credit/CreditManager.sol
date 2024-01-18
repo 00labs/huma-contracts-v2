@@ -223,7 +223,8 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         // Once a drawdown has happened, it is disallowed to re-approve a credit. One has to call
         // other admin functions to change the terms of the credit.
         CreditRecord memory cr = credit.getCreditRecord(creditHash);
-        if (cr.state > CreditState.Approved) revert Errors.CreditNotInStateForUpdate();
+        if (cr.state != CreditState.Deleted && cr.state != CreditState.Approved)
+            revert Errors.CreditNotInStateForUpdate();
 
         CreditConfig memory cc = getCreditConfig(creditHash);
         cc.creditLimit = creditLimit;
