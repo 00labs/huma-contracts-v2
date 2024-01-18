@@ -136,7 +136,7 @@ describe("Upgradeability Test", function () {
         await poolConfigNewImpl.deployed();
         await expect(
             poolConfigContract.connect(poolOwner).upgradeTo(poolConfigNewImpl.address),
-        ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
+        ).to.be.revertedWithCustomError(poolConfigContract, "HumaOwnerRequired");
     });
 
     // A test that checks upgradeability of a Pool contract
@@ -156,7 +156,7 @@ describe("Upgradeability Test", function () {
         await poolNewImpl.deployed();
         await expect(
             poolContract.connect(poolOwner).upgradeTo(poolNewImpl.address),
-        ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
+        ).to.be.revertedWithCustomError(poolConfigContract, "HumaOwnerRequired");
     });
 
     // A test that checks upgradeability of the TranchedVault contract
@@ -180,7 +180,7 @@ describe("Upgradeability Test", function () {
         await trancheVaultNewImpl.deployed();
         await expect(
             seniorTrancheVaultContract.connect(poolOwner).upgradeTo(trancheVaultNewImpl.address),
-        ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
+        ).to.be.revertedWithCustomError(poolConfigContract, "HumaOwnerRequired");
     });
 
     // A test that checks upgradeability of the Receivable contract
@@ -216,6 +216,6 @@ describe("Upgradeability Test", function () {
         await poolFactoryNewImpl.deployed();
         await expect(
             poolFactoryContract.connect(lender).upgradeTo(poolFactoryNewImpl.address),
-        ).to.be.revertedWithCustomError(poolFactoryContract, "AdminRequired");
+        ).to.be.revertedWithCustomError(poolFactoryContract, "HumaOwnerRequired");
     });
 });
