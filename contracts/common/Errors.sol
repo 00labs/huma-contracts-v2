@@ -8,6 +8,7 @@ contract Errors {
     error InvalidBasisPointHigherThan10000(); // 0x5995a7a4
     error InsufficientAmountForRequest(); // 0x66367127
     error InsufficientSharesForRequest(); // 0xb0ef6d99
+    error ZeroSharesMinted(); // 0xd6a0a041
     error UnsupportedFunction(); // 0xea1c702e
 
     // Security

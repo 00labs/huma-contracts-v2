@@ -185,6 +185,12 @@ describe("TrancheVault Test", function () {
             assets = toToken(100);
         });
 
+        it("Should return 0 if the total assets is 0", async function () {
+            const juniorTotalAssets = await juniorTrancheVaultContract.totalAssets();
+            await mockDistributePnL(BN.from(0), juniorTotalAssets, BN.from(0));
+            expect(await juniorTrancheVaultContract.convertToShares(assets)).to.equal(0);
+        });
+
         it("Should return the assets as the number of shares if the current total supply is 0", async function () {
             expect(await seniorTrancheVaultContract.totalSupply()).to.equal(0);
             expect(await seniorTrancheVaultContract.convertToShares(assets)).to.equal(assets);
@@ -678,6 +684,19 @@ describe("TrancheVault Test", function () {
                 juniorTrancheVaultContract,
                 "TrancheLiquidityCapExceeded",
             );
+        });
+
+        it("Should not allow deposits that would result in zero shares being minted", async function () {
+            // Mark all junior assets as loss so that the # of shares minted is 0.
+            const juniorAssets = await juniorTrancheVaultContract.totalAssets();
+            await mockDistributePnL(BN.from(0), juniorAssets, BN.from(0));
+            const poolSettings = await poolConfigContract.getPoolSettings();
+
+            await expect(
+                juniorTrancheVaultContract
+                    .connect(lender)
+                    .deposit(poolSettings.minDepositAmount, lender.address),
+            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "ZeroSharesMinted");
         });
 
         it("Should not allow deposits if the new senior total assets would exceed the maxSeniorJuniorRatio", async function () {
