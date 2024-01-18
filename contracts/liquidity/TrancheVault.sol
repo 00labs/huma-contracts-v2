@@ -495,6 +495,17 @@ contract TrancheVault is
         revert Errors.UnsupportedFunction();
     }
 
+    /**
+     * @notice Disables the transfer functionality.
+     */
+    function transferFrom(
+        address from,
+        address to,
+        uint256 amount
+    ) public virtual override returns (bool) {
+        revert Errors.UnsupportedFunction();
+    }
+
     function decimals() public view override returns (uint8) {
         return _decimals;
     }
