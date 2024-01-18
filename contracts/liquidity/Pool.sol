@@ -127,7 +127,7 @@ contract Pool is PoolConfigCache, IPool {
      * @custom:access Only the pool owner or protocol owner can enable a pool.
      */
     function enablePool() external {
-        poolConfig.onlyOwnerOrHumaMasterAdmin(msg.sender);
+        poolConfig.onlyPoolOwnerOrHumaOwner(msg.sender);
         poolConfig.checkFirstLossCoverRequirementsForAdmin();
         poolConfig.checkLiquidityRequirements();
 
@@ -152,7 +152,7 @@ contract Pool is PoolConfigCache, IPool {
      * @custom:access Only pool owner or Huma protocol owner can call this function.
      */
     function setReadyForFirstLossCoverWithdrawal(bool isReady) external {
-        poolConfig.onlyOwnerOrHumaMasterAdmin(msg.sender);
+        poolConfig.onlyPoolOwnerOrHumaOwner(msg.sender);
         readyForFirstLossCoverWithdrawal = isReady;
         emit PoolReadyForFirstLossCoverWithdrawal(msg.sender, isReady);
     }

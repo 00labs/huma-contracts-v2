@@ -586,7 +586,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
 
     function _onlyFactoryAdmin(address account) internal view {
         if (!hasRole(DEFAULT_ADMIN_ROLE, account)) {
-            revert Errors.AdminRequired();
+            revert Errors.HumaOwnerRequired();
         }
     }
 
