@@ -983,7 +983,7 @@ describe("TrancheVault Test", function () {
             await loadFixture(prepareForWithdrawTests);
         });
 
-        describe.only("Transfer Tests", function () {
+        describe("Transfer Tests", function () {
             it("Should not transfer tranche vault token", async function () {
                 await expect(
                     juniorTrancheVaultContract
