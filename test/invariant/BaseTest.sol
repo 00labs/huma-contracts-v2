@@ -27,7 +27,7 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 import {Calendar} from "contracts/common/Calendar.sol";
 import {BORROWER_LOSS_COVER_INDEX, ADMIN_LOSS_COVER_INDEX} from "contracts/common/SharedDefs.sol";
 
-import {TrancheVaultHandler} from "./handlers/TrancheVaultHandler.sol";
+import {InvariantHandler} from "./handlers/InvariantHandler.sol";
 
 import {Test, Vm} from "forge-std/Test.sol";
 import "forge-std/console.sol";
@@ -61,13 +61,14 @@ contract BaseTest is Test {
     string constant RECEIVABLE_BACKED_CREDIT_LINE = "receivablebacked";
     string constant RECEIVABLE_FACTORING_CREDIT = "receivablefactoring";
 
-    TrancheVaultHandler trancheVaultHandler;
+    InvariantHandler handler;
 
     function setUp() public virtual {
         _createAccounts();
         _deployProtocolContracts();
         _deployFactory();
         _deployReceivableWithFactory();
+        vm.warp(1704067800); // 2024-1-1 00:10:00 UTC
     }
 
     function _createAccounts() internal {
@@ -240,6 +241,12 @@ contract BaseTest is Test {
         vm.startPrank(poolOwner);
         Pool(poolConfig.pool()).enablePool();
         vm.stopPrank();
+
+        // console.log(
+        //     "_enablePool - block.timestamp: %s, block.number: %s",
+        //     block.timestamp,
+        //     block.number
+        // );
     }
 
     function _createUsers(uint256 lenderNum, uint256 borrowerNum) internal {
