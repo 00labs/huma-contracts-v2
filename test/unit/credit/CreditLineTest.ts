@@ -364,6 +364,23 @@ describe("CreditLine Test", function () {
                         borrower.address,
                         toToken(10_000),
                         1,
+                        CONSTANTS.BP_FACTOR.add(1),
+                        toToken(10_000),
+                        0,
+                        true,
+                    ),
+            ).to.be.revertedWithCustomError(
+                creditManagerContract,
+                "InvalidBasisPointHigherThan10000",
+            );
+
+            await expect(
+                creditManagerContract
+                    .connect(eaServiceAccount)
+                    .approveBorrower(
+                        borrower.address,
+                        toToken(10_000),
+                        1,
                         1217,
                         toToken(10_001),
                         0,

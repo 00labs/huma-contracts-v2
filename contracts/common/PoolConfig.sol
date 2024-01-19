@@ -453,6 +453,9 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         FirstLossCoverConfig memory config
     ) external {
         _onlyOwnerOrHumaMasterAdmin();
+        if (config.coverRatePerLossInBps > HUNDRED_PERCENT_IN_BPS)
+            revert Errors.InvalidBasisPointHigherThan10000();
+
         _firstLossCovers[index] = firstLossCover;
         _firstLossCoverConfigs[firstLossCover] = config;
 
@@ -493,7 +496,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         ) {
             revert Errors.MinDepositAmountTooLow();
         }
-        if (settings.advanceRateInBps > 10000) {
+        if (settings.advanceRateInBps > HUNDRED_PERCENT_IN_BPS) {
             revert Errors.InvalidBasisPointHigherThan10000();
         }
         _poolSettings = settings;
@@ -512,6 +515,10 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
     /// @custom:access Only the pool owner and the Huma master admin can call this function.
     function setLPConfig(LPConfig memory lpConfig) external {
         _onlyOwnerOrHumaMasterAdmin();
+        if (
+            lpConfig.fixedSeniorYieldInBps > HUNDRED_PERCENT_IN_BPS ||
+            lpConfig.tranchesRiskAdjustmentInBps > HUNDRED_PERCENT_IN_BPS
+        ) revert Errors.InvalidBasisPointHigherThan10000();
         if (lpConfig.fixedSeniorYieldInBps != _lpConfig.fixedSeniorYieldInBps) {
             ITranchesPolicy(tranchesPolicy).refreshYieldTracker(
                 IPool(pool).currentTranchesAssets()
@@ -531,6 +538,8 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
     /// @custom:access Only the pool owner and the Huma master admin can call this function.
     function setFrontLoadingFees(FrontLoadingFeesStructure memory frontFees) external {
         _onlyOwnerOrHumaMasterAdmin();
+        if (frontFees.frontLoadingFeeBps > HUNDRED_PERCENT_IN_BPS)
+            revert Errors.InvalidBasisPointHigherThan10000();
         _frontFees = frontFees;
         emit FrontLoadingFeesChanged(
             frontFees.frontLoadingFeeFlat,
@@ -542,6 +551,11 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
     /// @custom:access Only the pool owner and the Huma master admin can call this function.
     function setFeeStructure(FeeStructure memory feeStructure) external {
         _onlyOwnerOrHumaMasterAdmin();
+        if (
+            feeStructure.yieldInBps > HUNDRED_PERCENT_IN_BPS ||
+            feeStructure.minPrincipalRateInBps > HUNDRED_PERCENT_IN_BPS ||
+            feeStructure.lateFeeBps > HUNDRED_PERCENT_IN_BPS
+        ) revert Errors.InvalidBasisPointHigherThan10000();
         _feeStructure = feeStructure;
         emit FeeStructureChanged(
             feeStructure.yieldInBps,
