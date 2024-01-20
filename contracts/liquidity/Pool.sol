@@ -353,9 +353,11 @@ contract Pool is PoolConfigCache, IPool {
         uint256 juniorTotalAssets = assets.juniorTotalAssets;
         // Distribute losses to the junior tranche up to the total junior asset.
         uint256 juniorLoss = juniorTotalAssets >= loss ? loss : juniorTotalAssets;
-        // Administrative fees are also susceptible to losses. However, these fees are not explicitly included in the
-        // loss distribution process. Consequently, the cumulative loss might surpass the total assets of the senior
-        // tranche. In such instances, we record the loss exclusively against the senior assets. It's important to note
+        // There are two possible scenarios for the remaining loss to surpass the total assets of the senior tranche:
+        // 1. Admin fees are also subject to losses. However, these fees are not explicitly included in the
+        // loss distribution process.
+        // 2. First loss covers are configured in a way that they take on more profit than loss, although this is unlikely.
+        // In such instances, we cap the loss at the senior total assets. It's important to note
         // that borrowers' payment obligations are based on the total amount due in `CreditRecord`, thus omitting to
         // fully account for losses in the senior tranche does not reduce the amount the borrower is required to pay,
         // ensuring their payment obligations remain unaffected.
