@@ -1036,19 +1036,30 @@ describe("Pool Test", function () {
                 });
 
                 it("Should return 0 if the senior total assets is already higher than the 'junior total assets * max senior : junior ratio'", async function () {
-                    const borrowerFLCAssets = await borrowerFirstLossCoverContract.totalAssets();
-                    const adminFLCAssets = await adminFirstLossCoverContract.totalAssets();
-                    const tranchesAssets = await poolContract.currentTranchesAssets();
-                    const juniorAssets = tranchesAssets[CONSTANTS.JUNIOR_TRANCHE];
+                    await seniorTrancheVaultContract
+                        .connect(lender)
+                        .deposit(toToken(10_000), lender.address);
+                    await juniorTrancheVaultContract
+                        .connect(lender)
+                        .deposit(toToken(10_000), lender.address);
+
+                    const [seniorAssets, juniorAssets] =
+                        await poolContract.currentTranchesAssets();
+                    // Make sure the liquidity cap is high enough so that the senior available cap is not constraint
+                    // by the liquidity cap.
+                    await overrideLPConfig(poolConfigContract, poolOwner, {
+                        liquidityCap: seniorAssets.add(toToken(1)),
+                    });
                     // Mark all junior assets as loss.
-                    await creditContract.mockDistributePnL(
-                        BN.from(0),
-                        borrowerFLCAssets.add(adminFLCAssets).add(juniorAssets),
-                        BN.from(0),
-                    ),
-                        expect(
-                            await poolContract.getTrancheAvailableCap(CONSTANTS.SENIOR_TRANCHE),
-                        ).to.equal(0);
+                    await creditContract.mockDistributePnL(BN.from(0), juniorAssets, BN.from(0));
+                    const [newSeniorAssets, newJuniorAssets] =
+                        await poolContract.currentTranchesAssets();
+                    expect(newJuniorAssets).to.equal(0);
+                    expect(newSeniorAssets).to.equal(seniorAssets);
+
+                    expect(
+                        await poolContract.getTrancheAvailableCap(CONSTANTS.SENIOR_TRANCHE),
+                    ).to.equal(0);
                 });
             });
         });
