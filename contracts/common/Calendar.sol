@@ -205,7 +205,12 @@ contract Calendar is ICalendar {
         uint256 timestamp
     ) internal pure returns (uint256 startOfNextHalfYear) {
         (uint256 year, uint256 month, ) = DTL.timestampToDate(timestamp);
-        startOfNextHalfYear = DTL.timestampFromDate(year, month > 6 ? 1 : 7, 1);
-        return startOfNextHalfYear;
+        if (month > 6) {
+            month = 1;
+            ++year;
+        } else {
+            month = 7;
+        }
+        startOfNextHalfYear = DTL.timestampFromDate(year, month, 1);
     }
 }
