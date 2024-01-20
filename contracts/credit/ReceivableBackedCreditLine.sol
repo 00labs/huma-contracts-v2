@@ -61,14 +61,14 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
     }
 
     function getNextBillRefreshDate(address borrower) external view returns (uint256 refreshDate) {
-        bytes32 creditHash = getCreditHash(borrower);
+        bytes32 creditHash = _getCreditHash(borrower);
         return _getNextBillRefreshDate(creditHash);
     }
 
     function getDueInfo(
         address borrower
     ) external view returns (CreditRecord memory cr, DueDetail memory dd) {
-        bytes32 creditHash = getCreditHash(borrower);
+        bytes32 creditHash = _getCreditHash(borrower);
         return _getDueInfo(creditHash);
     }
 
@@ -83,7 +83,7 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         poolConfig.onlyProtocolAndPoolOn();
         if (msg.sender != borrower) revert Errors.BorrowerRequired();
 
-        bytes32 creditHash = getCreditHash(borrower);
+        bytes32 creditHash = _getCreditHash(borrower);
         creditManager.onlyCreditBorrower(creditHash, borrower);
 
         _prepareForDrawdown(
@@ -109,7 +109,7 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         poolConfig.onlyProtocolAndPoolOn();
         if (msg.sender != borrower) _onlySentinelServiceAccount();
 
-        bytes32 creditHash = getCreditHash(borrower);
+        bytes32 creditHash = _getCreditHash(borrower);
         creditManager.onlyCreditBorrower(creditHash, borrower);
 
         _prepareForPayment(borrower, poolConfig.receivableAsset(), receivableId);
@@ -130,7 +130,7 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         poolConfig.onlyProtocolAndPoolOn();
         if (msg.sender != borrower) revert Errors.BorrowerRequired();
 
-        bytes32 creditHash = getCreditHash(borrower);
+        bytes32 creditHash = _getCreditHash(borrower);
         creditManager.onlyCreditBorrower(creditHash, borrower);
 
         _prepareForPayment(borrower, poolConfig.receivableAsset(), receivableId);
@@ -154,7 +154,7 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         poolConfig.onlyProtocolAndPoolOn();
         if (msg.sender != borrower) revert Errors.BorrowerRequired();
 
-        bytes32 creditHash = getCreditHash(borrower);
+        bytes32 creditHash = _getCreditHash(borrower);
         creditManager.onlyCreditBorrower(creditHash, borrower);
         CreditRecord memory cr = getCreditRecord(creditHash);
         if (cr.state != CreditState.GoodStanding)
@@ -252,7 +252,7 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
             revert Errors.ReceivableOwnerRequired();
     }
 
-    function getCreditHash(address borrower) internal view virtual returns (bytes32 creditHash) {
+    function _getCreditHash(address borrower) internal view virtual returns (bytes32 creditHash) {
         return keccak256(abi.encode(address(this), borrower));
     }
 }
