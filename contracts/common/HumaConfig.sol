@@ -232,10 +232,8 @@ contract HumaConfig is Ownable, Pausable {
      */
     function setHumaTreasury(address treasury) external onlyOwner {
         if (treasury == address(0)) revert Errors.ZeroAddressProvided();
-        if (treasury != humaTreasury) {
-            humaTreasury = treasury;
-            emit HumaTreasuryChanged(treasury);
-        }
+        humaTreasury = treasury;
+        emit HumaTreasuryChanged(treasury);
     }
 
     /**
