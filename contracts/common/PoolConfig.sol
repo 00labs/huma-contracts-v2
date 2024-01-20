@@ -5,6 +5,7 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {ICalendar} from "./interfaces/ICalendar.sol";
 import {IPoolFeeManager} from "../liquidity/interfaces/IPoolFeeManager.sol";
 import {IPool} from "../liquidity/interfaces/IPool.sol";
 import {IFirstLossCover} from "../liquidity/interfaces/IFirstLossCover.sol";
@@ -495,6 +496,12 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
             uint96(MIN_DEPOSIT_AMOUNT_THRESHOLD * 10 ** IERC20Metadata(underlyingToken).decimals())
         ) {
             revert Errors.MinDepositAmountTooLow();
+        }
+        if (
+            settings.latePaymentGracePeriodInDays >
+            ICalendar(calendar).getTotalDaysInFullPeriod(settings.payPeriodDuration)
+        ) {
+            revert Errors.LatePaymentGracePeriodTooLong();
         }
         if (settings.advanceRateInBps > HUNDRED_PERCENT_IN_BPS) {
             revert Errors.InvalidBasisPointHigherThan10000();

@@ -1867,6 +1867,21 @@ describe("PoolConfig Tests", function () {
                 ).to.be.revertedWithCustomError(poolConfigContract, "MinDepositAmountTooLow");
             });
 
+            it("Should disallow late payment grace periods that are longer than the number of days in a full pay period", async function () {
+                await expect(
+                    poolConfigContract.connect(poolOwner).setPoolSettings({
+                        ...newSettings,
+                        ...{
+                            payPeriodDuration: PayPeriodDuration.Monthly,
+                            latePaymentGracePeriodInDays: 31,
+                        },
+                    }),
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "LatePaymentGracePeriodTooLong",
+                );
+            });
+
             it("Should disallow advance rates that exceed 10000", async function () {
                 await expect(
                     poolConfigContract.connect(poolOwner).setPoolSettings({
