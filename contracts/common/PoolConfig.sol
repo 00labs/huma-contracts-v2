@@ -69,8 +69,6 @@ struct FrontLoadingFeesStructure {
 }
 
 struct FeeStructure {
-    // Expected yield in basis points
-    uint16 yieldInBps;
     // The min % of the outstanding principal to be paid in the statement for each each period
     uint16 minPrincipalRateInBps;
     // The late fee rate expressed in bps. The late fee is the additional charge on top of the yield
@@ -201,12 +199,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         uint16 frontLoadingFeeBps,
         address by
     );
-    event FeeStructureChanged(
-        uint16 yieldInBps,
-        uint16 minPrincipalRateInBps,
-        uint16 lateFeeBps,
-        address by
-    );
+    event FeeStructureChanged(uint16 minPrincipalRateInBps, uint16 lateFeeBps, address by);
 
     constructor() {
         _disableInitializers();
@@ -559,13 +552,12 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
     function setFeeStructure(FeeStructure memory feeStructure) external {
         _onlyOwnerOrHumaMasterAdmin();
         if (
-            feeStructure.yieldInBps > HUNDRED_PERCENT_IN_BPS ||
             feeStructure.minPrincipalRateInBps > HUNDRED_PERCENT_IN_BPS ||
             feeStructure.lateFeeBps > HUNDRED_PERCENT_IN_BPS
         ) revert Errors.InvalidBasisPointHigherThan10000();
+
         _feeStructure = feeStructure;
         emit FeeStructureChanged(
-            feeStructure.yieldInBps,
             feeStructure.minPrincipalRateInBps,
             feeStructure.lateFeeBps,
             msg.sender

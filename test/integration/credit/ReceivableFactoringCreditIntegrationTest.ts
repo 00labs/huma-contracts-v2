@@ -176,7 +176,6 @@ describe("ReceivableFactoringCredit Integration Tests", function () {
             });
 
             await poolConfigContract.connect(poolOwner).setFeeStructure({
-                yieldInBps,
                 minPrincipalRateInBps: principalRate,
                 lateFeeBps,
             });

@@ -309,7 +309,6 @@ describe("CreditLine Integration Test", function () {
             },
         });
         await poolConfigContract.connect(poolOwner).setFeeStructure({
-            yieldInBps,
             minPrincipalRateInBps: principalRateInBps,
             lateFeeBps,
         });

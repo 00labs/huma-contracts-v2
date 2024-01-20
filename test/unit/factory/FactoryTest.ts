@@ -250,11 +250,12 @@ describe("Factory Test", function () {
             true,
         );
         await poolFactoryContract.setLPConfig(1, toToken(1_000_000), 4, 1000, 1000, 60);
-        await poolFactoryContract.setFees(1, 0, 1000, 1500, 0, 100, 0, 0, 0, 0);
+        await poolFactoryContract.setFees(1, 0, 1000, 0, 100, 0, 0, 0, 0);
         await poolFactoryContract.addPoolOperator(1, poolOperator.getAddress());
         await poolFactoryContract.updatePoolStatus(1, 1);
         await expect((await poolFactoryContract.checkPool(1)).poolStatus).to.equal(1);
     });
+
     it("Deploy a pool using factory and initialize the pool, then add timelock", async function () {
         await poolFactoryContract.deployPool(
             "test pool",
@@ -274,7 +275,7 @@ describe("Factory Test", function () {
             true,
         );
         await poolFactoryContract.setLPConfig(1, toToken(1_000_000), 4, 1000, 1000, 60);
-        await poolFactoryContract.setFees(1, 0, 1000, 1500, 0, 100, 0, 0, 0, 0);
+        await poolFactoryContract.setFees(1, 0, 1000, 0, 100, 0, 0, 0, 0);
         await poolFactoryContract.addPoolOperator(1, poolOperator.getAddress());
         await poolFactoryContract.updatePoolStatus(1, 1);
         await expect((await poolFactoryContract.checkPool(1)).poolStatus).to.equal(1);
@@ -316,7 +317,7 @@ describe("Factory Test", function () {
             true,
         );
         await poolFactoryContract.setLPConfig(poolId, toToken(1_000_000), 4, 1000, 1000, 60);
-        await poolFactoryContract.setFees(poolId, 0, 1000, 1500, 0, 100, 0, 0, 0, 0);
+        await poolFactoryContract.setFees(poolId, 0, 1000, 0, 100, 0, 0, 0, 0);
         await poolFactoryContract.addPoolOperator(poolId, poolOperator.getAddress());
         await poolFactoryContract.updatePoolStatus(poolId, 1);
 

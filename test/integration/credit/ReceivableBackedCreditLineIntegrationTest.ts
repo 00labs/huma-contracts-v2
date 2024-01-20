@@ -181,7 +181,6 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
             });
 
             await poolConfigContract.connect(poolOwner).setFeeStructure({
-                yieldInBps,
                 minPrincipalRateInBps: principalRate,
                 lateFeeBps,
             });

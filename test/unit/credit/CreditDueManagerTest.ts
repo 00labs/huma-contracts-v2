@@ -449,7 +449,6 @@ describe("CreditDueManager Tests", function () {
 
                     const lateFeeBps = 500;
                     await poolConfigContract.connect(poolOwner).setFeeStructure({
-                        yieldInBps: 1000,
                         minPrincipalRateInBps: 10,
                         lateFeeBps,
                     });
@@ -539,7 +538,6 @@ describe("CreditDueManager Tests", function () {
 
                         const lateFeeBps = 500;
                         await poolConfigContract.connect(poolOwner).setFeeStructure({
-                            yieldInBps: 1000,
                             minPrincipalRateInBps: 0,
                             lateFeeBps,
                         });
@@ -609,7 +607,6 @@ describe("CreditDueManager Tests", function () {
                         const lateFeeBps = 500;
                         const principalRateInBps = 100;
                         await poolConfigContract.connect(poolOwner).setFeeStructure({
-                            yieldInBps: 1000,
                             minPrincipalRateInBps: principalRateInBps,
                             lateFeeBps,
                         });
@@ -681,7 +678,6 @@ describe("CreditDueManager Tests", function () {
 
                             const lateFeeBps = 500;
                             await poolConfigContract.connect(poolOwner).setFeeStructure({
-                                yieldInBps: 1000,
                                 minPrincipalRateInBps: 0,
                                 lateFeeBps,
                             });
@@ -781,7 +777,6 @@ describe("CreditDueManager Tests", function () {
                             const lateFeeBps = 500;
                             const principalRateInBps = 100;
                             await poolConfigContract.connect(poolOwner).setFeeStructure({
-                                yieldInBps: 1000,
                                 minPrincipalRateInBps: principalRateInBps,
                                 lateFeeBps,
                             });
@@ -901,7 +896,6 @@ describe("CreditDueManager Tests", function () {
 
                             const lateFeeBps = 500;
                             await poolConfigContract.connect(poolOwner).setFeeStructure({
-                                yieldInBps: 1000,
                                 minPrincipalRateInBps: 0,
                                 lateFeeBps,
                             });
@@ -1011,7 +1005,6 @@ describe("CreditDueManager Tests", function () {
                             const lateFeeBps = 500;
                             const principalRateInBps = 100;
                             await poolConfigContract.connect(poolOwner).setFeeStructure({
-                                yieldInBps: 1000,
                                 minPrincipalRateInBps: principalRateInBps,
                                 lateFeeBps,
                             });
@@ -1142,7 +1135,6 @@ describe("CreditDueManager Tests", function () {
                         const lateFeeBps = 500;
                         const principalRateInBps = 0;
                         await poolConfigContract.connect(poolOwner).setFeeStructure({
-                            yieldInBps: 1000,
                             minPrincipalRateInBps: principalRateInBps,
                             lateFeeBps,
                         });

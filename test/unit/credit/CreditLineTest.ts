@@ -182,7 +182,6 @@ describe("CreditLine Test", function () {
                 ...{ latePaymentGracePeriodInDays: latePaymentGracePeriodInDays },
             });
             await poolConfigContract.connect(poolOwner).setFeeStructure({
-                yieldInBps: yieldInBps,
                 minPrincipalRateInBps: principalRate,
                 lateFeeBps: lateFeeBps,
             });
@@ -2025,7 +2024,6 @@ describe("CreditLine Test", function () {
 
             async function prepareForDrawdown() {
                 await poolConfigContract.connect(poolOwner).setFeeStructure({
-                    yieldInBps: 0,
                     minPrincipalRateInBps: principalRateInBps,
                     lateFeeBps: 0,
                 });
@@ -2964,7 +2962,6 @@ describe("CreditLine Test", function () {
 
             async function prepareForTestsWithSettings() {
                 await poolConfigContract.connect(poolOwner).setFeeStructure({
-                    yieldInBps: yieldInBps,
                     minPrincipalRateInBps: principalRate,
                     lateFeeBps: lateFeeBps,
                 });
@@ -4251,7 +4248,6 @@ describe("CreditLine Test", function () {
                 async function prepareForMakePayment() {
                     principalRateInBps = 0;
                     await poolConfigContract.connect(poolOwner).setFeeStructure({
-                        yieldInBps,
                         minPrincipalRateInBps: principalRateInBps,
                         lateFeeBps,
                     });
@@ -5814,7 +5810,6 @@ describe("CreditLine Test", function () {
                 async function prepareForMakePayment() {
                     principalRateInBps = 200;
                     await poolConfigContract.connect(poolOwner).setFeeStructure({
-                        yieldInBps,
                         minPrincipalRateInBps: principalRateInBps,
                         lateFeeBps,
                     });
@@ -7608,7 +7603,6 @@ describe("CreditLine Test", function () {
                 async function prepareForMakePayment() {
                     principalRateInBps = 0;
                     await poolConfigContract.connect(poolOwner).setFeeStructure({
-                        yieldInBps,
                         minPrincipalRateInBps: principalRateInBps,
                         lateFeeBps,
                     });
@@ -7993,7 +7987,6 @@ describe("CreditLine Test", function () {
                 async function prepareForMakePayment() {
                     principalRateInBps = 200;
                     await poolConfigContract.connect(poolOwner).setFeeStructure({
-                        yieldInBps,
                         minPrincipalRateInBps: principalRateInBps,
                         lateFeeBps,
                     });
@@ -8346,7 +8339,6 @@ describe("CreditLine Test", function () {
                 ...{ defaultGracePeriodInDays: defaultGracePeriodInDays },
             });
             await poolConfigContract.connect(poolOwner).setFeeStructure({
-                yieldInBps,
                 minPrincipalRateInBps: 50,
                 lateFeeBps,
             });
@@ -10046,7 +10038,6 @@ describe("CreditLine Test", function () {
                 ...{ latePaymentGracePeriodInDays: latePaymentGracePeriodInDays },
             });
             await poolConfigContract.connect(poolOwner).setFeeStructure({
-                yieldInBps,
                 minPrincipalRateInBps: 50,
                 lateFeeBps,
             });

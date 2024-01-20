@@ -2071,7 +2071,6 @@ describe("PoolConfig Tests", function () {
 
             before(async function () {
                 newFeeStructure = {
-                    yieldInBps: BN.from(1000),
                     minPrincipalRateInBps: BN.from(2000),
                     lateFeeBps: BN.from(3000),
                 };
@@ -2083,13 +2082,11 @@ describe("PoolConfig Tests", function () {
                 )
                     .to.emit(poolConfigContract, "FeeStructureChanged")
                     .withArgs(
-                        newFeeStructure.yieldInBps,
                         newFeeStructure.minPrincipalRateInBps,
                         newFeeStructure.lateFeeBps,
                         poolOwner.address,
                     );
                 let fees = await poolConfigContract.getFeeStructure();
-                expect(fees.yieldInBps).to.equal(newFeeStructure.yieldInBps);
                 expect(fees.lateFeeBps).to.equal(newFeeStructure.lateFeeBps);
                 expect(fees.minPrincipalRateInBps).to.equal(newFeeStructure.minPrincipalRateInBps);
             });
@@ -2100,14 +2097,12 @@ describe("PoolConfig Tests", function () {
                 )
                     .to.emit(poolConfigContract, "FeeStructureChanged")
                     .withArgs(
-                        newFeeStructure.yieldInBps,
                         newFeeStructure.minPrincipalRateInBps,
                         newFeeStructure.lateFeeBps,
                         protocolOwner.address,
                     );
 
                 let fees = await poolConfigContract.getFeeStructure();
-                expect(fees.yieldInBps).to.equal(newFeeStructure.yieldInBps);
                 expect(fees.lateFeeBps).to.equal(newFeeStructure.lateFeeBps);
                 expect(fees.minPrincipalRateInBps).to.equal(newFeeStructure.minPrincipalRateInBps);
             });
@@ -2116,20 +2111,6 @@ describe("PoolConfig Tests", function () {
                 await expect(
                     poolConfigContract.connect(regularUser).setFeeStructure(newFeeStructure),
                 ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
-            });
-
-            it("Should not allow yieldInBps to exceed 10000", async function () {
-                await expect(
-                    poolConfigContract.connect(poolOwner).setFeeStructure({
-                        ...newFeeStructure,
-                        ...{
-                            yieldInBps: CONSTANTS.BP_FACTOR.add(1),
-                        },
-                    }),
-                ).to.be.revertedWithCustomError(
-                    poolConfigContract,
-                    "InvalidBasisPointHigherThan10000",
-                );
             });
 
             it("Should not allow minPrincipalRateInBps to exceed 10000", async function () {

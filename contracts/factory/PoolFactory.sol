@@ -476,7 +476,6 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         uint256 _poolId,
         uint96 frontLoadingFeeFlat,
         uint16 frontLoadingFeeBps,
-        uint16 yieldInBps,
         uint16 minPrincipalRateInBps,
         uint16 lateFeeBps,
         uint256 poolOwnerRewardRate,
@@ -491,7 +490,6 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         });
         PoolConfig(pools[_poolId].poolConfigAddress).setFrontLoadingFees(frontLoadingFees);
         FeeStructure memory fees = FeeStructure({
-            yieldInBps: yieldInBps,
             minPrincipalRateInBps: minPrincipalRateInBps,
             lateFeeBps: lateFeeBps
         });

@@ -347,7 +347,6 @@ describe("ReceivableFactoringCreditManager.sol Test", function () {
                 },
             });
             await poolConfigContract.connect(poolOwner).setFeeStructure({
-                yieldInBps,
                 minPrincipalRateInBps: 0,
                 lateFeeBps: 0,
             });
@@ -458,7 +457,6 @@ describe("ReceivableFactoringCreditManager.sol Test", function () {
                 },
             });
             await poolConfigContract.connect(poolOwner).setFeeStructure({
-                yieldInBps,
                 minPrincipalRateInBps: 0,
                 lateFeeBps,
             });
@@ -770,7 +768,6 @@ describe("ReceivableFactoringCreditManager.sol Test", function () {
                 },
             });
             await poolConfigContract.connect(poolOwner).setFeeStructure({
-                yieldInBps,
                 minPrincipalRateInBps: 0,
                 lateFeeBps: 0,
             });
@@ -903,7 +900,6 @@ describe("ReceivableFactoringCreditManager.sol Test", function () {
 
         async function prepareForExtension() {
             await poolConfigContract.connect(poolOwner).setFeeStructure({
-                yieldInBps,
                 minPrincipalRateInBps: 0,
                 lateFeeBps: 0,
             });
@@ -1000,7 +996,6 @@ describe("ReceivableFactoringCreditManager.sol Test", function () {
                 },
             });
             await poolConfigContract.connect(poolOwner).setFeeStructure({
-                yieldInBps,
                 minPrincipalRateInBps: 0,
                 lateFeeBps,
             });

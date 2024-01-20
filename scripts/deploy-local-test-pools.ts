@@ -235,7 +235,6 @@ async function deployPool(
             .drawdown(borrowerActive.address, borrowAmount);
     } else if (poolName === LocalPoolName.ReceivableBackedCreditLine) {
         const latePaymentGracePeriodInDays = 5;
-        const yieldInBps = 1200;
         const lateFeeBps = 2400;
         const principalRate = 0;
 
@@ -251,7 +250,6 @@ async function deployPool(
         });
 
         await poolConfigContract.connect(poolOwner).setFeeStructure({
-            yieldInBps,
             minPrincipalRateInBps: principalRate,
             lateFeeBps,
         });

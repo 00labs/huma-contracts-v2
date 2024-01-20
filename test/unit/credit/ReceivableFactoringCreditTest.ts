@@ -165,7 +165,6 @@ describe("ReceivableFactoringCredit Tests", function () {
                 ...{ latePaymentGracePeriodInDays: latePaymentGracePeriodInDays },
             });
             await poolConfigContract.connect(poolOwner).setFeeStructure({
-                yieldInBps,
                 minPrincipalRateInBps: principalRate,
                 lateFeeBps,
             });
@@ -259,7 +258,6 @@ describe("ReceivableFactoringCredit Tests", function () {
                 },
             });
             await poolConfigContract.connect(poolOwner).setFeeStructure({
-                yieldInBps,
                 minPrincipalRateInBps: principalRate,
                 lateFeeBps,
             });
@@ -437,7 +435,6 @@ describe("ReceivableFactoringCredit Tests", function () {
                 },
             });
             await poolConfigContract.connect(poolOwner).setFeeStructure({
-                yieldInBps,
                 minPrincipalRateInBps: principalRate,
                 lateFeeBps,
             });
@@ -616,7 +613,6 @@ describe("ReceivableFactoringCredit Tests", function () {
                 },
             });
             await poolConfigContract.connect(poolOwner).setFeeStructure({
-                yieldInBps,
                 minPrincipalRateInBps: principalRate,
                 lateFeeBps,
             });
