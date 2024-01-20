@@ -1034,6 +1034,22 @@ describe("Pool Test", function () {
                         await poolContract.getTrancheAvailableCap(CONSTANTS.SENIOR_TRANCHE),
                     ).to.equal(poolConfig.liquidityCap.sub(poolTotalAssets));
                 });
+
+                it("Should return 0 if the senior total assets is already higher than the 'junior total assets * max senior : junior ratio'", async function () {
+                    const borrowerFLCAssets = await borrowerFirstLossCoverContract.totalAssets();
+                    const adminFLCAssets = await adminFirstLossCoverContract.totalAssets();
+                    const tranchesAssets = await poolContract.currentTranchesAssets();
+                    const juniorAssets = tranchesAssets[CONSTANTS.JUNIOR_TRANCHE];
+                    // Mark all junior assets as loss.
+                    await creditContract.mockDistributePnL(
+                        BN.from(0),
+                        borrowerFLCAssets.add(adminFLCAssets).add(juniorAssets),
+                        BN.from(0),
+                    ),
+                        expect(
+                            await poolContract.getTrancheAvailableCap(CONSTANTS.SENIOR_TRANCHE),
+                        ).to.equal(0);
+                });
             });
         });
 
