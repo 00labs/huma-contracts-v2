@@ -145,6 +145,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         uint256 liquidityRate,
         address indexed by
     );
+    event EvaluationAgentFeesWithdrawalFailed(address oldEA, uint256 fees, string reason);
     event EvaluationAgentChanged(address oldEA, address newEA, uint256 newEAId, address by);
     event PoolFeeManagerChanged(address poolFeeManager, address by);
     event HumaConfigChanged(address humaConfig, address by);
@@ -339,7 +340,12 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         if (oldEA != address(0)) {
             IPoolFeeManager feeManager = IPoolFeeManager(poolFeeManager);
             (, , uint256 eaWithdrawable) = feeManager.getWithdrawables();
-            feeManager.withdrawEAFee(eaWithdrawable);
+            // The underlying token might incorporate a blocklist feature that prevents the old EA
+            // from receiving funds if they are subject to sanctions. Under these circumstances,
+            // it is acceptable to bypass the funds of the old EA and proceed with enforcing the replacement.
+            try feeManager.withdrawEAFee(eaWithdrawable) {} catch Error(string memory reason) {
+                emit EvaluationAgentFeesWithdrawalFailed(oldEA, eaWithdrawable, reason);
+            }
         }
 
         // Make sure the new EA meets the liquidity requirements.

@@ -105,6 +105,20 @@ contract TrancheVault is
     event YieldPaidOut(address indexed account, uint256 yields, uint256 shares);
 
     /**
+     * @notice Yield payout to the investor has failed.
+     * @param account The account who should have received the yield distribution.
+     * @param yields The amount of yield that should have been distributed.
+     * @param shares The number of shares that should have been burned for this distribution.
+     * @param reason The reason why the payout failed.
+     */
+    event YieldPayoutFailed(
+        address indexed account,
+        uint256 yields,
+        uint256 shares,
+        string reason
+    );
+
+    /**
      * @notice Yield has been reinvested into the tranche.
      * @param account The account whose yield has been reinvested.
      * @param yields The yield amount reinvested.
@@ -435,8 +449,14 @@ contract TrancheVault is
                 // the given amount of yield. Round-up applies the favor-the-pool principle.
                 shares = Math.ceilDiv(yield * DEFAULT_DECIMALS_FACTOR, price);
                 ERC20Upgradeable._burn(lender, shares);
-                poolSafe.withdraw(lender, yield);
-                emit YieldPaidOut(lender, yield, shares);
+                // The underlying token might incorporate a blocklist feature that prevents the lender
+                // from receiving yield if they are subject to sanctions. Under these circumstances,
+                // it is acceptable to bypass the yield of this lender and proceed with others.
+                try poolSafe.withdraw(lender, yield) {
+                    emit YieldPaidOut(lender, yield, shares);
+                } catch Error(string memory reason) {
+                    emit YieldPayoutFailed(lender, yield, shares, reason);
+                }
             }
         }
         poolSafe.resetUnprocessedProfit();
