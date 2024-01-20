@@ -230,9 +230,12 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
                     revert Errors.CreditNotInStateForDrawdown();
             }
 
-            if (
-                borrowAmount > (cc.creditLimit - cr.unbilledPrincipal - (cr.nextDue - cr.yieldDue))
-            ) revert Errors.CreditLimitExceeded();
+            // cc.creditLimit may have been adjusted downwards to be lower than the outstanding
+            // principal, so it's safer to do compute the sum of the borrowAmount and all outstanding
+            // principal on the left-hand-side instead of subtracting the outstanding principal from
+            // the right-hand-side to prevent underflow.
+            if (borrowAmount + cr.unbilledPrincipal + (cr.nextDue - cr.yieldDue) > cc.creditLimit)
+                revert Errors.CreditLimitExceeded();
 
             // Add the yield of new borrowAmount for the remainder of the period
             (uint256 additionalYieldAccrued, uint256 additionalPrincipalDue) = dueManager
