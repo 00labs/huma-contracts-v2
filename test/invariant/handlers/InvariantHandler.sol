@@ -281,7 +281,7 @@ contract InvariantHandler is Test {
         tranche.processYieldForLenders();
     }
 
-    function displayCallsLog() external {
+    function displayCallsLog() public {
         console.log("calls: ");
         console.log("--------------------");
         console.log("deposit: %s", calls[this.deposit.selector]);
@@ -302,6 +302,10 @@ contract InvariantHandler is Test {
         console.log("disburse: %s", validCalls[this.disburse.selector]);
         console.log("processYieldForLenders: %s", calls[this.processYieldForLenders.selector]);
         console.log("--------------------");
+    }
+
+    function boundNew(uint256 x, uint256 min, uint256 max) public pure returns (uint256 result) {
+        result = _boundNew(x, min, max);
     }
 
     function _updateCurrentEpochEndTime() internal returns (uint256) {
@@ -338,9 +342,5 @@ contract InvariantHandler is Test {
         } else {
             result = x;
         }
-    }
-
-    function boundNew(uint256 x, uint256 min, uint256 max) external pure returns (uint256 result) {
-        result = _boundNew(x, min, max);
     }
 }
