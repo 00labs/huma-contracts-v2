@@ -29,6 +29,8 @@
     "deploy:mumbai": "yarn hardhat run --network maticmum deployment/index.ts",
     "verify:mumbai": "yarn hardhat run --network maticmum deployment/mumbai/verify.ts",
     "cancel:mumbai": "yarn hardhat run --network maticmum deployment/cancelTxs.ts",
+    "deploy:sepolia": "yarn hardhat run --network sepolia deployment/index.ts",
+    "verify:sepolia": "yarn hardhat run --network sepolia deployment/sepolia/verify.ts",
     "gen-error-ids": "hardhat run scripts/gen-error-function-ids.ts --network hardhat && prettier --write scripts/error-functions.json"
   },
   "lint-staged": {

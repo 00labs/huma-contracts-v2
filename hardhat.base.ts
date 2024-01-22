@@ -37,7 +37,19 @@ const config: HardhatUserConfig = {
         },
         sepolia: {
             url: sepoliaUrl,
-            accounts: [deployer],
+            accounts: [
+                defaultDeployer!,
+                protocolOwner!,
+                treasury!,
+                eaServiceAccount!,
+                pdsServiceAccount!,
+                poolOwner!,
+                poolOwnerTreasury!,
+                evaluationAgent!,
+                poolOperator!,
+                seniorLender!,
+                juniorLender!,
+            ],
         },
         maticmum: {
             url: mumbaiUrl,
