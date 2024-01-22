@@ -13,7 +13,7 @@ runs = 5_000
 
 [invariant]
 runs = 2
-depth = 40
+depth = 50
 fail_on_revert = true
 
 [profile.ci]

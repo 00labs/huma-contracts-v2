@@ -5,7 +5,12 @@ import {PoolConfig, PoolSettings} from "contracts/common/PoolConfig.sol";
 import {TrancheVault} from "contracts/liquidity/TrancheVault.sol";
 import {MockToken} from "contracts/common/mock/MockToken.sol";
 import {Pool} from "contracts/liquidity/Pool.sol";
+import {PoolSafe} from "contracts/liquidity/PoolSafe.sol";
 import {EpochManager} from "contracts/liquidity/EpochManager.sol";
+import {CreditLine} from "contracts/credit/CreditLine.sol";
+import {CreditDueManager} from "contracts/credit/CreditDueManager.sol";
+import {CreditLineManager} from "contracts/credit/CreditLineManager.sol";
+import {CreditRecord, CreditConfig, CreditState} from "contracts/credit/CreditStructs.sol";
 
 import {Test} from "forge-std/Test.sol";
 import "forge-std/console.sol";
@@ -13,12 +18,17 @@ import "forge-std/console.sol";
 contract InvariantHandler is Test {
     uint256 immutable decimals;
     uint256 immutable minRedemptionShares;
+    uint256 immutable minDrawdownAmount;
+    uint256 immutable minPaymentAmount;
 
     TrancheVault[] tranches;
     MockToken mockToken;
     Pool pool;
-    address poolSafe;
+    PoolSafe poolSafe;
     EpochManager epochManager;
+    CreditLine creditLine;
+    CreditLineManager creditLineManager;
+    CreditDueManager creditDueManager;
 
     uint256 minDepositAmount;
     uint256 currentEpochEndTime;
@@ -26,6 +36,11 @@ contract InvariantHandler is Test {
     address[] lenders;
     mapping(uint256 => address[]) investedLendersByTranche;
     mapping(uint256 => address[]) redeemedLendersByTranche;
+
+    address[] borrowers;
+    address[] borrowedBorrowers;
+
+    bool hasProfit;
 
     mapping(bytes4 => uint256) calls;
     mapping(bytes4 => uint256) validCalls;
@@ -57,20 +72,7 @@ contract InvariantHandler is Test {
         }
         vm.warp(timestamp);
         if (timestamp > currentEpochEndTime) {
-            // console.log(
-            //     "close epoch - tiemstamp: %s, currentEpochEndTime: %s",
-            //     timestamp,
-            //     currentEpochEndTime
-            // );
-            console.log("closeEpoch starts...");
-            epochManager.closeEpoch();
-            console.log("closeEpoch done.");
-            _updateCurrentEpochEndTime();
-            // console.log(
-            //     "close epoch - new currentEpochEndTime: %s",
-            //     timestamp,
-            //     currentEpochEndTime
-            // );
+            _closeEpoch();
         }
 
         _;
@@ -82,18 +84,26 @@ contract InvariantHandler is Test {
         );
     }
 
-    constructor(address _poolConfig, address[] memory _lenders) {
+    constructor(address _poolConfig, address[] memory _lenders, address[] memory _borrowers) {
         PoolConfig poolConfig = PoolConfig(_poolConfig);
         tranches.push(TrancheVault(poolConfig.seniorTranche()));
         tranches.push(TrancheVault(poolConfig.juniorTranche()));
         pool = Pool(poolConfig.pool());
-        poolSafe = poolConfig.poolSafe();
+        poolSafe = PoolSafe(poolConfig.poolSafe());
         mockToken = MockToken(poolConfig.underlyingToken());
         epochManager = EpochManager(poolConfig.epochManager());
         lenders = _lenders;
+
+        creditLine = CreditLine(poolConfig.credit());
+        creditLineManager = CreditLineManager(poolConfig.creditManager());
+        creditDueManager = CreditDueManager(poolConfig.creditDueManager());
+        borrowers = _borrowers;
+
         minDepositAmount = poolConfig.getPoolSettings().minDepositAmount;
         decimals = mockToken.decimals();
         minRedemptionShares = _toToken(1);
+        minDrawdownAmount = _toToken(100000);
+        minPaymentAmount = _toToken(1000);
 
         _updateCurrentEpochEndTime();
     }
@@ -128,7 +138,7 @@ contract InvariantHandler is Test {
         validCalls[this.deposit.selector]++;
         vm.startPrank(lender);
         mockToken.mint(lender, depositAmount);
-        mockToken.approve(poolSafe, depositAmount);
+        mockToken.approve(address(poolSafe), depositAmount);
         tranche.deposit(depositAmount, lender);
         vm.stopPrank();
         if (tranche.balanceOf(lender) >= minRedemptionShares) {
@@ -175,11 +185,7 @@ contract InvariantHandler is Test {
         tranche.addRedemptionRequest(redemptionShares);
         vm.stopPrank();
         if (tranche.balanceOf(lender) < minRedemptionShares) {
-            uint256 len = investedLendersByTranche[trancheIndex].length;
-            investedLendersByTranche[trancheIndex][lenderIndex] = investedLendersByTranche[
-                trancheIndex
-            ][len - 1];
-            investedLendersByTranche[trancheIndex].pop();
+            _removeItem(investedLendersByTranche[trancheIndex], lenderIndex);
         }
         redeemedLendersByTranche[trancheIndex].push(lender);
     }
@@ -230,11 +236,7 @@ contract InvariantHandler is Test {
         vm.stopPrank();
         maxRedemptionShares = tranche.cancellableRedemptionShares(lender);
         if (maxRedemptionShares < minRedemptionShares) {
-            uint256 len = redeemedLendersByTranche[trancheIndex].length;
-            redeemedLendersByTranche[trancheIndex][lenderIndex] = redeemedLendersByTranche[
-                trancheIndex
-            ][len - 1];
-            redeemedLendersByTranche[trancheIndex].pop();
+            _removeItem(redeemedLendersByTranche[trancheIndex], lenderIndex);
         }
     }
 
@@ -275,10 +277,86 @@ contract InvariantHandler is Test {
         logCall(this.processYieldForLenders.selector, "processYieldForLenders")
         advanceTimestamp(timeSeed)
     {
+        if (!hasProfit) return;
         uint256 trancheIndex = _boundNew(trancheSeed, 0, tranches.length - 1);
         TrancheVault tranche = tranches[trancheIndex];
         console.log("valid processYieldForLenders - trancheIndex: %s", trancheIndex);
+        validCalls[this.processYieldForLenders.selector]++;
         tranche.processYieldForLenders();
+        hasProfit = false;
+    }
+
+    function drawdown(
+        uint256 borrowerSeed,
+        uint256 amountSeed,
+        uint256 timeSeed
+    ) public logCall(this.drawdown.selector, "drawdown") advanceTimestamp(timeSeed) {
+        uint256 borrowerIndex = _boundNew(borrowerSeed, 0, borrowers.length - 1);
+        address borrower = borrowers[borrowerIndex];
+        (CreditRecord memory cr, ) = creditLine.getDueInfo(borrower);
+        if (cr.state != CreditState.Approved && cr.state != CreditState.GoodStanding) return;
+        if (cr.remainingPeriods == 0) return;
+        CreditConfig memory cc = creditLineManager.getCreditConfig(
+            keccak256(abi.encode(address(creditLine), borrower))
+        );
+        uint256 maxDrawdownAmount = cc.creditLimit -
+            cr.unbilledPrincipal -
+            (cr.nextDue - cr.yieldDue);
+        uint256 poolAvailableBalance = poolSafe.getAvailableBalanceForPool();
+        maxDrawdownAmount = maxDrawdownAmount > poolAvailableBalance
+            ? poolAvailableBalance
+            : maxDrawdownAmount;
+        if (minDrawdownAmount > maxDrawdownAmount) return;
+        uint256 drawdownAmount = _boundNew(amountSeed, minDrawdownAmount, maxDrawdownAmount);
+        console.log("valid drawdown - borrower: %s, drawdownAmount: %s", borrower, drawdownAmount);
+        validCalls[this.drawdown.selector]++;
+        vm.startPrank(borrower);
+        creditLine.drawdown(borrower, drawdownAmount);
+        vm.stopPrank();
+        borrowedBorrowers.push(borrower);
+        hasProfit = true;
+    }
+
+    function makePayment(
+        uint256 borrowerSeed,
+        uint256 amountSeed,
+        uint256 timeSeed
+    ) public logCall(this.makePayment.selector, "makePayment") advanceTimestamp(timeSeed) {
+        if (borrowedBorrowers.length == 0) return;
+        uint256 borrowerIndex = _boundNew(borrowerSeed, 0, borrowedBorrowers.length - 1);
+        address borrower = borrowedBorrowers[borrowerIndex];
+        (CreditRecord memory cr, ) = creditLine.getDueInfo(borrower);
+        if (cr.nextDue == 0 && cr.totalPastDue == 0) return;
+        uint256 maxPaymentAmount = creditDueManager.getPayoffAmount(cr);
+        uint256 paymentAmount = _boundNew(amountSeed, minPaymentAmount, maxPaymentAmount * 2);
+        console.log(
+            "valid makePayment - borrower: %s, paymentAmount: %s",
+            borrower,
+            paymentAmount
+        );
+        validCalls[this.makePayment.selector]++;
+        vm.startPrank(borrower);
+        mockToken.mint(borrower, paymentAmount);
+        mockToken.approve(address(poolSafe), paymentAmount);
+        creditLine.makePayment(borrower, paymentAmount);
+        vm.stopPrank();
+        if (paymentAmount >= maxPaymentAmount) {
+            _removeItem(borrowedBorrowers, borrowerIndex);
+        }
+        hasProfit = true;
+    }
+
+    function refreshCredit(
+        uint256 borrowerSeed,
+        uint256 timeSeed
+    ) public logCall(this.refreshCredit.selector, "refreshCredit") advanceTimestamp(timeSeed) {
+        uint256 borrowerIndex = _boundNew(borrowerSeed, 0, borrowers.length - 1);
+        address borrower = borrowers[borrowerIndex];
+        console.log("valid refreshCredit - borrower: %s", borrower);
+        validCalls[this.refreshCredit.selector]++;
+        vm.startPrank(borrower);
+        creditLineManager.refreshCredit(borrower);
+        vm.stopPrank();
     }
 
     function displayCallsLog() public {
@@ -289,6 +367,9 @@ contract InvariantHandler is Test {
         console.log("cancelRedemptionRequest: %s", calls[this.cancelRedemptionRequest.selector]);
         console.log("disburse: %s", calls[this.disburse.selector]);
         console.log("processYieldForLenders: %s", calls[this.processYieldForLenders.selector]);
+        console.log("drawdown: %s", calls[this.drawdown.selector]);
+        console.log("makePayment: %s", calls[this.makePayment.selector]);
+        console.log("refreshCredit: %s", calls[this.refreshCredit.selector]);
         console.log("--------------------");
 
         console.log("validCalls: ");
@@ -300,7 +381,13 @@ contract InvariantHandler is Test {
             validCalls[this.cancelRedemptionRequest.selector]
         );
         console.log("disburse: %s", validCalls[this.disburse.selector]);
-        console.log("processYieldForLenders: %s", calls[this.processYieldForLenders.selector]);
+        console.log(
+            "processYieldForLenders: %s",
+            validCalls[this.processYieldForLenders.selector]
+        );
+        console.log("drawdown: %s", validCalls[this.drawdown.selector]);
+        console.log("makePayment: %s", validCalls[this.makePayment.selector]);
+        console.log("refreshCredit: %s", validCalls[this.refreshCredit.selector]);
         console.log("--------------------");
     }
 
@@ -308,9 +395,36 @@ contract InvariantHandler is Test {
         result = _boundNew(x, min, max);
     }
 
+    function _closeEpoch() internal {
+        // console.log(
+        //     "close epoch - tiemstamp: %s, currentEpochEndTime: %s",
+        //     timestamp,
+        //     currentEpochEndTime
+        // );
+        // console.log("closeEpoch starts...");
+        if (hasProfit) {
+            tranches[0].processYieldForLenders();
+            tranches[1].processYieldForLenders();
+        }
+        epochManager.closeEpoch();
+        // console.log("closeEpoch done.");
+        _updateCurrentEpochEndTime();
+        // console.log(
+        //     "close epoch - new currentEpochEndTime: %s",
+        //     timestamp,
+        //     currentEpochEndTime
+        // );
+    }
+
     function _updateCurrentEpochEndTime() internal returns (uint256) {
         EpochManager.CurrentEpoch memory epoch = epochManager.currentEpoch();
         currentEpochEndTime = epoch.endTime;
+    }
+
+    function _removeItem(address[] storage array, uint256 index) internal {
+        uint256 len = array.length;
+        array[index] = array[len - 1];
+        array.pop();
     }
 
     function _toToken(uint256 amount) internal view returns (uint256) {

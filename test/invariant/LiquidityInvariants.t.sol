@@ -85,11 +85,12 @@ contract LiquidityInvariants is BaseTest {
         //     vm.unixTime()
         // );
 
-        _createUsers(10, 3);
+        _createUsers(10, 10);
+        _approveBorrowers(_toToken(MAX_CREDIT_LINE) / 2, YIELD_BPS);
 
-        handler = new InvariantHandler(address(poolConfig), lenders);
+        handler = new InvariantHandler(address(poolConfig), lenders, borrowers);
 
-        bytes4[] memory selectors = new bytes4[](8);
+        bytes4[] memory selectors = new bytes4[](14);
         selectors[0] = handler.deposit.selector;
         selectors[1] = handler.deposit.selector;
         selectors[2] = handler.deposit.selector;
@@ -98,6 +99,12 @@ contract LiquidityInvariants is BaseTest {
         selectors[5] = handler.cancelRedemptionRequest.selector;
         selectors[6] = handler.disburse.selector;
         selectors[7] = handler.processYieldForLenders.selector;
+        selectors[8] = handler.drawdown.selector;
+        selectors[9] = handler.drawdown.selector;
+        selectors[10] = handler.drawdown.selector;
+        selectors[11] = handler.makePayment.selector;
+        selectors[12] = handler.makePayment.selector;
+        selectors[13] = handler.refreshCredit.selector;
         targetSelector(FuzzSelector({addr: address(handler), selectors: selectors}));
         targetContract(address(handler));
     }

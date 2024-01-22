@@ -270,6 +270,27 @@ contract BaseTest is Test {
         }
     }
 
+    function _approveBorrowers(uint256 creditLimit, uint256 yieldBps) internal {
+        CreditLineManager creditLineManager = CreditLineManager(
+            PoolConfig(poolFactory.checkPool(poolId).poolConfigAddress).creditManager()
+        );
+        vm.startPrank(eaServiceAccount);
+        for (uint256 i; i < borrowers.length; i++) {
+            address borrower = borrowers[i];
+            uint256 rand = uint256(keccak256(abi.encodePacked(vm.unixTime(), i)));
+            creditLineManager.approveBorrower(
+                borrower,
+                uint96(creditLimit),
+                uint16(_bound(rand, 1, 12)),
+                uint16(yieldBps),
+                0,
+                0,
+                true
+            );
+        }
+        vm.stopPrank();
+    }
+
     function _toToken(uint256 amount) internal view returns (uint256) {
         return amount * 10 ** mockToken.decimals();
     }
