@@ -115,23 +115,23 @@ export async function deployProtocolContracts(
     // Deploy HumaConfig
     const humaConfigContract = await deploy("HumaConfig", "HumaConfig");
 
-    // await humaConfigContract.setHumaTreasury(treasury.getAddress());
-    // await humaConfigContract.setEANFTContractAddress(eaNFTContract.address);
-    // await humaConfigContract.setEAServiceAccount(eaServiceAccount.getAddress());
-    // await humaConfigContract.setSentinelServiceAccount(sentinelServiceAccount.getAddress());
+    await humaConfigContract.setHumaTreasury(treasury.getAddress());
+    await humaConfigContract.setEANFTContractAddress(eaNFTContract.address);
+    await humaConfigContract.setEAServiceAccount(eaServiceAccount.getAddress());
+    await humaConfigContract.setSentinelServiceAccount(sentinelServiceAccount.getAddress());
 
-    // await humaConfigContract.addPauser(protocolOwner.getAddress());
-    // await humaConfigContract.addPauser(poolOwner.getAddress());
+    await humaConfigContract.addPauser(protocolOwner.getAddress());
+    await humaConfigContract.addPauser(poolOwner.getAddress());
 
-    // await humaConfigContract.transferOwnership(protocolOwner.getAddress());
-    // if (await humaConfigContract.connect(protocolOwner).paused())
-    //     await humaConfigContract.connect(protocolOwner).unpause();
+    await humaConfigContract.transferOwnership(protocolOwner.getAddress());
+    if (await humaConfigContract.connect(protocolOwner).paused())
+        await humaConfigContract.connect(protocolOwner).unpause();
 
     const mockTokenContract = await deploy("MockToken", "MockToken");
 
-    // await humaConfigContract
-    //     .connect(protocolOwner)
-    //     .setLiquidityAsset(mockTokenContract.address, true);
+    await humaConfigContract
+        .connect(protocolOwner)
+        .setLiquidityAsset(mockTokenContract.address, true);
 
     return [eaNFTContract, humaConfigContract, mockTokenContract];
 }
@@ -182,150 +182,150 @@ export async function deployPoolContracts(
 
     const receivableContract = await deployProxy("Receivable", "Receivable", "initialize");
 
-    // await awaitTx(
-    //     await receivableContract.grantRole(
-    //         receivableContract.DEFAULT_ADMIN_ROLE(),
-    //         poolOwner.getAddress(),
-    //     ),
-    //     "Receivable admin granted",
-    // );
-    // await awaitTx(
-    //     await receivableContract.renounceRole(
-    //         receivableContract.DEFAULT_ADMIN_ROLE(),
-    //         deployer.getAddress(),
-    //     ),
-    //     "Receivable admin renounced",
-    // );
+    await awaitTx(
+        await receivableContract.grantRole(
+            receivableContract.DEFAULT_ADMIN_ROLE(),
+            poolOwner.getAddress(),
+        ),
+        "Receivable admin granted",
+    );
+    await awaitTx(
+        await receivableContract.renounceRole(
+            receivableContract.DEFAULT_ADMIN_ROLE(),
+            deployer.getAddress(),
+        ),
+        "Receivable admin renounced",
+    );
 
-    // await awaitTx(
-    //     await poolConfigContract.initialize("Test Pool", [
-    //         humaConfigContract.address,
-    //         mockTokenContract.address,
-    //         calendarContract.address,
-    //         poolContract.address,
-    //         poolSafeContract.address,
-    //         poolFeeManagerContract.address,
-    //         tranchesPolicyContract.address,
-    //         epochManagerContract.address,
-    //         seniorTrancheVaultContract.address,
-    //         juniorTrancheVaultContract.address,
-    //         creditContract.address,
-    //         creditDueManagerContract.address,
-    //         creditManagerContract.address,
-    //     ]),
-    //     "PoolConfig initialized",
-    // );
-    // await awaitTx(
-    //     await poolConfigContract.setFirstLossCover(
-    //         CONSTANTS.BORROWER_LOSS_COVER_INDEX,
-    //         borrowerFirstLossCoverContract.address,
-    //         {
-    //             coverRatePerLossInBps: 0,
-    //             coverCapPerLoss: 0,
-    //             maxLiquidity: toToken(100_000_000),
-    //             minLiquidity: 0,
-    //             riskYieldMultiplierInBps: 0,
-    //         },
-    //     ),
-    //     "Borrower First Loss Cover set",
-    // );
-    // await awaitTx(
-    //     await poolConfigContract.setReceivableAsset(receivableContract.address),
-    //     "Receivable asset set",
-    // );
-    // await awaitTx(
-    //     await poolConfigContract.setFirstLossCover(
-    //         CONSTANTS.ADMIN_LOSS_COVER_INDEX,
-    //         adminFirstLossCoverContract.address,
-    //         {
-    //             coverRatePerLossInBps: 0,
-    //             coverCapPerLoss: 0,
-    //             maxLiquidity: toToken(100_000_000),
-    //             minLiquidity: 0,
-    //             riskYieldMultiplierInBps: 20000,
-    //         },
-    //     ),
-    //     "Affiliate First Loss Cover set",
-    // );
+    await awaitTx(
+        await poolConfigContract.initialize("Test Pool", [
+            humaConfigContract.address,
+            mockTokenContract.address,
+            calendarContract.address,
+            poolContract.address,
+            poolSafeContract.address,
+            poolFeeManagerContract.address,
+            tranchesPolicyContract.address,
+            epochManagerContract.address,
+            seniorTrancheVaultContract.address,
+            juniorTrancheVaultContract.address,
+            creditContract.address,
+            creditDueManagerContract.address,
+            creditManagerContract.address,
+        ]),
+        "PoolConfig initialized",
+    );
+    await awaitTx(
+        await poolConfigContract.setFirstLossCover(
+            CONSTANTS.BORROWER_LOSS_COVER_INDEX,
+            borrowerFirstLossCoverContract.address,
+            {
+                coverRatePerLossInBps: 0,
+                coverCapPerLoss: 0,
+                maxLiquidity: toToken(100_000_000),
+                minLiquidity: 0,
+                riskYieldMultiplierInBps: 0,
+            },
+        ),
+        "Borrower First Loss Cover set",
+    );
+    await awaitTx(
+        await poolConfigContract.setReceivableAsset(receivableContract.address),
+        "Receivable asset set",
+    );
+    await awaitTx(
+        await poolConfigContract.setFirstLossCover(
+            CONSTANTS.ADMIN_LOSS_COVER_INDEX,
+            adminFirstLossCoverContract.address,
+            {
+                coverRatePerLossInBps: 0,
+                coverCapPerLoss: 0,
+                maxLiquidity: toToken(100_000_000),
+                minLiquidity: 0,
+                riskYieldMultiplierInBps: 20000,
+            },
+        ),
+        "Affiliate First Loss Cover set",
+    );
 
-    // await awaitTx(
-    //     await poolConfigContract.grantRole(
-    //         await poolConfigContract.DEFAULT_ADMIN_ROLE(),
-    //         poolOwner.getAddress(),
-    //     ),
-    //     "PoolConfig admin granted",
-    // );
-    // await awaitTx(
-    //     await poolConfigContract.renounceRole(
-    //         await poolConfigContract.DEFAULT_ADMIN_ROLE(),
-    //         deployer.getAddress(),
-    //     ),
-    //     "PoolConfig admin renounced",
-    // );
+    await awaitTx(
+        await poolConfigContract.grantRole(
+            await poolConfigContract.DEFAULT_ADMIN_ROLE(),
+            poolOwner.getAddress(),
+        ),
+        "PoolConfig admin granted",
+    );
+    await awaitTx(
+        await poolConfigContract.renounceRole(
+            await poolConfigContract.DEFAULT_ADMIN_ROLE(),
+            deployer.getAddress(),
+        ),
+        "PoolConfig admin renounced",
+    );
 
-    // await awaitTx(
-    //     await poolFeeManagerContract.initialize(poolConfigContract.address),
-    //     "PoolFeeManager initialized",
-    // );
-    // await awaitTx(
-    //     await poolSafeContract.initialize(poolConfigContract.address),
-    //     "PoolSafe initialized",
-    // );
-    // await awaitTx(
-    //     await borrowerFirstLossCoverContract["initialize(string,string,address)"](
-    //         "Borrower First Loss Cover",
-    //         "BFLC",
-    //         poolConfigContract.address,
-    //     ),
-    //     "BorrowerFirstLossCover initialized",
-    // );
-    // await awaitTx(
-    //     await adminFirstLossCoverContract["initialize(string,string,address)"](
-    //         "Admin First Loss Cover",
-    //         "AFLC",
-    //         poolConfigContract.address,
-    //     ),
-    //     "AdminFirstLossCover initialized",
-    // );
-    // await awaitTx(
-    //     await tranchesPolicyContract.initialize(poolConfigContract.address),
-    //     "TranchesPolicy initialized",
-    // );
-    // await awaitTx(await poolContract.initialize(poolConfigContract.address), "Pool initialized");
-    // await awaitTx(
-    //     await epochManagerContract.initialize(poolConfigContract.address),
-    //     "EpochManager initialized",
-    // );
-    // await awaitTx(
-    //     await seniorTrancheVaultContract["initialize(string,string,address,uint8)"](
-    //         "Senior Tranche Vault",
-    //         "STV",
-    //         poolConfigContract.address,
-    //         CONSTANTS.SENIOR_TRANCHE,
-    //     ),
-    //     "SeniorTrancheVault initialized",
-    // );
-    // await awaitTx(
-    //     await juniorTrancheVaultContract["initialize(string,string,address,uint8)"](
-    //         "Junior Tranche Vault",
-    //         "JTV",
-    //         poolConfigContract.address,
-    //         CONSTANTS.JUNIOR_TRANCHE,
-    //     ),
-    //     "JuniorTrancheVault initialized",
-    // );
-    // await awaitTx(
-    //     await creditContract.connect(poolOwner).initialize(poolConfigContract.address),
-    //     "Credit initialized",
-    // );
-    // await awaitTx(
-    //     await creditDueManagerContract.initialize(poolConfigContract.address),
-    //     "CreditDueManager initialized",
-    // );
-    // await awaitTx(
-    //     await creditManagerContract.initialize(poolConfigContract.address),
-    //     "CreditManager initialized",
-    // );
+    await awaitTx(
+        await poolFeeManagerContract.initialize(poolConfigContract.address),
+        "PoolFeeManager initialized",
+    );
+    await awaitTx(
+        await poolSafeContract.initialize(poolConfigContract.address),
+        "PoolSafe initialized",
+    );
+    await awaitTx(
+        await borrowerFirstLossCoverContract["initialize(string,string,address)"](
+            "Borrower First Loss Cover",
+            "BFLC",
+            poolConfigContract.address,
+        ),
+        "BorrowerFirstLossCover initialized",
+    );
+    await awaitTx(
+        await adminFirstLossCoverContract["initialize(string,string,address)"](
+            "Admin First Loss Cover",
+            "AFLC",
+            poolConfigContract.address,
+        ),
+        "AdminFirstLossCover initialized",
+    );
+    await awaitTx(
+        await tranchesPolicyContract.initialize(poolConfigContract.address),
+        "TranchesPolicy initialized",
+    );
+    await awaitTx(await poolContract.initialize(poolConfigContract.address), "Pool initialized");
+    await awaitTx(
+        await epochManagerContract.initialize(poolConfigContract.address),
+        "EpochManager initialized",
+    );
+    await awaitTx(
+        await seniorTrancheVaultContract["initialize(string,string,address,uint8)"](
+            "Senior Tranche Vault",
+            "STV",
+            poolConfigContract.address,
+            CONSTANTS.SENIOR_TRANCHE,
+        ),
+        "SeniorTrancheVault initialized",
+    );
+    await awaitTx(
+        await juniorTrancheVaultContract["initialize(string,string,address,uint8)"](
+            "Junior Tranche Vault",
+            "JTV",
+            poolConfigContract.address,
+            CONSTANTS.JUNIOR_TRANCHE,
+        ),
+        "JuniorTrancheVault initialized",
+    );
+    await awaitTx(
+        await creditContract.connect(poolOwner).initialize(poolConfigContract.address),
+        "Credit initialized",
+    );
+    await awaitTx(
+        await creditDueManagerContract.initialize(poolConfigContract.address),
+        "CreditDueManager initialized",
+    );
+    await awaitTx(
+        await creditManagerContract.initialize(poolConfigContract.address),
+        "CreditManager initialized",
+    );
 
     return [
         poolConfigContract,
@@ -367,76 +367,76 @@ export async function setupPoolContracts(
     creditContractName: CreditContractName,
 ): Promise<void> {
     const poolLiquidityCap = toToken(1_000_000_000);
-    // const settings = await poolConfigContract.getPoolSettings();
-    // await awaitTx(
-    //     await poolConfigContract
-    //         .connect(poolOwner)
-    //         .setPoolSettings({ ...settings, ...{ maxCreditLine: toToken(10_000_000) } }),
-    //     "Max credit line set",
-    // );
-    // const lpConfig = await poolConfigContract.getLPConfig();
-    // await awaitTx(
-    //     await poolConfigContract
-    //         .connect(poolOwner)
-    //         .setLPConfig({ ...lpConfig, ...{ liquidityCap: poolLiquidityCap } }),
-    //     "Pool liquidity cap set",
-    // );
+    const settings = await poolConfigContract.getPoolSettings();
+    await awaitTx(
+        await poolConfigContract
+            .connect(poolOwner)
+            .setPoolSettings({ ...settings, ...{ maxCreditLine: toToken(10_000_000) } }),
+        "Max credit line set",
+    );
+    const lpConfig = await poolConfigContract.getLPConfig();
+    await awaitTx(
+        await poolConfigContract
+            .connect(poolOwner)
+            .setLPConfig({ ...lpConfig, ...{ liquidityCap: poolLiquidityCap } }),
+        "Pool liquidity cap set",
+    );
 
-    // await awaitTx(
-    //     await poolConfigContract
-    //         .connect(poolOwner)
-    //         .setPoolOwnerTreasury(poolOwnerTreasury.getAddress()),
-    //     "Pool owner treasury set",
-    // );
+    await awaitTx(
+        await poolConfigContract
+            .connect(poolOwner)
+            .setPoolOwnerTreasury(poolOwnerTreasury.getAddress()),
+        "Pool owner treasury set",
+    );
 
-    // // Deposit enough liquidity for the pool owner and EA in the junior tranche.
+    // Deposit enough liquidity for the pool owner and EA in the junior tranche.
     const adminRnR = await poolConfigContract.getAdminRnR();
-    // await awaitTx(
-    //     await mockTokenContract
-    //         .connect(poolOwnerTreasury)
-    //         .approve(poolSafeContract.address, ethers.constants.MaxUint256),
-    //     "MockToken approved",
-    // );
-    // await awaitTx(
-    //     await mockTokenContract.mint(poolOwnerTreasury.getAddress(), toToken(1_000_000_000)),
-    //     "MockToken minted",
-    // );
-    // const poolOwnerLiquidity = BN.from(adminRnR.liquidityRateInBpsByPoolOwner)
-    //     .mul(poolLiquidityCap)
-    //     .div(CONSTANTS.BP_FACTOR);
-    // await awaitTx(
-    //     await juniorTrancheVaultContract
-    //         .connect(poolOwnerTreasury)
-    //         .makeInitialDeposit(poolOwnerLiquidity),
-    //     "Pool owner liquidity deposited",
-    // );
+    await awaitTx(
+        await mockTokenContract
+            .connect(poolOwnerTreasury)
+            .approve(poolSafeContract.address, ethers.constants.MaxUint256),
+        "MockToken approved",
+    );
+    await awaitTx(
+        await mockTokenContract.mint(poolOwnerTreasury.getAddress(), toToken(1_000_000_000)),
+        "MockToken minted",
+    );
+    const poolOwnerLiquidity = BN.from(adminRnR.liquidityRateInBpsByPoolOwner)
+        .mul(poolLiquidityCap)
+        .div(CONSTANTS.BP_FACTOR);
+    await awaitTx(
+        await juniorTrancheVaultContract
+            .connect(poolOwnerTreasury)
+            .makeInitialDeposit(poolOwnerLiquidity),
+        "Pool owner liquidity deposited",
+    );
 
-    // await awaitTx(
-    //     await mockTokenContract
-    //         .connect(evaluationAgent)
-    //         .approve(poolSafeContract.address, ethers.constants.MaxUint256),
-    //     "MockToken approved",
-    // );
-    // await awaitTx(
-    //     await mockTokenContract.mint(evaluationAgent.getAddress(), toToken(1_000_000_000)),
-    //     "MockToken minted",
-    // );
+    await awaitTx(
+        await mockTokenContract
+            .connect(evaluationAgent)
+            .approve(poolSafeContract.address, ethers.constants.MaxUint256),
+        "MockToken approved",
+    );
+    await awaitTx(
+        await mockTokenContract.mint(evaluationAgent.getAddress(), toToken(1_000_000_000)),
+        "MockToken minted",
+    );
     if (shouldSetEA) {
-        // let eaNFTTokenId;
-        // const tx = await eaNFTContract.mintNFT(evaluationAgent.address);
-        // const receipt = await tx.wait();
-        // for (const evt of receipt.events!) {
-        //     if (evt.event === "NFTGenerated") {
-        //         eaNFTTokenId = evt.args!.tokenId;
-        //     }
-        // }
-        // console.log("EvaluationAgentNFT minted");
-        // await awaitTx(
-        //     await poolConfigContract
-        //         .connect(poolOwner)
-        //         .setEvaluationAgent(eaNFTTokenId, evaluationAgent.getAddress()),
-        //     "EvaluationAgent set",
-        // );
+        let eaNFTTokenId;
+        const tx = await eaNFTContract.mintNFT(evaluationAgent.address);
+        const receipt = await tx.wait();
+        for (const evt of receipt.events!) {
+            if (evt.event === "NFTGenerated") {
+                eaNFTTokenId = evt.args!.tokenId;
+            }
+        }
+        console.log("EvaluationAgentNFT minted");
+        await awaitTx(
+            await poolConfigContract
+                .connect(poolOwner)
+                .setEvaluationAgent(eaNFTTokenId, evaluationAgent.getAddress()),
+            "EvaluationAgent set",
+        );
         const evaluationAgentLiquidity = BN.from(adminRnR.liquidityRateInBpsByEA)
             .mul(poolLiquidityCap)
             .div(CONSTANTS.BP_FACTOR);
