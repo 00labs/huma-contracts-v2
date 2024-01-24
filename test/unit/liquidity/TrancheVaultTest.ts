@@ -26,6 +26,7 @@ import {
     checkRedemptionRecordByLender,
     deployAndSetupPoolContracts,
     deployProtocolContracts,
+    mockDistributePnL,
 } from "../../BaseTest";
 import {
     ceilDiv,
@@ -67,6 +68,7 @@ let poolConfigContract: PoolConfig,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: MockPoolCredit,
+    creditManagerContract: MockPoolCredit,
     creditDueManagerContract: CreditDueManager;
 
 let epochChecker: EpochChecker, feeCalculator: FeeCalculator;
@@ -89,13 +91,13 @@ function checkDepositRecord(
     expect(depositRecord.lastDepositTime).to.be.closeTo(lastDepositTime, 0);
 }
 
-async function mockDistributePnL(profit: BN, loss: BN, lossRecovery: BN) {
-    let amount = profit.add(lossRecovery);
+async function makePaymentAndMockDistributePnL(profit: BN, loss: BN, lossRecovery: BN) {
+    const amount = profit.add(lossRecovery);
     if (amount.gt(0)) {
         await mockTokenContract.mint(creditContract.address, amount);
         await creditContract.makePayment(ethers.constants.HashZero, amount);
     }
-    await creditContract.mockDistributePnL(profit, loss, lossRecovery);
+    await mockDistributePnL(creditContract, creditManagerContract, profit, loss, lossRecovery);
 }
 
 describe("TrancheVault Test", function () {
@@ -140,6 +142,7 @@ describe("TrancheVault Test", function () {
             juniorTrancheVaultContract,
             creditContract as unknown,
             creditDueManagerContract,
+            creditManagerContract as unknown,
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
@@ -148,7 +151,7 @@ describe("TrancheVault Test", function () {
             defaultDeployer,
             poolOwner,
             "MockPoolCredit",
-            "CreditLineManager",
+            "MockPoolCredit",
             evaluationAgent,
             poolOwnerTreasury,
             poolOperator,
@@ -852,7 +855,13 @@ describe("TrancheVault Test", function () {
                     .mul(initialJuniorShares)
                     .div(juniorAssets);
                 // Distribute profit, loss and loss recovery in the pool so that LP tokens changes in value.
-                await creditContract.mockDistributePnL(profit, loss, lossRecovery);
+                await mockDistributePnL(
+                    creditContract,
+                    creditManagerContract,
+                    profit,
+                    loss,
+                    lossRecovery,
+                );
                 let block = await getLatestBlock();
                 let ts = block.timestamp + 3;
                 await setNextBlockTimestamp(ts);
@@ -1662,7 +1671,7 @@ describe("TrancheVault Test", function () {
                 it("Should allow lenders to request redemption and cancel redemption request when there is profit", async function () {
                     // Introduce profit
                     let profit = toToken(10_000);
-                    await mockDistributePnL(profit, BN.from(0), BN.from(0));
+                    await makePaymentAndMockDistributePnL(profit, BN.from(0), BN.from(0));
 
                     // lender adds redemption request
                     let shares = toToken(10_000);
@@ -1701,7 +1710,7 @@ describe("TrancheVault Test", function () {
 
                     // Introduce profit again
                     profit = toToken(20_000);
-                    await mockDistributePnL(profit, BN.from(0), BN.from(0));
+                    await makePaymentAndMockDistributePnL(profit, BN.from(0), BN.from(0));
 
                     // lender adds redemption request again
                     shares = toToken(13_000);
@@ -1739,7 +1748,7 @@ describe("TrancheVault Test", function () {
 
                     // Introduce profit again
                     profit = toToken(3000);
-                    await mockDistributePnL(profit, BN.from(0), BN.from(0));
+                    await makePaymentAndMockDistributePnL(profit, BN.from(0), BN.from(0));
 
                     // Close current epoch while processing partially
                     let currentEpoch = await epochManagerContract.currentEpoch();
@@ -1763,7 +1772,7 @@ describe("TrancheVault Test", function () {
 
                     // Introduce profit again
                     profit = toToken(7000);
-                    await mockDistributePnL(profit, BN.from(0), BN.from(0));
+                    await makePaymentAndMockDistributePnL(profit, BN.from(0), BN.from(0));
 
                     // lender cancels redemption request
                     shares = toToken(10_000);
@@ -1804,7 +1813,13 @@ describe("TrancheVault Test", function () {
                 it("Should allow lenders to request redemption and cancel redemption request when there is loss", async function () {
                     // Introduce profit
                     let profit = toToken(7_000);
-                    await creditContract.mockDistributePnL(profit, BN.from(0), BN.from(0));
+                    await mockDistributePnL(
+                        creditContract,
+                        creditManagerContract,
+                        profit,
+                        BN.from(0),
+                        BN.from(0),
+                    );
 
                     // lender adds redemption request
                     let shares = toToken(9_000);
@@ -1843,7 +1858,13 @@ describe("TrancheVault Test", function () {
 
                     // Introduce profit again
                     profit = toToken(10000);
-                    await creditContract.mockDistributePnL(profit, BN.from(0), BN.from(0));
+                    await mockDistributePnL(
+                        creditContract,
+                        creditManagerContract,
+                        profit,
+                        BN.from(0),
+                        BN.from(0),
+                    );
 
                     // Close current epoch while processing partially
                     let currentEpoch = await epochManagerContract.currentEpoch();
@@ -1866,7 +1887,13 @@ describe("TrancheVault Test", function () {
 
                     // Introduce loss
                     let loss = toToken(37_000);
-                    await creditContract.mockDistributePnL(BN.from(0), loss, BN.from(0));
+                    await mockDistributePnL(
+                        creditContract,
+                        creditManagerContract,
+                        BN.from(0),
+                        loss,
+                        BN.from(0),
+                    );
 
                     // lender adds redemption request
                     shares = toToken(11_000);
@@ -1908,7 +1935,13 @@ describe("TrancheVault Test", function () {
 
                     // Introduce loss again
                     loss = toToken(10_000);
-                    await creditContract.mockDistributePnL(BN.from(0), loss, BN.from(0));
+                    await mockDistributePnL(
+                        creditContract,
+                        creditManagerContract,
+                        BN.from(0),
+                        loss,
+                        BN.from(0),
+                    );
 
                     // lender cancels redemption request
                     shares = toToken(10_000);
@@ -2266,7 +2299,7 @@ describe("TrancheVault Test", function () {
                 it("Should disburse when there is profit", async function () {
                     // Introduce profit
                     let profit = toToken(10_000);
-                    await mockDistributePnL(profit, BN.from(0), BN.from(0));
+                    await makePaymentAndMockDistributePnL(profit, BN.from(0), BN.from(0));
 
                     // lender adds redemption request
                     let shares = toToken(10_000);
@@ -2286,7 +2319,13 @@ describe("TrancheVault Test", function () {
 
                     // Introduce loss
                     let loss = toToken(17_000);
-                    await creditContract.mockDistributePnL(BN.from(0), loss, BN.from(0));
+                    await mockDistributePnL(
+                        creditContract,
+                        creditManagerContract,
+                        BN.from(0),
+                        loss,
+                        BN.from(0),
+                    );
 
                     // Close current epoch while processing partially
                     let currentEpoch = await epochManagerContract.currentEpoch();
@@ -2309,7 +2348,7 @@ describe("TrancheVault Test", function () {
 
                     // Introduce profit
                     profit = toToken(30_000);
-                    await mockDistributePnL(profit, BN.from(0), BN.from(0));
+                    await makePaymentAndMockDistributePnL(profit, BN.from(0), BN.from(0));
 
                     // Lender disburses processed redemption
                     let balance = await mockTokenContract.balanceOf(lender.address);
@@ -2334,7 +2373,13 @@ describe("TrancheVault Test", function () {
                 it("Should disburse when there is loss", async function () {
                     // Introduce loss
                     let loss = toToken(17_000);
-                    await creditContract.mockDistributePnL(BN.from(0), loss, BN.from(0));
+                    await mockDistributePnL(
+                        creditContract,
+                        creditManagerContract,
+                        BN.from(0),
+                        loss,
+                        BN.from(0),
+                    );
 
                     // lender adds redemption request
                     let shares = toToken(10_000);
@@ -2354,7 +2399,13 @@ describe("TrancheVault Test", function () {
 
                     // Introduce loss again
                     loss = toToken(23_000);
-                    await creditContract.mockDistributePnL(BN.from(0), loss, BN.from(0));
+                    await mockDistributePnL(
+                        creditContract,
+                        creditManagerContract,
+                        BN.from(0),
+                        loss,
+                        BN.from(0),
+                    );
 
                     // Close current epoch while processing partially
                     let currentEpoch = await epochManagerContract.currentEpoch();
@@ -2377,7 +2428,7 @@ describe("TrancheVault Test", function () {
 
                     // Introduce profit
                     let profit = toToken(10_000);
-                    await mockDistributePnL(profit, BN.from(0), BN.from(0));
+                    await makePaymentAndMockDistributePnL(profit, BN.from(0), BN.from(0));
 
                     // Lender disburses processed redemption
                     let balance = await mockTokenContract.balanceOf(lender.address);
@@ -2566,7 +2617,7 @@ describe("TrancheVault Test", function () {
             // Introduce profit
             let totalAssets = await juniorTrancheVaultContract.totalAssets();
             let profit = totalAssets.div(10);
-            await mockDistributePnL(profit, BN.from(0), BN.from(0));
+            await makePaymentAndMockDistributePnL(profit, BN.from(0), BN.from(0));
             let totalSupply = await juniorTrancheVaultContract.totalSupply();
             totalAssets = await juniorTrancheVaultContract.totalAssets();
             lenders[0].setYield(totalSupply, totalAssets);
@@ -2643,7 +2694,7 @@ describe("TrancheVault Test", function () {
             // Introduce profit
             let totalAssets = await juniorTrancheVaultContract.totalAssets();
             let profit = totalAssets.div(10);
-            await mockDistributePnL(profit, BN.from(0), BN.from(0));
+            await makePaymentAndMockDistributePnL(profit, BN.from(0), BN.from(0));
             const totalSupply = await juniorTrancheVaultContract.totalSupply();
             totalAssets = await juniorTrancheVaultContract.totalAssets();
             lenders[0].setYield(totalSupply, totalAssets);
@@ -2698,7 +2749,7 @@ describe("TrancheVault Test", function () {
             // Introduce profit
             let totalAssets = await juniorTrancheVaultContract.totalAssets();
             let profit = totalAssets.div(10);
-            await mockDistributePnL(profit, BN.from(0), BN.from(0));
+            await makePaymentAndMockDistributePnL(profit, BN.from(0), BN.from(0));
             let totalSupply = await juniorTrancheVaultContract.totalSupply();
             totalAssets = await juniorTrancheVaultContract.totalAssets();
             lenders[0].setYield(totalSupply, totalAssets);
@@ -2760,7 +2811,13 @@ describe("TrancheVault Test", function () {
 
             // Introduce loss
             let loss = toToken(10_000);
-            await creditContract.mockDistributePnL(BN.from(0), loss, BN.from(0));
+            await mockDistributePnL(
+                creditContract,
+                creditManagerContract,
+                BN.from(0),
+                loss,
+                BN.from(0),
+            );
 
             // Pay out yields
             let lenderAssets = await mockTokenContract.balanceOf(lender.address);

@@ -34,9 +34,15 @@ contract MockPoolCredit is PoolConfigCache {
         poolSafe.deposit(address(this), amount);
     }
 
-    function mockDistributePnL(uint256 profit, uint256 loss, uint256 lossRecovery) external {
+    function mockDistributeProfit(uint256 profit) external {
         pool.distributeProfit(profit);
+    }
+
+    function mockDistributeLoss(uint256 loss) external {
         pool.distributeLoss(loss);
+    }
+
+    function mockDistributeLossRecovery(uint256 lossRecovery) external {
         pool.distributeLossRecovery(lossRecovery);
     }
 

@@ -25,6 +25,7 @@ import {
     checkSeniorYieldTrackersMatch,
     deployAndSetupPoolContracts,
     deployProtocolContracts,
+    mockDistributePnL,
     printSeniorYieldTracker,
 } from "../../BaseTest";
 import {
@@ -62,6 +63,7 @@ let poolConfigContract: PoolConfig,
     seniorTrancheVaultContract: TrancheVault,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: MockPoolCredit,
+    creditManagerContract: MockPoolCredit,
     creditDueManagerContract: CreditDueManager;
 
 describe("FixedSeniorYieldTranchesPolicy Test", function () {
@@ -105,6 +107,7 @@ describe("FixedSeniorYieldTranchesPolicy Test", function () {
             juniorTrancheVaultContract,
             creditContract as unknown,
             creditDueManagerContract,
+            creditManagerContract as unknown,
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
@@ -113,7 +116,7 @@ describe("FixedSeniorYieldTranchesPolicy Test", function () {
             defaultDeployer,
             poolOwner,
             "MockPoolCredit",
-            "CreditLineManager",
+            "MockPoolCredit",
             evaluationAgent,
             poolOwnerTreasury,
             poolOperator,
@@ -297,14 +300,26 @@ describe("FixedSeniorYieldTranchesPolicy Test", function () {
             let tracker = await tranchesPolicyContract.seniorYieldTracker();
             let newTracker = PnLCalculator.calcLatestSeniorTracker(nextDate, apy, tracker);
             newTracker.totalAssets = tracker.totalAssets;
-            await creditContract.mockDistributePnL(BN.from(0), toToken(100), BN.from(0));
+            await mockDistributePnL(
+                creditContract,
+                creditManagerContract,
+                BN.from(0),
+                toToken(100),
+                BN.from(0),
+            );
             tracker = await tranchesPolicyContract.seniorYieldTracker();
             checkSeniorYieldTrackersMatch(tracker, newTracker);
             expect(tracker.unpaidYield).to.greaterThan(0);
         });
 
         it("Distribute loss recovery", async function () {
-            await creditContract.mockDistributePnL(BN.from(0), toToken(100), BN.from(0));
+            await mockDistributePnL(
+                creditContract,
+                creditManagerContract,
+                BN.from(0),
+                toToken(100),
+                BN.from(0),
+            );
 
             const lastBlock = await getLatestBlock();
             let nextDate = lastBlock.timestamp + 100;
@@ -314,7 +329,13 @@ describe("FixedSeniorYieldTranchesPolicy Test", function () {
             printSeniorYieldTracker(tracker);
             let newTracker = PnLCalculator.calcLatestSeniorTracker(nextDate, apy, tracker);
             newTracker.totalAssets = tracker.totalAssets;
-            await creditContract.mockDistributePnL(BN.from(0), BN.from(0), toToken(100));
+            await mockDistributePnL(
+                creditContract,
+                creditManagerContract,
+                BN.from(0),
+                BN.from(0),
+                toToken(100),
+            );
             tracker = await tranchesPolicyContract.seniorYieldTracker();
             // printSeniorYieldTracker(tracker);
             checkSeniorYieldTrackersMatch(tracker, newTracker);
