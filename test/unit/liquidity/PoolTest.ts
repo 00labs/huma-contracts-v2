@@ -775,7 +775,7 @@ describe("Pool Test", function () {
                     );
                 });
 
-                it("Should not allow non-credit or non-credit manager to distribute loss", async function () {
+                it("Should not allow non-credit manager to distribute loss", async function () {
                     await expect(
                         poolContract.connect(lender).distributeLoss(toToken(1)),
                     ).to.be.revertedWithCustomError(
