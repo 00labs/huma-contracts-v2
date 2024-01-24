@@ -22,7 +22,6 @@ import {
     TrancheVault,
 } from "../../../typechain-types";
 import {
-    CreditClosureReason,
     CreditState,
     PayPeriodDuration,
     calcYield,
@@ -658,12 +657,8 @@ describe("ReceivableFactoringCreditManager.sol Test", function () {
                         .connect(borrower)
                         .closeCredit(borrower.getAddress(), tokenId),
                 )
-                    .to.emit(creditManagerContract, "CreditClosed")
-                    .withArgs(
-                        creditHash,
-                        CreditClosureReason.AdminClosure,
-                        await borrower.getAddress(),
-                    );
+                    .to.emit(creditManagerContract, "CreditClosedByAdmin")
+                    .withArgs(creditHash, await borrower.getAddress());
 
                 // Make sure relevant fields have been reset.
                 const cr = await creditContract["getCreditRecord(uint256)"](tokenId);

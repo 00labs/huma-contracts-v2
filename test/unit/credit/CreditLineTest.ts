@@ -26,7 +26,6 @@ import {
     DueDetailStruct,
 } from "../../../typechain-types/contracts/credit/Credit";
 import {
-    CreditClosureReason,
     CreditState,
     PayPeriodDuration,
     calcLateFeeNew,
@@ -8564,12 +8563,8 @@ describe("CreditLine Test", function () {
                 await expect(
                     creditManagerContract.connect(actor).closeCredit(borrower.getAddress()),
                 )
-                    .to.emit(creditManagerContract, "CreditClosed")
-                    .withArgs(
-                        creditHash,
-                        CreditClosureReason.AdminClosure,
-                        await actor.getAddress(),
-                    );
+                    .to.emit(creditManagerContract, "CreditClosedByAdmin")
+                    .withArgs(creditHash, await actor.getAddress());
 
                 // Make sure relevant fields have been reset.
                 const cr = await creditContract.getCreditRecord(creditHash);

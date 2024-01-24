@@ -100,12 +100,6 @@ enum ReceivableState {
     Defaulted
 }
 
-enum PaymentStatus {
-    NotReceived,
-    ReceivedNotVerified,
-    ReceivedAndVerified
-}
-
 /**
  * @notice Information of a receivable.
  * @param receivableAmount The total expected payment amount of the receivable.
@@ -129,11 +123,4 @@ struct ReceivableInfo {
 struct ReceivableInput {
     uint96 receivableAmount;
     uint64 receivableId;
-}
-
-enum CreditClosureReason {
-    Paidoff,
-    CreditLimitChangedToBeZero,
-    OverwrittenByNewLine,
-    AdminClosure
 }

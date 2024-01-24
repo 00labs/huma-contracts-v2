@@ -9,7 +9,7 @@ import {ICreditManager} from "./interfaces/ICreditManager.sol";
 import {PoolConfig, PoolSettings} from "../common/PoolConfig.sol";
 import {PoolConfigCache} from "../common/PoolConfigCache.sol";
 import {CreditManagerStorage} from "./CreditManagerStorage.sol";
-import {CreditClosureReason, CreditConfig, CreditRecord, CreditState, DueDetail} from "./CreditStructs.sol";
+import {CreditConfig, CreditRecord, CreditState, DueDetail} from "./CreditStructs.sol";
 import {PayPeriodDuration} from "../common/SharedDefs.sol";
 import {Errors} from "../common/Errors.sol";
 import {ICreditDueManager} from "./interfaces/ICreditDueManager.sol";
@@ -36,10 +36,9 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
     /**
      * @notice An existing credit has been closed.
      * @param creditHash The hash of the credit.
-     * @param reasonCode The reason for the credit closure.
      * @param by The address who closed the credit.
      */
-    event CreditClosed(bytes32 indexed creditHash, CreditClosureReason reasonCode, address by);
+    event CreditClosedByAdmin(bytes32 indexed creditHash, address by);
 
     /**
      * @notice The credit has been marked as Defaulted.
@@ -300,7 +299,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         cr.remainingPeriods = 0;
         credit.setCreditRecord(creditHash, cr);
 
-        emit CreditClosed(creditHash, CreditClosureReason.AdminClosure, msg.sender);
+        emit CreditClosedByAdmin(creditHash, msg.sender);
     }
 
     /**
