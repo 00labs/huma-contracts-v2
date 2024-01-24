@@ -13,6 +13,7 @@ import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import {ITranchesPolicy} from "./interfaces/ITranchesPolicy.sol";
 import {ICreditManager} from "../credit/interfaces/ICreditManager.sol";
 import {ICredit} from "../credit/interfaces/ICredit.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  * @title Pool
@@ -350,9 +351,17 @@ contract Pool is PoolConfigCache, IPool {
     function _distLossToTranches(uint256 loss) internal {
         TranchesAssets memory assets = tranchesAssets;
         uint256 juniorTotalAssets = assets.juniorTotalAssets;
-        // Distribute losses to junior tranche up to the total junior asset.
+        // Distribute losses to the junior tranche up to the total junior asset.
         uint256 juniorLoss = juniorTotalAssets >= loss ? loss : juniorTotalAssets;
-        uint256 seniorLoss = loss - juniorLoss;
+        // There are two possible scenarios for the remaining loss to surpass the total assets of the senior tranche:
+        // 1. Admin fees are also subject to losses. However, these fees are not explicitly included in the
+        // loss distribution process.
+        // 2. First loss covers are configured in a way that they take on more profit than loss, although this is unlikely.
+        // In such instances, we cap the loss at the senior total assets. It's important to note
+        // that borrowers' payment obligations are based on the total amount due in `CreditRecord`, thus omitting to
+        // fully account for losses in the senior tranche does not reduce the amount the borrower is required to pay,
+        // ensuring their payment obligations remain unaffected.
+        uint256 seniorLoss = Math.min(assets.seniorTotalAssets, loss - juniorLoss);
 
         assets.seniorTotalAssets -= uint96(seniorLoss);
         assets.juniorTotalAssets -= uint96(juniorLoss);
