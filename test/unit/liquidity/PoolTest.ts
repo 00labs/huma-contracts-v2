@@ -420,15 +420,7 @@ describe("Pool Test", function () {
                             firstLossCoverInfos,
                         );
 
-                        await expect(
-                            mockDistributePnL(
-                                creditContract,
-                                creditManagerContract,
-                                profit,
-                                BN.from(0),
-                                BN.from(0),
-                            ),
-                        )
+                        await expect(creditContract.mockDistributeProfit(profit))
                             .to.emit(poolContract, "ProfitDistributed")
                             .withArgs(
                                 profit,
@@ -491,15 +483,7 @@ describe("Pool Test", function () {
                                 .add(losses[CONSTANTS.JUNIOR_TRANCHE])
                                 .gt(0)
                         ) {
-                            await expect(
-                                mockDistributePnL(
-                                    creditContract,
-                                    creditManagerContract,
-                                    BN.from(0),
-                                    loss,
-                                    BN.from(0),
-                                ),
-                            )
+                            await expect(creditManagerContract.mockDistributeLoss(loss))
                                 .to.emit(poolContract, "LossDistributed")
                                 .withArgs(
                                     loss.sub(sumBNArray([...lossesCoveredByFirstLossCovers])),
@@ -509,13 +493,7 @@ describe("Pool Test", function () {
                                     losses[CONSTANTS.JUNIOR_TRANCHE],
                                 );
                         } else {
-                            await mockDistributePnL(
-                                creditContract,
-                                creditManagerContract,
-                                BN.from(0),
-                                loss,
-                                BN.from(0),
-                            );
+                            await creditManagerContract.mockDistributeLoss(loss);
                         }
 
                         seniorAssets = await poolContract.trancheTotalAssets(
@@ -558,15 +536,7 @@ describe("Pool Test", function () {
                             lossesCoveredByFirstLossCovers,
                         );
 
-                        await expect(
-                            mockDistributePnL(
-                                creditContract,
-                                creditManagerContract,
-                                BN.from(0),
-                                BN.from(0),
-                                recovery,
-                            ),
-                        )
+                        await expect(creditContract.mockDistributeLossRecovery(recovery))
                             .to.emit(poolContract, "LossRecoveryDistributed")
                             .withArgs(
                                 losses[CONSTANTS.SENIOR_TRANCHE]

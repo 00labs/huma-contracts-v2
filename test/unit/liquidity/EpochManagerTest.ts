@@ -219,10 +219,8 @@ describe("EpochManager Test", function () {
     it("Should start a new epoch while there is redemption request", async function () {
         await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(toToken(1000));
         await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(toToken(2000));
-        await await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(toToken(1500));
-        await await juniorTrancheVaultContract
-            .connect(lender2)
-            .addRedemptionRequest(toToken(2500));
+        await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(toToken(1500));
+        await juniorTrancheVaultContract.connect(lender2).addRedemptionRequest(toToken(2500));
 
         await poolContract.connect(poolOwner).disablePool();
 
