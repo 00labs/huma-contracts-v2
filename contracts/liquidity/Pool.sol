@@ -32,7 +32,8 @@ contract Pool is PoolConfigCache, IPool {
 
     enum PoolStatus {
         Off,
-        On
+        On,
+        Closed
     }
 
     IEpochManager public epochManager;
@@ -56,6 +57,12 @@ contract Pool is PoolConfigCache, IPool {
      * @param by The address that disabled the pool.
      */
     event PoolDisabled(address indexed by);
+
+    /**
+     * @notice The pool has been closed.
+     * @param by The address that closed the pool.
+     */
+    event PoolClosed(address indexed by);
 
     /**
      * @notice The pool has been enabled.
@@ -148,6 +155,16 @@ contract Pool is PoolConfigCache, IPool {
     }
 
     /**
+     * @notice Closes the pool permanently.
+     * @custom:access Only the pool owner or protocol owner can enable a pool.
+     */
+    function closePool() external {
+        poolConfig.onlyOwnerOrHumaMasterAdmin(msg.sender);
+        _status = PoolStatus.Closed;
+        emit PoolClosed(msg.sender);
+    }
+
+    /**
      * @notice Enables or disables the first loss cover investors to withdraw capital.
      * @custom:access Only pool owner or Huma protocol owner can call this function.
      */
@@ -192,8 +209,13 @@ contract Pool is PoolConfigCache, IPool {
     }
 
     /// @inheritdoc IPool
-    function isPoolOn() external view returns (bool status) {
+    function isPoolOn() external view returns (bool isOn) {
         return _status == PoolStatus.On;
+    }
+
+    /// @inheritdoc IPool
+    function isPoolClosed() external view returns (bool isClosed) {
+        return _status == PoolStatus.Closed;
     }
 
     /// @inheritdoc IPool

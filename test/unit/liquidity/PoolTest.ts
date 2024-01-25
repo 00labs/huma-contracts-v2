@@ -302,17 +302,45 @@ describe("Pool Test", function () {
             await loadFixture(prepare);
         });
 
-        it("Should not allow non-Operator to disable a pool", async function () {
-            await expect(poolContract.disablePool()).to.be.revertedWithCustomError(
-                poolConfigContract,
-                "PoolOperatorRequired",
-            );
+        describe("disablePool", function () {
+            it("Should not allow non-Operator to disable the pool", async function () {
+                await expect(poolContract.disablePool()).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "PoolOperatorRequired",
+                );
+                expect(await poolContract.isPoolOn()).to.be.true;
+            });
+
+            it("Should allow a pool operator to disable the pool", async function () {
+                await expect(poolContract.connect(poolOperator).disablePool())
+                    .to.emit(poolContract, "PoolDisabled")
+                    .withArgs(poolOperator.address);
+                expect(await poolContract.isPoolOn()).to.be.false;
+            });
         });
 
-        it("Should disable a pool", async function () {
-            await expect(poolContract.connect(poolOperator).disablePool())
-                .to.emit(poolContract, "PoolDisabled")
-                .withArgs(poolOperator.address);
+        describe("closePool", function () {
+            it("Should not allow non-PoolOwner or non-HumaOwner to close the pool", async function () {
+                await expect(poolContract.closePool()).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "AdminRequired",
+                );
+                expect(await poolContract.isPoolClosed()).to.be.false;
+            });
+
+            it("Should allow the pool owner to close the pool", async function () {
+                await expect(poolContract.connect(poolOwner).closePool())
+                    .to.emit(poolContract, "PoolClosed")
+                    .withArgs(poolOwner.address);
+                expect(await poolContract.isPoolClosed()).to.be.true;
+            });
+
+            it("Should allow the Huma owner to close the pool", async function () {
+                await expect(poolContract.connect(protocolOwner).closePool())
+                    .to.emit(poolContract, "PoolClosed")
+                    .withArgs(protocolOwner.address);
+                expect(await poolContract.isPoolClosed()).to.be.true;
+            });
         });
 
         describe("PnL tests", function () {

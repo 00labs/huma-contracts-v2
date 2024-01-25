@@ -2401,6 +2401,48 @@ describe("TrancheVault Test", function () {
             });
         });
 
+        describe.only("withdrawAfterPoolClosure", function () {
+            it("Should allow lenders to withdraw their shares after pool closure", async function () {
+                await poolContract.connect(poolOwner).closePool();
+                expect(await poolContract.isPoolClosed()).to.be.true;
+
+                const numShares = await seniorTrancheVaultContract.balanceOf(lender.getAddress());
+                const assets = await seniorTrancheVaultContract.convertToAssets(numShares);
+                expect(numShares).to.be.gt(0);
+                expect(assets).to.be.gt(0);
+
+                const oldTotalSupply = await seniorTrancheVaultContract.totalSupply();
+                const oldTotalAssets = await seniorTrancheVaultContract.totalAssets();
+                const oldLenderBalance = await mockTokenContract.balanceOf(lender.getAddress());
+                const oldPoolSafeBalance = await mockTokenContract.balanceOf(
+                    poolSafeContract.address,
+                );
+                await expect(seniorTrancheVaultContract.connect(lender).withdrawAfterPoolClosure())
+                    .to.emit(seniorTrancheVaultContract, "LenderFundWithdrawn")
+                    .withArgs(await lender.getAddress(), numShares, assets);
+
+                expect(await seniorTrancheVaultContract.totalSupply()).to.equal(
+                    oldTotalSupply.sub(numShares),
+                );
+                expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
+                    oldTotalAssets.sub(assets),
+                );
+                expect(await mockTokenContract.balanceOf(lender.getAddress())).to.equal(
+                    oldLenderBalance.add(assets),
+                );
+                expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
+                    oldPoolSafeBalance.sub(assets),
+                );
+            });
+
+            it("Should not allow lenders to withdraw if the pool is not closed", async function () {
+                expect(await poolContract.isPoolClosed()).to.be.false;
+                await expect(
+                    seniorTrancheVaultContract.connect(lender).withdrawAfterPoolClosure(),
+                ).to.be.revertedWithCustomError(seniorTrancheVaultContract, "PoolIsNotClosed");
+            });
+        });
+
         describe("Process Epochs Tests", function () {
             it("Should not allow non-EpochManager to process epochs", async function () {
                 await expect(

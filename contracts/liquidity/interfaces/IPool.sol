@@ -54,10 +54,16 @@ interface IPool {
     function currentTranchesAssets() external view returns (uint96[2] memory assets);
 
     /**
-     * @notice Returns the on/off status of the pool
-     * @return status The on/off status of the pool.
+     * @notice Returns whether the pool is turned on.
+     * @return isOn Whether the pool is turned on.
      */
-    function isPoolOn() external view returns (bool status);
+    function isPoolOn() external view returns (bool isOn);
+
+    /**
+     * @notice Returns whether the pool has been permanently closed.
+     * @return isClosed Whether the pool has been permanently closed.
+     */
+    function isPoolClosed() external view returns (bool isClosed);
 
     /**
      * @notice Returns the available capacity that the tranche has for further deposit.

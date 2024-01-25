@@ -81,6 +81,14 @@ contract TrancheVault is
     event LenderFundDisbursed(address indexed account, address receiver, uint256 withdrawnAmount);
 
     /**
+     * @notice A lender has withdrawn all their assets after pool closure.
+     * @param account The lender who has withdrawn.
+     * @param numShares The number of shares burned.
+     * @param assets The amount that was withdrawn.
+     */
+    event LenderFundWithdrawn(address indexed account, uint256 numShares, uint256 assets);
+
+    /**
      * @notice A redemption request has been added.
      * @param account The account whose shares to be redeemed.
      * @param shareAmount The number of shares to be redeemed.
@@ -401,14 +409,32 @@ contract TrancheVault is
     function disburse() external {
         poolConfig.onlyProtocolAndPoolOn();
 
-        LenderRedemptionRecord memory record = _getLatestLenderRedemptionRecordFor(msg.sender);
-        uint256 withdrawable = record.totalAmountProcessed - record.totalAmountWithdrawn;
-        if (withdrawable > 0) {
-            record.totalAmountWithdrawn += uint96(withdrawable);
-            _setLenderRedemptionRecord(msg.sender, record);
-            underlyingToken.safeTransfer(msg.sender, withdrawable);
-            emit LenderFundDisbursed(msg.sender, msg.sender, withdrawable);
-        }
+        _disburse();
+    }
+
+    /**
+     * @notice Allows the lender to withdraw all their assets after the pool has been permanently closed.
+     * @custom:access Only the lender can withdraw for themselves.
+     */
+    function withdrawAfterPoolClosure() external {
+        if (!pool.isPoolClosed()) revert Errors.PoolIsNotClosed();
+
+        // First, disburse all the funds from the lender's previously processed redemption requests.
+        _disburse();
+
+        // Then, let the lender withdraw all their remaining assets in the pool.
+        uint256 numShares = ERC20Upgradeable.balanceOf(msg.sender);
+        uint256 assets = convertToAssets(numShares);
+
+        // Update tranches assets to reflect the reduction in total assets.
+        uint96[2] memory tranchesAssets = pool.currentTranchesAssets();
+        tranchesAssets[trancheIndex] -= uint96(assets);
+        pool.updateTranchesAssets(tranchesAssets);
+
+        // Burn the LP tokens and transfer assets to the lender.
+        ERC20Upgradeable._burn(msg.sender, numShares);
+        poolSafe.withdraw(msg.sender, assets);
+        emit LenderFundWithdrawn(msg.sender, numShares, assets);
     }
 
     /**
@@ -559,6 +585,20 @@ contract TrancheVault is
         pool.updateTranchesAssets(tranches);
 
         emit LiquidityDeposited(msg.sender, receiver, assets, shares);
+    }
+
+    /**
+     * @notice Internal function to support the disbursement of funds from processed redemption requests.
+     */
+    function _disburse() internal {
+        LenderRedemptionRecord memory record = _getLatestLenderRedemptionRecordFor(msg.sender);
+        uint256 withdrawable = record.totalAmountProcessed - record.totalAmountWithdrawn;
+        if (withdrawable > 0) {
+            record.totalAmountWithdrawn += uint96(withdrawable);
+            _setLenderRedemptionRecord(msg.sender, record);
+            underlyingToken.safeTransfer(msg.sender, withdrawable);
+            emit LenderFundDisbursed(msg.sender, msg.sender, withdrawable);
+        }
     }
 
     /**
