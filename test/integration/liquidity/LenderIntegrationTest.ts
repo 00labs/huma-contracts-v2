@@ -382,7 +382,7 @@ async function checkAssetsForLoss(
     );
 }
 
-async function checkUserAssets(expectedTranchesAssets: BN[]) {
+async function checkLenderAssets(expectedTranchesAssets: BN[]) {
     let juniorTotalSupply = await juniorTrancheVaultContract.totalSupply();
     for (let i = 0; i < jActiveLenders.length; i++) {
         expect(await juniorTrancheVaultContract.totalAssetsOf(jActiveLenders[i].address)).to.equal(
@@ -741,17 +741,16 @@ describe("Lender Integration Test", function () {
                     .add(expectedPoolSafeBalanceIncrement),
             );
 
-            await checkUserAssets(expectedTranchesAssets);
+            await checkLenderAssets(expectedTranchesAssets);
 
             creditHash = await borrowerLevelCreditHash(creditContract, borrower);
         });
 
         it("Epoch 0, day 28: 1st payment by the borrower and distribution of profit", async function () {
-            currentTS += 28 * 24 * 3600;
+            currentTS += 28 * CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(currentTS);
 
             let cr = await creditContract.getCreditRecord(creditHash);
-            // printCreditRecord("cr", cr);
             let profit = cr.yieldDue;
             let payment = cr.nextDue;
 
@@ -791,7 +790,7 @@ describe("Lender Integration Test", function () {
                     .sub(expectedFirstLossCoverProfits[CONSTANTS.ADMIN_LOSS_COVER_INDEX]),
             );
 
-            await checkUserAssets(expectedTranchesAssets);
+            await checkLenderAssets(expectedTranchesAssets);
         });
 
         it("Epoch 0, day after the epoch end date: Process yield and close epoch", async function () {
@@ -813,7 +812,7 @@ describe("Lender Integration Test", function () {
         });
 
         it("Epoch 1, day 3: Lenders in both tranches request redemption", async function () {
-            currentTS = currentTS + 2 * 24 * 3600;
+            currentTS += 2 * CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(currentTS);
 
             await testRedemptionRequest(
@@ -823,14 +822,14 @@ describe("Lender Integration Test", function () {
         });
 
         it("Epoch 1, day 10: Senior lenders put in additional redemption requests", async function () {
-            currentTS = currentTS + 7 * 24 * 3600;
+            currentTS += 7 * CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(currentTS);
 
             await testRedemptionRequest([], [toToken(200), toToken(100)]);
         });
 
         it("Epoch 1, day 25: 2nd payment by the borrower", async function () {
-            currentTS = currentTS + 15 * 24 * 3600;
+            currentTS += 15 * CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(currentTS);
 
             let cr = await creditContract.getCreditRecord(creditHash);
@@ -872,7 +871,7 @@ describe("Lender Integration Test", function () {
                     .sub(expectedFirstLossCoverProfits[CONSTANTS.ADMIN_LOSS_COVER_INDEX]),
             );
 
-            await checkUserAssets(expectedTranchesAssets);
+            await checkLenderAssets(expectedTranchesAssets);
         });
 
         it("Epoch 1, day after the epoch end date: Process yield, close epoch and the fulfillment of the redemption requests", async function () {
@@ -964,7 +963,7 @@ describe("Lender Integration Test", function () {
         });
 
         it("Epoch 2, day 6: New senior lenders inject liquidity", async function () {
-            currentTS = currentTS + 5 * 24 * 3600;
+            currentTS += 5 * CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(currentTS);
 
             let amount = toToken(600_000);
@@ -985,7 +984,7 @@ describe("Lender Integration Test", function () {
         });
 
         it("Epoch 2, day 10: Senior lenders attempt to inject liquidity, but blocked by senior : junior ratio", async function () {
-            currentTS = currentTS + 4 * 24 * 3600;
+            currentTS += 4 * CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(currentTS);
 
             await expect(
@@ -999,7 +998,7 @@ describe("Lender Integration Test", function () {
         });
 
         it("Epoch 2, day 15: New junior lenders inject liquidity", async function () {
-            currentTS = currentTS + 5 * 24 * 3600;
+            currentTS += 5 * CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(currentTS);
 
             let amount = toToken(30_000);
@@ -1020,7 +1019,7 @@ describe("Lender Integration Test", function () {
         });
 
         it("Epoch 2, day 20: Senior lenders are now able to inject additional liquidity", async function () {
-            currentTS = currentTS + 5 * 24 * 3600;
+            currentTS += 5 * CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(currentTS);
 
             let amount = toToken(600_000);
@@ -1081,8 +1080,8 @@ describe("Lender Integration Test", function () {
             currentEpochId = newEpochId;
         });
 
-        it("Epoch 3, day 6: Late 3rd payment", async function () {
-            currentTS = currentTS + 5 * 24 * 3600;
+        it("Epoch 3, day 6: Bill refreshed and the credit is delayed", async function () {
+            currentTS += 5 * CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(currentTS);
 
             await creditManagerContract.refreshCredit(borrower.address);
@@ -1091,14 +1090,14 @@ describe("Lender Integration Test", function () {
         });
 
         it("Epoch 3, day 10: Junior lenders put in redemption requests that would breach senior : junior ratio", async function () {
-            currentTS = currentTS + 4 * 24 * 3600;
+            currentTS += 4 * CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(currentTS);
 
             await testRedemptionRequest([toToken(150_000)], []);
         });
 
-        it("Epoch 3, day 25: 4th payment by the borrower", async function () {
-            currentTS = currentTS + 15 * 24 * 3600;
+        it("Epoch 3, day 25: 3rd payment by the borrower", async function () {
+            currentTS += 15 * CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(currentTS);
 
             let cr = await creditContract.getCreditRecord(creditHash);
@@ -1154,7 +1153,7 @@ describe("Lender Integration Test", function () {
                     .sub(expectedFirstLossCoverProfits[CONSTANTS.ADMIN_LOSS_COVER_INDEX]),
             );
 
-            await checkUserAssets(expectedTranchesAssets);
+            await checkLenderAssets(expectedTranchesAssets);
         });
 
         it("Epoch 3, day after the epoch end date: Process yield, close epoch and partial fulfillment of junior redemption requests", async function () {
@@ -1219,14 +1218,14 @@ describe("Lender Integration Test", function () {
         });
 
         it("Epoch 4, day 2: Senior lenders request redemption", async function () {
-            currentTS = currentTS + 1 * 24 * 3600;
+            currentTS += CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(currentTS);
 
             await testRedemptionRequest([], [toToken(200_000), toToken(100_000)]);
         });
 
         it("Epoch 4, day 10: Pool admins withdraw fees", async function () {
-            currentTS = currentTS + 8 * 24 * 3600;
+            currentTS += 8 * CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(currentTS);
 
             let amount = toToken(100);
@@ -1263,7 +1262,7 @@ describe("Lender Integration Test", function () {
         });
 
         it("Epoch 4, day 15: Junior lenders request redemption again", async function () {
-            currentTS = currentTS + 5 * 24 * 3600;
+            currentTS += 5 * CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(currentTS);
 
             await testRedemptionRequest([toToken(1_000)], []);
@@ -1370,7 +1369,7 @@ describe("Lender Integration Test", function () {
         });
 
         it("Epoch 5, day 3: Payoff current credit", async function () {
-            currentTS = currentTS + 2 * 24 * 3600 + 100;
+            currentTS += 2 * CONSTANTS.SECONDS_IN_A_DAY + 100;
             await setNextBlockTimestamp(currentTS);
 
             let cr = await creditContract.getCreditRecord(creditHash);
@@ -1415,23 +1414,23 @@ describe("Lender Integration Test", function () {
                     .sub(expectedFirstLossCoverProfits[CONSTANTS.ADMIN_LOSS_COVER_INDEX]),
             );
 
-            await checkUserAssets(expectedTranchesAssets);
+            await checkLenderAssets(expectedTranchesAssets);
         });
 
         it("Epoch 5, day 6: Payout yield", async function () {
-            currentTS = currentTS + 3 * 24 * 3600 + 100;
+            currentTS += 3 * CONSTANTS.SECONDS_IN_A_DAY + 100;
             await setNextBlockTimestamp(currentTS);
 
             await testYieldPayout();
         });
 
         it("Epoch 5, day 10: The borrower opens a new credit", async function () {
-            currentTS = currentTS + 4 * 24 * 3600 + 100;
+            currentTS += 4 * CONSTANTS.SECONDS_IN_A_DAY + 100;
             await setNextBlockTimestamp(currentTS);
 
             let amount = toToken(1_000_000);
 
-            let borowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
+            let borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
             let oldFees = await poolFeeManagerContract.getAccruedIncomes();
             let borrowerFLCOldBalance = await mockTokenContract.balanceOf(
                 borrowerFirstLossCoverContract.address,
@@ -1446,7 +1445,7 @@ describe("Lender Integration Test", function () {
             let [protocolReward, poolOwnerReward, eaReward, poolProfit, amountToBorrower] =
                 await feeCalculator.calcPoolFeesForDrawdown(amount);
             expect(await mockTokenContract.balanceOf(borrower.address)).to.equal(
-                borowerOldBalance.add(amountToBorrower),
+                borrowerOldBalance.add(amountToBorrower),
             );
             await checkPoolFees(oldFees, protocolReward, poolOwnerReward, eaReward);
 
@@ -1460,20 +1459,20 @@ describe("Lender Integration Test", function () {
                 adminFLCOldBalance,
             );
 
-            let expectedPoolSafeBalanceIncremnet = protocolReward
+            let expectedPoolSafeBalanceIncrement = protocolReward
                 .add(poolOwnerReward)
                 .add(eaReward)
                 .add(expectedTranchesProfits[CONSTANTS.SENIOR_TRANCHE])
                 .add(expectedTranchesProfits[CONSTANTS.JUNIOR_TRANCHE]);
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
-                poolSafeOldBalance.sub(amount).add(expectedPoolSafeBalanceIncremnet),
+                poolSafeOldBalance.sub(amount).add(expectedPoolSafeBalanceIncrement),
             );
 
-            await checkUserAssets(expectedTranchesAssets);
+            await checkLenderAssets(expectedTranchesAssets);
         });
 
         it("Epoch 5, day 15: Lenders withdraw processed redemptions", async function () {
-            currentTS = currentTS + 5 * 24 * 3600 + 100;
+            currentTS += 5 * CONSTANTS.SECONDS_IN_A_DAY + 100;
             await setNextBlockTimestamp(currentTS);
 
             let amount = await juniorTrancheVaultContract.withdrawableAssets(
@@ -1549,8 +1548,8 @@ describe("Lender Integration Test", function () {
             currentEpochId = newEpochId;
         });
 
-        it("Epoch 6, day 6: Late 1st payment", async function () {
-            currentTS = currentTS + 5 * 24 * 3600 + 100;
+        it("Epoch 6, day 6: Bill refreshed and the credit is delayed again", async function () {
+            currentTS += 5 * CONSTANTS.SECONDS_IN_A_DAY + 100;
             await setNextBlockTimestamp(currentTS);
 
             await creditManagerContract.refreshCredit(borrower.address);
@@ -1617,25 +1616,25 @@ describe("Lender Integration Test", function () {
                 adminFLCOldBalance,
             );
 
-            let expectedPoolSafeBalanceIncremnet = expectedFirstLossCoverLosses[
+            let expectedPoolSafeBalanceIncrement = expectedFirstLossCoverLosses[
                 CONSTANTS.BORROWER_LOSS_COVER_INDEX
             ]
                 .add(expectedFirstLossCoverLosses[CONSTANTS.ADMIN_LOSS_COVER_INDEX])
                 .mul(-1);
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
-                poolSafeOldBalance.add(expectedPoolSafeBalanceIncremnet),
+                poolSafeOldBalance.add(expectedPoolSafeBalanceIncrement),
             );
 
-            await checkUserAssets(expectedTranchesAssets);
+            await checkLenderAssets(expectedTranchesAssets);
         });
 
-        it("Epoch 9, day 25: The borrower makes partial payment and distributes loss recovery", async function () {
-            currentTS = currentTS + 24 * 24 * 3600 + 100;
+        it("Epoch 9, day 25: The borrower makes partial payment and loss recovery is distributed", async function () {
+            currentTS += 24 * CONSTANTS.SECONDS_IN_A_DAY + 100;
             await setNextBlockTimestamp(currentTS);
 
             let amount = toToken(800_000);
 
-            let borowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
+            let borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
             let seniorOldAssets = await seniorTrancheVaultContract.totalAssets();
             let juniorOldAssets = await juniorTrancheVaultContract.totalAssets();
             let borrowerFLCOldAssets = await borrowerFirstLossCoverContract.totalAssets();
@@ -1643,7 +1642,7 @@ describe("Lender Integration Test", function () {
             let poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
             await creditContract.connect(borrower).makePayment(borrower.address, amount);
             expect(await mockTokenContract.balanceOf(borrower.address)).to.equal(
-                borowerOldBalance.sub(amount),
+                borrowerOldBalance.sub(amount),
             );
             expect(await seniorTrancheVaultContract.totalAssets()).to.equal(seniorOldAssets);
             expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
@@ -1699,7 +1698,7 @@ describe("Lender Integration Test", function () {
         });
 
         it("Epoch 10, day 10: Lenders in both tranches request full redemption", async function () {
-            currentTS = currentTS + 9 * 24 * 3600 + 100;
+            currentTS += 9 * CONSTANTS.SECONDS_IN_A_DAY + 100;
             await setNextBlockTimestamp(currentTS);
 
             await testRedemptionRequest(
@@ -1934,7 +1933,7 @@ describe("Lender Integration Test", function () {
                     true,
                 );
 
-            let borowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
+            let borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
             let oldFees = await poolFeeManagerContract.getAccruedIncomes();
             let borrowerFLCOldBalance = await mockTokenContract.balanceOf(
                 borrowerFirstLossCoverContract.address,
@@ -1951,7 +1950,7 @@ describe("Lender Integration Test", function () {
             let [protocolReward, poolOwnerReward, eaReward, poolProfit, amountToBorrower] =
                 await feeCalculator.calcPoolFeesForDrawdown(toToken(BORROWER_INITIAL_AMOUNT));
             expect(await mockTokenContract.balanceOf(borrower.address)).to.equal(
-                borowerOldBalance.add(amountToBorrower),
+                borrowerOldBalance.add(amountToBorrower),
             );
             await checkPoolFees(oldFees, protocolReward, poolOwnerReward, eaReward);
 
@@ -1972,7 +1971,7 @@ describe("Lender Integration Test", function () {
                 adminFLCOldBalance,
             );
 
-            let expectedPoolSafeBalanceIncremnet = protocolReward
+            let expectedPoolSafeBalanceIncrement = protocolReward
                 .add(poolOwnerReward)
                 .add(eaReward)
                 .add(expectedTranchesProfits[CONSTANTS.SENIOR_TRANCHE])
@@ -1980,16 +1979,16 @@ describe("Lender Integration Test", function () {
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
                 poolSafeOldBalance
                     .sub(toToken(BORROWER_INITIAL_AMOUNT))
-                    .add(expectedPoolSafeBalanceIncremnet),
+                    .add(expectedPoolSafeBalanceIncrement),
             );
 
-            await checkUserAssets(expectedTranchesAssets);
+            await checkLenderAssets(expectedTranchesAssets);
 
             creditHash = await borrowerLevelCreditHash(creditContract, borrower);
         });
 
         it("Epoch 0, day 28: 1st payment by the borrower and distribution of profit", async function () {
-            currentTS += 28 * 24 * 3600;
+            currentTS += 28 * CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(currentTS);
 
             let cr = await creditContract.getCreditRecord(creditHash);
@@ -2039,7 +2038,7 @@ describe("Lender Integration Test", function () {
                     .sub(expectedFirstLossCoverProfits[CONSTANTS.ADMIN_LOSS_COVER_INDEX]),
             );
 
-            await checkUserAssets(expectedTranchesAssets);
+            await checkLenderAssets(expectedTranchesAssets);
         });
 
         it("Epoch 0, day after the epoch end date: Process yield and close epoch", async function () {
@@ -2061,7 +2060,7 @@ describe("Lender Integration Test", function () {
         });
 
         it("Epoch 1, day 3: Lenders in both tranches request redemption", async function () {
-            currentTS = currentTS + 2 * 24 * 3600;
+            currentTS += 2 * CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(currentTS);
 
             await testRedemptionRequest(
@@ -2071,14 +2070,14 @@ describe("Lender Integration Test", function () {
         });
 
         it("Epoch 1, day 10: Senior lenders put in additional redemption requests", async function () {
-            currentTS = currentTS + 7 * 24 * 3600;
+            currentTS += 7 * CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(currentTS);
 
             await testRedemptionRequest([], [toToken(370), toToken(680)]);
         });
 
         it("Epoch 1, day 25: 2nd payment by the borrower", async function () {
-            currentTS = currentTS + 15 * 24 * 3600;
+            currentTS += 15 * CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(currentTS);
 
             let cr = await creditContract.getCreditRecord(creditHash);
@@ -2128,7 +2127,7 @@ describe("Lender Integration Test", function () {
                     .sub(expectedFirstLossCoverProfits[CONSTANTS.ADMIN_LOSS_COVER_INDEX]),
             );
 
-            await checkUserAssets(expectedTranchesAssets);
+            await checkLenderAssets(expectedTranchesAssets);
         });
 
         it("Epoch 1, day after the epoch end date: Process yield, close epoch and the fulfillment of the redemption requests", async function () {
@@ -2220,7 +2219,7 @@ describe("Lender Integration Test", function () {
         });
 
         it("Epoch 2, day 6: New senior lenders inject liquidity", async function () {
-            currentTS = currentTS + 5 * 24 * 3600;
+            currentTS += 5 * CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(currentTS);
 
             let amount = toToken(600_000);
@@ -2250,7 +2249,7 @@ describe("Lender Integration Test", function () {
         });
 
         it("Epoch 2, day 10: Senior lenders attempts to inject liquidity, but blocked by senior : junior ratio", async function () {
-            currentTS = currentTS + 4 * 24 * 3600;
+            currentTS += 4 * CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(currentTS);
 
             await expect(
@@ -2264,7 +2263,7 @@ describe("Lender Integration Test", function () {
         });
 
         it("Epoch 2, day 15: New junior lenders inject liquidity", async function () {
-            currentTS = currentTS + 5 * 24 * 3600;
+            currentTS += 5 * CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(currentTS);
 
             let amount = toToken(30_000);
@@ -2285,7 +2284,7 @@ describe("Lender Integration Test", function () {
         });
 
         it("Epoch 2, day 20: Senior lenders are now able to inject additional liquidity", async function () {
-            currentTS = currentTS + 5 * 24 * 3600;
+            currentTS += 5 * CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(currentTS);
 
             let amount = toToken(600_000);
@@ -2346,8 +2345,8 @@ describe("Lender Integration Test", function () {
             currentEpochId = newEpochId;
         });
 
-        it("Epoch 3, day 6: Late 3rd payment", async function () {
-            currentTS = currentTS + 5 * 24 * 3600;
+        it("Epoch 3, day 6: Bill refreshed and the credit is delayed", async function () {
+            currentTS += 5 * CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(currentTS);
 
             await creditManagerContract.refreshCredit(borrower.address);
@@ -2356,14 +2355,14 @@ describe("Lender Integration Test", function () {
         });
 
         it("Epoch 3, day 10: Junior lenders put in redemption requests that would breach senior : junior ratio", async function () {
-            currentTS = currentTS + 4 * 24 * 3600;
+            currentTS += 4 * CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(currentTS);
 
             await testRedemptionRequest([toToken(70_000)], []);
         });
 
-        it("Epoch 3, day 25: 4th payment by the borrower", async function () {
-            currentTS = currentTS + 15 * 24 * 3600;
+        it("Epoch 3, day 25: 3rd payment by the borrower", async function () {
+            currentTS += 15 * CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(currentTS);
 
             let cc = await creditManagerContract.getCreditConfig(creditHash);
@@ -2427,7 +2426,7 @@ describe("Lender Integration Test", function () {
                     .sub(expectedFirstLossCoverProfits[CONSTANTS.ADMIN_LOSS_COVER_INDEX]),
             );
 
-            await checkUserAssets(expectedTranchesAssets);
+            await checkLenderAssets(expectedTranchesAssets);
         });
 
         it("Epoch 3, day after the epoch end date: Process yield, close epoch and partial fulfillment of junior redemption requests", async function () {
@@ -2492,14 +2491,14 @@ describe("Lender Integration Test", function () {
         });
 
         it("Epoch 4, day 2: Senior lenders request redemption", async function () {
-            currentTS = currentTS + 1 * 24 * 3600;
+            currentTS += 1 * CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(currentTS);
 
             await testRedemptionRequest([], [toToken(500_000), toToken(100_000)]);
         });
 
         it("Epoch 4, day 10: Pool admins withdraws fees", async function () {
-            currentTS = currentTS + 8 * 24 * 3600;
+            currentTS += 8 * CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(currentTS);
 
             let amount = toToken(100);
@@ -2536,7 +2535,7 @@ describe("Lender Integration Test", function () {
         });
 
         it("Epoch 4, day 15: Junior lenders request redemption again", async function () {
-            currentTS = currentTS + 5 * 24 * 3600;
+            currentTS += 5 * CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(currentTS);
 
             await testRedemptionRequest([toToken(1_000)], []);
@@ -2643,7 +2642,7 @@ describe("Lender Integration Test", function () {
         });
 
         it("Epoch 5, day 3: Payoff current credit", async function () {
-            currentTS = currentTS + 2 * 24 * 3600 + 100;
+            currentTS += 2 * CONSTANTS.SECONDS_IN_A_DAY + 100;
             await setNextBlockTimestamp(currentTS);
 
             let cr = await creditContract.getCreditRecord(creditHash);
@@ -2696,23 +2695,23 @@ describe("Lender Integration Test", function () {
                     .sub(expectedFirstLossCoverProfits[CONSTANTS.ADMIN_LOSS_COVER_INDEX]),
             );
 
-            await checkUserAssets(expectedTranchesAssets);
+            await checkLenderAssets(expectedTranchesAssets);
         });
 
         it("Epoch 5, day 6: Payout yield", async function () {
-            currentTS = currentTS + 3 * 24 * 3600 + 100;
+            currentTS += 3 * CONSTANTS.SECONDS_IN_A_DAY + 100;
             await setNextBlockTimestamp(currentTS);
 
             await testYieldPayout();
         });
 
         it("Epoch 5, day 10: The borrower makes a new credit", async function () {
-            currentTS = currentTS + 4 * 24 * 3600 + 100;
+            currentTS += 4 * CONSTANTS.SECONDS_IN_A_DAY + 100;
             await setNextBlockTimestamp(currentTS);
 
             let amount = toToken(1_000_000);
 
-            let borowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
+            let borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
             let oldFees = await poolFeeManagerContract.getAccruedIncomes();
             let borrowerFLCOldBalance = await mockTokenContract.balanceOf(
                 borrowerFirstLossCoverContract.address,
@@ -2728,7 +2727,7 @@ describe("Lender Integration Test", function () {
             let [protocolReward, poolOwnerReward, eaReward, poolProfit, amountToBorrower] =
                 await feeCalculator.calcPoolFeesForDrawdown(amount);
             expect(await mockTokenContract.balanceOf(borrower.address)).to.equal(
-                borowerOldBalance.add(amountToBorrower),
+                borrowerOldBalance.add(amountToBorrower),
             );
             await checkPoolFees(oldFees, protocolReward, poolOwnerReward, eaReward);
 
@@ -2749,20 +2748,20 @@ describe("Lender Integration Test", function () {
                 adminFLCOldBalance,
             );
 
-            let expectedPoolSafeBalanceIncremnet = protocolReward
+            let expectedPoolSafeBalanceIncrement = protocolReward
                 .add(poolOwnerReward)
                 .add(eaReward)
                 .add(expectedTranchesProfits[CONSTANTS.SENIOR_TRANCHE])
                 .add(expectedTranchesProfits[CONSTANTS.JUNIOR_TRANCHE]);
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
-                poolSafeOldBalance.sub(amount).add(expectedPoolSafeBalanceIncremnet),
+                poolSafeOldBalance.sub(amount).add(expectedPoolSafeBalanceIncrement),
             );
 
-            await checkUserAssets(expectedTranchesAssets);
+            await checkLenderAssets(expectedTranchesAssets);
         });
 
         it("Epoch 5, day 11: Senior lenders request redemption", async function () {
-            currentTS = currentTS + 1 * 24 * 3600 + 100;
+            currentTS += 1 * CONSTANTS.SECONDS_IN_A_DAY + 100;
             await setNextBlockTimestamp(currentTS);
 
             await testRedemptionRequest(
@@ -2828,8 +2827,8 @@ describe("Lender Integration Test", function () {
             currentEpochId = newEpochId;
         });
 
-        it("Epoch 6, day 6: Late 1st payment", async function () {
-            currentTS = currentTS + 5 * 24 * 3600 + 100;
+        it("Epoch 6, day 6: Bill refreshed and the credit is delayed again", async function () {
+            currentTS += 5 * CONSTANTS.SECONDS_IN_A_DAY + 100;
             await setNextBlockTimestamp(currentTS);
 
             await creditManagerContract.refreshCredit(borrower.address);
@@ -2908,25 +2907,25 @@ describe("Lender Integration Test", function () {
                 adminFLCOldBalance,
             );
 
-            let expectedPoolSafeBalanceIncremnet = expectedFirstLossCoverLosses[
+            let expectedPoolSafeBalanceIncrement = expectedFirstLossCoverLosses[
                 CONSTANTS.BORROWER_LOSS_COVER_INDEX
             ]
                 .add(expectedFirstLossCoverLosses[CONSTANTS.ADMIN_LOSS_COVER_INDEX])
                 .mul(-1);
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
-                poolSafeOldBalance.add(expectedPoolSafeBalanceIncremnet),
+                poolSafeOldBalance.add(expectedPoolSafeBalanceIncrement),
             );
 
-            await checkUserAssets(expectedTranchesAssets);
+            await checkLenderAssets(expectedTranchesAssets);
         });
 
-        it("Epoch 9, day 25: The borrower makes some payment back and distributes loss recovery", async function () {
-            currentTS = currentTS + 24 * 24 * 3600 + 100;
+        it("Epoch 9, day 25: The borrower makes some payment back and loss recovery is distributed", async function () {
+            currentTS += 24 * CONSTANTS.SECONDS_IN_A_DAY + 100;
             await setNextBlockTimestamp(currentTS);
 
             let amount = toToken(800_000);
 
-            let borowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
+            let borrowerOldBalance = await mockTokenContract.balanceOf(borrower.address);
             let seniorOldAssets = await seniorTrancheVaultContract.totalAssets();
             let juniorOldAssets = await juniorTrancheVaultContract.totalAssets();
             let borrowerFLCOldAssets = await borrowerFirstLossCoverContract.totalAssets();
@@ -2934,7 +2933,7 @@ describe("Lender Integration Test", function () {
             let poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
             await creditContract.connect(borrower).makePayment(borrower.address, amount);
             expect(await mockTokenContract.balanceOf(borrower.address)).to.equal(
-                borowerOldBalance.sub(amount),
+                borrowerOldBalance.sub(amount),
             );
             expect(await seniorTrancheVaultContract.totalAssets()).to.equal(seniorOldAssets);
             expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
@@ -2990,7 +2989,7 @@ describe("Lender Integration Test", function () {
         });
 
         it("Epoch 10, day 10: Lenders in both tranches request full redemption", async function () {
-            currentTS = currentTS + 9 * 24 * 3600 + 100;
+            currentTS += 9 * CONSTANTS.SECONDS_IN_A_DAY + 100;
             await setNextBlockTimestamp(currentTS);
 
             await testRedemptionRequest(

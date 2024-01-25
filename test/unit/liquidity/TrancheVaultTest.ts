@@ -697,6 +697,7 @@ describe("TrancheVault Test", function () {
         it("Should allow lenders to deposit", async function () {
             let juniorAmount = toToken(40_000);
             const existingJuniorAssets = await juniorTrancheVaultContract.totalAssets();
+            const seniorAssets = await seniorTrancheVaultContract.totalAssets();
             const existingJuniorShares = await juniorTrancheVaultContract.totalSupply();
             const juniorShares = juniorAmount.mul(existingJuniorShares).div(existingJuniorAssets);
             let lenderBalanceBeforeJuniorDeposit = await mockTokenContract.balanceOf(
@@ -713,7 +714,7 @@ describe("TrancheVault Test", function () {
                 .withArgs(lender.address, lender.address, juniorAmount, juniorShares);
 
             expect(await poolContract.totalAssets()).to.equal(
-                existingJuniorAssets.add(juniorAmount),
+                existingJuniorAssets.add(seniorAssets).add(juniorAmount),
             );
             let poolAssets = await poolContract.totalAssets();
             expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
