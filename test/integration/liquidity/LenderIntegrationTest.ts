@@ -43,6 +43,7 @@ import {
     evmRevert,
     evmSnapshot,
     getLatestBlock,
+    getMinLiquidityRequirementForPoolOwner,
     overrideLPConfig,
     setNextBlockTimestamp,
     timestampToMoment,
@@ -218,10 +219,11 @@ async function configPool(lpConfig: Partial<LPConfigStructOutput>) {
         .connect(poolOwnerTreasury)
         .approve(poolSafeContract.address, ethers.constants.MaxUint256);
     await mockTokenContract.mint(poolOwnerTreasury.getAddress(), toToken(1_000_000_000));
-    const poolOwnerLiquidity = BN.from(adminRnR.liquidityRateInBpsByPoolOwner)
-        .mul(POOL_LIQUIDITY_CAP)
-        .div(CONSTANTS.BP_FACTOR);
+    const poolOwnerLiquidity = await getMinLiquidityRequirementForPoolOwner(poolConfigContract);
     await juniorTrancheVaultContract
+        .connect(poolOwnerTreasury)
+        .makeInitialDeposit(poolOwnerLiquidity);
+    await seniorTrancheVaultContract
         .connect(poolOwnerTreasury)
         .makeInitialDeposit(poolOwnerLiquidity);
 

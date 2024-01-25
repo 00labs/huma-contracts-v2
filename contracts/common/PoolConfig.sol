@@ -13,6 +13,7 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {ADMIN_LOSS_COVER_INDEX, HUNDRED_PERCENT_IN_BPS, PayPeriodDuration} from "./SharedDefs.sol";
 import {HumaConfig} from "./HumaConfig.sol";
 import {Errors} from "./Errors.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 struct PoolSettings {
     // The maximum credit line for a borrower in terms of the amount of poolTokens
@@ -629,8 +630,14 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
      */
     function checkLiquidityRequirements() public view {
         ITrancheVaultLike juniorTrancheVault = ITrancheVaultLike(juniorTranche);
+        // Pool owner needs to satisfy the liquidity requirements in both tranches.
         checkLiquidityRequirementForPoolOwner(juniorTrancheVault.totalAssetsOf(poolOwnerTreasury));
+        checkLiquidityRequirementForPoolOwner(
+            ITrancheVaultLike(seniorTranche).totalAssetsOf(poolOwnerTreasury)
+        );
+
         if (evaluationAgent != address(0)) {
+            // EA only needs to satisfy the liquidity requirement in the junior tranche.
             checkLiquidityRequirementForEA(juniorTrancheVault.totalAssetsOf(evaluationAgent));
         }
     }
@@ -646,14 +653,12 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         address trancheVault,
         uint256 newBalance
     ) public view {
-        if (trancheVault != juniorTranche) {
-            // There is no liquidity requirement for the senior tranche.
-            return;
-        }
         if (lender == poolOwnerTreasury) {
+            // The pool owner needs to satisfy the liquidity requirement in both tranches.
             checkLiquidityRequirementForPoolOwner(newBalance);
         }
-        if (lender == evaluationAgent) {
+        if (lender == evaluationAgent && trancheVault == juniorTranche) {
+            // EA is only required to participate in the junior tranche.
             checkLiquidityRequirementForEA(newBalance);
         }
     }
@@ -709,9 +714,12 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
     }
 
     function _getRequiredLiquidityForPoolOwner() internal view returns (uint256 amount) {
-        return
-            (_lpConfig.liquidityCap * _adminRnR.liquidityRateInBpsByPoolOwner) /
-            HUNDRED_PERCENT_IN_BPS;
+        // The pool owner's liquidity must be above both the absolute asset threshold and the
+        // the relative threshold determined by the pool liquidity cap.
+        uint256 minAbsoluteBalance = _poolSettings.minDepositAmount;
+        uint256 minRelativeBalance = (_lpConfig.liquidityCap *
+            _adminRnR.liquidityRateInBpsByPoolOwner) / HUNDRED_PERCENT_IN_BPS;
+        return Math.max(minAbsoluteBalance, minRelativeBalance);
     }
 
     function _getRequiredLiquidityForEA() internal view returns (uint256 amount) {

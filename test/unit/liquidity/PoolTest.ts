@@ -167,6 +167,9 @@ describe("Pool Test", function () {
             await juniorTrancheVaultContract
                 .connect(poolOwnerTreasury)
                 .makeInitialDeposit(poolOwnerAmount);
+            await seniorTrancheVaultContract
+                .connect(poolOwnerTreasury)
+                .makeInitialDeposit(poolOwnerAmount);
 
             await mockTokenContract
                 .connect(evaluationAgent)
@@ -222,8 +225,54 @@ describe("Pool Test", function () {
             expect(isPoolOn).to.be.false;
         });
 
-        it("Should not enable a pool when there is not enough liquidity for the pool owner", async function () {
-            await addLiquidity(minPoolOwnerLiquidity.sub(1), minEALiquidity);
+        it("Should not enable a pool when the pool owner has only satisfied the liquidity requirement for the junior tranche", async function () {
+            await mockTokenContract
+                .connect(poolOwnerTreasury)
+                .approve(poolSafeContract.address, ethers.constants.MaxUint256);
+            await mockTokenContract.mint(poolOwnerTreasury.address, toToken(10_000_000));
+            await juniorTrancheVaultContract
+                .connect(poolOwnerTreasury)
+                .makeInitialDeposit(minPoolOwnerLiquidity);
+
+            await mockTokenContract
+                .connect(evaluationAgent)
+                .approve(poolSafeContract.address, ethers.constants.MaxUint256);
+            await mockTokenContract.mint(evaluationAgent.address, toToken(10_000_000));
+            await juniorTrancheVaultContract
+                .connect(evaluationAgent)
+                .makeInitialDeposit(minEALiquidity);
+
+            await expect(
+                poolContract.connect(protocolOwner).enablePool(),
+            ).to.be.revertedWithCustomError(poolConfigContract, "PoolOwnerInsufficientLiquidity");
+            const isPoolOn = await poolContract.isPoolOn();
+            expect(isPoolOn).to.be.false;
+        });
+
+        it("Should not enable a pool when the pool owner has only satisfied the liquidity requirement for the senior tranche", async function () {
+            await mockTokenContract
+                .connect(poolOwnerTreasury)
+                .approve(poolSafeContract.address, ethers.constants.MaxUint256);
+            await mockTokenContract.mint(poolOwnerTreasury.address, toToken(10_000_000));
+            const lpConfig = await poolConfigContract.getLPConfig();
+            // Deposit some fund into the junior tranche so that the senior tranche deposit is not blocked by the
+            // max senior : junior ratio.
+            await juniorTrancheVaultContract
+                .connect(poolOwnerTreasury)
+                .makeInitialDeposit(
+                    minPoolOwnerLiquidity.div(lpConfig.maxSeniorJuniorRatio).add(toToken(1)),
+                );
+            await seniorTrancheVaultContract
+                .connect(poolOwnerTreasury)
+                .makeInitialDeposit(minPoolOwnerLiquidity);
+
+            await mockTokenContract
+                .connect(evaluationAgent)
+                .approve(poolSafeContract.address, ethers.constants.MaxUint256);
+            await mockTokenContract.mint(evaluationAgent.address, toToken(10_000_000));
+            await juniorTrancheVaultContract
+                .connect(evaluationAgent)
+                .makeInitialDeposit(minEALiquidity);
 
             await expect(
                 poolContract.connect(protocolOwner).enablePool(),

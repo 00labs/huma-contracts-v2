@@ -154,10 +154,16 @@ export async function getMinFirstLossCoverRequirement(
 export async function getMinLiquidityRequirementForPoolOwner(
     poolConfigContract: PoolConfig,
 ): Promise<BN> {
+    const poolSettings = await poolConfigContract.getPoolSettings();
+    const minAbsoluteBalance = poolSettings.minDepositAmount;
+
     const lpConfig = await poolConfigContract.getLPConfig();
-    const poolCap = lpConfig.liquidityCap;
     const adminRnR = await poolConfigContract.getAdminRnR();
-    return poolCap.mul(adminRnR.liquidityRateInBpsByPoolOwner).div(CONSTANTS.BP_FACTOR);
+    const minRelativeBalance = BN.from(adminRnR.liquidityRateInBpsByPoolOwner)
+        .mul(lpConfig.liquidityCap)
+        .div(CONSTANTS.BP_FACTOR);
+
+    return maxBigNumber(minAbsoluteBalance, minRelativeBalance);
 }
 
 export async function getMinLiquidityRequirementForEA(

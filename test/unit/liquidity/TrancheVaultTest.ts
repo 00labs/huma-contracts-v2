@@ -1030,11 +1030,78 @@ describe("TrancheVault Test", function () {
                     );
                 });
 
-                it("Should reject redemption requests that would breach the pool owner treasury's liquidity requirement", async function () {
+                it("Should reject redemption requests that would breach the pool owner treasury's liquidity requirement for the junior tranche", async function () {
                     await expect(
                         juniorTrancheVaultContract
                             .connect(poolOwnerTreasury)
                             .addRedemptionRequest(BN.from(1)),
+                    ).to.be.revertedWithCustomError(
+                        poolConfigContract,
+                        "PoolOwnerInsufficientLiquidity",
+                    );
+                });
+
+                it("Should reject redemption requests that would breach the pool owner treasury's absolute liquidity requirement for the junior tranche", async function () {
+                    // Reset the relative liquidity requirement to make testing the absolute liquidity requirement easier.
+                    const adminRnR = await poolConfigContract.getAdminRnR();
+                    await poolConfigContract
+                        .connect(poolOwner)
+                        .setPoolOwnerRewardsAndLiquidity(
+                            adminRnR.liquidityRateInBpsByPoolOwner,
+                            0,
+                        );
+                    const poolSettings = await poolConfigContract.getPoolSettings();
+                    const poolOwnerShares = await juniorTrancheVaultContract.balanceOf(
+                        poolOwnerTreasury.getAddress(),
+                    );
+                    const minSharesRequired = await juniorTrancheVaultContract.convertToShares(
+                        poolSettings.minDepositAmount,
+                    );
+                    const sharesRequested = poolOwnerShares.sub(minSharesRequired).add(1);
+
+                    await expect(
+                        juniorTrancheVaultContract
+                            .connect(poolOwnerTreasury)
+                            .addRedemptionRequest(sharesRequested),
+                    ).to.be.revertedWithCustomError(
+                        poolConfigContract,
+                        "PoolOwnerInsufficientLiquidity",
+                    );
+                });
+
+                it("Should reject redemption requests that would breach the pool owner treasury's liquidity requirement for the senior tranche", async function () {
+                    await expect(
+                        seniorTrancheVaultContract
+                            .connect(poolOwnerTreasury)
+                            .addRedemptionRequest(BN.from(1)),
+                    ).to.be.revertedWithCustomError(
+                        poolConfigContract,
+                        "PoolOwnerInsufficientLiquidity",
+                    );
+                });
+
+                it("Should reject redemption requests that would breach the pool owner treasury's absolute liquidity requirement for the senior tranche", async function () {
+                    // Reset the relative liquidity requirement to make testing the absolute liquidity requirement easier.
+                    const adminRnR = await poolConfigContract.getAdminRnR();
+                    await poolConfigContract
+                        .connect(poolOwner)
+                        .setPoolOwnerRewardsAndLiquidity(
+                            adminRnR.liquidityRateInBpsByPoolOwner,
+                            0,
+                        );
+                    const poolSettings = await poolConfigContract.getPoolSettings();
+                    const poolOwnerShares = await seniorTrancheVaultContract.balanceOf(
+                        poolOwnerTreasury.getAddress(),
+                    );
+                    const minSharesRequired = await seniorTrancheVaultContract.convertToShares(
+                        poolSettings.minDepositAmount,
+                    );
+                    const sharesRequested = poolOwnerShares.sub(minSharesRequired).add(1);
+
+                    await expect(
+                        seniorTrancheVaultContract
+                            .connect(poolOwnerTreasury)
+                            .addRedemptionRequest(sharesRequested),
                     ).to.be.revertedWithCustomError(
                         poolConfigContract,
                         "PoolOwnerInsufficientLiquidity",
@@ -1353,47 +1420,6 @@ describe("TrancheVault Test", function () {
                     await epochChecker.checkJuniorRedemptionSummaryById(
                         currentEpochId,
                         shares.mul(BN.from(3)),
-                    );
-                });
-
-                it("Should allow redemption requests from the pool owner treasury in the senior tranche w/o considering liquidity requirements", async function () {
-                    const depositAmount = toToken(20_000);
-                    await seniorTrancheVaultContract
-                        .connect(poolOwnerTreasury)
-                        .deposit(depositAmount, poolOwnerTreasury.address);
-
-                    const currentEpochId = await epochManagerContract.currentEpochId();
-                    const balance = await seniorTrancheVaultContract.balanceOf(
-                        poolOwnerTreasury.address,
-                    );
-                    const sharesRequested = balance.sub(1);
-                    let principal = (
-                        await seniorTrancheVaultContract.depositRecords(poolOwnerTreasury.address)
-                    ).principal;
-                    await expect(
-                        seniorTrancheVaultContract
-                            .connect(poolOwnerTreasury)
-                            .addRedemptionRequest(sharesRequested),
-                    )
-                        .to.emit(seniorTrancheVaultContract, "RedemptionRequestAdded")
-                        .withArgs(poolOwnerTreasury.address, sharesRequested, currentEpochId);
-                    expect(
-                        await seniorTrancheVaultContract.balanceOf(poolOwnerTreasury.address),
-                    ).to.equal(balance.sub(sharesRequested));
-                    expect(
-                        (
-                            await seniorTrancheVaultContract.depositRecords(
-                                poolOwnerTreasury.address,
-                            )
-                        ).principal,
-                    ).to.equal(principal.sub(sharesRequested));
-
-                    await checkRedemptionRecordByLender(
-                        seniorTrancheVaultContract,
-                        poolOwnerTreasury,
-                        currentEpochId,
-                        sharesRequested,
-                        sharesRequested,
                     );
                 });
 

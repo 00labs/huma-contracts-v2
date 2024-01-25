@@ -41,7 +41,14 @@ import {
     CreditConfigStructOutput,
 } from "../typechain-types/contracts/credit/CreditManager";
 import { EpochRedemptionSummaryStruct } from "../typechain-types/contracts/liquidity/interfaces/IRedemptionHandler";
-import { getLatestBlock, maxBigNumber, minBigNumber, sumBNArray, toToken } from "./TestUtils";
+import {
+    getLatestBlock,
+    getMinLiquidityRequirementForPoolOwner,
+    maxBigNumber,
+    minBigNumber,
+    sumBNArray,
+    toToken,
+} from "./TestUtils";
 import { CONSTANTS } from "./constants";
 
 export type CreditContractType =
@@ -649,13 +656,14 @@ export async function setupPoolContracts(
         .connect(poolOwnerTreasury)
         .approve(poolSafeContract.address, ethers.constants.MaxUint256);
     await mockTokenContract.mint(poolOwnerTreasury.getAddress(), toToken(1_000_000_000));
-    const poolOwnerLiquidity = BN.from(adminRnR.liquidityRateInBpsByPoolOwner)
-        .mul(poolLiquidityCap)
-        .div(CONSTANTS.BP_FACTOR);
+    const poolOwnerLiquidity = await getMinLiquidityRequirementForPoolOwner(poolConfigContract);
     await juniorTrancheVaultContract
         .connect(poolOwnerTreasury)
         .makeInitialDeposit(poolOwnerLiquidity);
-    let expectedInitialLiquidity = poolOwnerLiquidity;
+    await seniorTrancheVaultContract
+        .connect(poolOwnerTreasury)
+        .makeInitialDeposit(poolOwnerLiquidity);
+    let expectedInitialLiquidity = poolOwnerLiquidity.mul(2);
 
     await mockTokenContract
         .connect(evaluationAgent)
@@ -712,10 +720,14 @@ export async function setupPoolContracts(
 
     await poolContract.connect(poolOwner).enablePool();
     expect(await poolContract.totalAssets()).to.equal(expectedInitialLiquidity);
-    expect(await juniorTrancheVaultContract.totalAssets()).to.equal(expectedInitialLiquidity);
-    expect(await juniorTrancheVaultContract.totalSupply()).to.equal(expectedInitialLiquidity);
-    expect(await seniorTrancheVaultContract.totalAssets()).to.equal(0);
-    expect(await seniorTrancheVaultContract.totalSupply()).to.equal(0);
+    expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
+        expectedInitialLiquidity.sub(poolOwnerLiquidity),
+    );
+    expect(await juniorTrancheVaultContract.totalSupply()).to.equal(
+        expectedInitialLiquidity.sub(poolOwnerLiquidity),
+    );
+    expect(await seniorTrancheVaultContract.totalAssets()).to.equal(poolOwnerLiquidity);
+    expect(await seniorTrancheVaultContract.totalSupply()).to.equal(poolOwnerLiquidity);
 
     for (let i = 0; i < accounts.length; i++) {
         await juniorTrancheVaultContract
