@@ -1,0 +1,73 @@
+@startuml
+actor Lender
+entity Autotask
+participant TrancheVault
+participant EpochManager
+participant PoolSafe
+
+note over TrancheVault : Can be either the senior\nor junior tranche
+
+autonumber 100
+Lender -> TrancheVault : `addRedemptionRequest()`
+activate TrancheVault
+TrancheVault -> TrancheVault
+note right
+  Updates LenderRedemptionRecord and
+  current EpochRedemptionSummary
+end note
+TrancheVault --> EpochManager : Transfers shares from\n the lender to TrancheVault
+TrancheVault --> Lender : Success
+deactivate TrancheVault
+
+autonumber 200
+Autotask -> EpochManager : Calls `closeEpoch()` at the end of each period
+activate EpochManager
+EpochManager -> EpochManager
+note right
+  Calculates current senior tranche
+  price and junior tranche price
+end note
+
+loop senior and junior tranche
+  EpochManager -> TrancheVault : `currentRedemptionSummary()`
+  activate TrancheVault
+  TrancheVault --> EpochManager : Success
+  deactivate TrancheVault
+end
+
+EpochManager -> EpochManager
+note right
+  Processes redemption requests in both tranches
+end note
+
+loop senior and junior tranche
+  EpochManager -> TrancheVault : `executeRedemptionSummary()`
+  activate TrancheVault
+  TrancheVault -> TrancheVault : Burns processed shares
+  TrancheVault -> PoolSafe : Calls `withdraw()` to transfer processed amount of underlying token
+  activate PoolSafe
+  PoolSafe -> TrancheVault : Success
+  deactivate PoolSafe
+  TrancheVault --> EpochManager : Success
+  deactivate TrancheVault
+end
+
+EpochManager -> EpochManager : Update tranches assets
+EpochManager -> EpochManager : Create new epoch
+EpochManager --> Autotask : Success
+deactivate EpochManager
+
+autonumber 300
+Lender -> TrancheVault : `disburse()`
+activate TrancheVault
+TrancheVault -> TrancheVault : `_getLatestLenderRedemptionRecord()`
+note right
+  Calculates Lender's processed amount and shares
+  based on the EpochRedemptionSummary mapping
+end note
+
+TrancheVault -> TrancheVault : Updates LenderRedemptionRecord
+TrancheVault --> Lender : Transfers underlying token to Lender
+TrancheVault --> Lender : Success
+deactivate TrancheVault
+@enduml

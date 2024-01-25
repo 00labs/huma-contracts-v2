@@ -1,0 +1,50 @@
+@startuml
+header Make Payment Sequence Diagram
+
+actor Borrower
+participant CreditLine as CL
+participant Pool as P
+participant PoolSafe as PS
+
+autonumber 100
+Borrower -> CL: `makePayment()`
+activate CL
+
+alt Payment amount < Past due
+CL -> CL: Applies the payment towards past due
+
+else Past due <= Payment amount < Next due
+CL -> CL: Applies the payment towards past due and next due
+CL -> CL: Adjusts the credit line status to GoodStanding
+
+else Next due <= Payment amount < Payoff amount
+CL -> CL: Applies the payment towards past due, next due\nand unbilled principal
+CL -> CL: Adjusts the credit line status to GoodStanding
+
+else Payment amount >= Payoff amount
+CL -> CL: Applies the payment and reduces the\namount on the bill to 0
+
+alt If this is the final period
+CL -> CL: Closes the credit line
+else
+CL -> CL: Adjusts the credit line status to GoodStanding
+end
+
+end
+CL -> PS: Calls `deposit()` to transfer the payment amount collected
+activate PS
+PS -> Borrower: `SafeERC20.safeTransferFrom()`
+deactivate PS
+
+alt If the credit line status is Defaulted
+CL -> P: Calls `distributeLossRecovery()` to recover loss\nsuffered by the pool when default was triggered
+activate P
+else
+CL -> P: Calls `distributeProfit()` to distribute yield and late fee paid as profit
+end
+P -> CL: Success
+deactivate P
+
+CL -> Borrower: Success
+deactivate CL
+@enduml

@@ -55,9 +55,6 @@ import { CONSTANTS } from "../../constants";
 // The number of lenders will change as the test progresses.
 // 1 credit line
 
-const BORROWER_LOSS_COVER_INDEX = 0;
-const ADMIN_LOSS_COVER_INDEX = 1;
-
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
@@ -137,7 +134,7 @@ let jLenderWithdrawals: BN[] = Array(NUM_JUNIOR_LENDERS).fill(BN.from(0)),
     sLenderWithdrawals: BN[] = Array(NUM_SENIOR_LENDERS).fill(BN.from(0));
 
 async function configPool(lpConfig: Partial<LPConfigStructOutput>) {
-    let settings = await poolConfigContract.getPoolSettings();
+    const settings = await poolConfigContract.getPoolSettings();
     await poolConfigContract.connect(poolOwner).setPoolSettings({
         ...settings,
         ...{
@@ -317,6 +314,7 @@ async function configPool(lpConfig: Partial<LPConfigStructOutput>) {
     feeCalculator = new FeeCalculator(humaConfigContract, poolConfigContract);
     pnlCalculator = new ProfitAndLossCalculator(poolConfigContract, poolContract, [
         borrowerFirstLossCoverContract,
+        null,
         adminFirstLossCoverContract,
     ]);
     epochChecker = new EpochChecker(
@@ -350,11 +348,11 @@ async function checkAssetsForProfit(
     expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
         expectedTranchesAssets[CONSTANTS.JUNIOR_TRANCHE],
     );
-    expect(expectedFirstLossCoverProfits[BORROWER_LOSS_COVER_INDEX]).to.equal(0);
+    expect(expectedFirstLossCoverProfits[CONSTANTS.BORROWER_LOSS_COVER_INDEX]).to.equal(0);
     expect(await borrowerFirstLossCoverContract.totalAssets()).to.equal(borrowerFLCOldBalance);
-    expect(expectedFirstLossCoverProfits[ADMIN_LOSS_COVER_INDEX]).to.greaterThan(0);
+    expect(expectedFirstLossCoverProfits[CONSTANTS.ADMIN_LOSS_COVER_INDEX]).to.greaterThan(0);
     expect(await adminFirstLossCoverContract.totalAssets()).to.equal(
-        adminFLCOldBalance.add(expectedFirstLossCoverProfits[ADMIN_LOSS_COVER_INDEX]),
+        adminFLCOldBalance.add(expectedFirstLossCoverProfits[CONSTANTS.ADMIN_LOSS_COVER_INDEX]),
     );
 }
 
@@ -370,13 +368,15 @@ async function checkAssetsForLoss(
     expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
         expectedTranchesAssets[CONSTANTS.JUNIOR_TRANCHE],
     );
-    expect(expectedFirstLossCoverLosses[BORROWER_LOSS_COVER_INDEX]).to.lessThan(0);
+    expect(expectedFirstLossCoverLosses[CONSTANTS.BORROWER_LOSS_COVER_INDEX]).to.lessThan(0);
     expect(await borrowerFirstLossCoverContract.totalAssets()).to.equal(
-        borrowerFLCOldBalance.add(expectedFirstLossCoverLosses[BORROWER_LOSS_COVER_INDEX]),
+        borrowerFLCOldBalance.add(
+            expectedFirstLossCoverLosses[CONSTANTS.BORROWER_LOSS_COVER_INDEX],
+        ),
     );
-    expect(expectedFirstLossCoverLosses[ADMIN_LOSS_COVER_INDEX]).to.lessThan(0);
+    expect(expectedFirstLossCoverLosses[CONSTANTS.ADMIN_LOSS_COVER_INDEX]).to.lessThan(0);
     expect(await adminFirstLossCoverContract.totalAssets()).to.equal(
-        adminFLCOldBalance.add(expectedFirstLossCoverLosses[ADMIN_LOSS_COVER_INDEX]),
+        adminFLCOldBalance.add(expectedFirstLossCoverLosses[CONSTANTS.ADMIN_LOSS_COVER_INDEX]),
     );
 }
 
@@ -786,7 +786,7 @@ describe("Lender Integration Test", function () {
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
                 poolSafeOldBalance
                     .add(payment)
-                    .sub(expectedFirstLossCoverProfits[ADMIN_LOSS_COVER_INDEX]),
+                    .sub(expectedFirstLossCoverProfits[CONSTANTS.ADMIN_LOSS_COVER_INDEX]),
             );
 
             await checkUserAssets(expectedTranchesAssets);
@@ -867,7 +867,7 @@ describe("Lender Integration Test", function () {
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
                 poolSafeOldBalance
                     .add(payment)
-                    .sub(expectedFirstLossCoverProfits[ADMIN_LOSS_COVER_INDEX]),
+                    .sub(expectedFirstLossCoverProfits[CONSTANTS.ADMIN_LOSS_COVER_INDEX]),
             );
 
             await checkUserAssets(expectedTranchesAssets);
@@ -1149,7 +1149,7 @@ describe("Lender Integration Test", function () {
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
                 poolSafeOldBalance
                     .add(payment)
-                    .sub(expectedFirstLossCoverProfits[ADMIN_LOSS_COVER_INDEX]),
+                    .sub(expectedFirstLossCoverProfits[CONSTANTS.ADMIN_LOSS_COVER_INDEX]),
             );
 
             await checkUserAssets(expectedTranchesAssets);
@@ -1410,7 +1410,7 @@ describe("Lender Integration Test", function () {
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
                 poolSafeOldBalance
                     .add(payment)
-                    .sub(expectedFirstLossCoverProfits[ADMIN_LOSS_COVER_INDEX]),
+                    .sub(expectedFirstLossCoverProfits[CONSTANTS.ADMIN_LOSS_COVER_INDEX]),
             );
 
             await checkUserAssets(expectedTranchesAssets);
@@ -1616,8 +1616,10 @@ describe("Lender Integration Test", function () {
             );
 
             let expectedPoolSafeBalanceIncremnet = expectedFirstLossCoverLosses[
-                BORROWER_LOSS_COVER_INDEX
-            ].add(expectedFirstLossCoverLosses[ADMIN_LOSS_COVER_INDEX]).mul(-1);
+                CONSTANTS.BORROWER_LOSS_COVER_INDEX
+            ]
+                .add(expectedFirstLossCoverLosses[CONSTANTS.ADMIN_LOSS_COVER_INDEX])
+                .mul(-1);
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
                 poolSafeOldBalance.add(expectedPoolSafeBalanceIncremnet),
             );
@@ -2032,7 +2034,7 @@ describe("Lender Integration Test", function () {
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
                 poolSafeOldBalance
                     .add(payment)
-                    .sub(expectedFirstLossCoverProfits[ADMIN_LOSS_COVER_INDEX]),
+                    .sub(expectedFirstLossCoverProfits[CONSTANTS.ADMIN_LOSS_COVER_INDEX]),
             );
 
             await checkUserAssets(expectedTranchesAssets);
@@ -2121,7 +2123,7 @@ describe("Lender Integration Test", function () {
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
                 poolSafeOldBalance
                     .add(payment)
-                    .sub(expectedFirstLossCoverProfits[ADMIN_LOSS_COVER_INDEX]),
+                    .sub(expectedFirstLossCoverProfits[CONSTANTS.ADMIN_LOSS_COVER_INDEX]),
             );
 
             await checkUserAssets(expectedTranchesAssets);
@@ -2420,7 +2422,7 @@ describe("Lender Integration Test", function () {
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
                 poolSafeOldBalance
                     .add(payment)
-                    .sub(expectedFirstLossCoverProfits[ADMIN_LOSS_COVER_INDEX]),
+                    .sub(expectedFirstLossCoverProfits[CONSTANTS.ADMIN_LOSS_COVER_INDEX]),
             );
 
             await checkUserAssets(expectedTranchesAssets);
@@ -2689,7 +2691,7 @@ describe("Lender Integration Test", function () {
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
                 poolSafeOldBalance
                     .add(payment)
-                    .sub(expectedFirstLossCoverProfits[ADMIN_LOSS_COVER_INDEX]),
+                    .sub(expectedFirstLossCoverProfits[CONSTANTS.ADMIN_LOSS_COVER_INDEX]),
             );
 
             await checkUserAssets(expectedTranchesAssets);
@@ -2905,8 +2907,10 @@ describe("Lender Integration Test", function () {
             );
 
             let expectedPoolSafeBalanceIncremnet = expectedFirstLossCoverLosses[
-                BORROWER_LOSS_COVER_INDEX
-            ].add(expectedFirstLossCoverLosses[ADMIN_LOSS_COVER_INDEX]).mul(-1);
+                CONSTANTS.BORROWER_LOSS_COVER_INDEX
+            ]
+                .add(expectedFirstLossCoverLosses[CONSTANTS.ADMIN_LOSS_COVER_INDEX])
+                .mul(-1);
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
                 poolSafeOldBalance.add(expectedPoolSafeBalanceIncremnet),
             );

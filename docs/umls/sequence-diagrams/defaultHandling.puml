@@ -1,0 +1,58 @@
+@startuml
+header Operational Procedure For Default Handling
+
+actor "Pool Owner" as PO
+Entity Autotask as A
+participant CreditLine as CL
+participant Pool as P
+participant PoolConfig as PC
+actor Borrower
+
+autonumber 100 10
+PO -> CL: `triggerDefault()`
+activate CL
+CL -> PO: Success
+deactivate CL
+
+autonumber 200 10
+PO -> A: Disables autotasks for yield payout
+activate A
+A -> PO: Autotasks disabled
+deactivate A
+
+autonumber 300 10
+PO -> P: `disablePool()`
+activate P
+P -> PO: Success
+deactivate P
+PO -> PC: Calls `setLPConfig()` to set the liquidity cap to 0
+activate PC
+PC -> PO: Success
+deactivate PC
+PO -> PC: Calls `setFirstLossCover()` to\nset the max liquidity on each FLC to 0
+activate PC
+PC -> PO: Success
+deactivate PC
+
+autonumber 400 10
+PO -> P: `enablePool()`
+activate P
+P -> PO: Success
+deactivate P
+
+autonumber 500 10
+Borrower -> P: `makePayment()`
+activate P
+P -> Borrower: Success
+deactivate P
+
+autonumber 600 10
+PO -> PC: Calls `setLPConfig()` to restore the liquidity cap
+activate PC
+PC -> PO: Success
+deactivate PC
+PO -> PC: Calls `setFirstLossCover()` to\nrestore the max liquidity on each FLC
+activate PC
+PC -> PO: Success
+deactivate PC
+@enduml

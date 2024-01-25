@@ -1,0 +1,98 @@
+@startuml
+Header Receivable Backed Credit Line Approval and Drawdown
+
+actor Borrower
+Entity EvaluationAgent as EA
+participant ReceivableBackedCreditLine as CL
+participant ReceivableBackedCreditLineManager as CM
+participant Receivable as R
+participant Pool as P
+participant PoolSafe as PS
+
+autonumber 100 10
+Borrower -> EA: Requests to open a credit line
+activate EA
+EA -> CM: `approveBorrower()`
+activate CM
+CM -> EA: Success
+deactivate CM
+EA -> Borrower: Success
+deactivate EA
+
+alt With receivable auto approval
+autonumber 200 10
+Borrower -> CL: `drawdown()`
+activate CL
+CL -> CM: `approveReceivable()`
+activate CM
+CM -> R: Calls `getReceivable()` to\nfetch the receivable data
+activate R
+R-> CM: Receivable data
+deactivate R
+CM -> CM: Validates receivable amount, state\nand maturity date
+CM -> CM: Increases the `availableCredit`\nby receivableAmount * advanceRate
+CM -> CL: Receivable approved
+deactivate CM
+CL -> CM: Calls `decreaseCreditLimit()` to decrease the `availableCredit` by the drawdown amount
+activate CM
+CM -> CL: Success
+deactivate CM
+CL -> CL: Computes yield and principal due
+CL -> P: Calls `distributeProfit()` to distribute the front loading fees as profit
+activate P
+P -> CL: Success
+deactivate P
+CL -> PS: Calls `withdraw()` to transfer the net borrow amount to the borrower
+activate PS
+PS -> Borrower: `SafeERC20.safeTransfer()`
+deactivate PS
+CL -> Borrower: Success
+deactivate CL
+
+else Without receivable auto approval
+
+autonumber 400 10
+Borrower -> EA: Requests receivable approval
+activate EA
+EA -> EA: Evaluates the receivable
+EA -> CM: `approveReceivable()`
+activate CM
+CM -> R: Calls `getReceivable()` to\nfetch the receivable data
+activate R
+R-> CM: Receivable data
+deactivate R
+CM -> CM: Validates receivable amount, state\nand maturity date
+CM -> CM: Increases the `availableCredit`\nby receivableAmount * advanceRate
+CM -> EA: Receivable approved
+deactivate CM
+EA -> Borrower: Receivable approved
+deactivate EA
+
+autonumber 500 10
+Borrower -> CL: `drawdown()`
+activate CL
+CL -> R: Calls `getReceivable()` to fetch the receivable
+activate R
+R -> CL: Receivable
+deactivate R
+CL -> CM: Validates receivable amount, state\nand maturity date
+activate CM
+CM -> CL: Receivable validated
+deactivate CM
+CL -> CM: Calls `decreaseCreditLimit()` to decrease the `availableCredit` by the drawdown amount
+activate CM
+CM -> CL: Success
+deactivate CM
+CL -> CL: Computes yield and principal due
+CL -> P: Calls `distributeProfit()` to distribute the front loading fees as profit
+activate P
+P -> CL: Success
+deactivate P
+CL -> PS: Calls `withdraw()` to transfer the net borrow amount to the borrower
+activate PS
+PS -> Borrower: `SafeERC20.safeTransfer()`
+deactivate PS
+CL -> Borrower: Success
+deactivate CL
+end
+@enduml

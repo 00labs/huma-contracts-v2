@@ -1,0 +1,107 @@
+@startuml
+actor Borrower
+participant Credit
+participant CreditManager
+participant Pool
+participant PoolFeeManager
+participant ITranchesPolicy
+participant FirstLossCover
+
+== Profit Distribution ==
+
+autonumber 100
+Borrower -> Credit : `makePayment()`
+note right
+  Credit is in GoodStanding or Delayed state
+end note
+activate Credit
+
+Credit -> Pool : `distributeProfit()`
+activate Pool
+
+Pool -> PoolFeeManager: `distributePoolFees()`
+activate PoolFeeManager
+PoolFeeManager --> Pool : Returns pool profit
+deactivate PoolFeeManager
+Pool -> ITranchesPolicy : `distProfitToTranches()`
+activate ITranchesPolicy
+ITranchesPolicy --> Pool : Returns profits for tranches and first loss covers
+deactivate ITranchesPolicy
+
+loop each firstLossCover
+  Pool -> FirstLossCover : `addCoverAssets()`
+  activate FirstLossCover
+  FirstLossCover --> Pool : Success
+  deactivate FirstLossCover
+end
+
+Pool -> Pool : Updates tranches assets
+Pool --> Credit : Success
+deactivate Pool
+Credit --> Borrower : Success
+deactivate Credit
+
+== Loss Recovery Distribution ==
+
+autonumber 200
+Borrower -> Credit : `makePayment()`
+activate Credit
+note right
+  Credit is in Default state
+end note
+Credit -> Pool : `distributeLossRecovery()`
+activate Pool
+
+Pool -> Pool: `_distLossRecoveryToTranches()`
+note right
+  Distributes loss recovery to the senior tranche first and
+  then the junior tranche, return remaining loss recovery
+end note
+
+loop each firstLossCover && remainingLossRecovery > 0
+  Pool -> FirstLossCover : `recoverLoss()`
+  activate FirstLossCover
+  FirstLossCover --> Pool : Success
+  deactivate FirstLossCover
+end
+
+Pool --> Credit : Success
+deactivate Pool
+Credit --> Borrower : Success
+deactivate Credit
+
+
+== Loss Distribution ==
+
+autonumber 300
+Borrower -> CreditManager : `triggerDefault()`
+activate CreditManager
+CreditManager -> Pool : `distributeProfit()`
+activate Pool
+note right
+  Profit distribution steps same as 102-108
+end note
+Pool --> CreditManager : Success
+deactivate Pool
+
+CreditManager -> Pool : `distributeLoss()`
+activate Pool
+
+loop each firstLossCover && loss > 0
+  Pool -> FirstLossCover : `coverLoss()`
+  activate FirstLossCover
+  FirstLossCover --> Pool : Success
+  deactivate FirstLossCover
+end
+
+Pool -> Pool: `_distLossToTranches()`
+note right
+  Distributes loss to the junior tranche first 
+  and then the senior tranche
+end note
+
+Pool --> CreditManager : Success
+deactivate Pool
+CreditManager --> Borrower : Success
+deactivate CreditManager
+@enduml
