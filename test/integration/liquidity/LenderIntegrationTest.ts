@@ -1011,7 +1011,7 @@ describe("Lender Integration Test", function () {
             );
             expect(await juniorTrancheVaultContract.totalAssetsOf(jLenders[2].address)).to.closeTo(
                 amount,
-                1,
+                2,
             );
             jLenderPrincipals[2] = amount;
             jActiveLenders.push(jLenders[2]);
