@@ -435,24 +435,26 @@ contract TrancheVault is
     function processYieldForLenders() external {
         uint256 len = nonReinvestingLenders.length;
 
-        uint256 price = convertToAssets(DEFAULT_DECIMALS_FACTOR);
+        uint256 priceWithDecimals = convertToAssets(DEFAULT_DECIMALS_FACTOR);
         uint96[2] memory tranchesAssets = pool.currentTranchesAssets();
         for (uint256 i = 0; i < len; i++) {
             address lender = nonReinvestingLenders[i];
             uint256 shares = ERC20Upgradeable.balanceOf(lender);
-            uint256 assets = (shares * price) / DEFAULT_DECIMALS_FACTOR;
+            uint256 assetsWithDecimals = shares * priceWithDecimals;
             DepositRecord memory depositRecord = _getDepositRecord(lender);
-            if (assets > depositRecord.principal) {
-                uint256 yield = assets - depositRecord.principal;
-                tranchesAssets[trancheIndex] -= uint96(yield);
+            uint256 principalWithDecimals = depositRecord.principal * DEFAULT_DECIMALS_FACTOR;
+            if (assetsWithDecimals > principalWithDecimals) {
+                uint256 yieldWithDecimals = assetsWithDecimals - principalWithDecimals;
+                uint256 yield = yieldWithDecimals / DEFAULT_DECIMALS_FACTOR;
                 // Round up the number of shares the lender has to burn in order to receive
                 // the given amount of yield. Round-up applies the favor-the-pool principle.
-                shares = Math.ceilDiv(yield * DEFAULT_DECIMALS_FACTOR, price);
-                ERC20Upgradeable._burn(lender, shares);
-                // The underlying token might incorporate a blocklist feature that prevents the lender
+                shares = Math.ceilDiv(yieldWithDecimals, priceWithDecimals);
+                // The underlying asset of the pool may incorporate a blocklist feature that prevents the lender
                 // from receiving yield if they are subject to sanctions. Under these circumstances,
                 // it is acceptable to bypass the yield of this lender and proceed with others.
                 try poolSafe.withdraw(lender, yield) {
+                    tranchesAssets[trancheIndex] -= uint96(yield);
+                    ERC20Upgradeable._burn(lender, shares);
                     emit YieldPaidOut(lender, yield, shares);
                 } catch Error(string memory reason) {
                     emit YieldPayoutFailed(lender, yield, shares, reason);

@@ -339,12 +339,14 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         address oldEA = evaluationAgent;
         if (oldEA != address(0)) {
             IPoolFeeManager feeManager = IPoolFeeManager(poolFeeManager);
-            (, , uint256 eaWithdrawable) = feeManager.getWithdrawables();
-            // The underlying token might incorporate a blocklist feature that prevents the old EA
+            (, , uint256 eaFees) = feeManager.getWithdrawables();
+            // The underlying asset of the pool may incorporate a blocklist feature that prevents the old EA
             // from receiving funds if they are subject to sanctions. Under these circumstances,
             // it is acceptable to bypass the funds of the old EA and proceed with enforcing the replacement.
-            try feeManager.withdrawEAFee(eaWithdrawable) {} catch Error(string memory reason) {
-                emit EvaluationAgentFeesWithdrawalFailed(oldEA, eaWithdrawable, reason);
+            if (eaFees > 0) {
+                try feeManager.withdrawEAFee(eaFees) {} catch Error(string memory reason) {
+                    emit EvaluationAgentFeesWithdrawalFailed(oldEA, eaFees, reason);
+                }
             }
         }
 

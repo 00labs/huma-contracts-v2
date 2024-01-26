@@ -31,6 +31,7 @@ import {
     ceilDiv,
     getFirstLossCoverInfo,
     getLatestBlock,
+    isCloseTo,
     mineNextBlockWithTimestamp,
     overrideLPConfig,
     setNextBlockTimestamp,
@@ -2596,27 +2597,22 @@ describe("TrancheVault Test", function () {
 
             await expect(juniorTrancheVaultContract.processYieldForLenders())
                 .to.emit(juniorTrancheVaultContract, "YieldPaidOut")
-                .withArgs(
-                    await lenders[0].lender.getAddress(),
-                    lenders[0].yield,
-                    expectedLenderSharesToBurn,
+                .withArgs(await lenders[0].lender.getAddress(), lenders[0].yield, (shares: BN) =>
+                    isCloseTo(shares, expectedLenderSharesToBurn, 1),
                 )
                 .to.emit(juniorTrancheVaultContract, "YieldPaidOut")
-                .withArgs(
-                    await lenders[1].lender.getAddress(),
-                    lenders[1].yield,
-                    expectedLender2SharesToBurn,
+                .withArgs(await lenders[1].lender.getAddress(), lenders[1].yield, (shares: BN) =>
+                    isCloseTo(shares, expectedLender2SharesToBurn, 1),
                 );
 
             // Make sure the remaining numbers of shares and assets for lenders are correct.
-            expect(await juniorTrancheVaultContract.balanceOf(lender.getAddress())).to.equal(
+            expect(await juniorTrancheVaultContract.balanceOf(lender.getAddress())).to.be.closeTo(
                 oldLenderShares.sub(expectedLenderSharesToBurn),
+                1,
             );
-            expect(await juniorTrancheVaultContract.balanceOf(lender2.getAddress())).to.equal(
+            expect(await juniorTrancheVaultContract.balanceOf(lender2.getAddress())).to.be.closeTo(
                 oldLender2Shares.sub(expectedLender2SharesToBurn),
-            );
-            expect(await mockTokenContract.balanceOf(lender2.getAddress())).to.equal(
-                oldLender2Assets.add(lenders[1].yield),
+                1,
             );
             expect(await mockTokenContract.balanceOf(lender.getAddress())).to.equal(
                 oldLenderAssets.add(lenders[0].yield),
@@ -2635,6 +2631,89 @@ describe("TrancheVault Test", function () {
                     juniorTrancheVaultContract.address,
                 ),
             ).to.equal(0);
+        });
+
+        it("Should skip the lenders that are blocklisted by the underlying asset", async function () {
+            await juniorTrancheVaultContract
+                .connect(poolOperator)
+                .setReinvestYield(lender.address, false);
+            await juniorTrancheVaultContract
+                .connect(poolOperator)
+                .setReinvestYield(lender2.address, false);
+
+            const lenders = await prepareForYieldTests([lender, lender2]);
+
+            // Introduce profit
+            let totalAssets = await juniorTrancheVaultContract.totalAssets();
+            let profit = totalAssets.div(10);
+            await mockDistributePnL(profit, BN.from(0), BN.from(0));
+            let totalSupply = await juniorTrancheVaultContract.totalSupply();
+            totalAssets = await juniorTrancheVaultContract.totalAssets();
+            lenders[0].setYield(totalSupply, totalAssets);
+            const expectedLenderSharesToBurn = ceilDiv(
+                lenders[0].yield.mul(totalSupply),
+                totalAssets,
+            );
+            const lender1SharesRoundedDown = lenders[0].yield.mul(totalSupply).div(totalAssets);
+            expect(expectedLenderSharesToBurn).to.be.gt(lender1SharesRoundedDown);
+
+            // Transfer to lender 2 should fail.
+            mockTokenContract.blocklistAddress(lender2.getAddress());
+            lenders[1].setYield(totalSupply, totalAssets);
+            const expectedLender2SharesToBurn = ceilDiv(
+                lenders[1].yield.mul(totalSupply),
+                totalAssets,
+            );
+
+            // Pay out yields
+            const oldLenderAssets = await mockTokenContract.balanceOf(lender.getAddress());
+            const oldLenderShares = await juniorTrancheVaultContract.balanceOf(
+                lender.getAddress(),
+            );
+            const oldLender2Assets = await mockTokenContract.balanceOf(lender2.getAddress());
+            const oldLender2Shares = await juniorTrancheVaultContract.balanceOf(
+                lender2.getAddress(),
+            );
+
+            await expect(juniorTrancheVaultContract.processYieldForLenders())
+                .to.emit(juniorTrancheVaultContract, "YieldPaidOut")
+                .withArgs(await lenders[0].lender.getAddress(), lenders[0].yield, (shares: BN) =>
+                    isCloseTo(shares, expectedLenderSharesToBurn, 1),
+                )
+                .to.emit(juniorTrancheVaultContract, "YieldPayoutFailed")
+                .withArgs(
+                    await lenders[1].lender.getAddress(),
+                    lenders[1].yield,
+                    (shares: BN) => isCloseTo(shares, expectedLender2SharesToBurn, 1),
+                    "SafeERC20: ERC20 operation did not succeed",
+                );
+
+            // Make sure the remaining numbers of shares and assets for lenders are correct.
+            expect(await juniorTrancheVaultContract.balanceOf(lender.getAddress())).to.be.closeTo(
+                oldLenderShares.sub(expectedLenderSharesToBurn),
+                1,
+            );
+            expect(await juniorTrancheVaultContract.balanceOf(lender2.getAddress())).to.equal(
+                oldLender2Shares,
+            );
+            expect(await mockTokenContract.balanceOf(lender.getAddress())).to.equal(
+                oldLenderAssets.add(lenders[0].yield),
+            );
+            expect(await mockTokenContract.balanceOf(lender2.getAddress())).to.equal(
+                oldLender2Assets,
+            );
+            expect(
+                await juniorTrancheVaultContract.totalAssetsOf(lender.getAddress()),
+            ).to.be.closeTo(lenders[0].principal, 1);
+            expect(
+                await juniorTrancheVaultContract.totalAssetsOf(lender2.getAddress()),
+            ).to.be.closeTo(lenders[1].principal.add(lenders[1].yield), 1);
+            expect(
+                await poolSafeContract.unprocessedTrancheProfit(
+                    juniorTrancheVaultContract.address,
+                ),
+            ).to.equal(0);
+            mockTokenContract.removeAddressFromBlocklist(lender2.getAddress());
         });
 
         it("Should reinvest yields", async function () {
@@ -2736,10 +2815,10 @@ describe("TrancheVault Test", function () {
             expect(await mockTokenContract.balanceOf(lender4.address)).to.equal(lender4Assets);
             expect(
                 (await juniorTrancheVaultContract.depositRecords(lender3.address)).principal,
-            ).to.be.closeTo(lenders[2].principal, 1);
+            ).to.equal(lenders[2].principal);
             expect(
                 (await juniorTrancheVaultContract.depositRecords(lender4.address)).principal,
-            ).to.be.closeTo(lenders[3].principal, 1);
+            ).to.equal(lenders[3].principal);
 
             expect(
                 await poolSafeContract.unprocessedTrancheProfit(
