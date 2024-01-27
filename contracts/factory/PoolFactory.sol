@@ -607,10 +607,14 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         string memory firstLossCoverSymbol
     ) private {
         _notZeroAddress(address(poolConfig));
-        address firstLossCover = _addFirstLossCover(
-            firstLossCoverName,
-            firstLossCoverSymbol,
-            poolConfig
+        address firstLossCover = _addProxy(
+            firstLossCoverImplAddress,
+            abi.encodeWithSignature(
+                "initialize(string,string,address)",
+                firstLossCoverName,
+                firstLossCoverSymbol,
+                poolConfig
+            )
         );
         FirstLossCoverConfig memory config = FirstLossCoverConfig(
             coverRatePerLossInBps,
@@ -627,37 +631,6 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         _notZeroAddress(_implAddress);
         ERC1967Proxy proxy = new ERC1967Proxy(_implAddress, _calldata);
         return address(proxy);
-    }
-
-    // add poolConfig proxy
-    function _addPoolConfig(
-        string memory _poolName,
-        address[] memory _poolAddresses
-    ) private returns (address) {
-        address poolConfig = _addProxy(
-            poolConfigImplAddress,
-            abi.encodeWithSignature("initialize(string,address[])", _poolName, _poolAddresses)
-        );
-        return poolConfig;
-    }
-
-    // add firstLossCover proxy
-    function _addFirstLossCover(
-        string memory firstLossCoverName,
-        string memory firstLossCoverSymbol,
-        PoolConfig _poolConfig
-    ) private returns (address) {
-        _notZeroAddress(address(_poolConfig));
-        address firstLossCover = _addProxy(
-            firstLossCoverImplAddress,
-            abi.encodeWithSignature(
-                "initialize(string,string,address)",
-                firstLossCoverName,
-                firstLossCoverSymbol,
-                _poolConfig
-            )
-        );
-        return firstLossCover;
     }
 
     /**
@@ -709,7 +682,11 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         } else {
             revert Errors.InvalidCreditType();
         }
-        address poolConfigAddress = _addPoolConfig(_poolName, poolAddresses);
+        address poolConfigAddress = _addProxy(
+            poolConfigImplAddress,
+            abi.encodeWithSignature("initialize(string,address[])", _poolName, poolAddresses)
+        );
+
         emit PoolCreated(poolAddresses[3], _poolName);
         return (poolConfigAddress, poolAddresses);
     }
