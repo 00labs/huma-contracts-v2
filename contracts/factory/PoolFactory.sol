@@ -459,19 +459,16 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
             frontLoadingFeeFlat: frontLoadingFeeFlat,
             frontLoadingFeeBps: frontLoadingFeeBps
         });
-        address poolConfigAddress = pools[_poolId].poolConfigAddress;
-        PoolConfig(poolConfigAddress).setFrontLoadingFees(frontLoadingFees);
+        PoolConfig poolConfig = PoolConfig(pools[_poolId].poolConfigAddress);
+        poolConfig.setFrontLoadingFees(frontLoadingFees);
         FeeStructure memory fees = FeeStructure({
             yieldInBps: yieldInBps,
             minPrincipalRateInBps: minPrincipalRateInBps,
             lateFeeBps: lateFeeBps
         });
-        PoolConfig(poolConfigAddress).setFeeStructure(fees);
-        PoolConfig(poolConfigAddress).setPoolOwnerRewardsAndLiquidity(
-            poolOwnerRewardRate,
-            poolOwnerLiquidityRate
-        );
-        PoolConfig(poolConfigAddress).setEARewardsAndLiquidity(eaRewardRate, eaLiquidityRate);
+        poolConfig.setFeeStructure(fees);
+        poolConfig.setPoolOwnerRewardsAndLiquidity(poolOwnerRewardRate, poolOwnerLiquidityRate);
+        poolConfig.setEARewardsAndLiquidity(eaRewardRate, eaLiquidityRate);
     }
 
     // After deploying a new pool, the deployer needs to set pool parameters using this function
