@@ -655,7 +655,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         poolAddresses[2] = calendarAddress;
         poolAddresses[3] = _addProxy(poolImplAddress, ""); // poolConfig
         poolAddresses[4] = _addProxy(poolSafeImplAddress, ""); // poolSafe
-        poolAddresses[5] = _addProxy(poolSafeImplAddress, ""); // poolOperator
+        poolAddresses[5] = _addProxy(poolFeeManagerImplAddress, ""); // poolFeeManager
 
         if (keccak256(bytes(tranchesPolicyType)) == keccak256(bytes("fixed"))) {
             poolAddresses[6] = _addProxy(fixedSeniorYieldTranchesPolicyImplAddress, "");
