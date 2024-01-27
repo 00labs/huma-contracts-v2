@@ -1056,8 +1056,8 @@ describe("Lender Integration Test", function () {
             let seniorOldBalance = await mockTokenContract.balanceOf(
                 seniorTrancheVaultContract.address,
             );
-            await epochChecker.checkJuniorCurrentEpochEmpty();
-            await epochChecker.checkSeniorCurrentEpochEmpty();
+            await epochChecker.checkJuniorCurrentRedemptionSummaryEmpty();
+            await epochChecker.checkSeniorCurrentRedemptionSummaryEmpty();
             await epochManagerContract.closeEpoch();
             let [newEpochId, newEndTime] = await epochManagerContract.currentEpoch();
             expect(newEpochId).to.equal(currentEpochId.add(1));
@@ -1524,8 +1524,8 @@ describe("Lender Integration Test", function () {
             let seniorOldBalance = await mockTokenContract.balanceOf(
                 seniorTrancheVaultContract.address,
             );
-            await epochChecker.checkJuniorCurrentEpochEmpty();
-            await epochChecker.checkSeniorCurrentEpochEmpty();
+            await epochChecker.checkJuniorCurrentRedemptionSummaryEmpty();
+            await epochChecker.checkSeniorCurrentRedemptionSummaryEmpty();
             await epochManagerContract.closeEpoch();
             let [newEpochId, newEndTime] = await epochManagerContract.currentEpoch();
             expect(newEpochId).to.equal(currentEpochId.add(1));
@@ -1673,8 +1673,8 @@ describe("Lender Integration Test", function () {
             let seniorOldBalance = await mockTokenContract.balanceOf(
                 seniorTrancheVaultContract.address,
             );
-            await epochChecker.checkJuniorCurrentEpochEmpty();
-            await epochChecker.checkSeniorCurrentEpochEmpty();
+            await epochChecker.checkJuniorCurrentRedemptionSummaryEmpty();
+            await epochChecker.checkSeniorCurrentRedemptionSummaryEmpty();
             await epochManagerContract.closeEpoch();
             let [newEpochId, newEndTime] = await epochManagerContract.currentEpoch();
             expect(newEpochId).to.equal(currentEpochId.add(1));
@@ -2321,8 +2321,8 @@ describe("Lender Integration Test", function () {
             let seniorOldBalance = await mockTokenContract.balanceOf(
                 seniorTrancheVaultContract.address,
             );
-            await epochChecker.checkJuniorCurrentEpochEmpty();
-            await epochChecker.checkSeniorCurrentEpochEmpty();
+            await epochChecker.checkJuniorCurrentRedemptionSummaryEmpty();
+            await epochChecker.checkSeniorCurrentRedemptionSummaryEmpty();
             await epochManagerContract.closeEpoch();
             let [newEpochId, newEndTime] = await epochManagerContract.currentEpoch();
             expect(newEpochId).to.equal(currentEpochId.add(1));
@@ -2964,8 +2964,8 @@ describe("Lender Integration Test", function () {
             let seniorOldBalance = await mockTokenContract.balanceOf(
                 seniorTrancheVaultContract.address,
             );
-            await epochChecker.checkJuniorCurrentEpochEmpty();
-            await epochChecker.checkSeniorCurrentEpochEmpty();
+            await epochChecker.checkJuniorCurrentRedemptionSummaryEmpty();
+            await epochChecker.checkSeniorCurrentRedemptionSummaryEmpty();
             await epochManagerContract.closeEpoch();
             let [newEpochId, newEndTime] = await epochManagerContract.currentEpoch();
             expect(newEpochId).to.equal(currentEpochId.add(1));

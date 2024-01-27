@@ -1281,12 +1281,12 @@ export class EpochChecker {
         this.juniorTrancheVaultContract = juniorTrancheVaultContract;
     }
 
-    async checkSeniorCurrentEpochEmpty() {
-        return await this.checkCurrentEpochEmpty(this.seniorTrancheVaultContract);
+    async checkSeniorCurrentRedemptionSummaryEmpty() {
+        return await this.checkCurrentRedemptionSummaryEmpty(this.seniorTrancheVaultContract);
     }
 
-    async checkJuniorCurrentEpochEmpty() {
-        return await this.checkCurrentEpochEmpty(this.juniorTrancheVaultContract);
+    async checkJuniorCurrentRedemptionSummaryEmpty() {
+        return await this.checkCurrentRedemptionSummaryEmpty(this.juniorTrancheVaultContract);
     }
 
     async checkSeniorCurrentRedemptionSummary(
@@ -1353,10 +1353,10 @@ export class EpochChecker {
         );
     }
 
-    private async checkCurrentEpochEmpty(trancheContract: TrancheVault) {
+    private async checkCurrentRedemptionSummaryEmpty(trancheContract: TrancheVault) {
         const epochId = await this.epochManagerContract.currentEpochId();
-        const epoch = await trancheContract.epochRedemptionSummaries(epochId);
-        checkRedemptionSummary(epoch, BN.from(0), BN.from(0), BN.from(0), BN.from(0));
+        const redemptionSummary = await trancheContract.epochRedemptionSummaries(epochId);
+        checkRedemptionSummary(redemptionSummary, BN.from(0), BN.from(0), BN.from(0), BN.from(0));
         return epochId;
     }
 
@@ -1368,9 +1368,9 @@ export class EpochChecker {
         delta: number = 0,
     ) {
         const epochId = await this.epochManagerContract.currentEpochId();
-        const epoch = await trancheContract.epochRedemptionSummaries(epochId);
+        const redemptionSummary = await trancheContract.epochRedemptionSummaries(epochId);
         checkRedemptionSummary(
-            epoch,
+            redemptionSummary,
             epochId,
             sharesRequested,
             sharesProcessed,
@@ -1388,9 +1388,9 @@ export class EpochChecker {
         amountProcessed: BN = BN.from(0),
         delta: number = 0,
     ) {
-        const epoch = await trancheContract.epochRedemptionSummaries(epochId);
+        const redemptionSummary = await trancheContract.epochRedemptionSummaries(epochId);
         checkRedemptionSummary(
-            epoch,
+            redemptionSummary,
             epochId,
             sharesRequested,
             sharesProcessed,

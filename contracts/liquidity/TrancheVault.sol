@@ -491,6 +491,11 @@ contract TrancheVault is
         assets =
             lenderRedemptionRecord.totalAmountProcessed -
             lenderRedemptionRecord.totalAmountWithdrawn;
+
+        if (pool.isPoolClosed()) {
+            // If the pool is closed, all the lender's assets are withdrawable.
+            assets += totalAssetsOf(account);
+        }
     }
 
     /**
@@ -503,10 +508,6 @@ contract TrancheVault is
 
     function convertToShares(uint256 assets) external view returns (uint256 shares) {
         shares = _convertToShares(assets, totalAssets());
-    }
-
-    function totalAssetsOf(address account) external view returns (uint256 assets) {
-        return convertToAssets(ERC20Upgradeable.balanceOf(account));
     }
 
     /// Gets the list of lenders who are receiving yield distribution in each period.
@@ -527,6 +528,10 @@ contract TrancheVault is
 
     function totalAssets() public view returns (uint256) {
         return pool.trancheTotalAssets(trancheIndex);
+    }
+
+    function totalAssetsOf(address account) public view returns (uint256 assets) {
+        return convertToAssets(ERC20Upgradeable.balanceOf(account));
     }
 
     function convertToAssets(uint256 shares) public view returns (uint256 assets) {
@@ -678,11 +683,18 @@ contract TrancheVault is
     ) internal view returns (LenderRedemptionRecord memory lenderRedemptionRecord) {
         lenderRedemptionRecord = lenderRedemptionRecords[account];
         uint256 totalShares = lenderRedemptionRecord.numSharesRequested;
-        if (totalShares > 0 && lenderRedemptionRecord.nextEpochIdToProcess < currentEpochId) {
+        // The inclusion of "=" in the second condition is crucial. When the pool is active,
+        // redemption requests are processed at the closure of an epoch, and a new epoch is
+        // created and becomes the current epoch. As a result, there is no processed
+        // redemption requests in the current epoch. However, once the pool is closed, the pool owner will
+        // process outstanding redemption requests within the final epoch, without creating a new one.
+        // Consequently, the epoch ID will remain unchanged. This means that the current epoch may
+        // include processed requests, and therefore, it is essential to take the current epoch into account.
+        if (totalShares > 0 && lenderRedemptionRecord.nextEpochIdToProcess <= currentEpochId) {
             uint256 remainingShares = totalShares;
             for (
                 uint256 epochId = lenderRedemptionRecord.nextEpochIdToProcess;
-                epochId < currentEpochId && remainingShares > 0;
+                epochId <= currentEpochId && remainingShares > 0;
                 ++epochId
             ) {
                 EpochRedemptionSummary memory summary = _getEpochRedemptionSummary(epochId);

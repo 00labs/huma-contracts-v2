@@ -50,20 +50,8 @@ contract EpochManager is PoolConfigCache, IEpochManager {
     /**
      * @notice The current epoch has closed.
      * @param epochId The ID of the epoch that just closed.
-     * @param seniorTrancheAssets The total amount of assets in the senior tranche.
-     * @param seniorTranchePrice The LP token price of the senior tranche.
-     * @param juniorTrancheAssets The total amount of assets in the junior tranche.
-     * @param juniorTranchePrice The LP token price of the junior tranche.
-     * @param unprocessedAmount The amount of assets requested for redemption but the system was not able to fulfill.
      */
-    event EpochClosed(
-        uint256 epochId,
-        uint256 seniorTrancheAssets,
-        uint256 seniorTranchePrice,
-        uint256 juniorTrancheAssets,
-        uint256 juniorTranchePrice,
-        uint256 unprocessedAmount
-    );
+    event EpochClosed(uint256 epochId);
 
     /**
      * @notice A new epoch has started.
@@ -71,6 +59,28 @@ contract EpochManager is PoolConfigCache, IEpochManager {
      * @param endTime The time when the current epoch should end.
      */
     event NewEpochStarted(uint256 epochId, uint256 endTime);
+
+    /**
+     * @notice The epoch has been processed after the pool is closed.
+     * @param epochId The ID of the epoch that has been processed.
+     */
+    event EpochProcessedAfterPoolClosure(uint256 epochId);
+
+    /**
+     * @notice Pending redemption requests have been processed.
+     * @param seniorTrancheAssets The total amount of assets in the senior tranche.
+     * @param seniorTranchePrice The LP token price of the senior tranche.
+     * @param juniorTrancheAssets The total amount of assets in the junior tranche.
+     * @param juniorTranchePrice The LP token price of the junior tranche.
+     * @param unprocessedAmount The amount of assets requested for redemption but the system was not able to fulfill.
+     */
+    event RedemptionRequestsProcessed(
+        uint256 seniorTrancheAssets,
+        uint256 seniorTranchePrice,
+        uint256 juniorTrancheAssets,
+        uint256 juniorTranchePrice,
+        uint256 unprocessedAmount
+    );
 
     /// @inheritdoc IEpochManager
     function startNewEpoch() external {
@@ -97,47 +107,20 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         CurrentEpoch memory ce = _currentEpoch;
         if (block.timestamp <= ce.endTime) revert Errors.EpochClosedTooEarly();
 
-        // Update tranche assets to the current timestamp.
-        uint96[2] memory tranchesAssets = pool.currentTranchesAssets();
-
-        // Calculate senior/junior LP token prices.
-        uint256 seniorPrice = (tranchesAssets[SENIOR_TRANCHE] * DEFAULT_DECIMALS_FACTOR) /
-            IERC20(address(seniorTranche)).totalSupply();
-        uint256 juniorPrice = (tranchesAssets[JUNIOR_TRANCHE] * DEFAULT_DECIMALS_FACTOR) /
-            IERC20(address(juniorTranche)).totalSupply();
-
-        // Get unprocessed redemption requests.
-        EpochRedemptionSummary memory seniorSummary = seniorTranche.currentRedemptionSummary();
-        EpochRedemptionSummary memory juniorSummary = juniorTranche.currentRedemptionSummary();
-        uint256 unprocessedAmount = 0;
+        _processRedemptionRequests();
+        emit EpochClosed(ce.id);
 
         _createNextEpoch(ce);
+    }
 
-        if (seniorSummary.totalSharesRequested > 0 || juniorSummary.totalSharesRequested > 0) {
-            // Calculated the amount of assets that lenders requested to redeem, but the system was not able to
-            // fulfill due to various constraints.
-            unprocessedAmount =
-                (((seniorSummary.totalSharesRequested - seniorSummary.totalSharesProcessed) *
-                    seniorPrice) +
-                    ((juniorSummary.totalSharesRequested - juniorSummary.totalSharesProcessed) *
-                        juniorPrice)) /
-                DEFAULT_DECIMALS_FACTOR;
+    /// @inheritdoc IEpochManager
+    function processEpochAfterPoolClosure() external {
+        poolConfig.onlyOwnerOrHumaMasterAdmin(msg.sender);
+        if (!pool.isPoolClosed()) revert Errors.PoolIsNotClosed();
 
-            _processEpoch(tranchesAssets, seniorSummary, seniorPrice, juniorSummary, juniorPrice);
-            seniorTranche.executeRedemptionSummary(seniorSummary);
-            juniorTranche.executeRedemptionSummary(juniorSummary);
-        }
-
-        pool.updateTranchesAssets(tranchesAssets);
-
-        emit EpochClosed(
-            ce.id,
-            tranchesAssets[SENIOR_TRANCHE],
-            seniorPrice,
-            tranchesAssets[JUNIOR_TRANCHE],
-            juniorPrice,
-            unprocessedAmount
-        );
+        _processRedemptionRequests();
+        uint256 currentEpochId_ = _currentEpoch.id;
+        emit EpochProcessedAfterPoolClosure(currentEpochId_);
     }
 
     /// @inheritdoc IEpochManager
@@ -191,6 +174,46 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         _currentEpoch = epoch;
 
         emit NewEpochStarted(epoch.id, epoch.endTime);
+    }
+
+    function _processRedemptionRequests() internal {
+        uint96[2] memory tranchesAssets = pool.currentTranchesAssets();
+        // Get unprocessed redemption requests.
+        EpochRedemptionSummary memory seniorSummary = seniorTranche.currentRedemptionSummary();
+        EpochRedemptionSummary memory juniorSummary = juniorTranche.currentRedemptionSummary();
+
+        if (seniorSummary.totalSharesRequested == 0 && juniorSummary.totalSharesRequested == 0) {
+            // Early return if there is no redemption request.
+            return;
+        }
+
+        // Calculate senior/junior LP token prices.
+        uint256 seniorPrice = (tranchesAssets[SENIOR_TRANCHE] * DEFAULT_DECIMALS_FACTOR) /
+            IERC20(address(seniorTranche)).totalSupply();
+        uint256 juniorPrice = (tranchesAssets[JUNIOR_TRANCHE] * DEFAULT_DECIMALS_FACTOR) /
+            IERC20(address(juniorTranche)).totalSupply();
+
+        _processEpoch(tranchesAssets, seniorSummary, seniorPrice, juniorSummary, juniorPrice);
+
+        // Calculate the amount of assets that lenders requested to redeem, but the system was not able to
+        // fulfill due to various constraints.
+        uint256 unprocessedAmount = (((seniorSummary.totalSharesRequested -
+            seniorSummary.totalSharesProcessed) * seniorPrice) +
+            ((juniorSummary.totalSharesRequested - juniorSummary.totalSharesProcessed) *
+                juniorPrice)) / DEFAULT_DECIMALS_FACTOR;
+
+        seniorTranche.executeRedemptionSummary(seniorSummary);
+        juniorTranche.executeRedemptionSummary(juniorSummary);
+
+        pool.updateTranchesAssets(tranchesAssets);
+
+        emit RedemptionRequestsProcessed(
+            tranchesAssets[SENIOR_TRANCHE],
+            seniorPrice / DEFAULT_DECIMALS_FACTOR,
+            tranchesAssets[JUNIOR_TRANCHE],
+            juniorPrice / DEFAULT_DECIMALS_FACTOR,
+            unprocessedAmount
+        );
     }
 
     /**
@@ -312,7 +335,6 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         if (maxRedeemableAmount <= 0) return availableAmount;
 
         uint256 sharesToRedeem = redemptionSummary.totalSharesRequested;
-
         uint256 redemptionAmountWithDecimal = sharesToRedeem * lpTokenPrice;
         uint256 maxRedeemableAmountWithDecimal = Math.min(availableAmount, maxRedeemableAmount) *
             DEFAULT_DECIMALS_FACTOR;

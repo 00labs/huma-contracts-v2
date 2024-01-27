@@ -2401,45 +2401,73 @@ describe("TrancheVault Test", function () {
             });
         });
 
-        describe.only("withdrawAfterPoolClosure", function () {
+        describe("withdrawAfterPoolClosure", function () {
             it("Should allow lenders to withdraw their shares after pool closure", async function () {
+                // Let the lender request redemption in order to test fund disbursement.
+                const sharesRequested = toToken(10_000);
+                const expectedAmountRedeemed =
+                    await juniorTrancheVaultContract.convertToAssets(sharesRequested);
+                await juniorTrancheVaultContract
+                    .connect(lender)
+                    .addRedemptionRequest(sharesRequested);
+
                 await poolContract.connect(poolOwner).closePool();
                 expect(await poolContract.isPoolClosed()).to.be.true;
+                await epochManagerContract.connect(poolOwner).processEpochAfterPoolClosure();
 
-                const numShares = await seniorTrancheVaultContract.balanceOf(lender.getAddress());
-                const assets = await seniorTrancheVaultContract.convertToAssets(numShares);
+                const numShares = await juniorTrancheVaultContract.balanceOf(lender.getAddress());
+                const expectedAssetsWithdrawn =
+                    await juniorTrancheVaultContract.convertToAssets(numShares);
                 expect(numShares).to.be.gt(0);
-                expect(assets).to.be.gt(0);
+                expect(expectedAssetsWithdrawn).to.be.gt(0);
+                expect(
+                    await juniorTrancheVaultContract.withdrawableAssets(lender.getAddress()),
+                ).to.equal(expectedAmountRedeemed.add(expectedAssetsWithdrawn));
 
-                const oldTotalSupply = await seniorTrancheVaultContract.totalSupply();
-                const oldTotalAssets = await seniorTrancheVaultContract.totalAssets();
+                const oldTotalSupply = await juniorTrancheVaultContract.totalSupply();
+                const oldTotalAssets = await juniorTrancheVaultContract.totalAssets();
                 const oldLenderBalance = await mockTokenContract.balanceOf(lender.getAddress());
                 const oldPoolSafeBalance = await mockTokenContract.balanceOf(
                     poolSafeContract.address,
                 );
-                await expect(seniorTrancheVaultContract.connect(lender).withdrawAfterPoolClosure())
-                    .to.emit(seniorTrancheVaultContract, "LenderFundWithdrawn")
-                    .withArgs(await lender.getAddress(), numShares, assets);
+                const oldJuniorTrancheBalance = await mockTokenContract.balanceOf(
+                    juniorTrancheVaultContract.address,
+                );
+                await expect(juniorTrancheVaultContract.connect(lender).withdrawAfterPoolClosure())
+                    .to.emit(juniorTrancheVaultContract, "LenderFundDisbursed")
+                    .withArgs(
+                        await lender.getAddress(),
+                        await lender.getAddress(),
+                        expectedAmountRedeemed,
+                    )
+                    .to.emit(juniorTrancheVaultContract, "LenderFundWithdrawn")
+                    .withArgs(await lender.getAddress(), numShares, expectedAssetsWithdrawn);
 
-                expect(await seniorTrancheVaultContract.totalSupply()).to.equal(
+                expect(await juniorTrancheVaultContract.totalSupply()).to.equal(
                     oldTotalSupply.sub(numShares),
                 );
-                expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
-                    oldTotalAssets.sub(assets),
+                expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
+                    oldTotalAssets.sub(expectedAssetsWithdrawn),
                 );
                 expect(await mockTokenContract.balanceOf(lender.getAddress())).to.equal(
-                    oldLenderBalance.add(assets),
+                    oldLenderBalance.add(expectedAssetsWithdrawn).add(expectedAmountRedeemed),
                 );
                 expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
-                    oldPoolSafeBalance.sub(assets),
+                    oldPoolSafeBalance.sub(expectedAssetsWithdrawn),
                 );
+                expect(
+                    await mockTokenContract.balanceOf(juniorTrancheVaultContract.address),
+                ).to.equal(oldJuniorTrancheBalance.sub(expectedAmountRedeemed));
+                expect(
+                    await juniorTrancheVaultContract.withdrawableAssets(lender.getAddress()),
+                ).to.equal(0);
             });
 
             it("Should not allow lenders to withdraw if the pool is not closed", async function () {
                 expect(await poolContract.isPoolClosed()).to.be.false;
                 await expect(
-                    seniorTrancheVaultContract.connect(lender).withdrawAfterPoolClosure(),
-                ).to.be.revertedWithCustomError(seniorTrancheVaultContract, "PoolIsNotClosed");
+                    juniorTrancheVaultContract.connect(lender).withdrawAfterPoolClosure(),
+                ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "PoolIsNotClosed");
             });
         });
 
@@ -2487,7 +2515,7 @@ describe("TrancheVault Test", function () {
                     shares,
                     shares,
                 );
-                await epochChecker.checkSeniorCurrentEpochEmpty();
+                await epochChecker.checkSeniorCurrentRedemptionSummaryEmpty();
             });
 
             it("Should process one epoch partially", async function () {
