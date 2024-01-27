@@ -641,24 +641,6 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         return poolConfig;
     }
 
-    // add poolFeeManager proxy
-    function _addPoolFeeManager() private returns (address) {
-        address poolFeeManager = _addProxy(poolFeeManagerImplAddress, "");
-        return poolFeeManager;
-    }
-
-    // add pool proxy
-    function _addPool() private returns (address) {
-        address pool = _addProxy(poolImplAddress, "");
-        return pool;
-    }
-
-    // add pool safe proxy
-    function _addPoolSafe() private returns (address) {
-        address poolSafe = _addProxy(poolSafeImplAddress, "");
-        return poolSafe;
-    }
-
     // add firstLossCover proxy
     function _addFirstLossCover(
         string memory firstLossCoverName,
@@ -676,42 +658,6 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
             )
         );
         return firstLossCover;
-    }
-
-    // add tranchesPolicy proxies
-    function _addTranchesPolicy(address tranchesPolicyImpl) private returns (address) {
-        address tranchesPolicy = _addProxy(tranchesPolicyImpl, "");
-        return tranchesPolicy;
-    }
-
-    // add epochManager proxy
-    function _addEpochManager() private returns (address) {
-        address epochManager = _addProxy(epochManagerImplAddress, "");
-        return epochManager;
-    }
-
-    // add trancheVault proxy
-    function _addTrancheVault() private returns (address) {
-        address trancheVault = _addProxy(trancheVaultImplAddress, "");
-        return trancheVault;
-    }
-
-    // add credit proxy
-    function _addCredit(address creditImplAddress) private returns (address) {
-        address credit = _addProxy(creditImplAddress, "");
-        return credit;
-    }
-
-    // add creditDueManager proxy
-    function _addCreditDueManager() private returns (address) {
-        address creditDueManager = _addProxy(creditDueManagerImplAddress, "");
-        return creditDueManager;
-    }
-
-    // add creditManager proxy
-    function _addCreditManager(address creditManagerImplAddress) private returns (address) {
-        address creditManager = _addProxy(creditManagerImplAddress, "");
-        return creditManager;
     }
 
     /**
@@ -734,32 +680,32 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         poolAddresses[0] = humaConfigAddress;
         poolAddresses[1] = assetTokenAddress;
         poolAddresses[2] = calendarAddress;
-        poolAddresses[3] = _addPool();
-        poolAddresses[4] = _addPoolSafe();
-        poolAddresses[5] = _addPoolFeeManager();
+        poolAddresses[3] = _addProxy(poolImplAddress, ""); // poolConfig
+        poolAddresses[4] = _addProxy(poolSafeImplAddress, ""); // poolSafe
+        poolAddresses[5] = _addProxy(poolSafeImplAddress, ""); // poolOperator
 
         if (keccak256(bytes(tranchesPolicyType)) == keccak256(bytes("fixed"))) {
-            poolAddresses[6] = _addTranchesPolicy(fixedSeniorYieldTranchesPolicyImplAddress);
+            poolAddresses[6] = _addProxy(fixedSeniorYieldTranchesPolicyImplAddress, "");
         } else if (keccak256(bytes(tranchesPolicyType)) == keccak256(bytes("adjusted"))) {
-            poolAddresses[6] = _addTranchesPolicy(riskAdjustedTranchesPolicyImplAddress);
+            poolAddresses[6] = _addProxy(riskAdjustedTranchesPolicyImplAddress, "");
         } else {
             revert Errors.InvalidTranchesPolicyType();
         }
 
-        poolAddresses[7] = _addEpochManager();
-        poolAddresses[8] = _addTrancheVault(); // senior tranche vault
-        poolAddresses[9] = _addTrancheVault(); // junior tranche vault
-        poolAddresses[11] = _addCreditDueManager();
+        poolAddresses[7] = _addProxy(epochManagerImplAddress, ""); // epochManager
+        poolAddresses[8] = _addProxy(trancheVaultImplAddress, ""); // senior tranche vault
+        poolAddresses[9] = _addProxy(trancheVaultImplAddress, ""); // junior tranche vault
+        poolAddresses[11] = _addProxy(creditDueManagerImplAddress, ""); // creditDueManager
 
         if (keccak256(bytes(creditType)) == keccak256(bytes("receivablebacked"))) {
-            poolAddresses[10] = _addCredit(receivableBackedCreditLineImplAddress);
-            poolAddresses[12] = _addCreditManager(receivableBackedCreditLineManagerImplAddress);
+            poolAddresses[10] = _addProxy(receivableBackedCreditLineImplAddress, "");
+            poolAddresses[12] = _addProxy(receivableBackedCreditLineManagerImplAddress, "");
         } else if (keccak256(bytes(creditType)) == keccak256(bytes("receivablefactoring"))) {
-            poolAddresses[10] = _addCredit(receivableFactoringCreditImplAddress);
-            poolAddresses[12] = _addCreditManager(receivableFactoringCreditManagerImplAddress);
+            poolAddresses[10] = _addProxy(receivableFactoringCreditImplAddress, "");
+            poolAddresses[12] = _addProxy(receivableFactoringCreditManagerImplAddress, "");
         } else if (keccak256(bytes(creditType)) == keccak256(bytes("creditline"))) {
-            poolAddresses[10] = _addCredit(creditLineImplAddress);
-            poolAddresses[12] = _addCreditManager(creditLineManagerImplAddress);
+            poolAddresses[10] = _addProxy(creditLineImplAddress, "");
+            poolAddresses[12] = _addProxy(creditLineManagerImplAddress, "");
         } else {
             revert Errors.InvalidCreditType();
         }
