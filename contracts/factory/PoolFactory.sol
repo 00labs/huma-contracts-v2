@@ -634,7 +634,6 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         string memory _poolName,
         address[] memory _poolAddresses
     ) private returns (address) {
-        _notZeroAddress(poolConfigImplAddress);
         address poolConfig = _addProxy(
             poolConfigImplAddress,
             abi.encodeWithSignature("initialize(string,address[])", _poolName, _poolAddresses)
@@ -644,21 +643,18 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
 
     // add poolFeeManager proxy
     function _addPoolFeeManager() private returns (address) {
-        _notZeroAddress(poolFeeManagerImplAddress);
         address poolFeeManager = _addProxy(poolFeeManagerImplAddress, "");
         return poolFeeManager;
     }
 
     // add pool proxy
     function _addPool() private returns (address) {
-        _notZeroAddress(poolImplAddress);
         address pool = _addProxy(poolImplAddress, "");
         return pool;
     }
 
     // add pool safe proxy
     function _addPoolSafe() private returns (address) {
-        _notZeroAddress(poolSafeImplAddress);
         address poolSafe = _addProxy(poolSafeImplAddress, "");
         return poolSafe;
     }
@@ -669,7 +665,6 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         string memory firstLossCoverSymbol,
         PoolConfig _poolConfig
     ) private returns (address) {
-        _notZeroAddress(firstLossCoverImplAddress);
         _notZeroAddress(address(_poolConfig));
         address firstLossCover = _addProxy(
             firstLossCoverImplAddress,
@@ -685,42 +680,36 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
 
     // add tranchesPolicy proxies
     function _addTranchesPolicy(address tranchesPolicyImpl) private returns (address) {
-        _notZeroAddress(tranchesPolicyImpl);
         address tranchesPolicy = _addProxy(tranchesPolicyImpl, "");
         return tranchesPolicy;
     }
 
     // add epochManager proxy
     function _addEpochManager() private returns (address) {
-        _notZeroAddress(epochManagerImplAddress);
         address epochManager = _addProxy(epochManagerImplAddress, "");
         return epochManager;
     }
 
     // add trancheVault proxy
     function _addTrancheVault() private returns (address) {
-        _notZeroAddress(trancheVaultImplAddress);
         address trancheVault = _addProxy(trancheVaultImplAddress, "");
         return trancheVault;
     }
 
     // add credit proxy
     function _addCredit(address creditImplAddress) private returns (address) {
-        _notZeroAddress(creditImplAddress);
         address credit = _addProxy(creditImplAddress, "");
         return credit;
     }
 
     // add creditDueManager proxy
     function _addCreditDueManager() private returns (address) {
-        _notZeroAddress(creditDueManagerImplAddress);
         address creditDueManager = _addProxy(creditDueManagerImplAddress, "");
         return creditDueManager;
     }
 
     // add creditManager proxy
     function _addCreditManager(address creditManagerImplAddress) private returns (address) {
-        _notZeroAddress(creditManagerImplAddress);
         address creditManager = _addProxy(creditManagerImplAddress, "");
         return creditManager;
     }
@@ -741,7 +730,6 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         string memory tranchesPolicyType,
         string memory creditType
     ) private returns (address, address[] memory) {
-        _onlyDeployer(msg.sender);
         address[] memory poolAddresses = new address[](13); // 13 is the number of contracts in a pool
         poolAddresses[0] = humaConfigAddress;
         poolAddresses[1] = assetTokenAddress;
