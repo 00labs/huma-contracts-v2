@@ -105,8 +105,6 @@ contract HumaConfig is Ownable, Pausable {
      */
     event PoolAdminRemoved(address indexed poolAdmin, address by);
 
-    event ProtocolDefaultGracePeriodChanged(uint256 gracePeriod);
-
     /**
      * @notice The Huma protocol has been initialized.
      * @param by The address that initialized the protocol.

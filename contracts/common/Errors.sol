@@ -101,24 +101,7 @@ contract Errors {
     error ReceivableOwnerOrCreatorRequired(); // 0x6eae8328
     error ReceivableReferenceIdAlreadyExists(); // 0x6ff1906a
 
-    // Superfluid
-    error DurationTooLong(); // 0x9529f506
-    error InvalidFlowRate(); // 0xfe267e42
-    error OnlySuperfluid(); // 0xfb533448
-    error BorrowerMismatch(); // 0xb41f6d39
-    error FlowKeyMismatch(); // 0x8e6bfecd
-    error FlowIsNotTerminated(); // 0xe00cc45b
-    error InvalidSuperfluidCallback(); // 0xa229468b
-    error InvalidSuperfluidAction(); // 0x6ac91e96
-    error NotTradableStreamOwner(); // 0x03d702ef
-    error TradableStreamNotExisting(); // 0x4c3d6ac0
-    error TradableStreamNotMatured(); // 0x4bbf1794
-    error InsufficientAvailableFlowRate(); // 0x0d455f2e
-    error AuthorizationExpired(); // 0x0f05f5bf
-    error InvalidAuthorization(); // 0x2ce87eeb
-    error NewReceiverSameToOrigin(); // 0xdf9b7a8a
-
-    // factory
+    // Factory
     error InvalidPoolId(); // 0x0afa7ee8
     error InvalidPoolStatus(); // 0x3fad04fd
     error InvalidTranchesPolicyType(); // 0xdfeca9c2

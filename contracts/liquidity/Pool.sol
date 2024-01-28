@@ -70,17 +70,6 @@ contract Pool is PoolConfigCache, IPool {
      */
     event PoolReadyForFirstLossCoverWithdrawal(address indexed by, bool ready);
 
-    event PoolAssetsRefreshed(
-        uint256 refreshedTimestamp,
-        uint256 profit,
-        uint256 loss,
-        uint256 lossRecovery,
-        uint256 seniorTotalAssets,
-        uint256 juniorTotalAssets,
-        uint256 seniorTotalLoss,
-        uint256 juniorTotalLoss
-    );
-
     /**
      * @notice Pool profit has been distributed.
      * @param profit The amount of profit distributed.
