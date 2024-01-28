@@ -419,8 +419,9 @@ contract TrancheVault is
      * a cron-like mechanism like autotask to trigger it.
      */
     function processYieldForLenders() external {
-        uint256 len = nonReinvestingLenders.length;
+        poolConfig.onlyProtocolAndPoolOn();
 
+        uint256 len = nonReinvestingLenders.length;
         uint256 price = convertToAssets(DEFAULT_DECIMALS_FACTOR);
         uint96[2] memory tranchesAssets = pool.currentTranchesAssets();
         for (uint256 i = 0; i < len; i++) {

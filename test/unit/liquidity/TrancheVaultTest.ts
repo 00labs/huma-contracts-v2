@@ -2793,5 +2793,19 @@ describe("TrancheVault Test", function () {
                 ),
             ).to.equal(0);
         });
+
+        it("Should not allow yield payout when the protocol is paused or pool is not on", async function () {
+            await humaConfigContract.connect(protocolOwner).pause();
+            await expect(
+                juniorTrancheVaultContract.processYieldForLenders(),
+            ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
+            await humaConfigContract.connect(protocolOwner).unpause();
+
+            await poolContract.connect(poolOwner).disablePool();
+            await expect(
+                juniorTrancheVaultContract.processYieldForLenders(),
+            ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
+            await poolContract.connect(poolOwner).enablePool();
+        });
     });
 });
