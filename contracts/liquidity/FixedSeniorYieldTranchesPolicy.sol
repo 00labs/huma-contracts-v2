@@ -25,7 +25,7 @@ contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
     }
 
     SeniorYieldTracker public seniorYieldTracker;
-    ICalendar internal _calender;
+    ICalendar public calender;
 
     /**
      * @notice The senior yield tracker has been refreshed.
@@ -83,7 +83,7 @@ contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
 
         address addr = poolConfig.calendar();
         assert(addr != address(0));
-        _calender = ICalendar(addr);
+        calender = ICalendar(addr);
     }
 
     /**
@@ -94,8 +94,8 @@ contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
      */
     function _getYieldTracker() internal view returns (SeniorYieldTracker memory, bool updated) {
         SeniorYieldTracker memory tracker = seniorYieldTracker;
-        uint256 startOfNextDay = _calender.getStartOfNextDay(block.timestamp);
-        uint256 daysDiff = _calender.getDaysDiff(tracker.lastUpdatedDate, startOfNextDay);
+        uint256 startOfNextDay = calender.getStartOfNextDay(block.timestamp);
+        uint256 daysDiff = calender.getDaysDiff(tracker.lastUpdatedDate, startOfNextDay);
         if (daysDiff > 0) {
             LPConfig memory lpConfig = poolConfig.getLPConfig();
             tracker.unpaidYield += uint96(
