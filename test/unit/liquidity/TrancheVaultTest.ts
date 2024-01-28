@@ -152,7 +152,7 @@ describe("TrancheVault Test", function () {
             evaluationAgent,
             poolOwnerTreasury,
             poolOperator,
-            [lender, lender2, lender3, lender4, poolOwnerTreasury, evaluationAgent],
+            [lender, lender2, lender3, lender4],
         );
 
         await overrideLPConfig(poolConfigContract, poolOwner, {
@@ -268,7 +268,7 @@ describe("TrancheVault Test", function () {
             await expect(
                 juniorTrancheVaultContract
                     .connect(poolOperator)
-                    .addApprovedLender(poolOwner.address, false),
+                    .addApprovedLender(defaultDeployer.address, false),
             ).to.be.revertedWithCustomError(
                 juniorTrancheVaultContract,
                 "NonReinvestYieldLenderCapacityReached",
@@ -443,6 +443,22 @@ describe("TrancheVault Test", function () {
     });
 
     describe("setReinvestYield", function () {
+        it("Should not allow non-pool operators to set the reinvest yield option", async function () {
+            await expect(
+                juniorTrancheVaultContract
+                    .connect(lender)
+                    .setReinvestYield(lender.getAddress(), true),
+            ).to.be.revertedWithCustomError(poolConfigContract, "PoolOperatorRequired");
+        });
+
+        it("Should not allow the reinvest yield option to be set for non-lenders", async function () {
+            await expect(
+                juniorTrancheVaultContract
+                    .connect(poolOperator)
+                    .setReinvestYield(defaultDeployer.getAddress(), true),
+            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "LenderRequired");
+        });
+
         it("Should not allow the reinvestYield option to be set to true if it's already true for the lender", async function () {
             await juniorTrancheVaultContract
                 .connect(poolOperator)
@@ -1398,6 +1414,10 @@ describe("TrancheVault Test", function () {
                 });
 
                 it("Should allow redemption requests from the EA in the senior tranche w/o considering liquidity requirements", async function () {
+                    await seniorTrancheVaultContract
+                        .connect(poolOperator)
+                        .addApprovedLender(evaluationAgent.getAddress(), true);
+
                     const depositAmount = toToken(20_000);
                     await seniorTrancheVaultContract
                         .connect(evaluationAgent)
