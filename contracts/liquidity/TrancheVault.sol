@@ -424,17 +424,19 @@ contract TrancheVault is
 
         // Then, let the lender withdraw all their remaining assets in the pool.
         uint256 numShares = ERC20Upgradeable.balanceOf(msg.sender);
-        uint256 assets = convertToAssets(numShares);
+        if (numShares > 0) {
+            uint256 assets = convertToAssets(numShares);
 
-        // Update tranches assets to reflect the reduction in total assets.
-        uint96[2] memory tranchesAssets = pool.currentTranchesAssets();
-        tranchesAssets[trancheIndex] -= uint96(assets);
-        pool.updateTranchesAssets(tranchesAssets);
+            // Update tranches assets to reflect the reduction in total assets.
+            uint96[2] memory tranchesAssets = pool.currentTranchesAssets();
+            tranchesAssets[trancheIndex] -= uint96(assets);
+            pool.updateTranchesAssets(tranchesAssets);
 
-        // Burn the LP tokens and transfer assets to the lender.
-        ERC20Upgradeable._burn(msg.sender, numShares);
-        poolSafe.withdraw(msg.sender, assets);
-        emit LenderFundWithdrawn(msg.sender, numShares, assets);
+            // Burn the LP tokens and transfer assets to the lender.
+            ERC20Upgradeable._burn(msg.sender, numShares);
+            poolSafe.withdraw(msg.sender, assets);
+            emit LenderFundWithdrawn(msg.sender, numShares, assets);
+        }
     }
 
     /**

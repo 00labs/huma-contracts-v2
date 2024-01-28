@@ -43,6 +43,7 @@ import {
     evmRevert,
     evmSnapshot,
     getLatestBlock,
+    isCloseTo,
     overrideLPConfig,
     setNextBlockTimestamp,
     timestampToMoment,
@@ -120,8 +121,8 @@ let creditHash: string;
 let currentEpochId: BN;
 let sLenderReinvests = [false, true, true],
     jLenderReinvests = [true, false, true];
-let juniorShareRequested: BN = BN.from(0),
-    seniorShareRequested: BN = BN.from(0);
+let juniorSharesRequested: BN = BN.from(0),
+    seniorSharesRequested: BN = BN.from(0);
 let jLenderPrincipals: BN[] = Array(NUM_JUNIOR_LENDERS).fill(BN.from(0)),
     sLenderPrincipals: BN[] = Array(NUM_SENIOR_LENDERS).fill(BN.from(0));
 let jLenderShareRequests: BN[] = Array(NUM_JUNIOR_LENDERS).fill(BN.from(0)),
@@ -500,10 +501,10 @@ async function testRedemptionRequest(jLenderRequests: BN[], sLenderRequests: BN[
             expect(
                 await juniorTrancheVaultContract.cancellableRedemptionShares(jLenders[i].address),
             ).to.closeTo(jLenderShareRequests[i], 1);
-            juniorShareRequested = juniorShareRequested.add(jLenderRequests[i]);
+            juniorSharesRequested = juniorSharesRequested.add(jLenderRequests[i]);
             await epochChecker.checkJuniorRedemptionSummaryById(
                 currentEpochId,
-                juniorShareRequested,
+                juniorSharesRequested,
                 BN.from(0),
                 BN.from(0),
                 1,
@@ -541,10 +542,10 @@ async function testRedemptionRequest(jLenderRequests: BN[], sLenderRequests: BN[
             expect(
                 await seniorTrancheVaultContract.cancellableRedemptionShares(sLenders[i].address),
             ).to.equal(sLenderShareRequests[i]);
-            seniorShareRequested = seniorShareRequested.add(sLenderRequests[i]);
+            seniorSharesRequested = seniorSharesRequested.add(sLenderRequests[i]);
             await epochChecker.checkSeniorRedemptionSummaryById(
                 currentEpochId,
-                seniorShareRequested,
+                seniorSharesRequested,
             );
         }
     }
@@ -633,8 +634,8 @@ describe("Lender Integration Test", function () {
             if (sId) {
                 await evmRevert(sId);
             }
-            juniorShareRequested = BN.from(0);
-            seniorShareRequested = BN.from(0);
+            juniorSharesRequested = BN.from(0);
+            seniorSharesRequested = BN.from(0);
             jLenderPrincipals = Array(NUM_JUNIOR_LENDERS).fill(BN.from(0));
             sLenderPrincipals = Array(NUM_SENIOR_LENDERS).fill(BN.from(0));
             jLenderShareRequests = Array(NUM_JUNIOR_LENDERS).fill(BN.from(0));
@@ -886,19 +887,19 @@ describe("Lender Integration Test", function () {
                 juniorTrancheVaultContract.address,
             );
             let jAmountProcessed =
-                await juniorTrancheVaultContract.convertToAssets(juniorShareRequested);
+                await juniorTrancheVaultContract.convertToAssets(juniorSharesRequested);
             let seniorOldAssets = await seniorTrancheVaultContract.totalAssets();
             let seniorOldShares = await seniorTrancheVaultContract.totalSupply();
             let seniorOldBalance = await mockTokenContract.balanceOf(
                 seniorTrancheVaultContract.address,
             );
             let sAmountProcessed =
-                await seniorTrancheVaultContract.convertToAssets(seniorShareRequested);
+                await seniorTrancheVaultContract.convertToAssets(seniorSharesRequested);
             await epochManagerContract.closeEpoch();
             let [newEpochId, newEndTime] = await epochManagerContract.currentEpoch();
             expect(newEpochId).to.equal(currentEpochId.add(1));
             expect(await juniorTrancheVaultContract.totalSupply()).to.equal(
-                juniorOldShares.sub(juniorShareRequested),
+                juniorOldShares.sub(juniorSharesRequested),
             );
             expect(jAmountProcessed).to.greaterThan(0);
             expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
@@ -909,12 +910,12 @@ describe("Lender Integration Test", function () {
             );
             await epochChecker.checkJuniorRedemptionSummaryById(
                 currentEpochId,
-                juniorShareRequested,
-                juniorShareRequested,
+                juniorSharesRequested,
+                juniorSharesRequested,
                 jAmountProcessed,
             );
             expect(await seniorTrancheVaultContract.totalSupply()).to.equal(
-                seniorOldShares.sub(seniorShareRequested),
+                seniorOldShares.sub(seniorSharesRequested),
             );
             expect(sAmountProcessed).to.greaterThan(0);
             expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
@@ -925,34 +926,34 @@ describe("Lender Integration Test", function () {
             );
             await epochChecker.checkSeniorRedemptionSummaryById(
                 currentEpochId,
-                seniorShareRequested,
-                seniorShareRequested,
+                seniorSharesRequested,
+                seniorSharesRequested,
                 sAmountProcessed,
             );
 
             for (let i = 0; i < jActiveLenders.length; i++) {
                 jLenderAmountsProcessed[i] = jAmountProcessed
                     .mul(jLenderShareRequests[i])
-                    .div(juniorShareRequested);
+                    .div(juniorSharesRequested);
                 jLenderShareRequests[i] = BN.from(0);
                 jLenderPrincipalRequests[i] = BN.from(0);
                 expect(
                     await juniorTrancheVaultContract.withdrawableAssets(jActiveLenders[i].address),
                 ).to.equal(jLenderAmountsProcessed[i]);
             }
-            juniorShareRequested = BN.from(0);
+            juniorSharesRequested = BN.from(0);
 
             for (let i = 0; i < sActiveLenders.length; i++) {
                 sLenderAmountsProcessed[i] = sAmountProcessed
                     .mul(sLenderShareRequests[i])
-                    .div(seniorShareRequested);
+                    .div(seniorSharesRequested);
                 sLenderShareRequests[i] = BN.from(0);
                 sLenderPrincipalRequests[i] = BN.from(0);
                 expect(
                     await seniorTrancheVaultContract.withdrawableAssets(sActiveLenders[i].address),
                 ).to.equal(sLenderAmountsProcessed[i]);
             }
-            seniorShareRequested = BN.from(0);
+            seniorSharesRequested = BN.from(0);
 
             await creditManagerContract.refreshCredit(borrower.address);
             expect((await creditContract.getCreditRecord(creditHash)).nextDueDate).to.equal(
@@ -1193,21 +1194,21 @@ describe("Lender Integration Test", function () {
             ).to.closeTo(juniorOldBalance.add(jAmountProcessed), 1);
             await epochChecker.checkJuniorRedemptionSummaryById(
                 currentEpochId,
-                juniorShareRequested,
+                juniorSharesRequested,
                 jShareProcessed,
                 jAmountProcessed,
                 1,
             );
 
             jLenderAmountsProcessed[0] = jLenderAmountsProcessed[0].add(jAmountProcessed);
-            jLenderShareRequests[0] = juniorShareRequested.sub(jShareProcessed);
+            jLenderShareRequests[0] = juniorSharesRequested.sub(jShareProcessed);
             jLenderPrincipalRequests[0] = jLenderPrincipalRequests[0]
                 .mul(jLenderShareRequests[0])
-                .div(juniorShareRequested);
+                .div(juniorSharesRequested);
             expect(
                 await juniorTrancheVaultContract.withdrawableAssets(jActiveLenders[0].address),
             ).to.closeTo(jLenderAmountsProcessed[0], 1);
-            juniorShareRequested = jLenderShareRequests[0];
+            juniorSharesRequested = jLenderShareRequests[0];
 
             await creditManagerContract.refreshCredit(borrower.address);
             expect((await creditContract.getCreditRecord(creditHash)).nextDueDate).to.equal(
@@ -1281,19 +1282,19 @@ describe("Lender Integration Test", function () {
                 juniorTrancheVaultContract.address,
             );
             let jAmountProcessed =
-                await juniorTrancheVaultContract.convertToAssets(juniorShareRequested);
+                await juniorTrancheVaultContract.convertToAssets(juniorSharesRequested);
             let seniorOldAssets = await seniorTrancheVaultContract.totalAssets();
             let seniorOldShares = await seniorTrancheVaultContract.totalSupply();
             let seniorOldBalance = await mockTokenContract.balanceOf(
                 seniorTrancheVaultContract.address,
             );
             let sAmountProcessed =
-                await seniorTrancheVaultContract.convertToAssets(seniorShareRequested);
+                await seniorTrancheVaultContract.convertToAssets(seniorSharesRequested);
             await epochManagerContract.closeEpoch();
             let [newEpochId, newEndTime] = await epochManagerContract.currentEpoch();
             expect(newEpochId).to.equal(currentEpochId.add(1));
             expect(await juniorTrancheVaultContract.totalSupply()).to.closeTo(
-                juniorOldShares.sub(juniorShareRequested),
+                juniorOldShares.sub(juniorSharesRequested),
                 1,
             );
             expect(jAmountProcessed).to.greaterThan(0);
@@ -1306,13 +1307,13 @@ describe("Lender Integration Test", function () {
             ).to.closeTo(juniorOldBalance.add(jAmountProcessed), 2);
             await epochChecker.checkJuniorRedemptionSummaryById(
                 currentEpochId,
-                juniorShareRequested,
-                juniorShareRequested,
+                juniorSharesRequested,
+                juniorSharesRequested,
                 jAmountProcessed,
                 2,
             );
             expect(await seniorTrancheVaultContract.totalSupply()).to.equal(
-                seniorOldShares.sub(seniorShareRequested),
+                seniorOldShares.sub(seniorSharesRequested),
             );
             expect(sAmountProcessed).to.greaterThan(0);
             expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
@@ -1323,15 +1324,15 @@ describe("Lender Integration Test", function () {
             );
             await epochChecker.checkSeniorRedemptionSummaryById(
                 currentEpochId,
-                seniorShareRequested,
-                seniorShareRequested,
+                seniorSharesRequested,
+                seniorSharesRequested,
                 sAmountProcessed,
             );
 
             for (let i = 0; i < jActiveLenders.length; i++) {
                 if (jLenderShareRequests[i].gt(0)) {
                     jLenderAmountsProcessed[i] = jLenderAmountsProcessed[i].add(
-                        jAmountProcessed.mul(jLenderShareRequests[i]).div(juniorShareRequested),
+                        jAmountProcessed.mul(jLenderShareRequests[i]).div(juniorSharesRequested),
                     );
                     jLenderShareRequests[i] = BN.from(0);
                     jLenderPrincipalRequests[i] = BN.from(0);
@@ -1342,12 +1343,12 @@ describe("Lender Integration Test", function () {
                     ).to.closeTo(jLenderAmountsProcessed[i], 1);
                 }
             }
-            juniorShareRequested = BN.from(0);
+            juniorSharesRequested = BN.from(0);
 
             for (let i = 0; i < sActiveLenders.length; i++) {
                 if (sLenderShareRequests[i].gt(0)) {
                     sLenderAmountsProcessed[i] = sLenderAmountsProcessed[i].add(
-                        sAmountProcessed.mul(sLenderShareRequests[i]).div(seniorShareRequested),
+                        sAmountProcessed.mul(sLenderShareRequests[i]).div(seniorSharesRequested),
                     );
                     sLenderShareRequests[i] = BN.from(0);
                     sLenderPrincipalRequests[i] = BN.from(0);
@@ -1358,7 +1359,7 @@ describe("Lender Integration Test", function () {
                     ).to.equal(sLenderAmountsProcessed[i]);
                 }
             }
-            seniorShareRequested = BN.from(0);
+            seniorSharesRequested = BN.from(0);
 
             let expectedEndTime = timestampToMoment(currentTS, "YYYY-MM-01")
                 .add(1, "month")
@@ -1507,7 +1508,7 @@ describe("Lender Integration Test", function () {
             sLenderWithdrawals[0] = sLenderWithdrawals[0].add(amount);
         });
 
-        it("Epoch 5, day after the epoch end date: Process yield, close epoch and no fulfillment of the junior redemption requests", async function () {
+        it("Epoch 5, day after the epoch end date: Process yield, close epoch and no fulfillment of redemption requests", async function () {
             let cr = await creditContract.getCreditRecord(creditHash);
             currentTS = cr.nextDueDate.toNumber() + 100;
             await setNextBlockTimestamp(currentTS);
@@ -1696,50 +1697,60 @@ describe("Lender Integration Test", function () {
             currentEpochId = newEpochId;
         });
 
-        it("Epoch 10, day 10: Lenders in both tranches request full redemption", async function () {
+        it("Epoch 10, day 10: Some lenders request redemption prior to pool closure", async function () {
             currentTS = currentTS + 9 * 24 * 3600 + 100;
             await setNextBlockTimestamp(currentTS);
 
             await testRedemptionRequest(
                 [
+                    // First junior lender requests full redemption.
                     await juniorTrancheVaultContract.balanceOf(jActiveLenders[0].address),
-                    await juniorTrancheVaultContract.balanceOf(jActiveLenders[1].address),
-                    await juniorTrancheVaultContract.balanceOf(jActiveLenders[2].address),
+                    // Second junior lender requests partial redemption.
+                    (await juniorTrancheVaultContract.balanceOf(jActiveLenders[1].address)).div(2),
+                    // Third junior lender does not request redemption.
+                    BN.from(0),
                 ],
                 [
-                    await seniorTrancheVaultContract.balanceOf(sActiveLenders[0].address),
-                    await seniorTrancheVaultContract.balanceOf(sActiveLenders[1].address),
+                    // First senior lender does not request redemption.
+                    BN.from(0),
+                    // Second senior lender requests partial redemption.
+                    (await seniorTrancheVaultContract.balanceOf(sActiveLenders[1].address)).div(3),
+                    // Third senior lender requests full redemption.
                     await seniorTrancheVaultContract.balanceOf(sActiveLenders[2].address),
                 ],
             );
         });
 
-        it("Epoch 10, day after the epoch end date: Close epoch and the fulfillment of the redemption requests", async function () {
-            let [, endTime] = await epochManagerContract.currentEpoch();
-            currentTS = endTime.toNumber() + 100;
+        it("Epoch 10, day 15: Close pool and process the final redemption requests in the final epoch", async function () {
+            currentTS += 5 * CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(currentTS);
 
             await testYieldPayout();
 
-            let juniorOldAssets = await juniorTrancheVaultContract.totalAssets();
-            let juniorOldShares = await juniorTrancheVaultContract.totalSupply();
-            let juniorOldBalance = await mockTokenContract.balanceOf(
+            const juniorOldAssets = await juniorTrancheVaultContract.totalAssets();
+            const juniorOldShares = await juniorTrancheVaultContract.totalSupply();
+            const juniorOldBalance = await mockTokenContract.balanceOf(
                 juniorTrancheVaultContract.address,
             );
-            let jAmountProcessed =
-                await juniorTrancheVaultContract.convertToAssets(juniorShareRequested);
-            let seniorOldAssets = await seniorTrancheVaultContract.totalAssets();
-            let seniorOldShares = await seniorTrancheVaultContract.totalSupply();
-            let seniorOldBalance = await mockTokenContract.balanceOf(
+            const jAmountProcessed =
+                await juniorTrancheVaultContract.convertToAssets(juniorSharesRequested);
+            const seniorOldAssets = await seniorTrancheVaultContract.totalAssets();
+            const seniorOldShares = await seniorTrancheVaultContract.totalSupply();
+            const seniorOldBalance = await mockTokenContract.balanceOf(
                 seniorTrancheVaultContract.address,
             );
-            let sAmountProcessed =
-                await seniorTrancheVaultContract.convertToAssets(seniorShareRequested);
-            await epochManagerContract.closeEpoch();
-            let [newEpochId, newEndTime] = await epochManagerContract.currentEpoch();
-            expect(newEpochId).to.equal(currentEpochId.add(1));
+            const sAmountProcessed =
+                await seniorTrancheVaultContract.convertToAssets(seniorSharesRequested);
+
+            await poolContract.connect(poolOwner).closePool();
+            // Override max senior : junior ratio so that all redemption requests can be processed.
+            await overrideLPConfig(poolConfigContract, poolOwner, {
+                maxSeniorJuniorRatio: 0,
+            });
+            await epochManagerContract.connect(poolOwner).processEpochAfterPoolClosure();
+
             expect(await juniorTrancheVaultContract.totalSupply()).to.closeTo(
-                juniorOldShares.sub(juniorShareRequested),
+                juniorOldShares.sub(juniorSharesRequested),
                 1,
             );
             expect(jAmountProcessed).to.greaterThan(0);
@@ -1752,13 +1763,13 @@ describe("Lender Integration Test", function () {
             ).to.closeTo(juniorOldBalance.add(jAmountProcessed), 2);
             await epochChecker.checkJuniorRedemptionSummaryById(
                 currentEpochId,
-                juniorShareRequested,
-                juniorShareRequested,
+                juniorSharesRequested,
+                juniorSharesRequested,
                 jAmountProcessed,
                 2,
             );
             expect(await seniorTrancheVaultContract.totalSupply()).to.equal(
-                seniorOldShares.sub(seniorShareRequested),
+                seniorOldShares.sub(seniorSharesRequested),
             );
             expect(sAmountProcessed).to.greaterThan(0);
             expect(await seniorTrancheVaultContract.totalAssets()).to.closeTo(
@@ -1770,8 +1781,8 @@ describe("Lender Integration Test", function () {
             ).to.closeTo(seniorOldBalance.add(sAmountProcessed), 1);
             await epochChecker.checkSeniorRedemptionSummaryById(
                 currentEpochId,
-                seniorShareRequested,
-                seniorShareRequested,
+                seniorSharesRequested,
+                seniorSharesRequested,
                 sAmountProcessed,
                 1,
             );
@@ -1779,40 +1790,207 @@ describe("Lender Integration Test", function () {
             for (let i = 0; i < jActiveLenders.length; i++) {
                 if (jLenderShareRequests[i].gt(0)) {
                     jLenderAmountsProcessed[i] = jLenderAmountsProcessed[i].add(
-                        jAmountProcessed.mul(jLenderShareRequests[i]).div(juniorShareRequested),
+                        jAmountProcessed.mul(jLenderShareRequests[i]).div(juniorSharesRequested),
                     );
                     jLenderShareRequests[i] = BN.from(0);
                     jLenderPrincipalRequests[i] = BN.from(0);
-                    expect(
-                        await juniorTrancheVaultContract.withdrawableAssets(
-                            jActiveLenders[i].address,
-                        ),
-                    ).to.closeTo(jLenderAmountsProcessed[i].sub(jLenderWithdrawals[i]), 1);
                 }
             }
-            juniorShareRequested = BN.from(0);
+            juniorSharesRequested = BN.from(0);
 
             for (let i = 0; i < sActiveLenders.length; i++) {
                 if (sLenderShareRequests[i].gt(0)) {
                     sLenderAmountsProcessed[i] = sLenderAmountsProcessed[i].add(
-                        sAmountProcessed.mul(sLenderShareRequests[i]).div(seniorShareRequested),
+                        sAmountProcessed.mul(sLenderShareRequests[i]).div(seniorSharesRequested),
                     );
                     sLenderShareRequests[i] = BN.from(0);
                     sLenderPrincipalRequests[i] = BN.from(0);
-                    expect(
-                        await seniorTrancheVaultContract.withdrawableAssets(
-                            sActiveLenders[i].address,
-                        ),
-                    ).to.closeTo(sLenderAmountsProcessed[i].sub(sLenderWithdrawals[i]), 1);
                 }
             }
-            seniorShareRequested = BN.from(0);
+            seniorSharesRequested = BN.from(0);
+        });
 
-            let expectedEndTime = timestampToMoment(currentTS, "YYYY-MM-01")
-                .add(1, "month")
-                .unix();
-            expect(newEndTime).to.equal(expectedEndTime);
-            currentEpochId = newEpochId;
+        it("Epoch 10, day 15: All lenders withdraw their assets", async function () {
+            for (const [i, jLender] of jActiveLenders.entries()) {
+                const amountDisbursable = jLenderAmountsProcessed[i].sub(jLenderWithdrawals[i]);
+                const numShares = await juniorTrancheVaultContract.balanceOf(jLender.getAddress());
+                const expectedAssetsWithdrawn =
+                    await juniorTrancheVaultContract.convertToAssets(numShares);
+                if (i === 0) {
+                    // The first junior lender has requested redemption for all their shares.
+                    expect(numShares).to.equal(0);
+                    expect(expectedAssetsWithdrawn).to.equal(0);
+                    expect(amountDisbursable).to.be.gt(0);
+                } else if (i === 1) {
+                    // The second junior lender has requested partial redemption.
+                    expect(numShares).to.be.gt(0);
+                    expect(expectedAssetsWithdrawn).to.be.gt(0);
+                    expect(amountDisbursable).to.be.gt(0);
+                } else {
+                    // The second junior lender didn't request redemption.
+                    expect(numShares).to.be.gt(0);
+                    expect(expectedAssetsWithdrawn).to.be.gt(0);
+                    expect(amountDisbursable).to.equal(0);
+                }
+                expect(
+                    await juniorTrancheVaultContract.withdrawableAssets(jLender.getAddress()),
+                ).to.be.closeTo(amountDisbursable.add(expectedAssetsWithdrawn), 2);
+
+                const oldTotalSupply = await juniorTrancheVaultContract.totalSupply();
+                const oldTotalAssets = await juniorTrancheVaultContract.totalAssets();
+                const oldLenderBalance = await mockTokenContract.balanceOf(jLender.getAddress());
+                const oldPoolSafeBalance = await mockTokenContract.balanceOf(
+                    poolSafeContract.address,
+                );
+                const oldJuniorTrancheBalance = await mockTokenContract.balanceOf(
+                    juniorTrancheVaultContract.address,
+                );
+
+                if (i === 0) {
+                    await expect(
+                        juniorTrancheVaultContract.connect(jLender).withdrawAfterPoolClosure(),
+                    )
+                        .to.emit(juniorTrancheVaultContract, "LenderFundDisbursed")
+                        .withArgs(
+                            await jLender.getAddress(),
+                            await jLender.getAddress(),
+                            (actualAmountDisbursed: BN) =>
+                                isCloseTo(actualAmountDisbursed, amountDisbursable, 2),
+                        )
+                        .not.to.emit(juniorTrancheVaultContract, "LenderFundWithdrawn");
+                } else if (i === 1) {
+                    await expect(
+                        juniorTrancheVaultContract.connect(jLender).withdrawAfterPoolClosure(),
+                    )
+                        .to.emit(juniorTrancheVaultContract, "LenderFundDisbursed")
+                        .withArgs(
+                            await jLender.getAddress(),
+                            await jLender.getAddress(),
+                            (actualAmountDisbursed: BN) =>
+                                isCloseTo(actualAmountDisbursed, amountDisbursable, 2),
+                        )
+                        .to.emit(juniorTrancheVaultContract, "LenderFundWithdrawn")
+                        .withArgs(await jLender.getAddress(), numShares, expectedAssetsWithdrawn);
+                } else {
+                    await expect(
+                        juniorTrancheVaultContract.connect(jLender).withdrawAfterPoolClosure(),
+                    )
+                        .to.emit(juniorTrancheVaultContract, "LenderFundWithdrawn")
+                        .withArgs(await jLender.getAddress(), numShares, expectedAssetsWithdrawn)
+                        .not.to.emit(juniorTrancheVaultContract, "LenderFundDisbursed");
+                }
+
+                expect(await juniorTrancheVaultContract.totalSupply()).to.equal(
+                    oldTotalSupply.sub(numShares),
+                );
+                expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
+                    oldTotalAssets.sub(expectedAssetsWithdrawn),
+                );
+                expect(await mockTokenContract.balanceOf(jLender.getAddress())).to.be.closeTo(
+                    oldLenderBalance.add(expectedAssetsWithdrawn).add(amountDisbursable),
+                    2,
+                );
+                expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
+                    oldPoolSafeBalance.sub(expectedAssetsWithdrawn),
+                );
+                expect(
+                    await mockTokenContract.balanceOf(juniorTrancheVaultContract.address),
+                ).to.be.closeTo(oldJuniorTrancheBalance.sub(amountDisbursable), 2);
+                expect(
+                    await juniorTrancheVaultContract.withdrawableAssets(jLender.getAddress()),
+                ).to.equal(0);
+            }
+
+            for (const [i, sLender] of sActiveLenders.entries()) {
+                const amountDisbursable = sLenderAmountsProcessed[i].sub(sLenderWithdrawals[i]);
+                const numShares = await seniorTrancheVaultContract.balanceOf(sLender.getAddress());
+                const expectedAssetsWithdrawn =
+                    await seniorTrancheVaultContract.convertToAssets(numShares);
+                if (i === 0) {
+                    // The first senior lender didn't request redemption.
+                    expect(numShares).to.be.gt(0);
+                    expect(expectedAssetsWithdrawn).to.be.gt(0);
+                    expect(amountDisbursable).to.equal(0);
+                } else if (i === 1) {
+                    // The second senior lender has requested partial redemption.
+                    expect(numShares).to.be.gt(0);
+                    expect(expectedAssetsWithdrawn).to.be.gt(0);
+                    expect(amountDisbursable).to.be.gt(0);
+                } else {
+                    // The third senior lender has requested redemption for all their shares.
+                    expect(numShares).to.equal(0);
+                    expect(expectedAssetsWithdrawn).to.equal(0);
+                    expect(amountDisbursable).to.be.gt(0);
+                }
+
+                expect(
+                    await seniorTrancheVaultContract.withdrawableAssets(sLender.getAddress()),
+                ).to.be.closeTo(amountDisbursable.add(expectedAssetsWithdrawn), 2);
+
+                const oldTotalSupply = await seniorTrancheVaultContract.totalSupply();
+                const oldTotalAssets = await seniorTrancheVaultContract.totalAssets();
+                const oldLenderBalance = await mockTokenContract.balanceOf(sLender.getAddress());
+                const oldPoolSafeBalance = await mockTokenContract.balanceOf(
+                    poolSafeContract.address,
+                );
+                const oldJuniorTrancheBalance = await mockTokenContract.balanceOf(
+                    seniorTrancheVaultContract.address,
+                );
+
+                if (i === 0) {
+                    await expect(
+                        seniorTrancheVaultContract.connect(sLender).withdrawAfterPoolClosure(),
+                    )
+                        .to.emit(seniorTrancheVaultContract, "LenderFundWithdrawn")
+                        .withArgs(await sLender.getAddress(), numShares, expectedAssetsWithdrawn)
+                        .not.to.emit(seniorTrancheVaultContract, "LenderFundDisbursed");
+                } else if (i === 1) {
+                    await expect(
+                        seniorTrancheVaultContract.connect(sLender).withdrawAfterPoolClosure(),
+                    )
+                        .to.emit(seniorTrancheVaultContract, "LenderFundDisbursed")
+                        .withArgs(
+                            await sLender.getAddress(),
+                            await sLender.getAddress(),
+                            (actualAmountDisbursed: BN) =>
+                                isCloseTo(actualAmountDisbursed, amountDisbursable, 2),
+                        )
+                        .to.emit(seniorTrancheVaultContract, "LenderFundWithdrawn")
+                        .withArgs(await sLender.getAddress(), numShares, expectedAssetsWithdrawn);
+                } else {
+                    await expect(
+                        seniorTrancheVaultContract.connect(sLender).withdrawAfterPoolClosure(),
+                    )
+                        .to.emit(seniorTrancheVaultContract, "LenderFundDisbursed")
+                        .withArgs(
+                            await sLender.getAddress(),
+                            await sLender.getAddress(),
+                            (actualAmountDisbursed: BN) =>
+                                isCloseTo(actualAmountDisbursed, amountDisbursable, 2),
+                        )
+                        .not.to.emit(seniorTrancheVaultContract, "LenderFundWithdrawn");
+                }
+
+                expect(await seniorTrancheVaultContract.totalSupply()).to.equal(
+                    oldTotalSupply.sub(numShares),
+                );
+                expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
+                    oldTotalAssets.sub(expectedAssetsWithdrawn),
+                );
+                expect(await mockTokenContract.balanceOf(sLender.getAddress())).to.be.closeTo(
+                    oldLenderBalance.add(expectedAssetsWithdrawn).add(amountDisbursable),
+                    2,
+                );
+                expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
+                    oldPoolSafeBalance.sub(expectedAssetsWithdrawn),
+                );
+                expect(
+                    await mockTokenContract.balanceOf(seniorTrancheVaultContract.address),
+                ).to.be.closeTo(oldJuniorTrancheBalance.sub(amountDisbursable), 2);
+                expect(
+                    await seniorTrancheVaultContract.withdrawableAssets(sLender.getAddress()),
+                ).to.equal(0);
+            }
         });
     });
 
@@ -1867,8 +2045,8 @@ describe("Lender Integration Test", function () {
             if (sId) {
                 await evmRevert(sId);
             }
-            juniorShareRequested = BN.from(0);
-            seniorShareRequested = BN.from(0);
+            juniorSharesRequested = BN.from(0);
+            seniorSharesRequested = BN.from(0);
             jLenderPrincipals = Array(NUM_JUNIOR_LENDERS).fill(BN.from(0));
             sLenderPrincipals = Array(NUM_SENIOR_LENDERS).fill(BN.from(0));
             jLenderShareRequests = Array(NUM_JUNIOR_LENDERS).fill(BN.from(0));
@@ -2142,19 +2320,19 @@ describe("Lender Integration Test", function () {
                 juniorTrancheVaultContract.address,
             );
             let jAmountProcessed =
-                await juniorTrancheVaultContract.convertToAssets(juniorShareRequested);
+                await juniorTrancheVaultContract.convertToAssets(juniorSharesRequested);
             let seniorOldAssets = await seniorTrancheVaultContract.totalAssets();
             let seniorOldShares = await seniorTrancheVaultContract.totalSupply();
             let seniorOldBalance = await mockTokenContract.balanceOf(
                 seniorTrancheVaultContract.address,
             );
             let sAmountProcessed =
-                await seniorTrancheVaultContract.convertToAssets(seniorShareRequested);
+                await seniorTrancheVaultContract.convertToAssets(seniorSharesRequested);
             await epochManagerContract.closeEpoch();
             let [newEpochId, newEndTime] = await epochManagerContract.currentEpoch();
             expect(newEpochId).to.equal(currentEpochId.add(1));
             expect(await juniorTrancheVaultContract.totalSupply()).to.equal(
-                juniorOldShares.sub(juniorShareRequested),
+                juniorOldShares.sub(juniorSharesRequested),
             );
             expect(jAmountProcessed).to.greaterThan(0);
             expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
@@ -2165,12 +2343,12 @@ describe("Lender Integration Test", function () {
             );
             await epochChecker.checkJuniorRedemptionSummaryById(
                 currentEpochId,
-                juniorShareRequested,
-                juniorShareRequested,
+                juniorSharesRequested,
+                juniorSharesRequested,
                 jAmountProcessed,
             );
             expect(await seniorTrancheVaultContract.totalSupply()).to.equal(
-                seniorOldShares.sub(seniorShareRequested),
+                seniorOldShares.sub(seniorSharesRequested),
             );
             expect(sAmountProcessed).to.greaterThan(0);
             expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
@@ -2181,34 +2359,34 @@ describe("Lender Integration Test", function () {
             );
             await epochChecker.checkSeniorRedemptionSummaryById(
                 currentEpochId,
-                seniorShareRequested,
-                seniorShareRequested,
+                seniorSharesRequested,
+                seniorSharesRequested,
                 sAmountProcessed,
             );
 
             for (let i = 0; i < jActiveLenders.length; i++) {
                 jLenderAmountsProcessed[i] = jAmountProcessed
                     .mul(jLenderShareRequests[i])
-                    .div(juniorShareRequested);
+                    .div(juniorSharesRequested);
                 jLenderShareRequests[i] = BN.from(0);
                 jLenderPrincipalRequests[i] = BN.from(0);
                 expect(
                     await juniorTrancheVaultContract.withdrawableAssets(jActiveLenders[i].address),
                 ).to.equal(jLenderAmountsProcessed[i]);
             }
-            juniorShareRequested = BN.from(0);
+            juniorSharesRequested = BN.from(0);
 
             for (let i = 0; i < sActiveLenders.length; i++) {
                 sLenderAmountsProcessed[i] = sAmountProcessed
                     .mul(sLenderShareRequests[i])
-                    .div(seniorShareRequested);
+                    .div(seniorSharesRequested);
                 sLenderShareRequests[i] = BN.from(0);
                 sLenderPrincipalRequests[i] = BN.from(0);
                 expect(
                     await seniorTrancheVaultContract.withdrawableAssets(sActiveLenders[i].address),
                 ).to.equal(sLenderAmountsProcessed[i]);
             }
-            seniorShareRequested = BN.from(0);
+            seniorSharesRequested = BN.from(0);
 
             await creditManagerContract.refreshCredit(borrower.address);
             expect((await creditContract.getCreditRecord(creditHash)).nextDueDate).to.equal(
@@ -2466,21 +2644,21 @@ describe("Lender Integration Test", function () {
             ).to.closeTo(juniorOldBalance.add(jAmountProcessed), 1);
             await epochChecker.checkJuniorRedemptionSummaryById(
                 currentEpochId,
-                juniorShareRequested,
+                juniorSharesRequested,
                 jShareProcessed,
                 jAmountProcessed,
                 1,
             );
 
             jLenderAmountsProcessed[0] = jLenderAmountsProcessed[0].add(jAmountProcessed);
-            jLenderShareRequests[0] = juniorShareRequested.sub(jShareProcessed);
+            jLenderShareRequests[0] = juniorSharesRequested.sub(jShareProcessed);
             jLenderPrincipalRequests[0] = jLenderPrincipalRequests[0]
                 .mul(jLenderShareRequests[0])
-                .div(juniorShareRequested);
+                .div(juniorSharesRequested);
             expect(
                 await juniorTrancheVaultContract.withdrawableAssets(jActiveLenders[0].address),
             ).to.closeTo(jLenderAmountsProcessed[0], 1);
-            juniorShareRequested = jLenderShareRequests[0];
+            juniorSharesRequested = jLenderShareRequests[0];
 
             await creditManagerContract.refreshCredit(borrower.address);
             expect((await creditContract.getCreditRecord(creditHash)).nextDueDate).to.equal(
@@ -2554,19 +2732,19 @@ describe("Lender Integration Test", function () {
                 juniorTrancheVaultContract.address,
             );
             let jAmountProcessed =
-                await juniorTrancheVaultContract.convertToAssets(juniorShareRequested);
+                await juniorTrancheVaultContract.convertToAssets(juniorSharesRequested);
             let seniorOldAssets = await seniorTrancheVaultContract.totalAssets();
             let seniorOldShares = await seniorTrancheVaultContract.totalSupply();
             let seniorOldBalance = await mockTokenContract.balanceOf(
                 seniorTrancheVaultContract.address,
             );
             let sAmountProcessed =
-                await seniorTrancheVaultContract.convertToAssets(seniorShareRequested);
+                await seniorTrancheVaultContract.convertToAssets(seniorSharesRequested);
             await epochManagerContract.closeEpoch();
             let [newEpochId, newEndTime] = await epochManagerContract.currentEpoch();
             expect(newEpochId).to.equal(currentEpochId.add(1));
             expect(await juniorTrancheVaultContract.totalSupply()).to.closeTo(
-                juniorOldShares.sub(juniorShareRequested),
+                juniorOldShares.sub(juniorSharesRequested),
                 1,
             );
             expect(jAmountProcessed).to.greaterThan(0);
@@ -2579,13 +2757,13 @@ describe("Lender Integration Test", function () {
             ).to.closeTo(juniorOldBalance.add(jAmountProcessed), 1);
             await epochChecker.checkJuniorRedemptionSummaryById(
                 currentEpochId,
-                juniorShareRequested,
-                juniorShareRequested,
+                juniorSharesRequested,
+                juniorSharesRequested,
                 jAmountProcessed,
                 1,
             );
             expect(await seniorTrancheVaultContract.totalSupply()).to.equal(
-                seniorOldShares.sub(seniorShareRequested),
+                seniorOldShares.sub(seniorSharesRequested),
             );
             expect(sAmountProcessed).to.greaterThan(0);
             expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
@@ -2596,15 +2774,15 @@ describe("Lender Integration Test", function () {
             );
             await epochChecker.checkSeniorRedemptionSummaryById(
                 currentEpochId,
-                seniorShareRequested,
-                seniorShareRequested,
+                seniorSharesRequested,
+                seniorSharesRequested,
                 sAmountProcessed,
             );
 
             for (let i = 0; i < jActiveLenders.length; i++) {
                 if (jLenderShareRequests[i].gt(0)) {
                     jLenderAmountsProcessed[i] = jLenderAmountsProcessed[i].add(
-                        jAmountProcessed.mul(jLenderShareRequests[i]).div(juniorShareRequested),
+                        jAmountProcessed.mul(jLenderShareRequests[i]).div(juniorSharesRequested),
                     );
                     jLenderShareRequests[i] = BN.from(0);
                     jLenderPrincipalRequests[i] = BN.from(0);
@@ -2615,12 +2793,12 @@ describe("Lender Integration Test", function () {
                     ).to.closeTo(jLenderAmountsProcessed[i], 2);
                 }
             }
-            juniorShareRequested = BN.from(0);
+            juniorSharesRequested = BN.from(0);
 
             for (let i = 0; i < sActiveLenders.length; i++) {
                 if (sLenderShareRequests[i].gt(0)) {
                     sLenderAmountsProcessed[i] = sLenderAmountsProcessed[i].add(
-                        sAmountProcessed.mul(sLenderShareRequests[i]).div(seniorShareRequested),
+                        sAmountProcessed.mul(sLenderShareRequests[i]).div(seniorSharesRequested),
                     );
                     sLenderShareRequests[i] = BN.from(0);
                     sLenderPrincipalRequests[i] = BN.from(0);
@@ -2631,7 +2809,7 @@ describe("Lender Integration Test", function () {
                     ).to.equal(sLenderAmountsProcessed[i]);
                 }
             }
-            seniorShareRequested = BN.from(0);
+            seniorSharesRequested = BN.from(0);
 
             let expectedEndTime = timestampToMoment(currentTS, "YYYY-MM-01")
                 .add(1, "month")
@@ -2782,12 +2960,12 @@ describe("Lender Integration Test", function () {
                 seniorTrancheVaultContract.address,
             );
             let sAmountProcessed =
-                await seniorTrancheVaultContract.convertToAssets(seniorShareRequested);
+                await seniorTrancheVaultContract.convertToAssets(seniorSharesRequested);
             await epochManagerContract.closeEpoch();
             let [newEpochId, newEndTime] = await epochManagerContract.currentEpoch();
             expect(newEpochId).to.equal(currentEpochId.add(1));
             expect(await seniorTrancheVaultContract.totalSupply()).to.equal(
-                seniorOldShares.sub(seniorShareRequested),
+                seniorOldShares.sub(seniorSharesRequested),
             );
             expect(sAmountProcessed).to.greaterThan(0);
             expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
@@ -2798,15 +2976,15 @@ describe("Lender Integration Test", function () {
             );
             await epochChecker.checkSeniorRedemptionSummaryById(
                 currentEpochId,
-                seniorShareRequested,
-                seniorShareRequested,
+                seniorSharesRequested,
+                seniorSharesRequested,
                 sAmountProcessed,
             );
 
             for (let i = 0; i < sActiveLenders.length; i++) {
                 if (sLenderShareRequests[i].gt(0)) {
                     sLenderAmountsProcessed[i] = sLenderAmountsProcessed[i].add(
-                        sAmountProcessed.mul(sLenderShareRequests[i]).div(seniorShareRequested),
+                        sAmountProcessed.mul(sLenderShareRequests[i]).div(seniorSharesRequested),
                     );
                     sLenderShareRequests[i] = BN.from(0);
                     sLenderPrincipalRequests[i] = BN.from(0);
@@ -2817,7 +2995,7 @@ describe("Lender Integration Test", function () {
                     ).to.equal(sLenderAmountsProcessed[i]);
                 }
             }
-            seniorShareRequested = BN.from(0);
+            seniorSharesRequested = BN.from(0);
 
             let expectedEndTime = timestampToMoment(currentTS, "YYYY-MM-01")
                 .add(1, "month")
@@ -2947,7 +3125,7 @@ describe("Lender Integration Test", function () {
             );
         });
 
-        it("Epoch 9, day after the epoch end date: Process yield and close epoch and no fulfillment of the junior redemption requests", async function () {
+        it("Epoch 9, day after the epoch end date: Process yield and close epoch and no fulfillment of redemption requests", async function () {
             let cr = await creditContract.getCreditRecord(creditHash);
             currentTS = cr.nextDueDate.toNumber() + 100;
             await setNextBlockTimestamp(currentTS);
@@ -2966,7 +3144,9 @@ describe("Lender Integration Test", function () {
             );
             await epochChecker.checkJuniorCurrentRedemptionSummaryEmpty();
             await epochChecker.checkSeniorCurrentRedemptionSummaryEmpty();
+
             await epochManagerContract.closeEpoch();
+
             let [newEpochId, newEndTime] = await epochManagerContract.currentEpoch();
             expect(newEpochId).to.equal(currentEpochId.add(1));
             expect(await juniorTrancheVaultContract.totalSupply()).to.equal(juniorOldShares);
@@ -2987,50 +3167,60 @@ describe("Lender Integration Test", function () {
             currentEpochId = newEpochId;
         });
 
-        it("Epoch 10, day 10: Lenders in both tranches request full redemption", async function () {
+        it("Epoch 10, day 10: Some lenders request redemption prior to pool closure", async function () {
             currentTS = currentTS + 9 * 24 * 3600 + 100;
             await setNextBlockTimestamp(currentTS);
 
             await testRedemptionRequest(
                 [
+                    // First junior lender requests full redemption.
                     await juniorTrancheVaultContract.balanceOf(jActiveLenders[0].address),
-                    await juniorTrancheVaultContract.balanceOf(jActiveLenders[1].address),
-                    await juniorTrancheVaultContract.balanceOf(jActiveLenders[2].address),
+                    // Second junior lender requests partial redemption.
+                    (await juniorTrancheVaultContract.balanceOf(jActiveLenders[1].address)).div(2),
+                    // Third junior lender does not request redemption.
+                    BN.from(0),
                 ],
                 [
-                    await seniorTrancheVaultContract.balanceOf(sActiveLenders[0].address),
-                    await seniorTrancheVaultContract.balanceOf(sActiveLenders[1].address),
+                    // First senior lender does not request redemption.
+                    BN.from(0),
+                    // Second senior lender requests partial redemption.
+                    (await seniorTrancheVaultContract.balanceOf(sActiveLenders[1].address)).div(3),
+                    // Third senior lender requests full redemption.
                     await seniorTrancheVaultContract.balanceOf(sActiveLenders[2].address),
                 ],
             );
         });
 
-        it("Epoch 10, day after the epoch end date: Close epoch and the fulfillment of the redemption requests", async function () {
-            let [, endTime] = await epochManagerContract.currentEpoch();
-            currentTS = endTime.toNumber() + 100;
+        it("Epoch 10, day 15: Close pool and process the final redemption requests in the final epoch", async function () {
+            currentTS += 5 * CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(currentTS);
 
             await testYieldPayout();
 
-            let juniorOldAssets = await juniorTrancheVaultContract.totalAssets();
-            let juniorOldShares = await juniorTrancheVaultContract.totalSupply();
-            let juniorOldBalance = await mockTokenContract.balanceOf(
+            const juniorOldAssets = await juniorTrancheVaultContract.totalAssets();
+            const juniorOldShares = await juniorTrancheVaultContract.totalSupply();
+            const juniorOldBalance = await mockTokenContract.balanceOf(
                 juniorTrancheVaultContract.address,
             );
-            let jAmountProcessed =
-                await juniorTrancheVaultContract.convertToAssets(juniorShareRequested);
-            let seniorOldAssets = await seniorTrancheVaultContract.totalAssets();
-            let seniorOldShares = await seniorTrancheVaultContract.totalSupply();
-            let seniorOldBalance = await mockTokenContract.balanceOf(
+            const jAmountProcessed =
+                await juniorTrancheVaultContract.convertToAssets(juniorSharesRequested);
+            const seniorOldAssets = await seniorTrancheVaultContract.totalAssets();
+            const seniorOldShares = await seniorTrancheVaultContract.totalSupply();
+            const seniorOldBalance = await mockTokenContract.balanceOf(
                 seniorTrancheVaultContract.address,
             );
-            let sAmountProcessed =
-                await seniorTrancheVaultContract.convertToAssets(seniorShareRequested);
-            await epochManagerContract.closeEpoch();
-            let [newEpochId, newEndTime] = await epochManagerContract.currentEpoch();
-            expect(newEpochId).to.equal(currentEpochId.add(1));
+            const sAmountProcessed =
+                await seniorTrancheVaultContract.convertToAssets(seniorSharesRequested);
+
+            await poolContract.connect(poolOwner).closePool();
+            // Override max senior : junior ratio so that all redemption requests can be processed.
+            await overrideLPConfig(poolConfigContract, poolOwner, {
+                maxSeniorJuniorRatio: 0,
+            });
+            await epochManagerContract.connect(poolOwner).processEpochAfterPoolClosure();
+
             expect(await juniorTrancheVaultContract.totalSupply()).to.closeTo(
-                juniorOldShares.sub(juniorShareRequested),
+                juniorOldShares.sub(juniorSharesRequested),
                 1,
             );
             expect(jAmountProcessed).to.greaterThan(0);
@@ -3043,13 +3233,13 @@ describe("Lender Integration Test", function () {
             ).to.closeTo(juniorOldBalance.add(jAmountProcessed), 2);
             await epochChecker.checkJuniorRedemptionSummaryById(
                 currentEpochId,
-                juniorShareRequested,
-                juniorShareRequested,
+                juniorSharesRequested,
+                juniorSharesRequested,
                 jAmountProcessed,
                 2,
             );
             expect(await seniorTrancheVaultContract.totalSupply()).to.equal(
-                seniorOldShares.sub(seniorShareRequested),
+                seniorOldShares.sub(seniorSharesRequested),
             );
             expect(sAmountProcessed).to.greaterThan(0);
             expect(await seniorTrancheVaultContract.totalAssets()).to.closeTo(
@@ -3061,8 +3251,8 @@ describe("Lender Integration Test", function () {
             ).to.closeTo(seniorOldBalance.add(sAmountProcessed), 1);
             await epochChecker.checkSeniorRedemptionSummaryById(
                 currentEpochId,
-                seniorShareRequested,
-                seniorShareRequested,
+                seniorSharesRequested,
+                seniorSharesRequested,
                 sAmountProcessed,
                 1,
             );
@@ -3070,40 +3260,191 @@ describe("Lender Integration Test", function () {
             for (let i = 0; i < jActiveLenders.length; i++) {
                 if (jLenderShareRequests[i].gt(0)) {
                     jLenderAmountsProcessed[i] = jLenderAmountsProcessed[i].add(
-                        jAmountProcessed.mul(jLenderShareRequests[i]).div(juniorShareRequested),
+                        jAmountProcessed.mul(jLenderShareRequests[i]).div(juniorSharesRequested),
                     );
                     jLenderShareRequests[i] = BN.from(0);
                     jLenderPrincipalRequests[i] = BN.from(0);
-                    expect(
-                        await juniorTrancheVaultContract.withdrawableAssets(
-                            jActiveLenders[i].address,
-                        ),
-                    ).to.closeTo(jLenderAmountsProcessed[i].sub(jLenderWithdrawals[i]), 2);
                 }
             }
-            juniorShareRequested = BN.from(0);
+            juniorSharesRequested = BN.from(0);
 
             for (let i = 0; i < sActiveLenders.length; i++) {
                 if (sLenderShareRequests[i].gt(0)) {
                     sLenderAmountsProcessed[i] = sLenderAmountsProcessed[i].add(
-                        sAmountProcessed.mul(sLenderShareRequests[i]).div(seniorShareRequested),
+                        sAmountProcessed.mul(sLenderShareRequests[i]).div(seniorSharesRequested),
                     );
                     sLenderShareRequests[i] = BN.from(0);
                     sLenderPrincipalRequests[i] = BN.from(0);
-                    expect(
-                        await seniorTrancheVaultContract.withdrawableAssets(
-                            sActiveLenders[i].address,
-                        ),
-                    ).to.closeTo(sLenderAmountsProcessed[i].sub(sLenderWithdrawals[i]), 1);
                 }
             }
-            seniorShareRequested = BN.from(0);
+            seniorSharesRequested = BN.from(0);
+        });
 
-            let expectedEndTime = timestampToMoment(currentTS, "YYYY-MM-01")
-                .add(1, "month")
-                .unix();
-            expect(newEndTime).to.equal(expectedEndTime);
-            currentEpochId = newEpochId;
+        it("Epoch 10, day 15: All lenders withdraw their assets", async function () {
+            for (const [i, jLender] of jActiveLenders.entries()) {
+                const amountDisbursable = jLenderAmountsProcessed[i].sub(jLenderWithdrawals[i]);
+                const numShares = await juniorTrancheVaultContract.balanceOf(jLender.getAddress());
+                const expectedAssetsWithdrawn =
+                    await juniorTrancheVaultContract.convertToAssets(numShares);
+                if (i === 0) {
+                    // The first junior lender has requested redemption for all their shares.
+                    expect(numShares).to.equal(0);
+                    expect(expectedAssetsWithdrawn).to.equal(0);
+                    expect(amountDisbursable).to.be.gt(0);
+                } else if (i === 1) {
+                    // The second junior lender has requested partial redemption.
+                    expect(numShares).to.be.gt(0);
+                    expect(expectedAssetsWithdrawn).to.be.gt(0);
+                    expect(amountDisbursable).to.be.gt(0);
+                } else {
+                    // The second junior lender didn't request redemption.
+                    expect(numShares).to.be.gt(0);
+                    expect(expectedAssetsWithdrawn).to.be.gt(0);
+                    expect(amountDisbursable).to.equal(0);
+                }
+                expect(
+                    await juniorTrancheVaultContract.withdrawableAssets(jLender.getAddress()),
+                ).to.be.closeTo(amountDisbursable.add(expectedAssetsWithdrawn), 2);
+
+                const oldTotalSupply = await juniorTrancheVaultContract.totalSupply();
+                const oldTotalAssets = await juniorTrancheVaultContract.totalAssets();
+                const oldLenderBalance = await mockTokenContract.balanceOf(jLender.getAddress());
+                const oldPoolSafeBalance = await mockTokenContract.balanceOf(
+                    poolSafeContract.address,
+                );
+                const oldJuniorTrancheBalance = await mockTokenContract.balanceOf(
+                    juniorTrancheVaultContract.address,
+                );
+
+                if (i === 0) {
+                    await expect(
+                        juniorTrancheVaultContract.connect(jLender).withdrawAfterPoolClosure(),
+                    )
+                        .to.emit(juniorTrancheVaultContract, "LenderFundDisbursed")
+                        .withArgs(
+                            await jLender.getAddress(),
+                            await jLender.getAddress(),
+                            (actualAmountDisbursed: BN) =>
+                                isCloseTo(actualAmountDisbursed, amountDisbursable, 2),
+                        )
+                        .not.to.emit(juniorTrancheVaultContract, "LenderFundWithdrawn");
+                } else if (i === 1) {
+                    await expect(
+                        juniorTrancheVaultContract.connect(jLender).withdrawAfterPoolClosure(),
+                    )
+                        .to.emit(juniorTrancheVaultContract, "LenderFundDisbursed")
+                        .withArgs(
+                            await jLender.getAddress(),
+                            await jLender.getAddress(),
+                            (actualAmountDisbursed: BN) =>
+                                isCloseTo(actualAmountDisbursed, amountDisbursable, 2),
+                        )
+                        .to.emit(juniorTrancheVaultContract, "LenderFundWithdrawn")
+                        .withArgs(await jLender.getAddress(), numShares, expectedAssetsWithdrawn);
+                } else {
+                    await expect(
+                        juniorTrancheVaultContract.connect(jLender).withdrawAfterPoolClosure(),
+                    )
+                        .to.emit(juniorTrancheVaultContract, "LenderFundWithdrawn")
+                        .withArgs(await jLender.getAddress(), numShares, expectedAssetsWithdrawn)
+                        .not.to.emit(juniorTrancheVaultContract, "LenderFundDisbursed");
+                }
+
+                expect(await juniorTrancheVaultContract.totalSupply()).to.equal(
+                    oldTotalSupply.sub(numShares),
+                );
+                expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
+                    oldTotalAssets.sub(expectedAssetsWithdrawn),
+                );
+                expect(await mockTokenContract.balanceOf(jLender.getAddress())).to.be.closeTo(
+                    oldLenderBalance.add(expectedAssetsWithdrawn).add(amountDisbursable),
+                    2,
+                );
+                expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
+                    oldPoolSafeBalance.sub(expectedAssetsWithdrawn),
+                );
+                expect(
+                    await mockTokenContract.balanceOf(juniorTrancheVaultContract.address),
+                ).to.be.closeTo(oldJuniorTrancheBalance.sub(amountDisbursable), 2);
+                expect(
+                    await juniorTrancheVaultContract.withdrawableAssets(jLender.getAddress()),
+                ).to.equal(0);
+            }
+
+            for (const [i, sLender] of sActiveLenders.entries()) {
+                const amountDisbursable = sLenderAmountsProcessed[i].sub(sLenderWithdrawals[i]);
+                // All lenders have undisbursed funds from previous epochs.
+                expect(amountDisbursable).to.be.gt(0);
+                const numShares = await seniorTrancheVaultContract.balanceOf(sLender.getAddress());
+                const expectedAssetsWithdrawn =
+                    await seniorTrancheVaultContract.convertToAssets(numShares);
+                if (i === 2) {
+                    // The third senior lender has requested redemption for all their shares.
+                    expect(numShares).to.equal(0);
+                    expect(expectedAssetsWithdrawn).to.equal(0);
+                }
+
+                expect(
+                    await seniorTrancheVaultContract.withdrawableAssets(sLender.getAddress()),
+                ).to.be.closeTo(amountDisbursable.add(expectedAssetsWithdrawn), 2);
+
+                const oldTotalSupply = await seniorTrancheVaultContract.totalSupply();
+                const oldTotalAssets = await seniorTrancheVaultContract.totalAssets();
+                const oldLenderBalance = await mockTokenContract.balanceOf(sLender.getAddress());
+                const oldPoolSafeBalance = await mockTokenContract.balanceOf(
+                    poolSafeContract.address,
+                );
+                const oldJuniorTrancheBalance = await mockTokenContract.balanceOf(
+                    seniorTrancheVaultContract.address,
+                );
+
+                if (i === 2) {
+                    await expect(
+                        seniorTrancheVaultContract.connect(sLender).withdrawAfterPoolClosure(),
+                    )
+                        .to.emit(seniorTrancheVaultContract, "LenderFundDisbursed")
+                        .withArgs(
+                            await sLender.getAddress(),
+                            await sLender.getAddress(),
+                            (actualAmountDisbursed: BN) =>
+                                isCloseTo(actualAmountDisbursed, amountDisbursable, 2),
+                        )
+                        .not.to.emit(seniorTrancheVaultContract, "LenderFundWithdrawn");
+                } else {
+                    await expect(
+                        seniorTrancheVaultContract.connect(sLender).withdrawAfterPoolClosure(),
+                    )
+                        .to.emit(seniorTrancheVaultContract, "LenderFundDisbursed")
+                        .withArgs(
+                            await sLender.getAddress(),
+                            await sLender.getAddress(),
+                            (actualAmountDisbursed: BN) =>
+                                isCloseTo(actualAmountDisbursed, amountDisbursable, 2),
+                        )
+                        .to.emit(seniorTrancheVaultContract, "LenderFundWithdrawn")
+                        .withArgs(await sLender.getAddress(), numShares, expectedAssetsWithdrawn);
+                }
+
+                expect(await seniorTrancheVaultContract.totalSupply()).to.equal(
+                    oldTotalSupply.sub(numShares),
+                );
+                expect(await seniorTrancheVaultContract.totalAssets()).to.equal(
+                    oldTotalAssets.sub(expectedAssetsWithdrawn),
+                );
+                expect(await mockTokenContract.balanceOf(sLender.getAddress())).to.be.closeTo(
+                    oldLenderBalance.add(expectedAssetsWithdrawn).add(amountDisbursable),
+                    2,
+                );
+                expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
+                    oldPoolSafeBalance.sub(expectedAssetsWithdrawn),
+                );
+                expect(
+                    await mockTokenContract.balanceOf(seniorTrancheVaultContract.address),
+                ).to.be.closeTo(oldJuniorTrancheBalance.sub(amountDisbursable), 2);
+                expect(
+                    await seniorTrancheVaultContract.withdrawableAssets(sLender.getAddress()),
+                ).to.equal(0);
+            }
         });
     });
 });
