@@ -23,7 +23,7 @@ interface ICreditDueManager {
 
     /**
      * @notice Computes the front loading fee, which is also known as origination fee.
-     * @param _amount the borrowing amount.
+     * @param _amount The borrowing amount.
      * @return fees The amount of fees to be charged for this borrowing.
      */
     function calcFrontLoadingFee(uint256 _amount) external view returns (uint256 fees);

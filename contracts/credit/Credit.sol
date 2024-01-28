@@ -322,8 +322,8 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
                     if (cr.state == CreditState.Delayed) cr.state = CreditState.GoodStanding;
                 } else {
                     // If the payment is not enough to cover the total amount past due, then
-                    // apply the payment to the yield past due, followed by principal past due,
-                    // then lastly late fees.
+                    // apply the payment to the yield past due, followed by late fees, and lastly
+                    // principal past due.
                     if (amount > dd.yieldPastDue) {
                         amount -= dd.yieldPastDue;
                         paymentRecord.yieldPastDuePaid = dd.yieldPastDue;

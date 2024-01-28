@@ -139,7 +139,7 @@ contract HumaConfig is Ownable, Pausable {
 
     /**
      * @notice Adds a pauser, who can pause the entire protocol.
-     * @param _pauser Address to be added to the pauser list.
+     * @param _pauser The address to be added to the pauser list.
      * @custom:access Only the protocol owner can call this function.
      */
     function addPauser(address _pauser) external onlyOwner {
@@ -153,7 +153,7 @@ contract HumaConfig is Ownable, Pausable {
 
     /**
      * @notice Adds a pool admin.
-     * @param _poolAdmin Address to be added as a pool admin
+     * @param _poolAdmin The address to be added as a pool admin
      * @custom:access Only the protocol owner can call this function.
      */
     function addPoolAdmin(address _poolAdmin) external onlyOwner {
@@ -176,7 +176,7 @@ contract HumaConfig is Ownable, Pausable {
 
     /**
      * @notice Removes a pauser.
-     * @param _pauser Address to be removed from the pauser list.
+     * @param _pauser The address to be removed from the pauser list.
      * @custom:access Only the protocol owner can call this function.
      */
     function removePauser(address _pauser) external onlyOwner {
@@ -190,7 +190,7 @@ contract HumaConfig is Ownable, Pausable {
 
     /**
      * @notice Removes a pool admin.
-     * @param _poolAdmin Address to be removed from the poolAdmin list
+     * @param _poolAdmin The address to be removed from the poolAdmin list
      * @custom:access Only the protocol owner can call this function.
      */
     function removePoolAdmin(address _poolAdmin) external onlyOwner {
