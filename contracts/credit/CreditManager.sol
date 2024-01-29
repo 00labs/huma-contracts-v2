@@ -566,7 +566,6 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         credit.updateDueInfo(creditHash, cr, dd);
 
         emit LateFeeWaived(creditHash, oldLateFee, dd.lateFee, msg.sender);
-        return amountWaived;
     }
 
     /// Shared setter to the credit config mapping

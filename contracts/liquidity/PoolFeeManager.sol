@@ -366,7 +366,6 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
         incomes.eaIncome = uint96(income);
 
         remaining -= incomes.poolOwnerIncome + incomes.eaIncome;
-        return (incomes, remaining);
     }
 
     function _onlyPoolOwnerTreasury(address account) internal view returns (address) {
