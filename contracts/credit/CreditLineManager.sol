@@ -49,7 +49,7 @@ contract CreditLineManager is CreditManager, ICreditLineManager {
         poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
 
-        bytes32 creditHash = _getCreditHash(borrower);
+        bytes32 creditHash = getCreditHash(borrower);
         _approveCredit(
             borrower,
             creditHash,
@@ -78,7 +78,7 @@ contract CreditLineManager is CreditManager, ICreditLineManager {
         poolConfig.onlyProtocolAndPoolOn();
         poolConfig.onlyPoolOwnerOrSentinelServiceAccount(msg.sender);
 
-        bytes32 creditHash = _getCreditHash(borrower);
+        bytes32 creditHash = getCreditHash(borrower);
         onlyCreditBorrower(creditHash, borrower);
         _startCommittedCredit(creditHash);
     }
@@ -87,7 +87,7 @@ contract CreditLineManager is CreditManager, ICreditLineManager {
     function refreshCredit(address borrower) external virtual override {
         poolConfig.onlyProtocolAndPoolOn();
 
-        bytes32 creditHash = _getCreditHash(borrower);
+        bytes32 creditHash = getCreditHash(borrower);
         _refreshCredit(creditHash);
     }
 
@@ -103,7 +103,7 @@ contract CreditLineManager is CreditManager, ICreditLineManager {
         poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
 
-        bytes32 creditHash = _getCreditHash(borrower);
+        bytes32 creditHash = getCreditHash(borrower);
         return _triggerDefault(creditHash);
     }
 
@@ -113,7 +113,7 @@ contract CreditLineManager is CreditManager, ICreditLineManager {
         if (msg.sender != borrower && msg.sender != humaConfig.eaServiceAccount())
             revert Errors.BorrowerOrEARequired();
 
-        bytes32 creditHash = _getCreditHash(borrower);
+        bytes32 creditHash = getCreditHash(borrower);
         onlyCreditBorrower(creditHash, borrower);
         _closeCredit(creditHash);
     }
@@ -123,7 +123,7 @@ contract CreditLineManager is CreditManager, ICreditLineManager {
         poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
 
-        bytes32 creditHash = _getCreditHash(borrower);
+        bytes32 creditHash = getCreditHash(borrower);
         _pauseCredit(creditHash);
     }
 
@@ -132,7 +132,7 @@ contract CreditLineManager is CreditManager, ICreditLineManager {
         poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
 
-        bytes32 creditHash = _getCreditHash(borrower);
+        bytes32 creditHash = getCreditHash(borrower);
         _unpauseCredit(creditHash);
     }
 
@@ -141,7 +141,7 @@ contract CreditLineManager is CreditManager, ICreditLineManager {
         poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
 
-        bytes32 creditHash = _getCreditHash(borrower);
+        bytes32 creditHash = getCreditHash(borrower);
         _updateYield(creditHash, yieldInBps);
     }
 
@@ -153,7 +153,7 @@ contract CreditLineManager is CreditManager, ICreditLineManager {
         poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
 
-        bytes32 creditHash = _getCreditHash(borrower);
+        bytes32 creditHash = getCreditHash(borrower);
         _extendRemainingPeriod(creditHash, numOfPeriods);
     }
 
@@ -167,7 +167,7 @@ contract CreditLineManager is CreditManager, ICreditLineManager {
         _onlyEAServiceAccount();
         if (committedAmount > creditLimit) revert Errors.CommittedAmountGreaterThanCreditLimit();
 
-        _updateLimitAndCommitment(_getCreditHash(borrower), creditLimit, committedAmount);
+        _updateLimitAndCommitment(getCreditHash(borrower), creditLimit, committedAmount);
     }
 
     /// @inheritdoc ICreditLineManager
@@ -175,10 +175,10 @@ contract CreditLineManager is CreditManager, ICreditLineManager {
         poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
 
-        _waiveLateFee(_getCreditHash(borrower), amount);
+        _waiveLateFee(getCreditHash(borrower), amount);
     }
 
-    function _getCreditHash(address borrower) internal view virtual returns (bytes32 creditHash) {
+    function getCreditHash(address borrower) public view virtual returns (bytes32 creditHash) {
         return keccak256(abi.encode(address(credit), borrower));
     }
 }

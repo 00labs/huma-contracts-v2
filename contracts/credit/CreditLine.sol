@@ -20,7 +20,7 @@ contract CreditLine is Credit, ICreditLine {
         poolConfig.onlyProtocolAndPoolOn();
         if (borrower != msg.sender) revert Errors.BorrowerRequired();
 
-        bytes32 creditHash = _getCreditHash(borrower);
+        bytes32 creditHash = getCreditHash(borrower);
         creditManager.onlyCreditBorrower(creditHash, borrower);
         return _drawdown(borrower, creditHash, borrowAmount);
     }
@@ -33,7 +33,7 @@ contract CreditLine is Credit, ICreditLine {
         poolConfig.onlyProtocolAndPoolOn();
         if (msg.sender != borrower) _onlySentinelServiceAccount();
 
-        bytes32 creditHash = _getCreditHash(borrower);
+        bytes32 creditHash = getCreditHash(borrower);
         creditManager.onlyCreditBorrower(creditHash, borrower);
 
         (amountPaid, paidoff, ) = _makePayment(borrower, creditHash, amount);
@@ -48,7 +48,7 @@ contract CreditLine is Credit, ICreditLine {
         poolConfig.onlyProtocolAndPoolOn();
         if (msg.sender != borrower) _onlySentinelServiceAccount();
 
-        bytes32 creditHash = _getCreditHash(borrower);
+        bytes32 creditHash = getCreditHash(borrower);
         creditManager.onlyCreditBorrower(creditHash, borrower);
 
         (amountPaid, paidoff) = _makePrincipalPayment(borrower, creditHash, amount);
@@ -57,7 +57,7 @@ contract CreditLine is Credit, ICreditLine {
 
     /// @inheritdoc ICreditLine
     function getNextBillRefreshDate(address borrower) external view returns (uint256 refreshDate) {
-        bytes32 creditHash = _getCreditHash(borrower);
+        bytes32 creditHash = getCreditHash(borrower);
         return _getNextBillRefreshDate(creditHash);
     }
 
@@ -65,11 +65,11 @@ contract CreditLine is Credit, ICreditLine {
     function getDueInfo(
         address borrower
     ) external view returns (CreditRecord memory cr, DueDetail memory dd) {
-        bytes32 creditHash = _getCreditHash(borrower);
+        bytes32 creditHash = getCreditHash(borrower);
         return _getDueInfo(creditHash);
     }
 
-    function _getCreditHash(address borrower) internal view virtual returns (bytes32 creditHash) {
+    function getCreditHash(address borrower) public view virtual returns (bytes32 creditHash) {
         return keccak256(abi.encode(address(this), borrower));
     }
 }

@@ -57,7 +57,7 @@ contract ReceivableBackedCreditLineManager is
         if (receivable.receivableAmount == 0) revert Errors.ZeroReceivableAmount();
         validateReceivableStatus(receivable.maturityDate, receivable.state);
 
-        bytes32 creditHash = _getCreditHash(borrower);
+        bytes32 creditHash = getCreditHash(borrower);
         onlyCreditBorrower(creditHash, borrower);
 
         _approveReceivable(borrower, creditHash, receivableId, receivable.receivableAmount);
