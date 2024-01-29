@@ -320,14 +320,11 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
     function getNextBillRefreshDate(
         CreditRecord memory cr
     ) public view returns (uint256 refreshDate) {
-        PoolSettings memory poolSettings = poolConfig.getPoolSettings();
-        uint256 latePaymentDeadline = cr.nextDueDate +
-            poolSettings.latePaymentGracePeriodInDays *
-            SECONDS_IN_A_DAY;
         if (cr.state == CreditState.GoodStanding && cr.nextDue != 0) {
             // If this is the first time ever that the bill has surpassed the due date and the bill has unpaid amounts,
             // then we don't want to refresh the bill since we want the user to focus on paying off the current due.
-            return latePaymentDeadline;
+            PoolSettings memory poolSettings = poolConfig.getPoolSettings();
+            return cr.nextDueDate + poolSettings.latePaymentGracePeriodInDays * SECONDS_IN_A_DAY;
         }
         return cr.nextDueDate;
     }
