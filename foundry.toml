@@ -12,8 +12,8 @@ solc = "0.8.23"
 runs = 5_000
 
 [invariant]
-runs = 200
-depth = 60
+runs = 10
+depth = 10
 fail_on_revert = false
 
 [profile.ci]

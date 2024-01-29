@@ -12,6 +12,7 @@ import {CreditLine} from "contracts/credit/CreditLine.sol";
 import {CreditDueManager} from "contracts/credit/CreditDueManager.sol";
 import {CreditLineManager} from "contracts/credit/CreditLineManager.sol";
 import {CreditRecord, CreditConfig, CreditState} from "contracts/credit/CreditStructs.sol";
+import {SENIOR_TRANCHE, JUNIOR_TRANCHE} from "contracts/common/SharedDefs.sol";
 
 import {Test} from "forge-std/Test.sol";
 import "forge-std/console.sol";
@@ -42,6 +43,8 @@ contract InvariantHandler is Test {
     address[] lenders;
     mapping(uint256 => address[]) investedLendersByTranche;
     mapping(uint256 => address[]) redeemedLendersByTranche;
+    mapping(address => mapping(uint256 => uint256)) public lendersWithdrawn;
+    mapping(uint256 => uint256) public amountsTransferredToTranches;
 
     address[] borrowers;
     address[] borrowedBorrowers;
@@ -267,7 +270,10 @@ contract InvariantHandler is Test {
         console.log("valid disburse - trancheIndex: %s, lender: %s", trancheIndex, lender);
         validCalls[this.disburse.selector]++;
         vm.startPrank(lender);
+        uint256 balanceBefore = mockToken.balanceOf(lender);
         tranche.disburse();
+        uint256 withdrawn = mockToken.balanceOf(lender) - balanceBefore;
+        lendersWithdrawn[lender][trancheIndex] += withdrawn;
         vm.stopPrank();
         uint256 maxRedemptionShares = tranche.cancellableRedemptionShares(lender);
         if (maxRedemptionShares < minRedemptionShares) {
@@ -441,7 +447,17 @@ contract InvariantHandler is Test {
             callInvestFee = true;
             console.log("processYieldForLenders done.");
         }
+        uint256 seniorAssetsBefore = mockToken.balanceOf(address(tranches[SENIOR_TRANCHE]));
+        uint256 juniorAssetsBefore = mockToken.balanceOf(address(tranches[JUNIOR_TRANCHE]));
         epochManager.closeEpoch();
+        uint256 seniorAssetsAfter = mockToken.balanceOf(address(tranches[SENIOR_TRANCHE]));
+        uint256 juniorAssetsAfter = mockToken.balanceOf(address(tranches[JUNIOR_TRANCHE]));
+        if (seniorAssetsAfter > seniorAssetsBefore) {
+            amountsTransferredToTranches[SENIOR_TRANCHE] += seniorAssetsAfter - seniorAssetsBefore;
+        }
+        if (juniorAssetsAfter > juniorAssetsBefore) {
+            amountsTransferredToTranches[JUNIOR_TRANCHE] += juniorAssetsAfter - juniorAssetsBefore;
+        }
         _updateCurrentEpochEndTime();
         if (callInvestFee) {
             console.log("investFeesInFirstLossCover starts...");

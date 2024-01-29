@@ -57,6 +57,11 @@ contract BaseTest is Test {
     TrancheVault seniorTranche;
     TrancheVault juniorTranche;
     PoolSafe poolSafe;
+    EpochManager epochManager;
+    FirstLossCover adminFLC;
+    PoolConfig poolConfig;
+    CreditLine creditLine;
+    Pool pool;
 
     uint256 poolId;
 
@@ -181,7 +186,7 @@ contract BaseTest is Test {
 
     function _enablePool() internal {
         PoolFactory.PoolRecord memory poolRecord = poolFactory.checkPool(poolId);
-        PoolConfig poolConfig = PoolConfig(poolRecord.poolConfigAddress);
+        poolConfig = PoolConfig(poolRecord.poolConfigAddress);
         vm.startPrank(poolOwner);
         poolConfig.setPoolOwnerTreasury(poolOwnerTreasury);
         vm.recordLogs();
@@ -196,9 +201,7 @@ contract BaseTest is Test {
         }
         poolConfig.setEvaluationAgent(eaNFTTokenId, evaluationAgent);
 
-        FirstLossCover adminFLC = FirstLossCover(
-            poolConfig.getFirstLossCover(ADMIN_LOSS_COVER_INDEX)
-        );
+        adminFLC = FirstLossCover(poolConfig.getFirstLossCover(ADMIN_LOSS_COVER_INDEX));
         adminFLC.addCoverProvider(poolOwnerTreasury);
         adminFLC.addCoverProvider(evaluationAgent);
         FirstLossCover borrowerFLC = FirstLossCover(
@@ -250,8 +253,9 @@ contract BaseTest is Test {
         borrowerFLC.depositCover(flcConfig.minLiquidity);
         vm.stopPrank();
 
+        pool = Pool(poolConfig.pool());
         vm.startPrank(poolOwner);
-        Pool(poolConfig.pool()).enablePool();
+        pool.enablePool();
         vm.stopPrank();
 
         seniorTranche = TrancheVault(poolConfig.seniorTranche());
@@ -268,6 +272,8 @@ contract BaseTest is Test {
         vm.stopPrank();
 
         poolSafe = PoolSafe(poolConfig.poolSafe());
+        epochManager = EpochManager(poolConfig.epochManager());
+        creditLine = CreditLine(poolConfig.credit());
 
         // console.log(
         //     "_enablePool - block.timestamp: %s, block.number: %s",
