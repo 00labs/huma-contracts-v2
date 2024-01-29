@@ -477,10 +477,8 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
     function addPoolOperator(uint256 _poolId, address poolOperator) external {
         _onlyDeployer(msg.sender);
         _notZeroAddress(poolOperator);
-        PoolConfig(pools[_poolId].poolConfigAddress).grantRole(
-            PoolConfig(pools[_poolId].poolConfigAddress).POOL_OPERATOR_ROLE(),
-            poolOperator
-        );
+        PoolConfig poolConfig = PoolConfig(pools[_poolId].poolConfigAddress);
+        poolConfig.grantRole(poolConfig.POOL_OPERATOR_ROLE(), poolOperator);
     }
 
     // Huma requires all pools to have a timelock controller, this function adds a timelock controller to a pool
