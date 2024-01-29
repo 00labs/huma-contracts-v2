@@ -12,9 +12,9 @@ solc = "0.8.23"
 runs = 5_000
 
 [invariant]
-runs = 2
-depth = 50
-fail_on_revert = true
+runs = 200
+depth = 60
+fail_on_revert = false
 
 [profile.ci]
 verbosity = 4

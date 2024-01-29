@@ -7,6 +7,7 @@ import {MockToken} from "contracts/common/mock/MockToken.sol";
 import {Pool} from "contracts/liquidity/Pool.sol";
 import {PoolSafe} from "contracts/liquidity/PoolSafe.sol";
 import {EpochManager} from "contracts/liquidity/EpochManager.sol";
+import {PoolFeeManager} from "contracts/liquidity/PoolFeeManager.sol";
 import {CreditLine} from "contracts/credit/CreditLine.sol";
 import {CreditDueManager} from "contracts/credit/CreditDueManager.sol";
 import {CreditLineManager} from "contracts/credit/CreditLineManager.sol";
@@ -20,15 +21,20 @@ contract InvariantHandler is Test {
     uint256 immutable minRedemptionShares;
     uint256 immutable minDrawdownAmount;
     uint256 immutable minPaymentAmount;
+    uint256 immutable minReinvestFees;
 
     TrancheVault[] tranches;
     MockToken mockToken;
     Pool pool;
     PoolSafe poolSafe;
     EpochManager epochManager;
+    PoolFeeManager poolFeeManager;
+
     CreditLine creditLine;
     CreditLineManager creditLineManager;
     CreditDueManager creditDueManager;
+
+    address sentinelServiceAccount;
 
     uint256 minDepositAmount;
     uint256 currentEpochEndTime;
@@ -92,6 +98,7 @@ contract InvariantHandler is Test {
         poolSafe = PoolSafe(poolConfig.poolSafe());
         mockToken = MockToken(poolConfig.underlyingToken());
         epochManager = EpochManager(poolConfig.epochManager());
+        poolFeeManager = PoolFeeManager(poolConfig.poolFeeManager());
         lenders = _lenders;
 
         creditLine = CreditLine(poolConfig.credit());
@@ -99,11 +106,13 @@ contract InvariantHandler is Test {
         creditDueManager = CreditDueManager(poolConfig.creditDueManager());
         borrowers = _borrowers;
 
+        sentinelServiceAccount = poolConfig.humaConfig().sentinelServiceAccount();
         minDepositAmount = poolConfig.getPoolSettings().minDepositAmount;
         decimals = mockToken.decimals();
         minRedemptionShares = _toToken(1);
         minDrawdownAmount = _toToken(100000);
         minPaymentAmount = _toToken(1000);
+        minReinvestFees = _toToken(1000);
 
         _updateCurrentEpochEndTime();
     }
@@ -156,6 +165,7 @@ contract InvariantHandler is Test {
         logCall(this.addRedemptionRequest.selector, "addRedemptionRequest")
         advanceTimestamp(timeSeed)
     {
+        console.log("addRedemptionRequest starts......");
         uint256 trancheIndex = _boundNew(trancheSeed, 0, tranches.length - 1);
         if (investedLendersByTranche[trancheIndex].length == 0) return;
         TrancheVault tranche = tranches[trancheIndex];
@@ -296,6 +306,7 @@ contract InvariantHandler is Test {
         (CreditRecord memory cr, ) = creditLine.getDueInfo(borrower);
         if (cr.state != CreditState.Approved && cr.state != CreditState.GoodStanding) return;
         if (cr.remainingPeriods == 0) return;
+        if (cr.nextDue != 0 && block.timestamp > cr.nextDueDate) return;
         CreditConfig memory cc = creditLineManager.getCreditConfig(
             keccak256(abi.encode(address(creditLine), borrower))
         );
@@ -359,35 +370,55 @@ contract InvariantHandler is Test {
         vm.stopPrank();
     }
 
-    function displayCallsLog() public {
+    function displayCallsLog() public view {
         console.log("calls: ");
         console.log("--------------------");
+        uint256 total;
         console.log("deposit: %s", calls[this.deposit.selector]);
+        total += calls[this.deposit.selector];
         console.log("addRedemptionRequest: %s", calls[this.addRedemptionRequest.selector]);
+        total += calls[this.addRedemptionRequest.selector];
         console.log("cancelRedemptionRequest: %s", calls[this.cancelRedemptionRequest.selector]);
+        total += calls[this.cancelRedemptionRequest.selector];
         console.log("disburse: %s", calls[this.disburse.selector]);
+        total += calls[this.disburse.selector];
         console.log("processYieldForLenders: %s", calls[this.processYieldForLenders.selector]);
+        total += calls[this.processYieldForLenders.selector];
         console.log("drawdown: %s", calls[this.drawdown.selector]);
+        total += calls[this.drawdown.selector];
         console.log("makePayment: %s", calls[this.makePayment.selector]);
+        total += calls[this.makePayment.selector];
         console.log("refreshCredit: %s", calls[this.refreshCredit.selector]);
+        total += calls[this.refreshCredit.selector];
+        console.log("total: %s", total);
         console.log("--------------------");
 
         console.log("validCalls: ");
         console.log("--------------------");
+        total = 0;
         console.log("deposit: %s", validCalls[this.deposit.selector]);
+        total += validCalls[this.deposit.selector];
         console.log("addRedemptionRequest: %s", validCalls[this.addRedemptionRequest.selector]);
+        total += validCalls[this.addRedemptionRequest.selector];
         console.log(
             "cancelRedemptionRequest: %s",
             validCalls[this.cancelRedemptionRequest.selector]
         );
+        total += validCalls[this.cancelRedemptionRequest.selector];
         console.log("disburse: %s", validCalls[this.disburse.selector]);
+        total += validCalls[this.disburse.selector];
         console.log(
             "processYieldForLenders: %s",
             validCalls[this.processYieldForLenders.selector]
         );
+        total += validCalls[this.processYieldForLenders.selector];
         console.log("drawdown: %s", validCalls[this.drawdown.selector]);
+        total += validCalls[this.drawdown.selector];
         console.log("makePayment: %s", validCalls[this.makePayment.selector]);
+        total += validCalls[this.makePayment.selector];
         console.log("refreshCredit: %s", validCalls[this.refreshCredit.selector]);
+        total += validCalls[this.refreshCredit.selector];
+        console.log("total: %s", total);
         console.log("--------------------");
     }
 
@@ -396,27 +427,36 @@ contract InvariantHandler is Test {
     }
 
     function _closeEpoch() internal {
-        // console.log(
-        //     "close epoch - tiemstamp: %s, currentEpochEndTime: %s",
-        //     timestamp,
-        //     currentEpochEndTime
-        // );
-        // console.log("closeEpoch starts...");
+        console.log(
+            "close epoch - block.tiemstamp: %s, currentEpochEndTime: %s",
+            block.timestamp,
+            currentEpochEndTime
+        );
+        console.log("closeEpoch starts...");
+        bool callInvestFee;
         if (hasProfit) {
+            console.log("processYieldForLenders starts...");
             tranches[0].processYieldForLenders();
             tranches[1].processYieldForLenders();
+            callInvestFee = true;
+            console.log("processYieldForLenders done.");
         }
         epochManager.closeEpoch();
-        // console.log("closeEpoch done.");
         _updateCurrentEpochEndTime();
-        // console.log(
-        //     "close epoch - new currentEpochEndTime: %s",
-        //     timestamp,
-        //     currentEpochEndTime
-        // );
+        if (callInvestFee) {
+            console.log("investFeesInFirstLossCover starts...");
+            uint256 fees = poolFeeManager.getAvailableFeesToInvestInFirstLossCover();
+            if (fees > minReinvestFees) {
+                vm.startPrank(sentinelServiceAccount);
+                poolFeeManager.investFeesInFirstLossCover();
+                vm.stopPrank();
+            }
+            console.log("investFeesInFirstLossCover done.");
+        }
+        console.log("closeEpoch done.");
     }
 
-    function _updateCurrentEpochEndTime() internal returns (uint256) {
+    function _updateCurrentEpochEndTime() internal {
         EpochManager.CurrentEpoch memory epoch = epochManager.currentEpoch();
         currentEpochEndTime = epoch.endTime;
     }

@@ -41,7 +41,8 @@ contract BaseTest is Test {
     address poolOperator;
     address poolOwnerTreasury;
     address evaluationAgent;
-    address borrower;
+    address initBorrower;
+    address initLender;
 
     address[] lenders;
     address[] borrowers;
@@ -53,6 +54,10 @@ contract BaseTest is Test {
     PoolFactoryForTest poolFactory;
     Receivable receivable;
 
+    TrancheVault seniorTranche;
+    TrancheVault juniorTranche;
+    PoolSafe poolSafe;
+
     uint256 poolId;
 
     string constant FIXED_SENIOR_YIELD_TRANCHES_POLICY = "fixed";
@@ -62,6 +67,9 @@ contract BaseTest is Test {
     string constant RECEIVABLE_FACTORING_CREDIT = "receivablefactoring";
 
     InvariantHandler handler;
+
+    uint256 seniorInitialShares;
+    uint256 juniorInitialShares;
 
     function setUp() public virtual {
         _createAccounts();
@@ -80,7 +88,8 @@ contract BaseTest is Test {
         poolOperator = makeAddr("poolOperator");
         poolOwnerTreasury = makeAddr("poolOwnerTreasury");
         evaluationAgent = makeAddr("evaluationAgent");
-        borrower = makeAddr("borrower");
+        initBorrower = makeAddr("initBorrower");
+        initLender = makeAddr("initLender");
     }
 
     function _deployProtocolContracts() internal {
@@ -195,7 +204,7 @@ contract BaseTest is Test {
         FirstLossCover borrowerFLC = FirstLossCover(
             poolConfig.getFirstLossCover(BORROWER_LOSS_COVER_INDEX)
         );
-        borrowerFLC.addCoverProvider(borrower);
+        borrowerFLC.addCoverProvider(initBorrower);
 
         vm.stopPrank();
 
@@ -204,12 +213,14 @@ contract BaseTest is Test {
         FirstLossCoverConfig memory flcConfig = poolConfig.getFirstLossCoverConfig(
             address(adminFLC)
         );
+        juniorTranche = TrancheVault(poolConfig.juniorTranche());
         vm.startPrank(poolOwnerTreasury);
         mockToken.approve(poolConfig.poolSafe(), type(uint256).max);
         mockToken.approve(address(adminFLC), type(uint256).max);
         uint256 amount = (lpConfig.liquidityCap * adminRnR.liquidityRateInBpsByPoolOwner) / 10000;
         mockToken.mint(poolOwnerTreasury, amount);
-        TrancheVault(poolConfig.juniorTranche()).makeInitialDeposit(amount);
+        juniorTranche.makeInitialDeposit(amount);
+        juniorInitialShares += juniorTranche.balanceOf(poolOwnerTreasury);
         amount = flcConfig.minLiquidity / 2;
         mockToken.mint(poolOwnerTreasury, amount);
         adminFLC.depositCover(amount);
@@ -220,27 +231,43 @@ contract BaseTest is Test {
         mockToken.approve(address(adminFLC), type(uint256).max);
         amount = (lpConfig.liquidityCap * adminRnR.liquidityRateInBpsByEA) / 10000;
         mockToken.mint(evaluationAgent, amount);
-        TrancheVault(poolConfig.juniorTranche()).makeInitialDeposit(amount);
+        juniorTranche.makeInitialDeposit(amount);
+        juniorInitialShares += juniorTranche.balanceOf(evaluationAgent);
         amount = flcConfig.minLiquidity / 2;
         mockToken.mint(evaluationAgent, amount);
         adminFLC.depositCover(amount);
         vm.stopPrank();
 
         vm.startPrank(poolOperator);
-        TrancheVault(poolConfig.juniorTranche()).setReinvestYield(poolOwnerTreasury, true);
-        TrancheVault(poolConfig.juniorTranche()).setReinvestYield(evaluationAgent, true);
+        juniorTranche.setReinvestYield(poolOwnerTreasury, true);
+        juniorTranche.setReinvestYield(evaluationAgent, true);
         vm.stopPrank();
 
-        vm.startPrank(borrower);
+        vm.startPrank(initBorrower);
         flcConfig = poolConfig.getFirstLossCoverConfig(address(borrowerFLC));
         mockToken.approve(address(borrowerFLC), type(uint256).max);
-        mockToken.mint(borrower, flcConfig.minLiquidity);
+        mockToken.mint(initBorrower, flcConfig.minLiquidity);
         borrowerFLC.depositCover(flcConfig.minLiquidity);
         vm.stopPrank();
 
         vm.startPrank(poolOwner);
         Pool(poolConfig.pool()).enablePool();
         vm.stopPrank();
+
+        seniorTranche = TrancheVault(poolConfig.seniorTranche());
+        vm.startPrank(poolOperator);
+        seniorTranche.addApprovedLender(initLender, true);
+        vm.stopPrank();
+
+        // A lender deposits some liquidity in senior tranche to solve a tiny issue of epoch close
+        vm.startPrank(initLender);
+        mockToken.approve(poolConfig.poolSafe(), type(uint256).max);
+        mockToken.mint(initLender, _toToken(100_000));
+        seniorTranche.deposit(_toToken(100_000), initLender);
+        seniorInitialShares += seniorTranche.balanceOf(initLender);
+        vm.stopPrank();
+
+        poolSafe = PoolSafe(poolConfig.poolSafe());
 
         // console.log(
         //     "_enablePool - block.timestamp: %s, block.number: %s",
@@ -250,12 +277,6 @@ contract BaseTest is Test {
     }
 
     function _createUsers(uint256 lenderNum, uint256 borrowerNum) internal {
-        TrancheVault juniorTranche = TrancheVault(
-            PoolConfig(poolFactory.checkPool(poolId).poolConfigAddress).juniorTranche()
-        );
-        TrancheVault seniorTranche = TrancheVault(
-            PoolConfig(poolFactory.checkPool(poolId).poolConfigAddress).seniorTranche()
-        );
         for (uint256 i; i < lenderNum; i++) {
             address lender = makeAddr(string(abi.encode("lender", i)));
             vm.startPrank(poolOperator);
