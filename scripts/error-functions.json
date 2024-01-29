@@ -23,7 +23,6 @@
   "TrancheRequired()": "0x56b15134",
   "TreasuryFeeHighThanUpperLimit()": "0x743a9631",
   "AlreadyAPauser()": "0x2fe391f2",
-  "AlreadyPoolAdmin()": "0xebe277bd",
   "ProposedEADoesNotOwnProvidedEANFT()": "0xc7388fc8",
   "UnderlyingTokenNotApprovedForHumaProtocol()": "0x28918c5b",
   "AdminRewardRateTooHigh()": "0xa01087e8",
