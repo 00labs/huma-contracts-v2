@@ -2427,12 +2427,17 @@ describe("TrancheVault Test", function () {
                 const oldTotalSupply = await juniorTrancheVaultContract.totalSupply();
                 const oldTotalAssets = await juniorTrancheVaultContract.totalAssets();
                 const oldLenderBalance = await mockTokenContract.balanceOf(lender.getAddress());
+                const oldDepositRecord = await juniorTrancheVaultContract.depositRecords(
+                    lender.getAddress(),
+                );
+                expect(oldDepositRecord.principal).to.be.gt(0);
                 const oldPoolSafeBalance = await mockTokenContract.balanceOf(
                     poolSafeContract.address,
                 );
                 const oldJuniorTrancheBalance = await mockTokenContract.balanceOf(
                     juniorTrancheVaultContract.address,
                 );
+
                 await expect(juniorTrancheVaultContract.connect(lender).withdrawAfterPoolClosure())
                     .to.emit(juniorTrancheVaultContract, "LenderFundDisbursed")
                     .withArgs(
@@ -2461,6 +2466,11 @@ describe("TrancheVault Test", function () {
                 expect(
                     await juniorTrancheVaultContract.withdrawableAssets(lender.getAddress()),
                 ).to.equal(0);
+
+                const newDepositRecord = await juniorTrancheVaultContract.depositRecords(
+                    lender.getAddress(),
+                );
+                expect(newDepositRecord.principal).to.equal(0);
             });
 
             it("Should not allow lenders to withdraw if the pool is not closed", async function () {

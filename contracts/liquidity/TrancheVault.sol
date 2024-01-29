@@ -432,6 +432,11 @@ contract TrancheVault is
             tranchesAssets[trancheIndex] -= uint96(assets);
             pool.updateTranchesAssets(tranchesAssets);
 
+            // Set the lender's deposited principal to 0.
+            DepositRecord memory depositRecord = _getDepositRecord(msg.sender);
+            depositRecord.principal = 0;
+            _setDepositRecord(msg.sender, depositRecord);
+
             // Burn the LP tokens and transfer assets to the lender.
             ERC20Upgradeable._burn(msg.sender, numShares);
             poolSafe.withdraw(msg.sender, assets);
