@@ -1007,7 +1007,7 @@ describe("PoolConfig Tests", function () {
                     .addApprovedLender(evaluationAgent.getAddress(), true);
                 await juniorTrancheVaultContract
                     .connect(evaluationAgent)
-                    .deposit(evaluationAgentLiquidity, evaluationAgent.getAddress());
+                    .deposit(evaluationAgentLiquidity);
                 await expect(
                     poolConfigContract
                         .connect(poolOwner)
@@ -1037,9 +1037,7 @@ describe("PoolConfig Tests", function () {
                         adminFirstLossCoverContract.address,
                         minFirstLossCoverRequirement.add(minLiquidity),
                     );
-                await juniorTrancheVaultContract
-                    .connect(evaluationAgent2)
-                    .deposit(minLiquidity, evaluationAgent2.address);
+                await juniorTrancheVaultContract.connect(evaluationAgent2).deposit(minLiquidity);
 
                 await expect(
                     poolConfigContract
@@ -1117,9 +1115,7 @@ describe("PoolConfig Tests", function () {
                         adminFirstLossCoverContract.address,
                         minFirstLossCoverRequirement.add(minLiquidity),
                     );
-                await juniorTrancheVaultContract
-                    .connect(evaluationAgent2)
-                    .deposit(minLiquidity, evaluationAgent2.address);
+                await juniorTrancheVaultContract.connect(evaluationAgent2).deposit(minLiquidity);
 
                 await expect(
                     poolConfigContract
@@ -2168,7 +2164,7 @@ describe("PoolConfig Tests", function () {
                     .addApprovedLender(evaluationAgent.getAddress(), true);
                 await juniorTrancheVaultContract
                     .connect(evaluationAgent)
-                    .deposit(evaluationAgentLiquidity, evaluationAgent.getAddress());
+                    .deposit(evaluationAgentLiquidity);
                 await poolConfigContract
                     .connect(poolOwner)
                     .setEvaluationAgent(eaNFTTokenId, evaluationAgent.address);
