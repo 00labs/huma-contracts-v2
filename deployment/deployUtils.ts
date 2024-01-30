@@ -123,14 +123,19 @@ const sendTransaction = async function (
     console.log(`${contractName}:${logMessage} End!`);
 };
 
-export async function deploy(contractName, keyName, contractParameters?, deployer?) {
+export async function deploy(contractName, keyName, contractParameters?, libraries?, deployer?) {
     const deployed = await getDeployedContract(keyName);
     if (deployed) {
         console.log(`${keyName} already deployed: ${deployed}`);
         let Contract = await hre.ethers.getContractFactory(contractName);
         return Contract.attach(deployed);
     }
-    let Contract = await hre.ethers.getContractFactory(contractName);
+    let Contract;
+    if (libraries) {
+        Contract = await hre.ethers.getContractFactory(contractName, libraries);
+    } else {
+        Contract = await hre.ethers.getContractFactory(contractName);
+    }
     if (deployer) {
         Contract = Contract.connect(deployer);
     }
