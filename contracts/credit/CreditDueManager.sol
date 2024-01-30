@@ -30,7 +30,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         DueDetail memory dd,
         uint256 timestamp
     ) external view virtual override returns (CreditRecord memory newCR, DueDetail memory newDD) {
-        // Do not update due info for credits that are under certain states, such as closed, defaulted or paused.
+        // Do not update due info for credits that are under certain states, such as closed and defaulted.
         if (
             cr.state != CreditState.Approved &&
             cr.state != CreditState.GoodStanding &&
