@@ -27,6 +27,11 @@ const config: HardhatUserConfig = {
             url: sepoliaUrl,
             accounts: [deployer],
         },
+        alfajores: {
+            url: "https://alfajores-forno.celo-testnet.org",
+            accounts: [deployer],
+            chainId: 44787,
+        },
     },
     solidity: {
         compilers: [
@@ -44,6 +49,7 @@ const config: HardhatUserConfig = {
     etherscan: {
         apiKey: {
             sepolia: process.env.ETHERSCAN_API_KEY || "",
+            alfajores: process.env.CELOSCAN_API_KEY || "",
         },
     },
     contractSizer: {
