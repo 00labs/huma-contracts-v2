@@ -82,6 +82,7 @@ contract ReceivableFactoringCreditManager is
         _onlyEAServiceAccount();
         if (creditLimit > receivableInput.receivableAmount)
             revert Errors.InsufficientReceivableAmount();
+        if (receivableInput.receivableId == 0) revert Errors.ZeroReceivableIdProvided();
 
         bytes32 creditHash = _getCreditHash(receivableInput.receivableId);
         _approveCredit(
