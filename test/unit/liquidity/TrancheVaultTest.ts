@@ -988,7 +988,13 @@ describe("TrancheVault Test", function () {
                 await expect(
                     juniorTrancheVaultContract
                         .connect(lender)
-                        .transfer(lender2.address, toToken(100)),
+                        .transfer(lender2.getAddress(), toToken(100)),
+                ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "UnsupportedFunction");
+
+                await expect(
+                    juniorTrancheVaultContract
+                        .connect(lender)
+                        .transferFrom(lender2.getAddress(), lender.getAddress(), toToken(100)),
                 ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "UnsupportedFunction");
             });
         });
