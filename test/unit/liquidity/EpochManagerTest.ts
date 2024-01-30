@@ -22,13 +22,12 @@ import {
 import {
     EpochChecker,
     FeeCalculator,
-    PnLCalculator,
     deployAndSetupPoolContracts,
     deployProtocolContracts,
+    getAssetsAfterProfitAndLoss,
 } from "../../BaseTest";
 import {
     ceilDiv,
-    getFirstLossCoverInfo,
     getLatestBlock,
     isCloseTo,
     mineNextBlockWithTimestamp,
@@ -183,31 +182,6 @@ describe("EpochManager Test", function () {
         await loadFixture(prepare);
     });
 
-    async function getAssetsAfterProfitAndLoss(profit: BN, loss: BN, lossRecovery: BN) {
-        const adjustment = 8000;
-        await overrideLPConfig(poolConfigContract, poolOwner, {
-            tranchesRiskAdjustmentInBps: adjustment,
-        });
-        const assetInfo = await poolContract.tranchesAssets();
-        const assets = [assetInfo[CONSTANTS.SENIOR_TRANCHE], assetInfo[CONSTANTS.JUNIOR_TRANCHE]];
-        const profitAfterFees = await feeCalculator.calcPoolFeeDistribution(profit);
-        const firstLossCoverInfos = await Promise.all(
-            [borrowerFirstLossCoverContract, adminFirstLossCoverContract].map(
-                async (contract) => await getFirstLossCoverInfo(contract, poolConfigContract),
-            ),
-        );
-
-        return await PnLCalculator.calcRiskAdjustedProfitAndLoss(
-            profitAfterFees,
-            loss,
-            lossRecovery,
-            assets,
-            [BN.from(0), BN.from(0)],
-            BN.from(adjustment),
-            firstLossCoverInfos,
-        );
-    }
-
     describe("startNewEpoch", function () {
         it("Should not allow non-Pool to start new epoch", async function () {
             await expect(epochManagerContract.startNewEpoch()).to.be.revertedWithCustomError(
@@ -243,12 +217,8 @@ describe("EpochManager Test", function () {
         it("Should start a new epoch when there are unprocessed redemption requests", async function () {
             await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(toToken(1000));
             await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(toToken(2000));
-            await await juniorTrancheVaultContract
-                .connect(lender)
-                .addRedemptionRequest(toToken(1500));
-            await await juniorTrancheVaultContract
-                .connect(lender2)
-                .addRedemptionRequest(toToken(2500));
+            await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(toToken(1500));
+            await juniorTrancheVaultContract.connect(lender2).addRedemptionRequest(toToken(2500));
 
             await poolContract.connect(poolOwner).disablePool();
 
@@ -323,6 +293,11 @@ describe("EpochManager Test", function () {
             );
 
             const [[seniorAssets, juniorAssets]] = await getAssetsAfterProfitAndLoss(
+                poolConfigContract,
+                poolContract,
+                [borrowerFirstLossCoverContract, adminFirstLossCoverContract],
+                poolOwner,
+                feeCalculator,
                 profit,
                 loss,
                 lossRecovery,
@@ -960,6 +935,11 @@ describe("EpochManager Test", function () {
                 juniorSharesToRedeem: BN,
             ) {
                 const [[seniorAssets, juniorAssets]] = await getAssetsAfterProfitAndLoss(
+                    poolConfigContract,
+                    poolContract,
+                    [borrowerFirstLossCoverContract, adminFirstLossCoverContract],
+                    poolOwner,
+                    feeCalculator,
                     profit,
                     loss,
                     lossRecovery,
@@ -998,7 +978,16 @@ describe("EpochManager Test", function () {
                     ,
                     profitsForFirstLossCovers,
                     lossRecoveredInFirstLossCovers,
-                ] = await getAssetsAfterProfitAndLoss(profit, loss, lossRecovery);
+                ] = await getAssetsAfterProfitAndLoss(
+                    poolConfigContract,
+                    poolContract,
+                    [borrowerFirstLossCoverContract, adminFirstLossCoverContract],
+                    poolOwner,
+                    feeCalculator,
+                    profit,
+                    loss,
+                    lossRecovery,
+                );
                 const seniorSupply = await seniorTrancheVaultContract.totalSupply();
                 const seniorPrice = seniorAssets
                     .mul(CONSTANTS.DEFAULT_DECIMALS_FACTOR)
@@ -1763,242 +1752,10 @@ describe("EpochManager Test", function () {
     });
 
     describe("processEpochAfterPoolClosure", function () {
-        async function testProcessEpoch(
-            seniorSharesRequested: BN,
-            seniorSharesRedeemable: BN,
-            juniorSharesRequested: BN,
-            juniorSharesRedeemable: BN,
-            profit: BN = BN.from(0),
-            loss: BN = BN.from(0),
-            lossRecovery: BN = BN.from(0),
-            delta: number = 0,
-        ) {
-            const currentEpoch = await epochManagerContract.currentEpoch();
-
-            const [[seniorAssets, juniorAssets]] = await getAssetsAfterProfitAndLoss(
-                profit,
-                loss,
-                lossRecovery,
-            );
-            const seniorTotalSupply = await seniorTrancheVaultContract.totalSupply();
-            const seniorTokenPrice = seniorAssets
-                .mul(CONSTANTS.DEFAULT_DECIMALS_FACTOR)
-                .div(seniorTotalSupply);
-            const seniorAmountRedeemable = seniorSharesRedeemable
-                .mul(seniorTokenPrice)
-                .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR);
-            const expectedSeniorAssets = seniorAssets.sub(seniorAmountRedeemable);
-            const seniorTokenBalance = await mockTokenContract.balanceOf(
-                seniorTrancheVaultContract.address,
-            );
-
-            const juniorTotalSupply = await juniorTrancheVaultContract.totalSupply();
-            const juniorTokenPrice = juniorAssets
-                .mul(CONSTANTS.DEFAULT_DECIMALS_FACTOR)
-                .div(juniorTotalSupply);
-            const juniorAmountRedeemable = juniorSharesRedeemable
-                .mul(juniorTokenPrice)
-                .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR);
-            const expectedJuniorAssets = juniorAssets.sub(juniorAmountRedeemable);
-            const juniorTokenBalance = await mockTokenContract.balanceOf(
-                juniorTrancheVaultContract.address,
-            );
-            const expectedUnprocessedAmount = seniorSharesRequested
-                .sub(seniorSharesRedeemable)
-                .mul(seniorTokenPrice)
-                .add(juniorSharesRequested.sub(juniorSharesRedeemable).mul(juniorTokenPrice))
-                .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR);
-
-            await creditContract.mockDistributePnL(profit, loss, lossRecovery);
-            await poolContract.connect(poolOwner).closePool();
-
-            await expect(epochManagerContract.connect(poolOwner).processEpochAfterPoolClosure())
-                .to.emit(epochManagerContract, "RedemptionRequestsProcessed")
-                .withArgs(
-                    (actualSeniorAssets: BN) =>
-                        isCloseTo(actualSeniorAssets, expectedSeniorAssets, delta),
-                    seniorTokenPrice.div(CONSTANTS.DEFAULT_DECIMALS_FACTOR),
-                    (actualJuniorAssets: BN) =>
-                        isCloseTo(actualJuniorAssets, expectedJuniorAssets, delta),
-                    juniorTokenPrice.div(CONSTANTS.DEFAULT_DECIMALS_FACTOR),
-                    (actualUnprocessedAmount: BN) =>
-                        isCloseTo(actualUnprocessedAmount, expectedUnprocessedAmount, delta),
-                )
-                .to.emit(epochManagerContract, "EpochProcessedAfterPoolClosure")
-                .withArgs(currentEpoch.id.toNumber());
-
-            // Ensure that the remaining assets and supply match the expected amount.
-            expect(await seniorTrancheVaultContract.totalAssets()).to.be.closeTo(
-                expectedSeniorAssets,
-                delta,
-            );
-            expect(await seniorTrancheVaultContract.totalSupply()).to.be.closeTo(
-                seniorTotalSupply.sub(seniorSharesRedeemable),
-                delta,
-            );
-            expect(
-                await mockTokenContract.balanceOf(seniorTrancheVaultContract.address),
-            ).to.be.closeTo(seniorTokenBalance.add(seniorAmountRedeemable), delta);
-            expect(await juniorTrancheVaultContract.totalAssets()).to.be.closeTo(
-                expectedJuniorAssets,
-                delta,
-            );
-            expect(await juniorTrancheVaultContract.totalSupply()).to.be.closeTo(
-                juniorTotalSupply.sub(juniorSharesRedeemable),
-                delta,
-            );
-            expect(
-                await mockTokenContract.balanceOf(juniorTrancheVaultContract.address),
-            ).to.be.closeTo(juniorTokenBalance.add(juniorAmountRedeemable), delta);
-        }
-
-        async function calcAmountsToRedeem(
-            profit: BN,
-            loss: BN,
-            lossRecovery: BN,
-            seniorSharesToRedeem: BN,
-            juniorSharesToRedeem: BN,
-        ) {
-            const [[seniorAssets, juniorAssets]] = await getAssetsAfterProfitAndLoss(
-                profit,
-                loss,
-                lossRecovery,
-            );
-            const seniorSupply = await seniorTrancheVaultContract.totalSupply();
-            const seniorPrice = seniorAssets
-                .mul(CONSTANTS.DEFAULT_DECIMALS_FACTOR)
-                .div(seniorSupply);
-            const seniorAmountProcessable = seniorSharesToRedeem
-                .mul(seniorPrice)
-                .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR);
-            const juniorSupply = await juniorTrancheVaultContract.totalSupply();
-            const juniorPrice = juniorAssets
-                .mul(CONSTANTS.DEFAULT_DECIMALS_FACTOR)
-                .div(juniorSupply);
-            const juniorAmountProcessable = juniorSharesToRedeem
-                .mul(juniorPrice)
-                .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR);
-
-            return [seniorAmountProcessable, juniorAmountProcessable];
-        }
-
-        it("Should process an epoch with the correct LP token prices after processing one senior redemption request", async function () {
-            const sharesToRedeem = toToken(2539);
-            await seniorTrancheVaultContract.connect(lender).addRedemptionRequest(sharesToRedeem);
-
-            const profit = toToken(198),
-                loss = toToken(67),
-                lossRecovery = toToken(39);
-            const [amountToRedeem] = await calcAmountsToRedeem(
-                profit,
-                loss,
-                lossRecovery,
-                sharesToRedeem,
-                BN.from(0),
-            );
-            let epochId = await epochManagerContract.currentEpochId();
-            await testProcessEpoch(
-                sharesToRedeem,
-                sharesToRedeem,
-                BN.from(0),
-                BN.from(0),
-                profit,
-                loss,
-                lossRecovery,
-            );
-            await epochChecker.checkSeniorRedemptionSummaryById(
-                epochId,
-                sharesToRedeem,
-                sharesToRedeem,
-                amountToRedeem,
-            );
-        });
-
-        it("Should process an epoch with the correct LP token prices after processing multiple senior redemption requests", async function () {
-            const epochId = await epochManagerContract.currentEpochId();
-
-            const lenderSharesRequested = toToken(236);
-            await seniorTrancheVaultContract
-                .connect(lender)
-                .addRedemptionRequest(lenderSharesRequested);
-            const lender2SharesRequested = toToken(1357);
-            await seniorTrancheVaultContract
-                .connect(lender2)
-                .addRedemptionRequest(lender2SharesRequested);
-            const totalSharesRequested = lenderSharesRequested.add(lender2SharesRequested);
-            const profit = toToken(198),
-                loss = toToken(67),
-                lossRecovery = toToken(39);
-            const [expectedSeniorAmountProcessed] = await calcAmountsToRedeem(
-                profit,
-                loss,
-                lossRecovery,
-                totalSharesRequested,
-                BN.from(0),
-            );
-            await testProcessEpoch(
-                totalSharesRequested,
-                totalSharesRequested,
-                BN.from(0),
-                BN.from(0),
-                profit,
-                loss,
-                lossRecovery,
-            );
-
-            await epochChecker.checkSeniorRedemptionSummaryById(
-                epochId,
-                totalSharesRequested,
-                totalSharesRequested,
-                expectedSeniorAmountProcessed,
-            );
-        });
-
-        it("Should process an epoch with the correct LP token prices successfully after processing one junior redemption request", async function () {
-            const sharesToRedeem = toToken(1);
-            await juniorTrancheVaultContract.connect(lender).addRedemptionRequest(sharesToRedeem);
-
-            const profit = toToken(198),
-                loss = toToken(67),
-                lossRecovery = toToken(39);
-            const [, amountToRedeem] = await calcAmountsToRedeem(
-                profit,
-                loss,
-                lossRecovery,
-                BN.from(0),
-                sharesToRedeem,
-            );
-
-            const epochId = await epochManagerContract.currentEpochId();
-            await testProcessEpoch(
-                BN.from(0),
-                BN.from(0),
-                sharesToRedeem,
-                sharesToRedeem,
-                profit,
-                loss,
-                lossRecovery,
-            );
-            await epochChecker.checkJuniorRedemptionSummaryById(
-                epochId,
-                sharesToRedeem,
-                sharesToRedeem,
-                amountToRedeem,
-            );
-        });
-
         it("Should not process an epoch if the pool is not closed", async function () {
             await expect(
-                epochManagerContract.connect(poolOwner).processEpochAfterPoolClosure(),
-            ).to.be.revertedWithCustomError(epochManagerContract, "PoolIsNotClosed");
-        });
-
-        it("Should not allow non-pool owner or Huma owner to call this function", async function () {
-            await poolContract.connect(poolOwner).closePool();
-
-            await expect(
                 epochManagerContract.processEpochAfterPoolClosure(),
-            ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
+            ).to.be.revertedWithCustomError(epochManagerContract, "PoolIsNotClosed");
         });
     });
 });

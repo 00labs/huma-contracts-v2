@@ -1743,11 +1743,6 @@ describe("Lender Integration Test", function () {
                 await seniorTrancheVaultContract.convertToAssets(seniorSharesRequested);
 
             await poolContract.connect(poolOwner).closePool();
-            // Override max senior : junior ratio so that all redemption requests can be processed.
-            await overrideLPConfig(poolConfigContract, poolOwner, {
-                maxSeniorJuniorRatio: 0,
-            });
-            await epochManagerContract.connect(poolOwner).processEpochAfterPoolClosure();
 
             expect(await juniorTrancheVaultContract.totalSupply()).to.closeTo(
                 juniorOldShares.sub(juniorSharesRequested),
@@ -3213,11 +3208,6 @@ describe("Lender Integration Test", function () {
                 await seniorTrancheVaultContract.convertToAssets(seniorSharesRequested);
 
             await poolContract.connect(poolOwner).closePool();
-            // Override max senior : junior ratio so that all redemption requests can be processed.
-            await overrideLPConfig(poolConfigContract, poolOwner, {
-                maxSeniorJuniorRatio: 0,
-            });
-            await epochManagerContract.connect(poolOwner).processEpochAfterPoolClosure();
 
             expect(await juniorTrancheVaultContract.totalSupply()).to.closeTo(
                 juniorOldShares.sub(juniorSharesRequested),

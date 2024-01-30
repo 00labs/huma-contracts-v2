@@ -31,9 +31,9 @@ contract Pool is PoolConfigCache, IPool {
     }
 
     enum PoolStatus {
-        Off,
-        On,
-        Closed
+        Off, // The pool is temporarily turned off.
+        On, // The pool is active.
+        Closed // The pool is permanently closed after maturity.
     }
 
     IEpochManager public epochManager;
@@ -47,7 +47,6 @@ contract Pool is PoolConfigCache, IPool {
     TranchesAssets public tranchesAssets;
     TranchesLosses public tranchesLosses;
 
-    // Whether the pool is ON or OFF
     PoolStatus internal _status;
 
     bool public readyForFirstLossCoverWithdrawal;
@@ -156,11 +155,21 @@ contract Pool is PoolConfigCache, IPool {
 
     /**
      * @notice Closes the pool permanently.
-     * @custom:access Only the pool owner or protocol owner can enable a pool.
+     * @custom:access Only the pool owner or protocol owner can close a pool.
      */
     function closePool() external {
         poolConfig.onlyOwnerOrHumaMasterAdmin(msg.sender);
         _status = PoolStatus.Closed;
+
+        // Set the `maxSeniorJuniorRatio` to 0 so that all pending redemption requests
+        // can be processed.
+        LPConfig memory lpConfig = poolConfig.getLPConfig();
+        lpConfig.maxSeniorJuniorRatio = 0;
+        poolConfig.setLPConfig(lpConfig);
+
+        // Process all pending redemption requests.
+        epochManager.processEpochAfterPoolClosure();
+
         emit PoolClosed(msg.sender);
     }
 

@@ -509,9 +509,10 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         );
     }
 
-    /// @custom:access Only the pool owner and the Huma master admin can call this function.
+    /// @custom:access Only the Pool contract, the pool owner and the Huma master admin can call this function.
     function setLPConfig(LPConfig memory lpConfig) external {
-        _onlyOwnerOrHumaMasterAdmin();
+        // The pool contract needs to set the `maxSeniorJuniorRatio` to 0 after pool closure.
+        if (msg.sender != address(pool)) _onlyOwnerOrHumaMasterAdmin();
         if (lpConfig.fixedSeniorYieldInBps != _lpConfig.fixedSeniorYieldInBps) {
             ITranchesPolicy(tranchesPolicy).refreshYieldTracker(
                 IPool(pool).currentTranchesAssets()

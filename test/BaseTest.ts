@@ -41,7 +41,15 @@ import {
     CreditConfigStructOutput,
 } from "../typechain-types/contracts/credit/CreditManager";
 import { EpochRedemptionSummaryStruct } from "../typechain-types/contracts/liquidity/interfaces/IRedemptionHandler";
-import { getLatestBlock, maxBigNumber, minBigNumber, sumBNArray, toToken } from "./TestUtils";
+import {
+    getFirstLossCoverInfo,
+    getLatestBlock,
+    maxBigNumber,
+    minBigNumber,
+    overrideLPConfig,
+    sumBNArray,
+    toToken,
+} from "./TestUtils";
 import { CONSTANTS } from "./constants";
 
 export type CreditContractType =
@@ -2020,4 +2028,38 @@ export function checkRedemptionRecord(
     expect(redemptionRecord.principalRequested).to.be.closeTo(principalRequested, delta);
     expect(redemptionRecord.totalAmountProcessed).to.be.closeTo(totalAmountProcessed, delta);
     expect(redemptionRecord.totalAmountWithdrawn).to.be.closeTo(totalAmountWithdrawn, delta);
+}
+
+export async function getAssetsAfterProfitAndLoss(
+    poolConfigContract: PoolConfig,
+    poolContract: Pool,
+    firstLossCoverContracts: FirstLossCover[],
+    poolOwner: SignerWithAddress,
+    feeCalculator: FeeCalculator,
+    profit: BN,
+    loss: BN,
+    lossRecovery: BN,
+) {
+    const adjustment = 8000;
+    await overrideLPConfig(poolConfigContract, poolOwner, {
+        tranchesRiskAdjustmentInBps: adjustment,
+    });
+    const assetInfo = await poolContract.tranchesAssets();
+    const assets = [assetInfo[CONSTANTS.SENIOR_TRANCHE], assetInfo[CONSTANTS.JUNIOR_TRANCHE]];
+    const profitAfterFees = await feeCalculator.calcPoolFeeDistribution(profit);
+    const firstLossCoverInfos = await Promise.all(
+        firstLossCoverContracts.map(
+            async (contract) => await getFirstLossCoverInfo(contract, poolConfigContract),
+        ),
+    );
+
+    return await PnLCalculator.calcRiskAdjustedProfitAndLoss(
+        profitAfterFees,
+        loss,
+        lossRecovery,
+        assets,
+        [BN.from(0), BN.from(0)],
+        BN.from(adjustment),
+        firstLossCoverInfos,
+    );
 }
