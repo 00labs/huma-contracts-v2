@@ -161,12 +161,15 @@ contract Pool is PoolConfigCache, IPool {
         poolConfig.onlyOwnerOrHumaMasterAdmin(msg.sender);
         _status = PoolStatus.Closed;
 
+        // Set `readyForFirstLossCoverWithdrawal` to `true` so that first loss cover providers
+        // can withdraw their assets.
+        readyForFirstLossCoverWithdrawal = true;
+
         // Set the `maxSeniorJuniorRatio` to 0 so that all pending redemption requests
         // can be processed.
         LPConfig memory lpConfig = poolConfig.getLPConfig();
         lpConfig.maxSeniorJuniorRatio = 0;
         poolConfig.setLPConfig(lpConfig);
-
         // Process all pending redemption requests.
         epochManager.processEpochAfterPoolClosure();
 

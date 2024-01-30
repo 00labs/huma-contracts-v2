@@ -33,6 +33,7 @@
   "ProtocolIsPaused()": "0xaf0b004c",
   "PoolIsNotOn()": "0xf082b5c3",
   "PoolIsNotReadyForFirstLossCoverWithdrawal()": "0x3c2546a3",
+  "PoolIsNotClosed()": "0x2faa680b",
   "StartDateLaterThanEndDate()": "0xc496cd06",
   "TrancheLiquidityCapExceeded()": "0x081917ff",
   "DepositAmountTooLow()": "0x55fcd027",

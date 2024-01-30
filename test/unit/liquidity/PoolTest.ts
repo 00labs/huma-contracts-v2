@@ -351,7 +351,7 @@ describe("Pool Test", function () {
         });
 
         describe("closePool", function () {
-            async function testProcessEpoch(
+            async function testClosePool(
                 seniorSharesRequested: BN,
                 seniorSharesRedeemable: BN,
                 juniorSharesRequested: BN,
@@ -443,6 +443,8 @@ describe("Pool Test", function () {
                 expect(
                     await mockTokenContract.balanceOf(juniorTrancheVaultContract.address),
                 ).to.be.closeTo(juniorTokenBalance.add(juniorAmountRedeemable), delta);
+
+                expect(await poolContract.readyForFirstLossCoverWithdrawal()).to.be.true;
             }
 
             async function calcAmountsToRedeem(
@@ -480,7 +482,7 @@ describe("Pool Test", function () {
                 return [seniorAmountProcessable, juniorAmountProcessable];
             }
 
-            it("Should process an epoch with the correct LP token prices after processing one senior redemption request", async function () {
+            it("Should close the pool and successfully process one senior redemption request", async function () {
                 const sharesToRedeem = toToken(2539);
                 await seniorTrancheVaultContract
                     .connect(lender)
@@ -497,7 +499,7 @@ describe("Pool Test", function () {
                     BN.from(0),
                 );
                 let epochId = await epochManagerContract.currentEpochId();
-                await testProcessEpoch(
+                await testClosePool(
                     sharesToRedeem,
                     sharesToRedeem,
                     BN.from(0),
@@ -514,7 +516,7 @@ describe("Pool Test", function () {
                 );
             });
 
-            it("Should process an epoch with the correct LP token prices after processing multiple senior redemption requests", async function () {
+            it("Should close the pool and successfully process multiple senior redemption requests", async function () {
                 const epochId = await epochManagerContract.currentEpochId();
 
                 const lenderSharesRequested = toToken(236);
@@ -536,7 +538,7 @@ describe("Pool Test", function () {
                     totalSharesRequested,
                     BN.from(0),
                 );
-                await testProcessEpoch(
+                await testClosePool(
                     totalSharesRequested,
                     totalSharesRequested,
                     BN.from(0),
@@ -554,7 +556,7 @@ describe("Pool Test", function () {
                 );
             });
 
-            it("Should process an epoch with the correct LP token prices successfully after processing one junior redemption request", async function () {
+            it("Should close the pool and successfully process one junior redemption request", async function () {
                 const sharesToRedeem = toToken(1);
                 await juniorTrancheVaultContract
                     .connect(lender)
@@ -572,7 +574,7 @@ describe("Pool Test", function () {
                 );
 
                 const epochId = await epochManagerContract.currentEpochId();
-                await testProcessEpoch(
+                await testClosePool(
                     BN.from(0),
                     BN.from(0),
                     sharesToRedeem,

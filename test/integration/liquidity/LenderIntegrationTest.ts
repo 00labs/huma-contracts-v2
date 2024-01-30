@@ -1987,6 +1987,156 @@ describe("Lender Integration Test", function () {
                 ).to.equal(0);
             }
         });
+
+        it("Epoch 10, day 16: The pool owner and EA withdraw their assets from tranches", async function () {
+            currentTS += CONSTANTS.SECONDS_IN_A_DAY;
+
+            // Make sure the pool owner and EA can withdraw assets even if the liquidity requirement is not set to 0.
+            const adminRnR = await poolConfigContract.getAdminRnR();
+            expect(adminRnR.liquidityRateInBpsByPoolOwner).to.be.gt(0);
+            expect(adminRnR.liquidityRateInBpsByEA).to.be.gt(0);
+
+            for (const [i, admin] of [poolOwnerTreasury, evaluationAgent].entries()) {
+                const numShares = await juniorTrancheVaultContract.balanceOf(admin.getAddress());
+                const expectedAssetsWithdrawn =
+                    await juniorTrancheVaultContract.convertToAssets(numShares);
+
+                const oldTotalSupply = await juniorTrancheVaultContract.totalSupply();
+                const oldTotalAssets = await juniorTrancheVaultContract.totalAssets();
+                const oldLenderBalance = await mockTokenContract.balanceOf(admin.getAddress());
+                const oldPoolSafeBalance = await mockTokenContract.balanceOf(
+                    poolSafeContract.address,
+                );
+                const oldJuniorTrancheBalance = await mockTokenContract.balanceOf(
+                    juniorTrancheVaultContract.address,
+                );
+
+                await expect(juniorTrancheVaultContract.connect(admin).withdrawAfterPoolClosure())
+                    .to.emit(juniorTrancheVaultContract, "LenderFundWithdrawn")
+                    .withArgs(await admin.getAddress(), numShares, expectedAssetsWithdrawn)
+                    .not.to.emit(juniorTrancheVaultContract, "LenderFundDisbursed");
+
+                expect(await juniorTrancheVaultContract.totalSupply()).to.equal(
+                    oldTotalSupply.sub(numShares),
+                );
+                expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
+                    oldTotalAssets.sub(expectedAssetsWithdrawn),
+                );
+                expect(await mockTokenContract.balanceOf(admin.getAddress())).to.be.closeTo(
+                    oldLenderBalance.add(expectedAssetsWithdrawn),
+                    2,
+                );
+                expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
+                    oldPoolSafeBalance.sub(expectedAssetsWithdrawn),
+                );
+                expect(
+                    await mockTokenContract.balanceOf(juniorTrancheVaultContract.address),
+                ).to.be.closeTo(oldJuniorTrancheBalance, 2);
+                expect(
+                    await juniorTrancheVaultContract.withdrawableAssets(admin.getAddress()),
+                ).to.equal(0);
+            }
+
+            expect(await juniorTrancheVaultContract.totalSupply()).to.equal(0);
+            expect(await juniorTrancheVaultContract.totalAssets()).to.equal(0);
+        });
+
+        it("Epoch 10, day 17: All first loss cover providers withdraw their assets", async function () {
+            currentTS += CONSTANTS.SECONDS_IN_A_DAY;
+
+            // Borrower redeems from first loss cover.
+            const borrowerShares = await borrowerFirstLossCoverContract.balanceOf(
+                borrower.getAddress(),
+            );
+            const borrowerAssets = await borrowerFirstLossCoverContract.totalAssetsOf(
+                borrower.getAddress(),
+            );
+            const oldBorrowerBalance = await mockTokenContract.balanceOf(borrower.getAddress());
+            const oldBorrowerFirstLossCoverContractBalance = await mockTokenContract.balanceOf(
+                borrowerFirstLossCoverContract.address,
+            );
+
+            await borrowerFirstLossCoverContract
+                .connect(borrower)
+                .redeemCover(borrowerShares, borrower.getAddress());
+
+            expect(await borrowerFirstLossCoverContract.balanceOf(borrower.getAddress())).to.equal(
+                0,
+            );
+            expect(
+                await borrowerFirstLossCoverContract.totalAssetsOf(borrower.getAddress()),
+            ).to.equal(0);
+            expect(await mockTokenContract.balanceOf(borrower.getAddress())).to.equal(
+                oldBorrowerBalance.add(borrowerAssets),
+            );
+            expect(
+                await mockTokenContract.balanceOf(borrowerFirstLossCoverContract.address),
+            ).to.equal(oldBorrowerFirstLossCoverContractBalance.sub(borrowerAssets));
+            expect(await borrowerFirstLossCoverContract.totalSupply()).to.equal(0);
+            expect(await borrowerFirstLossCoverContract.totalAssets()).to.equal(0);
+
+            // Pool owner treasury redeems from first loss cover.
+            const poolOwnerTreasuryShares = await adminFirstLossCoverContract.balanceOf(
+                poolOwnerTreasury.getAddress(),
+            );
+            const poolOwnerTreasuryAssets = await adminFirstLossCoverContract.totalAssetsOf(
+                poolOwnerTreasury.getAddress(),
+            );
+            const oldPoolOwnerTreasuryBalance = await mockTokenContract.balanceOf(
+                poolOwnerTreasury.getAddress(),
+            );
+            let oldAdminFirstLossCoverContractBalance = await mockTokenContract.balanceOf(
+                adminFirstLossCoverContract.address,
+            );
+
+            await adminFirstLossCoverContract
+                .connect(poolOwnerTreasury)
+                .redeemCover(poolOwnerTreasuryShares, poolOwnerTreasury.getAddress());
+
+            expect(
+                await adminFirstLossCoverContract.balanceOf(poolOwnerTreasury.getAddress()),
+            ).to.equal(0);
+            expect(
+                await adminFirstLossCoverContract.totalAssetsOf(poolOwnerTreasury.getAddress()),
+            ).to.equal(0);
+            expect(await mockTokenContract.balanceOf(poolOwnerTreasury.getAddress())).to.equal(
+                oldPoolOwnerTreasuryBalance.add(poolOwnerTreasuryAssets),
+            );
+            expect(
+                await mockTokenContract.balanceOf(adminFirstLossCoverContract.address),
+            ).to.equal(oldAdminFirstLossCoverContractBalance.sub(poolOwnerTreasuryAssets));
+
+            // EA redeems from first loss cover.
+            const eaShares = await adminFirstLossCoverContract.balanceOf(
+                evaluationAgent.getAddress(),
+            );
+            const eaAssets = await adminFirstLossCoverContract.totalAssetsOf(
+                evaluationAgent.getAddress(),
+            );
+            const oldEABalance = await mockTokenContract.balanceOf(evaluationAgent.getAddress());
+            oldAdminFirstLossCoverContractBalance = await mockTokenContract.balanceOf(
+                adminFirstLossCoverContract.address,
+            );
+
+            await adminFirstLossCoverContract
+                .connect(evaluationAgent)
+                .redeemCover(eaShares, evaluationAgent.getAddress());
+
+            expect(
+                await adminFirstLossCoverContract.balanceOf(evaluationAgent.getAddress()),
+            ).to.equal(0);
+            expect(
+                await adminFirstLossCoverContract.totalAssetsOf(evaluationAgent.getAddress()),
+            ).to.equal(0);
+            expect(await mockTokenContract.balanceOf(evaluationAgent.getAddress())).to.equal(
+                oldEABalance.add(eaAssets),
+            );
+            expect(
+                await mockTokenContract.balanceOf(adminFirstLossCoverContract.address),
+            ).to.equal(oldAdminFirstLossCoverContractBalance.sub(eaAssets));
+            expect(await adminFirstLossCoverContract.totalSupply()).to.equal(0);
+            expect(await adminFirstLossCoverContract.totalAssets()).to.equal(0);
+        });
     });
 
     describe("With FixedYieldTranchesPolicy", function () {
@@ -3435,6 +3585,156 @@ describe("Lender Integration Test", function () {
                     await seniorTrancheVaultContract.withdrawableAssets(sLender.getAddress()),
                 ).to.equal(0);
             }
+        });
+
+        it("Epoch 10, day 16: The pool owner and EA withdraw their assets from tranches", async function () {
+            currentTS += CONSTANTS.SECONDS_IN_A_DAY;
+
+            // Make sure the pool owner and EA can withdraw assets even if the liquidity requirement is not set to 0.
+            const adminRnR = await poolConfigContract.getAdminRnR();
+            expect(adminRnR.liquidityRateInBpsByPoolOwner).to.be.gt(0);
+            expect(adminRnR.liquidityRateInBpsByEA).to.be.gt(0);
+
+            for (const [i, admin] of [poolOwnerTreasury, evaluationAgent].entries()) {
+                const numShares = await juniorTrancheVaultContract.balanceOf(admin.getAddress());
+                const expectedAssetsWithdrawn =
+                    await juniorTrancheVaultContract.convertToAssets(numShares);
+
+                const oldTotalSupply = await juniorTrancheVaultContract.totalSupply();
+                const oldTotalAssets = await juniorTrancheVaultContract.totalAssets();
+                const oldLenderBalance = await mockTokenContract.balanceOf(admin.getAddress());
+                const oldPoolSafeBalance = await mockTokenContract.balanceOf(
+                    poolSafeContract.address,
+                );
+                const oldJuniorTrancheBalance = await mockTokenContract.balanceOf(
+                    juniorTrancheVaultContract.address,
+                );
+
+                await expect(juniorTrancheVaultContract.connect(admin).withdrawAfterPoolClosure())
+                    .to.emit(juniorTrancheVaultContract, "LenderFundWithdrawn")
+                    .withArgs(await admin.getAddress(), numShares, expectedAssetsWithdrawn)
+                    .not.to.emit(juniorTrancheVaultContract, "LenderFundDisbursed");
+
+                expect(await juniorTrancheVaultContract.totalSupply()).to.equal(
+                    oldTotalSupply.sub(numShares),
+                );
+                expect(await juniorTrancheVaultContract.totalAssets()).to.equal(
+                    oldTotalAssets.sub(expectedAssetsWithdrawn),
+                );
+                expect(await mockTokenContract.balanceOf(admin.getAddress())).to.be.closeTo(
+                    oldLenderBalance.add(expectedAssetsWithdrawn),
+                    2,
+                );
+                expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
+                    oldPoolSafeBalance.sub(expectedAssetsWithdrawn),
+                );
+                expect(
+                    await mockTokenContract.balanceOf(juniorTrancheVaultContract.address),
+                ).to.be.closeTo(oldJuniorTrancheBalance, 2);
+                expect(
+                    await juniorTrancheVaultContract.withdrawableAssets(admin.getAddress()),
+                ).to.equal(0);
+            }
+
+            expect(await juniorTrancheVaultContract.totalSupply()).to.equal(0);
+            expect(await juniorTrancheVaultContract.totalAssets()).to.equal(0);
+        });
+
+        it("Epoch 10, day 16: All first loss cover providers withdraw their assets", async function () {
+            currentTS += CONSTANTS.SECONDS_IN_A_DAY;
+
+            // Borrower redeems from first loss cover.
+            const borrowerShares = await borrowerFirstLossCoverContract.balanceOf(
+                borrower.getAddress(),
+            );
+            const borrowerAssets = await borrowerFirstLossCoverContract.totalAssetsOf(
+                borrower.getAddress(),
+            );
+            const oldBorrowerBalance = await mockTokenContract.balanceOf(borrower.getAddress());
+            const oldBorrowerFirstLossCoverContractBalance = await mockTokenContract.balanceOf(
+                borrowerFirstLossCoverContract.address,
+            );
+
+            await borrowerFirstLossCoverContract
+                .connect(borrower)
+                .redeemCover(borrowerShares, borrower.getAddress());
+
+            expect(await borrowerFirstLossCoverContract.balanceOf(borrower.getAddress())).to.equal(
+                0,
+            );
+            expect(
+                await borrowerFirstLossCoverContract.totalAssetsOf(borrower.getAddress()),
+            ).to.equal(0);
+            expect(await mockTokenContract.balanceOf(borrower.getAddress())).to.equal(
+                oldBorrowerBalance.add(borrowerAssets),
+            );
+            expect(
+                await mockTokenContract.balanceOf(borrowerFirstLossCoverContract.address),
+            ).to.equal(oldBorrowerFirstLossCoverContractBalance.sub(borrowerAssets));
+            expect(await borrowerFirstLossCoverContract.totalSupply()).to.equal(0);
+            expect(await borrowerFirstLossCoverContract.totalAssets()).to.equal(0);
+
+            // Pool owner treasury redeems from first loss cover.
+            const poolOwnerTreasuryShares = await adminFirstLossCoverContract.balanceOf(
+                poolOwnerTreasury.getAddress(),
+            );
+            const poolOwnerTreasuryAssets = await adminFirstLossCoverContract.totalAssetsOf(
+                poolOwnerTreasury.getAddress(),
+            );
+            const oldPoolOwnerTreasuryBalance = await mockTokenContract.balanceOf(
+                poolOwnerTreasury.getAddress(),
+            );
+            let oldAdminFirstLossCoverContractBalance = await mockTokenContract.balanceOf(
+                adminFirstLossCoverContract.address,
+            );
+
+            await adminFirstLossCoverContract
+                .connect(poolOwnerTreasury)
+                .redeemCover(poolOwnerTreasuryShares, poolOwnerTreasury.getAddress());
+
+            expect(
+                await adminFirstLossCoverContract.balanceOf(poolOwnerTreasury.getAddress()),
+            ).to.equal(0);
+            expect(
+                await adminFirstLossCoverContract.totalAssetsOf(poolOwnerTreasury.getAddress()),
+            ).to.equal(0);
+            expect(await mockTokenContract.balanceOf(poolOwnerTreasury.getAddress())).to.equal(
+                oldPoolOwnerTreasuryBalance.add(poolOwnerTreasuryAssets),
+            );
+            expect(
+                await mockTokenContract.balanceOf(adminFirstLossCoverContract.address),
+            ).to.equal(oldAdminFirstLossCoverContractBalance.sub(poolOwnerTreasuryAssets));
+
+            // EA redeems from first loss cover.
+            const eaShares = await adminFirstLossCoverContract.balanceOf(
+                evaluationAgent.getAddress(),
+            );
+            const eaAssets = await adminFirstLossCoverContract.totalAssetsOf(
+                evaluationAgent.getAddress(),
+            );
+            const oldEABalance = await mockTokenContract.balanceOf(evaluationAgent.getAddress());
+            oldAdminFirstLossCoverContractBalance = await mockTokenContract.balanceOf(
+                adminFirstLossCoverContract.address,
+            );
+
+            await adminFirstLossCoverContract
+                .connect(evaluationAgent)
+                .redeemCover(eaShares, evaluationAgent.getAddress());
+
+            expect(
+                await adminFirstLossCoverContract.balanceOf(evaluationAgent.getAddress()),
+            ).to.equal(0);
+            expect(
+                await adminFirstLossCoverContract.totalAssetsOf(evaluationAgent.getAddress()),
+            ).to.equal(0);
+            expect(await mockTokenContract.balanceOf(evaluationAgent.getAddress())).to.equal(
+                oldEABalance.add(eaAssets),
+            );
+            expect(
+                await mockTokenContract.balanceOf(adminFirstLossCoverContract.address),
+            ).to.equal(oldAdminFirstLossCoverContractBalance.sub(eaAssets));
+            expect(await adminFirstLossCoverContract.totalSupply()).to.equal(0);
+            expect(await adminFirstLossCoverContract.totalAssets()).to.equal(0);
         });
     });
 });

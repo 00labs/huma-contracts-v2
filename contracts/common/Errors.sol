@@ -45,7 +45,7 @@ contract Errors {
     error ProtocolIsPaused(); // 0xaf0b004c
     error PoolIsNotOn(); // 0xf082b5c3
     error PoolIsNotReadyForFirstLossCoverWithdrawal(); // 0x3c2546a3
-    error PoolIsNotClosed();
+    error PoolIsNotClosed(); // 0x2faa680b
 
     // Calendar
     error StartDateLaterThanEndDate(); // 0xc496cd06
