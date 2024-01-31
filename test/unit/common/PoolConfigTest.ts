@@ -1867,13 +1867,13 @@ describe("PoolConfig Tests", function () {
                 ).to.be.revertedWithCustomError(poolConfigContract, "MinDepositAmountTooLow");
             });
 
-            it("Should disallow late payment grace periods that are longer than the number of days in a full pay period", async function () {
+            it("Should disallow late payment grace periods that are longer than or equal to the number of days in a full pay period", async function () {
                 await expect(
                     poolConfigContract.connect(poolOwner).setPoolSettings({
                         ...newSettings,
                         ...{
                             payPeriodDuration: PayPeriodDuration.Monthly,
-                            latePaymentGracePeriodInDays: 31,
+                            latePaymentGracePeriodInDays: 30,
                         },
                     }),
                 ).to.be.revertedWithCustomError(
@@ -2116,20 +2116,6 @@ describe("PoolConfig Tests", function () {
                 await expect(
                     poolConfigContract.connect(regularUser).setFeeStructure(newFeeStructure),
                 ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
-            });
-
-            it("Should not allow yieldInBps to exceed 10000", async function () {
-                await expect(
-                    poolConfigContract.connect(poolOwner).setFeeStructure({
-                        ...newFeeStructure,
-                        ...{
-                            yieldInBps: CONSTANTS.BP_FACTOR.add(1),
-                        },
-                    }),
-                ).to.be.revertedWithCustomError(
-                    poolConfigContract,
-                    "InvalidBasisPointHigherThan10000",
-                );
             });
 
             it("Should not allow minPrincipalRateInBps to exceed 10000", async function () {

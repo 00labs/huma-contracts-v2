@@ -203,7 +203,6 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         if (borrower == address(0)) revert Errors.ZeroAddressProvided();
         if (creditLimit == 0) revert Errors.ZeroAmountProvided();
         if (remainingPeriods == 0) revert Errors.ZeroPayPeriods();
-        if (yieldInBps > HUNDRED_PERCENT_IN_BPS) revert Errors.InvalidBasisPointHigherThan10000();
         if (committedAmount > creditLimit) revert Errors.CommittedAmountGreaterThanCreditLimit();
         // It doesn't make sense for a credit to have no commitment but a non-zero designated startt date.
         if (committedAmount == 0 && designatedStartDate != 0)

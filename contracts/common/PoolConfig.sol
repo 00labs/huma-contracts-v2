@@ -498,7 +498,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
             revert Errors.MinDepositAmountTooLow();
         }
         if (
-            settings.latePaymentGracePeriodInDays >
+            settings.latePaymentGracePeriodInDays >=
             ICalendar(calendar).getTotalDaysInFullPeriod(settings.payPeriodDuration)
         ) {
             revert Errors.LatePaymentGracePeriodTooLong();
@@ -559,10 +559,10 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
     function setFeeStructure(FeeStructure memory feeStructure) external {
         _onlyOwnerOrHumaMasterAdmin();
         if (
-            feeStructure.yieldInBps > HUNDRED_PERCENT_IN_BPS ||
             feeStructure.minPrincipalRateInBps > HUNDRED_PERCENT_IN_BPS ||
             feeStructure.lateFeeBps > HUNDRED_PERCENT_IN_BPS
         ) revert Errors.InvalidBasisPointHigherThan10000();
+
         _feeStructure = feeStructure;
         emit FeeStructureChanged(
             feeStructure.yieldInBps,
