@@ -119,24 +119,6 @@ contract CreditLineManager is CreditManager, ICreditLineManager {
     }
 
     /// @inheritdoc ICreditLineManager
-    function pauseCredit(address borrower) external virtual override {
-        poolConfig.onlyProtocolAndPoolOn();
-        _onlyEAServiceAccount();
-
-        bytes32 creditHash = getCreditHash(borrower);
-        _pauseCredit(creditHash);
-    }
-
-    /// @inheritdoc ICreditLineManager
-    function unpauseCredit(address borrower) external virtual override {
-        poolConfig.onlyProtocolAndPoolOn();
-        _onlyEAServiceAccount();
-
-        bytes32 creditHash = getCreditHash(borrower);
-        _unpauseCredit(creditHash);
-    }
-
-    /// @inheritdoc ICreditLineManager
     function updateYield(address borrower, uint256 yieldInBps) external virtual override {
         poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
