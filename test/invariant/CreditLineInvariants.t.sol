@@ -7,9 +7,7 @@ import {CreditLineHandler} from "./handlers/CreditLineHandler.sol";
 import {CreditLine} from "contracts/credit/CreditLine.sol";
 import {CreditLineManager} from "contracts/credit/CreditLineManager.sol";
 
-import "forge-std/console.sol";
-
-contract LiquidityInvariants is BaseInvariants {
+contract CreditLineInvariants is BaseInvariants {
     uint96 constant MAX_CREDIT_LIMIT = 10_000_000;
     uint96 constant LIQUIDITY_CAP = 10_000_000;
     uint16 constant FIXED_SENIOR_YIELD_BPS = 1000;
@@ -72,99 +70,11 @@ contract LiquidityInvariants is BaseInvariants {
         targetContract(address(creditLineHandler));
     }
 
-    function invariant_Tranche_A() public {
-        _assert_Tranche_A();
+    function test_Credit_invariants() public {
+        _assert_Credit_A_B_C_D();
     }
 
-    function invariant_Tranche_B() public {
-        _assert_Tranche_B();
-    }
-
-    function invariant_Tranche_C() public {
-        _assert_Tranche_C();
-    }
-
-    function invariant_Tranche_D_E_F() public {
-        _assert_Tranche_D_E_F();
-    }
-
-    function invariant_Tranche_G() public {
-        _assert_Tranche_G();
-    }
-
-    function invariant_Tranche_H_I() public {
-        _assert_Tranche_H_I();
-    }
-
-    function invariant_Tranche_J() public {
-        _assert_Tranche_J();
-    }
-
-    function invariant_EpochManager_A() public {
-        _assert_EpochManager_A();
-    }
-
-    function invariant_EpochManager_B_C_D_E_F_G() public {
-        _assert_EpochManager_B_C_D_E_F_G();
-    }
-
-    function invariant_PoolFeeManager_A() public {
-        _assert_PoolFeeManager_A();
-    }
-
-    function invariant_PoolFeeManager_B() public {
-        _assert_PoolFeeManager_B();
-    }
-
-    function invariant_PoolFeeManager_C() public {
-        _assert_PoolFeeManager_C();
-    }
-
-    function invariant_PoolFeeManager_D() public {
-        _assert_PoolFeeManager_D();
-    }
-
-    function invariant_FLC_A() public {
-        _assert_FLC_A();
-    }
-
-    function invariant_FLC_B() public {
-        _assert_FLC_B();
-    }
-
-    function invariant_FLC_C() public {
-        _assert_FLC_C();
-    }
-
-    function invariant_FLC_D() public {
-        _assert_FLC_D();
-    }
-
-    function test_Tranche_invariants() public {
-        _assert_Tranche_A();
-        _assert_Tranche_B();
-        _assert_Tranche_D_E_F();
-        _assert_Tranche_G();
-        _assert_Tranche_H_I();
-        _assert_Tranche_J();
-    }
-
-    function test_EpochManager_invariants() public {
-        _assert_EpochManager_A();
-        _assert_EpochManager_B_C_D_E_F_G();
-    }
-
-    function test_PoolFeeManager_invariants() public {
-        _assert_PoolFeeManager_A();
-        _assert_PoolFeeManager_B();
-        _assert_PoolFeeManager_C();
-        _assert_PoolFeeManager_D();
-    }
-
-    function test_FLC_invariants() public {
-        _assert_FLC_A();
-        _assert_FLC_B();
-        _assert_FLC_C();
-        _assert_FLC_D();
+    function invariant_Credit_A_B_C_D() public {
+        _assert_Credit_A_B_C_D();
     }
 }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
+import {Utils} from "./Utils.sol";
 import {MockToken} from "contracts/common/mock/MockToken.sol";
 import {HumaConfig} from "contracts/common/HumaConfig.sol";
 import {EvaluationAgentNFT} from "contracts/common/EvaluationAgentNFT.sol";
@@ -26,13 +27,27 @@ import {Receivable} from "contracts/credit/Receivable.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {Calendar} from "contracts/common/Calendar.sol";
 import {BORROWER_LOSS_COVER_INDEX, ADMIN_LOSS_COVER_INDEX} from "contracts/common/SharedDefs.sol";
+import {CreditRecord, DueDetail} from "contracts/credit/CreditStructs.sol";
+import {ICreditManager} from "contracts/credit/interfaces/ICreditManager.sol";
 
-import {InvariantHandler} from "./handlers/InvariantHandler.sol";
+import {LiquidityHandler} from "./handlers/LiquidityHandler.sol";
 
 import {Test, Vm} from "forge-std/Test.sol";
 import "forge-std/console.sol";
 
-contract BaseTest is Test {
+interface ICreditLineLike {
+    function getDueInfo(
+        address borrower
+    ) external view returns (CreditRecord memory cr, DueDetail memory dd);
+}
+
+contract BaseTest is Test, Utils {
+    string constant FIXED_SENIOR_YIELD_TRANCHES_POLICY = "fixed";
+    string constant RISK_ADJUSTED_TRANCHES_POLICY = "adjusted";
+    string constant CREDIT_LINE = "creditline";
+    string constant RECEIVABLE_BACKED_CREDIT_LINE = "receivablebacked";
+    string constant RECEIVABLE_FACTORING_CREDIT = "receivablefactoring";
+
     address treasury;
     address protocolOwner;
     address eaServiceAccount;
@@ -54,24 +69,20 @@ contract BaseTest is Test {
     PoolFactoryForTest poolFactory;
     Receivable receivable;
 
+    PoolConfig public poolConfig;
     TrancheVault seniorTranche;
     TrancheVault juniorTranche;
     PoolSafe poolSafe;
     EpochManager epochManager;
     FirstLossCover adminFLC;
-    PoolConfig poolConfig;
-    CreditLine creditLine;
     Pool pool;
+    PoolFeeManager poolFeeManager;
 
+    ICreditLineLike creditLine;
+    ICreditManager creditManager;
+
+    uint256 decimals;
     uint256 poolId;
-
-    string constant FIXED_SENIOR_YIELD_TRANCHES_POLICY = "fixed";
-    string constant RISK_ADJUSTED_TRANCHES_POLICY = "adjusted";
-    string constant CREDIT_LINE = "creditline";
-    string constant RECEIVABLE_BACKED_CREDIT_LINE = "receivablebacked";
-    string constant RECEIVABLE_FACTORING_CREDIT = "receivablefactoring";
-
-    InvariantHandler handler;
 
     uint256 seniorInitialShares;
     uint256 juniorInitialShares;
@@ -101,6 +112,7 @@ contract BaseTest is Test {
         humaConfig = new HumaConfig();
         evaluationAgentNFT = new EvaluationAgentNFT();
         mockToken = new MockToken();
+        decimals = mockToken.decimals();
 
         humaConfig.setHumaTreasury(treasury);
         humaConfig.setEANFTContractAddress(address(evaluationAgentNFT));
@@ -182,11 +194,22 @@ contract BaseTest is Test {
         poolFactory.addPoolOperator(poolId, poolOperator);
         poolFactory.addPoolOwner(poolId, poolOwner);
         poolFactory.updatePoolStatus(poolId, PoolFactory.PoolStatus.Initialized);
+
+        PoolFactory.PoolRecord memory poolRecord = poolFactory.checkPool(poolId);
+        poolConfig = PoolConfig(poolRecord.poolConfigAddress);
+        seniorTranche = TrancheVault(poolConfig.seniorTranche());
+        juniorTranche = TrancheVault(poolConfig.juniorTranche());
+        poolSafe = PoolSafe(poolConfig.poolSafe());
+        epochManager = EpochManager(poolConfig.epochManager());
+        adminFLC = FirstLossCover(poolConfig.getFirstLossCover(ADMIN_LOSS_COVER_INDEX));
+        pool = Pool(poolConfig.pool());
+        poolFeeManager = PoolFeeManager(poolConfig.poolFeeManager());
+
+        creditLine = ICreditLineLike(poolConfig.credit());
+        creditManager = ICreditManager(poolConfig.creditManager());
     }
 
     function _enablePool() internal {
-        PoolFactory.PoolRecord memory poolRecord = poolFactory.checkPool(poolId);
-        poolConfig = PoolConfig(poolRecord.poolConfigAddress);
         vm.startPrank(poolOwner);
         poolConfig.setPoolOwnerTreasury(poolOwnerTreasury);
         vm.recordLogs();
@@ -201,7 +224,6 @@ contract BaseTest is Test {
         }
         poolConfig.setEvaluationAgent(eaNFTTokenId, evaluationAgent);
 
-        adminFLC = FirstLossCover(poolConfig.getFirstLossCover(ADMIN_LOSS_COVER_INDEX));
         adminFLC.addCoverProvider(poolOwnerTreasury);
         adminFLC.addCoverProvider(evaluationAgent);
         FirstLossCover borrowerFLC = FirstLossCover(
@@ -216,9 +238,8 @@ contract BaseTest is Test {
         FirstLossCoverConfig memory flcConfig = poolConfig.getFirstLossCoverConfig(
             address(adminFLC)
         );
-        juniorTranche = TrancheVault(poolConfig.juniorTranche());
         vm.startPrank(poolOwnerTreasury);
-        mockToken.approve(poolConfig.poolSafe(), type(uint256).max);
+        mockToken.approve(address(poolSafe), type(uint256).max);
         mockToken.approve(address(adminFLC), type(uint256).max);
         uint256 amount = (lpConfig.liquidityCap * adminRnR.liquidityRateInBpsByPoolOwner) / 10000;
         mockToken.mint(poolOwnerTreasury, amount);
@@ -230,7 +251,7 @@ contract BaseTest is Test {
         vm.stopPrank();
 
         vm.startPrank(evaluationAgent);
-        mockToken.approve(poolConfig.poolSafe(), type(uint256).max);
+        mockToken.approve(address(poolSafe), type(uint256).max);
         mockToken.approve(address(adminFLC), type(uint256).max);
         amount = (lpConfig.liquidityCap * adminRnR.liquidityRateInBpsByEA) / 10000;
         mockToken.mint(evaluationAgent, amount);
@@ -253,27 +274,21 @@ contract BaseTest is Test {
         borrowerFLC.depositCover(flcConfig.minLiquidity);
         vm.stopPrank();
 
-        pool = Pool(poolConfig.pool());
         vm.startPrank(poolOwner);
         pool.enablePool();
         vm.stopPrank();
 
-        seniorTranche = TrancheVault(poolConfig.seniorTranche());
         vm.startPrank(poolOperator);
         seniorTranche.addApprovedLender(initLender, true);
         vm.stopPrank();
 
         // A lender deposits some liquidity in senior tranche to solve a tiny issue of epoch close
         vm.startPrank(initLender);
-        mockToken.approve(poolConfig.poolSafe(), type(uint256).max);
+        mockToken.approve(address(poolSafe), type(uint256).max);
         mockToken.mint(initLender, _toToken(100_000));
         seniorTranche.deposit(_toToken(100_000), initLender);
         seniorInitialShares += seniorTranche.balanceOf(initLender);
         vm.stopPrank();
-
-        poolSafe = PoolSafe(poolConfig.poolSafe());
-        epochManager = EpochManager(poolConfig.epochManager());
-        creditLine = CreditLine(poolConfig.credit());
 
         // console.log(
         //     "_enablePool - block.timestamp: %s, block.number: %s",
@@ -282,7 +297,7 @@ contract BaseTest is Test {
         // );
     }
 
-    function _createUsers(uint256 lenderNum, uint256 borrowerNum) internal {
+    function _createLenders(uint256 lenderNum) internal {
         for (uint256 i; i < lenderNum; i++) {
             address lender = makeAddr(string(abi.encode("lender", i)));
             vm.startPrank(poolOperator);
@@ -292,33 +307,15 @@ contract BaseTest is Test {
             vm.stopPrank();
             lenders.push(lender);
         }
+    }
+
+    function _createBorrowers(uint256 borrowerNum) internal {
         for (uint256 i; i < borrowerNum; i++) {
             borrowers.push(makeAddr(string(abi.encode("borrower", i))));
         }
     }
 
-    function _approveBorrowers(uint256 creditLimit, uint256 yieldBps) internal {
-        CreditLineManager creditLineManager = CreditLineManager(
-            PoolConfig(poolFactory.checkPool(poolId).poolConfigAddress).creditManager()
-        );
-        vm.startPrank(eaServiceAccount);
-        for (uint256 i; i < borrowers.length; i++) {
-            address borrower = borrowers[i];
-            uint256 rand = uint256(keccak256(abi.encodePacked(vm.unixTime(), i)));
-            creditLineManager.approveBorrower(
-                borrower,
-                uint96(creditLimit),
-                uint16(_bound(rand, 1, 12)),
-                uint16(yieldBps),
-                0,
-                0,
-                true
-            );
-        }
-        vm.stopPrank();
-    }
-
     function _toToken(uint256 amount) internal view returns (uint256) {
-        return amount * 10 ** mockToken.decimals();
+        return _toToken(amount, decimals);
     }
 }

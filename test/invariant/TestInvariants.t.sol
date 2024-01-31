@@ -9,7 +9,7 @@ import {CreditLineManager} from "contracts/credit/CreditLineManager.sol";
 
 import "forge-std/console.sol";
 
-contract LiquidityInvariants is BaseInvariants {
+contract TestInvariants is BaseInvariants {
     uint96 constant MAX_CREDIT_LIMIT = 10_000_000;
     uint96 constant LIQUIDITY_CAP = 10_000_000;
     uint16 constant FIXED_SENIOR_YIELD_BPS = 1000;
@@ -72,99 +72,62 @@ contract LiquidityInvariants is BaseInvariants {
         targetContract(address(creditLineHandler));
     }
 
-    function invariant_Tranche_A() public {
-        _assert_Tranche_A();
+    function testBoundNew1() public {
+        uint256 result = liquidityHandler.boundNew(10089, 1000000, 1000000);
+        assertEq(result, 1000000);
     }
 
-    function invariant_Tranche_B() public {
-        _assert_Tranche_B();
+    function testBoundNew2() public {
+        uint256 result = liquidityHandler.boundNew(0, 1000000, 445809192099);
+        assertEq(result, 1000000);
     }
 
-    function invariant_Tranche_C() public {
-        _assert_Tranche_C();
+    function testDebug() public {
+        // handler.disburse(511, 18732, 1115958799);
+        // handler.drawdown(
+        //     115792089237316195423570985008687907853269984665640564039457584007913129639933,
+        //     0,
+        //     115792089237316195423570985008687907853269984665640564039457584007913129639934
+        // );
+        // handler.drawdown(4773, 9503, 15334);
+        // handler.makePayment(
+        //     115792089237316195423570985008687907853269984665640564039457584007913129639935,
+        //     115792089237316195423570985008687907853269984665640564039457584007913129639934,
+        //     115792089237316195423570985008687907853269984665640564039457584007913129639935
+        // );
+        // handler.cancelRedemptionRequest(
+        //     307351878326496349646861946412211957386772448903113552090633114,
+        //     2,
+        //     115792089237316195423570985008687907853269984665640564039457584007913129639933,
+        //     115792089237316195423570985008687907853269984665640564039457584007913129639935
+        // );
+        // handler.drawdown(
+        //     12965627532955235,
+        //     115792089237316195423570985008687907853269984665640564039457584007913129639935,
+        //     34271968774548698554216071258149267
+        // );
+        // handler.addRedemptionRequest(10467, 14373, 12718, 19180);
+        // handler.drawdown(
+        //     4696101871635116613687179390375553842905116356921,
+        //     115792089237316195423570985008687907853269984665640564039457584007913129639934,
+        //     0
+        // );
+        // handler.cancelRedemptionRequest(
+        //     3,
+        //     142865224980,
+        //     3203463038928617776283565669072150091243907203013574266905857603663,
+        //     9629713799523486109640678726817266933822504961979653993916971138404029
+        // );
+        // handler.deposit(
+        //     115792089237316195423570985008687907853269984665640564039457584007913129639934,
+        //     196169082861832774685458594841127741270096699,
+        //     1,
+        //     115792089237316195423570985008687907853269984665640564039457584007913129639932
+        // );
+        // _assert_Tranche_H_I();
     }
 
-    function invariant_Tranche_D_E_F() public {
-        _assert_Tranche_D_E_F();
-    }
-
-    function invariant_Tranche_G() public {
-        _assert_Tranche_G();
-    }
-
-    function invariant_Tranche_H_I() public {
-        _assert_Tranche_H_I();
-    }
-
-    function invariant_Tranche_J() public {
-        _assert_Tranche_J();
-    }
-
-    function invariant_EpochManager_A() public {
-        _assert_EpochManager_A();
-    }
-
-    function invariant_EpochManager_B_C_D_E_F_G() public {
-        _assert_EpochManager_B_C_D_E_F_G();
-    }
-
-    function invariant_PoolFeeManager_A() public {
-        _assert_PoolFeeManager_A();
-    }
-
-    function invariant_PoolFeeManager_B() public {
-        _assert_PoolFeeManager_B();
-    }
-
-    function invariant_PoolFeeManager_C() public {
-        _assert_PoolFeeManager_C();
-    }
-
-    function invariant_PoolFeeManager_D() public {
-        _assert_PoolFeeManager_D();
-    }
-
-    function invariant_FLC_A() public {
-        _assert_FLC_A();
-    }
-
-    function invariant_FLC_B() public {
-        _assert_FLC_B();
-    }
-
-    function invariant_FLC_C() public {
-        _assert_FLC_C();
-    }
-
-    function invariant_FLC_D() public {
-        _assert_FLC_D();
-    }
-
-    function test_Tranche_invariants() public {
-        _assert_Tranche_A();
-        _assert_Tranche_B();
-        _assert_Tranche_D_E_F();
-        _assert_Tranche_G();
-        _assert_Tranche_H_I();
-        _assert_Tranche_J();
-    }
-
-    function test_EpochManager_invariants() public {
-        _assert_EpochManager_A();
-        _assert_EpochManager_B_C_D_E_F_G();
-    }
-
-    function test_PoolFeeManager_invariants() public {
-        _assert_PoolFeeManager_A();
-        _assert_PoolFeeManager_B();
-        _assert_PoolFeeManager_C();
-        _assert_PoolFeeManager_D();
-    }
-
-    function test_FLC_invariants() public {
-        _assert_FLC_A();
-        _assert_FLC_B();
-        _assert_FLC_C();
-        _assert_FLC_D();
+    function invariant_displayCallsLog() public view {
+        displayCallsLog();
     }
 }
