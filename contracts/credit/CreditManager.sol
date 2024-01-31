@@ -206,7 +206,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         if (committedAmount > creditLimit) revert Errors.CommittedAmountGreaterThanCreditLimit();
         if (designatedStartDate > 0) {
             if (committedAmount == 0)
-                // It doesn't make sense for a credit to have no commitment but a non-zero designated startt date.
+                // It doesn't make sense for a credit to have no commitment but a non-zero designated start date.
                 revert Errors.CreditWithoutCommitmentShouldHaveNoDesignatedStartDate();
             if (block.timestamp > designatedStartDate)
                 revert Errors.DesignatedStartDateInThePast();
