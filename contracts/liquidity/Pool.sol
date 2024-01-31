@@ -353,14 +353,15 @@ contract Pool is PoolConfigCache, IPool {
         uint256 juniorTotalAssets = assets.juniorTotalAssets;
         // Distribute losses to the junior tranche up to the total junior asset.
         uint256 juniorLoss = juniorTotalAssets >= loss ? loss : juniorTotalAssets;
-        // There are two possible scenarios for the remaining loss to surpass the total assets of the senior tranche:
-        // 1. Admin fees are also subject to losses. However, these fees are not explicitly included in the
-        // loss distribution process.
-        // 2. First loss covers are configured in a way that they take on more profit than loss, although this is unlikely.
-        // In such instances, we cap the loss at the senior total assets. It's important to note
+        // When triggering default, since we distribute profit right before distributing loss,
+        // `loss - juniorLoss` could surpass the total assets of the senior tranche in the following two scenarios:
+        // 1. Admins earn fees during profit distribution, but the fees do not explicitly participate in
+        //    loss distribution.
+        // 2. Theoretically, first loss covers could be configured to take on more profit than loss when
+        //    default is triggered, and the additional loss would fall on tranches. However, this is extremely unlikely.
+        // Therefore, we need to cap the loss at the senior total assets. It's important to note
         // that borrowers' payment obligations are based on the total amount due in `CreditRecord`, thus omitting to
-        // fully account for losses in the senior tranche does not reduce the amount the borrower is required to pay,
-        // ensuring their payment obligations remain unaffected.
+        // fully account for losses in the senior tranche does not reduce the amount the borrower is required to pay.
         uint256 seniorLoss = Math.min(assets.seniorTotalAssets, loss - juniorLoss);
 
         assets.seniorTotalAssets -= uint96(seniorLoss);
