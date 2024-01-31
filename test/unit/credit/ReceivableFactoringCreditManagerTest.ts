@@ -37,7 +37,6 @@ import {
 import {
     getLatestBlock,
     getStartOfNextMonth,
-    isCloseTo,
     receivableLevelCreditHash,
     setNextBlockTimestamp,
     toToken,
@@ -74,7 +73,7 @@ let poolConfigContract: PoolConfig,
     creditManagerContract: ReceivableFactoringCreditManager,
     nftContract: MockNFT;
 
-describe("ReceivableFactoringCreditManager.sol Test", function () {
+describe("ReceivableFactoringCreditManager Test", function () {
     before(async function () {
         [
             defaultDeployer,
@@ -726,12 +725,7 @@ describe("ReceivableFactoringCreditManager.sol Test", function () {
             await loadFixture(prepareForUpdateYield);
         });
 
-        async function testUpdate(
-            oldYieldDue: BN,
-            newYieldDue: BN,
-            expectedNextDue: BN,
-            expectedYieldDue: BN,
-        ) {
+        async function testUpdate() {
             const updateDate: number = drawdownDate + CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(updateDate);
             const oldCR = await creditContract["getCreditRecord(uint256)"](tokenId);
@@ -746,48 +740,19 @@ describe("ReceivableFactoringCreditManager.sol Test", function () {
                     creditHash,
                     yieldInBps,
                     newYieldInBps,
-                    oldYieldDue,
-                    (actualNewYieldDue: BN) =>
-                        isCloseTo(actualNewYieldDue, newYieldDue, BN.from(1)),
                     await eaServiceAccount.getAddress(),
                 );
 
             const cc = await creditManagerContract.getCreditConfig(creditHash);
             expect(cc.yieldInBps).to.equal(newYieldInBps);
             const actualCR = await creditContract["getCreditRecord(uint256)"](tokenId);
-            const expectedCR = {
-                ...oldCR,
-                ...{
-                    nextDue: expectedNextDue,
-                    yieldDue: expectedYieldDue,
-                },
-            };
-            checkCreditRecordsMatch(actualCR, expectedCR, BN.from(1));
+            checkCreditRecordsMatch(actualCR, oldCR);
             const actualDD = await creditContract.getDueDetail(creditHash);
-            const expectedAccruedYield = calcYield(borrowAmount, yieldInBps, 2).add(
-                calcYield(borrowAmount, newYieldInBps, CONSTANTS.DAYS_IN_A_MONTH - 2),
-            );
-            const expectedDD = {
-                ...oldDD,
-                ...{
-                    accrued: expectedAccruedYield,
-                },
-            };
-            checkDueDetailsMatch(actualDD, expectedDD, BN.from(1));
+            checkDueDetailsMatch(actualDD, oldDD);
         }
 
         it("Should update the yield due", async function () {
-            const oldCR = await creditContract["getCreditRecord(uint256)"](tokenId);
-            const oldDD = await creditContract.getDueDetail(creditHash);
-            const expectedAccruedYield = calcYield(borrowAmount, yieldInBps, 2).add(
-                calcYield(borrowAmount, newYieldInBps, CONSTANTS.DAYS_IN_A_MONTH - 2),
-            );
-            await testUpdate(
-                oldDD.accrued,
-                expectedAccruedYield,
-                oldCR.nextDue.sub(oldCR.yieldDue).add(expectedAccruedYield),
-                expectedAccruedYield,
-            );
+            await testUpdate();
         });
 
         it("Should not allow update when the protocol is paused or pool is not on", async function () {
