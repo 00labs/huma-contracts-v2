@@ -375,6 +375,8 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
 
     /**
      * @notice Updates the yield of the credit.
+     * @notice The new `yieldInBps` will not take effect and impact the amount of yield due immediately.
+     * It will take effect the next time the bill is refreshed or when the borrower makes additional drawdown.
      * @param creditHash The hash of the credit.
      * @param yieldInBps the new yield in basis points.
      */
@@ -396,6 +398,9 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
      * @notice Updates credit limit and committed amount for the credit.
      * @notice It is possible that the credit limit is lower than what has been borrowed. No further
      * drawdown is allowed until the principal balance is below the limit again after payments.
+     * @notice The new `committedAmount` will not take effect and impact the amount of yield due immediately.
+     * When the bill is refreshed or when the borrower makes additional drawdown and the updated committed amount
+     * is higher than the outstanding principal, then the amount of yield due will be re-computed.
      * @param creditHash The hash of the credit.
      * @param creditLimit The new credit limit to set.
      * @param committedAmount The new committed amount. The borrower will be charged interest for
