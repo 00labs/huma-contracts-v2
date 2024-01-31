@@ -31,29 +31,36 @@ async function deployImplementationContracts() {
     }
 }
 
-async function deployFactory() {
+async function deployFactory(humaConfigAddress) {
     const libTimelockController = await deploy("LibTimelockController", "LibTimelockController");
-    await deploy("PoolFactory", "PoolFactory", [], {
+    const poolFactoryImpl = await deploy("PoolFactory", "PoolFactoryImpl", [], {
         libraries: { LibTimelockController: libTimelockController.address },
     });
+    console.log(humaConfigAddress);
+    const fragment = await poolFactoryImpl.interface.getFunction("initialize(address)");
+    const calldata = await poolFactoryImpl.interface.encodeFunctionData(fragment, [
+        humaConfigAddress,
+    ]);
+    await deploy("ERC1967Proxy", "PoolFactory", [poolFactoryImpl.address, calldata]);
 }
 
 async function deployProtocolContracts() {
-    await deploy("EvaluationAgentNFT", "EANFT", []);
-
+    await deploy("EvaluationAgentNFT", "EANFT");
+    await deploy("Calendar", "Calendar");
     const humaConfig = await deploy("HumaConfig", "HumaConfig");
-    console.log(HUMA_OWNER_ADDRESS);
-    console.log(deployer.address);
     await deploy("TimelockController", "HumaConfigTimelock", [
         0,
         [HUMA_OWNER_ADDRESS],
         [deployer.address],
         deployer.address,
     ]);
+
+    return humaConfig.address;
 }
 
 async function deployContracts() {
-    const network = (await hre.ethers.provider.getNetwork()).name;
+    // const network = (await hre.ethers.provider.getNetwork()).name;
+    const network = "alfajores";
     console.log("network : ", network);
     const accounts = await hre.ethers.getSigners();
     if (accounts.length == 0) {
@@ -63,9 +70,9 @@ async function deployContracts() {
     console.log("deployer address: " + deployer.address);
 
     await deploy("MockToken", "MockToken");
-    await deployProtocolContracts();
+    const humaConfigAddress = await deployProtocolContracts();
     await deployImplementationContracts();
-    await deployFactory();
+    await deployFactory(humaConfigAddress);
 }
 
 deployContracts()

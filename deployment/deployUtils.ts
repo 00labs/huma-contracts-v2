@@ -34,7 +34,7 @@ const getDeployedContract = async function (contractName) {
     return await getContract("deployed", contractName);
 };
 
-const getInitilizedContract = async function (contractName) {
+export const getInitilizedContract = async function (contractName) {
     return await getContract("initialized", contractName);
 };
 
@@ -61,11 +61,11 @@ async function getContract(type, contractName) {
     return contracts[contractName];
 }
 
-const updateDeployedContract = async function (contractName, contractAddress) {
+export const updateDeployedContract = async function (contractName, contractAddress) {
     await updateContract("deployed", contractName, contractAddress);
 };
 
-const updateInitializedContract = async function (contractName) {
+export const updateInitializedContract = async function (contractName) {
     await updateContract("initialized", contractName, "Done");
 };
 
@@ -101,12 +101,12 @@ const checkReceiptOk = async function (transationPromise) {
 
 const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
 
-const sendTransaction = async function (
+export const sendTransaction = async function (
     contractName,
     contractInstance,
     methodName,
-    parameters = [],
-    logMessage,
+    parameters = [any],
+    logMessage?,
 ) {
     // const gasPrice = await hre.ethers.provider.getGasPrice()
     await sleep(5000);
@@ -127,7 +127,12 @@ export async function deploy(contractName, keyName, contractParameters?, librari
     const deployed = await getDeployedContract(keyName);
     if (deployed) {
         console.log(`${keyName} already deployed: ${deployed}`);
-        let Contract = await hre.ethers.getContractFactory(contractName);
+        let Contract;
+        if (libraries) {
+            Contract = await hre.ethers.getContractFactory(contractName, libraries);
+        } else {
+            Contract = await hre.ethers.getContractFactory(contractName);
+        }
         return Contract.attach(deployed);
     }
     let Contract;
