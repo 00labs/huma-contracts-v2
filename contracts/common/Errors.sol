@@ -120,7 +120,6 @@ contract Errors {
 
     // factory
     error InvalidPoolId(); // 0x0afa7ee8
-    error InvalidPoolStatus(); // 0x3fad04fd
     error InvalidTranchesPolicyType(); // 0xdfeca9c2
     error InvalidCreditType(); // 0x0dcf2e93
     error DeployerRequired(); // 0x2e2bcb63
