@@ -274,50 +274,6 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         return (additionalYieldAccrued, additionalPrincipalDue);
     }
 
-    /// @inheritdoc ICreditDueManager
-    function recomputeYieldDue(
-        uint256 nextDueDate,
-        uint256 oldYieldDue,
-        uint256 oldYieldInBps,
-        uint256 newYieldInBps,
-        uint256 principal
-    ) external view returns (uint256 updatedYield) {
-        uint256 daysRemaining = calendar.getDaysRemainingInPeriod(nextDueDate);
-        // Note that we do not divide by `(HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR)` here since division rounds down.
-        // We will do summation before division at the end for better precision.
-        uint256 newYieldDueForDaysRemaining = principal * newYieldInBps * (daysRemaining - 1);
-        uint256 oldYieldDueForDaysRemaining = principal * oldYieldInBps * (daysRemaining - 1);
-        return
-            (oldYieldDue *
-                HUNDRED_PERCENT_IN_BPS *
-                DAYS_IN_A_YEAR +
-                newYieldDueForDaysRemaining -
-                oldYieldDueForDaysRemaining) / (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR);
-    }
-
-    /// @inheritdoc ICreditDueManager
-    function recomputeCommittedYieldDueAfterCommitmentChange(
-        uint256 nextDueDate,
-        uint256 oldCommittedYieldDue,
-        uint256 oldCommittedAmount,
-        uint256 newCommittedAmount,
-        uint256 yieldInBps
-    ) external view returns (uint256 updatedYield) {
-        uint256 daysRemaining = calendar.getDaysRemainingInPeriod(nextDueDate);
-        uint256 newYieldDueForDaysRemaining = newCommittedAmount *
-            yieldInBps *
-            (daysRemaining - 1);
-        uint256 oldYieldDueForDaysRemaining = oldCommittedAmount *
-            yieldInBps *
-            (daysRemaining - 1);
-        return
-            (oldCommittedYieldDue *
-                HUNDRED_PERCENT_IN_BPS *
-                DAYS_IN_A_YEAR +
-                newYieldDueForDaysRemaining -
-                oldYieldDueForDaysRemaining) / (HUNDRED_PERCENT_IN_BPS * DAYS_IN_A_YEAR);
-    }
-
     function getNextBillRefreshDate(
         CreditRecord memory cr
     ) public view returns (uint256 refreshDate) {
