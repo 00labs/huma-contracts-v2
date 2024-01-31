@@ -187,7 +187,6 @@ contract TrancheVault is
     function removeApprovedLender(address lender) external {
         poolConfig.onlyPoolOperator(msg.sender);
         if (lender == address(0)) revert Errors.ZeroAddressProvided();
-        if (!hasRole(LENDER_ROLE, lender)) revert Errors.LenderRequired();
         _revokeRole(LENDER_ROLE, lender);
         if (!_getDepositRecord(lender).reinvestYield) {
             _removeLenderFromNonReinvestingLenders(lender);
@@ -492,6 +491,17 @@ contract TrancheVault is
      * @notice Disables the transfer functionality.
      */
     function transfer(address, uint256) public virtual override returns (bool) {
+        revert Errors.UnsupportedFunction();
+    }
+
+    /**
+     * @notice Disables the transfer functionality.
+     */
+    function transferFrom(
+        address from,
+        address to,
+        uint256 amount
+    ) public virtual override returns (bool) {
         revert Errors.UnsupportedFunction();
     }
 

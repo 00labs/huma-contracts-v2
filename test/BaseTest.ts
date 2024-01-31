@@ -123,7 +123,6 @@ export enum PayPeriodDuration {
 
 export enum CreditState {
     Deleted,
-    Paused,
     Approved,
     GoodStanding,
     Delayed,
@@ -878,12 +877,17 @@ function calcProfitForRiskAdjustedPolicy(profit: BN, assets: BN[], riskAdjustmen
 async function calcProfitForFirstLossCovers(
     profit: BN,
     juniorTotalAssets: BN,
-    firstLossCoverInfos: FirstLossCoverInfo[],
+    firstLossCoverInfos: (FirstLossCoverInfo | null)[],
 ): Promise<[BN, BN[]]> {
     const riskWeightedCoverTotalAssets = await Promise.all(
-        firstLossCoverInfos.map(async (info, index) =>
-            info.asset.mul(await info.config.riskYieldMultiplierInBps).div(CONSTANTS.BP_FACTOR),
-        ),
+        firstLossCoverInfos.map(async (info, index) => {
+            if (!info) {
+                return BN.from(0);
+            }
+            return info.asset
+                .mul(await info.config.riskYieldMultiplierInBps)
+                .div(CONSTANTS.BP_FACTOR);
+        }),
     );
     const totalWeight = juniorTotalAssets.add(sumBNArray(riskWeightedCoverTotalAssets));
     const profitsForFirstLossCovers = riskWeightedCoverTotalAssets.map((value) =>
@@ -912,12 +916,16 @@ async function calcLossCover(loss: BN, firstLossCoverInfo: FirstLossCoverInfo): 
 async function calcLoss(
     loss: BN,
     assets: BN[],
-    firstLossCoverInfos: FirstLossCoverInfo[],
+    firstLossCoverInfos: (FirstLossCoverInfo | null)[],
 ): Promise<BN[][]> {
     const lossesCoveredByFirstLossCovers = [];
     let coveredAmount;
     for (const info of firstLossCoverInfos) {
-        [loss, coveredAmount] = await calcLossCover(loss, info);
+        if (!info) {
+            coveredAmount = BN.from(0);
+        } else {
+            [loss, coveredAmount] = await calcLossCover(loss, info);
+        }
         lossesCoveredByFirstLossCovers.push(coveredAmount);
     }
     const juniorLoss = loss.gt(assets[CONSTANTS.JUNIOR_TRANCHE])
@@ -1093,15 +1101,15 @@ export class FeeCalculator {
 export class ProfitAndLossCalculator {
     poolConfigContract: PoolConfig;
     poolContract: Pool;
-    firstLossCoverContracts: FirstLossCover[];
+    firstLossCoverContracts: (FirstLossCover | null)[];
 
     tranchesAssets: BN[] = [];
-    firstLossCoverInfos: FirstLossCoverInfo[] = [];
+    firstLossCoverInfos: (FirstLossCoverInfo | null)[] = [];
 
     constructor(
         poolConfigContract: PoolConfig,
         poolContract: Pool,
-        firstLossCoverContracts: FirstLossCover[],
+        firstLossCoverContracts: (FirstLossCover | null)[],
     ) {
         this.poolConfigContract = poolConfigContract;
         this.poolContract = poolContract;
@@ -1112,9 +1120,12 @@ export class ProfitAndLossCalculator {
         this.tranchesAssets = await this.poolContract.currentTranchesAssets();
         this.firstLossCoverInfos = await Promise.all(
             this.firstLossCoverContracts.map(async (firstLossCoverContract) => {
-                let asset = await firstLossCoverContract.totalAssets();
-                let coveredLoss = await firstLossCoverContract.coveredLoss();
-                let config = await this.poolConfigContract.getFirstLossCoverConfig(
+                if (!firstLossCoverContract) {
+                    return null;
+                }
+                const asset = await firstLossCoverContract.totalAssets();
+                const coveredLoss = await firstLossCoverContract.coveredLoss();
+                const config = await this.poolConfigContract.getFirstLossCoverConfig(
                     firstLossCoverContract.address,
                 );
                 return { asset, config, coveredLoss };
@@ -1135,7 +1146,9 @@ export class ProfitAndLossCalculator {
         let [assets, profitsForAssets, profitsForFirstLossCovers] =
             await this._endRiskAdjustedProfitCalculation(profit);
         this.firstLossCoverInfos.forEach((info, index) => {
-            info.asset = info.asset.add(profitsForFirstLossCovers[index]);
+            if (info !== null) {
+                info.asset = info.asset.add(profitsForFirstLossCovers[index]);
+            }
         });
 
         let [newAssets, lossesForAssets, lossesForFirstLossCovers] = await calcLoss(
@@ -1166,6 +1179,9 @@ export class ProfitAndLossCalculator {
         let [assets, profitsForAssets, profitsForFirstLossCovers, newTracker] =
             await this._endFixedSeniorYieldProfitCalculation(profit, tracker);
         this.firstLossCoverInfos.forEach((info, index) => {
+            if (!info) {
+                return null;
+            }
             info.asset = info.asset.add(profitsForFirstLossCovers[index]);
         });
 
@@ -1184,20 +1200,20 @@ export class ProfitAndLossCalculator {
     }
 
     private async _endRiskAdjustedProfitCalculation(profit: BN): Promise<[BN[], BN[], BN[]]> {
-        let lpConfig = await this.poolConfigContract.getLPConfig();
-        let assets = await calcProfitForRiskAdjustedPolicy(
+        const lpConfig = await this.poolConfigContract.getLPConfig();
+        const assets = await calcProfitForRiskAdjustedPolicy(
             profit,
             this.tranchesAssets,
             BN.from(lpConfig.tranchesRiskAdjustmentInBps),
         );
-        let [juniorProfit, firstLossCoverProfits] = await calcProfitForFirstLossCovers(
+        const [juniorProfit, firstLossCoverProfits] = await calcProfitForFirstLossCovers(
             assets[CONSTANTS.JUNIOR_TRANCHE].sub(this.tranchesAssets[CONSTANTS.JUNIOR_TRANCHE]),
             this.tranchesAssets[CONSTANTS.JUNIOR_TRANCHE],
             this.firstLossCoverInfos,
         );
         assets[CONSTANTS.JUNIOR_TRANCHE] =
             this.tranchesAssets[CONSTANTS.JUNIOR_TRANCHE].add(juniorProfit);
-        let trancheProfits = [
+        const trancheProfits = [
             assets[CONSTANTS.SENIOR_TRANCHE].sub(this.tranchesAssets[CONSTANTS.SENIOR_TRANCHE]),
             juniorProfit,
         ];
