@@ -19,11 +19,9 @@ import {
     ReceivableBackedCreditLine,
     ReceivableBackedCreditLineManager,
     RiskAdjustedTranchesPolicy,
-    TrancheVault,
+    TrancheVault
 } from "../../../typechain-types";
 import {
-    CreditState,
-    PayPeriodDuration,
     calcPrincipalDueForFullPeriods,
     calcPrincipalDueForPartialPeriod,
     calcYield,
@@ -31,10 +29,11 @@ import {
     checkCreditRecord,
     checkCreditRecordsMatch,
     checkDueDetailsMatch,
+    CreditState,
     deployAndSetupPoolContracts,
     deployProtocolContracts,
     genDueDetail,
-    printCreditRecord,
+    PayPeriodDuration
 } from "../../BaseTest";
 import {
     borrowerLevelCreditHash,
@@ -42,7 +41,7 @@ import {
     getLatestBlock,
     mineNextBlockWithTimestamp,
     setNextBlockTimestamp,
-    toToken,
+    toToken
 } from "../../TestUtils";
 import { CONSTANTS } from "../../constants";
 
@@ -753,9 +752,6 @@ describe("ReceivableBackedCreditLine Tests", function () {
                 const oldCR = await creditContract.getCreditRecord(creditHash);
                 const oldDD = await creditContract.getDueDetail(creditHash);
                 const paymentAmount = oldCR.yieldDue;
-                console.log(`TS: ${maturityDate + 1}`);
-                printCreditRecord("", oldCR);
-                console.log(`paymentAmount ${paymentAmount}`);
 
                 // Advance the block timestamp to be after the maturity date and make sure the payment can
                 // still go through.

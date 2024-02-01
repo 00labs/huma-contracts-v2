@@ -15,7 +15,6 @@ import {ICredit} from "./interfaces/ICredit.sol";
 import {ICreditManager} from "./interfaces/ICreditManager.sol";
 import {ICreditDueManager} from "./interfaces/ICreditDueManager.sol";
 import {BORROWER_LOSS_COVER_INDEX} from "../common/SharedDefs.sol";
-import "hardhat/console.sol";
 
 /**
  * @notice Credit is the core borrowing concept in Huma Protocol. This abstract contract operates at the
@@ -434,12 +433,6 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
                     IPool(poolConfig.pool()).distributeProfit(profit);
                 }
             }
-            console.log(
-                "amountToCollect %d, paymentRecord.yieldDuePaid %d, paymentRecord.yieldPastDuePaid %d",
-                amountToCollect,
-                paymentRecord.yieldDuePaid,
-                paymentRecord.yieldPastDuePaid
-            );
             emit PaymentMade(
                 borrower,
                 payer,
