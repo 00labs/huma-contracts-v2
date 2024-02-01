@@ -691,9 +691,7 @@ describe("TrancheVault Test", function () {
             const poolSettings = await poolConfigContract.getPoolSettings();
 
             await expect(
-                juniorTrancheVaultContract
-                    .connect(lender)
-                    .deposit(poolSettings.minDepositAmount, lender.address),
+                juniorTrancheVaultContract.connect(lender).deposit(poolSettings.minDepositAmount),
             ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "ZeroSharesMinted");
         });
 
