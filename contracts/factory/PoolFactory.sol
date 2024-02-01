@@ -15,10 +15,6 @@ interface IPoolConfigCacheLike {
     function initialize(address poolConfig) external;
 }
 
-interface IFirstLossCoverLike {
-    function initialize(string memory name, string memory symbol, PoolConfig _poolConfig) external;
-}
-
 interface IVaultLike {
     function initialize(
         string memory name,
@@ -324,19 +320,22 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         uint96 coverCapPerLoss,
         uint96 maxLiquidity,
         uint96 minLiquidity,
-        uint16 riskYieldMultiplierInBps
+        uint16 riskYieldMultiplierInBps,
+        string memory firstLossCoverName,
+        string memory firstLossCoverSymbol
     ) external {
-        _notZeroAddress(poolConfigAddress);
         _onlyDeployer(msg.sender);
-        address firstLossCover = _addFirstLossCover();
-        FirstLossCoverConfig memory config = FirstLossCoverConfig(
+        _setFirstLossCover(
+            PoolConfig(poolConfigAddress),
+            poolCoverIndex,
             coverRatePerLossInBps,
             coverCapPerLoss,
             maxLiquidity,
             minLiquidity,
-            riskYieldMultiplierInBps
+            riskYieldMultiplierInBps,
+            firstLossCoverName,
+            firstLossCoverSymbol
         );
-        _setFirstLossCover(poolConfigAddress, firstLossCover, poolCoverIndex, config);
     }
 
     /**
@@ -371,43 +370,9 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         // First Loss Cover index [0, 1, 2] are reserved for borrower, insurance and admin
         // all fields are set to 0 by default, and can be changed by pool owner later
         // or by the deployer if the pool owner provides the details
-        address borrowerFirstLossCover = _addFirstLossCover();
-        IFirstLossCoverLike(borrowerFirstLossCover).initialize(
-            "Borrower First Loss Cover",
-            "BFLC",
-            poolConfig
-        );
-        _setFirstLossCover(
-            poolConfigAddress,
-            borrowerFirstLossCover,
-            0,
-            FirstLossCoverConfig(0, 0, 0, 0, 0)
-        );
-        address insuranceFirstLossCover = _addFirstLossCover();
-        IFirstLossCoverLike(insuranceFirstLossCover).initialize(
-            "Insurance First Loss Cover",
-            "IFLC",
-            poolConfig
-        );
-        _setFirstLossCover(
-            poolConfigAddress,
-            insuranceFirstLossCover,
-            1,
-            FirstLossCoverConfig(0, 0, 0, 0, 0)
-        );
-        address adminFirstLossCover = _addFirstLossCover();
-        IFirstLossCoverLike(adminFirstLossCover).initialize(
-            "Admin First Loss Cover",
-            "AFLC",
-            poolConfig
-        );
-        _setFirstLossCover(
-            poolConfigAddress,
-            adminFirstLossCover,
-            2,
-            FirstLossCoverConfig(0, 0, 0, 0, 0)
-        );
-
+        _setFirstLossCover(poolConfig, 0, 0, 0, 0, 0, 0, "Borrower First Loss Cover", "BFLC");
+        _setFirstLossCover(poolConfig, 1, 0, 0, 0, 0, 0, "Insurance First Loss Cover", "IFLC");
+        _setFirstLossCover(poolConfig, 2, 0, 0, 0, 0, 0, "Admin First Loss Cover", "AFLC");
         for (uint8 i = 3; i <= 12; i++) {
             // when index is 8 or 9, it is senior or junior tranche vault
             // trancheVault uses different initialize function
@@ -631,12 +596,30 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
     }
 
     function _setFirstLossCover(
-        address poolConfigAddress,
-        address firstLossCover,
-        uint8 index,
-        FirstLossCoverConfig memory config
+        PoolConfig poolConfig,
+        uint8 poolCoverIndex,
+        uint16 coverRatePerLossInBps,
+        uint96 coverCapPerLoss,
+        uint96 maxLiquidity,
+        uint96 minLiquidity,
+        uint16 riskYieldMultiplierInBps,
+        string memory firstLossCoverName,
+        string memory firstLossCoverSymbol
     ) private {
-        PoolConfig(poolConfigAddress).setFirstLossCover(index, firstLossCover, config);
+        _notZeroAddress(address(poolConfig));
+        address firstLossCover = _addFirstLossCover(
+            firstLossCoverName,
+            firstLossCoverSymbol,
+            poolConfig
+        );
+        FirstLossCoverConfig memory config = FirstLossCoverConfig(
+            coverRatePerLossInBps,
+            coverCapPerLoss,
+            maxLiquidity,
+            minLiquidity,
+            riskYieldMultiplierInBps
+        );
+        poolConfig.setFirstLossCover(poolCoverIndex, firstLossCover, config);
     }
 
     // add a proxy
@@ -681,9 +664,22 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
     }
 
     // add firstLossCover proxy
-    function _addFirstLossCover() private returns (address) {
+    function _addFirstLossCover(
+        string memory firstLossCoverName,
+        string memory firstLossCoverSymbol,
+        PoolConfig _poolConfig
+    ) private returns (address) {
         _notZeroAddress(firstLossCoverImplAddress);
-        address firstLossCover = _addProxy(firstLossCoverImplAddress, "");
+        _notZeroAddress(address(_poolConfig));
+        address firstLossCover = _addProxy(
+            firstLossCoverImplAddress,
+            abi.encodeWithSignature(
+                "initialize(string,string,address)",
+                firstLossCoverName,
+                firstLossCoverSymbol,
+                _poolConfig
+            )
+        );
         return firstLossCover;
     }
 
