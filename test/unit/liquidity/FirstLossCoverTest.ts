@@ -1082,7 +1082,17 @@ describe("FirstLossCover Tests", function () {
             await expect(
                 adminFirstLossCoverContract
                     .connect(evaluationAgent)
-                    .transfer(lender.address, toToken(100)),
+                    .transfer(lender.getAddress(), toToken(100)),
+            ).to.be.revertedWithCustomError(adminFirstLossCoverContract, "UnsupportedFunction");
+
+            await expect(
+                adminFirstLossCoverContract
+                    .connect(evaluationAgent)
+                    .transferFrom(
+                        poolOwner.getAddress(),
+                        evaluationAgent.getAddress(),
+                        toToken(100),
+                    ),
             ).to.be.revertedWithCustomError(adminFirstLossCoverContract, "UnsupportedFunction");
         });
     });

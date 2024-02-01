@@ -22,18 +22,6 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
     event CommittedCreditStarted(bytes32 indexed creditHash);
 
     /**
-     * @notice A credit has beed paused.
-     * @param creditHash The hash of the credit.
-     */
-    event CreditPaused(bytes32 indexed creditHash);
-
-    /**
-     * @notice A paused credit has been unpaused.
-     * @param creditHash The hash of the credit.
-     */
-    event CreditUnpaused(bytes32 indexed creditHash);
-
-    /**
      * @notice An existing credit has been closed.
      * @param creditHash The hash of the credit.
      * @param reasonCode The reason for the credit closure.
@@ -223,7 +211,8 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         // Once a drawdown has happened, it is disallowed to re-approve a credit. One has to call
         // other admin functions to change the terms of the credit.
         CreditRecord memory cr = credit.getCreditRecord(creditHash);
-        if (cr.state > CreditState.Approved) revert Errors.CreditNotInStateForUpdate();
+        if (cr.state != CreditState.Deleted && cr.state != CreditState.Approved)
+            revert Errors.CreditNotInStateForUpdate();
 
         CreditConfig memory cc = getCreditConfig(creditHash);
         cc.creditLimit = creditLimit;
@@ -301,32 +290,6 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         credit.setCreditRecord(creditHash, cr);
 
         emit CreditClosed(creditHash, CreditClosureReason.AdminClosure, msg.sender);
-    }
-
-    /**
-     * @notice Pauses the credit. No drawdown is allowed for paused credit.
-     * @param creditHash The hash of the credit.
-     */
-    function _pauseCredit(bytes32 creditHash) internal {
-        CreditRecord memory cr = credit.getCreditRecord(creditHash);
-        if (cr.state == CreditState.GoodStanding) {
-            cr.state = CreditState.Paused;
-            credit.setCreditRecord(creditHash, cr);
-            emit CreditPaused(creditHash);
-        }
-    }
-
-    /**
-     * @notice Unpauses the credit to return the credit to normal.
-     * @param creditHash The hash of the credit.
-     */
-    function _unpauseCredit(bytes32 creditHash) internal virtual {
-        CreditRecord memory cr = credit.getCreditRecord(creditHash);
-        if (cr.state == CreditState.Paused) {
-            cr.state = CreditState.GoodStanding;
-            credit.setCreditRecord(creditHash, cr);
-            emit CreditUnpaused(creditHash);
-        }
     }
 
     /**
