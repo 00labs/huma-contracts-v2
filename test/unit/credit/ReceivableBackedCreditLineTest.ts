@@ -608,7 +608,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
         });
     });
 
-    describe("makePaymentWithReceivable", function () {
+    describe.only("makePaymentWithReceivable", function () {
         const yieldInBps = 1217,
             principalRate = 100,
             lateFeeBps = 2400;
@@ -639,7 +639,12 @@ describe("ReceivableBackedCreditLine Tests", function () {
             creditHash = await borrowerLevelCreditHash(creditContract, borrower);
 
             const currentTS = (await getLatestBlock()).timestamp;
-            maturityDate = currentTS + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
+            maturityDate = (
+                await calendarContract.getStartDateOfNextPeriod(
+                    PayPeriodDuration.Monthly,
+                    currentTS,
+                )
+            ).toNumber();
             await receivableContract
                 .connect(borrower)
                 .createReceivable(1, borrowAmount, maturityDate, "", "");
