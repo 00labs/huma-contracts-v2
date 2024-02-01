@@ -138,24 +138,6 @@ contract ReceivableFactoringCreditManager is
     }
 
     /// @inheritdoc IReceivableFactoringCreditManager
-    function pauseCredit(uint256 receivableId) external virtual {
-        poolConfig.onlyProtocolAndPoolOn();
-        _onlyEAServiceAccount();
-
-        bytes32 creditHash = _getCreditHash(receivableId);
-        _pauseCredit(creditHash);
-    }
-
-    /// @inheritdoc IReceivableFactoringCreditManager
-    function unpauseCredit(uint256 receivableId) external virtual {
-        poolConfig.onlyProtocolAndPoolOn();
-        _onlyEAServiceAccount();
-
-        bytes32 creditHash = _getCreditHash(receivableId);
-        _unpauseCredit(creditHash);
-    }
-
-    /// @inheritdoc IReceivableFactoringCreditManager
     function updateYield(uint256 receivableId, uint256 yieldInBps) external virtual {
         poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();

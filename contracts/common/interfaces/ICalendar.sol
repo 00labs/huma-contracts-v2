@@ -9,7 +9,7 @@ import {PayPeriodDuration} from "../SharedDefs.sol";
 interface ICalendar {
     /**
      * @notice Returns the number of days remaining in the period that ends on endDate.
-     * @param endDate The end date of the period.
+     * @param endDate The end date of the period. Note that passing in dates other than the end date will not work.
      * @return daysRemaining The number of days remaining in the period.
      */
     function getDaysRemainingInPeriod(
