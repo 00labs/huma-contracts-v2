@@ -229,6 +229,8 @@ contract FirstLossCover is
      * @notice Yield payout is expected to be handled by a cron-like mechanism like autotask.
      */
     function payoutYield() external {
+        poolConfig.onlyProtocolAndPoolOn();
+
         uint256 maxLiquidity = getMaxLiquidity();
         uint256 assets = totalAssets();
         if (assets <= maxLiquidity) return;

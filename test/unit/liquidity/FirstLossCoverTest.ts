@@ -1448,5 +1448,21 @@ describe("FirstLossCover Tests", function () {
             expect(newPoolOwnerBalance).to.equal(oldPoolOwnerBalance);
             expect(newEABalance).to.equal(oldEABalance.add(yieldAmount));
         });
+
+        it("Should not allow yield payout when the protocol is paused or pool is not on", async function () {
+            await humaConfigContract.connect(protocolOwner).pause();
+            await expect(adminFirstLossCoverContract.payoutYield()).to.be.revertedWithCustomError(
+                poolConfigContract,
+                "ProtocolIsPaused",
+            );
+            await humaConfigContract.connect(protocolOwner).unpause();
+
+            await poolContract.connect(poolOwner).disablePool();
+            await expect(adminFirstLossCoverContract.payoutYield()).to.be.revertedWithCustomError(
+                poolConfigContract,
+                "PoolIsNotOn",
+            );
+            await poolContract.connect(poolOwner).enablePool();
+        });
     });
 });
