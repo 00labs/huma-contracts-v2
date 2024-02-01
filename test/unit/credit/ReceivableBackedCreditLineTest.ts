@@ -608,7 +608,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
         });
     });
 
-    describe.only("makePaymentWithReceivable", function () {
+    describe("makePaymentWithReceivable", function () {
         const yieldInBps = 1217,
             principalRate = 100,
             lateFeeBps = 2400;
