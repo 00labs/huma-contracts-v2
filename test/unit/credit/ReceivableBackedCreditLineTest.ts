@@ -34,6 +34,7 @@ import {
     deployAndSetupPoolContracts,
     deployProtocolContracts,
     genDueDetail,
+    printCreditRecord,
 } from "../../BaseTest";
 import {
     borrowerLevelCreditHash,
@@ -747,6 +748,9 @@ describe("ReceivableBackedCreditLine Tests", function () {
                 const oldCR = await creditContract.getCreditRecord(creditHash);
                 const oldDD = await creditContract.getDueDetail(creditHash);
                 const paymentAmount = oldCR.yieldDue;
+                console.log(`TS: ${maturityDate + 1}`);
+                printCreditRecord("", oldCR);
+                console.log(`paymentAmount ${paymentAmount}`);
 
                 // Advance the block timestamp to be after the maturity date and make sure the payment can
                 // still go through.
