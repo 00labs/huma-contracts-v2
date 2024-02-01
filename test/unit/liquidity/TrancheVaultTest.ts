@@ -185,6 +185,12 @@ describe("TrancheVault Test", function () {
             assets = toToken(100);
         });
 
+        it("Should return 0 if the total assets is 0", async function () {
+            const juniorTotalAssets = await juniorTrancheVaultContract.totalAssets();
+            await mockDistributePnL(BN.from(0), juniorTotalAssets, BN.from(0));
+            expect(await juniorTrancheVaultContract.convertToShares(assets)).to.equal(0);
+        });
+
         it("Should return the assets as the number of shares if the current total supply is 0", async function () {
             expect(await seniorTrancheVaultContract.totalSupply()).to.equal(0);
             expect(await seniorTrancheVaultContract.convertToShares(assets)).to.equal(assets);
@@ -319,16 +325,30 @@ describe("TrancheVault Test", function () {
             ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "ZeroAddressProvided");
         });
 
-        it("Should not allow a lender to be removed twice", async function () {
+        it("Should allow a lender to be removed twice", async function () {
+            const poolOperatorRole = await poolConfigContract.POOL_OPERATOR_ROLE();
+            await poolConfigContract
+                .connect(poolOwner)
+                .grantRole(poolOperatorRole, defaultDeployer.address);
+            const lenderRole = await juniorTrancheVaultContract.LENDER_ROLE();
+
+            await expect(
+                juniorTrancheVaultContract
+                    .connect(defaultDeployer)
+                    .removeApprovedLender(lender4.address),
+            )
+                .to.emit(juniorTrancheVaultContract, "RoleRevoked")
+                .withArgs(lenderRole, lender4.address, defaultDeployer.address);
             await juniorTrancheVaultContract
                 .connect(poolOperator)
                 .removeApprovedLender(lender4.address);
 
-            await expect(
-                juniorTrancheVaultContract
-                    .connect(poolOperator)
-                    .removeApprovedLender(lender4.address),
-            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "LenderRequired");
+            expect(await juniorTrancheVaultContract.hasRole(lenderRole, lender4.address)).to.be
+                .false;
+            const newDepositRecord = await juniorTrancheVaultContract.depositRecords(
+                lender4.address,
+            );
+            checkDepositRecord(newDepositRecord, BN.from(0), true);
         });
 
         it("Should allow pool operators to remove a lender that was added first", async function () {
@@ -664,6 +684,19 @@ describe("TrancheVault Test", function () {
             );
         });
 
+        it("Should not allow deposits that would result in zero shares being minted", async function () {
+            // Mark all junior assets as loss so that the # of shares minted is 0.
+            const juniorAssets = await juniorTrancheVaultContract.totalAssets();
+            await mockDistributePnL(BN.from(0), juniorAssets, BN.from(0));
+            const poolSettings = await poolConfigContract.getPoolSettings();
+
+            await expect(
+                juniorTrancheVaultContract
+                    .connect(lender)
+                    .deposit(poolSettings.minDepositAmount, lender.address),
+            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "ZeroSharesMinted");
+        });
+
         it("Should not allow deposits if the new senior total assets would exceed the maxSeniorJuniorRatio", async function () {
             const lpConfig = await poolConfigContract.getLPConfig();
             const juniorAssets = await juniorTrancheVaultContract.totalAssets();
@@ -927,7 +960,13 @@ describe("TrancheVault Test", function () {
                 await expect(
                     juniorTrancheVaultContract
                         .connect(lender)
-                        .transfer(lender2.address, toToken(100)),
+                        .transfer(lender2.getAddress(), toToken(100)),
+                ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "UnsupportedFunction");
+
+                await expect(
+                    juniorTrancheVaultContract
+                        .connect(lender)
+                        .transferFrom(lender2.getAddress(), lender.getAddress(), toToken(100)),
                 ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "UnsupportedFunction");
             });
         });
@@ -2727,6 +2766,20 @@ describe("TrancheVault Test", function () {
                     juniorTrancheVaultContract.address,
                 ),
             ).to.equal(0);
+        });
+
+        it("Should not allow yield payout when the protocol is paused or pool is not on", async function () {
+            await humaConfigContract.connect(protocolOwner).pause();
+            await expect(
+                juniorTrancheVaultContract.processYieldForLenders(),
+            ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
+            await humaConfigContract.connect(protocolOwner).unpause();
+
+            await poolContract.connect(poolOwner).disablePool();
+            await expect(
+                juniorTrancheVaultContract.processYieldForLenders(),
+            ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
+            await poolContract.connect(poolOwner).enablePool();
         });
     });
 });

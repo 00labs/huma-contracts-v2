@@ -372,22 +372,6 @@ describe("CreditDueManager Tests", function () {
             });
         });
 
-        describe("If the bill is paused", function () {
-            it("Should return the CreditRecord and DueDetail as is", async function () {
-                const timestamp = await getFutureBlockTime(2);
-
-                const [cc, cr, dd] = getInputParams({}, { state: CreditState.Paused });
-                const [newCR, newDD] = await creditDueManagerContract.getDueInfo(
-                    cr,
-                    cc,
-                    dd,
-                    timestamp,
-                );
-                checkCreditRecordsMatch(newCR, cr);
-                checkDueDetailsMatch(newDD, dd);
-            });
-        });
-
         describe("If the bill is defaulted", function () {
             it("Should return the CreditRecord and DueDetail as is", async function () {
                 const timestamp = await getFutureBlockTime(2);

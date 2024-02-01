@@ -180,7 +180,6 @@ contract TrancheVault is
     function removeApprovedLender(address lender) external {
         poolConfig.onlyPoolOperator(msg.sender);
         if (lender == address(0)) revert Errors.ZeroAddressProvided();
-        if (!hasRole(LENDER_ROLE, lender)) revert Errors.LenderRequired();
         _revokeRole(LENDER_ROLE, lender);
         if (!_getDepositRecord(lender).reinvestYield) {
             _removeLenderFromNonReinvestingLenders(lender);
@@ -409,8 +408,9 @@ contract TrancheVault is
      * a cron-like mechanism like autotask to trigger it.
      */
     function processYieldForLenders() external {
-        uint256 len = nonReinvestingLenders.length;
+        poolConfig.onlyProtocolAndPoolOn();
 
+        uint256 len = nonReinvestingLenders.length;
         uint256 price = convertToAssets(DEFAULT_DECIMALS_FACTOR);
         uint96[2] memory tranchesAssets = pool.currentTranchesAssets();
         for (uint256 i = 0; i < len; i++) {
@@ -485,6 +485,17 @@ contract TrancheVault is
         revert Errors.UnsupportedFunction();
     }
 
+    /**
+     * @notice Disables the transfer functionality.
+     */
+    function transferFrom(
+        address from,
+        address to,
+        uint256 amount
+    ) public virtual override returns (bool) {
+        revert Errors.UnsupportedFunction();
+    }
+
     function decimals() public view override returns (uint8) {
         return _decimals;
     }
@@ -538,6 +549,12 @@ contract TrancheVault is
         uint96[2] memory tranches = pool.currentTranchesAssets();
         uint256 trancheAssets = tranches[trancheIndex];
         shares = _convertToShares(assets, trancheAssets);
+
+        if (shares == 0) {
+            // Disallows 0 shares to be minted. This can be caused by rounding errors or the tranche
+            // losing all of its assets after default.
+            revert Errors.ZeroSharesMinted();
+        }
         ERC20Upgradeable._mint(msg.sender, shares);
         DepositRecord memory depositRecord = _getDepositRecord(msg.sender);
         depositRecord.principal += uint96(assets);
@@ -599,7 +616,7 @@ contract TrancheVault is
         uint256 _totalAssets
     ) internal view returns (uint256 shares) {
         uint256 supply = ERC20Upgradeable.totalSupply();
-
+        if (supply != 0 && _totalAssets == 0) return 0;
         return supply == 0 ? _assets : (_assets * supply) / _totalAssets;
     }
 
