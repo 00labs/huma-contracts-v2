@@ -12,12 +12,12 @@ const HUMA_TREASURY_ACCOUNT = "0x18A00C3cdb71491eF7c3b890f9df37CB5Ec11D2A";
 const EA_SERVICE_ACCOUNT = "0x18A00C3cdb71491eF7c3b890f9df37CB5Ec11D2A";
 const SENTINEL_ACCOUNT = "0xD8F15c96825e1724B18dd477583E0DcCE3DfF0b1";
 const contracts = [
-    "PoolConfig",
-    "PoolFeeManager",
-    "PoolSafe",
-    "FirstLossCover",
-    "RiskAdjustedTranchesPolicy",
-    "FixedSeniorYieldTranchePolicy",
+    // "PoolConfig",
+    // "PoolFeeManager",
+    // "PoolSafe",
+    // "FirstLossCover",
+    // "RiskAdjustedTranchesPolicy",
+    "FixedSeniorYieldTranchesPolicy",
     "Pool",
     "EpochManager",
     "TrancheVault",

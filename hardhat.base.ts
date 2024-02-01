@@ -51,6 +51,16 @@ const config: HardhatUserConfig = {
             sepolia: process.env.ETHERSCAN_API_KEY || "",
             alfajores: process.env.CELOSCAN_API_KEY || "",
         },
+        customChains: [
+            {
+                network: "alfajores",
+                chainId: 44787,
+                urls: {
+                    apiURL: "https://api-alfajores.celoscan.io/api",
+                    browserURL: "https://alfajores.celoscan.io/",
+                },
+            },
+        ],
     },
     contractSizer: {
         alphaSort: true,

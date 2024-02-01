@@ -11,7 +11,7 @@ async function deployImplementationContracts() {
         "PoolSafe",
         "FirstLossCover",
         "RiskAdjustedTranchesPolicy",
-        "FixedSeniorYieldTranchePolicy",
+        "FixedSeniorYieldTranchesPolicy",
         "Pool",
         "EpochManager",
         "TrancheVault",
