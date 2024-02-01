@@ -6,14 +6,12 @@ import { BigNumber as BN, ethers } from "ethers";
 import fs from "fs";
 const DEPLOYED_PATH = "./deployment/";
 
-const MAX_FEE_PER_GAS = 150_000_000_000;
-const MAX_PRIORITY_FEE_PER_GAS = 70_000_000_000;
+const MAX_FEE_PER_GAS = 2_000_000;
+const MAX_PRIORITY_FEE_PER_GAS = 1_500_000;
 
 const getContractAddressFile = async function (fileType = "deployed", network) {
     if (!network) {
-        network = (await hre.ethers.provider.getNetwork()).name;
-        // console.log('network : ', network)
-        network = network == "unknown" ? "localhost" : network;
+        throw new Error("Network not provided!");
     }
     const contractAddressFile = `${DEPLOYED_PATH}${network}-${fileType}-contracts.json`;
     // console.log("contractAddressFile: ", contractAddressFile);
@@ -30,20 +28,20 @@ const readFileContent = async function (fileType = "deployed", network) {
     return content;
 };
 
-const getDeployedContract = async function (contractName) {
-    return await getContract("deployed", contractName);
+const getDeployedContract = async function (contractName, network) {
+    return await getContract("deployed", contractName, network);
 };
 
-export const getInitilizedContract = async function (contractName) {
-    return await getContract("initialized", contractName);
+export const getInitilizedContract = async function (contractName, network) {
+    return await getContract("initialized", contractName, network);
 };
 
-const getUpgradedContract = async function (contractName) {
-    return await getContract("upgraded", contractName);
+const getUpgradedContract = async function (contractName, network) {
+    return await getContract("upgraded", contractName, network);
 };
 
-export const getVerifiedContract = async function (contractName) {
-    return await getContract("verified", contractName);
+export const getVerifiedContract = async function (contractName, network) {
+    return await getContract("verified", contractName, network);
 };
 
 export const getDeployedContracts = async function (network) {
@@ -56,33 +54,33 @@ async function getContracts(type, network) {
     return contracts;
 }
 
-async function getContract(type, contractName) {
-    const contracts = await getContracts(type);
+async function getContract(type, contractName, network) {
+    const contracts = await getContracts(type, network);
     return contracts[contractName];
 }
 
-export const updateDeployedContract = async function (contractName, contractAddress) {
-    await updateContract("deployed", contractName, contractAddress);
+export const updateDeployedContract = async function (contractName, contractAddress, network) {
+    await updateContract("deployed", contractName, contractAddress, network);
 };
 
-export const updateInitializedContract = async function (contractName) {
-    await updateContract("initialized", contractName, "Done");
+export const updateInitializedContract = async function (contractName, network) {
+    await updateContract("initialized", contractName, "Done", network);
 };
 
-const updateUpgradedContract = async function (contractName) {
-    await updateContract("upgraded", contractName, "Done");
+const updateUpgradedContract = async function (contractName, network) {
+    await updateContract("upgraded", contractName, "Done", network);
 };
 
-export const updateVerifiedContract = async function (contractName) {
-    await updateContract("verified", contractName, "Done");
+export const updateVerifiedContract = async function (contractName, network) {
+    await updateContract("verified", contractName, "Done", network);
 };
 
-async function updateContract(type, contractName, value) {
-    const oldData = await readFileContent(type);
+async function updateContract(type, contractName, value, network) {
+    const oldData = await readFileContent(type, network);
     let contracts = JSON.parse(oldData);
     contracts[contractName] = value;
     const newData = JSON.stringify(contracts).replace(/\,/g, ",\n");
-    const deployedContractsFile = await getContractAddressFile(type);
+    const deployedContractsFile = await getContractAddressFile(type, network);
     fs.writeFileSync(deployedContractsFile, newData);
 }
 
@@ -123,8 +121,15 @@ export const sendTransaction = async function (
     console.log(`${contractName}:${logMessage} End!`);
 };
 
-export async function deploy(contractName, keyName, contractParameters?, libraries?, deployer?) {
-    const deployed = await getDeployedContract(keyName);
+export async function deploy(
+    network,
+    contractName,
+    keyName,
+    contractParameters?,
+    libraries?,
+    deployer?,
+) {
+    const deployed = await getDeployedContract(keyName, network);
     if (deployed) {
         console.log(`${keyName} already deployed: ${deployed}`);
         let Contract;
@@ -162,7 +167,7 @@ export async function deploy(contractName, keyName, contractParameters?, librari
     console.log(`${keyName} TransactionHash: ${contract.deployTransaction.hash}`);
     await contract.deployed();
     console.log(`${keyName}: ${contract.address}`);
-    await updateDeployedContract(keyName, contract.address);
+    await updateDeployedContract(keyName, contract.address, network);
     console.log(`Deploy ${keyName} Done!`);
     return contract;
 }

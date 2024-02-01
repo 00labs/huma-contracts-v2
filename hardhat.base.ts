@@ -32,6 +32,11 @@ const config: HardhatUserConfig = {
             accounts: [deployer],
             chainId: 44787,
         },
+        baseSepolia: {
+            url: "https://sepolia.base.org",
+            accounts: [deployer],
+            chainId: 84532,
+        },
     },
     solidity: {
         compilers: [
