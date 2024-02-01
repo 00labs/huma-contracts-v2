@@ -676,6 +676,23 @@ describe("TrancheVault Test", function () {
             );
         });
 
+        it("Should not allow deposits into the senior tranche if the maxSeniorJuniorRatio is 0", async function () {
+            const poolSettings = await poolConfigContract.getPoolSettings();
+            await overrideLPConfig(poolConfigContract, poolOwner, {
+                maxSeniorJuniorRatio: 0,
+            });
+
+            expect(await poolContract.getTrancheAvailableCap(CONSTANTS.SENIOR_TRANCHE)).to.equal(
+                0,
+            );
+            await expect(
+                seniorTrancheVaultContract.connect(lender).deposit(poolSettings.minDepositAmount),
+            ).to.be.revertedWithCustomError(
+                seniorTrancheVaultContract,
+                "TrancheLiquidityCapExceeded",
+            );
+        });
+
         it("Should allow lenders to deposit", async function () {
             let juniorAmount = toToken(40_000);
             const existingJuniorAssets = await juniorTrancheVaultContract.totalAssets();
