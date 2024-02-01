@@ -559,6 +559,11 @@ contract TrancheVault is
         uint96[2] memory tranches = pool.currentTranchesAssets();
         uint256 trancheAssets = tranches[trancheIndex];
         shares = _convertToShares(assets, trancheAssets);
+        if (shares == 0) {
+            // Disallows 0 shares to be minted. This can be caused by rounding errors or the tranche
+            // losing all of its assets after default.
+            revert Errors.ZeroSharesMinted();
+        }
         ERC20Upgradeable._mint(receiver, shares);
         DepositRecord memory depositRecord = _getDepositRecord(receiver);
         depositRecord.principal += uint96(assets);
@@ -620,7 +625,7 @@ contract TrancheVault is
         uint256 _totalAssets
     ) internal view returns (uint256 shares) {
         uint256 supply = ERC20Upgradeable.totalSupply();
-
+        if (supply != 0 && _totalAssets == 0) return 0;
         return supply == 0 ? _assets : (_assets * supply) / _totalAssets;
     }
 
