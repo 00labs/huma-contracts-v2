@@ -24,7 +24,7 @@ contract Errors {
     error PayerRequired(); // 0xb00f9713
     error CoverProviderRequired(); // 0x0c328563
     error AuthorizedContractCallerRequired(); // 0xf4bc99c7
-    error EvaluationAgentRequired();
+    error EvaluationAgentRequired(); // 0x54a8b616
     error SentinelServiceAccountRequired(); // 0x272a85a5
     error TrancheRequired(); // 0x56b15134
 

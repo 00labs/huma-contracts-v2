@@ -18,7 +18,7 @@
   "PayerRequired()": "0xb00f9713",
   "CoverProviderRequired()": "0x0c328563",
   "AuthorizedContractCallerRequired()": "0xf4bc99c7",
-  "EvaluationAgentServiceAccountRequired()": "0xa770729f",
+  "EvaluationAgentRequired()": "0x54a8b616",
   "SentinelServiceAccountRequired()": "0x272a85a5",
   "TrancheRequired()": "0x56b15134",
   "TreasuryFeeHighThanUpperLimit()": "0x743a9631",
