@@ -17,7 +17,6 @@ contract Errors {
     error ProtocolOwnerRequired(); // 0xd99ba4d3
     error PoolOwnerOrEARequired(); // 0xe54466f3
     error PauserRequired(); // 0xd4a99e4e
-    error NFTOwnerRequired(); // 0x85179c58
     error LenderRequired(); // 0x306fd1ae
     error BorrowerRequired(); // 0xeca877b1
     error BorrowerOrEARequired(); // 0xedaf53fe
@@ -34,7 +33,6 @@ contract Errors {
     error AlreadyPoolAdmin(); // 0xebe277bd
 
     // Pool config
-    error ProposedEADoesNotOwnProvidedEANFT(); // 0xc7388fc8
     error UnderlyingTokenNotApprovedForHumaProtocol(); // 0x28918c5b
     error AdminRewardRateTooHigh(); // 0xa01087e8
     error PoolOwnerInsufficientLiquidity(); // 0xbd8efe51

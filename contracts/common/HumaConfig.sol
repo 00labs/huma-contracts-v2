@@ -21,9 +21,6 @@ contract HumaConfig is Ownable, Pausable {
     /// Address of the Huma protocol treasury.
     address public humaTreasury;
 
-    /// Address of EvaluationAgentNFT contract.
-    address public eaNFTContractAddress;
-
     /// Service account for Huma's Sentinel service.
     address public sentinelServiceAccount;
 
@@ -35,12 +32,6 @@ contract HumaConfig is Ownable, Pausable {
 
     /// List of assets supported by the protocol for investing and borrowing.
     mapping(address => bool) private validLiquidityAssets;
-
-    /**
-     * @notice Contract address for Evaluation Agent NFT changed.
-     * @param eaNFT The address of the new EA NFT.
-     */
-    event EANFTContractAddressChanged(address eaNFT);
 
     /**
      * @notice The treasury address for Huma protocol has changed.
@@ -191,17 +182,6 @@ contract HumaConfig is Ownable, Pausable {
         poolAdmins[_poolAdmin] = false;
 
         emit PoolAdminRemoved(_poolAdmin, msg.sender);
-    }
-
-    /**
-     * @notice Sets the contract address for Evaluation Agent NFT contract.
-     * @param contractAddress The new EA NFT contract address.
-     * @custom:access Only the protocol owner can call this function.
-     */
-    function setEANFTContractAddress(address contractAddress) external onlyOwner {
-        if (contractAddress == address(0)) revert Errors.ZeroAddressProvided();
-        eaNFTContractAddress = contractAddress;
-        emit EANFTContractAddressChanged(contractAddress);
     }
 
     /**

@@ -7,7 +7,6 @@ import {
     Calendar,
     CreditDueManager,
     EpochManager,
-    EvaluationAgentNFT,
     FirstLossCover,
     HumaConfig,
     MockNFT,
@@ -54,9 +53,7 @@ let poolOwner: SignerWithAddress,
     poolOperator: SignerWithAddress;
 let lender: SignerWithAddress, borrower: SignerWithAddress, payer: SignerWithAddress;
 
-let eaNFTContract: EvaluationAgentNFT,
-    humaConfigContract: HumaConfig,
-    mockTokenContract: MockToken;
+let humaConfigContract: HumaConfig, mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
     poolFeeManagerContract: PoolFeeManager,
     poolSafeContract: PoolSafe,
@@ -91,7 +88,7 @@ describe("ReceivableFactoringCreditManager.sol Test", function () {
     });
 
     async function prepare() {
-        [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+        [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
             protocolOwner,
             treasury,
             sentinelServiceAccount,
@@ -116,7 +113,6 @@ describe("ReceivableFactoringCreditManager.sol Test", function () {
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
-            eaNFTContract,
             "RiskAdjustedTranchesPolicy",
             defaultDeployer,
             poolOwner,
@@ -249,10 +245,7 @@ describe("ReceivableFactoringCreditManager.sol Test", function () {
                     numOfPeriods,
                     yieldInBps,
                 ),
-            ).to.be.revertedWithCustomError(
-                creditManagerContract,
-                "EvaluationAgentRequired",
-            );
+            ).to.be.revertedWithCustomError(creditManagerContract, "EvaluationAgentRequired");
         });
 
         it("Should not approve if the credit limit exceeds the receivable amount", async function () {
@@ -576,10 +569,7 @@ describe("ReceivableFactoringCreditManager.sol Test", function () {
         it("Should not allow non-EA service accounts to trigger default", async function () {
             await expect(
                 creditManagerContract.triggerDefault(tokenId),
-            ).to.be.revertedWithCustomError(
-                creditManagerContract,
-                "EvaluationAgentRequired",
-            );
+            ).to.be.revertedWithCustomError(creditManagerContract, "EvaluationAgentRequired");
         });
     });
 
@@ -734,9 +724,7 @@ describe("ReceivableFactoringCreditManager.sol Test", function () {
             const oldCR = await creditContract["getCreditRecord(uint256)"](tokenId);
             const oldDD = await creditContract.getDueDetail(creditHash);
             await expect(
-                creditManagerContract
-                    .connect(evaluationAgent)
-                    .updateYield(tokenId, newYieldInBps),
+                creditManagerContract.connect(evaluationAgent).updateYield(tokenId, newYieldInBps),
             )
                 .to.emit(creditManagerContract, "YieldUpdated")
                 .withArgs(
@@ -798,9 +786,7 @@ describe("ReceivableFactoringCreditManager.sol Test", function () {
 
             await poolContract.connect(poolOwner).disablePool();
             await expect(
-                creditManagerContract
-                    .connect(evaluationAgent)
-                    .updateYield(tokenId, newYieldInBps),
+                creditManagerContract.connect(evaluationAgent).updateYield(tokenId, newYieldInBps),
             ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
             await poolContract.connect(poolOwner).enablePool();
         });
@@ -808,10 +794,7 @@ describe("ReceivableFactoringCreditManager.sol Test", function () {
         it("Should not allow non-EAs to perform the update", async function () {
             await expect(
                 creditManagerContract.updateYield(tokenId, newYieldInBps),
-            ).to.be.revertedWithCustomError(
-                creditManagerContract,
-                "EvaluationAgentRequired",
-            );
+            ).to.be.revertedWithCustomError(creditManagerContract, "EvaluationAgentRequired");
         });
     });
 
@@ -896,10 +879,7 @@ describe("ReceivableFactoringCreditManager.sol Test", function () {
                 creditManagerContract
                     .connect(borrower)
                     .extendRemainingPeriod(tokenId, numOfPeriods),
-            ).to.be.revertedWithCustomError(
-                creditManagerContract,
-                "EvaluationAgentRequired",
-            );
+            ).to.be.revertedWithCustomError(creditManagerContract, "EvaluationAgentRequired");
         });
     });
 
@@ -973,9 +953,7 @@ describe("ReceivableFactoringCreditManager.sol Test", function () {
             const oldDD = await creditContract.getDueDetail(creditHash);
             expect(oldDD.lateFee).to.be.gt(0);
             await expect(
-                creditManagerContract
-                    .connect(evaluationAgent)
-                    .waiveLateFee(tokenId, waivedAmount),
+                creditManagerContract.connect(evaluationAgent).waiveLateFee(tokenId, waivedAmount),
             )
                 .to.emit(creditManagerContract, "LateFeeWaived")
                 .withArgs(
@@ -1027,10 +1005,7 @@ describe("ReceivableFactoringCreditManager.sol Test", function () {
         it("Should not allow non-EAs to waive the late fee", async function () {
             await expect(
                 creditManagerContract.waiveLateFee(tokenId, toToken(1)),
-            ).to.be.revertedWithCustomError(
-                creditManagerContract,
-                "EvaluationAgentRequired",
-            );
+            ).to.be.revertedWithCustomError(creditManagerContract, "EvaluationAgentRequired");
         });
     });
 });

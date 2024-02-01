@@ -7,7 +7,6 @@ import {
     CreditDueManager,
     CreditLineManager,
     EpochManager,
-    EvaluationAgentNFT,
     FirstLossCover,
     HumaConfig,
     MockPoolCredit,
@@ -38,9 +37,7 @@ let poolOwner: SignerWithAddress,
     poolOperator: SignerWithAddress,
     lender: SignerWithAddress;
 
-let eaNFTContract: EvaluationAgentNFT,
-    humaConfigContract: HumaConfig,
-    mockTokenContract: MockToken;
+let humaConfigContract: HumaConfig, mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
     poolFeeManagerContract: PoolFeeManager,
     poolSafeContract: PoolSafe,
@@ -73,7 +70,7 @@ describe("Upgradeability Test", function () {
     });
 
     async function prepare() {
-        [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+        [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
             protocolOwner,
             treasury,
             pdsServiceAccount,
@@ -99,7 +96,6 @@ describe("Upgradeability Test", function () {
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
-            eaNFTContract,
             "RiskAdjustedTranchesPolicy",
             defaultDeployer,
             poolOwner,
@@ -203,7 +199,7 @@ describe("Upgradeability Test", function () {
     });
 
     it("PoolFactory upgrade test", async function () {
-        [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+        [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
             protocolOwner,
             treasury,
             pdsServiceAccount,

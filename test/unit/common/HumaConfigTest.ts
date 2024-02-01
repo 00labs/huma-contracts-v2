@@ -1,12 +1,10 @@
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { EvaluationAgentNFT, HumaConfig, MockToken } from "../../../typechain-types";
+import { HumaConfig, MockToken } from "../../../typechain-types";
 
 describe("HumaConfig Tests", function () {
-    let eaNFTContract: EvaluationAgentNFT,
-        configContract: HumaConfig,
-        mockTokenContract: MockToken;
+    let configContract: HumaConfig, mockTokenContract: MockToken;
     let origOwner: SignerWithAddress,
         pauser: SignerWithAddress,
         poolAdmin: SignerWithAddress,
@@ -27,10 +25,6 @@ describe("HumaConfig Tests", function () {
             sentinelServiceAccount,
             randomUser,
         ] = await ethers.getSigners();
-
-        // Deploy EvaluationAgentNFT
-        const EvaluationAgentNFT = await ethers.getContractFactory("EvaluationAgentNFT");
-        eaNFTContract = await EvaluationAgentNFT.deploy();
 
         const HumaConfig = await ethers.getContractFactory("HumaConfig");
         configContract = await HumaConfig.deploy();
@@ -374,31 +368,6 @@ describe("HumaConfig Tests", function () {
                 .to.emit(configContract, "LiquidityAssetRemoved")
                 .withArgs(mockTokenContract.address, origOwner.address);
             expect(await configContract.isAssetValid(mockTokenContract.address)).to.equal(false);
-        });
-    });
-
-    describe("Change EA NFT Contract Address", function () {
-        it("Should disallow non-proto-admin to change EANFT Address", async function () {
-            await expect(
-                configContract.connect(randomUser).setEANFTContractAddress(eaNFTContract.address),
-            ).to.be.revertedWith("Ownable: caller is not the owner");
-        });
-
-        it("Should reject zero address EANFT contract address", async function () {
-            await expect(
-                configContract
-                    .connect(origOwner)
-                    .setEANFTContractAddress(ethers.constants.AddressZero),
-            ).to.be.revertedWithCustomError(configContract, "ZeroAddressProvided");
-        });
-
-        it("Should be able to change EANFT Address", async function () {
-            await expect(
-                configContract.connect(origOwner).setEANFTContractAddress(eaNFTContract.address),
-            )
-                .to.emit(configContract, "EANFTContractAddressChanged")
-                .withArgs(eaNFTContract.address);
-            expect(await configContract.eaNFTContractAddress()).to.equal(eaNFTContract.address);
         });
     });
 });

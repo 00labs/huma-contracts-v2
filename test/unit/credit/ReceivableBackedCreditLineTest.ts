@@ -7,7 +7,6 @@ import {
     Calendar,
     CreditDueManager,
     EpochManager,
-    EvaluationAgentNFT,
     FirstLossCover,
     HumaConfig,
     MockToken,
@@ -19,9 +18,11 @@ import {
     ReceivableBackedCreditLine,
     ReceivableBackedCreditLineManager,
     RiskAdjustedTranchesPolicy,
-    TrancheVault
+    TrancheVault,
 } from "../../../typechain-types";
 import {
+    CreditState,
+    PayPeriodDuration,
     calcPrincipalDueForFullPeriods,
     calcPrincipalDueForPartialPeriod,
     calcYield,
@@ -29,11 +30,9 @@ import {
     checkCreditRecord,
     checkCreditRecordsMatch,
     checkDueDetailsMatch,
-    CreditState,
     deployAndSetupPoolContracts,
     deployProtocolContracts,
     genDueDetail,
-    PayPeriodDuration
 } from "../../BaseTest";
 import {
     borrowerLevelCreditHash,
@@ -41,7 +40,7 @@ import {
     getLatestBlock,
     mineNextBlockWithTimestamp,
     setNextBlockTimestamp,
-    toToken
+    toToken,
 } from "../../TestUtils";
 import { CONSTANTS } from "../../constants";
 
@@ -55,9 +54,7 @@ let poolOwner: SignerWithAddress,
     poolOperator: SignerWithAddress;
 let lender: SignerWithAddress, borrower: SignerWithAddress;
 
-let eaNFTContract: EvaluationAgentNFT,
-    humaConfigContract: HumaConfig,
-    mockTokenContract: MockToken;
+let humaConfigContract: HumaConfig, mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
     poolFeeManagerContract: PoolFeeManager,
     poolSafeContract: PoolSafe,
@@ -91,7 +88,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
     });
 
     async function prepare() {
-        [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+        [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
             protocolOwner,
             treasury,
             sentinelServiceAccount,
@@ -117,7 +114,6 @@ describe("ReceivableBackedCreditLine Tests", function () {
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
-            eaNFTContract,
             "RiskAdjustedTranchesPolicy",
             defaultDeployer,
             poolOwner,

@@ -7,7 +7,6 @@ import {
     Calendar,
     CreditDueManager,
     EpochManager,
-    EvaluationAgentNFT,
     FirstLossCover,
     HumaConfig,
     MockNFT,
@@ -51,9 +50,7 @@ let poolOwner: SignerWithAddress,
     poolOperator: SignerWithAddress;
 let lender: SignerWithAddress, borrower: SignerWithAddress, payer: SignerWithAddress;
 
-let eaNFTContract: EvaluationAgentNFT,
-    humaConfigContract: HumaConfig,
-    mockTokenContract: MockToken;
+let humaConfigContract: HumaConfig, mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
     poolFeeManagerContract: PoolFeeManager,
     poolSafeContract: PoolSafe,
@@ -88,7 +85,7 @@ describe("ReceivableFactoringCredit Tests", function () {
     });
 
     async function prepare() {
-        [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+        [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
             protocolOwner,
             treasury,
             sentinelServiceAccount,
@@ -113,7 +110,6 @@ describe("ReceivableFactoringCredit Tests", function () {
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
-            eaNFTContract,
             "RiskAdjustedTranchesPolicy",
             defaultDeployer,
             poolOwner,

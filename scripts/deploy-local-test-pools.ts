@@ -19,7 +19,6 @@ import {
     CreditLine,
     CreditLineManager,
     EpochManager,
-    EvaluationAgentNFT,
     FirstLossCover,
     HumaConfig,
     MockToken,
@@ -52,9 +51,7 @@ let juniorLender: SignerWithAddress,
     borrowerLate: SignerWithAddress,
     borrowerDefault: SignerWithAddress;
 
-let eaNFTContract: EvaluationAgentNFT,
-    humaConfigContract: HumaConfig,
-    mockTokenContract: MockToken;
+let humaConfigContract: HumaConfig, mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
     poolFeeManagerContract: PoolFeeManager,
     poolSafeContract: PoolSafe,
@@ -134,7 +131,7 @@ async function deployPool(
     ] = await ethers.getSigners();
 
     console.log("Deploying and setting up protocol contracts");
-    [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+    [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
         protocolOwner,
         treasury,
         sentinelServiceAccount,
@@ -160,7 +157,6 @@ async function deployPool(
     ] = await deployAndSetupPoolContracts(
         humaConfigContract,
         mockTokenContract,
-        eaNFTContract,
         "RiskAdjustedTranchesPolicy",
         defaultDeployer,
         poolOwner,

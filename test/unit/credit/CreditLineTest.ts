@@ -10,7 +10,6 @@ import {
     CreditLine,
     CreditLineManager,
     EpochManager,
-    EvaluationAgentNFT,
     FirstLossCover,
     HumaConfig,
     MockToken,
@@ -73,9 +72,7 @@ let poolOwner: SignerWithAddress,
     poolOperator: SignerWithAddress;
 let lender: SignerWithAddress, borrower: SignerWithAddress, borrower2: SignerWithAddress;
 
-let eaNFTContract: EvaluationAgentNFT,
-    humaConfigContract: HumaConfig,
-    mockTokenContract: MockToken;
+let humaConfigContract: HumaConfig, mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
     poolFeeManagerContract: PoolFeeManager,
     poolSafeContract: PoolSafe,
@@ -109,7 +106,7 @@ describe("CreditLine Test", function () {
     });
 
     async function prepare() {
-        [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+        [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
             protocolOwner,
             treasury,
             sentinelServiceAccount,
@@ -134,7 +131,6 @@ describe("CreditLine Test", function () {
         ] = await deployAndSetupPoolContracts(
             humaConfigContract,
             mockTokenContract,
-            eaNFTContract,
             "RiskAdjustedTranchesPolicy",
             defaultDeployer,
             poolOwner,
@@ -305,10 +301,7 @@ describe("CreditLine Test", function () {
                     0,
                     true,
                 ),
-            ).to.be.revertedWithCustomError(
-                creditManagerContract,
-                "EvaluationAgentRequired",
-            );
+            ).to.be.revertedWithCustomError(creditManagerContract, "EvaluationAgentRequired");
         });
 
         it("Should not approve with invalid parameters", async function () {
@@ -8461,10 +8454,7 @@ describe("CreditLine Test", function () {
         it("Should not allow non-EA service account to trigger default", async function () {
             await expect(
                 creditManagerContract.triggerDefault(borrower.address),
-            ).to.be.revertedWithCustomError(
-                creditManagerContract,
-                "EvaluationAgentRequired",
-            );
+            ).to.be.revertedWithCustomError(creditManagerContract, "EvaluationAgentRequired");
         });
 
         it("Should not allow default to be triggered if the bill is not yet delayed", async function () {
@@ -8807,10 +8797,7 @@ describe("CreditLine Test", function () {
                 creditManagerContract
                     .connect(borrower)
                     .extendRemainingPeriod(borrower.getAddress(), numOfPeriods),
-            ).to.be.revertedWithCustomError(
-                creditManagerContract,
-                "EvaluationAgentRequired",
-            );
+            ).to.be.revertedWithCustomError(creditManagerContract, "EvaluationAgentRequired");
         });
 
         it("Should not allow extension on a newly approved credit line", async function () {
@@ -9236,10 +9223,7 @@ describe("CreditLine Test", function () {
             it("Should not allow non-EAs to perform the update", async function () {
                 await expect(
                     creditManagerContract.updateYield(await borrower.getAddress(), 1517),
-                ).to.be.revertedWithCustomError(
-                    creditManagerContract,
-                    "EvaluationAgentRequired",
-                );
+                ).to.be.revertedWithCustomError(creditManagerContract, "EvaluationAgentRequired");
             });
 
             it("Should not allow the EA to update the yield if the credit is newly approved", async function () {
@@ -10086,10 +10070,7 @@ describe("CreditLine Test", function () {
             it("Should not allow non-EAs to waive the late fee", async function () {
                 await expect(
                     creditManagerContract.waiveLateFee(borrower.getAddress(), toToken(1)),
-                ).to.be.revertedWithCustomError(
-                    creditManagerContract,
-                    "EvaluationAgentRequired",
-                );
+                ).to.be.revertedWithCustomError(creditManagerContract, "EvaluationAgentRequired");
             });
         });
     });

@@ -8,7 +8,6 @@ import {
     CreditDueManager,
     CreditLineManager,
     EpochManager,
-    EvaluationAgentNFT,
     FirstLossCover,
     HumaConfig,
     MockPoolCredit,
@@ -55,9 +54,7 @@ let poolOwner: SignerWithAddress,
     protocolTreasury: SignerWithAddress,
     regularUser: SignerWithAddress;
 
-let eaNFTContract: EvaluationAgentNFT,
-    humaConfigContract: HumaConfig,
-    mockTokenContract: MockToken;
+let humaConfigContract: HumaConfig, mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
     poolFeeManagerContract: PoolFeeManager,
     poolSafeContract: PoolSafe,
@@ -92,7 +89,7 @@ describe("PoolConfig Tests", function () {
 
     describe("Pool config initialization", function () {
         async function deployPoolConfigContract() {
-            [, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+            [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
                 protocolOwner,
                 protocolTreasury,
                 sentinelServiceAccount,
@@ -776,7 +773,7 @@ describe("PoolConfig Tests", function () {
 
     describe("Pool config admin functions", function () {
         async function deployAndSetupContracts() {
-            [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+            [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
                 protocolOwner,
                 protocolTreasury,
                 sentinelServiceAccount,
@@ -799,7 +796,6 @@ describe("PoolConfig Tests", function () {
             ] = await deployAndSetupPoolContracts(
                 humaConfigContract,
                 mockTokenContract,
-                eaNFTContract,
                 "FixedSeniorYieldTranchePolicy",
                 defaultDeployer,
                 poolOwner,
@@ -960,18 +956,9 @@ describe("PoolConfig Tests", function () {
         });
 
         describe("setEvaluationAgent", function () {
-            let newNFTTokenId: string;
             let minFirstLossCoverRequirement: BN, minLiquidity: BN;
 
             beforeEach(async function () {
-                const tx = await eaNFTContract.mintNFT(evaluationAgent2.address);
-                const receipt = await tx.wait();
-                for (const evt of receipt.events!) {
-                    if (evt.event === "NFTGenerated") {
-                        newNFTTokenId = evt.args!.tokenId;
-                    }
-                }
-
                 // Set the EA to be a cover provider.
                 await adminFirstLossCoverContract
                     .connect(poolOwner)
@@ -985,14 +972,6 @@ describe("PoolConfig Tests", function () {
             });
 
             it("Should allow the evaluation agent to be set and replaced", async function () {
-                let eaNFTTokenId;
-                const tx = await eaNFTContract.mintNFT(evaluationAgent.address);
-                const receipt = await tx.wait();
-                for (const evt of receipt.events!) {
-                    if (evt.event === "NFTGenerated") {
-                        eaNFTTokenId = evt.args!.tokenId;
-                    }
-                }
                 const adminRnR = await poolConfigContract.getAdminRnR();
                 const lpConfig = await poolConfigContract.getLPConfig();
                 const evaluationAgentLiquidity = BN.from(adminRnR.liquidityRateInBpsByEA)
@@ -1007,19 +986,17 @@ describe("PoolConfig Tests", function () {
                 await expect(
                     poolConfigContract
                         .connect(poolOwner)
-                        .setEvaluationAgent(eaNFTTokenId, evaluationAgent.address),
+                        .setEvaluationAgent(evaluationAgent.address),
                 )
                     .to.emit(poolConfigContract, "EvaluationAgentChanged")
                     .withArgs(
                         ethers.constants.AddressZero,
                         evaluationAgent.address,
-                        eaNFTTokenId,
                         poolOwner.address,
                     );
                 expect(await poolConfigContract.evaluationAgent()).to.equal(
                     evaluationAgent.address,
                 );
-                expect(await poolConfigContract.evaluationAgentId()).to.equal(eaNFTTokenId);
 
                 // Then replace it with another EA.
                 // Give the new EA some tokens to use as the first loss cover and junior tranche liquidity.
@@ -1040,26 +1017,24 @@ describe("PoolConfig Tests", function () {
                 await expect(
                     poolConfigContract
                         .connect(poolOwner)
-                        .setEvaluationAgent(newNFTTokenId, evaluationAgent2.address),
+                        .setEvaluationAgent(evaluationAgent2.address),
                 )
                     .to.emit(poolConfigContract, "EvaluationAgentChanged")
                     .withArgs(
                         evaluationAgent.address,
                         evaluationAgent2.address,
-                        newNFTTokenId,
                         poolOwner.address,
                     );
                 expect(await poolConfigContract.evaluationAgent()).to.equal(
                     evaluationAgent2.address,
                 );
-                expect(await poolConfigContract.evaluationAgentId()).to.equal(newNFTTokenId);
             });
 
             it("Should reject zero address EA", async function () {
                 await expect(
                     poolConfigContract
                         .connect(poolOwner)
-                        .setEvaluationAgent(newNFTTokenId, ethers.constants.AddressZero),
+                        .setEvaluationAgent(ethers.constants.AddressZero),
                 ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
             });
 
@@ -1067,28 +1042,8 @@ describe("PoolConfig Tests", function () {
                 await expect(
                     poolConfigContract
                         .connect(regularUser)
-                        .setEvaluationAgent(newNFTTokenId, evaluationAgent2.address),
+                        .setEvaluationAgent(evaluationAgent2.address),
                 ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
-            });
-
-            it("Should reject when the proposed new EA does not own the EA NFT", async function () {
-                let yetAnotherNFTTokenId;
-                const tx = await eaNFTContract.mintNFT(evaluationAgent.address);
-                const receipt = await tx.wait();
-                for (const evt of receipt.events!) {
-                    if (evt.event === "NFTGenerated") {
-                        yetAnotherNFTTokenId = evt.args!.tokenId;
-                    }
-                }
-
-                await expect(
-                    poolConfigContract
-                        .connect(poolOwner)
-                        .setEvaluationAgent(yetAnotherNFTTokenId, evaluationAgent2.address),
-                ).to.be.revertedWithCustomError(
-                    poolConfigContract,
-                    "ProposedEADoesNotOwnProvidedEANFT",
-                );
             });
 
             it("Should reject the new EA if the first loss cover requirement is not met", async function () {
@@ -1120,7 +1075,7 @@ describe("PoolConfig Tests", function () {
                 await expect(
                     poolConfigContract
                         .connect(poolOwner)
-                        .setEvaluationAgent(newNFTTokenId, evaluationAgent2.address),
+                        .setEvaluationAgent(evaluationAgent2.address),
                 ).to.be.revertedWithCustomError(poolConfigContract, "InsufficientFirstLossCover");
             });
 
@@ -1128,7 +1083,7 @@ describe("PoolConfig Tests", function () {
                 await expect(
                     poolConfigContract
                         .connect(poolOwner)
-                        .setEvaluationAgent(newNFTTokenId, evaluationAgent2.address),
+                        .setEvaluationAgent(evaluationAgent2.address),
                 ).to.be.revertedWithCustomError(
                     poolConfigContract,
                     "EvaluationAgentInsufficientLiquidity",
@@ -2146,14 +2101,6 @@ describe("PoolConfig Tests", function () {
 
             it("Should revert when EA no longer has enough liquidity after redemption in the junior tranche", async function () {
                 // Set an EA for the first time.
-                let eaNFTTokenId;
-                const tx = await eaNFTContract.mintNFT(evaluationAgent.address);
-                const receipt = await tx.wait();
-                for (const evt of receipt.events!) {
-                    if (evt.event === "NFTGenerated") {
-                        eaNFTTokenId = evt.args!.tokenId;
-                    }
-                }
                 const adminRnR = await poolConfigContract.getAdminRnR();
                 const lpConfig = await poolConfigContract.getLPConfig();
                 const evaluationAgentLiquidity = BN.from(adminRnR.liquidityRateInBpsByEA)
@@ -2167,7 +2114,7 @@ describe("PoolConfig Tests", function () {
                     .deposit(evaluationAgentLiquidity, evaluationAgent.getAddress());
                 await poolConfigContract
                     .connect(poolOwner)
-                    .setEvaluationAgent(eaNFTTokenId, evaluationAgent.address);
+                    .setEvaluationAgent(evaluationAgent.address);
 
                 await expect(
                     poolConfigContract.checkLiquidityRequirementForRedemption(

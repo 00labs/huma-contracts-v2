@@ -8,7 +8,6 @@ import {
     CreditLine,
     CreditLineManager,
     EpochManager,
-    EvaluationAgentNFT,
     FirstLossCover,
     FixedSeniorYieldTranchePolicy,
     HumaConfig,
@@ -45,9 +44,7 @@ let poolOwner: SignerWithAddress,
     poolOperator: SignerWithAddress,
     lender: SignerWithAddress;
 
-let eaNFTContract: EvaluationAgentNFT,
-    humaConfigContract: HumaConfig,
-    mockTokenContract: MockToken;
+let humaConfigContract: HumaConfig, mockTokenContract: MockToken;
 let poolConfigImpl: PoolConfig,
     poolFeeManagerImpl: PoolFeeManager,
     poolSafeImpl: PoolSafe,
@@ -87,7 +84,7 @@ describe("Factory Test", function () {
     });
 
     async function prepare() {
-        [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+        [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
             protocolOwner,
             treasury,
             pdsServiceAccount,

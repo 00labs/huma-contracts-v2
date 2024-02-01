@@ -122,7 +122,6 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
 
     /// Evaluation Agents (EA) are the risk underwriting agents that associated with the pool.
     address public evaluationAgent;
-    uint256 public evaluationAgentId;
 
     /// The maximum number of first loss covers we allow is 16, which should be sufficient for now.
     address[16] internal _firstLossCovers;
@@ -145,7 +144,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         uint256 liquidityRate,
         address indexed by
     );
-    event EvaluationAgentChanged(address oldEA, address newEA, uint256 newEAId, address by);
+    event EvaluationAgentChanged(address oldEA, address newEA, address by);
     event PoolFeeManagerChanged(address poolFeeManager, address by);
     event HumaConfigChanged(address humaConfig, address by);
 
@@ -324,12 +323,9 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
      * @param agent The Evaluation Agent to be added.
      * @custom:access Only the pool owner and the Huma master admin can call this function.
      */
-    function setEvaluationAgent(uint256 eaId, address agent) external {
+    function setEvaluationAgent(address agent) external {
         if (agent == address(0)) revert Errors.ZeroAddressProvided();
         _onlyOwnerOrHumaMasterAdmin();
-
-        if (IERC721(humaConfig.eaNFTContractAddress()).ownerOf(eaId) != agent)
-            revert Errors.ProposedEADoesNotOwnProvidedEANFT();
 
         // Transfer the accrued EA income to the old EA's wallet.
         // Decided not to check if there is enough balance in the pool. If there is
@@ -352,9 +348,8 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         }
 
         evaluationAgent = agent;
-        evaluationAgentId = eaId;
 
-        emit EvaluationAgentChanged(oldEA, agent, eaId, msg.sender);
+        emit EvaluationAgentChanged(oldEA, agent, msg.sender);
     }
 
     /// @custom:access Only the pool owner and the Huma master admin can call this function.

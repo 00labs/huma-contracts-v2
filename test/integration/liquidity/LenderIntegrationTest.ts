@@ -11,7 +11,6 @@ import {
     CreditLine,
     CreditLineManager,
     EpochManager,
-    EvaluationAgentNFT,
     FirstLossCover,
     FixedSeniorYieldTranchePolicy,
     HumaConfig,
@@ -69,9 +68,7 @@ let sLenders: SignerWithAddress[] = [],
     jActiveLenders: SignerWithAddress[] = [],
     borrower: SignerWithAddress;
 
-let eaNFTContract: EvaluationAgentNFT,
-    humaConfigContract: HumaConfig,
-    mockTokenContract: MockToken;
+let humaConfigContract: HumaConfig, mockTokenContract: MockToken;
 let poolConfigContract: PoolConfig,
     poolFeeManagerContract: PoolFeeManager,
     poolSafeContract: PoolSafe,
@@ -200,17 +197,7 @@ async function configPool(lpConfig: Partial<LPConfigStructOutput>) {
         .connect(poolOwner)
         .setPoolOwnerTreasury(poolOwnerTreasury.getAddress());
 
-    let eaNFTTokenId;
-    const tx = await eaNFTContract.mintNFT(evaluationAgent.address);
-    const receipt = await tx.wait();
-    for (const evt of receipt.events!) {
-        if (evt.event === "NFTGenerated") {
-            eaNFTTokenId = evt.args!.tokenId;
-        }
-    }
-    await poolConfigContract
-        .connect(poolOwner)
-        .setEvaluationAgent(eaNFTTokenId, evaluationAgent.getAddress());
+    await poolConfigContract.connect(poolOwner).setEvaluationAgent(evaluationAgent.getAddress());
 
     const adminRnR = await poolConfigContract.getAdminRnR();
     await mockTokenContract
@@ -586,7 +573,7 @@ describe("Lender Integration Test", function () {
         let tranchesPolicyContract: RiskAdjustedTranchesPolicy;
 
         async function prepare() {
-            [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+            [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
                 protocolOwner,
                 treasury,
                 sentinelServiceAccount,
@@ -1819,7 +1806,7 @@ describe("Lender Integration Test", function () {
         let tracker: SeniorYieldTracker;
 
         async function prepare() {
-            [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+            [humaConfigContract, mockTokenContract] = await deployProtocolContracts(
                 protocolOwner,
                 treasury,
                 sentinelServiceAccount,
