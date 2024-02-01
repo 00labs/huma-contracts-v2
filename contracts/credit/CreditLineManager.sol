@@ -165,6 +165,7 @@ contract CreditLineManager is CreditManager, ICreditLineManager {
     ) external virtual override {
         poolConfig.onlyProtocolAndPoolOn();
         _onlyEAServiceAccount();
+        if (committedAmount > creditLimit) revert Errors.CommittedAmountGreaterThanCreditLimit();
 
         _updateLimitAndCommitment(getCreditHash(borrower), creditLimit, committedAmount);
     }

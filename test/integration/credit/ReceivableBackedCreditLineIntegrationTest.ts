@@ -173,7 +173,6 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
             await poolConfigContract.connect(poolOwner).setPoolSettings({
                 ...settings,
                 ...{
-                    maxCreditLine: creditLimit.mul(100),
                     payPeriodDuration: PayPeriodDuration.Monthly,
                     latePaymentGracePeriodInDays: latePaymentGracePeriodInDays,
                     advanceRateInBps: CONSTANTS.BP_FACTOR,
