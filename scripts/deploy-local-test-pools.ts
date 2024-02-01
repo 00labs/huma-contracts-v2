@@ -170,6 +170,7 @@ async function deployPool(
         creditContractName,
         creditManagerContractName,
         evaluationAgent,
+        treasury,
         poolOwnerTreasury,
         poolOperator,
         [juniorLender, seniorLender, lenderRedemptionActive, borrowerActive],

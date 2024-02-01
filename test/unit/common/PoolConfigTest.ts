@@ -810,6 +810,7 @@ describe("PoolConfig Tests", function () {
                 "MockPoolCredit",
                 "CreditLineManager",
                 evaluationAgent,
+                protocolTreasury,
                 poolOwnerTreasury,
                 poolOperator,
                 [regularUser, evaluationAgent2],

@@ -114,6 +114,7 @@ describe("FirstLossCover Tests", function () {
             "MockPoolCredit",
             "CreditLineManager",
             evaluationAgent,
+            protocolTreasury,
             poolOwnerTreasury,
             poolOperator,
             [lender],
@@ -623,10 +624,10 @@ describe("FirstLossCover Tests", function () {
             ).to.be.revertedWithCustomError(adminFirstLossCoverContract, "ZeroAmountProvided");
         });
 
-        it("Should disallow zero address as the receiver", async function () {
+        it("Should disallow non-cover-providers as the receiver", async function () {
             await expect(
-                adminFirstLossCoverContract.depositCoverFor(assets, ethers.constants.AddressZero),
-            ).to.be.revertedWithCustomError(adminFirstLossCoverContract, "ZeroAddressProvided");
+                adminFirstLossCoverContract.depositCoverFor(assets, defaultDeployer.getAddress()),
+            ).to.be.revertedWithCustomError(adminFirstLossCoverContract, "CoverProviderRequired");
         });
 
         it("Should disallow non-pool owners to make deposit on behalf of the cover provider", async function () {

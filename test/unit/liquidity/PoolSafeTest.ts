@@ -102,6 +102,7 @@ describe("PoolSafe Tests", function () {
             "MockPoolCredit",
             "CreditLineManager",
             evaluationAgent,
+            protocolTreasury,
             poolOwnerTreasury,
             poolOperator,
             [lender],
