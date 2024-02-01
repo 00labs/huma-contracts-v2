@@ -6,6 +6,7 @@ import {LiquidityHandler} from "./handlers/LiquidityHandler.sol";
 import {CreditLineHandler} from "./handlers/CreditLineHandler.sol";
 import {CreditLine} from "contracts/credit/CreditLine.sol";
 import {CreditLineManager} from "contracts/credit/CreditLineManager.sol";
+import {ReceivableBackedCreditLineHandler} from "./handlers/ReceivableBackedCreditLineHandler.sol";
 
 import "forge-std/console.sol";
 
@@ -17,6 +18,7 @@ contract TestInvariants is BaseInvariants {
     uint16 constant CREDIT_YIELD_BPS = 1500;
 
     LiquidityHandler liquidityHandler;
+    ReceivableBackedCreditLineHandler rbCreditLineHandler;
     CreditLineHandler creditLineHandler;
 
     function setUp() public override {
@@ -25,7 +27,7 @@ contract TestInvariants is BaseInvariants {
         _setUp(
             PoolDeployParameters({
                 tranchesPolicyType: FIXED_SENIOR_YIELD_TRANCHES_POLICY,
-                creditType: CREDIT_LINE,
+                creditType: RECEIVABLE_BACKED_CREDIT_LINE,
                 maxCreditLimit: MAX_CREDIT_LIMIT,
                 liquidityCap: LIQUIDITY_CAP,
                 fixedSeniorYieldBps: FIXED_SENIOR_YIELD_BPS,
@@ -37,8 +39,10 @@ contract TestInvariants is BaseInvariants {
         );
 
         liquidityHandler = new LiquidityHandler(lenders);
-        creditLineHandler = new CreditLineHandler(borrowers);
-        creditLineHandler.approveBorrowers(_toToken(MAX_CREDIT_LIMIT) / 2, CREDIT_YIELD_BPS);
+        rbCreditLineHandler = new ReceivableBackedCreditLineHandler(borrowers);
+        rbCreditLineHandler.approveBorrowers(_toToken(MAX_CREDIT_LIMIT) / 2, CREDIT_YIELD_BPS);
+        // creditLineHandler = new CreditLineHandler(borrowers);
+        // creditLineHandler.approveBorrowers(_toToken(MAX_CREDIT_LIMIT) / 2, CREDIT_YIELD_BPS);
 
         addSelector(liquidityHandler.deposit.selector, "deposit");
         addSelector(liquidityHandler.addRedemptionRequest.selector, "addRedemptionRequest");
@@ -46,11 +50,22 @@ contract TestInvariants is BaseInvariants {
         addSelector(liquidityHandler.disburse.selector, "disburse");
         addSelector(liquidityHandler.processYieldForLenders.selector, "processYieldForLenders");
         addSelector(liquidityHandler.withdrawProtocolFee.selector, "withdrawProtocolFee");
-        addSelector(liquidityHandler.withdrawProtocolFee.selector, "withdrawProtocolFee");
-        addSelector(liquidityHandler.withdrawProtocolFee.selector, "withdrawProtocolFee");
-        addSelector(creditLineHandler.drawdown.selector, "drawdown");
-        addSelector(creditLineHandler.makePayment.selector, "makePayment");
-        addSelector(creditLineHandler.refreshCredit.selector, "refreshCredit");
+        addSelector(liquidityHandler.withdrawPoolOwnerFee.selector, "withdrawPoolOwnerFee");
+        addSelector(liquidityHandler.withdrawEAFee.selector, "withdrawEAFee");
+        addSelector(rbCreditLineHandler.drawdownWithReceivable.selector, "drawdownWithReceivable");
+        addSelector(
+            rbCreditLineHandler.makePaymentWithReceivable.selector,
+            "makePaymentWithReceivable"
+        );
+        addSelector(
+            rbCreditLineHandler.makePrincipalPaymentWithReceivable.selector,
+            "makePrincipalPaymentWithReceivable"
+        );
+        addSelector(
+            rbCreditLineHandler.makePrincipalPaymentAndDrawdownWithReceivable.selector,
+            "makePrincipalPaymentAndDrawdownWithReceivable"
+        );
+        addSelector(rbCreditLineHandler.refreshCredit.selector, "refreshCredit");
 
         bytes4[] memory selectors = new bytes4[](11);
         selectors[0] = selectors[1] = selectors[2] = liquidityHandler.deposit.selector;
@@ -64,12 +79,23 @@ contract TestInvariants is BaseInvariants {
         targetSelector(FuzzSelector({addr: address(liquidityHandler), selectors: selectors}));
         targetContract(address(liquidityHandler));
 
-        selectors = new bytes4[](6);
-        selectors[0] = selectors[1] = selectors[2] = creditLineHandler.drawdown.selector;
-        selectors[3] = selectors[4] = creditLineHandler.makePayment.selector;
-        selectors[5] = creditLineHandler.refreshCredit.selector;
-        targetSelector(FuzzSelector({addr: address(creditLineHandler), selectors: selectors}));
-        targetContract(address(creditLineHandler));
+        selectors = new bytes4[](7);
+        selectors[0] = selectors[1] = selectors[2] = rbCreditLineHandler
+            .drawdownWithReceivable
+            .selector;
+        selectors[3] = rbCreditLineHandler.makePaymentWithReceivable.selector;
+        selectors[4] = rbCreditLineHandler.makePrincipalPaymentWithReceivable.selector;
+        selectors[5] = rbCreditLineHandler.makePrincipalPaymentAndDrawdownWithReceivable.selector;
+        selectors[6] = rbCreditLineHandler.refreshCredit.selector;
+        targetSelector(FuzzSelector({addr: address(rbCreditLineHandler), selectors: selectors}));
+        targetContract(address(rbCreditLineHandler));
+
+        // selectors = new bytes4[](6);
+        // selectors[0] = selectors[1] = selectors[2] = creditLineHandler.drawdown.selector;
+        // selectors[3] = selectors[4] = creditLineHandler.makePayment.selector;
+        // selectors[5] = creditLineHandler.refreshCredit.selector;
+        // targetSelector(FuzzSelector({addr: address(creditLineHandler), selectors: selectors}));
+        // targetContract(address(creditLineHandler));
     }
 
     function testBoundNew1() public {
@@ -83,48 +109,89 @@ contract TestInvariants is BaseInvariants {
     }
 
     function testDebug() public {
-        // handler.disburse(511, 18732, 1115958799);
-        // handler.drawdown(
-        //     115792089237316195423570985008687907853269984665640564039457584007913129639933,
-        //     0,
-        //     115792089237316195423570985008687907853269984665640564039457584007913129639934
-        // );
-        // handler.drawdown(4773, 9503, 15334);
-        // handler.makePayment(
-        //     115792089237316195423570985008687907853269984665640564039457584007913129639935,
-        //     115792089237316195423570985008687907853269984665640564039457584007913129639934,
-        //     115792089237316195423570985008687907853269984665640564039457584007913129639935
-        // );
-        // handler.cancelRedemptionRequest(
-        //     307351878326496349646861946412211957386772448903113552090633114,
-        //     2,
-        //     115792089237316195423570985008687907853269984665640564039457584007913129639933,
-        //     115792089237316195423570985008687907853269984665640564039457584007913129639935
-        // );
-        // handler.drawdown(
-        //     12965627532955235,
-        //     115792089237316195423570985008687907853269984665640564039457584007913129639935,
-        //     34271968774548698554216071258149267
-        // );
-        // handler.addRedemptionRequest(10467, 14373, 12718, 19180);
-        // handler.drawdown(
-        //     4696101871635116613687179390375553842905116356921,
-        //     115792089237316195423570985008687907853269984665640564039457584007913129639934,
-        //     0
-        // );
-        // handler.cancelRedemptionRequest(
-        //     3,
-        //     142865224980,
-        //     3203463038928617776283565669072150091243907203013574266905857603663,
-        //     9629713799523486109640678726817266933822504961979653993916971138404029
-        // );
-        // handler.deposit(
-        //     115792089237316195423570985008687907853269984665640564039457584007913129639934,
-        //     196169082861832774685458594841127741270096699,
-        //     1,
-        //     115792089237316195423570985008687907853269984665640564039457584007913129639932
-        // );
-        // _assert_Tranche_H_I();
+        rbCreditLineHandler.makePrincipalPaymentAndDrawdownWithReceivable(
+            115792089237316195423570985008687907853269984665640564039457584007913129639934,
+            3,
+            22788289443144963299136999770583787545640652083010549363838,
+            2
+        );
+        rbCreditLineHandler.makePrincipalPaymentAndDrawdownWithReceivable(
+            2691,
+            4238513535945,
+            215,
+            1983
+        );
+        rbCreditLineHandler.drawdownWithReceivable(
+            3878562887641857190945011324742947258046911287696535233,
+            465978703882356961592379874803930,
+            0
+        );
+        rbCreditLineHandler.makePrincipalPaymentWithReceivable(5290, 1206, 1308);
+        liquidityHandler.disburse(3, 101002297727347737, 199151947794161789121398819347);
+        liquidityHandler.addRedemptionRequest(1502, 17706, 12579, 13861);
+        liquidityHandler.withdrawPoolOwnerFee(0, 6);
+        liquidityHandler.cancelRedemptionRequest(5171, 4661, 10908, 24411);
+        liquidityHandler.addRedemptionRequest(3792, 34417, 11514, 11147);
+        rbCreditLineHandler.makePrincipalPaymentWithReceivable(
+            772931628185164769239091166635619238658305254149721108401233174524111,
+            115792089237316195423570985008687907853269984665640564039457584007913129639934,
+            0
+        );
+        liquidityHandler.addRedemptionRequest(
+            1,
+            115792089237316195423570985008687907853269984665640564039457584007913129639932,
+            33216614510659856966940055975913017456357573107501548973788,
+            115792089237316195423570985008687907853269984665640564039457584007913129639935
+        );
+        rbCreditLineHandler.makePaymentWithReceivable(
+            16888,
+            12073,
+            473745687804409714323878541972247001183660
+        );
+        liquidityHandler.deposit(
+            79648434596973584967864216352591063277839227808056240329825739938052455162707,
+            10095,
+            200000010082,
+            16979
+        );
+        liquidityHandler.withdrawProtocolFee(2189330705504424476372184687553, 14282406702);
+        rbCreditLineHandler.refreshCredit(294, 21407);
+        liquidityHandler.addRedemptionRequest(
+            32458597901748140005968589770647574123769,
+            15467101292360452382143368610670202549,
+            8478411710415529876124,
+            115792089237316195423570985008687907853269984665640564039457584007913129639935
+        );
+        rbCreditLineHandler.refreshCredit(
+            3,
+            115792089237316195423570985008687907853269984665640564039457584007913129639934
+        );
+        rbCreditLineHandler.makePrincipalPaymentAndDrawdownWithReceivable(
+            11803,
+            2576,
+            6971,
+            344662576652243469721435640171710866217
+        );
+        liquidityHandler.processYieldForLenders(
+            35983222580426468139908544811619096550624656227001345252,
+            11548288141986360995140109898920128168056393807
+        );
+        rbCreditLineHandler.makePaymentWithReceivable(
+            1,
+            2161940855342391292872524652586360927080670296223599743566046144126584134497,
+            0
+        );
+        liquidityHandler.addRedemptionRequest(
+            115792089237316195423570985008687907853269984665640564039457584007913129639934,
+            267527196642402639407305903009800009145643320047575289653,
+            9584688538686150623,
+            37053191810327812672267866827828780594033610945043891352933439184125
+        );
+        rbCreditLineHandler.drawdownWithReceivable(
+            3,
+            3119182089827284015614947261212429386472591443896914886317802037,
+            3
+        );
     }
 
     function invariant_displayCallsLog() public view {

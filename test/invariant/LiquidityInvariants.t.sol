@@ -46,8 +46,8 @@ contract LiquidityInvariants is BaseInvariants {
         addSelector(liquidityHandler.disburse.selector, "disburse");
         addSelector(liquidityHandler.processYieldForLenders.selector, "processYieldForLenders");
         addSelector(liquidityHandler.withdrawProtocolFee.selector, "withdrawProtocolFee");
-        addSelector(liquidityHandler.withdrawProtocolFee.selector, "withdrawProtocolFee");
-        addSelector(liquidityHandler.withdrawProtocolFee.selector, "withdrawProtocolFee");
+        addSelector(liquidityHandler.withdrawPoolOwnerFee.selector, "withdrawPoolOwnerFee");
+        addSelector(liquidityHandler.withdrawEAFee.selector, "withdrawEAFee");
         addSelector(creditLineHandler.drawdown.selector, "drawdown");
         addSelector(creditLineHandler.makePayment.selector, "makePayment");
         addSelector(creditLineHandler.refreshCredit.selector, "refreshCredit");

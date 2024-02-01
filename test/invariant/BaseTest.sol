@@ -52,7 +52,7 @@ contract BaseTest is Test, Utils {
     address protocolOwner;
     address eaServiceAccount;
     address sentinelServiceAccount;
-    address poolOwner;
+    address public poolOwner;
     address poolOperator;
     address poolOwnerTreasury;
     address evaluationAgent;
@@ -176,7 +176,7 @@ contract BaseTest is Test, Utils {
         Vm.Log[] memory entries = vm.getRecordedLogs();
         for (uint256 i = 0; i < entries.length; i++) {
             if (entries[i].topics[0] == keccak256("ReceivableCreated(address)")) {
-                receivable = Receivable(address(bytes20(entries[i].data)));
+                receivable = Receivable(abi.decode(entries[i].data, (address)));
                 break;
             }
         }

@@ -1,33 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.0;
 
-import {BaseHandler} from "./BaseHandler.sol";
+import {CreditHandler} from "./CreditHandler.sol";
 import {CreditLine} from "contracts/credit/CreditLine.sol";
-import {CreditDueManager} from "contracts/credit/CreditDueManager.sol";
 import {CreditLineManager} from "contracts/credit/CreditLineManager.sol";
 import {CreditRecord, CreditConfig, CreditState} from "contracts/credit/CreditStructs.sol";
 
 import "forge-std/console.sol";
 
-contract CreditLineHandler is BaseHandler {
-    uint256 immutable minDrawdownAmount;
-    uint256 immutable minPaymentAmount;
-
+contract CreditLineHandler is CreditHandler {
     CreditLine creditLine;
     CreditLineManager creditLineManager;
-    CreditDueManager creditDueManager;
 
-    address[] borrowers;
-    address[] borrowedBorrowers;
-
-    constructor(address[] memory _borrowers) BaseHandler() {
+    constructor(address[] memory _borrowers) CreditHandler(_borrowers) {
         creditLine = CreditLine(poolConfig.credit());
         creditLineManager = CreditLineManager(poolConfig.creditManager());
-        creditDueManager = CreditDueManager(poolConfig.creditDueManager());
-        borrowers = _borrowers;
-
-        minDrawdownAmount = _toToken(100000);
-        minPaymentAmount = _toToken(1000);
     }
 
     function approveBorrowers(uint256 creditLimit, uint256 yieldBps) public {

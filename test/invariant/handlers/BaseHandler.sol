@@ -33,6 +33,7 @@ contract BaseHandler is Test, Utils {
     address poolOwnerTreasury;
     address evaluationAgent;
     address eaServiceAccount;
+    address poolOwner;
 
     modifier logCall(bytes4 selector) {
         uint256 callNum = baseInvariants.increaselogCall(selector);
@@ -63,6 +64,7 @@ contract BaseHandler is Test, Utils {
     constructor() {
         baseInvariants = BaseInvariants(msg.sender);
         poolConfig = baseInvariants.poolConfig();
+        poolOwner = baseInvariants.poolOwner();
 
         mockToken = MockToken(poolConfig.underlyingToken());
         epochManager = EpochManager(poolConfig.epochManager());
