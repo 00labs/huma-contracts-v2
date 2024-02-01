@@ -266,9 +266,20 @@ contract FirstLossCover is
     }
 
     /**
-     * @notice Disables the transfer function so that first loss cover tokens cannot be transferred.
+     * @notice Disallows first loss cover tokens to be transferred.
      */
     function transfer(address, uint256) public virtual override returns (bool) {
+        revert Errors.UnsupportedFunction();
+    }
+
+    /**
+     * @notice Disallows first loss cover tokens to be transferred.
+     */
+    function transferFrom(
+        address from,
+        address to,
+        uint256 amount
+    ) public virtual override returns (bool) {
         revert Errors.UnsupportedFunction();
     }
 

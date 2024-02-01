@@ -329,16 +329,30 @@ describe("TrancheVault Test", function () {
             ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "ZeroAddressProvided");
         });
 
-        it("Should not allow a lender to be removed twice", async function () {
+        it("Should allow a lender to be removed twice", async function () {
+            const poolOperatorRole = await poolConfigContract.POOL_OPERATOR_ROLE();
+            await poolConfigContract
+                .connect(poolOwner)
+                .grantRole(poolOperatorRole, defaultDeployer.address);
+            const lenderRole = await juniorTrancheVaultContract.LENDER_ROLE();
+
+            await expect(
+                juniorTrancheVaultContract
+                    .connect(defaultDeployer)
+                    .removeApprovedLender(lender4.address),
+            )
+                .to.emit(juniorTrancheVaultContract, "RoleRevoked")
+                .withArgs(lenderRole, lender4.address, defaultDeployer.address);
             await juniorTrancheVaultContract
                 .connect(poolOperator)
                 .removeApprovedLender(lender4.address);
 
-            await expect(
-                juniorTrancheVaultContract
-                    .connect(poolOperator)
-                    .removeApprovedLender(lender4.address),
-            ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "LenderRequired");
+            expect(await juniorTrancheVaultContract.hasRole(lenderRole, lender4.address)).to.be
+                .false;
+            const newDepositRecord = await juniorTrancheVaultContract.depositRecords(
+                lender4.address,
+            );
+            checkDepositRecord(newDepositRecord, BN.from(0), true);
         });
 
         it("Should allow pool operators to remove a lender that was added first", async function () {
@@ -1007,7 +1021,13 @@ describe("TrancheVault Test", function () {
                 await expect(
                     juniorTrancheVaultContract
                         .connect(lender)
-                        .transfer(lender2.address, toToken(100)),
+                        .transfer(lender2.getAddress(), toToken(100)),
+                ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "UnsupportedFunction");
+
+                await expect(
+                    juniorTrancheVaultContract
+                        .connect(lender)
+                        .transferFrom(lender2.getAddress(), lender.getAddress(), toToken(100)),
                 ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "UnsupportedFunction");
             });
         });
