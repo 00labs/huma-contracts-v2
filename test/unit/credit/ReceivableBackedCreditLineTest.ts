@@ -48,7 +48,6 @@ import { CONSTANTS } from "../../constants";
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
-    eaServiceAccount: SignerWithAddress,
     sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
@@ -81,7 +80,6 @@ describe("ReceivableBackedCreditLine Tests", function () {
             defaultDeployer,
             protocolOwner,
             treasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
@@ -96,7 +94,6 @@ describe("ReceivableBackedCreditLine Tests", function () {
         [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
             protocolOwner,
             treasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
         );
@@ -188,7 +185,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
             creditHash = await borrowerLevelCreditHash(creditContract, borrower);
 
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.getAddress(),
                     toToken(100_000),
@@ -319,7 +316,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
 
         async function approveBorrower() {
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.getAddress(),
                     toToken(100_000),
@@ -655,7 +652,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
 
         async function approveAndDrawdown() {
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.getAddress(),
                     toToken(100_000),
@@ -926,7 +923,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                     .connect(borrower)
                     .approve(creditContract.address, receivableId2);
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveReceivable(borrower.getAddress(), receivableId2);
 
                 await expect(
@@ -987,7 +984,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
 
         async function approveBorrowerAndDrawdown() {
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.getAddress(),
                     toToken(100_000),
@@ -1139,7 +1136,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                     .connect(borrower)
                     .approve(creditContract.address, receivableId2);
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveReceivable(borrower.getAddress(), receivableId2);
 
                 await expect(
@@ -1229,7 +1226,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
         async function approveBorrower() {
             designatedStartDate = await getFutureBlockTime(2);
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.getAddress(),
                     toToken(100_000),
@@ -1277,7 +1274,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                 await approveBorrower();
                 // Manually approve the receivable for first drawdown.
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveReceivable(borrower.getAddress(), paymentReceivableId);
                 await initialDrawdown();
                 // Create another receivable for second drawdown, but this receivable won't be approved.
@@ -1684,7 +1681,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
                     .connect(borrower)
                     .approve(creditContract.address, receivableId2);
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveReceivable(borrower.getAddress(), receivableId2);
 
                 await expect(

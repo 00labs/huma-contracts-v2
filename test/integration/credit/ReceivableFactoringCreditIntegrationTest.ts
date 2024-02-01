@@ -44,7 +44,6 @@ import { CONSTANTS } from "../../constants";
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
-    eaServiceAccount: SignerWithAddress,
     sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
@@ -77,7 +76,6 @@ describe("ReceivableFactoringCredit Integration Tests", function () {
             defaultDeployer,
             protocolOwner,
             treasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
@@ -93,7 +91,6 @@ describe("ReceivableFactoringCredit Integration Tests", function () {
         [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
             protocolOwner,
             treasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
         );
@@ -203,7 +200,7 @@ describe("ReceivableFactoringCredit Integration Tests", function () {
 
         it("Approves borrower credit", async function () {
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveReceivable(
                     borrower.address,
                     { receivableAmount: creditLimit, receivableId: tokenId },

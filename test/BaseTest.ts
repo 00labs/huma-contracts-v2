@@ -177,7 +177,6 @@ export async function deployProxyContract(
 export async function deployProtocolContracts(
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
-    eaServiceAccount: SignerWithAddress,
     sentinelServiceAccount: SignerWithAddress,
     poolOwner: SignerWithAddress,
 ): Promise<ProtocolContracts> {
@@ -193,7 +192,6 @@ export async function deployProtocolContracts(
 
     await humaConfigContract.setHumaTreasury(treasury.getAddress());
     await humaConfigContract.setEANFTContractAddress(eaNFTContract.address);
-    await humaConfigContract.setEAServiceAccount(eaServiceAccount.getAddress());
     await humaConfigContract.setSentinelServiceAccount(sentinelServiceAccount.getAddress());
 
     await humaConfigContract.addPauser(protocolOwner.getAddress());

@@ -35,7 +35,6 @@ import { CONSTANTS } from "../../constants";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
-    eaServiceAccount: SignerWithAddress,
     sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
@@ -69,7 +68,6 @@ describe("FirstLossCover Tests", function () {
             defaultDeployer,
             protocolOwner,
             protocolTreasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
@@ -84,7 +82,6 @@ describe("FirstLossCover Tests", function () {
         [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
             protocolOwner,
             protocolTreasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
         );

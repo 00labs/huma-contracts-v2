@@ -24,9 +24,6 @@ contract HumaConfig is Ownable, Pausable {
     /// Address of EvaluationAgentNFT contract.
     address public eaNFTContractAddress;
 
-    /// Service account for Huma's evaluation agent hosting service.
-    address public eaServiceAccount;
-
     /// Service account for Huma's Sentinel service.
     address public sentinelServiceAccount;
 
@@ -44,12 +41,6 @@ contract HumaConfig is Ownable, Pausable {
      * @param eaNFT The address of the new EA NFT.
      */
     event EANFTContractAddressChanged(address eaNFT);
-
-    /**
-     * @notice Service account for the Evaluation Agent platform has changed.
-     * @param eaService The address of the new EA Service account.
-     */
-    event EAServiceAccountChanged(address eaService);
 
     /**
      * @notice The treasury address for Huma protocol has changed.
@@ -211,18 +202,6 @@ contract HumaConfig is Ownable, Pausable {
         if (contractAddress == address(0)) revert Errors.ZeroAddressProvided();
         eaNFTContractAddress = contractAddress;
         emit EANFTContractAddressChanged(contractAddress);
-    }
-
-    /**
-     * @notice Sets the service account for Evaluation Agent service. This is the account
-     * that can approve credit requests.
-     * @param accountAddress The new EA Service account address.
-     * @custom:access Only the protocol owner can call this function.
-     */
-    function setEAServiceAccount(address accountAddress) external onlyOwner {
-        if (accountAddress == address(0)) revert Errors.ZeroAddressProvided();
-        eaServiceAccount = accountAddress;
-        emit EAServiceAccountChanged(accountAddress);
     }
 
     /**

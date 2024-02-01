@@ -37,7 +37,6 @@ import { advanceChainTime } from "./utils";
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
-    eaServiceAccount: SignerWithAddress,
     sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
@@ -118,7 +117,6 @@ async function deployPool(
         defaultDeployer,
         protocolOwner,
         treasury,
-        eaServiceAccount,
         sentinelServiceAccount,
         poolOwner,
         poolOwnerTreasury,
@@ -139,7 +137,6 @@ async function deployPool(
     [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
         protocolOwner,
         treasury,
-        eaServiceAccount,
         sentinelServiceAccount,
         poolOwner,
     );
@@ -218,7 +215,7 @@ async function deployPool(
 
     if (poolName === LocalPoolName.CreditLine) {
         console.log("Drawing down from CreditLine");
-        await creditManagerContract.connect(eaServiceAccount).approveBorrower(
+        await creditManagerContract.connect(evaluationAgent).approveBorrower(
             borrowerActive.address,
             toToken(100_000),
             5, // numOfPeriods
@@ -257,7 +254,7 @@ async function deployPool(
         });
 
         console.log("Drawing down from CreditLine");
-        await creditManagerContract.connect(eaServiceAccount).approveBorrower(
+        await creditManagerContract.connect(evaluationAgent).approveBorrower(
             borrowerActive.address,
             toToken(100_000),
             5, // numOfPeriods
@@ -290,7 +287,6 @@ async function deployPool(
     console.log(`Borrower:      ${borrowerActive.address}`);
     console.log(`Sentinel Service:   ${sentinelServiceAccount.address}`);
     console.log(`Pool owner:   ${poolOwner.address}`);
-    console.log(`EA service:   ${eaServiceAccount.address}`);
 
     console.log("=====================================");
     console.log("Addresses:");

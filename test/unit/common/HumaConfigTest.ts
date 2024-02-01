@@ -14,7 +14,6 @@ describe("HumaConfig Tests", function () {
         newOwner: SignerWithAddress,
         newTreasury: SignerWithAddress,
         sentinelServiceAccount: SignerWithAddress,
-        eaServiceAccount: SignerWithAddress,
         randomUser: SignerWithAddress;
 
     before(async function () {
@@ -26,7 +25,6 @@ describe("HumaConfig Tests", function () {
             newOwner,
             newTreasury,
             sentinelServiceAccount,
-            eaServiceAccount,
             randomUser,
         ] = await ethers.getSigners();
 
@@ -292,7 +290,6 @@ describe("HumaConfig Tests", function () {
         });
     });
 
-    // Test suites for changing treasury fee
     describe("Change Treasury Fee", function () {
         it("Should disallow non-owner to change treasury fee", async function () {
             await expect(
@@ -317,7 +314,6 @@ describe("HumaConfig Tests", function () {
         });
     });
 
-    // Test suite for sentinelServiceAccount
     describe("Update sentinelServiceAccount", function () {
         it("Should disallow non-owner to change sentinelServiceAccount", async function () {
             await expect(
@@ -349,37 +345,6 @@ describe("HumaConfig Tests", function () {
         });
     });
 
-    // Test suite for eaServiceAccount
-    describe("Update eaServiceAccount", function () {
-        it("Should disallow non-owner to change eaServiceAccount", async function () {
-            await expect(
-                configContract.connect(randomUser).setEAServiceAccount(eaServiceAccount.address),
-            ).to.be.revertedWith("Ownable: caller is not the owner");
-        });
-
-        it("Should reject 0 address eaServiceAccount", async function () {
-            await expect(
-                configContract
-                    .connect(origOwner)
-                    .setEAServiceAccount(ethers.constants.AddressZero),
-            ).to.be.revertedWithCustomError(configContract, "ZeroAddressProvided");
-        });
-
-        it("Should allow eaServiceAccount to be changed", async function () {
-            expect(
-                await configContract
-                    .connect(origOwner)
-                    .setEAServiceAccount(eaServiceAccount.address),
-            )
-                .to.emit(configContract, "EAServiceAccountChanged")
-                .withArgs(eaServiceAccount.address);
-            expect(await configContract.connect(origOwner).eaServiceAccount()).to.equal(
-                eaServiceAccount.address,
-            );
-        });
-    });
-
-    // Test suites for valid liquidity assets
     describe("Change Liquidity Assets", function () {
         it("Should disallow non-proto-admin to change liquidity asset", async function () {
             await expect(

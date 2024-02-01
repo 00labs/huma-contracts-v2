@@ -58,7 +58,6 @@ import { CONSTANTS } from "../../constants";
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
-    eaServiceAccount: SignerWithAddress,
     sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
@@ -556,7 +555,6 @@ describe("Lender Integration Test", function () {
             defaultDeployer,
             protocolOwner,
             treasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
@@ -591,7 +589,6 @@ describe("Lender Integration Test", function () {
             [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
                 protocolOwner,
                 treasury,
-                eaServiceAccount,
                 sentinelServiceAccount,
                 poolOwner,
             );
@@ -687,7 +684,7 @@ describe("Lender Integration Test", function () {
             }
 
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.address,
                     toToken(BORROWER_INITIAL_AMOUNT),
@@ -1595,7 +1592,7 @@ describe("Lender Integration Test", function () {
             );
             let poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
             await pnlCalculator.beginProfitCalculation();
-            await creditManagerContract.connect(eaServiceAccount).triggerDefault(borrower.address);
+            await creditManagerContract.connect(evaluationAgent).triggerDefault(borrower.address);
             cr = await creditContract.getCreditRecord(creditHash);
             let dd = await creditContract.getDueDetail(creditHash);
             let profit = cr.yieldDue.add(dd.yieldPastDue).add(dd.lateFee);
@@ -1825,7 +1822,6 @@ describe("Lender Integration Test", function () {
             [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
                 protocolOwner,
                 treasury,
-                eaServiceAccount,
                 sentinelServiceAccount,
                 poolOwner,
             );
@@ -1921,7 +1917,7 @@ describe("Lender Integration Test", function () {
             }
 
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.address,
                     toToken(BORROWER_INITIAL_AMOUNT),
@@ -2875,7 +2871,7 @@ describe("Lender Integration Test", function () {
             let poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
             await pnlCalculator.beginProfitCalculation();
             tracker = await tranchesPolicyContract.seniorYieldTracker();
-            await creditManagerContract.connect(eaServiceAccount).triggerDefault(borrower.address);
+            await creditManagerContract.connect(evaluationAgent).triggerDefault(borrower.address);
             cr = await creditContract.getCreditRecord(creditHash);
             let dd = await creditContract.getDueDetail(creditHash);
             let profit = cr.yieldDue.add(dd.yieldPastDue).add(dd.lateFee);

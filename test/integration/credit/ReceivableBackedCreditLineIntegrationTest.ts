@@ -48,7 +48,6 @@ import { CONSTANTS } from "../../constants";
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
-    eaServiceAccount: SignerWithAddress,
     sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
@@ -81,7 +80,6 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
             defaultDeployer,
             protocolOwner,
             treasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
@@ -96,7 +94,6 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
         [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
             protocolOwner,
             treasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
         );
@@ -205,7 +202,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
             const poolSettings = await poolConfigContract.getPoolSettings();
 
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveBorrower(
                     borrower.address,
                     creditLimit,
@@ -291,7 +288,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
             await setNextBlockTimestamp(nextBlockTS);
 
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .updateLimitAndCommitment(borrower.address, creditLimit, borrowAmount.mul(5));
 
             // Day7
@@ -549,7 +546,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                 .mul(CONSTANTS.BP_FACTOR.add(500))
                 .div(CONSTANTS.BP_FACTOR);
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .updateLimitAndCommitment(borrower.address, creditLimit, borrowAmount.mul(5));
         });
 

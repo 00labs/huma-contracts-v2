@@ -44,7 +44,6 @@ import { CONSTANTS } from "../../constants";
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
-    eaServiceAccount: SignerWithAddress,
     sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
@@ -77,7 +76,6 @@ describe("ReceivableFactoringCredit Tests", function () {
             defaultDeployer,
             protocolOwner,
             treasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
             poolOwnerTreasury,
@@ -93,7 +91,6 @@ describe("ReceivableFactoringCredit Tests", function () {
         [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
             protocolOwner,
             treasury,
-            eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
         );
@@ -178,7 +175,7 @@ describe("ReceivableFactoringCredit Tests", function () {
             creditHash = await receivableLevelCreditHash(creditContract, nftContract, tokenId);
 
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveReceivable(
                     borrower.getAddress(),
                     { receivableAmount: creditLimit, receivableId: tokenId },
@@ -275,7 +272,7 @@ describe("ReceivableFactoringCredit Tests", function () {
 
         async function approveCredit() {
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveReceivable(
                     borrower.address,
                     { receivableAmount: creditLimit, receivableId: tokenId },
@@ -453,7 +450,7 @@ describe("ReceivableFactoringCredit Tests", function () {
 
         async function approveCreditAndDrawdown() {
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveReceivable(
                     borrower.address,
                     { receivableAmount: creditLimit, receivableId: tokenId },
@@ -487,7 +484,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                 const tokenId2 = await nftContract.tokenOfOwnerByIndex(borrower.getAddress(), 1);
                 await nftContract.connect(borrower).approve(creditContract.address, tokenId2);
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveReceivable(
                         borrower.address,
                         { receivableAmount: creditLimit, receivableId: tokenId2 },
@@ -632,7 +629,7 @@ describe("ReceivableFactoringCredit Tests", function () {
 
         async function approveCreditAndDrawdown() {
             await creditManagerContract
-                .connect(eaServiceAccount)
+                .connect(evaluationAgent)
                 .approveReceivable(
                     borrower.address,
                     { receivableAmount: creditLimit, receivableId: tokenId },
@@ -658,7 +655,7 @@ describe("ReceivableFactoringCredit Tests", function () {
                 const tokenId2 = await nftContract.tokenOfOwnerByIndex(borrower.getAddress(), 1);
                 await nftContract.connect(borrower).approve(creditContract.address, tokenId2);
                 await creditManagerContract
-                    .connect(eaServiceAccount)
+                    .connect(evaluationAgent)
                     .approveReceivable(
                         borrower.address,
                         { receivableAmount: creditLimit, receivableId: tokenId2 },

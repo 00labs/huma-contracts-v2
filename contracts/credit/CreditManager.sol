@@ -555,9 +555,9 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         return daysPassed >= settings.defaultGracePeriodInDays;
     }
 
-    /// "Modifier" function that limits access to eaServiceAccount only
-    function _onlyEAServiceAccount() internal view {
-        if (msg.sender != humaConfig.eaServiceAccount())
-            revert Errors.EvaluationAgentServiceAccountRequired();
+    /// "Modifier" function that limits access to the Evaluation Agent only.
+    function _onlyEvaluationAgent() internal view {
+        if (msg.sender != poolConfig.evaluationAgent())
+            revert Errors.EvaluationAgentRequired();
     }
 }

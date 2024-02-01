@@ -31,7 +31,6 @@ import {
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
     treasury: SignerWithAddress,
-    eaServiceAccount: SignerWithAddress,
     pdsServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
@@ -64,7 +63,6 @@ describe("Upgradeability Test", function () {
             defaultDeployer,
             protocolOwner,
             treasury,
-            eaServiceAccount,
             pdsServiceAccount,
             poolOwner,
             poolOwnerTreasury,
@@ -78,7 +76,6 @@ describe("Upgradeability Test", function () {
         [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
             protocolOwner,
             treasury,
-            eaServiceAccount,
             pdsServiceAccount,
             poolOwner,
         );
@@ -209,7 +206,6 @@ describe("Upgradeability Test", function () {
         [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
             protocolOwner,
             treasury,
-            eaServiceAccount,
             pdsServiceAccount,
             poolOwner,
         );
