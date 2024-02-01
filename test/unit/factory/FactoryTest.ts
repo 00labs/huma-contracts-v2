@@ -334,6 +334,8 @@ describe("Factory Test", function () {
             toToken(10000),
             toToken(5000),
             15000,
+            "Borrower First Loss Cover",
+            "BFLC",
         );
     });
     it("Non deployer cannot set first loss cover", async function () {
@@ -357,6 +359,8 @@ describe("Factory Test", function () {
                     toToken(10000),
                     toToken(5000),
                     15000,
+                    "Borrower First Loss Cover",
+                    "BFLC",
                 ),
         ).to.be.revertedWithCustomError(poolFactoryContract, "DeployerRequired");
     });
