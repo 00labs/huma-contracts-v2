@@ -110,13 +110,9 @@ describe("RiskAdjustedTranchesPolicy Test", function () {
         );
 
         const juniorDepositAmount = toToken(100_000);
-        await juniorTrancheVaultContract
-            .connect(lender)
-            .deposit(juniorDepositAmount, lender.address);
+        await juniorTrancheVaultContract.connect(lender).deposit(juniorDepositAmount);
         const seniorDepositAmount = toToken(300_000);
-        await seniorTrancheVaultContract
-            .connect(lender)
-            .deposit(seniorDepositAmount, lender.address);
+        await seniorTrancheVaultContract.connect(lender).deposit(seniorDepositAmount);
     }
 
     beforeEach(async function () {

@@ -63,20 +63,6 @@ interface ICreditLineManager {
     function closeCredit(address borrower) external;
 
     /**
-     * @notice Pauses the credit. No drawdown is allowed for paused credit.
-     * @param borrower The address of the borrower.
-     * @custom:access Only the EA can call this function
-     */
-    function pauseCredit(address borrower) external;
-
-    /**
-     * @notice Unpauses the credit to return the credit to normal.
-     * @param borrower The address of the borrower.
-     * @custom:access Only the EA can call this function.
-     */
-    function unpauseCredit(address borrower) external;
-
-    /**
      * @notice Updates the yield for the credit.
      * @param borrower The address of the borrower.
      * @param yieldInBps The new yield expressed in basis points.
