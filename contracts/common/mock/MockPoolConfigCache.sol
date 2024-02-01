@@ -7,16 +7,16 @@ import {PoolConfigCache} from "../PoolConfigCache.sol";
 /**
  * @dev A child contract of PoolConfigCache that exposes internal functions for testing.
  */
-contract PoolConfigCacheChild is PoolConfigCache {
+contract MockPoolConfigCache is PoolConfigCache {
     /**
-     * @dev Expose the _initialize function for testing.
+     * @dev Exposes the _initialize function for testing.
      */
     function otherInitialize(PoolConfig _poolConfig) external {
         _initialize(_poolConfig);
     }
 
     /**
-     * @dev Override the _updatePoolConfigData function to make
+     * @dev Overrides the _updatePoolConfigData function to make
      * abstract contract PoolConfigCache non-abstract.
      */
     function _updatePoolConfigData(PoolConfig _poolConfig) internal view override {
