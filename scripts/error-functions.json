@@ -40,6 +40,7 @@
   "WithdrawTooEarly()": "0x64381803",
   "InvalidTrancheIndex()": "0x4e2a8dfe",
   "EpochClosedTooEarly()": "0xf6a9c460",
+  "RedemptionsCannotBeProcessedDueToUnprocessedProfit()": "0x0f4579c3",
   "AlreadyALender()": "0xce4108ca",
   "NonReinvestYieldLenderCapacityReached()": "0x39ad903d",
   "ReinvestYieldOptionAlreadySet()": "0xb44d305d",

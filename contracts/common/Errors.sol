@@ -56,6 +56,7 @@ contract Errors {
     error WithdrawTooEarly(); // 0x64381803
     error InvalidTrancheIndex(); // 0x4e2a8dfe
     error EpochClosedTooEarly(); // 0xf6a9c460
+    error RedemptionsCannotBeProcessedDueToUnprocessedProfit(); // 0x0f4579c3
     error AlreadyALender(); // 0xce4108ca
     error NonReinvestYieldLenderCapacityReached(); // 0x39ad903d
     error ReinvestYieldOptionAlreadySet(); // 0xb44d305d

@@ -403,6 +403,9 @@ describe("Pool Test", function () {
                     .div(CONSTANTS.DEFAULT_DECIMALS_FACTOR);
 
                 await creditContract.mockDistributePnL(profit, loss, lossRecovery);
+                await seniorTrancheVaultContract.processYieldForLenders();
+                await juniorTrancheVaultContract.processYieldForLenders();
+
                 await expect(poolContract.connect(poolOwner).closePool())
                     .to.emit(poolContract, "PoolClosed")
                     .withArgs(poolOwner.address)
@@ -597,6 +600,54 @@ describe("Pool Test", function () {
                     "AdminRequired",
                 );
                 expect(await poolContract.isPoolClosed()).to.be.false;
+            });
+
+            it("Should not close the pool if there is unprocessed profit in the senior tranche", async function () {
+                // Distribute profit and then process yield for the junior tranche so that there are unprocessed profits
+                // in the senior tranche only.
+                await creditContract.mockDistributePnL(toToken(10_000), 0, 0);
+                await juniorTrancheVaultContract.processYieldForLenders();
+                expect(
+                    await poolSafeContract.unprocessedTrancheProfit(
+                        seniorTrancheVaultContract.address,
+                    ),
+                ).to.be.gt(0);
+                expect(
+                    await poolSafeContract.unprocessedTrancheProfit(
+                        juniorTrancheVaultContract.address,
+                    ),
+                ).to.equal(0);
+
+                await expect(
+                    poolContract.connect(poolOwner).closePool(),
+                ).to.be.revertedWithCustomError(
+                    epochManagerContract,
+                    "RedemptionsCannotBeProcessedDueToUnprocessedProfit",
+                );
+            });
+
+            it("Should not close the pool if there is unprocessed profit in the junior tranche", async function () {
+                // Distribute profit and then process yield for the senior tranche so that there are unprocessed profits
+                // in the junior tranche only.
+                await creditContract.mockDistributePnL(toToken(10_000), 0, 0);
+                await seniorTrancheVaultContract.processYieldForLenders();
+                expect(
+                    await poolSafeContract.unprocessedTrancheProfit(
+                        seniorTrancheVaultContract.address,
+                    ),
+                ).to.equal(0);
+                expect(
+                    await poolSafeContract.unprocessedTrancheProfit(
+                        juniorTrancheVaultContract.address,
+                    ),
+                ).to.be.gt(0);
+
+                await expect(
+                    poolContract.connect(poolOwner).closePool(),
+                ).to.be.revertedWithCustomError(
+                    epochManagerContract,
+                    "RedemptionsCannotBeProcessedDueToUnprocessedProfit",
+                );
             });
         });
 
