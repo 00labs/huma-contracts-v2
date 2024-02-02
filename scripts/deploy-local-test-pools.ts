@@ -320,17 +320,14 @@ async function deployPool(
     console.log("=====================================");
 }
 
-export async function deployPools({
-    onlyDeployPoolName = undefined,
-    shouldAdvanceTime = true,
-}: {
-    onlyDeployPoolName?: LocalPoolName;
-    shouldAdvanceTime?: boolean;
-}) {
+export async function deployPools(
+    onlyDeployPoolName: LocalPoolName | undefined = undefined,
+    shouldAdvanceTime: boolean = true,
+) {
     try {
         if (shouldAdvanceTime) {
             // always set the date to the 1st of the next month
-            const blockchainStartDate = moment().utc().add(1, "month").date(1).startOf("day");
+            const blockchainStartDate = moment().utc().add(1, "month").startOf("month");
             await advanceChainTime(blockchainStartDate);
         }
 
