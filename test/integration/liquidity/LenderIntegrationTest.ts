@@ -258,10 +258,10 @@ async function configPool(lpConfig: Partial<LPConfigStructOutput>) {
 
     await juniorTrancheVaultContract
         .connect(poolOperator)
-        .setReinvestYield(poolOwnerTreasury.address, true);
+        .addApprovedLender(poolOwnerTreasury.address, true);
     await juniorTrancheVaultContract
         .connect(poolOperator)
-        .setReinvestYield(evaluationAgent.address, true);
+        .addApprovedLender(evaluationAgent.address, true);
 
     // Deposit 1% of the pool liquidity cap as the first loss cover.
     await adminFirstLossCoverContract

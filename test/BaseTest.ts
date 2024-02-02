@@ -648,6 +648,10 @@ export async function setupPoolContracts(
         .connect(poolOwner)
         .setPoolOwnerTreasury(poolOwnerTreasury.getAddress());
 
+    const role = await poolConfigContract.POOL_OPERATOR_ROLE();
+    await poolConfigContract.connect(poolOwner).grantRole(role, poolOwner.getAddress());
+    await poolConfigContract.connect(poolOwner).grantRole(role, poolOperator.getAddress());
+
     // Deposit enough liquidity for the pool owner in both tranches.
     const adminRnR = await poolConfigContract.getAdminRnR();
     await mockTokenContract
@@ -655,6 +659,12 @@ export async function setupPoolContracts(
         .approve(poolSafeContract.address, ethers.constants.MaxUint256);
     await mockTokenContract.mint(poolOwnerTreasury.getAddress(), toToken(1_000_000_000));
     const poolOwnerLiquidity = await getMinLiquidityRequirementForPoolOwner(poolConfigContract);
+    await juniorTrancheVaultContract
+        .connect(poolOperator)
+        .addApprovedLender(poolOwnerTreasury.getAddress(), true);
+    await seniorTrancheVaultContract
+        .connect(poolOperator)
+        .addApprovedLender(poolOwnerTreasury.getAddress(), true);
     await juniorTrancheVaultContract
         .connect(poolOwnerTreasury)
         .makeInitialDeposit(poolOwnerLiquidity);
@@ -692,6 +702,9 @@ export async function setupPoolContracts(
             .mul(poolLiquidityCap)
             .div(CONSTANTS.BP_FACTOR);
         await juniorTrancheVaultContract
+            .connect(poolOperator)
+            .addApprovedLender(evaluationAgent.getAddress(), true);
+        await juniorTrancheVaultContract
             .connect(evaluationAgent)
             .makeInitialDeposit(evaluationAgentLiquidity);
         expectedInitialLiquidity = expectedInitialLiquidity.add(evaluationAgentLiquidity);
@@ -709,17 +722,6 @@ export async function setupPoolContracts(
     await adminFirstLossCoverContract
         .connect(poolOwner)
         .addCoverProvider(evaluationAgent.getAddress());
-
-    const role = await poolConfigContract.POOL_OPERATOR_ROLE();
-    await poolConfigContract.connect(poolOwner).grantRole(role, poolOwner.getAddress());
-    await poolConfigContract.connect(poolOwner).grantRole(role, poolOperator.getAddress());
-
-    await juniorTrancheVaultContract
-        .connect(poolOperator)
-        .setReinvestYield(poolOwnerTreasury.address, true);
-    await juniorTrancheVaultContract
-        .connect(poolOperator)
-        .setReinvestYield(evaluationAgent.address, true);
 
     await adminFirstLossCoverContract.connect(poolOwnerTreasury).depositCover(toToken(10_000));
     await adminFirstLossCoverContract.connect(evaluationAgent).depositCover(toToken(10_000));
