@@ -24,7 +24,6 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
     address public seniorTranche;
     address public juniorTranche;
     address public credit;
-    address public poolFeeManager;
 
     /**
      * Maps tranche addresses to unprocessed profits.
@@ -122,10 +121,6 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
         addr = _poolConfig.credit();
         assert(addr != address(0));
         credit = addr;
-
-        addr = _poolConfig.poolFeeManager();
-        assert(addr != address(0));
-        poolFeeManager = addr;
     }
 
     /**
@@ -138,7 +133,7 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
             account != seniorTranche &&
             account != juniorTranche &&
             account != credit &&
-            account != poolFeeManager &&
+            account != address(poolFeeManager) &&
             !poolConfig.isFirstLossCover(account)
         ) revert Errors.AuthorizedContractCallerRequired();
     }
