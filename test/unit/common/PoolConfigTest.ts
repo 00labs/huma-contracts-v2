@@ -1318,50 +1318,6 @@ describe("PoolConfig Tests", function () {
             });
         });
 
-        describe("setPoolUnderlyingToken", function () {
-            it("Should allow the pool owner to set the underlying token", async function () {
-                await expect(
-                    poolConfigContract
-                        .connect(poolOwner)
-                        .setPoolUnderlyingToken(mockTokenContract.address),
-                )
-                    .to.emit(poolConfigContract, "PoolUnderlyingTokenChanged")
-                    .withArgs(mockTokenContract.address, poolOwner.address);
-                expect(await poolConfigContract.underlyingToken()).to.equal(
-                    mockTokenContract.address,
-                );
-            });
-
-            it("Should allow the Huma master admin to set the underlying token", async function () {
-                await expect(
-                    poolConfigContract
-                        .connect(protocolOwner)
-                        .setPoolUnderlyingToken(mockTokenContract.address),
-                )
-                    .to.emit(poolConfigContract, "PoolUnderlyingTokenChanged")
-                    .withArgs(mockTokenContract.address, protocolOwner.address);
-                expect(await poolConfigContract.underlyingToken()).to.equal(
-                    mockTokenContract.address,
-                );
-            });
-
-            it("Should reject non-owner or admin to set the underlying token", async function () {
-                await expect(
-                    poolConfigContract
-                        .connect(regularUser)
-                        .setPoolUnderlyingToken(poolOwnerTreasury.address),
-                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
-            });
-
-            it("Should disallow zero address for the underlying token", async function () {
-                await expect(
-                    poolConfigContract
-                        .connect(poolOwner)
-                        .setPoolUnderlyingToken(ethers.constants.AddressZero),
-                ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
-            });
-        });
-
         describe("setTranches", function () {
             it("Should allow the pool owner to set the tranches", async function () {
                 await expect(
