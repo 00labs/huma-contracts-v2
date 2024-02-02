@@ -49,7 +49,7 @@ const config: HardhatUserConfig = {
     contractSizer: {
         alphaSort: true,
         disambiguatePaths: false,
-        runOnCompile: false,
+        runOnCompile: true,
         strict: true,
     },
     /**
@@ -58,7 +58,7 @@ const config: HardhatUserConfig = {
      * More here: https://www.npmjs.com/package/hardhat-gas-reporter
      */
     gasReporter: {
-        enabled: false,
+        enabled: true,
         currency: "USD",
         // coinmarketcap: process.env.COINMARKETCAP || null,
     },
