@@ -21,8 +21,11 @@ interface IReceivable {
     ) external returns (uint256 tokenId);
 
     /**
-     * @notice Declares a payment for a receivable.
-     * The payment method for the receivable must be Declarative.
+     * @notice Declares a payment for a receivable. The payment method for the receivable must be Declarative.
+     * @notice This function is used for off-chain analysis only. When a payment is declared on a receivable here,
+     * it does not necessarily mean the same amount has also been paid back to the credit line associated with
+     * the receivable. The receivable creditor is responsible for calling this function when payment is received from
+     * the debtor.
      * @param tokenId The ID of the receivable token.
      * @param paymentAmount The amount of payment being declared.
      * @custom:access Only the owner or the original creator of the token can declare a payment.
