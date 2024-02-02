@@ -24,12 +24,15 @@ import {
 import {
     CreditState,
     PayPeriodDuration,
-    calcLateFeeNew,
+    calcYield,
     checkCreditConfig,
     checkCreditRecord,
+    checkCreditRecordsMatch,
+    checkDueDetailsMatch,
     deployAndSetupPoolContracts,
     deployProtocolContracts,
-    printCreditRecord,
+    genDueDetail,
+    getPrincipal,
 } from "../../BaseTest";
 import {
     borrowerLevelCreditHash,
@@ -38,7 +41,6 @@ import {
     getLatestBlock,
     mineNextBlockWithTimestamp,
     setNextBlockTimestamp,
-    timestampToMoment,
     toToken,
 } from "../../TestUtils";
 import { CONSTANTS } from "../../constants";
@@ -153,6 +155,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
         const lateFeeBps = 2400;
         const principalRate = 0;
         const latePaymentGracePeriodInDays = 5;
+        let nextBlockTS: number;
         let advanceRate: BN;
 
         async function prepareForArfTests() {
@@ -170,6 +173,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
             await poolConfigContract.connect(poolOwner).setPoolSettings({
                 ...settings,
                 ...{
+                    maxCreditLine: creditLimit.mul(100),
                     payPeriodDuration: PayPeriodDuration.Monthly,
                     latePaymentGracePeriodInDays: latePaymentGracePeriodInDays,
                     advanceRateInBps: CONSTANTS.BP_FACTOR,
@@ -198,7 +202,6 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
             }
         });
 
-        let nextTime: number;
         it("approve borrower credit", async function () {
             const poolSettings = await poolConfigContract.getPoolSettings();
 
@@ -244,9 +247,9 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
             );
         });
 
-        it("Month1 - Day1 ~ Day5: drawdown in the first week", async function () {
+        it("Month 1 - Day 1 ~ Day 5: drawdown in the first week", async function () {
             let block = await getLatestBlock();
-            nextTime =
+            nextBlockTS =
                 (
                     await calendarContract.getStartDateOfNextPeriod(
                         PayPeriodDuration.Monthly,
@@ -256,21 +259,24 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                 CONSTANTS.SECONDS_IN_A_DAY +
                 100;
 
-            // Day1 - Day5 loop
+            // Day 1 - Day 5 loop. Create a receivable and drawdown every day.
             for (let i = 0; i < 5; i++) {
-                // move forward 1 day
-                nextTime += CONSTANTS.SECONDS_IN_A_DAY;
-                await setNextBlockTimestamp(nextTime);
+                // Move forward 1 day.
+                nextBlockTS += CONSTANTS.SECONDS_IN_A_DAY;
+                await setNextBlockTimestamp(nextBlockTS);
 
                 const maturityDate =
-                    nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
+                    nextBlockTS + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
                 await receivableContract
                     .connect(borrower)
                     .createReceivable(1, borrowAmount, maturityDate, "", "");
+                // Always get the receivable with index 0 since the receivable created in the previous
+                // iteration of the loop has been transferred to the credit contract.
                 const receivableId = await receivableContract.tokenOfOwnerByIndex(
                     borrower.address,
                     0,
                 );
+                expect(receivableId).to.equal(i + 1);
                 await receivableContract
                     .connect(borrower)
                     .approve(creditContract.address, receivableId);
@@ -280,29 +286,29 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
             }
         });
 
-        it("Month1 - Day6 ~ Day7: adjust committed to borrowAmount * 5", async function () {
+        it("Month 1 - Day 6 ~ Day 7: adjust committed amount to borrowAmount * 5", async function () {
             // Day6
-            nextTime += CONSTANTS.SECONDS_IN_A_DAY;
-            await setNextBlockTimestamp(nextTime);
+            nextBlockTS += CONSTANTS.SECONDS_IN_A_DAY;
+            await setNextBlockTimestamp(nextBlockTS);
 
             await creditManagerContract
                 .connect(eaServiceAccount)
                 .updateLimitAndCommitment(borrower.address, creditLimit, borrowAmount.mul(5));
 
             // Day7
-            nextTime += CONSTANTS.SECONDS_IN_A_DAY;
-            await mineNextBlockWithTimestamp(nextTime);
+            nextBlockTS += CONSTANTS.SECONDS_IN_A_DAY;
+            await mineNextBlockWithTimestamp(nextBlockTS);
         });
 
-        it("Month1 - Day8 ~ Day14: make payment and drawdown together", async function () {
-            // Day8 - Day12 loop
+        it("Month 1 - Day 8 ~ Day 14: make principal payment and drawdown together", async function () {
+            // Day 8 - Day 12 loop. Make principal payment and drawdown every day.
             for (let i = 0; i < 5; i++) {
-                // move forward 1 day
-                nextTime += CONSTANTS.SECONDS_IN_A_DAY;
-                await setNextBlockTimestamp(nextTime);
+                // Move forward 1 day
+                nextBlockTS += CONSTANTS.SECONDS_IN_A_DAY;
+                await setNextBlockTimestamp(nextBlockTS);
 
                 const maturityDate =
-                    nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
+                    nextBlockTS + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
                 await receivableContract
                     .connect(borrower)
                     .createReceivable(1, borrowAmount, maturityDate, "", "");
@@ -310,6 +316,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                     borrower.address,
                     0,
                 );
+                expect(receivableId).to.equal(i + 6);
                 await receivableContract
                     .connect(borrower)
                     .approve(creditContract.address, receivableId);
@@ -325,20 +332,20 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                     );
             }
 
-            // Day13, Day14
-            nextTime += CONSTANTS.SECONDS_IN_A_DAY * 2;
-            await mineNextBlockWithTimestamp(nextTime);
+            // Day13, Day14. Rest during the last two days of the week.
+            nextBlockTS += CONSTANTS.SECONDS_IN_A_DAY * 2;
+            await mineNextBlockWithTimestamp(nextBlockTS);
         });
 
-        it("Month1 - Day15 ~ Day21: make payment and drawdown together", async function () {
-            // Day15 - Day20 loop
+        it("Month 1 - Day 15 ~ Day 21: make payment and drawdown together", async function () {
+            // Day 15 - Day 20 loop. Make principal payment and drawdown every day.
             for (let i = 0; i < 5; i++) {
-                // move forward 1 day
-                nextTime += CONSTANTS.SECONDS_IN_A_DAY;
-                await setNextBlockTimestamp(nextTime);
+                // Move forward 1 day.
+                nextBlockTS += CONSTANTS.SECONDS_IN_A_DAY;
+                await setNextBlockTimestamp(nextBlockTS);
 
                 const maturityDate =
-                    nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
+                    nextBlockTS + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
                 await receivableContract
                     .connect(borrower)
                     .createReceivable(1, borrowAmount, maturityDate, "", "");
@@ -346,6 +353,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                     borrower.address,
                     0,
                 );
+                expect(receivableId).to.equal(i + 11);
                 await receivableContract
                     .connect(borrower)
                     .approve(creditContract.address, receivableId);
@@ -361,20 +369,20 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                     );
             }
 
-            // Day21, Day22
-            nextTime += CONSTANTS.SECONDS_IN_A_DAY * 2;
-            await mineNextBlockWithTimestamp(nextTime);
+            // Day 21, Day 22. Rest during the last two days of the week.
+            nextBlockTS += CONSTANTS.SECONDS_IN_A_DAY * 2;
+            await mineNextBlockWithTimestamp(nextBlockTS);
         });
 
-        it("Month1 - Day22 ~ Day28: make payment and drawdown together", async function () {
-            // Day22 - Day26 loop
+        it("Month 1 - Day 22 ~ Day 28: make payment and drawdown together", async function () {
+            // Day 22 - Day 26 loop. Make principal payment and drawdown every day.
             for (let i = 0; i < 5; i++) {
                 // move forward 1 day
-                nextTime += CONSTANTS.SECONDS_IN_A_DAY;
-                await setNextBlockTimestamp(nextTime);
+                nextBlockTS += CONSTANTS.SECONDS_IN_A_DAY;
+                await setNextBlockTimestamp(nextBlockTS);
 
                 const maturityDate =
-                    nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
+                    nextBlockTS + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
                 await receivableContract
                     .connect(borrower)
                     .createReceivable(1, borrowAmount, maturityDate, "", "");
@@ -382,6 +390,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                     borrower.address,
                     0,
                 );
+                expect(receivableId).to.equal(i + 16);
                 await receivableContract
                     .connect(borrower)
                     .approve(creditContract.address, receivableId);
@@ -397,40 +406,78 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                     );
             }
 
-            // Day27, Day28
-            nextTime += CONSTANTS.SECONDS_IN_A_DAY * 2;
-            await mineNextBlockWithTimestamp(nextTime);
+            // Day 27, Day 28. Rest during the last two days of the week.
+            nextBlockTS += CONSTANTS.SECONDS_IN_A_DAY * 2;
+            await mineNextBlockWithTimestamp(nextBlockTS);
         });
 
-        it("Month2 - Day1: pay Month1's yield", async function () {
-            // Day1
-            nextTime =
-                (
-                    await calendarContract.getStartDateOfNextPeriod(
-                        PayPeriodDuration.Monthly,
-                        nextTime,
-                    )
-                ).toNumber() + 100;
-            await setNextBlockTimestamp(nextTime);
+        it("Month 2 - Day 1: pay yield for month 1", async function () {
+            // Day 1
+            const startOfPeriod = await calendarContract.getStartDateOfNextPeriod(
+                PayPeriodDuration.Monthly,
+                nextBlockTS,
+            );
+            nextBlockTS = startOfPeriod.toNumber() + 100;
+            await setNextBlockTimestamp(nextBlockTS);
 
-            let cr = await creditContract.getCreditRecord(creditHash);
+            const oldCR = await creditContract.getCreditRecord(creditHash);
+            const oldDD = await creditContract.getDueDetail(creditHash);
+            // The expected yield due came from the first 5 days, where the borrower drew down
+            // `borrowAmount` every day. No additional yield due was generated afterward since
+            // the principal payment and borrow amount were the same.
+            let expectedYieldDue = BN.from(0);
+            for (let i = 0; i < 5; ++i) {
+                expectedYieldDue = expectedYieldDue.add(
+                    calcYield(borrowAmount, yieldInBps, CONSTANTS.DAYS_IN_A_MONTH - i),
+                );
+            }
+            expect(oldCR.nextDue).to.equal(expectedYieldDue);
             await creditContract
                 .connect(borrower)
-                .makePaymentWithReceivable(borrower.address, 1, cr.nextDue);
+                .makePaymentWithReceivable(borrower.address, 1, oldCR.nextDue);
+
+            // A new bill should have been generated with yield due for the month.
+            const actualCR = await creditContract.getCreditRecord(creditHash);
+            const startOfNextPeriod = await calendarContract.getStartDateOfNextPeriod(
+                PayPeriodDuration.Monthly,
+                startOfPeriod,
+            );
+            const yieldDue = calcYield(borrowAmount.mul(5), yieldInBps, CONSTANTS.DAYS_IN_A_MONTH);
+            const expectedCR = {
+                ...oldCR,
+                ...{
+                    nextDueDate: startOfNextPeriod,
+                    nextDue: yieldDue,
+                    yieldDue,
+                    remainingPeriods: oldCR.remainingPeriods - 1,
+                },
+            };
+            checkCreditRecordsMatch(actualCR, expectedCR);
+
+            const actualDD = await creditContract.getDueDetail(creditHash);
+            const expectedDD = {
+                ...oldDD,
+                ...{
+                    committed: yieldDue,
+                    accrued: yieldDue,
+                    paid: 0,
+                },
+            };
+            checkDueDetailsMatch(actualDD, expectedDD);
         });
 
-        it("Month2 - Day1 ~ Day7: make payment and drawdown together", async function () {
+        it("Month 2 - Day 1 ~ Day 7: make payment and drawdown together", async function () {
             let block = await getLatestBlock();
-            nextTime = block.timestamp - CONSTANTS.SECONDS_IN_A_DAY + 100;
+            nextBlockTS = block.timestamp - CONSTANTS.SECONDS_IN_A_DAY + 100;
 
-            // Day1 - Day5 loop
+            // Day 1 - Day 5 loop
             for (let i = 0; i < 5; i++) {
-                // move forward 1 day
-                nextTime += CONSTANTS.SECONDS_IN_A_DAY;
-                await setNextBlockTimestamp(nextTime);
+                // Move forward 1 day.
+                nextBlockTS += CONSTANTS.SECONDS_IN_A_DAY;
+                await setNextBlockTimestamp(nextBlockTS);
 
                 const maturityDate =
-                    nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
+                    nextBlockTS + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
                 await receivableContract
                     .connect(borrower)
                     .createReceivable(1, borrowAmount, maturityDate, "", "");
@@ -438,6 +485,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                     borrower.address,
                     0,
                 );
+                expect(receivableId).to.equal(i + 21);
                 await receivableContract
                     .connect(borrower)
                     .approve(creditContract.address, receivableId);
@@ -453,20 +501,20 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                     );
             }
 
-            // Day6, Day7
-            nextTime += CONSTANTS.SECONDS_IN_A_DAY * 2;
-            await mineNextBlockWithTimestamp(nextTime);
+            // Day 6, Day 7
+            nextBlockTS += CONSTANTS.SECONDS_IN_A_DAY * 2;
+            await mineNextBlockWithTimestamp(nextBlockTS);
         });
 
-        it("Month2 - Day8 ~ Day12: make payment and drawdown together", async function () {
-            // Day8 - Day12 loop
+        it("Month 2 - Day 8 ~ Day 12: make payment and drawdown together", async function () {
+            // Day 8 - Day 12 loop
             for (let i = 0; i < 5; i++) {
-                // move forward 1 day
-                nextTime += CONSTANTS.SECONDS_IN_A_DAY;
-                await setNextBlockTimestamp(nextTime);
+                // Move forward 1 day
+                nextBlockTS += CONSTANTS.SECONDS_IN_A_DAY;
+                await setNextBlockTimestamp(nextBlockTS);
 
                 const maturityDate =
-                    nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
+                    nextBlockTS + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
                 await receivableContract
                     .connect(borrower)
                     .createReceivable(1, borrowAmount, maturityDate, "", "");
@@ -474,6 +522,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                     borrower.address,
                     0,
                 );
+                expect(receivableId).to.equal(i + 26);
                 await receivableContract
                     .connect(borrower)
                     .approve(creditContract.address, receivableId);
@@ -490,10 +539,10 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
             }
         });
 
-        it("Month2 - Day13 ~ Day14: adjust committed to borrowAmount * 10", async function () {
-            // Day6
-            nextTime += CONSTANTS.SECONDS_IN_A_DAY;
-            await setNextBlockTimestamp(nextTime);
+        it("Month 2 - Day 13 ~ Day 14: adjust committed amount to borrowAmount * 10", async function () {
+            // Nothing happens on day 13. On day 14, we adjust the committed amount.
+            nextBlockTS += CONSTANTS.SECONDS_IN_A_DAY * 2;
+            await setNextBlockTimestamp(nextBlockTS);
 
             borrowAmount = borrowAmount.mul(2);
             creditLimit = borrowAmount
@@ -503,21 +552,17 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
             await creditManagerContract
                 .connect(eaServiceAccount)
                 .updateLimitAndCommitment(borrower.address, creditLimit, borrowAmount.mul(5));
-
-            // Day7
-            nextTime += CONSTANTS.SECONDS_IN_A_DAY;
-            await mineNextBlockWithTimestamp(nextTime);
         });
 
-        it("Month2 - Day15 ~ Day21: make payment and drawdown together", async function () {
-            // Day15 - Day20 loop
+        it("Month 2 - Day 15 ~ Day 21: make payment and drawdown together", async function () {
+            // Day 15 - Day 19 loop
             for (let i = 0; i < 5; i++) {
                 // move forward 1 day
-                nextTime += CONSTANTS.SECONDS_IN_A_DAY;
-                await setNextBlockTimestamp(nextTime);
+                nextBlockTS += CONSTANTS.SECONDS_IN_A_DAY;
+                await setNextBlockTimestamp(nextBlockTS);
 
                 const maturityDate =
-                    nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
+                    nextBlockTS + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
                 await receivableContract
                     .connect(borrower)
                     .createReceivable(1, borrowAmount, maturityDate, "", "");
@@ -525,6 +570,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                     borrower.address,
                     0,
                 );
+                expect(receivableId).to.equal(i + 31);
                 await receivableContract
                     .connect(borrower)
                     .approve(creditContract.address, receivableId);
@@ -540,32 +586,110 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                     );
             }
 
-            // Day21, Day22
-            nextTime += CONSTANTS.SECONDS_IN_A_DAY * 2;
-            await mineNextBlockWithTimestamp(nextTime);
+            // Day 20, Day 21
+            nextBlockTS += CONSTANTS.SECONDS_IN_A_DAY * 2;
+            await mineNextBlockWithTimestamp(nextBlockTS);
 
             paymentAmount = borrowAmount;
         });
 
-        it("Month3 - Day6: refresh credit and credit state becomes Delayed", async function () {
-            // Day6
-            nextTime =
-                (
-                    await calendarContract.getStartDateOfNextPeriod(
-                        PayPeriodDuration.Monthly,
-                        nextTime,
-                    )
-                ).toNumber() +
-                CONSTANTS.SECONDS_IN_A_DAY * 6 +
-                100;
-            await setNextBlockTimestamp(nextTime);
+        it("Month 2 - Day 22 ~ Day 28: make payment and drawdown together", async function () {
+            // Day 22 - Day 26 loop
+            for (let i = 0; i < 5; i++) {
+                // move forward 1 day
+                nextBlockTS += CONSTANTS.SECONDS_IN_A_DAY;
+                await setNextBlockTimestamp(nextBlockTS);
+
+                const maturityDate =
+                    nextBlockTS + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
+                await receivableContract
+                    .connect(borrower)
+                    .createReceivable(1, borrowAmount, maturityDate, "", "");
+                const receivableId = await receivableContract.tokenOfOwnerByIndex(
+                    borrower.address,
+                    0,
+                );
+                expect(receivableId).to.equal(i + 36);
+                await receivableContract
+                    .connect(borrower)
+                    .approve(creditContract.address, receivableId);
+
+                await creditContract
+                    .connect(borrower)
+                    .makePrincipalPaymentAndDrawdownWithReceivable(
+                        borrower.address,
+                        receivableId.sub(5),
+                        paymentAmount,
+                        receivableId,
+                        borrowAmount,
+                    );
+            }
+
+            // Day 27, Day 28
+            nextBlockTS += CONSTANTS.SECONDS_IN_A_DAY * 2;
+            await mineNextBlockWithTimestamp(nextBlockTS);
+        });
+
+        it("Month 3 - Day 6: refresh credit and credit state becomes Delayed", async function () {
+            // There was no interest payment at the beginning of the month, and now we are
+            // on day 6.
+            const startOfPeriod = await calendarContract.getStartDateOfNextPeriod(
+                PayPeriodDuration.Monthly,
+                nextBlockTS,
+            );
+            nextBlockTS = startOfPeriod.toNumber() + CONSTANTS.SECONDS_IN_A_DAY * 5 + 100;
+            await setNextBlockTimestamp(nextBlockTS);
+            const oldCR = await creditContract.getCreditRecord(creditHash);
+            const oldDD = await creditContract.getDueDetail(creditHash);
+            // Check whether the bill has the expected amount of yield due from last month prior to refresh.
+            const principal = getPrincipal(oldCR, oldDD);
+            // The expected yield due consists of two parts:
+            // 1. For the first 14 days of the month, there was yield generated from the borrowed amount.
+            // 2. For the remaining 16 days of the month, there was yield generated from the committed amount since
+            //    it was higher than the borrowed amount initially.
+            const expectedYieldDue = calcYield(borrowAmount.mul(5).div(2), yieldInBps, 14).add(
+                calcYield(borrowAmount.mul(5), yieldInBps, 16),
+            );
+            expect(oldCR.yieldDue).to.equal(expectedYieldDue);
 
             await creditManagerContract.refreshCredit(borrower.address);
-            let cr = await creditContract.getCreditRecord(creditHash);
-            printCreditRecord("cr", cr);
+
+            const actualCR = await creditContract.getCreditRecord(creditHash);
+            const startOfNextPeriod = await calendarContract.getStartDateOfNextPeriod(
+                PayPeriodDuration.Monthly,
+                startOfPeriod,
+            );
+            const yieldDue = calcYield(principal, yieldInBps, CONSTANTS.DAYS_IN_A_MONTH);
+            const daysPassedSincePeriodStart = 6;
+            const lateFee = calcYield(principal, lateFeeBps, daysPassedSincePeriodStart);
+            const expectedCR = {
+                ...oldCR,
+                ...{
+                    nextDueDate: startOfNextPeriod,
+                    nextDue: yieldDue,
+                    yieldDue,
+                    totalPastDue: oldCR.yieldDue.add(lateFee),
+                    missedPeriods: 1,
+                    remainingPeriods: oldCR.remainingPeriods - 1,
+                    state: CreditState.Delayed,
+                },
+            };
+            checkCreditRecordsMatch(actualCR, expectedCR);
+
+            const actualDD = await creditContract.getDueDetail(creditHash);
+            const startOfNextDay = await calendarContract.getStartOfNextDay(nextBlockTS);
+            const expectedDD = genDueDetail({
+                lateFeeUpdatedDate: startOfNextDay,
+                lateFee,
+                yieldPastDue: oldCR.nextDue,
+                committed: yieldDue,
+                accrued: yieldDue,
+            });
+            checkDueDetailsMatch(actualDD, expectedDD);
 
             // Calling makePrincipalPaymentAndDrawdownWithReceivable fails
-            const maturityDate = nextTime + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
+            const maturityDate =
+                nextBlockTS + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
             await receivableContract
                 .connect(borrower)
                 .createReceivable(1, borrowAmount, maturityDate, "", "");
@@ -590,36 +714,52 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
             );
         });
 
-        it("Month3 - Day7: pay yield including late fee", async function () {
-            // Day7
-            nextTime += CONSTANTS.SECONDS_IN_A_DAY;
-            await setNextBlockTimestamp(nextTime);
+        it("Month 3 - Day 7: pay yield past due and late fee to bring the bill back to GoodStanding", async function () {
+            // Day 7
+            nextBlockTS += CONSTANTS.SECONDS_IN_A_DAY;
+            await setNextBlockTimestamp(nextBlockTS);
 
-            const cc = await creditManagerContract.getCreditConfig(creditHash);
-            let cr = await creditContract.getCreditRecord(creditHash);
-            let dd = await creditContract.getDueDetail(creditHash);
-            let [, lateFee] = await calcLateFeeNew(
-                poolConfigContract,
-                calendarContract,
-                cc,
-                cr,
-                dd,
-                timestampToMoment(nextTime),
-                5,
-            );
+            const oldCR = await creditContract.getCreditRecord(creditHash);
+            const oldDD = await creditContract.getDueDetail(creditHash);
+            const principal = getPrincipal(oldCR, oldDD);
+            // The bill was refreshed on th 6th, so we need to charge an additional day worth of late fee.
+            const daysPassed = 1;
+            const additionalLateFee = calcYield(principal, lateFeeBps, daysPassed);
             await creditContract
                 .connect(borrower)
                 .makePaymentWithReceivable(
                     borrower.address,
                     1,
-                    cr.nextDue.add(cr.totalPastDue.sub(dd.lateFee)).add(lateFee),
+                    oldCR.totalPastDue.add(additionalLateFee),
                 );
-            cr = await creditContract.getCreditRecord(creditHash);
-            printCreditRecord("cr", cr);
+
+            const actualCR = await creditContract.getCreditRecord(creditHash);
+            const expectedCR = {
+                ...oldCR,
+                ...{
+                    totalPastDue: 0,
+                    missedPeriods: 0,
+                    state: CreditState.GoodStanding,
+                },
+            };
+            checkCreditRecordsMatch(actualCR, expectedCR);
+
+            const actualDD = await creditContract.getDueDetail(creditHash);
+            const expectedDD = {
+                ...oldDD,
+                ...{
+                    lateFeeUpdatedDate: 0,
+                    lateFee: 0,
+                    yieldPastDue: 0,
+                },
+            };
+            checkDueDetailsMatch(actualDD, expectedDD);
         });
 
-        it("Month3 - Day7: make payment and drawdown together", async function () {
+        it("Month 3 - Day 7: make payment and drawdown together", async function () {
             const receivableId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 0);
+            const oldCR = await creditContract.getCreditRecord(creditHash);
+            const oldDD = await creditContract.getDueDetail(creditHash);
 
             await creditContract
                 .connect(borrower)
@@ -630,6 +770,12 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
                     receivableId,
                     borrowAmount,
                 );
+
+            const actualCR = await creditContract.getCreditRecord(creditHash);
+            checkCreditRecordsMatch(actualCR, oldCR);
+
+            const actualDD = await creditContract.getDueDetail(creditHash);
+            checkDueDetailsMatch(actualDD, oldDD);
         });
     });
 });
