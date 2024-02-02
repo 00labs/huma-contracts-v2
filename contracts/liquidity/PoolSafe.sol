@@ -21,6 +21,11 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
     IPool public pool;
     IPoolFeeManager public poolFeeManager;
 
+    address public seniorTranche;
+    address public juniorTranche;
+    address public credit;
+    address public poolFeeManager;
+
     /**
      * Maps tranche addresses to unprocessed profits.
      * The key is junior/senior tranche address, the value is the unprocessed profit.
@@ -51,14 +56,13 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
     /// @inheritdoc IPoolSafe
     function addUnprocessedProfit(address tranche, uint256 profit) external {
         if (msg.sender != address(pool)) revert Errors.AuthorizedContractCallerRequired();
-        if (tranche != poolConfig.seniorTranche() && tranche != poolConfig.juniorTranche())
-            revert Errors.TrancheRequired();
+        if (tranche != seniorTranche && tranche != juniorTranche) revert Errors.TrancheRequired();
         unprocessedTrancheProfit[tranche] += profit;
     }
 
     /// @inheritdoc IPoolSafe
     function resetUnprocessedProfit() external {
-        if (msg.sender != poolConfig.seniorTranche() && msg.sender != poolConfig.juniorTranche())
+        if (msg.sender != seniorTranche && msg.sender != juniorTranche)
             revert Errors.AuthorizedContractCallerRequired();
         unprocessedTrancheProfit[msg.sender] = 0;
     }
@@ -106,6 +110,22 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
         addr = _poolConfig.pool();
         assert(addr != address(0));
         pool = IPool(addr);
+
+        addr = _poolConfig.seniorTranche();
+        assert(addr != address(0));
+        seniorTranche = addr;
+
+        addr = _poolConfig.juniorTranche();
+        assert(addr != address(0));
+        juniorTranche = addr;
+
+        addr = _poolConfig.credit();
+        assert(addr != address(0));
+        credit = addr;
+
+        addr = _poolConfig.poolFeeManager();
+        assert(addr != address(0));
+        poolFeeManager = addr;
     }
 
     /**
@@ -115,10 +135,10 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
      */
     function _onlySystemMoneyMover(address account) internal view {
         if (
-            account != poolConfig.seniorTranche() &&
-            account != poolConfig.juniorTranche() &&
-            account != poolConfig.credit() &&
-            account != poolConfig.poolFeeManager() &&
+            account != seniorTranche &&
+            account != juniorTranche &&
+            account != credit &&
+            account != poolFeeManager &&
             !poolConfig.isFirstLossCover(account)
         ) revert Errors.AuthorizedContractCallerRequired();
     }
