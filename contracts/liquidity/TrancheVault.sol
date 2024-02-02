@@ -192,6 +192,8 @@ contract TrancheVault is
      */
     function setReinvestYield(address lender, bool reinvestYield) external {
         poolConfig.onlyPoolOperator(msg.sender);
+        if (!hasRole(LENDER_ROLE, lender)) revert Errors.LenderRequired();
+
         DepositRecord memory depositRecord = _getDepositRecord(lender);
         if (depositRecord.reinvestYield == reinvestYield)
             revert Errors.ReinvestYieldOptionAlreadySet();
