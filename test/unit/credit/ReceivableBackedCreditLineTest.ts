@@ -149,9 +149,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
             .connect(borrower)
             .approve(borrowerFirstLossCoverContract.address, ethers.constants.MaxUint256);
 
-        await juniorTrancheVaultContract
-            .connect(lender)
-            .deposit(toToken(10_000_000), lender.address);
+        await juniorTrancheVaultContract.connect(lender).deposit(toToken(10_000_000));
     }
 
     beforeEach(async function () {
@@ -638,7 +636,12 @@ describe("ReceivableBackedCreditLine Tests", function () {
             creditHash = await borrowerLevelCreditHash(creditContract, borrower);
 
             const currentTS = (await getLatestBlock()).timestamp;
-            maturityDate = currentTS + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
+            maturityDate = (
+                await calendarContract.getStartDateOfNextPeriod(
+                    PayPeriodDuration.Monthly,
+                    currentTS,
+                )
+            ).toNumber();
             await receivableContract
                 .connect(borrower)
                 .createReceivable(1, borrowAmount, maturityDate, "", "");
