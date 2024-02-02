@@ -19,6 +19,8 @@ struct PoolSettings {
     // The maximum credit line for a borrower in terms of the amount of poolTokens
     uint96 maxCreditLine;
     // The minimum amount a lender/First Loss Cover provider needs to supply each time they deposit.
+    // This is also the absolute minimum balance the pool owner needs to maintain in tranches to prevent
+    // inflation attacks.
     uint96 minDepositAmount;
     // The number of months in one pay period
     PayPeriodDuration payPeriodDuration;
@@ -42,9 +44,9 @@ struct AdminRnR {
     uint16 rewardRateInBpsForEA;
     // Percentage of pool income allocated to Pool Owner
     uint16 rewardRateInBpsForPoolOwner;
-    // Percentage of the liquidityCap to be contributed by EA
+    // Percentage of the liquidityCap to be contributed by EA in the junior tranche.
     uint16 liquidityRateInBpsByEA;
-    // Percentage of the liquidityCap to be contributed by Pool Owner
+    // Percentage of the liquidityCap to be contributed by Pool Owner in the junior tranche.
     uint16 liquidityRateInBpsByPoolOwner;
 }
 
