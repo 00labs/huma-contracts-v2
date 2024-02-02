@@ -191,11 +191,6 @@ describe("TrancheVault Test", function () {
             expect(await juniorTrancheVaultContract.convertToShares(assets)).to.equal(0);
         });
 
-        it("Should return the assets as the number of shares if the current total supply is 0", async function () {
-            expect(await seniorTrancheVaultContract.totalSupply()).to.equal(0);
-            expect(await seniorTrancheVaultContract.convertToShares(assets)).to.equal(assets);
-        });
-
         it("Should return the correct number of shares otherwise", async function () {
             await seniorTrancheVaultContract.connect(lender).deposit(toToken(1_000));
 
@@ -213,11 +208,6 @@ describe("TrancheVault Test", function () {
 
         beforeEach(async function () {
             shares = toToken(100);
-        });
-
-        it("Should return the number of shares as the amount of assets if the current total supply is 0", async function () {
-            expect(await seniorTrancheVaultContract.totalSupply()).to.equal(0);
-            expect(await seniorTrancheVaultContract.convertToAssets(shares)).to.equal(shares);
         });
 
         it("Should return the correct amount of assets otherwise", async function () {

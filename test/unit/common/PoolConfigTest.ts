@@ -2038,51 +2038,7 @@ describe("PoolConfig Tests", function () {
             });
         });
 
-        describe("checkLiquidityRequirementForPoolOwner", function () {
-            let minRequirement: BN;
-
-            beforeEach(async function () {
-                minRequirement = await getMinLiquidityRequirementForPoolOwner(poolConfigContract);
-            });
-
-            it("Should pass the checks when there is enough liquidity", async function () {
-                await poolConfigContract.checkLiquidityRequirementForPoolOwner(minRequirement);
-            });
-
-            it("Should revert when the pool owner has not provided enough liquidity", async function () {
-                await expect(
-                    poolConfigContract.checkLiquidityRequirementForPoolOwner(
-                        minRequirement.sub(1),
-                    ),
-                ).to.be.revertedWithCustomError(
-                    poolConfigContract,
-                    "PoolOwnerInsufficientLiquidity",
-                );
-            });
-        });
-
-        describe("checkLiquidityRequirementForEA", function () {
-            let minRequirement: BN;
-
-            beforeEach(async function () {
-                minRequirement = await getMinLiquidityRequirementForEA(poolConfigContract);
-            });
-
-            it("Should pass the checks when there is enough liquidity", async function () {
-                await poolConfigContract.checkLiquidityRequirementForEA(minRequirement);
-            });
-
-            it("Should revert when the pool owner has not provided enough liquidity", async function () {
-                await expect(
-                    poolConfigContract.checkLiquidityRequirementForEA(minRequirement.sub(1)),
-                ).to.be.revertedWithCustomError(
-                    poolConfigContract,
-                    "EvaluationAgentInsufficientLiquidity",
-                );
-            });
-        });
-
-        describe("checkLiquidityRequirementForRedemption", function () {
+        describe("checkLiquidityRequirementsForRedemption", function () {
             let poolOwnerMinRequirement: BN, eaMinRequirement: BN;
 
             beforeEach(async function () {

@@ -349,7 +349,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
                 revert Errors.InsufficientFirstLossCover();
             }
             ITrancheVaultLike juniorTrancheVault = ITrancheVaultLike(juniorTranche);
-            checkLiquidityRequirementForEA(juniorTrancheVault.totalAssetsOf(agent));
+            _checkLiquidityRequirementForEA(juniorTrancheVault.totalAssetsOf(agent));
         }
 
         evaluationAgent = agent;
@@ -610,35 +610,29 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
     /**
      * @notice Checks whether the admin first loss cover has met the liquidity requirements.
      */
-    function checkFirstLossCoverRequirementsForAdmin() public view {
+    function checkFirstLossCoverRequirementsForAdmin() external view {
         IFirstLossCover firstLossCover = IFirstLossCover(_firstLossCovers[ADMIN_LOSS_COVER_INDEX]);
         if (!firstLossCover.isSufficient()) revert Errors.InsufficientFirstLossCover();
-    }
-
-    function checkLiquidityRequirementForPoolOwner(uint256 balance) public view {
-        if (balance < _getRequiredLiquidityForPoolOwner())
-            revert Errors.PoolOwnerInsufficientLiquidity();
-    }
-
-    function checkLiquidityRequirementForEA(uint256 balance) public view {
-        if (balance < _getRequiredLiquidityForEA())
-            revert Errors.EvaluationAgentInsufficientLiquidity();
     }
 
     /**
      * @notice Checks whether both the EA and the pool owner treasury have met the pool's liquidity requirements
      */
-    function checkLiquidityRequirements() public view {
+    function checkLiquidityRequirements() external view {
         ITrancheVaultLike juniorTrancheVault = ITrancheVaultLike(juniorTranche);
-        // Pool owner needs to satisfy the liquidity requirements in both tranches.
-        checkLiquidityRequirementForPoolOwner(juniorTrancheVault.totalAssetsOf(poolOwnerTreasury));
-        checkLiquidityRequirementForPoolOwner(
+        // Pool owner needs to satisfy the liquidity requirements for both the junior and senior tranches.
+        _checkLiquidityRequirementForPoolOwner(
+            juniorTranche,
+            juniorTrancheVault.totalAssetsOf(poolOwnerTreasury)
+        );
+        _checkLiquidityRequirementForPoolOwner(
+            seniorTranche,
             ITrancheVaultLike(seniorTranche).totalAssetsOf(poolOwnerTreasury)
         );
 
         if (evaluationAgent != address(0)) {
             // EA only needs to satisfy the liquidity requirement in the junior tranche.
-            checkLiquidityRequirementForEA(juniorTrancheVault.totalAssetsOf(evaluationAgent));
+            _checkLiquidityRequirementForEA(juniorTrancheVault.totalAssetsOf(evaluationAgent));
         }
     }
 
@@ -652,14 +646,14 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         address lender,
         address trancheVault,
         uint256 newBalance
-    ) public view {
+    ) external view {
         if (lender == poolOwnerTreasury) {
             // The pool owner needs to satisfy the liquidity requirement in both tranches.
-            checkLiquidityRequirementForPoolOwner(newBalance);
+            _checkLiquidityRequirementForPoolOwner(trancheVault, newBalance);
         }
         if (lender == evaluationAgent && trancheVault == juniorTranche) {
             // EA is only required to participate in the junior tranche.
-            checkLiquidityRequirementForEA(newBalance);
+            _checkLiquidityRequirementForEA(newBalance);
         }
     }
 
@@ -706,25 +700,44 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         }
     }
 
+    function _checkLiquidityRequirementForPoolOwner(
+        address tranche,
+        uint256 balance
+    ) internal view {
+        uint256 minDepositAmount = _poolSettings.minDepositAmount;
+        if (tranche == juniorTranche) {
+            // For the junior tranche, the pool owner's liquidity must be higher than both the
+            // absolute asset threshold and the the relative threshold determined by the pool liquidity cap.
+            uint256 minRelativeBalance = (_lpConfig.liquidityCap *
+                _adminRnR.liquidityRateInBpsByPoolOwner) / HUNDRED_PERCENT_IN_BPS;
+            if (balance < Math.max(minDepositAmount, minRelativeBalance)) {
+                revert Errors.PoolOwnerInsufficientLiquidity();
+            }
+        }
+        if (
+            tranche == seniorTranche &&
+            _lpConfig.maxSeniorJuniorRatio > 0 &&
+            balance < minDepositAmount
+        ) {
+            // If the `maxSeniorJuniorRatio` is 0, then the senior tranche is disabled, thus the pool owner
+            // does not have to deposit liquidity. Otherwise, the pool owner must maintain a balance of at least
+            // `minDepositAmount` to prevent inflation attacks.
+            revert Errors.PoolOwnerInsufficientLiquidity();
+        }
+    }
+
+    function _checkLiquidityRequirementForEA(uint256 balance) internal view {
+        uint256 minLiquidityRequirement = (_lpConfig.liquidityCap *
+            _adminRnR.liquidityRateInBpsByEA) / HUNDRED_PERCENT_IN_BPS;
+        if (balance < minLiquidityRequirement)
+            revert Errors.EvaluationAgentInsufficientLiquidity();
+    }
+
     /**
      * @notice "Modifier" function that limits access to pool owner or Huma protocol owner.
      */
     function _onlyOwnerOrHumaMasterAdmin() internal view {
         onlyOwnerOrHumaMasterAdmin(msg.sender);
-    }
-
-    function _getRequiredLiquidityForPoolOwner() internal view returns (uint256 amount) {
-        // The pool owner's liquidity must be above both the absolute asset threshold and the
-        // the relative threshold determined by the pool liquidity cap.
-        uint256 minAbsoluteBalance = _poolSettings.minDepositAmount;
-        uint256 minRelativeBalance = (_lpConfig.liquidityCap *
-            _adminRnR.liquidityRateInBpsByPoolOwner) / HUNDRED_PERCENT_IN_BPS;
-        return Math.max(minAbsoluteBalance, minRelativeBalance);
-    }
-
-    function _getRequiredLiquidityForEA() internal view returns (uint256 amount) {
-        return
-            (_lpConfig.liquidityCap * _adminRnR.liquidityRateInBpsByEA) / HUNDRED_PERCENT_IN_BPS;
     }
 
     function _authorizeUpgrade(address) internal view override {

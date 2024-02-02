@@ -223,9 +223,10 @@ async function configPool(lpConfig: Partial<LPConfigStructOutput>) {
     await juniorTrancheVaultContract
         .connect(poolOwnerTreasury)
         .makeInitialDeposit(poolOwnerLiquidity);
+    const poolSettings = await poolConfigContract.getPoolSettings();
     await seniorTrancheVaultContract
         .connect(poolOwnerTreasury)
-        .makeInitialDeposit(poolOwnerLiquidity);
+        .makeInitialDeposit(poolSettings.minDepositAmount);
 
     await mockTokenContract
         .connect(evaluationAgent)
