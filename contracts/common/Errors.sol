@@ -53,6 +53,7 @@ contract Errors {
     // Tranche
     error TrancheLiquidityCapExceeded(); // 0x081917ff
     error DepositAmountTooLow(); // 0x55fcd027
+    error DepositNotAllowedWhenTrancheSupplyIsZero(); // 0x04f3430d
     error WithdrawTooEarly(); // 0x64381803
     error InvalidTrancheIndex(); // 0x4e2a8dfe
     error EpochClosedTooEarly(); // 0xf6a9c460

@@ -314,6 +314,15 @@ describe("Pool Test", function () {
                     .withArgs(protocolOwner.address);
                 const isPoolOn = await poolContract.isPoolOn();
                 expect(isPoolOn).to.be.true;
+
+                // Nobody should be able to deposit into the senior tranche since the total supply is 0.
+                expect(await seniorTrancheVaultContract.totalSupply()).to.equal(0);
+                await expect(
+                    seniorTrancheVaultContract.connect(lender).deposit(toToken(1)),
+                ).to.be.revertedWithCustomError(
+                    seniorTrancheVaultContract,
+                    "DepositNotAllowedWhenTrancheSupplyIsZero",
+                );
             });
         });
     });
@@ -1090,12 +1099,8 @@ describe("Pool Test", function () {
                 });
 
                 it("Should return 0 if the senior total assets is already higher than the 'junior total assets * max senior : junior ratio'", async function () {
-                    await seniorTrancheVaultContract
-                        .connect(lender)
-                        .deposit(toToken(10_000));
-                    await juniorTrancheVaultContract
-                        .connect(lender)
-                        .deposit(toToken(10_000));
+                    await seniorTrancheVaultContract.connect(lender).deposit(toToken(10_000));
+                    await juniorTrancheVaultContract.connect(lender).deposit(toToken(10_000));
 
                     const [seniorAssets, juniorAssets] =
                         await poolContract.currentTranchesAssets();
