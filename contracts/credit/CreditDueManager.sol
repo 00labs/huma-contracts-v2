@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {ICreditDueManager} from "./interfaces/ICreditDueManager.sol";
 import {CreditConfig, CreditRecord, CreditState, DueDetail, PayPeriodDuration} from "./CreditStructs.sol";

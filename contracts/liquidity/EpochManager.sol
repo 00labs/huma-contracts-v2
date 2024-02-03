@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {IPool} from "./interfaces/IPool.sol";
 import {PoolConfig, PoolSettings, LPConfig} from "../common/PoolConfig.sol";
