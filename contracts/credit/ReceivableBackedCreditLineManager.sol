@@ -64,7 +64,7 @@ contract ReceivableBackedCreditLineManager is
     }
 
     /// @inheritdoc IReceivableBackedCreditLineManager
-    function decreaseCreditLimit(bytes32 creditHash, uint256 amount) external {
+    function decreaseAvailableCredit(bytes32 creditHash, uint256 amount) external {
         if (msg.sender != address(credit)) revert Errors.AuthorizedContractCallerRequired();
         uint256 availableCredit = getAvailableCredit(creditHash);
         if (amount > availableCredit) revert Errors.CreditLimitExceeded();

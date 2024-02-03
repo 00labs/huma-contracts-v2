@@ -504,11 +504,11 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
         });
     });
 
-    describe("decreaseCreditLimit", function () {
+    describe("decreaseAvailableCredit", function () {
         let creditHash: string;
         let receivableAmount: BN, maturityDate: number;
 
-        async function prepareForDecreaseCreditLimit() {
+        async function prepareForDecreaseAvailableCredit() {
             receivableAmount = toToken(10_000);
             maturityDate = await getFutureBlockTime(10_000);
 
@@ -555,11 +555,11 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
         }
 
         beforeEach(async function () {
-            await loadFixture(prepareForDecreaseCreditLimit);
+            await loadFixture(prepareForDecreaseAvailableCredit);
         });
 
         it("Should allow the credit contract to decrease the credit limit", async function () {
-            await creditManagerContract.decreaseCreditLimit(creditHash, receivableAmount);
+            await creditManagerContract.decreaseAvailableCredit(creditHash, receivableAmount);
             const availableCredit = await creditManagerContract.getAvailableCredit(creditHash);
             expect(availableCredit).to.equal(0);
         });
@@ -568,7 +568,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
             await expect(
                 creditManagerContract
                     .connect(borrower)
-                    .decreaseCreditLimit(creditHash, receivableAmount),
+                    .decreaseAvailableCredit(creditHash, receivableAmount),
             ).to.be.revertedWithCustomError(
                 creditManagerContract,
                 "AuthorizedContractCallerRequired",
@@ -577,7 +577,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
 
         it("Should not decrease the credit limit beyond what's available", async function () {
             await expect(
-                creditManagerContract.decreaseCreditLimit(
+                creditManagerContract.decreaseAvailableCredit(
                     creditHash,
                     receivableAmount.add(toToken(1)),
                 ),
