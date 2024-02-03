@@ -27,10 +27,10 @@ abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
 
         // Distributes profits to the senior tranche first.
         uint256 remainingProfit;
-        (
-            profitsForTrancheVault[SENIOR_TRANCHE],
-            remainingProfit
-        ) = _distributeProfitForSeniorTranche(profit, assets);
+        (profitsForTrancheVault[SENIOR_TRANCHE], remainingProfit) = _calcProfitForSeniorTranche(
+            profit,
+            assets
+        );
 
         // Then distribute the remainder to the junior tranche and first loss covers.
         if (remainingProfit > 0) {
@@ -75,7 +75,7 @@ abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
      * @return seniorProfit The amount of profit that should be distributed to the senior tranche.
      * @return remainingProfit The remaining amount of profit that should be distributed to other parties.
      */
-    function _distributeProfitForSeniorTranche(
+    function _calcProfitForSeniorTranche(
         uint256 profit,
         uint96[2] memory assets
     ) internal virtual returns (uint256 seniorProfit, uint256 remainingProfit);

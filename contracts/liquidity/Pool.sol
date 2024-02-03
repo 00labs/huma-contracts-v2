@@ -68,7 +68,7 @@ contract Pool is PoolConfigCache, IPool {
      * @param by The address that updated the status.
      * @param ready Whether the pool is now ready for first loss cover withdrawal.
      */
-    event PoolReadyForFirstLossCoverWithdrawal(address indexed by, bool ready);
+    event FirstLossCoverWithdrawalReadinessChanged(address indexed by, bool ready);
 
     event PoolAssetsRefreshed(
         uint256 refreshedTimestamp,
@@ -154,7 +154,7 @@ contract Pool is PoolConfigCache, IPool {
     function setReadyForFirstLossCoverWithdrawal(bool isReady) external {
         poolConfig.onlyOwnerOrHumaMasterAdmin(msg.sender);
         readyForFirstLossCoverWithdrawal = isReady;
-        emit PoolReadyForFirstLossCoverWithdrawal(msg.sender, isReady);
+        emit FirstLossCoverWithdrawalReadinessChanged(msg.sender, isReady);
     }
 
     /// @inheritdoc IPool

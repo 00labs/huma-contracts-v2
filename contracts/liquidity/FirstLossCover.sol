@@ -44,15 +44,15 @@ contract FirstLossCover is
      * @notice Loss has been covered by the first loss cover.
      * @param covered The amount covered by the first loss cover.
      * @param remaining The remaining amount of loss that the first loss cover was not able to cover.
-     * @param coveredLoss The cumulative amount of loss covered so far.
+     * @param cumulativeLossCovered The cumulative amount of loss covered so far.
      */
-    event LossCovered(uint256 covered, uint256 remaining, uint256 coveredLoss);
+    event LossCovered(uint256 covered, uint256 remaining, uint256 cumulativeLossCovered);
     /**
      * @notice Loss recovery has been distributed to the first loss cover.
      * @param recovered The amount of loss recovery distributed.
-     * @param coveredLoss The cumulative amount of loss covered after the recovery was applied.
+     * @param cumulativeLossCovered The cumulative amount of loss covered after the recovery was applied.
      */
-    event LossRecovered(uint256 recovered, uint256 coveredLoss);
+    event LossRecovered(uint256 recovered, uint256 cumulativeLossCovered);
 
     /**
      * @notice A cover provider has deposited assets into the first loss cover.
@@ -62,7 +62,7 @@ contract FirstLossCover is
      */
     event CoverDeposited(address indexed account, uint256 assets, uint256 shares);
     /**
-     * @notice Assets has been redeemed and withdrawn from the first loss cover.
+     * @notice Assets have been redeemed and withdrawn from the first loss cover.
      * @param by The address that initiated the redemption.
      * @param receiver The receiver of the redeemed assets.
      * @param shares The number of shares burned by the redeemer.
@@ -75,7 +75,7 @@ contract FirstLossCover is
         uint256 assets
     );
     /**
-     * @notice Assets has been added to the first loss cover.
+     * @notice Assets have been added to the first loss cover.
      * @param assets The amount of assets added.
      */
     event AssetsAdded(uint256 assets);

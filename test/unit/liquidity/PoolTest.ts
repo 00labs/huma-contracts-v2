@@ -315,6 +315,28 @@ describe("Pool Test", function () {
                 .withArgs(poolOperator.address);
         });
 
+        describe("setReadyForFirstLossCoverWithdrawal", function () {
+            it("Should allow the pool owner to set the flag", async function () {
+                await expect(
+                    poolContract.connect(poolOwner).setReadyForFirstLossCoverWithdrawal(true),
+                ).to.emit(poolContract, "FirstLossCoverWithdrawalReadinessChanged");
+                expect(await poolContract.readyForFirstLossCoverWithdrawal()).to.be.true;
+            });
+
+            it("Should allow the Huma owner to set the flag", async function () {
+                await expect(
+                    poolContract.connect(protocolOwner).setReadyForFirstLossCoverWithdrawal(true),
+                ).to.emit(poolContract, "FirstLossCoverWithdrawalReadinessChanged");
+                expect(await poolContract.readyForFirstLossCoverWithdrawal()).to.be.true;
+            });
+
+            it("Should not allow non-pool-owner or non-Huma-owner to set the flag", async function () {
+                await expect(
+                    poolContract.setReadyForFirstLossCoverWithdrawal(true),
+                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
+            });
+        });
+
         describe("PnL tests", function () {
             let firstLossCovers: FirstLossCover[];
             let coverTotalAssets: BN;

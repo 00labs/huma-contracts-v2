@@ -284,31 +284,34 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
      */
     function _investFeesInFirstLossCover() internal returns (AccruedIncomes memory incomes) {
         (
-            uint256 feesLiquidity,
+            uint256 availableFeesForCover,
             AccruedIncomes memory availableIncomes
         ) = _getAvailableFeesToInvestInFirstLossCover();
-        if (feesLiquidity == 0) return _accruedIncomes;
+        if (availableFeesForCover == 0) return _accruedIncomes;
 
-        uint256 totalAvailableFees = availableIncomes.protocolIncome +
+        uint256 totalIncomes = availableIncomes.protocolIncome +
             availableIncomes.poolOwnerIncome +
             availableIncomes.eaIncome;
         incomes = _accruedIncomes;
 
-        uint256 poolOwnerFees = (availableIncomes.poolOwnerIncome * feesLiquidity) /
-            totalAvailableFees;
-        uint256 eaFees = (availableIncomes.eaIncome * feesLiquidity) / totalAvailableFees;
-        uint256 protocolFees = feesLiquidity - poolOwnerFees - eaFees;
-        incomes.protocolIncome -= uint96(protocolFees);
-        incomes.poolOwnerIncome -= uint96(poolOwnerFees);
-        incomes.eaIncome -= uint96(eaFees);
+        uint256 poolOwnerFeesInvested = (availableIncomes.poolOwnerIncome *
+            availableFeesForCover) / totalIncomes;
+        uint256 eaFeesInvested = (availableIncomes.eaIncome * availableFeesForCover) /
+            totalIncomes;
+        uint256 protocolFeesInvested = availableFeesForCover -
+            poolOwnerFeesInvested -
+            eaFeesInvested;
+        incomes.protocolIncome -= uint96(protocolFeesInvested);
+        incomes.poolOwnerIncome -= uint96(poolOwnerFeesInvested);
+        incomes.eaIncome -= uint96(eaFeesInvested);
         _accruedIncomes = incomes;
 
         // Transfers tokens from PoolSafe to this contract first, firstLossCover then will transfer
         // token from this contract to itself while calling depositCoverFor.
-        poolSafe.withdraw(address(this), feesLiquidity);
-        firstLossCover.depositCoverFor(poolOwnerFees, poolConfig.poolOwnerTreasury());
-        firstLossCover.depositCoverFor(eaFees, poolConfig.evaluationAgent());
-        firstLossCover.depositCoverFor(protocolFees, humaConfig.humaTreasury());
+        poolSafe.withdraw(address(this), availableFeesForCover);
+        firstLossCover.depositCoverFor(poolOwnerFeesInvested, poolConfig.poolOwnerTreasury());
+        firstLossCover.depositCoverFor(eaFeesInvested, poolConfig.evaluationAgent());
+        firstLossCover.depositCoverFor(protocolFeesInvested, humaConfig.humaTreasury());
     }
 
     function _getAvailableIncomes() internal view returns (AccruedIncomes memory incomes) {

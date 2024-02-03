@@ -10,11 +10,7 @@ import {SENIOR_TRANCHE, JUNIOR_TRANCHE, HUNDRED_PERCENT_IN_BPS} from "../common/
  * a percentage of the pool return is shifted from the senior tranche to the junior tranche.
  */
 contract RiskAdjustedTranchesPolicy is BaseTranchesPolicy {
-    /**
-     * @dev Ignores solhint warning. This function can't be a view function because it implements
-     * `disProfitToTranches` from `ITranchesPolicy`.
-     */
-    function _distributeProfitForSeniorTranche(
+    function _calcProfitForSeniorTranche(
         uint256 profit,
         uint96[2] memory assets
     ) internal virtual override returns (uint256 seniorProfit, uint256 remainingProfit) {
