@@ -6,7 +6,7 @@ test = 'test/foundry'
 cache_path  = 'cache_forge'
 optimizer = true
 optimizer_runs = 200
-solc = "0.8.18"
+solc = "0.8.23"
 
 [fuzz]
 runs = 5_000
