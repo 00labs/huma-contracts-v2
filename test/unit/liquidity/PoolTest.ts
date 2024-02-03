@@ -959,6 +959,8 @@ describe("Pool Test", function () {
                 await poolConfigContract
                     .connect(poolOwner)
                     .setTranches(defaultDeployer.getAddress(), defaultDeployer.getAddress());
+                await poolContract.connect(poolOwner).updatePoolConfigData();
+
                 await poolContract.updateTranchesAssets(tranchesAssets);
 
                 expect(await poolContract.currentTranchesAssets()).to.eql(tranchesAssets);
@@ -968,6 +970,8 @@ describe("Pool Test", function () {
                 await poolConfigContract
                     .connect(poolOwner)
                     .setEpochManager(defaultDeployer.getAddress());
+                await poolContract.connect(poolOwner).updatePoolConfigData();
+
                 await poolContract.updateTranchesAssets(tranchesAssets);
 
                 expect(await poolContract.currentTranchesAssets()).to.eql(tranchesAssets);

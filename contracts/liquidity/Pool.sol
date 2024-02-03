@@ -42,6 +42,8 @@ contract Pool is PoolConfigCache, IPool {
     ITranchesPolicy public tranchesPolicy;
     ICredit public credit;
     ICreditManager public creditManager;
+    address public juniorTranche;
+    address public seniorTranche;
 
     TranchesAssets public tranchesAssets;
     TranchesLosses public tranchesLosses;
@@ -258,6 +260,14 @@ contract Pool is PoolConfigCache, IPool {
         assert(addr != address(0));
         creditManager = ICreditManager(addr);
 
+        addr = _poolConfig.seniorTranche();
+        assert(addr != address(0));
+        seniorTranche = addr;
+
+        addr = _poolConfig.juniorTranche();
+        assert(addr != address(0));
+        juniorTranche = addr;
+
         delete _firstLossCovers;
         address[16] memory covers = _poolConfig.getFirstLossCovers();
         for (uint256 i = 0; i < covers.length; i++) {
@@ -291,15 +301,12 @@ contract Pool is PoolConfigCache, IPool {
             newAssets[SENIOR_TRANCHE] =
                 assets.seniorTotalAssets +
                 profitsForTrancheVaults[SENIOR_TRANCHE];
-            poolSafe.addUnprocessedProfit(
-                poolConfig.seniorTranche(),
-                profitsForTrancheVaults[SENIOR_TRANCHE]
-            );
+            poolSafe.addUnprocessedProfit(seniorTranche, profitsForTrancheVaults[SENIOR_TRANCHE]);
             newAssets[JUNIOR_TRANCHE] = assets.juniorTotalAssets;
             if (profitsForTrancheVaults[JUNIOR_TRANCHE] > 0) {
                 newAssets[JUNIOR_TRANCHE] += profitsForTrancheVaults[JUNIOR_TRANCHE];
                 poolSafe.addUnprocessedProfit(
-                    poolConfig.juniorTranche(),
+                    juniorTranche,
                     profitsForTrancheVaults[JUNIOR_TRANCHE]
                 );
             }
@@ -450,9 +457,9 @@ contract Pool is PoolConfigCache, IPool {
 
     function _onlyTrancheVaultOrEpochManager(address account) internal view {
         if (
-            account != poolConfig.juniorTranche() &&
-            account != poolConfig.seniorTranche() &&
-            account != poolConfig.epochManager()
+            account != juniorTranche &&
+            account != seniorTranche &&
+            account != address(epochManager)
         ) revert Errors.AuthorizedContractCallerRequired();
     }
 

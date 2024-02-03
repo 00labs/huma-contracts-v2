@@ -265,7 +265,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
 
         uint256 platformProfit = 0;
         (netAmountToBorrower, platformProfit) = dueManager.distBorrowingAmount(borrowAmount);
-        IPool(poolConfig.pool()).distributeProfit(platformProfit);
+        pool.distributeProfit(platformProfit);
 
         // Transfer funds to the borrower
         poolSafe.withdraw(borrower, netAmountToBorrower);
@@ -424,13 +424,13 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             address payer = _getPaymentOriginator(borrower);
             poolSafe.deposit(payer, amountToCollect);
             if (oldCRState == CreditState.Defaulted) {
-                IPool(poolConfig.pool()).distributeLossRecovery(amountToCollect);
+                pool.distributeLossRecovery(amountToCollect);
             } else {
                 uint256 profit = paymentRecord.yieldPastDuePaid +
                     paymentRecord.yieldDuePaid +
                     paymentRecord.lateFeePaid;
                 if (profit > 0) {
-                    IPool(poolConfig.pool()).distributeProfit(profit);
+                    pool.distributeProfit(profit);
                 }
             }
             emit PaymentMade(
@@ -535,6 +535,10 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         addr = _poolConfig.creditDueManager();
         assert(addr != address(0));
         dueManager = ICreditDueManager(addr);
+
+        addr = _poolConfig.pool();
+        assert(addr != address(0));
+        pool = IPool(addr);
 
         addr = _poolConfig.poolSafe();
         assert(addr != address(0));

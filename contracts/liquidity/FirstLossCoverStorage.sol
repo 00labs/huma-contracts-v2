@@ -10,6 +10,7 @@ contract FirstLossCoverStorage {
     IPool public pool;
     IPoolSafe public poolSafe;
     IERC20 public underlyingToken;
+    address public poolFeeManager;
 
     uint8 internal _decimals;
     /// The cumulative amount of loss covered.

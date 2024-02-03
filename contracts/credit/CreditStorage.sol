@@ -7,12 +7,14 @@ import {ICreditDueManager} from "./interfaces/ICreditDueManager.sol";
 import {ICreditManager} from "./interfaces/ICreditManager.sol";
 import {IPoolSafe} from "../liquidity/interfaces/IPoolSafe.sol";
 import {IFirstLossCover} from "../liquidity/interfaces/IFirstLossCover.sol";
+import {IPool} from "../liquidity/interfaces/IPool.sol";
 
 contract CreditStorage {
     HumaConfig public humaConfig;
 
     // Reference to the due manager contract
     ICreditDueManager public dueManager;
+    IPool public pool;
     IPoolSafe public poolSafe;
     IFirstLossCover public firstLossCover;
     ICreditManager public creditManager;

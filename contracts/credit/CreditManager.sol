@@ -149,6 +149,10 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         assert(addr != address(0));
         humaConfig = HumaConfig(addr);
 
+        addr = _poolConfig.pool();
+        assert(addr != address(0));
+        pool = IPool(addr);
+
         addr = _poolConfig.calendar();
         assert(addr != address(0));
         calendar = ICalendar(addr);
@@ -336,8 +340,8 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         yieldLoss = cr.yieldDue + dd.yieldPastDue;
         feesLoss = dd.lateFee;
 
-        IPool(poolConfig.pool()).distributeProfit(yieldLoss + feesLoss);
-        IPool(poolConfig.pool()).distributeLoss(principalLoss + yieldLoss + feesLoss);
+        pool.distributeProfit(yieldLoss + feesLoss);
+        pool.distributeLoss(principalLoss + yieldLoss + feesLoss);
 
         cr.state = CreditState.Defaulted;
         credit.updateDueInfo(creditHash, cr, dd);
