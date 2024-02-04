@@ -456,6 +456,17 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         uint256 creditLimit,
         uint256 committedAmount
     ) internal virtual {
+        if (creditLimit != 0 && committedAmount > creditLimit) {
+            // If creditLimit is adjusted down to 0, then the intention is to temporarily prevent the borrower from
+            // further drawdown, hence we allow a non-zero committedAmount here so that the borrower is still bound by
+            // their existing commitment.
+            revert Errors.CommittedAmountGreaterThanCreditLimit();
+        }
+        PoolSettings memory ps = poolConfig.getPoolSettings();
+        if (creditLimit > ps.maxCreditLine) {
+            revert Errors.CreditLimitTooHigh();
+        }
+
         CreditRecord memory cr = credit.getCreditRecord(creditHash);
         if (cr.state == CreditState.Approved || cr.state == CreditState.Deleted) {
             revert Errors.CreditNotInStateForUpdate();
