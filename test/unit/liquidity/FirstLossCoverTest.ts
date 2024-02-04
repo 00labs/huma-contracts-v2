@@ -1082,7 +1082,17 @@ describe("FirstLossCover Tests", function () {
             await expect(
                 adminFirstLossCoverContract
                     .connect(evaluationAgent)
-                    .transfer(lender.address, toToken(100)),
+                    .transfer(lender.getAddress(), toToken(100)),
+            ).to.be.revertedWithCustomError(adminFirstLossCoverContract, "UnsupportedFunction");
+
+            await expect(
+                adminFirstLossCoverContract
+                    .connect(evaluationAgent)
+                    .transferFrom(
+                        poolOwner.getAddress(),
+                        evaluationAgent.getAddress(),
+                        toToken(100),
+                    ),
             ).to.be.revertedWithCustomError(adminFirstLossCoverContract, "UnsupportedFunction");
         });
     });
@@ -1437,6 +1447,22 @@ describe("FirstLossCover Tests", function () {
             );
             expect(newPoolOwnerBalance).to.equal(oldPoolOwnerBalance);
             expect(newEABalance).to.equal(oldEABalance.add(yieldAmount));
+        });
+
+        it("Should not allow yield payout when the protocol is paused or pool is not on", async function () {
+            await humaConfigContract.connect(protocolOwner).pause();
+            await expect(adminFirstLossCoverContract.payoutYield()).to.be.revertedWithCustomError(
+                poolConfigContract,
+                "ProtocolIsPaused",
+            );
+            await humaConfigContract.connect(protocolOwner).unpause();
+
+            await poolContract.connect(poolOwner).disablePool();
+            await expect(adminFirstLossCoverContract.payoutYield()).to.be.revertedWithCustomError(
+                poolConfigContract,
+                "PoolIsNotOn",
+            );
+            await poolContract.connect(poolOwner).enablePool();
         });
     });
 });

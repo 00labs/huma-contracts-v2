@@ -53,20 +53,6 @@ interface IReceivableFactoringCreditManager {
     function closeCredit(address borrower, uint256 receivableId) external;
 
     /**
-     * @notice Pauses the credit. No drawdown is allowed for paused credit.
-     * @param receivableId The ID of the receivable.
-     * @custom:access Only the EA can call this function
-     */
-    function pauseCredit(uint256 receivableId) external;
-
-    /**
-     * @notice Unpauses the credit to return the credit to normal.
-     * @param receivableId The ID of the receivable.
-     * @custom:access Only the EA can call this function.
-     */
-    function unpauseCredit(uint256 receivableId) external;
-
-    /**
      * @notice Updates the yield for the credit.
      * @param receivableId The ID of the receivable.
      * @param yieldInBps The new yield expressed in basis points.
