@@ -215,26 +215,26 @@ contract PoolFeeManager is PoolConfigCache, IPoolFeeManager {
     }
 
     /// Utility function to cache the dependent contract addresses.
-    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
+    function _updatePoolConfigData(PoolConfig poolConfig_) internal virtual override {
         address oldUnderlyingToken = address(underlyingToken);
-        address newUnderlyingToken = _poolConfig.underlyingToken();
+        address newUnderlyingToken = poolConfig_.underlyingToken();
         assert(newUnderlyingToken != address(0));
         underlyingToken = IERC20(newUnderlyingToken);
 
-        address addr = _poolConfig.poolSafe();
+        address addr = poolConfig_.poolSafe();
         assert(addr != address(0));
         poolSafe = IPoolSafe(addr);
 
-        addr = _poolConfig.pool();
+        addr = poolConfig_.pool();
         assert(addr != address(0));
         pool = IPool(addr);
 
-        addr = address(_poolConfig.humaConfig());
+        addr = address(poolConfig_.humaConfig());
         assert(addr != address(0));
         humaConfig = HumaConfig(addr);
 
         address oldFirstLossCover = address(firstLossCover);
-        addr = _poolConfig.getFirstLossCover(ADMIN_LOSS_COVER_INDEX);
+        addr = poolConfig_.getFirstLossCover(ADMIN_LOSS_COVER_INDEX);
         assert(addr != address(0));
         firstLossCover = IFirstLossCover(addr);
         _resetFirstLossCoverAllowance(

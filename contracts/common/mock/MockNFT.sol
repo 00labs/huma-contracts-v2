@@ -24,13 +24,13 @@ contract MockNFT is
     address public tokenAddress;
     CountersUpgradeable.Counter internal _tokenIdCounter;
 
-    function initialize(address _tokenAddress, address humaPoolSafe) external initializer {
+    function initialize(address tokenAddress_, address humaPoolSafe) external initializer {
         __ERC721_init("MockNFT", "MNFT");
         __ERC721Enumerable_init();
         __ERC721URIStorage_init();
         __ERC721Burnable_init();
 
-        tokenAddress = _tokenAddress;
+        tokenAddress = tokenAddress_;
         IERC20(tokenAddress).safeApprove(humaPoolSafe, type(uint256).max);
     }
 
@@ -45,13 +45,13 @@ contract MockNFT is
     }
 
     function mintNFT(
-        address _recipient,
-        string memory _tokenURI
+        address recipient,
+        string memory tokenURI
     ) external returns (uint256 newItemId) {
         _tokenIdCounter.increment();
         newItemId = _tokenIdCounter.current();
-        _mint(_recipient, newItemId);
-        _setTokenURI(newItemId, _tokenURI);
+        _mint(recipient, newItemId);
+        _setTokenURI(newItemId, tokenURI);
     }
 
     function getCurrentTokenId() external view returns (uint256) {

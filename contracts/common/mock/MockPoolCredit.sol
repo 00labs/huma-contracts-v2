@@ -10,9 +10,9 @@ contract MockPoolCredit is PoolConfigCache {
     IPoolSafe public poolSafe;
     IPool public pool;
 
-    uint256 public profit_;
-    uint256 public loss_;
-    uint256 public lossRecovery_;
+    uint256 public profit;
+    uint256 public loss;
+    uint256 public lossRecovery;
 
     function approveCredit(
         address borrower,
@@ -34,22 +34,22 @@ contract MockPoolCredit is PoolConfigCache {
         poolSafe.deposit(address(this), amount);
     }
 
-    function mockDistributePnL(uint256 profit, uint256 loss, uint256 lossRecovery) external {
-        pool.distributeProfit(profit);
-        pool.distributeLoss(loss);
-        pool.distributeLossRecovery(lossRecovery);
+    function mockDistributePnL(uint256 profit_, uint256 loss_, uint256 lossRecovery_) external {
+        pool.distributeProfit(profit_);
+        pool.distributeLoss(loss_);
+        pool.distributeLossRecovery(lossRecovery_);
     }
 
-    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
-        address addr = _poolConfig.poolSafe();
+    function _updatePoolConfigData(PoolConfig poolConfig_) internal virtual override {
+        address addr = poolConfig_.poolSafe();
         assert(addr != address(0));
         poolSafe = IPoolSafe(addr);
 
-        addr = _poolConfig.underlyingToken();
+        addr = poolConfig_.underlyingToken();
         assert(addr != address(0));
         IERC20(addr).approve(address(poolSafe), type(uint256).max);
 
-        addr = _poolConfig.pool();
+        addr = poolConfig_.pool();
         assert(addr != address(0));
         pool = IPool(addr);
     }

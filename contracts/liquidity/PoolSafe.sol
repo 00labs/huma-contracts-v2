@@ -94,16 +94,16 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
     }
 
     /// Utility function to cache the dependent contract addresses.
-    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
-        address addr = _poolConfig.underlyingToken();
+    function _updatePoolConfigData(PoolConfig poolConfig_) internal virtual override {
+        address addr = poolConfig_.underlyingToken();
         assert(addr != address(0));
         underlyingToken = IERC20(addr);
 
-        addr = _poolConfig.poolFeeManager();
+        addr = poolConfig_.poolFeeManager();
         assert(addr != address(0));
         poolFeeManager = IPoolFeeManager(addr);
 
-        addr = _poolConfig.pool();
+        addr = poolConfig_.pool();
         assert(addr != address(0));
         pool = IPool(addr);
     }

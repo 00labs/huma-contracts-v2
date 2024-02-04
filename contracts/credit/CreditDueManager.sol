@@ -335,18 +335,17 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
 
     /// @inheritdoc ICreditDueManager
     function calcFrontLoadingFee(
-        uint256 _amount
+        uint256 amount
     ) public view virtual override returns (uint256 fees) {
         uint256 frontLoadingFeeBps;
         (fees, frontLoadingFeeBps) = poolConfig.getFrontLoadingFees();
-        if (frontLoadingFeeBps > 0)
-            fees += (_amount * frontLoadingFeeBps) / HUNDRED_PERCENT_IN_BPS;
+        if (frontLoadingFeeBps > 0) fees += (amount * frontLoadingFeeBps) / HUNDRED_PERCENT_IN_BPS;
         return fees;
     }
 
     function refreshLateFee(
-        CreditRecord memory _cr,
-        DueDetail memory _dd,
+        CreditRecord memory cr,
+        DueDetail memory dd,
         PayPeriodDuration periodDuration,
         uint256 committedAmount,
         uint256 timestamp
@@ -356,33 +355,33 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         // If the credit state is good-standing, then the bill is late for the first time.
         // We need to charge the late fee from the last due date onwards.
         uint256 lateFeeStartDate;
-        if (_cr.state == CreditState.GoodStanding) {
-            if (_cr.nextDue == 0) {
+        if (cr.state == CreditState.GoodStanding) {
+            if (cr.nextDue == 0) {
                 // If the amount due has been paid off in the current billing cycle,
                 // then the late fee should be charged from the due date of the next billing cycle onwards
                 // since the next billing cycle is the first cycle that's late.
                 lateFeeStartDate = calendar.getStartDateOfNextPeriod(
                     periodDuration,
-                    _cr.nextDueDate
+                    cr.nextDueDate
                 );
             } else {
-                lateFeeStartDate = _cr.nextDueDate;
+                lateFeeStartDate = cr.nextDueDate;
             }
         } else {
-            lateFeeStartDate = _dd.lateFeeUpdatedDate;
+            lateFeeStartDate = dd.lateFeeUpdatedDate;
         }
 
         // Use the larger of the outstanding principal and the committed amount as the basis for calculating
         // the late fee. While this is not 100% accurate since the relative magnitude of the two value
         // may change between the last time late fee was refreshed and now, we are intentionally making this
         // simplification since in reality the principal will almost always be higher the committed amount.
-        uint256 totalPrincipal = _cr.unbilledPrincipal +
-            _cr.nextDue -
-            _cr.yieldDue +
-            _dd.principalPastDue;
+        uint256 totalPrincipal = cr.unbilledPrincipal +
+            cr.nextDue -
+            cr.yieldDue +
+            dd.principalPastDue;
         uint256 lateFeeBasis = totalPrincipal > committedAmount ? totalPrincipal : committedAmount;
         lateFee = uint96(
-            _dd.lateFee +
+            dd.lateFee +
                 (fees.lateFeeBps *
                     lateFeeBasis *
                     calendar.getDaysDiff(lateFeeStartDate, lateFeeUpdatedDate)) /
@@ -391,8 +390,8 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         return (lateFeeUpdatedDate, lateFee);
     }
 
-    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
-        address addr = _poolConfig.calendar();
+    function _updatePoolConfigData(PoolConfig poolConfig_) internal virtual override {
+        address addr = poolConfig_.calendar();
         assert(addr != address(0));
         calendar = ICalendar(addr);
     }

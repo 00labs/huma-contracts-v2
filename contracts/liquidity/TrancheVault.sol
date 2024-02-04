@@ -42,7 +42,7 @@ contract TrancheVault is
      * gets their return. For those who are getting paid each period, their number of shares
      * goes down when a yield payout happens.
      */
-    uint256 private constant MAX_ALLOWED_NUM_NON_REINVESTING_LENDERS = 100;
+    uint256 private constant _MAX_ALLOWED_NUM_NON_REINVESTING_LENDERS = 100;
 
     /**
      * @notice An epoch has been processed.
@@ -116,7 +116,7 @@ contract TrancheVault is
      * @notice Initializes the tranche.
      * @param name The name of the tranche token.
      * @param symbol The symbol of the tranche token.
-     * @param _poolConfig PoolConfig that has various settings of the pool.
+     * @param poolConfig_ PoolConfig that has various settings of the pool.
      * @param seniorTrancheOrJuniorTranche Indicator of junior or senior tranche. Since only
      * junior and senior tranches are supported right now, this param needs to be 0 or 1.
      * @custom:access Initialize can be called when the contract is initialized.
@@ -124,13 +124,13 @@ contract TrancheVault is
     function initialize(
         string memory name,
         string memory symbol,
-        PoolConfig _poolConfig,
+        PoolConfig poolConfig_,
         uint8 seniorTrancheOrJuniorTranche
     ) external initializer {
         __ERC20_init(name, symbol);
         __AccessControl_init();
         __UUPSUpgradeable_init();
-        _initialize(_poolConfig);
+        _initialize(poolConfig_);
 
         if (seniorTrancheOrJuniorTranche > 1) revert Errors.InvalidTrancheIndex();
         trancheIndex = seniorTrancheOrJuniorTranche;
@@ -159,7 +159,7 @@ contract TrancheVault is
             DepositRecord({principal: 0, reinvestYield: reinvestYield, lastDepositTime: 0})
         );
         if (!reinvestYield) {
-            if (nonReinvestingLenders.length >= MAX_ALLOWED_NUM_NON_REINVESTING_LENDERS)
+            if (nonReinvestingLenders.length >= _MAX_ALLOWED_NUM_NON_REINVESTING_LENDERS)
                 revert Errors.NonReinvestYieldLenderCapacityReached();
             nonReinvestingLenders.push(lender);
         }
@@ -200,7 +200,7 @@ contract TrancheVault is
         if (!depositRecord.reinvestYield && reinvestYield) {
             _removeLenderFromNonReinvestingLenders(lender);
         } else {
-            if (nonReinvestingLenders.length >= MAX_ALLOWED_NUM_NON_REINVESTING_LENDERS)
+            if (nonReinvestingLenders.length >= _MAX_ALLOWED_NUM_NON_REINVESTING_LENDERS)
                 revert Errors.NonReinvestYieldLenderCapacityReached();
             nonReinvestingLenders.push(lender);
         }
@@ -513,21 +513,21 @@ contract TrancheVault is
     }
 
     /// Utility function to cache the dependent contract addresses.
-    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
-        address addr = _poolConfig.underlyingToken();
+    function _updatePoolConfigData(PoolConfig poolConfig_) internal virtual override {
+        address addr = poolConfig_.underlyingToken();
         assert(addr != address(0));
         underlyingToken = IERC20(addr);
         _decimals = IERC20MetadataUpgradeable(addr).decimals();
 
-        addr = _poolConfig.pool();
+        addr = poolConfig_.pool();
         assert(addr != address(0));
         pool = IPool(addr);
 
-        addr = _poolConfig.poolSafe();
+        addr = poolConfig_.poolSafe();
         assert(addr != address(0));
         poolSafe = IPoolSafe(addr);
 
-        addr = _poolConfig.epochManager();
+        addr = poolConfig_.epochManager();
         assert(addr != address(0));
         epochManager = IEpochManager(addr);
     }
@@ -609,17 +609,17 @@ contract TrancheVault is
 
     /**
      * @notice Converts assets to shares of this tranche token.
-     * @param _assets The amount of the underlying assets.
-     * @param _totalAssets The total amount of the underlying assets in the tranche.
+     * @param assets The amount of the underlying assets.
+     * @param totalAssets The total amount of the underlying assets in the tranche.
      * @return shares The corresponding number of shares for the given assets.
      */
     function _convertToShares(
-        uint256 _assets,
-        uint256 _totalAssets
+        uint256 assets,
+        uint256 totalAssets
     ) internal view returns (uint256 shares) {
         uint256 supply = ERC20Upgradeable.totalSupply();
-        if (supply != 0 && _totalAssets == 0) return 0;
-        return supply == 0 ? _assets : (_assets * supply) / _totalAssets;
+        if (supply != 0 && totalAssets == 0) return 0;
+        return supply == 0 ? assets : (assets * supply) / totalAssets;
     }
 
     function _getLatestLenderRedemptionRecordFor(

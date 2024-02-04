@@ -32,7 +32,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
      * The minimum balance required in the pool to process redemption requests. This threshold is set to avoid rounding
      * errors when the pool's balance is too low.
      */
-    uint256 private constant MIN_POOL_BALANCE_FOR_REDEMPTION = 1;
+    uint256 private constant _MIN_POOL_BALANCE_FOR_REDEMPTION = 1;
     /**
      * The actual threshold required for redemption based on the number of decimals
      * of the underlying token of the pool. The value will be calculated and cached during initialization.
@@ -152,32 +152,32 @@ contract EpochManager is PoolConfigCache, IEpochManager {
     /**
      * @notice Syndicates the address of dependent contracts from pool config.
      */
-    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
-        address addr = _poolConfig.poolSafe();
+    function _updatePoolConfigData(PoolConfig poolConfig_) internal virtual override {
+        address addr = poolConfig_.poolSafe();
         assert(addr != address(0));
         poolSafe = IPoolSafe(addr);
 
-        addr = _poolConfig.pool();
+        addr = poolConfig_.pool();
         assert(addr != address(0));
         pool = IPool(addr);
 
-        addr = _poolConfig.seniorTranche();
+        addr = poolConfig_.seniorTranche();
         assert(addr != address(0));
         seniorTranche = IRedemptionHandler(addr);
 
-        addr = _poolConfig.juniorTranche();
+        addr = poolConfig_.juniorTranche();
         assert(addr != address(0));
         juniorTranche = IRedemptionHandler(addr);
 
-        addr = _poolConfig.calendar();
+        addr = poolConfig_.calendar();
         assert(addr != address(0));
         calendar = ICalendar(addr);
 
-        addr = _poolConfig.underlyingToken();
+        addr = poolConfig_.underlyingToken();
         assert(addr != address(0));
         uint256 decimals = IERC20Metadata(addr).decimals();
 
-        minPoolBalanceForRedemption = MIN_POOL_BALANCE_FOR_REDEMPTION * 10 ** decimals;
+        minPoolBalanceForRedemption = _MIN_POOL_BALANCE_FOR_REDEMPTION * 10 ** decimals;
     }
 
     function _createNextEpoch(CurrentEpoch memory epoch) internal {

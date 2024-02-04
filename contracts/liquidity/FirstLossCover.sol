@@ -27,7 +27,7 @@ contract FirstLossCover is
     using EnumerableSet for EnumerableSet.AddressSet;
 
     /// The maximum number of cover providers that can supply assets to the first loss cover.
-    uint256 private constant MAX_ALLOWED_NUM_PROVIDERS = 100;
+    uint256 private constant _MAX_ALLOWED_NUM_PROVIDERS = 100;
 
     /**
      * @notice A cover provider has been added.
@@ -90,18 +90,18 @@ contract FirstLossCover is
     function initialize(
         string memory name,
         string memory symbol,
-        PoolConfig _poolConfig
+        PoolConfig poolConfig_
     ) external initializer {
         __ERC20_init(name, symbol);
         __UUPSUpgradeable_init();
-        _initialize(_poolConfig);
+        _initialize(poolConfig_);
     }
 
     function addCoverProvider(address account) external {
         poolConfig.onlyPoolOwner(msg.sender);
         if (account == address(0)) revert Errors.ZeroAddressProvided();
 
-        if (_coverProviders.length() >= MAX_ALLOWED_NUM_PROVIDERS) {
+        if (_coverProviders.length() >= _MAX_ALLOWED_NUM_PROVIDERS) {
             revert Errors.TooManyProviders();
         }
         bool newlyAdded = _coverProviders.add(account);
@@ -326,20 +326,20 @@ contract FirstLossCover is
         return config.minLiquidity;
     }
 
-    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
+    function _updatePoolConfigData(PoolConfig poolConfig_) internal virtual override {
         address oldUnderlyingToken = address(underlyingToken);
-        address newUnderlyingToken = _poolConfig.underlyingToken();
+        address newUnderlyingToken = poolConfig_.underlyingToken();
         assert(newUnderlyingToken != address(0));
         underlyingToken = IERC20(newUnderlyingToken);
         _decimals = IERC20MetadataUpgradeable(newUnderlyingToken).decimals();
 
         address oldPoolSafe = address(poolSafe);
-        address addr = _poolConfig.poolSafe();
+        address addr = poolConfig_.poolSafe();
         assert(addr != address(0));
         poolSafe = IPoolSafe(addr);
         _resetPoolSafeAllowance(oldPoolSafe, addr, oldUnderlyingToken, newUnderlyingToken);
 
-        addr = _poolConfig.pool();
+        addr = poolConfig_.pool();
         assert(addr != address(0));
         pool = IPool(addr);
     }

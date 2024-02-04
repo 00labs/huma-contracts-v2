@@ -53,13 +53,13 @@ abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
         return _firstLossCovers;
     }
 
-    function _updatePoolConfigData(PoolConfig _poolConfig) internal virtual override {
-        address addr = _poolConfig.pool();
+    function _updatePoolConfigData(PoolConfig poolConfig_) internal virtual override {
+        address addr = poolConfig_.pool();
         assert(addr != address(0));
         pool = addr;
 
         delete _firstLossCovers;
-        address[16] memory covers = _poolConfig.getFirstLossCovers();
+        address[16] memory covers = poolConfig_.getFirstLossCovers();
         for (uint256 i = 0; i < covers.length; i++) {
             if (covers[i] != address(0)) {
                 _firstLossCovers.push(IFirstLossCover(covers[i]));

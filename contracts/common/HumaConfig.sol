@@ -10,10 +10,10 @@ import {Errors} from "./Errors.sol";
  */
 contract HumaConfig is Ownable, Pausable {
     /// The default treasury fee in bps.
-    uint16 private constant DEFAULT_TREASURY_FEE = 500; // 5%
+    uint16 private constant _DEFAULT_TREASURY_FEE = 500; // 5%
 
     /// The treasury fee upper bound in bps.
-    uint16 private constant TREASURY_FEE_UPPER_BOUND = 5000; // 50%
+    uint16 private constant _TREASURY_FEE_UPPER_BOUND = 5000; // 50%
 
     /// % of platform income that will be reserved in the protocol, measured in basis points.
     uint16 public protocolFeeInBps;
@@ -31,13 +31,13 @@ contract HumaConfig is Ownable, Pausable {
     address public sentinelServiceAccount;
 
     /// Pausers can pause the pool.
-    mapping(address => bool) private pausers;
+    mapping(address => bool) public pausers;
 
     // poolAdmins has the list of approved accounts who can create and operate pools.
-    mapping(address => bool) private poolAdmins;
+    mapping(address => bool) public poolAdmins;
 
     /// List of assets supported by the protocol for investing and borrowing.
-    mapping(address => bool) private validLiquidityAssets;
+    mapping(address => bool) public validLiquidityAssets;
 
     /**
      * @notice Contract address for Evaluation Agent NFT changed.
@@ -132,37 +132,37 @@ contract HumaConfig is Ownable, Pausable {
      * treasury fee, add or remove assets to be supported by the protocol.
      */
     constructor() {
-        protocolFeeInBps = DEFAULT_TREASURY_FEE;
+        protocolFeeInBps = _DEFAULT_TREASURY_FEE;
 
         emit ProtocolInitialized(msg.sender);
     }
 
     /**
      * @notice Adds a pauser, who can pause the entire protocol.
-     * @param _pauser Address to be added to the pauser list.
+     * @param pauser Address to be added to the pauser list.
      * @custom:access Only the protocol owner can call this function.
      */
-    function addPauser(address _pauser) external onlyOwner {
-        if (_pauser == address(0)) revert Errors.ZeroAddressProvided();
-        if (pausers[_pauser]) revert Errors.AlreadyAPauser();
+    function addPauser(address pauser) external onlyOwner {
+        if (pauser == address(0)) revert Errors.ZeroAddressProvided();
+        if (pausers[pauser]) revert Errors.AlreadyAPauser();
 
-        pausers[_pauser] = true;
+        pausers[pauser] = true;
 
-        emit PauserAdded(_pauser, msg.sender);
+        emit PauserAdded(pauser, msg.sender);
     }
 
     /**
      * @notice Adds a pool admin.
-     * @param _poolAdmin Address to be added as a pool admin
+     * @param poolAdmin Address to be added as a pool admin
      * @custom:access Only the protocol owner can call this function.
      */
-    function addPoolAdmin(address _poolAdmin) external onlyOwner {
-        if (_poolAdmin == address(0)) revert Errors.ZeroAddressProvided();
-        if (poolAdmins[_poolAdmin]) revert Errors.AlreadyPoolAdmin();
+    function addPoolAdmin(address poolAdmin) external onlyOwner {
+        if (poolAdmin == address(0)) revert Errors.ZeroAddressProvided();
+        if (poolAdmins[poolAdmin]) revert Errors.AlreadyPoolAdmin();
 
-        poolAdmins[_poolAdmin] = true;
+        poolAdmins[poolAdmin] = true;
 
-        emit PoolAdminAdded(_poolAdmin, msg.sender);
+        emit PoolAdminAdded(poolAdmin, msg.sender);
     }
 
     /**
@@ -176,30 +176,30 @@ contract HumaConfig is Ownable, Pausable {
 
     /**
      * @notice Removes a pauser.
-     * @param _pauser Address to be removed from the pauser list.
+     * @param pauser Address to be removed from the pauser list.
      * @custom:access Only the protocol owner can call this function.
      */
-    function removePauser(address _pauser) external onlyOwner {
-        if (_pauser == address(0)) revert Errors.ZeroAddressProvided();
-        if (!pausers[_pauser]) revert Errors.PauserRequired();
+    function removePauser(address pauser) external onlyOwner {
+        if (pauser == address(0)) revert Errors.ZeroAddressProvided();
+        if (!pausers[pauser]) revert Errors.PauserRequired();
 
-        pausers[_pauser] = false;
+        pausers[pauser] = false;
 
-        emit PauserRemoved(_pauser, msg.sender);
+        emit PauserRemoved(pauser, msg.sender);
     }
 
     /**
      * @notice Removes a pool admin.
-     * @param _poolAdmin Address to be removed from the poolAdmin list
+     * @param poolAdmin Address to be removed from the poolAdmin list
      * @custom:access Only the protocol owner can call this function.
      */
-    function removePoolAdmin(address _poolAdmin) external onlyOwner {
-        if (_poolAdmin == address(0)) revert Errors.ZeroAddressProvided();
-        if (!poolAdmins[_poolAdmin]) revert Errors.PoolOwnerRequired();
+    function removePoolAdmin(address poolAdmin) external onlyOwner {
+        if (poolAdmin == address(0)) revert Errors.ZeroAddressProvided();
+        if (!poolAdmins[poolAdmin]) revert Errors.PoolOwnerRequired();
 
-        poolAdmins[_poolAdmin] = false;
+        poolAdmins[poolAdmin] = false;
 
-        emit PoolAdminRemoved(_poolAdmin, msg.sender);
+        emit PoolAdminRemoved(poolAdmin, msg.sender);
     }
 
     /**
@@ -273,7 +273,7 @@ contract HumaConfig is Ownable, Pausable {
      * @custom:access Only the protocol owner can call this function.
      */
     function setTreasuryFee(uint256 feeInBps) external onlyOwner {
-        if (feeInBps > TREASURY_FEE_UPPER_BOUND) revert Errors.TreasuryFeeHighThanUpperLimit();
+        if (feeInBps > _TREASURY_FEE_UPPER_BOUND) revert Errors.TreasuryFeeHighThanUpperLimit();
         uint256 oldFee = protocolFeeInBps;
         protocolFeeInBps = uint16(feeInBps);
         emit TreasuryFeeChanged(oldFee, feeInBps);
