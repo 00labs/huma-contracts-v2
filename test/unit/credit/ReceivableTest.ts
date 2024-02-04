@@ -211,7 +211,7 @@ describe("Receivable Test", function () {
             expect(await receivableContract.balanceOf(borrower.address)).to.equal(3);
 
             const tokenId = await receivableContract.tokenOfOwnerByIndex(borrower.address, 1);
-            const tokenDetails = await receivableContract.receivableInfos(tokenId);
+            const tokenDetails = await receivableContract.getReceivable(tokenId);
             expect(tokenDetails.currencyCode).to.equal(0);
             expect(tokenDetails.receivableAmount).to.equal(1000);
             expect(tokenDetails.maturityDate).to.equal(100);
@@ -222,7 +222,7 @@ describe("Receivable Test", function () {
             expect(await receivableContract.balanceOf(borrower.getAddress())).to.equal(2);
 
             const tokenId2 = await receivableContract.tokenOfOwnerByIndex(borrower.address, 1);
-            const tokenDetails2 = await receivableContract.receivableInfos(tokenId2);
+            const tokenDetails2 = await receivableContract.getReceivable(tokenId2);
             expect(tokenDetails2.currencyCode).to.equal(5);
             expect(tokenDetails2.receivableAmount).to.equal(1000);
             expect(tokenDetails2.maturityDate).to.equal(100);
@@ -241,7 +241,7 @@ describe("Receivable Test", function () {
                 receivableContract.connect(borrower).declarePayment(tokenId, 100),
             ).to.emit(receivableContract, "PaymentDeclared");
 
-            const tokenDetails = await receivableContract.receivableInfos(tokenId);
+            const tokenDetails = await receivableContract.getReceivable(tokenId);
             expect(tokenDetails.paidAmount).to.equal(100);
             expect(tokenDetails.state).to.equal(ReceivableState.PartiallyPaid);
         });
@@ -259,7 +259,7 @@ describe("Receivable Test", function () {
                 receivableContract.connect(borrower).declarePayment(tokenId, 100),
             ).to.emit(receivableContract, "PaymentDeclared");
 
-            const tokenDetails = await receivableContract.receivableInfos(tokenId);
+            const tokenDetails = await receivableContract.getReceivable(tokenId);
             expect(tokenDetails.paidAmount).to.equal(100);
             expect(tokenDetails.state).to.equal(ReceivableState.PartiallyPaid);
         });

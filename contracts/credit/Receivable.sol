@@ -104,7 +104,7 @@ contract Receivable is
      */
     function declarePayment(uint256 tokenId, uint96 paymentAmount) external {
         if (paymentAmount == 0) revert Errors.ZeroAmountProvided();
-        ReceivableInfo memory receivableInfo = receivableInfos[tokenId];
+        ReceivableInfo memory receivableInfo = getReceivable(tokenId);
         if (msg.sender != ownerOf(tokenId) && msg.sender != receivableInfo.creator)
             revert Errors.ReceivableOwnerOrCreatorRequired();
 
@@ -116,7 +116,7 @@ contract Receivable is
             assert(receivableInfo.paidAmount > 0);
             receivableInfo.state = ReceivableState.PartiallyPaid;
         }
-        receivableInfos[tokenId] = receivableInfo;
+        _receivableInfos[tokenId] = receivableInfo;
 
         emit PaymentDeclared(msg.sender, tokenId, receivableInfo.currencyCode, paymentAmount);
     }
@@ -131,7 +131,7 @@ contract Receivable is
      * off-chain receivable, we will limit the changes to the NFT that the creator can do.
      */
     function updateReceivableMetadata(uint256 tokenId, string memory uri) external {
-        ReceivableInfo memory receivableInfo = receivableInfos[tokenId];
+        ReceivableInfo memory receivableInfo = getReceivable(tokenId);
 
         if (msg.sender != ownerOf(tokenId) && msg.sender != receivableInfo.creator)
             revert Errors.ReceivableOwnerOrCreatorRequired();
@@ -140,13 +140,6 @@ contract Receivable is
         _setTokenURI(tokenId, uri);
 
         emit ReceivableMetadataUpdated(msg.sender, tokenId, oldTokenURI, uri);
-    }
-
-    /// @inheritdoc IReceivable
-    function getReceivable(
-        uint256 tokenId
-    ) external view returns (ReceivableInfo memory receivable) {
-        return receivableInfos[tokenId];
     }
 
     /// @inheritdoc IReceivable
@@ -169,7 +162,7 @@ contract Receivable is
 
         _safeMint(msg.sender, tokenId);
 
-        receivableInfos[tokenId] = ReceivableInfo(
+        _receivableInfos[tokenId] = ReceivableInfo(
             receivableAmount,
             uint64(block.timestamp),
             0, // paidAmount
@@ -187,8 +180,15 @@ contract Receivable is
     }
 
     /// @inheritdoc IReceivable
+    function getReceivable(
+        uint256 tokenId
+    ) public view returns (ReceivableInfo memory receivable) {
+        return _receivableInfos[tokenId];
+    }
+
+    /// @inheritdoc IReceivable
     function getStatus(uint256 tokenId) public view returns (ReceivableState) {
-        return receivableInfos[tokenId].state;
+        return _receivableInfos[tokenId].state;
     }
 
     /// @inheritdoc IReceivable

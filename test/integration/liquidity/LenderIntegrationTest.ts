@@ -293,8 +293,9 @@ async function configPool(lpConfig: Partial<LPConfigStructOutput>) {
     await borrowerFirstLossCoverContract.connect(borrower).depositCover(toToken(100));
 
     for (let i = 0; i < jLenders.length; i++) {
-        let reinvestYield = (await juniorTrancheVaultContract.depositRecords(jLenders[i].address))
-            .reinvestYield;
+        let reinvestYield = (
+            await juniorTrancheVaultContract.getDepositRecord(jLenders[i].address)
+        ).reinvestYield;
         if (reinvestYield != jLenderReinvests[i]) {
             await juniorTrancheVaultContract
                 .connect(poolOperator)
@@ -302,8 +303,9 @@ async function configPool(lpConfig: Partial<LPConfigStructOutput>) {
         }
     }
     for (let i = 0; i < sLenders.length; i++) {
-        let reinvestYield = (await seniorTrancheVaultContract.depositRecords(sLenders[i].address))
-            .reinvestYield;
+        let reinvestYield = (
+            await seniorTrancheVaultContract.getDepositRecord(sLenders[i].address)
+        ).reinvestYield;
         if (reinvestYield != sLenderReinvests[i]) {
             await seniorTrancheVaultContract
                 .connect(poolOperator)
@@ -420,14 +422,14 @@ async function testYieldPayout() {
                     oldBalances[i].add(interests[i]),
                 );
                 jLenderPrincipals[i] = (
-                    await juniorTrancheVaultContract.depositRecords(jActiveLenders[i].address)
+                    await juniorTrancheVaultContract.getDepositRecord(jActiveLenders[i].address)
                 ).principal;
             } else {
                 expect(await mockTokenContract.balanceOf(jActiveLenders[i].address)).to.equal(
                     oldBalances[i],
                 );
                 let newPrincipal = (
-                    await juniorTrancheVaultContract.depositRecords(jActiveLenders[i].address)
+                    await juniorTrancheVaultContract.getDepositRecord(jActiveLenders[i].address)
                 ).principal;
                 expect(newPrincipal).to.equal(jLenderPrincipals[i]);
                 jLenderPrincipals[i] = newPrincipal;
@@ -452,13 +454,13 @@ async function testYieldPayout() {
                     oldBalances[i].add(interests[i]),
                 );
                 sLenderPrincipals[i] = (
-                    await seniorTrancheVaultContract.depositRecords(sActiveLenders[i].address)
+                    await seniorTrancheVaultContract.getDepositRecord(sActiveLenders[i].address)
                 ).principal;
             } else {
                 expect(await mockTokenContract.balanceOf(sActiveLenders[i].address)).to.equal(
                     oldBalances[i],
                 );
-                let [newPrincipal] = await seniorTrancheVaultContract.depositRecords(
+                let [newPrincipal] = await seniorTrancheVaultContract.getDepositRecord(
                     sActiveLenders[i].address,
                 );
                 expect(newPrincipal).to.equal(sLenderPrincipals[i]);
@@ -478,7 +480,7 @@ async function testRedemptionRequest(jLenderRequests: BN[], sLenderRequests: BN[
             expect(await juniorTrancheVaultContract.balanceOf(jLenders[i].address)).to.equal(
                 oldShares.sub(jLenderRequests[i]),
             );
-            let [newPrincipal] = await juniorTrancheVaultContract.depositRecords(
+            let [newPrincipal] = await juniorTrancheVaultContract.getDepositRecord(
                 jLenders[i].address,
             );
             let principalRequested = jLenderPrincipals[i].mul(jLenderRequests[i]).div(oldShares);
@@ -520,7 +522,7 @@ async function testRedemptionRequest(jLenderRequests: BN[], sLenderRequests: BN[
             expect(await seniorTrancheVaultContract.balanceOf(sLenders[i].address)).to.equal(
                 oldShares.sub(sLenderRequests[i]),
             );
-            let [newPrincipal] = await seniorTrancheVaultContract.depositRecords(
+            let [newPrincipal] = await seniorTrancheVaultContract.getDepositRecord(
                 sLenders[i].address,
             );
             let principalRequested = sLenderPrincipals[i].mul(sLenderRequests[i]).div(oldShares);
@@ -749,7 +751,6 @@ describe("Lender Integration Test", function () {
             await setNextBlockTimestamp(currentTS);
 
             let cr = await creditContract.getCreditRecord(creditHash);
-            // printCreditRecord("cr", cr);
             let profit = cr.yieldDue;
             let payment = cr.nextDue;
 
@@ -764,8 +765,7 @@ describe("Lender Integration Test", function () {
             let poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
             await pnlCalculator.beginProfitCalculation();
             await creditContract.connect(borrower).makePayment(borrower.address, payment);
-            // cr = await creditContract.getCreditRecord(creditHash);
-            // printCreditRecord("cr", cr);
+
             expect(await mockTokenContract.balanceOf(borrower.address)).to.equal(
                 borrowerOldBalance.sub(payment),
             );
@@ -832,7 +832,6 @@ describe("Lender Integration Test", function () {
             await setNextBlockTimestamp(currentTS);
 
             let cr = await creditContract.getCreditRecord(creditHash);
-            // printCreditRecord("cr", cr);
             let profit = cr.yieldDue;
             let payment = cr.nextDue;
 
@@ -1118,8 +1117,6 @@ describe("Lender Integration Test", function () {
             let poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
             await pnlCalculator.beginProfitCalculation();
             await creditContract.connect(borrower).makePayment(borrower.address, payment);
-            // cr = await creditContract.getCreditRecord(creditHash);
-            // printCreditRecord("cr", cr);
 
             expect(await mockTokenContract.balanceOf(borrower.address)).to.equal(
                 borrowerOldBalance.sub(payment),
@@ -1364,7 +1361,6 @@ describe("Lender Integration Test", function () {
             await setNextBlockTimestamp(currentTS);
 
             let cr = await creditContract.getCreditRecord(creditHash);
-            // printCreditRecord("cr", cr);
             let profit = cr.yieldDue;
             let payment = cr.nextDue.add(cr.unbilledPrincipal);
 
@@ -1379,8 +1375,6 @@ describe("Lender Integration Test", function () {
             let poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
             await pnlCalculator.beginProfitCalculation();
             await creditContract.connect(borrower).makePayment(borrower.address, payment);
-            // cr = await creditContract.getCreditRecord(creditHash);
-            // printCreditRecord("cr", cr);
 
             expect(await mockTokenContract.balanceOf(borrower.address)).to.equal(
                 borrowerOldBalance.sub(payment),
@@ -1983,7 +1977,6 @@ describe("Lender Integration Test", function () {
             await setNextBlockTimestamp(currentTS);
 
             let cr = await creditContract.getCreditRecord(creditHash);
-            // printCreditRecord("cr", cr);
             let profit = cr.yieldDue;
             let payment = cr.nextDue;
 
@@ -2072,7 +2065,6 @@ describe("Lender Integration Test", function () {
             await setNextBlockTimestamp(currentTS);
 
             let cr = await creditContract.getCreditRecord(creditHash);
-            // printCreditRecord("cr", cr);
             let profit = cr.yieldDue;
             let payment = cr.nextDue;
 
@@ -2376,8 +2368,6 @@ describe("Lender Integration Test", function () {
             await pnlCalculator.beginProfitCalculation();
             tracker = await tranchesPolicyContract.seniorYieldTracker();
             await creditContract.connect(borrower).makePayment(borrower.address, payment);
-            cr = await creditContract.getCreditRecord(creditHash);
-            // printCreditRecord("cr", cr);
 
             expect(await mockTokenContract.balanceOf(borrower.address)).to.equal(
                 borrowerOldBalance.sub(payment),
@@ -2629,7 +2619,6 @@ describe("Lender Integration Test", function () {
             await setNextBlockTimestamp(currentTS);
 
             let cr = await creditContract.getCreditRecord(creditHash);
-            // printCreditRecord("cr", cr);
             let profit = cr.yieldDue;
             let payment = cr.nextDue.add(cr.unbilledPrincipal);
 
@@ -2645,8 +2634,6 @@ describe("Lender Integration Test", function () {
             await pnlCalculator.beginProfitCalculation();
             tracker = await tranchesPolicyContract.seniorYieldTracker();
             await creditContract.connect(borrower).makePayment(borrower.address, payment);
-            // cr = await creditContract.getCreditRecord(creditHash);
-            // printCreditRecord("cr", cr);
 
             expect(await mockTokenContract.balanceOf(borrower.address)).to.equal(
                 borrowerOldBalance.sub(payment),

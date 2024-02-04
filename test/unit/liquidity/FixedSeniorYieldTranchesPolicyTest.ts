@@ -25,7 +25,6 @@ import {
     checkSeniorYieldTrackersMatch,
     deployAndSetupPoolContracts,
     deployProtocolContracts,
-    printSeniorYieldTracker,
 } from "../../BaseTest";
 import {
     getLatestBlock,
@@ -270,7 +269,6 @@ describe("FixedSeniorYieldTranchesPolicy Test", function () {
                 apy,
                 tracker,
             );
-            // printSeniorData(newSeniorData);
             await expect(tranchesPolicyContract.distProfitToTranches(profit, assets))
                 .to.emit(tranchesPolicyContract, "YieldTrackerRefreshed")
                 .withArgs(
@@ -307,12 +305,10 @@ describe("FixedSeniorYieldTranchesPolicy Test", function () {
             await setNextBlockTimestamp(nextDate);
 
             let tracker = await tranchesPolicyContract.seniorYieldTracker();
-            printSeniorYieldTracker(tracker);
             let newTracker = PnLCalculator.calcLatestSeniorTracker(nextDate, apy, tracker);
             newTracker.totalAssets = tracker.totalAssets;
             await creditContract.mockDistributePnL(BN.from(0), BN.from(0), toToken(100));
             tracker = await tranchesPolicyContract.seniorYieldTracker();
-            // printSeniorYieldTracker(tracker);
             checkSeniorYieldTrackersMatch(tracker, newTracker);
             expect(tracker.unpaidYield).to.greaterThan(0);
         });
@@ -321,7 +317,6 @@ describe("FixedSeniorYieldTranchesPolicy Test", function () {
     describe("LP deposit/withdraw", function () {
         it("Deposit into senior tranche", async function () {
             let tracker = await tranchesPolicyContract.seniorYieldTracker();
-            // printSeniorData(seniorData);
 
             const lastBlock = await getLatestBlock();
             let nextDate = lastBlock.timestamp + 100;

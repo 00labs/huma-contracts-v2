@@ -41,13 +41,13 @@ contract TrancheVaultStorage {
     IEpochManager public epochManager;
 
     /// Maps from epoch ID to the redemption summary for that epoch
-    mapping(uint256 epochId => EpochRedemptionSummary summary) public epochRedemptionSummaries;
+    mapping(uint256 epochId => EpochRedemptionSummary summary) internal _epochRedemptionSummaries;
 
     /// Maps from an account address to the redemption record for that lender
-    mapping(address lender => LenderRedemptionRecord record) public lenderRedemptionRecords;
+    mapping(address lender => LenderRedemptionRecord record) internal _lenderRedemptionRecords;
 
     /// This mapping contains the amount of underlying tokens deposited by lenders
-    mapping(address lender => DepositRecord record) public depositRecords;
+    mapping(address lender => DepositRecord record) internal _depositRecords;
 
     /**
      * The list of lenders who wish to receive yield in each period instead of reinvesting them back

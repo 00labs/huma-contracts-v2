@@ -1356,7 +1356,7 @@ export class EpochChecker {
 
     private async checkCurrentEpochEmpty(trancheContract: TrancheVault) {
         const epochId = await this.epochManagerContract.currentEpochId();
-        const epoch = await trancheContract.epochRedemptionSummaries(epochId);
+        const epoch = await trancheContract.getEpochRedemptionSummary(epochId);
         checkRedemptionSummary(epoch, BN.from(0), BN.from(0), BN.from(0), BN.from(0));
         return epochId;
     }
@@ -1369,7 +1369,7 @@ export class EpochChecker {
         delta: number = 0,
     ) {
         const epochId = await this.epochManagerContract.currentEpochId();
-        const epoch = await trancheContract.epochRedemptionSummaries(epochId);
+        const epoch = await trancheContract.getEpochRedemptionSummary(epochId);
         checkRedemptionSummary(
             epoch,
             epochId,
@@ -1389,7 +1389,7 @@ export class EpochChecker {
         amountProcessed: BN = BN.from(0),
         delta: number = 0,
     ) {
-        const epoch = await trancheContract.epochRedemptionSummaries(epochId);
+        const epoch = await trancheContract.getEpochRedemptionSummary(epochId);
         checkRedemptionSummary(
             epoch,
             epochId,
@@ -1987,7 +1987,7 @@ export async function checkRedemptionRecordByLender(
     totalAmountWithdrawn: BN = BN.from(0),
     delta: number = 0,
 ) {
-    const redemptionRecord = await trancheVaultContract.lenderRedemptionRecords(lender.address);
+    const redemptionRecord = await trancheVaultContract.getLenderRedemptionRecord(lender.address);
     checkRedemptionRecord(
         redemptionRecord,
         nextEpochIdToProcess,

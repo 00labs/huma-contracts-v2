@@ -11,7 +11,7 @@ contract ReceivableStorage {
     CountersUpgradeable.Counter internal _tokenIdCounter;
 
     // Map token ID to receivable information.
-    mapping(uint256 tokenId => ReceivableInfo info) public receivableInfos;
+    mapping(uint256 tokenId => ReceivableInfo info) internal _receivableInfos;
 
     // The original owner of the receivable often has an internal reference id. Map it to token ID.
     mapping(bytes32 referenceIdHash => uint256 tokenId) public tokenIds;

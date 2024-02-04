@@ -71,14 +71,14 @@ let poolConfigContract: PoolConfig,
 
 let epochChecker: EpochChecker, feeCalculator: FeeCalculator;
 
-type DepositRecordStructOutput = [BN, boolean, BN] & {
+type getDepositRecordtructOutput = [BN, boolean, BN] & {
     principal: BN;
     reinvestYield: boolean;
     lastDepositTime: BN;
 };
 
 function checkDepositRecord(
-    depositRecord: DepositRecordStructOutput,
+    depositRecord: getDepositRecordtructOutput,
     principal: BN = BN.from(0),
     reinvestYield: boolean = false,
     lastDepositTime: BN = BN.from(0),
@@ -295,7 +295,7 @@ describe("TrancheVault Test", function () {
             expect(
                 await juniorTrancheVaultContract.hasRole(role, defaultDeployer.address),
             ).to.equal(true);
-            let depositRecord = await juniorTrancheVaultContract.depositRecords(
+            let depositRecord = await juniorTrancheVaultContract.getDepositRecord(
                 defaultDeployer.address,
             );
             checkDepositRecord(depositRecord);
@@ -345,7 +345,7 @@ describe("TrancheVault Test", function () {
 
             expect(await juniorTrancheVaultContract.hasRole(lenderRole, lender4.address)).to.be
                 .false;
-            const newDepositRecord = await juniorTrancheVaultContract.depositRecords(
+            const newDepositRecord = await juniorTrancheVaultContract.getDepositRecord(
                 lender4.address,
             );
             checkDepositRecord(newDepositRecord, BN.from(0), true);
@@ -366,7 +366,7 @@ describe("TrancheVault Test", function () {
                 .connect(defaultDeployer)
                 .addApprovedLender(treasury.address, false);
 
-            const oldDepositRecord = await juniorTrancheVaultContract.depositRecords(
+            const oldDepositRecord = await juniorTrancheVaultContract.getDepositRecord(
                 defaultDeployer.address,
             );
             checkDepositRecord(oldDepositRecord);
@@ -384,7 +384,7 @@ describe("TrancheVault Test", function () {
                 .withArgs(lenderRole, defaultDeployer.address, defaultDeployer.address);
             expect(await juniorTrancheVaultContract.hasRole(lenderRole, defaultDeployer.address))
                 .to.be.false;
-            const newDepositRecord = await juniorTrancheVaultContract.depositRecords(
+            const newDepositRecord = await juniorTrancheVaultContract.getDepositRecord(
                 defaultDeployer.address,
             );
             checkDepositRecord(newDepositRecord);
@@ -419,7 +419,7 @@ describe("TrancheVault Test", function () {
                 .connect(defaultDeployer)
                 .addApprovedLender(treasury.address, false);
 
-            const oldDepositRecord = await juniorTrancheVaultContract.depositRecords(
+            const oldDepositRecord = await juniorTrancheVaultContract.getDepositRecord(
                 treasury.address,
             );
             checkDepositRecord(oldDepositRecord);
@@ -437,7 +437,7 @@ describe("TrancheVault Test", function () {
                 .withArgs(lenderRole, treasury.address, defaultDeployer.address);
             expect(await juniorTrancheVaultContract.hasRole(lenderRole, treasury.address)).to.be
                 .false;
-            const newDepositRecord = await juniorTrancheVaultContract.depositRecords(
+            const newDepositRecord = await juniorTrancheVaultContract.getDepositRecord(
                 treasury.address,
             );
             checkDepositRecord(newDepositRecord);
@@ -547,7 +547,7 @@ describe("TrancheVault Test", function () {
                 .to.emit(juniorTrancheVaultContract, "ReinvestYieldConfigSet")
                 .withArgs(protocolOwner.address, true, poolOperator.address);
             expect(
-                (await juniorTrancheVaultContract.depositRecords(protocolOwner.address))
+                (await juniorTrancheVaultContract.getDepositRecord(protocolOwner.address))
                     .reinvestYield,
             ).to.equal(true);
             let newNonReinvestingLendersLength =
@@ -580,7 +580,7 @@ describe("TrancheVault Test", function () {
                 .to.emit(juniorTrancheVaultContract, "ReinvestYieldConfigSet")
                 .withArgs(defaultDeployer.address, false, poolOperator.address);
             expect(
-                (await juniorTrancheVaultContract.depositRecords(defaultDeployer.address))
+                (await juniorTrancheVaultContract.getDepositRecord(defaultDeployer.address))
                     .reinvestYield,
             ).to.equal(false);
             let newNonReinvestingLendersLength =
@@ -772,7 +772,7 @@ describe("TrancheVault Test", function () {
             expect(await mockTokenContract.balanceOf(lender.address)).to.equal(
                 lenderBalanceBeforeJuniorDeposit.sub(juniorAmount),
             );
-            let depositRecord = await juniorTrancheVaultContract.depositRecords(lender.address);
+            let depositRecord = await juniorTrancheVaultContract.getDepositRecord(lender.address);
             checkDepositRecord(depositRecord, juniorAmount, true, BN.from(ts));
             let lenderPrincipal = depositRecord.principal;
 
@@ -800,7 +800,7 @@ describe("TrancheVault Test", function () {
             expect(await mockTokenContract.balanceOf(lender.address)).to.equal(
                 lenderBalanceBeforeJuniorDeposit.sub(juniorAmount),
             );
-            depositRecord = await juniorTrancheVaultContract.depositRecords(lender.address);
+            depositRecord = await juniorTrancheVaultContract.getDepositRecord(lender.address);
             checkDepositRecord(
                 depositRecord,
                 lenderPrincipal.add(juniorAmount),
@@ -883,7 +883,7 @@ describe("TrancheVault Test", function () {
                 expect(await juniorTrancheVaultContract.balanceOf(lender3.address)).to.equal(
                     expectedNewJuniorShares,
                 );
-                let depositRecord = await juniorTrancheVaultContract.depositRecords(
+                let depositRecord = await juniorTrancheVaultContract.getDepositRecord(
                     lender3.address,
                 );
                 checkDepositRecord(depositRecord, juniorAmount, true, BN.from(ts));
@@ -909,7 +909,7 @@ describe("TrancheVault Test", function () {
                 expect(await seniorTrancheVaultContract.balanceOf(lender4.address)).to.equal(
                     expectedNewSeniorShares,
                 );
-                depositRecord = await seniorTrancheVaultContract.depositRecords(lender4.address);
+                depositRecord = await seniorTrancheVaultContract.getDepositRecord(lender4.address);
                 checkDepositRecord(depositRecord, seniorAmount, true, BN.from(ts));
             }
 
@@ -1066,7 +1066,7 @@ describe("TrancheVault Test", function () {
                     const currentEpochId = await epochManagerContract.currentEpochId();
                     let balance = await juniorTrancheVaultContract.balanceOf(lender.address);
                     let principal = (
-                        await juniorTrancheVaultContract.depositRecords(lender.address)
+                        await juniorTrancheVaultContract.getDepositRecord(lender.address)
                     ).principal;
                     await expect(
                         juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares),
@@ -1077,7 +1077,7 @@ describe("TrancheVault Test", function () {
                         balance.sub(shares),
                     );
                     expect(
-                        (await juniorTrancheVaultContract.depositRecords(lender.address))
+                        (await juniorTrancheVaultContract.getDepositRecord(lender.address))
                             .principal,
                     ).to.equal(principal.sub(shares));
 
@@ -1099,7 +1099,7 @@ describe("TrancheVault Test", function () {
 
                     // Lender requests redemption again
                     balance = await juniorTrancheVaultContract.balanceOf(lender.address);
-                    principal = (await juniorTrancheVaultContract.depositRecords(lender.address))
+                    principal = (await juniorTrancheVaultContract.getDepositRecord(lender.address))
                         .principal;
                     await expect(
                         juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares),
@@ -1110,7 +1110,7 @@ describe("TrancheVault Test", function () {
                         balance.sub(shares),
                     );
                     expect(
-                        (await juniorTrancheVaultContract.depositRecords(lender.address))
+                        (await juniorTrancheVaultContract.getDepositRecord(lender.address))
                             .principal,
                     ).to.equal(principal.sub(shares));
 
@@ -1135,8 +1135,9 @@ describe("TrancheVault Test", function () {
 
                     // Lender2 requests redemption
                     balance = await juniorTrancheVaultContract.balanceOf(lender2.address);
-                    principal = (await juniorTrancheVaultContract.depositRecords(lender2.address))
-                        .principal;
+                    principal = (
+                        await juniorTrancheVaultContract.getDepositRecord(lender2.address)
+                    ).principal;
                     await expect(
                         juniorTrancheVaultContract.connect(lender2).addRedemptionRequest(shares),
                     )
@@ -1146,7 +1147,7 @@ describe("TrancheVault Test", function () {
                         balance.sub(shares),
                     );
                     expect(
-                        (await juniorTrancheVaultContract.depositRecords(lender2.address))
+                        (await juniorTrancheVaultContract.getDepositRecord(lender2.address))
                             .principal,
                     ).to.equal(principal.sub(shares));
 
@@ -1182,7 +1183,7 @@ describe("TrancheVault Test", function () {
                     let currentEpochId = await epochManagerContract.currentEpochId();
                     let balance = await juniorTrancheVaultContract.balanceOf(lender.address);
                     let principal = (
-                        await juniorTrancheVaultContract.depositRecords(lender.address)
+                        await juniorTrancheVaultContract.getDepositRecord(lender.address)
                     ).principal;
                     await expect(
                         juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares),
@@ -1193,7 +1194,7 @@ describe("TrancheVault Test", function () {
                         balance.sub(shares),
                     );
                     expect(
-                        (await juniorTrancheVaultContract.depositRecords(lender.address))
+                        (await juniorTrancheVaultContract.getDepositRecord(lender.address))
                             .principal,
                     ).to.equal(principal.sub(shares));
 
@@ -1232,7 +1233,7 @@ describe("TrancheVault Test", function () {
 
                     // Lender requests redemption in next epoch
                     balance = await juniorTrancheVaultContract.balanceOf(lender.address);
-                    principal = (await juniorTrancheVaultContract.depositRecords(lender.address))
+                    principal = (await juniorTrancheVaultContract.getDepositRecord(lender.address))
                         .principal;
                     await expect(
                         juniorTrancheVaultContract.connect(lender).addRedemptionRequest(shares),
@@ -1243,7 +1244,7 @@ describe("TrancheVault Test", function () {
                         balance.sub(shares),
                     );
                     expect(
-                        (await juniorTrancheVaultContract.depositRecords(lender.address))
+                        (await juniorTrancheVaultContract.getDepositRecord(lender.address))
                             .principal,
                     ).to.equal(principal.sub(shares));
 
@@ -1267,8 +1268,9 @@ describe("TrancheVault Test", function () {
                     // Lender2 requests redemption
 
                     balance = await juniorTrancheVaultContract.balanceOf(lender2.address);
-                    principal = (await juniorTrancheVaultContract.depositRecords(lender2.address))
-                        .principal;
+                    principal = (
+                        await juniorTrancheVaultContract.getDepositRecord(lender2.address)
+                    ).principal;
                     await expect(
                         juniorTrancheVaultContract.connect(lender2).addRedemptionRequest(shares),
                     )
@@ -1278,7 +1280,7 @@ describe("TrancheVault Test", function () {
                         balance.sub(shares),
                     );
                     expect(
-                        (await juniorTrancheVaultContract.depositRecords(lender2.address))
+                        (await juniorTrancheVaultContract.getDepositRecord(lender2.address))
                             .principal,
                     ).to.equal(principal.sub(shares));
 
@@ -1313,8 +1315,9 @@ describe("TrancheVault Test", function () {
 
                     // Lender2 requests redemption in next epoch
                     balance = await juniorTrancheVaultContract.balanceOf(lender2.address);
-                    principal = (await juniorTrancheVaultContract.depositRecords(lender2.address))
-                        .principal;
+                    principal = (
+                        await juniorTrancheVaultContract.getDepositRecord(lender2.address)
+                    ).principal;
                     await expect(
                         juniorTrancheVaultContract.connect(lender2).addRedemptionRequest(shares),
                     )
@@ -1324,7 +1327,7 @@ describe("TrancheVault Test", function () {
                         balance.sub(shares),
                     );
                     expect(
-                        (await juniorTrancheVaultContract.depositRecords(lender2.address))
+                        (await juniorTrancheVaultContract.getDepositRecord(lender2.address))
                             .principal,
                     ).to.equal(principal.sub(shares));
 
@@ -1360,7 +1363,9 @@ describe("TrancheVault Test", function () {
                     );
                     const sharesRequested = balance.sub(1);
                     let principal = (
-                        await seniorTrancheVaultContract.depositRecords(poolOwnerTreasury.address)
+                        await seniorTrancheVaultContract.getDepositRecord(
+                            poolOwnerTreasury.address,
+                        )
                     ).principal;
                     await expect(
                         seniorTrancheVaultContract
@@ -1374,7 +1379,7 @@ describe("TrancheVault Test", function () {
                     ).to.equal(balance.sub(sharesRequested));
                     expect(
                         (
-                            await seniorTrancheVaultContract.depositRecords(
+                            await seniorTrancheVaultContract.getDepositRecord(
                                 poolOwnerTreasury.address,
                             )
                         ).principal,
@@ -1405,7 +1410,7 @@ describe("TrancheVault Test", function () {
                     );
                     const sharesRequested = balance.sub(1);
                     let principal = (
-                        await seniorTrancheVaultContract.depositRecords(evaluationAgent.address)
+                        await seniorTrancheVaultContract.getDepositRecord(evaluationAgent.address)
                     ).principal;
                     await expect(
                         seniorTrancheVaultContract
@@ -1418,8 +1423,11 @@ describe("TrancheVault Test", function () {
                         await seniorTrancheVaultContract.balanceOf(evaluationAgent.address),
                     ).to.equal(balance.sub(sharesRequested));
                     expect(
-                        (await seniorTrancheVaultContract.depositRecords(evaluationAgent.address))
-                            .principal,
+                        (
+                            await seniorTrancheVaultContract.getDepositRecord(
+                                evaluationAgent.address,
+                            )
+                        ).principal,
                     ).to.equal(principal.sub(sharesRequested));
 
                     await checkRedemptionRecordByLender(
@@ -1497,13 +1505,13 @@ describe("TrancheVault Test", function () {
                     let currentEpochId = await epochManagerContract.currentEpochId();
                     let balance = await juniorTrancheVaultContract.balanceOf(lender.address);
                     let epochBefore =
-                        await juniorTrancheVaultContract.epochRedemptionSummaries(currentEpochId);
+                        await juniorTrancheVaultContract.getEpochRedemptionSummary(currentEpochId);
                     let cancellableRedemptionSharesBefore =
                         await juniorTrancheVaultContract.cancellableRedemptionShares(
                             lender.address,
                         );
                     let principal = (
-                        await juniorTrancheVaultContract.depositRecords(lender.address)
+                        await juniorTrancheVaultContract.getDepositRecord(lender.address)
                     ).principal;
                     await expect(
                         juniorTrancheVaultContract.connect(lender).cancelRedemptionRequest(shares),
@@ -1511,13 +1519,13 @@ describe("TrancheVault Test", function () {
                         .to.emit(juniorTrancheVaultContract, "RedemptionRequestRemoved")
                         .withArgs(lender.address, shares, currentEpochId);
                     let epochAfter =
-                        await juniorTrancheVaultContract.epochRedemptionSummaries(currentEpochId);
+                        await juniorTrancheVaultContract.getEpochRedemptionSummary(currentEpochId);
                     let cancellableRedemptionSharesAfter =
                         await juniorTrancheVaultContract.cancellableRedemptionShares(
                             lender.address,
                         );
                     expect(
-                        (await juniorTrancheVaultContract.depositRecords(lender.address))
+                        (await juniorTrancheVaultContract.getDepositRecord(lender.address))
                             .principal,
                     ).to.equal(principal.add(shares));
                     expect(await juniorTrancheVaultContract.balanceOf(lender.address)).to.equal(
@@ -1554,12 +1562,12 @@ describe("TrancheVault Test", function () {
                     // Lender removes redemption request
                     balance = await juniorTrancheVaultContract.balanceOf(lender.address);
                     epochBefore =
-                        await juniorTrancheVaultContract.epochRedemptionSummaries(currentEpochId);
+                        await juniorTrancheVaultContract.getEpochRedemptionSummary(currentEpochId);
                     cancellableRedemptionSharesBefore =
                         await juniorTrancheVaultContract.cancellableRedemptionShares(
                             lender.address,
                         );
-                    principal = (await juniorTrancheVaultContract.depositRecords(lender.address))
+                    principal = (await juniorTrancheVaultContract.getDepositRecord(lender.address))
                         .principal;
                     await expect(
                         juniorTrancheVaultContract.connect(lender).cancelRedemptionRequest(shares),
@@ -1567,14 +1575,14 @@ describe("TrancheVault Test", function () {
                         .to.emit(juniorTrancheVaultContract, "RedemptionRequestRemoved")
                         .withArgs(lender.address, shares, currentEpochId);
                     epochAfter =
-                        await juniorTrancheVaultContract.epochRedemptionSummaries(currentEpochId);
+                        await juniorTrancheVaultContract.getEpochRedemptionSummary(currentEpochId);
                     cancellableRedemptionSharesAfter =
                         await juniorTrancheVaultContract.cancellableRedemptionShares(
                             lender.address,
                         );
 
                     expect(
-                        (await juniorTrancheVaultContract.depositRecords(lender.address))
+                        (await juniorTrancheVaultContract.getDepositRecord(lender.address))
                             .principal,
                     ).to.equal(principal.add(shares));
                     expect(await juniorTrancheVaultContract.balanceOf(lender.address)).to.equal(
@@ -1620,8 +1628,9 @@ describe("TrancheVault Test", function () {
                         await juniorTrancheVaultContract.cancellableRedemptionShares(
                             lender2.address,
                         );
-                    principal = (await juniorTrancheVaultContract.depositRecords(lender2.address))
-                        .principal;
+                    principal = (
+                        await juniorTrancheVaultContract.getDepositRecord(lender2.address)
+                    ).principal;
                     await expect(
                         juniorTrancheVaultContract
                             .connect(lender2)
@@ -1635,7 +1644,7 @@ describe("TrancheVault Test", function () {
                         );
 
                     expect(
-                        (await juniorTrancheVaultContract.depositRecords(lender2.address))
+                        (await juniorTrancheVaultContract.getDepositRecord(lender2.address))
                             .principal,
                     ).to.equal(principal.add(allShares));
                     expect(await juniorTrancheVaultContract.balanceOf(lender2.address)).to.equal(
@@ -1665,7 +1674,7 @@ describe("TrancheVault Test", function () {
                     let currentEpochId = await epochManagerContract.currentEpochId();
                     let balance = await juniorTrancheVaultContract.balanceOf(lender.address);
                     let allPrincipal = (
-                        await juniorTrancheVaultContract.depositRecords(lender.address)
+                        await juniorTrancheVaultContract.getDepositRecord(lender.address)
                     ).principal;
                     let principal = allPrincipal.mul(shares).div(balance);
                     await expect(
@@ -1677,7 +1686,7 @@ describe("TrancheVault Test", function () {
                         balance.sub(shares),
                     );
                     expect(
-                        (await juniorTrancheVaultContract.depositRecords(lender.address))
+                        (await juniorTrancheVaultContract.getDepositRecord(lender.address))
                             .principal,
                     ).to.equal(allPrincipal.sub(principal));
                     await checkRedemptionRecordByLender(
@@ -1703,7 +1712,7 @@ describe("TrancheVault Test", function () {
                     shares = toToken(13_000);
                     balance = await juniorTrancheVaultContract.balanceOf(lender.address);
                     allPrincipal = (
-                        await juniorTrancheVaultContract.depositRecords(lender.address)
+                        await juniorTrancheVaultContract.getDepositRecord(lender.address)
                     ).principal;
                     principal = allPrincipal.mul(shares).div(balance);
                     await expect(
@@ -1715,7 +1724,7 @@ describe("TrancheVault Test", function () {
                         balance.sub(shares),
                     );
                     expect(
-                        (await juniorTrancheVaultContract.depositRecords(lender.address))
+                        (await juniorTrancheVaultContract.getDepositRecord(lender.address))
                             .principal,
                     ).to.equal(allPrincipal.sub(principal));
                     await checkRedemptionRecordByLender(
@@ -1766,7 +1775,7 @@ describe("TrancheVault Test", function () {
                     principal = principalRequested.mul(shares).div(sharesRequested);
                     balance = await juniorTrancheVaultContract.balanceOf(lender.address);
                     allPrincipal = (
-                        await juniorTrancheVaultContract.depositRecords(lender.address)
+                        await juniorTrancheVaultContract.getDepositRecord(lender.address)
                     ).principal;
                     await expect(
                         juniorTrancheVaultContract.connect(lender).cancelRedemptionRequest(shares),
@@ -1777,7 +1786,7 @@ describe("TrancheVault Test", function () {
                         balance.add(shares),
                     );
                     expect(
-                        (await juniorTrancheVaultContract.depositRecords(lender.address))
+                        (await juniorTrancheVaultContract.getDepositRecord(lender.address))
                             .principal,
                     ).to.equal(allPrincipal.add(principal));
                     await checkRedemptionRecordByLender(
@@ -1807,7 +1816,7 @@ describe("TrancheVault Test", function () {
                     let currentEpochId = await epochManagerContract.currentEpochId();
                     let balance = await juniorTrancheVaultContract.balanceOf(lender.address);
                     let allPrincipal = (
-                        await juniorTrancheVaultContract.depositRecords(lender.address)
+                        await juniorTrancheVaultContract.getDepositRecord(lender.address)
                     ).principal;
                     let principal = allPrincipal.mul(shares).div(balance);
                     await expect(
@@ -1819,7 +1828,7 @@ describe("TrancheVault Test", function () {
                         balance.sub(shares),
                     );
                     expect(
-                        (await juniorTrancheVaultContract.depositRecords(lender.address))
+                        (await juniorTrancheVaultContract.getDepositRecord(lender.address))
                             .principal,
                     ).to.equal(allPrincipal.sub(principal));
                     await checkRedemptionRecordByLender(
@@ -1869,7 +1878,7 @@ describe("TrancheVault Test", function () {
                     currentEpochId = await epochManagerContract.currentEpochId();
                     balance = await juniorTrancheVaultContract.balanceOf(lender.address);
                     allPrincipal = (
-                        await juniorTrancheVaultContract.depositRecords(lender.address)
+                        await juniorTrancheVaultContract.getDepositRecord(lender.address)
                     ).principal;
                     principal = allPrincipal.mul(shares).div(balance);
                     await expect(
@@ -1881,7 +1890,7 @@ describe("TrancheVault Test", function () {
                         balance.sub(shares),
                     );
                     expect(
-                        (await juniorTrancheVaultContract.depositRecords(lender.address))
+                        (await juniorTrancheVaultContract.getDepositRecord(lender.address))
                             .principal,
                     ).to.equal(allPrincipal.sub(principal));
                     await checkRedemptionRecordByLender(
@@ -1911,7 +1920,7 @@ describe("TrancheVault Test", function () {
                     principal = principalRequested.mul(shares).div(sharesRequested);
                     balance = await juniorTrancheVaultContract.balanceOf(lender.address);
                     allPrincipal = (
-                        await juniorTrancheVaultContract.depositRecords(lender.address)
+                        await juniorTrancheVaultContract.getDepositRecord(lender.address)
                     ).principal;
                     await expect(
                         juniorTrancheVaultContract.connect(lender).cancelRedemptionRequest(shares),
@@ -1922,7 +1931,7 @@ describe("TrancheVault Test", function () {
                         balance.add(shares),
                     );
                     expect(
-                        (await juniorTrancheVaultContract.depositRecords(lender.address))
+                        (await juniorTrancheVaultContract.getDepositRecord(lender.address))
                             .principal,
                     ).to.equal(allPrincipal.add(principal));
                     await checkRedemptionRecordByLender(
@@ -1979,7 +1988,7 @@ describe("TrancheVault Test", function () {
                 ).to.equal(shares);
 
                 let balanceBefore = await mockTokenContract.balanceOf(lender.address);
-                let principal = (await seniorTrancheVaultContract.depositRecords(lender.address))
+                let principal = (await seniorTrancheVaultContract.getDepositRecord(lender.address))
                     .principal;
                 await expect(seniorTrancheVaultContract.connect(lender).disburse())
                     .to.emit(seniorTrancheVaultContract, "LenderFundDisbursed")
@@ -1988,7 +1997,7 @@ describe("TrancheVault Test", function () {
                     balanceBefore.add(shares),
                 );
                 expect(
-                    (await seniorTrancheVaultContract.depositRecords(lender.address)).principal,
+                    (await seniorTrancheVaultContract.getDepositRecord(lender.address)).principal,
                 ).to.equal(principal);
                 await checkRedemptionRecordByLender(
                     seniorTrancheVaultContract,
@@ -2001,7 +2010,7 @@ describe("TrancheVault Test", function () {
                 );
 
                 balanceBefore = await mockTokenContract.balanceOf(lender2.address);
-                principal = (await seniorTrancheVaultContract.depositRecords(lender2.address))
+                principal = (await seniorTrancheVaultContract.getDepositRecord(lender2.address))
                     .principal;
                 await expect(seniorTrancheVaultContract.connect(lender2).disburse())
                     .to.emit(seniorTrancheVaultContract, "LenderFundDisbursed")
@@ -2010,7 +2019,7 @@ describe("TrancheVault Test", function () {
                     balanceBefore.add(shares),
                 );
                 expect(
-                    (await seniorTrancheVaultContract.depositRecords(lender2.address)).principal,
+                    (await seniorTrancheVaultContract.getDepositRecord(lender2.address)).principal,
                 ).to.equal(principal);
                 await checkRedemptionRecordByLender(
                     seniorTrancheVaultContract,
@@ -2132,7 +2141,7 @@ describe("TrancheVault Test", function () {
 
                 lastEpoch = await epochManagerContract.currentEpoch();
                 let totalSharesRequested = (
-                    await seniorTrancheVaultContract.epochRedemptionSummaries(lastEpoch.id)
+                    await seniorTrancheVaultContract.getEpochRedemptionSummary(lastEpoch.id)
                 ).totalSharesRequested;
                 ts = lastEpoch.endTime.toNumber() + 60 * 5;
                 await setNextBlockTimestamp(ts);
@@ -2268,7 +2277,7 @@ describe("TrancheVault Test", function () {
                     let shares = toToken(10_000);
                     let allShares = await juniorTrancheVaultContract.balanceOf(lender.address);
                     let allPrincipal = (
-                        await juniorTrancheVaultContract.depositRecords(lender.address)
+                        await juniorTrancheVaultContract.getDepositRecord(lender.address)
                     ).principal;
                     let principal = allPrincipal.mul(shares).div(allShares);
                     let currentEpochId = await epochManagerContract.currentEpochId();
@@ -2336,7 +2345,7 @@ describe("TrancheVault Test", function () {
                     let shares = toToken(10_000);
                     let allShares = await juniorTrancheVaultContract.balanceOf(lender.address);
                     let allPrincipal = (
-                        await juniorTrancheVaultContract.depositRecords(lender.address)
+                        await juniorTrancheVaultContract.getDepositRecord(lender.address)
                     ).principal;
                     let principal = allPrincipal.mul(shares).div(allShares);
                     let currentEpochId = await epochManagerContract.currentEpochId();
@@ -2665,10 +2674,10 @@ describe("TrancheVault Test", function () {
             expect(await mockTokenContract.balanceOf(lender.address)).to.equal(oldLenderAssets);
             expect(await mockTokenContract.balanceOf(lender2.address)).to.equal(oldLender2Assets);
             expect(
-                (await juniorTrancheVaultContract.depositRecords(lender.address)).principal,
+                (await juniorTrancheVaultContract.getDepositRecord(lender.address)).principal,
             ).to.be.closeTo(lenders[0].principal, 1);
             expect(
-                (await juniorTrancheVaultContract.depositRecords(lender2.address)).principal,
+                (await juniorTrancheVaultContract.getDepositRecord(lender2.address)).principal,
             ).to.be.closeTo(lenders[1].principal, 1);
             expect(
                 await poolSafeContract.unprocessedTrancheProfit(
@@ -2727,10 +2736,10 @@ describe("TrancheVault Test", function () {
             expect(await mockTokenContract.balanceOf(lender3.address)).to.equal(lender3Assets);
             expect(await mockTokenContract.balanceOf(lender4.address)).to.equal(lender4Assets);
             expect(
-                (await juniorTrancheVaultContract.depositRecords(lender3.address)).principal,
+                (await juniorTrancheVaultContract.getDepositRecord(lender3.address)).principal,
             ).to.be.closeTo(lenders[2].principal, 1);
             expect(
-                (await juniorTrancheVaultContract.depositRecords(lender4.address)).principal,
+                (await juniorTrancheVaultContract.getDepositRecord(lender4.address)).principal,
             ).to.be.closeTo(lenders[3].principal, 1);
 
             expect(
@@ -2766,18 +2775,18 @@ describe("TrancheVault Test", function () {
             expect(await mockTokenContract.balanceOf(lender2.address)).to.equal(lender2Assets);
             expect(await mockTokenContract.balanceOf(lender3.address)).to.equal(lender3Assets);
             expect(await mockTokenContract.balanceOf(lender4.address)).to.equal(lender4Assets);
-            expect((await juniorTrancheVaultContract.depositRecords(lender.address))[0]).to.equal(
-                lenders[0].principal,
-            );
-            expect((await juniorTrancheVaultContract.depositRecords(lender2.address))[0]).to.equal(
-                lenders[1].principal,
-            );
-            expect((await juniorTrancheVaultContract.depositRecords(lender3.address))[0]).to.equal(
-                lenders[2].principal,
-            );
-            expect((await juniorTrancheVaultContract.depositRecords(lender4.address))[0]).to.equal(
-                lenders[3].principal,
-            );
+            expect(
+                (await juniorTrancheVaultContract.getDepositRecord(lender.address))[0],
+            ).to.equal(lenders[0].principal);
+            expect(
+                (await juniorTrancheVaultContract.getDepositRecord(lender2.address))[0],
+            ).to.equal(lenders[1].principal);
+            expect(
+                (await juniorTrancheVaultContract.getDepositRecord(lender3.address))[0],
+            ).to.equal(lenders[2].principal);
+            expect(
+                (await juniorTrancheVaultContract.getDepositRecord(lender4.address))[0],
+            ).to.equal(lenders[3].principal);
 
             expect(
                 await poolSafeContract.unprocessedTrancheProfit(
