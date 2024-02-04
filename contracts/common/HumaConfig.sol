@@ -31,13 +31,13 @@ contract HumaConfig is Ownable, Pausable {
     address public sentinelServiceAccount;
 
     /// Pausers can pause the pool.
-    mapping(address => bool) public pausers;
+    mapping(address account => bool isPauser) public pausers;
 
     // poolAdmins has the list of approved accounts who can create and operate pools.
-    mapping(address => bool) public poolAdmins;
+    mapping(address account => bool isPoolAdmin) public poolAdmins;
 
     /// List of assets supported by the protocol for investing and borrowing.
-    mapping(address => bool) public validLiquidityAssets;
+    mapping(address asset => bool isValid) public validLiquidityAssets;
 
     /**
      * @notice Contract address for Evaluation Agent NFT changed.

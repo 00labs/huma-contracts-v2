@@ -154,22 +154,22 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
 
     /// @inheritdoc ICredit
     function getCreditRecord(bytes32 creditHash) public view returns (CreditRecord memory) {
-        return _creditRecordMap[creditHash];
+        return _creditRecords[creditHash];
     }
 
     /// @inheritdoc ICredit
     function getDueDetail(bytes32 creditHash) public view returns (DueDetail memory) {
-        return _dueDetailMap[creditHash];
+        return _dueDetails[creditHash];
     }
 
-    /// Shared setter to the credit record mapping for contract size consideration
+    /// Shared setter to the `CreditRecord` mapping for contract size consideration
     function _setCreditRecord(bytes32 creditHash, CreditRecord memory cr) internal {
-        _creditRecordMap[creditHash] = cr;
+        _creditRecords[creditHash] = cr;
     }
 
     /// Shared setter to the DueDetail mapping for contract size consideration
     function _setDueDetail(bytes32 creditHash, DueDetail memory dd) internal {
-        _dueDetailMap[creditHash] = dd;
+        _dueDetails[creditHash] = dd;
     }
 
     /**

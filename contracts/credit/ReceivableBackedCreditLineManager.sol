@@ -40,7 +40,7 @@ contract ReceivableBackedCreditLineManager is
             revert Errors.AuthorizedContractCallerRequired();
 
         if (receivableId == 0) revert Errors.ZeroReceivableIdProvided();
-        address existingBorrowerForReceivable = receivableBorrowerMap[receivableId];
+        address existingBorrowerForReceivable = receivableBorrowers[receivableId];
         if (existingBorrowerForReceivable == borrower) {
             // If a receivable has been previously approved, then early return so that the operation
             // is idempotent. This makes it possible for a manually approved receivable to be used
@@ -66,15 +66,21 @@ contract ReceivableBackedCreditLineManager is
     /// @inheritdoc IReceivableBackedCreditLineManager
     function decreaseCreditLimit(bytes32 creditHash, uint256 amount) external {
         if (msg.sender != address(credit)) revert Errors.AuthorizedContractCallerRequired();
-        uint256 availableCredit = getAvailableCredit(creditHash);
+        uint256 availableCredit = availableCredits[creditHash];
         if (amount > availableCredit) revert Errors.CreditLimitExceeded();
         availableCredit -= amount;
-        _availableCredits[creditHash] = uint96(availableCredit);
+        availableCredits[creditHash] = uint96(availableCredit);
     }
 
     /// @inheritdoc IReceivableBackedCreditLineManager
     function validateReceivableOwnership(address borrower, uint256 receivableId) external view {
-        if (receivableBorrowerMap[receivableId] != borrower) revert Errors.ReceivableIdMismatch();
+        if (receivableBorrowers[receivableId] != borrower) revert Errors.ReceivableIdMismatch();
+    }
+
+    /// @inheritdoc IReceivableBackedCreditLineManager
+    function getAvailableCredit(address borrower) external view returns (uint256 availableCredit) {
+        bytes32 creditHash = getCreditHash(borrower);
+        return availableCredits[creditHash];
     }
 
     /// @inheritdoc IReceivableBackedCreditLineManager
@@ -84,10 +90,6 @@ contract ReceivableBackedCreditLineManager is
             revert Errors.InvalidReceivableState();
     }
 
-    function getAvailableCredit(bytes32 creditHash) public view returns (uint256 availableCredit) {
-        return _availableCredits[creditHash];
-    }
-
     function _approveReceivable(
         address borrower,
         bytes32 creditHash,
@@ -95,7 +97,7 @@ contract ReceivableBackedCreditLineManager is
         uint256 receivableAmount
     ) internal {
         CreditConfig memory cc = getCreditConfig(creditHash);
-        uint256 availableCredit = getAvailableCredit(creditHash);
+        uint256 availableCredit = availableCredits[creditHash];
 
         uint256 incrementalCredit = (cc.advanceRateInBps * receivableAmount) /
             HUNDRED_PERCENT_IN_BPS;
@@ -103,9 +105,9 @@ contract ReceivableBackedCreditLineManager is
         if (availableCredit > cc.creditLimit) {
             revert Errors.CreditLimitExceeded();
         }
-        _availableCredits[creditHash] = uint96(availableCredit);
+        availableCredits[creditHash] = uint96(availableCredit);
 
-        receivableBorrowerMap[receivableId] = borrower;
+        receivableBorrowers[receivableId] = borrower;
 
         emit ReceivableApproved(
             borrower,

@@ -7,10 +7,10 @@ contract ReceivableBackedCreditLineManagerStorage {
     IReceivable public receivableAsset;
 
     /// Mapping from credit hash to the amount of available credit.
-    mapping(bytes32 => uint96) internal _availableCredits;
+    mapping(bytes32 creditHash => uint96 availableCredit) public availableCredits;
 
     /// Map token ID to borrower.
-    mapping(uint256 => address) public receivableBorrowerMap;
+    mapping(uint256 tokenId => address borrower) public receivableBorrowers;
 
     /**
      * @dev This empty reserved space is put in place to allow future versions to add new

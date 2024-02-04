@@ -167,7 +167,7 @@ contract ReceivableFactoringCreditManager is
     /// @inheritdoc IReceivableFactoringCreditManager
     function onlyPayer(address account, bytes32 creditHash) external view returns (address) {
         if (!hasRole(PAYER_ROLE, account)) revert Errors.PayerRequired();
-        return _creditBorrowerMap[creditHash];
+        return creditBorrowers[creditHash];
     }
 
     function getCreditHash(uint256 receivableId) public view virtual returns (bytes32 creditHash) {

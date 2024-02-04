@@ -239,7 +239,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
                         .approveReceivable(borrower.getAddress(), receivableId),
                 ).not.to.emit(creditManagerContract, "ReceivableApproved");
                 const actualAvailableCredit =
-                    await creditManagerContract.getAvailableCredit(creditHash);
+                    await creditManagerContract.availableCredits(creditHash);
                 expect(actualAvailableCredit).to.equal(incrementalCredit);
 
                 // Second approval should add onto the available credit.
@@ -273,7 +273,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
                         expectedAvailableCredit,
                     );
                 const newActualAvailableCredit =
-                    await creditManagerContract.getAvailableCredit(creditHash);
+                    await creditManagerContract.availableCredits(creditHash);
                 expect(newActualAvailableCredit).to.equal(expectedAvailableCredit);
 
                 // We should not allow the available credit to exceed the credit limit.
@@ -295,7 +295,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
                         .approveReceivable(borrower.getAddress(), receivableId3),
                 ).to.be.revertedWithCustomError(creditManagerContract, "CreditLimitExceeded");
                 // There should be no change to the available credit.
-                expect(await creditManagerContract.getAvailableCredit(creditHash)).to.equal(
+                expect(await creditManagerContract.availableCredits(creditHash)).to.equal(
                     expectedAvailableCredit,
                 );
 
@@ -547,7 +547,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
             await creditManagerContract
                 .connect(eaServiceAccount)
                 .approveReceivable(borrower.getAddress(), receivableId);
-            const availableCredit = await creditManagerContract.getAvailableCredit(creditHash);
+            const availableCredit = await creditManagerContract.availableCredits(creditHash);
             expect(availableCredit).to.equal(receivableAmount);
 
             await poolConfigContract.connect(poolOwner).setCredit(defaultDeployer.getAddress());
@@ -560,7 +560,7 @@ describe("ReceivableBackedCreditLineManager Tests", function () {
 
         it("Should allow the credit contract to decrease the credit limit", async function () {
             await creditManagerContract.decreaseCreditLimit(creditHash, receivableAmount);
-            const availableCredit = await creditManagerContract.getAvailableCredit(creditHash);
+            const availableCredit = await creditManagerContract.availableCredits(creditHash);
             expect(availableCredit).to.equal(0);
         });
 

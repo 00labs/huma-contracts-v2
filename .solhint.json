@@ -5,6 +5,7 @@
     "compiler-version": ["error", "^0.8.0"],
     "func-param-name-mixedcase": "error",
     "func-visibility": ["error", { "ignoreConstructors": true }],
+    "named-parameters-mapping": "error",
     "no-console": "warn",
     "no-empty-blocks": "off",
     "not-rely-on-time": "off",

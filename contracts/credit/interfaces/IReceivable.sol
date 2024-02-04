@@ -50,7 +50,7 @@ interface IReceivable {
 
     /**
      * @notice Returns the reference ID hash, which is a key
-     * for lookup in the referenceIdHashToTokenId mapping. Helpful for minters
+     * for lookup in the `tokenIds` mapping. Helpful for minters
      * who want to obtain the token id given their internal unique reference ID.
      * @param referenceId The ID that the receivable creator assigned to identify the receivable token
      * on their side.

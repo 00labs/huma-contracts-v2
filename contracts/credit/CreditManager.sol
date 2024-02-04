@@ -115,7 +115,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
 
     /// @inheritdoc ICreditManager
     function getCreditBorrower(bytes32 creditHash) external view returns (address) {
-        return _creditBorrowerMap[creditHash];
+        return creditBorrowers[creditHash];
     }
 
     /**
@@ -133,12 +133,12 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
 
     /// @inheritdoc ICreditManager
     function getCreditConfig(bytes32 creditHash) public view returns (CreditConfig memory) {
-        return _creditConfigMap[creditHash];
+        return _creditConfigs[creditHash];
     }
 
     /// @inheritdoc ICreditManager
     function onlyCreditBorrower(bytes32 creditHash, address borrower) public view {
-        if (borrower != _creditBorrowerMap[creditHash]) revert Errors.BorrowerRequired();
+        if (borrower != creditBorrowers[creditHash]) revert Errors.BorrowerRequired();
     }
 
     /**
@@ -236,7 +236,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         cr.state = CreditState.Approved;
         credit.setCreditRecord(creditHash, cr);
 
-        _creditBorrowerMap[creditHash] = borrower;
+        creditBorrowers[creditHash] = borrower;
     }
 
     /**
@@ -545,7 +545,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
 
     /// Shared setter to the credit config mapping
     function _setCreditConfig(bytes32 creditHash, CreditConfig memory cc) internal {
-        _creditConfigMap[creditHash] = cc;
+        _creditConfigs[creditHash] = cc;
     }
 
     function _isDefaultReady(

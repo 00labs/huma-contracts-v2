@@ -78,7 +78,7 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
     address public receivableImpl;
 
     // poolId => PoolRecord
-    mapping(uint256 => PoolRecord) private _pools;
+    mapping(uint256 poolId => PoolRecord record) private _pools;
 
     /**
      * @dev This empty reserved space is put in place to allow future versions to add new

@@ -28,6 +28,13 @@ interface IReceivableBackedCreditLineManager {
     function validateReceivableOwnership(address borrower, uint256 receivableId) external view;
 
     /**
+     * @notice Returns the amount of available credits approved for the borrower.
+     * @param borrower The address of the borrower.
+     * @return availableCredit The amount of available credits approved for the borrower.
+     */
+    function getAvailableCredit(address borrower) external view returns (uint256 availableCredit);
+
+    /**
      * @notice Validates the receivable status, including its state and maturity date.
      * @param maturityDate The date on which the receivable becomes due.
      * @param state The state of the receivable.

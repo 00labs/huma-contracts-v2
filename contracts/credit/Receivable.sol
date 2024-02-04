@@ -104,7 +104,7 @@ contract Receivable is
      */
     function declarePayment(uint256 tokenId, uint96 paymentAmount) external {
         if (paymentAmount == 0) revert Errors.ZeroAmountProvided();
-        ReceivableInfo memory receivableInfo = receivableInfoMap[tokenId];
+        ReceivableInfo memory receivableInfo = receivableInfos[tokenId];
         if (msg.sender != ownerOf(tokenId) && msg.sender != receivableInfo.creator)
             revert Errors.ReceivableOwnerOrCreatorRequired();
 
@@ -116,7 +116,7 @@ contract Receivable is
             assert(receivableInfo.paidAmount > 0);
             receivableInfo.state = ReceivableState.PartiallyPaid;
         }
-        receivableInfoMap[tokenId] = receivableInfo;
+        receivableInfos[tokenId] = receivableInfo;
 
         emit PaymentDeclared(msg.sender, tokenId, receivableInfo.currencyCode, paymentAmount);
     }
@@ -131,7 +131,7 @@ contract Receivable is
      * off-chain receivable, we will limit the changes to the NFT that the creator can do.
      */
     function updateReceivableMetadata(uint256 tokenId, string memory uri) external {
-        ReceivableInfo memory receivableInfo = receivableInfoMap[tokenId];
+        ReceivableInfo memory receivableInfo = receivableInfos[tokenId];
 
         if (msg.sender != ownerOf(tokenId) && msg.sender != receivableInfo.creator)
             revert Errors.ReceivableOwnerOrCreatorRequired();
@@ -146,7 +146,7 @@ contract Receivable is
     function getReceivable(
         uint256 tokenId
     ) external view returns (ReceivableInfo memory receivable) {
-        return receivableInfoMap[tokenId];
+        return receivableInfos[tokenId];
     }
 
     /// @inheritdoc IReceivable
@@ -161,15 +161,15 @@ contract Receivable is
 
         if (bytes(referenceId).length > 0) {
             bytes32 referenceIdCreatorHash = getReferenceIdHash(referenceId, msg.sender);
-            uint256 existingTokenId = referenceIdHashToTokenId[referenceIdCreatorHash];
+            uint256 existingTokenId = tokenIds[referenceIdCreatorHash];
             if (_exists(existingTokenId)) revert Errors.ReceivableReferenceIdAlreadyExists();
 
-            referenceIdHashToTokenId[referenceIdCreatorHash] = tokenId;
+            tokenIds[referenceIdCreatorHash] = tokenId;
         }
 
         _safeMint(msg.sender, tokenId);
 
-        receivableInfoMap[tokenId] = ReceivableInfo(
+        receivableInfos[tokenId] = ReceivableInfo(
             receivableAmount,
             uint64(block.timestamp),
             0, // paidAmount
@@ -188,7 +188,7 @@ contract Receivable is
 
     /// @inheritdoc IReceivable
     function getStatus(uint256 tokenId) public view returns (ReceivableState) {
-        return receivableInfoMap[tokenId].state;
+        return receivableInfos[tokenId].state;
     }
 
     /// @inheritdoc IReceivable

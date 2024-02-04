@@ -17,10 +17,10 @@ contract CreditStorage {
     IFirstLossCover public firstLossCover;
     ICreditManager public creditManager;
 
-    /// Mapping from credit ID to the CreditRecord.
-    mapping(bytes32 => CreditRecord) internal _creditRecordMap;
-    /// Mapping from credit ID to the DueDetail.
-    mapping(bytes32 => DueDetail) internal _dueDetailMap;
+    /// Mapping from credit hash to the CreditRecord.
+    mapping(bytes32 creditHash => CreditRecord cr) internal _creditRecords;
+    /// Mapping from credit hash to the DueDetail.
+    mapping(bytes32 creditHash => DueDetail dd) internal _dueDetails;
 
     /**
      * @dev This empty reserved space is put in place to allow future versions to add new

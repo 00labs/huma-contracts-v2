@@ -40,14 +40,14 @@ contract TrancheVaultStorage {
     IPoolSafe public poolSafe;
     IEpochManager public epochManager;
 
-    /// Maps from epochId to the redemption summary for that epoch
-    mapping(uint256 => EpochRedemptionSummary) public epochRedemptionSummaries;
+    /// Maps from epoch ID to the redemption summary for that epoch
+    mapping(uint256 epochId => EpochRedemptionSummary summary) public epochRedemptionSummaries;
 
     /// Maps from an account address to the redemption record for that lender
-    mapping(address => LenderRedemptionRecord) public lenderRedemptionRecords;
+    mapping(address lender => LenderRedemptionRecord record) public lenderRedemptionRecords;
 
     /// This mapping contains the amount of underlying tokens deposited by lenders
-    mapping(address => DepositRecord) public depositRecords;
+    mapping(address lender => DepositRecord record) public depositRecords;
 
     /**
      * The list of lenders who wish to receive yield in each period instead of reinvesting them back

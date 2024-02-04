@@ -25,7 +25,7 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
      * Maps tranche addresses to unprocessed profits.
      * The key is junior/senior tranche address, the value is the unprocessed profit.
      */
-    mapping(address => uint256) public unprocessedTrancheProfit;
+    mapping(address tranche => uint256 profit) public unprocessedTrancheProfit;
 
     /**
      * @inheritdoc IPoolSafe

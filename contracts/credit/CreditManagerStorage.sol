@@ -13,11 +13,11 @@ contract CreditManagerStorage {
     ICalendar public calendar;
     ICreditDueManager public dueManager;
 
-    /// Mapping from credit id to the credit config.
-    mapping(bytes32 => CreditConfig) internal _creditConfigMap;
+    /// Mapping from credit hash to the `CreditConfig`.
+    mapping(bytes32 creditHash => CreditConfig config) internal _creditConfigs;
 
     /// Mapping from credit hash to the borrower.
-    mapping(bytes32 => address) internal _creditBorrowerMap;
+    mapping(bytes32 creditHash => address borrower) public creditBorrowers;
 
     /**
      * @dev This empty reserved space is put in place to allow future versions to add new

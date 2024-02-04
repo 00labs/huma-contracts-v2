@@ -126,7 +126,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
 
     /// The maximum number of first loss covers we allow is 16, which should be sufficient for now.
     address[16] internal _firstLossCovers;
-    mapping(address => FirstLossCoverConfig) internal _firstLossCoverConfigs;
+    mapping(address cover => FirstLossCoverConfig config) internal _firstLossCoverConfigs;
 
     PoolSettings internal _poolSettings;
     LPConfig internal _lpConfig;
