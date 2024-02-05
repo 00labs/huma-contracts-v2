@@ -14,15 +14,13 @@ import {Errors} from "../common/Errors.sol";
 contract CreditLine is Credit, ICreditLine {
     /// @inheritdoc ICreditLine
     function drawdown(
-        address borrower,
         uint256 borrowAmount
     ) external virtual override returns (uint256 netAmountToBorrower) {
         poolConfig.onlyProtocolAndPoolOn();
-        if (borrower != msg.sender) revert Errors.BorrowerRequired();
 
-        bytes32 creditHash = getCreditHash(borrower);
-        creditManager.onlyCreditBorrower(creditHash, borrower);
-        return _drawdown(borrower, creditHash, borrowAmount);
+        bytes32 creditHash = getCreditHash(msg.sender);
+        creditManager.onlyCreditBorrower(creditHash, msg.sender);
+        return _drawdown(msg.sender, creditHash, borrowAmount);
     }
 
     /// @inheritdoc ICreditLine
@@ -42,16 +40,14 @@ contract CreditLine is Credit, ICreditLine {
 
     /// @inheritdoc ICreditLine
     function makePrincipalPayment(
-        address borrower,
         uint256 amount
     ) external virtual override returns (uint256 amountPaid, bool paidoff) {
         poolConfig.onlyProtocolAndPoolOn();
-        if (msg.sender != borrower) _onlySentinelServiceAccount();
 
-        bytes32 creditHash = getCreditHash(borrower);
-        creditManager.onlyCreditBorrower(creditHash, borrower);
+        bytes32 creditHash = getCreditHash(msg.sender);
+        creditManager.onlyCreditBorrower(creditHash, msg.sender);
 
-        (amountPaid, paidoff) = _makePrincipalPayment(borrower, creditHash, amount);
+        (amountPaid, paidoff) = _makePrincipalPayment(msg.sender, creditHash, amount);
         return (amountPaid, paidoff);
     }
 

@@ -6,15 +6,11 @@ import {CreditRecord, DueDetail} from "../CreditStructs.sol";
 interface ICreditLine {
     /**
      * @notice Allows the borrower to borrow against an approved credit line.
-     * @param borrower Address of the borrower.
      * @param borrowAmount The amount to borrow.
      * @return netAmountToBorrower The net amount disbursed to the borrower.
      * @custom:access Only the owner of the credit line can drawdown.
      */
-    function drawdown(
-        address borrower,
-        uint256 borrowAmount
-    ) external returns (uint256 netAmountToBorrower);
+    function drawdown(uint256 borrowAmount) external returns (uint256 netAmountToBorrower);
 
     /**
      * @notice Makes one payment for the credit line. This can be initiated by the borrower
@@ -36,11 +32,10 @@ interface ICreditLine {
 
     /**
      * @notice Makes a payment towards the principal for the credit line. Even if there is additional amount remaining
-     * after the principal is paid off, this funtion will only accept the amount up to the total principal due.
+     * after the principal is paid off, this function will only accept the amount up to the total principal due.
      * If this is the final payment, it automatically triggers the payoff process.
      * @notice Warning: payments should be made by calling this function. No token should be transferred directly
      * to the contract.
-     * @param borrower The address of the borrower.
      * @param amount The payment amount.
      * @return amountPaid the actual amount paid to the contract. When the tendered
      * amount is larger than the payoff amount, the contract only accepts the payoff amount.
@@ -48,7 +43,6 @@ interface ICreditLine {
      * @custom:access Only the borrower and the Sentinel Service can call this function.
      */
     function makePrincipalPayment(
-        address borrower,
         uint256 amount
     ) external returns (uint256 amountPaid, bool paidoff);
 

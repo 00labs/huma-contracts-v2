@@ -481,9 +481,7 @@ describe("CreditLine Integration Test", function () {
 
         const oldBorrowerBalance = await mockTokenContract.balanceOf(borrower.address);
         const oldPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
-        await expect(
-            creditContract.connect(borrower).drawdown(borrower.getAddress(), borrowAmount),
-        )
+        await expect(creditContract.connect(borrower).drawdown(borrowAmount))
             .to.emit(creditContract, "DrawdownMade")
             .withArgs(await borrower.getAddress(), borrowAmount, netBorrowAmount)
             .to.emit(creditContract, "BillRefreshed")
@@ -562,9 +560,7 @@ describe("CreditLine Integration Test", function () {
 
         const oldBorrowerBalance = await mockTokenContract.balanceOf(borrower.address);
         const oldPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
-        await expect(
-            creditContract.connect(borrower).drawdown(borrower.getAddress(), borrowAmount),
-        )
+        await expect(creditContract.connect(borrower).drawdown(borrowAmount))
             .to.emit(creditContract, "DrawdownMade")
             .withArgs(await borrower.getAddress(), borrowAmount, netBorrowAmount)
             .to.emit(creditContract, "BillRefreshed")
@@ -1912,7 +1908,7 @@ describe("CreditLine Integration Test", function () {
         });
         await setNextBlockTimestamp(dateOfDrawdown.unix());
         await expect(
-            creditContract.connect(borrower).drawdown(borrower.getAddress(), toToken(10_000)),
+            creditContract.connect(borrower).drawdown(toToken(10_000)),
         ).to.be.revertedWithCustomError(creditContract, "CreditNotInStateForDrawdown");
 
         const dateOfPayment = moment.utc({
@@ -2030,9 +2026,7 @@ describe("CreditLine Integration Test", function () {
 
         const oldBorrowerBalance = await mockTokenContract.balanceOf(borrower.address);
         const oldPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
-        await expect(
-            creditContract.connect(borrower).drawdown(borrower.getAddress(), borrowAmount),
-        )
+        await expect(creditContract.connect(borrower).drawdown(borrowAmount))
             .to.emit(creditContract, "DrawdownMade")
             .withArgs(await borrower.getAddress(), borrowAmount, netBorrowAmount)
             .to.emit(creditContract, "BillRefreshed")
@@ -2323,9 +2317,7 @@ describe("CreditLine Integration Test", function () {
 
         const oldBorrowerBalance = await mockTokenContract.balanceOf(borrower.address);
         const oldPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
-        await expect(
-            creditContract.connect(borrower).drawdown(borrower.getAddress(), borrowAmount),
-        )
+        await expect(creditContract.connect(borrower).drawdown(borrowAmount))
             .to.emit(creditContract, "DrawdownMade")
             .withArgs(await borrower.getAddress(), borrowAmount, netBorrowAmount)
             .to.emit(creditContract, "BillRefreshed")
@@ -2389,11 +2381,7 @@ describe("CreditLine Integration Test", function () {
 
         const oldBorrowerBalance = await mockTokenContract.balanceOf(borrower.address);
         const oldPoolSafeBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
-        await expect(
-            creditContract
-                .connect(borrower)
-                .makePrincipalPayment(borrower.getAddress(), paymentAmount),
-        )
+        await expect(creditContract.connect(borrower).makePrincipalPayment(paymentAmount))
             .to.emit(creditContract, "PrincipalPaymentMade")
             .withArgs(
                 await borrower.getAddress(),
@@ -2744,7 +2732,7 @@ describe("CreditLine Integration Test", function () {
 
         // Any further drawdown attempt should be blocked since the bill has gone past maturity.
         await expect(
-            creditContract.connect(borrower).drawdown(borrower.getAddress(), toToken(1)),
+            creditContract.connect(borrower).drawdown(toToken(1)),
         ).to.be.revertedWithCustomError(
             creditContract,
             "DrawdownNotAllowedInFinalPeriodAndBeyond",
