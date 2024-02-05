@@ -127,6 +127,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
             "ReceivableBackedCreditLine",
             "ReceivableBackedCreditLineManager",
             evaluationAgent,
+            treasury,
             poolOwnerTreasury,
             poolOperator,
             [lender, borrower],
@@ -142,9 +143,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
             .connect(borrower)
             .approve(borrowerFirstLossCoverContract.address, ethers.constants.MaxUint256);
 
-        await juniorTrancheVaultContract
-            .connect(lender)
-            .deposit(toToken(10_000_000), lender.address);
+        await juniorTrancheVaultContract.connect(lender).deposit(toToken(10_000_000));
     }
 
     describe("Arf case tests", function () {
@@ -173,6 +172,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
             await poolConfigContract.connect(poolOwner).setPoolSettings({
                 ...settings,
                 ...{
+                    maxCreditLine: creditLimit.mul(100),
                     payPeriodDuration: PayPeriodDuration.Monthly,
                     latePaymentGracePeriodInDays: latePaymentGracePeriodInDays,
                     advanceRateInBps: CONSTANTS.BP_FACTOR,

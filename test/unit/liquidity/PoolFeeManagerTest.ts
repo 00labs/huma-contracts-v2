@@ -110,6 +110,7 @@ describe("PoolFeeManager Tests", function () {
             "MockPoolCredit",
             "MockPoolCredit",
             evaluationAgent,
+            protocolTreasury,
             poolOwnerTreasury,
             poolOperator,
             [lender],
