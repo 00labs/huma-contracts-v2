@@ -247,6 +247,21 @@ contract Receivable is
     function _burn(
         uint256 tokenId
     ) internal override(ERC721Upgradeable, ERC721URIStorageUpgradeable) {
+        // Note that we do not decrease `availableCredit` approved for a borrower in `ReceivableBackedCreditLine`
+        // when a receivable is burned due to the following considerations:
+        // 1. The creation of a receivable does not automatically lead to its use in approval and drawdown processes.
+        //    In instances where a receivable remains unused for these purposes, the `availableCredit`
+        //    remains unaffected.
+        // 2. In the scenario where a receivable, is approved but subsequently burned by the borrower,
+        //    it's true that a technical adjustment to `availableCredit` might be warranted. However, this situation
+        //    is mitigated by the fact that the borrower must resort to a new receivable for any future borrowing.
+        //    Since the borrowing limit is constrained by the value of the new receivable, any credits
+        //    previously approved under the burned receivable become redundant and non-beneficial,
+        //    thus disincentivizing the borrower from such actions.
+        // 3. Implementing the update feature introduces non-trivial complexity. The current design features
+        //    a unidirectional relationship where the `Credit` contract is aware of the `Receivable` contract.
+        //    To accommodate the update to `availableCredit`, a bidirectional relationship between these two
+        //    contracts would be necessary. Given the intricacies involved, the ROI for this change seems minimal.
         super._burn(tokenId);
     }
 }
