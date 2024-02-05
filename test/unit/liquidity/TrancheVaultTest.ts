@@ -191,7 +191,13 @@ describe("TrancheVault Test", function () {
 
         it("Should return 0 if the total assets is 0", async function () {
             const juniorTotalAssets = await juniorTrancheVaultContract.totalAssets();
-            await mockDistributePnL(BN.from(0), juniorTotalAssets, BN.from(0));
+            await mockDistributePnL(
+                creditContract,
+                creditManagerContract,
+                BN.from(0),
+                juniorTotalAssets,
+                BN.from(0),
+            );
             expect(await juniorTrancheVaultContract.convertToShares(assets)).to.equal(0);
         });
 
@@ -707,7 +713,13 @@ describe("TrancheVault Test", function () {
         it("Should not allow deposits that would result in zero shares being minted", async function () {
             // Mark all junior assets as loss so that the # of shares minted is 0.
             const juniorAssets = await juniorTrancheVaultContract.totalAssets();
-            await mockDistributePnL(BN.from(0), juniorAssets, BN.from(0));
+            await mockDistributePnL(
+                creditContract,
+                creditManagerContract,
+                BN.from(0),
+                juniorAssets,
+                BN.from(0),
+            );
             const poolSettings = await poolConfigContract.getPoolSettings();
 
             await expect(
