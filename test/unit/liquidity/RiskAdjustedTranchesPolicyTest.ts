@@ -104,6 +104,7 @@ describe("RiskAdjustedTranchesPolicy Test", function () {
             "MockPoolCredit",
             "CreditLineManager",
             evaluationAgent,
+            treasury,
             poolOwnerTreasury,
             poolOperator,
             [lender],

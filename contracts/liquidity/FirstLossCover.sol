@@ -145,7 +145,7 @@ contract FirstLossCover is
     /// @inheritdoc IFirstLossCover
     function depositCoverFor(uint256 assets, address receiver) external returns (uint256 shares) {
         if (assets == 0) revert Errors.ZeroAmountProvided();
-        if (receiver == address(0)) revert Errors.ZeroAddressProvided();
+        _onlyCoverProvider(receiver);
         _onlyPoolFeeManager(msg.sender);
 
         // Note: we have to mint the shares first by calling _deposit() before transferring the assets.

@@ -144,6 +144,7 @@ describe("CreditLine Test", function () {
             "CreditLine",
             "CreditLineManager",
             evaluationAgent,
+            treasury,
             poolOwnerTreasury,
             poolOperator,
             [lender, borrower, borrower2],

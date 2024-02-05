@@ -123,6 +123,7 @@ describe("ReceivableFactoringCredit Tests", function () {
             "ReceivableFactoringCredit",
             "ReceivableFactoringCreditManager",
             evaluationAgent,
+            treasury,
             poolOwnerTreasury,
             poolOperator,
             [lender, borrower, payer],

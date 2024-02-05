@@ -127,6 +127,7 @@ describe("ReceivableBackedCreditLine Integration Test", function () {
             "ReceivableBackedCreditLine",
             "ReceivableBackedCreditLineManager",
             evaluationAgent,
+            treasury,
             poolOwnerTreasury,
             poolOperator,
             [lender, borrower],
