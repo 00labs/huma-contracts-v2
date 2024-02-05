@@ -228,7 +228,7 @@ async function deployPool(
         // Drawing down credit line
         await (creditContract as CreditLine)
             .connect(borrowerActive)
-            .drawdown(borrowerActive.address, borrowAmount);
+            .drawdown(borrowAmount);
     } else if (poolName === LocalPoolName.ReceivableBackedCreditLine) {
         const latePaymentGracePeriodInDays = 5;
         const yieldInBps = 1200;
@@ -276,7 +276,7 @@ async function deployPool(
             .approve(creditContract.address, receivableId);
         await (creditContract as ReceivableBackedCreditLine)
             .connect(borrowerActive)
-            .drawdownWithReceivable(borrowerActive.address, receivableId, borrowAmount);
+            .drawdownWithReceivable(receivableId, borrowAmount);
     }
 
     console.log("=====================================");
