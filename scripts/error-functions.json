@@ -9,7 +9,7 @@
   "AdminRequired()": "0x92d14c9e",
   "PoolOperatorRequired()": "0xae7fe070",
   "PoolOwnerRequired()": "0x8b506451",
-  "ProtocolOwnerRequired()": "0xd99ba4d3",
+  "HumaTreasuryRequired()": "0x6e0a9ac9",
   "PoolOwnerOrEARequired()": "0xe54466f3",
   "PauserRequired()": "0xd4a99e4e",
   "NFTOwnerRequired()": "0x85179c58",

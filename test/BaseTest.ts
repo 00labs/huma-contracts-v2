@@ -629,6 +629,7 @@ export async function setupPoolContracts(
     receivableContract: Receivable,
     poolOwner: SignerWithAddress,
     evaluationAgent: SignerWithAddress,
+    humaTreasury: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
     poolOperator: SignerWithAddress,
     accounts: SignerWithAddress[],
@@ -718,6 +719,9 @@ export async function setupPoolContracts(
         .approve(adminFirstLossCoverContract.address, ethers.constants.MaxUint256);
     await adminFirstLossCoverContract
         .connect(poolOwner)
+        .addCoverProvider(humaTreasury.getAddress());
+    await adminFirstLossCoverContract
+        .connect(poolOwner)
         .addCoverProvider(poolOwnerTreasury.getAddress());
     await adminFirstLossCoverContract
         .connect(poolOwner)
@@ -768,6 +772,7 @@ export async function deployAndSetupPoolContracts(
     creditContractName: CreditContractName,
     creditManagerContractName: CreditManagerContractName,
     evaluationAgent: SignerWithAddress,
+    humaTreasury: SignerWithAddress,
     poolOwnerTreasury: SignerWithAddress,
     poolOperator: SignerWithAddress,
     accounts: SignerWithAddress[],
@@ -813,6 +818,7 @@ export async function deployAndSetupPoolContracts(
         receivableContract,
         poolOwner,
         evaluationAgent,
+        humaTreasury,
         poolOwnerTreasury,
         poolOperator,
         accounts,

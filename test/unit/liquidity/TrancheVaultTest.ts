@@ -150,6 +150,7 @@ describe("TrancheVault Test", function () {
             "MockPoolCredit",
             "CreditLineManager",
             evaluationAgent,
+            treasury,
             poolOwnerTreasury,
             poolOperator,
             [lender, lender2, lender3, lender4],

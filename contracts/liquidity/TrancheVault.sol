@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {Errors} from "../common/Errors.sol";
 import {PoolConfig, PoolSettings} from "../common/PoolConfig.sol";
@@ -436,13 +436,10 @@ contract TrancheVault is
     }
 
     /// @inheritdoc IRedemptionHandler
-    function currentRedemptionSummary()
-        external
-        view
-        override
-        returns (EpochRedemptionSummary memory redemptionSummary)
-    {
-        redemptionSummary = _getEpochRedemptionSummary(epochManager.currentEpochId());
+    function epochRedemptionSummary(
+        uint256 epochId
+    ) external view override returns (EpochRedemptionSummary memory redemptionSummary) {
+        redemptionSummary = _getEpochRedemptionSummary(epochId);
     }
 
     /**
