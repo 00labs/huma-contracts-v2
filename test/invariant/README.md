@@ -53,7 +53,7 @@ Verbosity levels:
 - 4: Print execution traces for all tests, and setup traces for failing tests
 - 5: Print execution and setup traces for all tests
 
-Change `run` and `depth` configuration properties
+Change `run` and `depth` configuration properties of `invariant` section in foundry.toml
 
 - runs
   Type: integer
