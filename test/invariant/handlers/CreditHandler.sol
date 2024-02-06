@@ -12,6 +12,7 @@ abstract contract CreditHandler is BaseHandler {
 
     address[] borrowers;
     address[] borrowedBorrowers;
+    mapping(address => bool) borrowerBorrowed;
 
     constructor(address[] memory _borrowers) BaseHandler() {
         creditDueManager = CreditDueManager(poolConfig.creditDueManager());

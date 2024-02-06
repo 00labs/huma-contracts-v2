@@ -63,7 +63,10 @@ contract CreditLineHandler is CreditHandler {
         vm.startPrank(borrower);
         creditLine.drawdown(borrower, drawdownAmount);
         vm.stopPrank();
-        borrowedBorrowers.push(borrower);
+        if (!borrowerBorrowed[borrower]) {
+            borrowedBorrowers.push(borrower);
+            borrowerBorrowed[borrower] = true;
+        }
         baseInvariants.setHasProfit(true);
     }
 
@@ -92,6 +95,7 @@ contract CreditLineHandler is CreditHandler {
         vm.stopPrank();
         if (paymentAmount >= maxPaymentAmount) {
             _removeItem(borrowedBorrowers, borrowerIndex);
+            borrowerBorrowed[borrower] = false;
         }
         baseInvariants.setHasProfit(true);
     }

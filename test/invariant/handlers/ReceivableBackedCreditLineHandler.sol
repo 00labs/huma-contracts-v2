@@ -89,7 +89,10 @@ contract ReceivableBackedCreditLineHandler is CreditHandler {
         );
         rbCreditLine.drawdownWithReceivable(borrower, receivableId, drawdownAmount);
         vm.stopPrank();
-        borrowedBorrowers.push(borrower);
+        if (!borrowerBorrowed[borrower]) {
+            borrowedBorrowers.push(borrower);
+            borrowerBorrowed[borrower] = true;
+        }
         borrowerReceivables[borrower].push(receivableId);
         baseInvariants.setHasProfit(true);
     }
@@ -165,6 +168,7 @@ contract ReceivableBackedCreditLineHandler is CreditHandler {
         vm.stopPrank();
         if (paidoff) {
             _removeItem(borrowedBorrowers, borrowerIndex);
+            borrowerBorrowed[borrower] = false;
         }
         baseInvariants.setHasProfit(true);
     }
@@ -249,7 +253,9 @@ contract ReceivableBackedCreditLineHandler is CreditHandler {
         vm.stopPrank();
         if (paidoff) {
             _removeItem(borrowedBorrowers, borrowerIndex);
+            borrowerBorrowed[borrower] = false;
         }
+        borrowerReceivables[borrower].push(drawdownReceivableId);
         baseInvariants.setHasProfit(true);
     }
 

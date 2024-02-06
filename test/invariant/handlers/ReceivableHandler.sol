@@ -2,9 +2,8 @@
 pragma solidity 0.8.23;
 
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {Receivable} from "../../../contracts/credit/Receivable.sol";
+import {Receivable} from "contracts/credit/Receivable.sol";
 import {Test} from "forge-std/Test.sol";
-import {StdInvariant} from "forge-std/StdInvariant.sol";
 import "forge-std/console.sol";
 import "forge-std/Vm.sol";
 
