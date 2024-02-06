@@ -76,26 +76,30 @@ contract EpochManager is PoolConfigCache, IEpochManager {
     function startNewEpoch() external {
         poolConfig.onlyPool(msg.sender);
 
-        EpochRedemptionSummary memory seniorSummary = seniorTranche.currentRedemptionSummary();
+        CurrentEpoch memory currentEpoch = _currentEpoch;
+        EpochRedemptionSummary memory seniorSummary = seniorTranche.epochRedemptionSummary(
+            currentEpoch.id
+        );
         if (seniorSummary.totalSharesRequested > 0) {
             seniorTranche.executeRedemptionSummary(seniorSummary);
         }
-        EpochRedemptionSummary memory juniorSummary = juniorTranche.currentRedemptionSummary();
+        EpochRedemptionSummary memory juniorSummary = juniorTranche.epochRedemptionSummary(
+            currentEpoch.id
+        );
         if (juniorSummary.totalSharesRequested > 0) {
             juniorTranche.executeRedemptionSummary(juniorSummary);
         }
 
-        CurrentEpoch memory ce = _currentEpoch;
-        ce.endTime = 0;
-        _createNextEpoch(ce);
+        currentEpoch.endTime = 0;
+        _createNextEpoch(currentEpoch);
     }
 
     /// @inheritdoc IEpochManager
     function closeEpoch() external virtual {
         poolConfig.onlyProtocolAndPoolOn();
 
-        CurrentEpoch memory ce = _currentEpoch;
-        if (block.timestamp <= ce.endTime) revert Errors.EpochClosedTooEarly();
+        CurrentEpoch memory currentEpoch = _currentEpoch;
+        if (block.timestamp <= currentEpoch.endTime) revert Errors.EpochClosedTooEarly();
 
         // Update tranche assets to the current timestamp.
         uint96[2] memory tranchesAssets = pool.currentTranchesAssets();
@@ -107,11 +111,15 @@ contract EpochManager is PoolConfigCache, IEpochManager {
             IERC20(address(juniorTranche)).totalSupply();
 
         // Get unprocessed redemption requests.
-        EpochRedemptionSummary memory seniorSummary = seniorTranche.currentRedemptionSummary();
-        EpochRedemptionSummary memory juniorSummary = juniorTranche.currentRedemptionSummary();
+        EpochRedemptionSummary memory seniorSummary = seniorTranche.epochRedemptionSummary(
+            currentEpoch.id
+        );
+        EpochRedemptionSummary memory juniorSummary = juniorTranche.epochRedemptionSummary(
+            currentEpoch.id
+        );
         uint256 unprocessedAmount = 0;
 
-        _createNextEpoch(ce);
+        _createNextEpoch(currentEpoch);
 
         if (seniorSummary.totalSharesRequested > 0 || juniorSummary.totalSharesRequested > 0) {
             // Calculated the amount of assets that lenders requested to redeem, but the system was not able to
@@ -131,7 +139,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
         pool.updateTranchesAssets(tranchesAssets);
 
         emit EpochClosed(
-            ce.id,
+            currentEpoch.id,
             tranchesAssets[SENIOR_TRANCHE],
             seniorPrice,
             tranchesAssets[JUNIOR_TRANCHE],

@@ -436,13 +436,10 @@ contract TrancheVault is
     }
 
     /// @inheritdoc IRedemptionHandler
-    function currentRedemptionSummary()
-        external
-        view
-        override
-        returns (EpochRedemptionSummary memory redemptionSummary)
-    {
-        redemptionSummary = _getEpochRedemptionSummary(epochManager.currentEpochId());
+    function epochRedemptionSummary(
+        uint256 epochId
+    ) external view override returns (EpochRedemptionSummary memory redemptionSummary) {
+        redemptionSummary = _getEpochRedemptionSummary(epochId);
     }
 
     /**

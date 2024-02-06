@@ -27,8 +27,11 @@ interface IRedemptionHandler {
     ) external;
 
     /**
-     * @notice Returns unprocessed epoch info.
-     * @return The current EpochRedemptionSummary.
+     * @notice Returns the redemption summary for the epoch with the given epoch ID.
+     * @param epochId The ID of the epoch for which to get the redemption summary.
+     * @return redemptionSummary The EpochRedemptionSummary for the epoch with the given epoch ID.
      */
-    function currentRedemptionSummary() external view returns (EpochRedemptionSummary memory);
+    function epochRedemptionSummary(
+        uint256 epochId
+    ) external view returns (EpochRedemptionSummary memory redemptionSummary);
 }
