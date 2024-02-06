@@ -76,8 +76,8 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
         // Deducts balance reserved for unprocessed yield and balance reserved for admin fees.
         uint256 reserved = poolFeeManager.getTotalAvailableFees();
         reserved +=
-            unprocessedTrancheProfit[poolConfig.seniorTranche()] +
-            unprocessedTrancheProfit[poolConfig.juniorTranche()];
+            unprocessedTrancheProfit[seniorTranche] +
+            unprocessedTrancheProfit[juniorTranche];
         uint256 balance = underlyingToken.balanceOf(address(this));
         availableBalance = balance > reserved ? balance - reserved : 0;
     }
@@ -90,8 +90,8 @@ contract PoolSafe is PoolConfigCache, IPoolSafe {
     /// @inheritdoc IPoolSafe
     function getAvailableBalanceForFees() external view returns (uint256 availableBalance) {
         // Deducts balance reserved for unprocessed yield.
-        uint256 reserved = unprocessedTrancheProfit[poolConfig.seniorTranche()] +
-            unprocessedTrancheProfit[poolConfig.juniorTranche()];
+        uint256 reserved = unprocessedTrancheProfit[seniorTranche] +
+            unprocessedTrancheProfit[juniorTranche];
         uint256 balance = underlyingToken.balanceOf(address(this));
         availableBalance = balance > reserved ? balance - reserved : 0;
     }
