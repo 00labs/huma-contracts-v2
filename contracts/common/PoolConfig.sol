@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
@@ -367,7 +367,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
 
     /// @custom:access Only the pool owner and the Huma owner can call this function.
     function setHumaConfig(address _humaConfig) external {
-        _onlyPoolOwnerOrHumaOwner();
+        onlyHumaOwner(msg.sender);
         if (_humaConfig == address(0)) revert Errors.ZeroAddressProvided();
         humaConfig = HumaConfig(_humaConfig);
         emit HumaConfigChanged(_humaConfig, msg.sender);
@@ -394,14 +394,6 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
         if (_poolOwnerTreasury == address(0)) revert Errors.ZeroAddressProvided();
         poolOwnerTreasury = _poolOwnerTreasury;
         emit PoolOwnerTreasuryChanged(_poolOwnerTreasury, msg.sender);
-    }
-
-    /// @custom:access Only the pool owner and the Huma owner can call this function.
-    function setPoolUnderlyingToken(address _underlyingToken) external {
-        _onlyPoolOwnerOrHumaOwner();
-        if (_underlyingToken == address(0)) revert Errors.ZeroAddressProvided();
-        underlyingToken = _underlyingToken;
-        emit PoolUnderlyingTokenChanged(_underlyingToken, msg.sender);
     }
 
     /// @custom:access Only the pool owner and the Huma owner can call this function.

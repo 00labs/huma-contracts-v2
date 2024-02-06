@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 contract Errors {
     // Common
@@ -8,6 +8,7 @@ contract Errors {
     error InvalidBasisPointHigherThan10000(); // 0x5995a7a4
     error InsufficientAmountForRequest(); // 0x66367127
     error InsufficientSharesForRequest(); // 0xb0ef6d99
+    error ZeroSharesMinted(); // 0xd6a0a041
     error UnsupportedFunction(); // 0xea1c702e
 
     // Security
@@ -15,7 +16,7 @@ contract Errors {
     error PoolOwnerOrHumaOwnerRequired(); // 0x3e984120
     error PoolOperatorRequired(); // 0xae7fe070
     error PoolOwnerRequired(); // 0x8b506451
-    error ProtocolOwnerRequired(); // 0xd99ba4d3
+    error HumaTreasuryRequired(); // 0x6e0a9ac9
     error PoolOwnerOrEARequired(); // 0xe54466f3
     error PauserRequired(); // 0xd4a99e4e
     error NFTOwnerRequired(); // 0x85179c58
@@ -121,7 +122,6 @@ contract Errors {
 
     // factory
     error InvalidPoolId(); // 0x0afa7ee8
-    error InvalidPoolStatus(); // 0x3fad04fd
     error InvalidTranchesPolicyType(); // 0xdfeca9c2
     error InvalidCreditType(); // 0x0dcf2e93
     error DeployerRequired(); // 0x2e2bcb63

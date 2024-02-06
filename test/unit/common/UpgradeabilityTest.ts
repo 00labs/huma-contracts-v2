@@ -22,6 +22,8 @@ import {
 } from "../../../typechain-types";
 import {
     deployAndSetupPoolContracts,
+    deployFactory,
+    deployImplementationContracts,
     deployProtocolContracts,
     deployProxyContract,
 } from "../../BaseTest";
@@ -107,6 +109,7 @@ describe("Upgradeability Test", function () {
             "MockPoolCredit",
             "CreditLineManager",
             evaluationAgent,
+            treasury,
             poolOwnerTreasury,
             poolOperator,
             [lender],
@@ -201,6 +204,75 @@ describe("Upgradeability Test", function () {
         await expect(
             receivableContract.connect(protocolOwner).upgradeTo(receivableNewImpl.address),
         ).to.be.revertedWith(/AccessControl: account .* is missing role .*/);
+    });
+
+    it("PoolFactory upgrade test", async function () {
+        [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
+            protocolOwner,
+            treasury,
+            eaServiceAccount,
+            pdsServiceAccount,
+            poolOwner,
+        );
+
+        const [
+            poolConfigImpl,
+            poolFeeManagerImpl,
+            poolSafeImpl,
+            firstLossCoverImpl,
+            riskAdjustedTranchesPolicyImpl,
+            fixedSeniorYieldTranchePolicyImpl,
+            poolImpl,
+            epochManagerImpl,
+            TrancheVaultImpl,
+            creditLineImpl,
+            receivableBackedCreditLineImpl,
+            receivableFactoringCreditImpl,
+            creditDueManagerImpl,
+            borrowerLevelCreditManagerImpl,
+            receivableBackedCreditLineManagerImpl,
+            receivableLevelCreditManagerImpl,
+            receivableImpl,
+        ] = await deployImplementationContracts();
+
+        const Calendar = await ethers.getContractFactory("Calendar");
+        const calendarContract = (await Calendar.deploy()) as Calendar;
+        await calendarContract.deployed();
+
+        const poolFactoryContract = await deployFactory(
+            defaultDeployer,
+            humaConfigContract,
+            calendarContract,
+            poolConfigImpl,
+            poolFeeManagerImpl,
+            poolSafeImpl,
+            firstLossCoverImpl,
+            riskAdjustedTranchesPolicyImpl,
+            fixedSeniorYieldTranchePolicyImpl,
+            poolImpl,
+            epochManagerImpl,
+            TrancheVaultImpl,
+            creditLineImpl,
+            receivableBackedCreditLineImpl,
+            receivableFactoringCreditImpl,
+            creditDueManagerImpl,
+            borrowerLevelCreditManagerImpl,
+            receivableBackedCreditLineManagerImpl,
+            receivableLevelCreditManagerImpl,
+            receivableImpl,
+        );
+
+        const LibTimelockController = await ethers.getContractFactory("LibTimelockController");
+        const libTimelockControllerContract = await LibTimelockController.deploy();
+        await libTimelockControllerContract.deployed();
+        const PoolFactory = await ethers.getContractFactory("PoolFactory", {
+            libraries: { LibTimelockController: libTimelockControllerContract.address },
+        });
+        const poolFactoryNewImpl = await PoolFactory.deploy();
+        await poolFactoryNewImpl.deployed();
+        await expect(poolFactoryContract.upgradeTo(poolFactoryNewImpl.address))
+            .to.emit(poolFactoryContract, "Upgraded")
+            .withArgs(poolFactoryNewImpl.address);
     });
 
     //Accounts other than factory admin tries to upgrade PoolFactory contract
