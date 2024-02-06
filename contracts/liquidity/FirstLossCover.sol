@@ -210,11 +210,11 @@ contract FirstLossCover is
     function recoverLoss(uint256 recovery) external returns (uint256 remainingRecovery) {
         poolConfig.onlyPool(msg.sender);
 
+        uint256 currCoveredLoss = coveredLoss;
         uint256 recoveredAmount;
-        (remainingRecovery, recoveredAmount) = _calcLossRecovery(coveredLoss, recovery);
+        (remainingRecovery, recoveredAmount) = _calcLossRecovery(currCoveredLoss, recovery);
 
         if (recoveredAmount > 0) {
-            uint256 currCoveredLoss = coveredLoss;
             currCoveredLoss -= recoveredAmount;
             coveredLoss = currCoveredLoss;
 
