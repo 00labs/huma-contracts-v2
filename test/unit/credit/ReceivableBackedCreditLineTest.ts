@@ -19,11 +19,9 @@ import {
     ReceivableBackedCreditLine,
     ReceivableBackedCreditLineManager,
     RiskAdjustedTranchesPolicy,
-    TrancheVault,
+    TrancheVault
 } from "../../../typechain-types";
 import {
-    CreditState,
-    PayPeriodDuration,
     calcPrincipalDueForFullPeriods,
     calcPrincipalDueForPartialPeriod,
     calcYield,
@@ -31,9 +29,11 @@ import {
     checkCreditRecord,
     checkCreditRecordsMatch,
     checkDueDetailsMatch,
+    CreditState,
     deployAndSetupPoolContracts,
     deployProtocolContracts,
     genDueDetail,
+    PayPeriodDuration
 } from "../../BaseTest";
 import {
     borrowerLevelCreditHash,
@@ -41,7 +41,7 @@ import {
     getLatestBlock,
     mineNextBlockWithTimestamp,
     setNextBlockTimestamp,
-    toToken,
+    toToken
 } from "../../TestUtils";
 import { CONSTANTS } from "../../constants";
 

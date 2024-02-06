@@ -13,6 +13,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20MetadataUpgradeable, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  * @title FirstLossCover
@@ -211,8 +212,8 @@ contract FirstLossCover is
         poolConfig.onlyPool(msg.sender);
 
         uint256 currCoveredLoss = coveredLoss;
-        uint256 recoveredAmount;
-        (remainingRecovery, recoveredAmount) = _calcLossRecovery(currCoveredLoss, recovery);
+        uint256 recoveredAmount = Math.min(currCoveredLoss, recovery);
+        remainingRecovery = recovery - recoveredAmount;
 
         if (recoveredAmount > 0) {
             currCoveredLoss -= recoveredAmount;
@@ -425,13 +426,5 @@ contract FirstLossCover is
     function _onlyPoolFeeManager(address account) internal view {
         if (account != poolConfig.poolFeeManager())
             revert Errors.AuthorizedContractCallerRequired();
-    }
-
-    function _calcLossRecovery(
-        uint256 coveredLoss,
-        uint256 recoveryAmount
-    ) internal pure returns (uint256 remainingRecovery, uint256 recoveredAmount) {
-        recoveredAmount = coveredLoss < recoveryAmount ? coveredLoss : recoveryAmount;
-        remainingRecovery = recoveryAmount - recoveredAmount;
     }
 }
