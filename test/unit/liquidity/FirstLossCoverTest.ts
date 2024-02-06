@@ -640,16 +640,6 @@ describe("FirstLossCover Tests", function () {
                 "AuthorizedContractCallerRequired",
             );
         });
-
-        it("Should disallow deposits with amounts lower than the min requirement", async function () {
-            const poolSettings = await poolConfigContract.getPoolSettings();
-            await expect(
-                adminFirstLossCoverContract.depositCoverFor(
-                    poolSettings.minDepositAmount.sub(toToken(1)),
-                    evaluationAgent.getAddress(),
-                ),
-            ).to.be.revertedWithCustomError(adminFirstLossCoverContract, "DepositAmountTooLow");
-        });
     });
 
     describe("addCoverAssets", function () {

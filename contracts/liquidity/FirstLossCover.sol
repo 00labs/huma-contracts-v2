@@ -134,6 +134,7 @@ contract FirstLossCover is
     function depositCover(uint256 assets) external returns (uint256 shares) {
         if (assets == 0) revert Errors.ZeroAmountProvided();
         _onlyCoverProvider(msg.sender);
+        PoolSettings memory poolSettings = poolConfig.getPoolSettings();
         if (assets < poolSettings.minDepositAmount) {
             revert Errors.DepositAmountTooLow();
         }
@@ -375,7 +376,6 @@ contract FirstLossCover is
     }
 
     function _deposit(uint256 assets, address account) internal returns (uint256 shares) {
-        PoolSettings memory poolSettings = poolConfig.getPoolSettings();
         if (assets > getAvailableCap()) {
             revert Errors.FirstLossCoverLiquidityCapExceeded();
         }
