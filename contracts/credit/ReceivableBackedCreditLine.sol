@@ -179,6 +179,10 @@ contract ReceivableBackedCreditLine is Credit, IERC721Receiver {
         );
 
         if (paymentAmount == drawdownAmount) {
+            // When the payment and drawdown amounts are the same, calling `makePaymentWithReceivable()`
+            // and then `drawdownWithReceivable()` would cause additional yield to be incurred, which is not
+            // desired. Instead, we deposit and then withdraw from the `poolSafe` to show that the pool has
+            // received payment and then disbursed the same amount back to the borrower.
             poolSafe.deposit(msg.sender, paymentAmount);
             poolSafe.withdraw(borrower, paymentAmount);
         } else if (paymentAmount > drawdownAmount) {
