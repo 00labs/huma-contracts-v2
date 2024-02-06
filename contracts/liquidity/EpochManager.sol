@@ -227,7 +227,7 @@ contract EpochManager is PoolConfigCache, IEpochManager {
                 availableAmount
             );
 
-            if (availableAmount == 0) {
+            if (availableAmount <= minPoolBalanceForRedemption) {
                 return;
             }
         }
