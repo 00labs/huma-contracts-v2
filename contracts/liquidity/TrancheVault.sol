@@ -442,8 +442,9 @@ contract TrancheVault is
                 // the given amount of yield. Round-up applies the favor-the-pool principle.
                 shares = Math.ceilDiv(yieldWithDecimals, priceWithDecimals);
                 // The underlying asset of the pool may incorporate a blocklist feature that prevents the lender
-                // from receiving yield if they are subject to sanctions. Under these circumstances,
-                // it is acceptable to bypass the yield of this lender and proceed with others.
+                // from receiving yield if they are subject to sanctions, and consequently the `transfer` call
+                // would fail for the lender. We bypass the yield of this lender so that other lenders can
+                // still get their yield paid out as normal.
                 try poolSafe.withdraw(lender, yield) {
                     tranchesAssets[trancheIndex] -= uint96(yield);
                     ERC20Upgradeable._burn(lender, shares);

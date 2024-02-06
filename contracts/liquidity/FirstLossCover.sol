@@ -254,16 +254,25 @@ contract FirstLossCover is
 
             uint256 payout = (yield * shares) / totalShares;
             remainingShares -= shares;
-            if (!underlyingToken.transfer(provider, payout)) {
-                // The underlying asset of the pool may incorporate a blocklist feature that prevents the provider
-                // from receiving yield if they are subject to sanctions. Under these circumstances,
-                // it is acceptable to bypass the yield of this provider and proceed with others.
-                // Note that we need to use the regular `transfer` function instead of `safeTransfer` since
-                // `safeTransfer` reverts on failure, but we can't use `try/catch` to catch the reversion due to
-                // `safeTransfer` being an internal function.
+
+            // The underlying asset of the pool may incorporate a blocklist feature that prevents the provider
+            // from receiving yield if they are subject to sanctions, and consequently the `transfer` call
+            // would fail for the lender. We bypass the yield of this provider so that other
+            // providers can still get their yield paid out as normal.
+            // Notes on the implementation:
+            // 1. We need to use the regular `transfer` function instead of `safeTransfer` since
+            //    `safeTransfer` reverts on failure, but we can't use `try/catch` to catch the reversion since
+            //     `safeTransfer` is an internal function.
+            // 2. We need to use try/catch as well as checking on the status code returned by `transfer` since
+            //    `transfer` may either revert or return `false` on failure.
+            try underlyingToken.transfer(provider, payout) returns (bool success) {
+                if (!success) {
+                    emit YieldPayoutFailed(provider, payout);
+                } else {
+                    emit YieldPaidOut(provider, payout);
+                }
+            } catch {
                 emit YieldPayoutFailed(provider, payout);
-            } else {
-                emit YieldPaidOut(provider, payout);
             }
         }
 
