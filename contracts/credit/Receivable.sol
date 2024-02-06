@@ -99,9 +99,7 @@ contract Receivable is
         _tokenIdCounter.increment();
     }
 
-    /**
-     * @inheritdoc IReceivable
-     */
+    /// @inheritdoc IReceivable
     function declarePayment(uint256 tokenId, uint96 paymentAmount) external {
         if (paymentAmount == 0) revert Errors.ZeroAmountProvided();
         ReceivableInfo memory receivableInfo = receivableInfoMap[tokenId];
