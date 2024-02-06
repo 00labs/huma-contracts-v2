@@ -282,7 +282,7 @@ contract TrancheVault is
         poolConfig.onlyProtocolAndPoolOn();
 
         PoolSettings memory poolSettings = poolConfig.getPoolSettings();
-        uint256 nextEpochStartTime = ICalendar(poolConfig.calendar()).getStartDateOfNextPeriod(
+        uint256 nextEpochStartTime = calendar.getStartDateOfNextPeriod(
             poolSettings.payPeriodDuration,
             block.timestamp
         );
@@ -527,6 +527,10 @@ contract TrancheVault is
         addr = _poolConfig.epochManager();
         assert(addr != address(0));
         epochManager = IEpochManager(addr);
+
+        addr = _poolConfig.calendar();
+        assert(addr != address(0));
+        calendar = ICalendar(addr);
     }
 
     /**
