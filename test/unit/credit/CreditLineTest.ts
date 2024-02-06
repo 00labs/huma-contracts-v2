@@ -144,6 +144,7 @@ describe("CreditLine Test", function () {
             "CreditLine",
             "CreditLineManager",
             evaluationAgent,
+            treasury,
             poolOwnerTreasury,
             poolOperator,
             [lender, borrower, borrower2],
@@ -7685,48 +7686,6 @@ describe("CreditLine Test", function () {
                     );
                 });
 
-                it("Should allow the Sentinel Service to pay for the unbilled principal once in the current billing cycle from the borrower's wallet", async function () {
-                    const cr = await creditContract.getCreditRecord(creditHash);
-                    const dd = await creditContract.getDueDetail(creditHash);
-
-                    makePaymentDate = drawdownDate
-                        .clone()
-                        .add(2, "days")
-                        .add(22, "hours")
-                        .add(14, "seconds");
-                    const nextDueDate = firstDueDate;
-                    const expectedNewCR = {
-                        unbilledPrincipal: 0,
-                        nextDueDate: nextDueDate.unix(),
-                        nextDue: cr.nextDue,
-                        yieldDue: cr.yieldDue,
-                        totalPastDue: BN.from(0),
-                        missedPeriods: 0,
-                        remainingPeriods: cr.remainingPeriods,
-                        state: CreditState.GoodStanding,
-                    };
-                    const expectedNewDD = {
-                        lateFeeUpdatedDate: BN.from(0),
-                        lateFee: BN.from(0),
-                        principalPastDue: BN.from(0),
-                        yieldPastDue: BN.from(0),
-                        committed: dd.committed,
-                        accrued: dd.accrued,
-                        paid: BN.from(0),
-                    };
-                    await testMakePrincipalPayment(
-                        makePaymentDate,
-                        borrowAmount,
-                        borrowAmount,
-                        nextDueDate,
-                        BN.from(0),
-                        borrowAmount,
-                        expectedNewCR,
-                        expectedNewDD,
-                        sentinelServiceAccount,
-                    );
-                });
-
                 it("Should allow the borrower to make multiple payments for the unbilled principal within the same period", async function () {
                     const cr = await creditContract.getCreditRecord(creditHash);
                     const dd = await creditContract.getDueDetail(creditHash);
@@ -7900,15 +7859,12 @@ describe("CreditLine Test", function () {
                     await poolContract.connect(poolOwner).enablePool();
                 });
 
-                it("Should not allow non-borrower or non-Sentinel Service account to make principal payment", async function () {
+                it("Should not allow non-borrowers to make principal payment", async function () {
                     await expect(
                         creditContract
                             .connect(borrower2)
                             .makePrincipalPayment(borrower.getAddress(), toToken(1)),
-                    ).to.be.revertedWithCustomError(
-                        creditContract,
-                        "SentinelServiceAccountRequired",
-                    );
+                    ).to.be.revertedWithCustomError(creditContract, "BorrowerRequired");
                 });
 
                 it("Should not allow the borrower to make principal payment with 0 amount", async function () {
@@ -9630,17 +9586,38 @@ describe("CreditLine Test", function () {
         });
 
         describe("With drawdown", function () {
+            describe("If the credit limit is updated to 0", function () {
+                beforeEach(async function () {
+                    creditLimit = BN.from(0);
+                    committedAmount = toToken(75_000);
+                    newCommittedAmount = committedAmount;
+                    await loadFixture(approveCredit);
+                    await loadFixture(drawdown);
+                });
+
+                it("Should allow a non-zero committed amount", async function () {
+                    const oldCR = await creditContract.getCreditRecord(creditHash);
+                    const oldDD = await creditContract.getDueDetail(creditHash);
+
+                    await testUpdate(
+                        oldDD.committed,
+                        oldDD.committed,
+                        oldCR.nextDue,
+                        oldCR.yieldDue,
+                    );
+                });
+            });
+
             describe("If the updated committed yield stays below the accrued yield", function () {
                 beforeEach(async function () {
                     committedAmount = toToken(0);
                     newCommittedAmount = toToken(25_000);
                     await loadFixture(approveCredit);
+                    await loadFixture(drawdown);
                 });
 
                 describe("If the yield hasn't been paid yet", function () {
                     it("Should update the committed amount but not the yield due", async function () {
-                        await drawdown();
-
                         const oldCR = await creditContract.getCreditRecord(creditHash);
                         const oldDD = await creditContract.getDueDetail(creditHash);
                         await testUpdate(
@@ -9654,7 +9631,6 @@ describe("CreditLine Test", function () {
 
                 describe("If the yield has been partially paid", function () {
                     it("Should update the committed amount but not the yield due", async function () {
-                        await drawdown();
                         // Make partial payment towards the yield due.
                         const yieldDue = calcYield(
                             borrowAmount,
@@ -9678,7 +9654,6 @@ describe("CreditLine Test", function () {
 
                 describe("If the yield has been paid off", function () {
                     it("Should update the committed amount but not the yield due", async function () {
-                        await drawdown();
                         // Make full payment towards the yield due.
                         const yieldDue = calcYield(
                             borrowAmount,
@@ -9836,6 +9811,27 @@ describe("CreditLine Test", function () {
                         creditManagerContract,
                         "CommittedAmountGreaterThanCreditLimit",
                     );
+                });
+
+                it("Should not allow the updated credit limit to exceed the max credit limit in poolSettings", async function () {
+                    const maxCreditLine = toToken(200_000);
+                    const poolSettings = await poolConfigContract.getPoolSettings();
+                    await poolConfigContract.connect(poolOwner).setPoolSettings({
+                        ...poolSettings,
+                        ...{
+                            maxCreditLine,
+                        },
+                    });
+
+                    await expect(
+                        creditManagerContract
+                            .connect(eaServiceAccount)
+                            .updateLimitAndCommitment(
+                                await borrower.getAddress(),
+                                maxCreditLine.add(toToken(1)),
+                                maxCreditLine,
+                            ),
+                    ).to.be.revertedWithCustomError(creditManagerContract, "CreditLimitTooHigh");
                 });
             });
 

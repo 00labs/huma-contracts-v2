@@ -232,6 +232,7 @@ describe("CreditLine Integration Test", function () {
             "CreditLine",
             "CreditLineManager",
             evaluationAgent,
+            treasury,
             poolOwnerTreasury,
             poolOperator,
             [juniorLender, seniorLender, borrower],
