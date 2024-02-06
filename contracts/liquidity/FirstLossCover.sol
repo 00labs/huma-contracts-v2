@@ -152,7 +152,7 @@ contract FirstLossCover is
     /// @inheritdoc IFirstLossCover
     function depositCoverFor(uint256 assets, address receiver) external returns (uint256 shares) {
         if (assets == 0) revert Errors.ZeroAmountProvided();
-        if (receiver == address(0)) revert Errors.ZeroAddressProvided();
+        _onlyCoverProvider(receiver);
         _onlyPoolFeeManager(msg.sender);
 
         // Note: we have to mint the shares first by calling _deposit() before transferring the assets.
@@ -236,6 +236,8 @@ contract FirstLossCover is
      * @notice Yield payout is expected to be handled by a cron-like mechanism like autotask.
      */
     function payoutYield() external {
+        poolConfig.onlyProtocolAndPoolOn();
+
         uint256 maxLiquidity = getMaxLiquidity();
         uint256 assets = totalAssets();
         if (assets <= maxLiquidity) return;
@@ -282,9 +284,20 @@ contract FirstLossCover is
     }
 
     /**
-     * @notice Disables the transfer function so that first loss cover tokens cannot be transferred.
+     * @notice Disallows first loss cover tokens to be transferred.
      */
     function transfer(address, uint256) public virtual override returns (bool) {
+        revert Errors.UnsupportedFunction();
+    }
+
+    /**
+     * @notice Disallows first loss cover tokens to be transferred.
+     */
+    function transferFrom(
+        address from,
+        address to,
+        uint256 amount
+    ) public virtual override returns (bool) {
         revert Errors.UnsupportedFunction();
     }
 

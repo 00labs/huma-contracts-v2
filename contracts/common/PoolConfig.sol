@@ -405,14 +405,6 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
     }
 
     /// @custom:access Only the pool owner and the Huma master admin can call this function.
-    function setPoolUnderlyingToken(address _underlyingToken) external {
-        _onlyOwnerOrHumaMasterAdmin();
-        if (_underlyingToken == address(0)) revert Errors.ZeroAddressProvided();
-        underlyingToken = _underlyingToken;
-        emit PoolUnderlyingTokenChanged(_underlyingToken, msg.sender);
-    }
-
-    /// @custom:access Only the pool owner and the Huma master admin can call this function.
     function setTranches(address _seniorTranche, address _juniorTranche) external {
         _onlyOwnerOrHumaMasterAdmin();
         if (_seniorTranche == address(0) || _juniorTranche == address(0))

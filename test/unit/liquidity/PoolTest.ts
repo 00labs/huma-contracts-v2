@@ -290,6 +290,7 @@ describe("Pool Test", function () {
                 "MockPoolCredit",
                 "CreditLineManager",
                 evaluationAgent,
+                treasury,
                 poolOwnerTreasury,
                 poolOperator,
                 [lender],
@@ -321,13 +322,9 @@ describe("Pool Test", function () {
 
             async function prepareForPnL() {
                 const juniorDepositAmount = toToken(250_000);
-                await juniorTrancheVaultContract
-                    .connect(lender)
-                    .deposit(juniorDepositAmount, lender.address);
+                await juniorTrancheVaultContract.connect(lender).deposit(juniorDepositAmount);
                 const seniorDepositAmount = toToken(800_000);
-                await seniorTrancheVaultContract
-                    .connect(lender)
-                    .deposit(seniorDepositAmount, lender.address);
+                await seniorTrancheVaultContract.connect(lender).deposit(seniorDepositAmount);
 
                 // Override the config so that first loss covers cover
                 // all losses up to the amount of their total assets.
@@ -986,12 +983,8 @@ describe("Pool Test", function () {
 
         describe("getTrancheAvailableCap", function () {
             it("Should return the correct tranche available caps", async function () {
-                await seniorTrancheVaultContract
-                    .connect(lender)
-                    .deposit(toToken(10000), lender.address);
-                await juniorTrancheVaultContract
-                    .connect(lender)
-                    .deposit(toToken(10000), lender.address);
+                await seniorTrancheVaultContract.connect(lender).deposit(toToken(10000));
+                await juniorTrancheVaultContract.connect(lender).deposit(toToken(10000));
 
                 const seniorAvailableCap = await poolContract.getTrancheAvailableCap(
                     CONSTANTS.SENIOR_TRANCHE,

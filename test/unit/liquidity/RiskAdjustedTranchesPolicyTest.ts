@@ -104,19 +104,16 @@ describe("RiskAdjustedTranchesPolicy Test", function () {
             "MockPoolCredit",
             "CreditLineManager",
             evaluationAgent,
+            treasury,
             poolOwnerTreasury,
             poolOperator,
             [lender],
         );
 
         const juniorDepositAmount = toToken(100_000);
-        await juniorTrancheVaultContract
-            .connect(lender)
-            .deposit(juniorDepositAmount, lender.address);
+        await juniorTrancheVaultContract.connect(lender).deposit(juniorDepositAmount);
         const seniorDepositAmount = toToken(300_000);
-        await seniorTrancheVaultContract
-            .connect(lender)
-            .deposit(seniorDepositAmount, lender.address);
+        await seniorTrancheVaultContract.connect(lender).deposit(seniorDepositAmount);
     }
 
     beforeEach(async function () {
