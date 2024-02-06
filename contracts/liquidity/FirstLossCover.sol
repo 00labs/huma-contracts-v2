@@ -262,16 +262,18 @@ contract FirstLossCover is
             // Notes on the implementation:
             // 1. We need to use the regular `transfer` function instead of `safeTransfer` since
             //    `safeTransfer` reverts on failure, but we can't use `try/catch` to catch the reversion since
-            //     `safeTransfer` is an internal function.
+            //    `safeTransfer` is an internal function.
             // 2. We need to use try/catch as well as checking on the status code returned by `transfer` since
             //    `transfer` may either revert or return `false` on failure.
-            try underlyingToken.transfer(provider, payout) returns (bool success) {
-                if (!success) {
-                    emit YieldPayoutFailed(provider, payout);
-                } else {
-                    emit YieldPaidOut(provider, payout);
-                }
+            bool success = false;
+            try underlyingToken.transfer(provider, payout) returns (bool result) {
+                success = result;
             } catch {
+                // `success` is already false. No need to explicitly assign it to false again.
+            }
+            if (success) {
+                emit YieldPaidOut(provider, payout);
+            } else {
                 emit YieldPayoutFailed(provider, payout);
             }
         }
