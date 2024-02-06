@@ -81,18 +81,6 @@ async function getMinJuniorAssets(
     return minJuniorAssets;
 }
 
-async function getMaxJuniorProcessed(
-    seniorMatureRedemptionInThisEpoch: BN | number,
-    maxSeniorJuniorRatio: number,
-) {
-    const minJuniorAssets = await getMinJuniorAssets(
-        seniorMatureRedemptionInThisEpoch,
-        maxSeniorJuniorRatio,
-    );
-    const juniorAssets = await juniorTrancheVaultContract.totalAssets();
-    return juniorAssets.sub(minJuniorAssets);
-}
-
 describe("EpochManager Test", function () {
     before(async function () {
         [
@@ -143,28 +131,21 @@ describe("EpochManager Test", function () {
             "MockPoolCredit",
             "CreditLineManager",
             evaluationAgent,
+            treasury,
             poolOwnerTreasury,
             poolOperator,
             [lender, lender2],
         );
 
         let juniorDepositAmount = toToken(400_000);
-        await juniorTrancheVaultContract
-            .connect(lender)
-            .deposit(juniorDepositAmount, lender.address);
+        await juniorTrancheVaultContract.connect(lender).deposit(juniorDepositAmount);
         let seniorDepositAmount = toToken(10_000);
-        await seniorTrancheVaultContract
-            .connect(lender)
-            .deposit(seniorDepositAmount, lender.address);
+        await seniorTrancheVaultContract.connect(lender).deposit(seniorDepositAmount);
 
         juniorDepositAmount = toToken(50_000);
-        await juniorTrancheVaultContract
-            .connect(lender2)
-            .deposit(juniorDepositAmount, lender2.address);
+        await juniorTrancheVaultContract.connect(lender2).deposit(juniorDepositAmount);
         seniorDepositAmount = toToken(20_000);
-        await seniorTrancheVaultContract
-            .connect(lender2)
-            .deposit(seniorDepositAmount, lender2.address);
+        await seniorTrancheVaultContract.connect(lender2).deposit(seniorDepositAmount);
 
         await overrideLPConfig(poolConfigContract, poolOwner, {
             withdrawalLockoutPeriodInDays: 0,
@@ -921,6 +902,79 @@ describe("EpochManager Test", function () {
                     await epochChecker.checkSeniorCurrentRedemptionSummaryEmpty();
                     await epochChecker.checkJuniorCurrentRedemptionSummary(
                         totalJuniorSharesToRedeem.sub(juniorSharesRedeemable),
+                    );
+                },
+            );
+
+            it(
+                "Should close epochs successfully with the correct LP token prices after processing multiple" +
+                    " senior redemption requests, and skipping junior redemption requests because of the available amount" +
+                    " falling below the min pool balance threshold",
+                async function () {
+                    const availableAssets = await poolSafeContract.getAvailableBalanceForPool();
+                    await creditContract.drawdown(ethers.constants.HashZero, availableAssets);
+
+                    // Epoch 1
+                    const juniorSharesToRedeem = toToken(1628);
+                    await juniorTrancheVaultContract
+                        .connect(lender)
+                        .addRedemptionRequest(juniorSharesToRedeem);
+
+                    const seniorSharesToRedeem = toToken(357);
+                    await seniorTrancheVaultContract
+                        .connect(lender)
+                        .addRedemptionRequest(seniorSharesToRedeem);
+
+                    let epochId = await epochManagerContract.currentEpochId();
+                    await testCloseEpoch(
+                        seniorSharesToRedeem,
+                        BN.from(0),
+                        juniorSharesToRedeem,
+                        BN.from(0),
+                    );
+                    await epochChecker.checkSeniorRedemptionSummaryById(
+                        epochId,
+                        seniorSharesToRedeem,
+                    );
+                    await epochChecker.checkJuniorRedemptionSummaryById(
+                        epochId,
+                        juniorSharesToRedeem,
+                    );
+                    await epochChecker.checkSeniorCurrentRedemptionSummary(seniorSharesToRedeem);
+                    epochId =
+                        await epochChecker.checkJuniorCurrentRedemptionSummary(
+                            juniorSharesToRedeem,
+                        );
+
+                    // Epoch 2
+                    // The pool balance falls right at the min threshold so that
+                    // no junior redemption request can be processed.
+                    const redemptionThreshold =
+                        await epochManagerContract.minPoolBalanceForRedemption();
+                    await creditContract.makePayment(
+                        ethers.constants.HashZero,
+                        seniorSharesToRedeem.add(redemptionThreshold),
+                    );
+                    await testCloseEpoch(
+                        seniorSharesToRedeem,
+                        seniorSharesToRedeem,
+                        juniorSharesToRedeem,
+                        BN.from(0),
+                    );
+                    await epochChecker.checkSeniorRedemptionSummaryById(
+                        epochId,
+                        seniorSharesToRedeem,
+                        seniorSharesToRedeem,
+                        seniorSharesToRedeem,
+                    );
+                    await epochChecker.checkJuniorRedemptionSummaryById(
+                        epochId,
+                        juniorSharesToRedeem,
+                    );
+                    await epochChecker.checkSeniorCurrentRedemptionSummaryEmpty();
+                    await epochChecker.checkJuniorCurrentRedemptionSummary(juniorSharesToRedeem);
+                    expect(await poolSafeContract.getAvailableBalanceForPool()).to.equal(
+                        redemptionThreshold,
                     );
                 },
             );

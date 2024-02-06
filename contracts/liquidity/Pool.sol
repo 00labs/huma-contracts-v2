@@ -13,6 +13,7 @@ import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import {ITranchesPolicy} from "./interfaces/ITranchesPolicy.sol";
 import {ICreditManager} from "../credit/interfaces/ICreditManager.sol";
 import {ICredit} from "../credit/interfaces/ICredit.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  * @title Pool
@@ -240,10 +241,12 @@ contract Pool is PoolConfigCache, IPool {
         if (index == SENIOR_TRANCHE) {
             // The available cap for the senior tranche is subject to the additional constraint of the
             // max senior : junior asset ratio, i.e. the total assets in the senior tranche must not exceed
-            // assets[JUNIOR_TRANCHE] * maxSeniorJuniorRatio at all times.
-            uint256 seniorAvailableCap = assets[JUNIOR_TRANCHE] *
-                config.maxSeniorJuniorRatio -
-                assets[SENIOR_TRANCHE];
+            // assets[JUNIOR_TRANCHE] * maxSeniorJuniorRatio at all times. Note that if this value is less than
+            // the current total senior assets (i.e. in the case of default), then the senior available cap is 0.
+            uint256 seniorAvailableCap = Math.max(
+                assets[JUNIOR_TRANCHE] * config.maxSeniorJuniorRatio,
+                assets[SENIOR_TRANCHE]
+            ) - assets[SENIOR_TRANCHE];
             availableCap = availableCap > seniorAvailableCap ? seniorAvailableCap : availableCap;
         }
     }

@@ -82,6 +82,7 @@ contract ReceivableFactoringCreditManager is
         _onlyEAServiceAccount();
         if (creditLimit > receivableInput.receivableAmount)
             revert Errors.InsufficientReceivableAmount();
+        if (receivableInput.receivableId == 0) revert Errors.ZeroReceivableIdProvided();
 
         bytes32 creditHash = _getCreditHash(receivableInput.receivableId);
         _approveCredit(
@@ -135,24 +136,6 @@ contract ReceivableFactoringCreditManager is
         bytes32 creditHash = _getCreditHash(receivableId);
         onlyCreditBorrower(creditHash, borrower);
         _closeCredit(creditHash);
-    }
-
-    /// @inheritdoc IReceivableFactoringCreditManager
-    function pauseCredit(uint256 receivableId) external virtual {
-        poolConfig.onlyProtocolAndPoolOn();
-        _onlyEAServiceAccount();
-
-        bytes32 creditHash = _getCreditHash(receivableId);
-        _pauseCredit(creditHash);
-    }
-
-    /// @inheritdoc IReceivableFactoringCreditManager
-    function unpauseCredit(uint256 receivableId) external virtual {
-        poolConfig.onlyProtocolAndPoolOn();
-        _onlyEAServiceAccount();
-
-        bytes32 creditHash = _getCreditHash(receivableId);
-        _unpauseCredit(creditHash);
     }
 
     /// @inheritdoc IReceivableFactoringCreditManager

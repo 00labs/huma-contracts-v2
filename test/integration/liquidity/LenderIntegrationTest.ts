@@ -58,7 +58,7 @@ import { CONSTANTS } from "../../constants";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
-    treasury: SignerWithAddress,
+    humaTreasury: SignerWithAddress,
     eaServiceAccount: SignerWithAddress,
     sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
@@ -256,10 +256,10 @@ async function configPool(lpConfig: Partial<LPConfigStructOutput>) {
 
     await juniorTrancheVaultContract
         .connect(poolOperator)
-        .setReinvestYield(poolOwnerTreasury.address, true);
+        .addApprovedLender(poolOwnerTreasury.address, true);
     await juniorTrancheVaultContract
         .connect(poolOperator)
-        .setReinvestYield(evaluationAgent.address, true);
+        .addApprovedLender(evaluationAgent.address, true);
 
     // Deposit 1% of the pool liquidity cap as the first loss cover.
     await adminFirstLossCoverContract
@@ -556,7 +556,7 @@ describe("Lender Integration Test", function () {
         [
             defaultDeployer,
             protocolOwner,
-            treasury,
+            humaTreasury,
             eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
@@ -591,7 +591,7 @@ describe("Lender Integration Test", function () {
         async function prepare() {
             [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
                 protocolOwner,
-                treasury,
+                humaTreasury,
                 eaServiceAccount,
                 sentinelServiceAccount,
                 poolOwner,
@@ -661,7 +661,7 @@ describe("Lender Integration Test", function () {
                 let oldBalance = await mockTokenContract.balanceOf(jLenders[i].address);
                 await juniorTrancheVaultContract
                     .connect(jLenders[i])
-                    .deposit(toToken(jLenderInitialAmounts[i]), jLenders[i].address);
+                    .deposit(toToken(jLenderInitialAmounts[i]));
                 expect(await mockTokenContract.balanceOf(jLenders[i].address)).to.equal(
                     oldBalance.sub(toToken(jLenderInitialAmounts[i])),
                 );
@@ -676,7 +676,7 @@ describe("Lender Integration Test", function () {
                 let oldBalance = await mockTokenContract.balanceOf(sLenders[i].address);
                 await seniorTrancheVaultContract
                     .connect(sLenders[i])
-                    .deposit(toToken(sLenderInitialAmounts[i]), sLenders[i].address);
+                    .deposit(toToken(sLenderInitialAmounts[i]));
                 expect(await mockTokenContract.balanceOf(sLenders[i].address)).to.equal(
                     oldBalance.sub(toToken(sLenderInitialAmounts[i])),
                 );
@@ -969,9 +969,7 @@ describe("Lender Integration Test", function () {
             let amount = toToken(600_000);
 
             let oldBalance = await mockTokenContract.balanceOf(sLenders[2].address);
-            await seniorTrancheVaultContract
-                .connect(sLenders[2])
-                .deposit(amount, sLenders[2].address);
+            await seniorTrancheVaultContract.connect(sLenders[2]).deposit(amount);
             expect(await mockTokenContract.balanceOf(sLenders[2].address)).to.equal(
                 oldBalance.sub(amount),
             );
@@ -988,9 +986,7 @@ describe("Lender Integration Test", function () {
             await setNextBlockTimestamp(currentTS);
 
             await expect(
-                seniorTrancheVaultContract
-                    .connect(sLenders[2])
-                    .deposit(toToken(600_000), sLenders[2].address),
+                seniorTrancheVaultContract.connect(sLenders[2]).deposit(toToken(600_000)),
             ).to.be.revertedWithCustomError(
                 juniorTrancheVaultContract,
                 "TrancheLiquidityCapExceeded",
@@ -1004,9 +1000,7 @@ describe("Lender Integration Test", function () {
             let amount = toToken(30_000);
 
             let oldBalance = await mockTokenContract.balanceOf(jLenders[2].address);
-            await juniorTrancheVaultContract
-                .connect(jLenders[2])
-                .deposit(amount, jLenders[2].address);
+            await juniorTrancheVaultContract.connect(jLenders[2]).deposit(amount);
             expect(await mockTokenContract.balanceOf(jLenders[2].address)).to.equal(
                 oldBalance.sub(amount),
             );
@@ -1026,9 +1020,7 @@ describe("Lender Integration Test", function () {
 
             let oldBalance = await mockTokenContract.balanceOf(sLenders[2].address);
             let oldAssets = await seniorTrancheVaultContract.totalAssetsOf(sLenders[2].address);
-            await seniorTrancheVaultContract
-                .connect(sLenders[2])
-                .deposit(amount, sLenders[2].address);
+            await seniorTrancheVaultContract.connect(sLenders[2]).deposit(amount);
             expect(await mockTokenContract.balanceOf(sLenders[2].address)).to.equal(
                 oldBalance.sub(amount),
             );
@@ -1230,10 +1222,10 @@ describe("Lender Integration Test", function () {
 
             let amount = toToken(100);
 
-            let oldBalance = await mockTokenContract.balanceOf(treasury.address);
+            let oldBalance = await mockTokenContract.balanceOf(humaTreasury.address);
             let poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
-            await poolFeeManagerContract.connect(protocolOwner).withdrawProtocolFee(amount);
-            expect(await mockTokenContract.balanceOf(treasury.address)).to.equal(
+            await poolFeeManagerContract.connect(humaTreasury).withdrawProtocolFee(amount);
+            expect(await mockTokenContract.balanceOf(humaTreasury.address)).to.equal(
                 oldBalance.add(amount),
             );
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
@@ -1846,11 +1838,8 @@ describe("Lender Integration Test", function () {
                         juniorTrancheVaultContract.connect(jLender).withdrawAfterPoolClosure(),
                     )
                         .to.emit(juniorTrancheVaultContract, "LenderFundDisbursed")
-                        .withArgs(
-                            await jLender.getAddress(),
-                            await jLender.getAddress(),
-                            (actualAmountDisbursed: BN) =>
-                                isCloseTo(actualAmountDisbursed, amountDisbursable, 2),
+                        .withArgs(await jLender.getAddress(), (actualAmountDisbursed: BN) =>
+                            isCloseTo(actualAmountDisbursed, amountDisbursable, 2),
                         )
                         .not.to.emit(juniorTrancheVaultContract, "LenderFundWithdrawn");
                 } else if (i === 1) {
@@ -1858,11 +1847,8 @@ describe("Lender Integration Test", function () {
                         juniorTrancheVaultContract.connect(jLender).withdrawAfterPoolClosure(),
                     )
                         .to.emit(juniorTrancheVaultContract, "LenderFundDisbursed")
-                        .withArgs(
-                            await jLender.getAddress(),
-                            await jLender.getAddress(),
-                            (actualAmountDisbursed: BN) =>
-                                isCloseTo(actualAmountDisbursed, amountDisbursable, 2),
+                        .withArgs(await jLender.getAddress(), (actualAmountDisbursed: BN) =>
+                            isCloseTo(actualAmountDisbursed, amountDisbursable, 2),
                         )
                         .to.emit(juniorTrancheVaultContract, "LenderFundWithdrawn")
                         .withArgs(await jLender.getAddress(), numShares, expectedAssetsWithdrawn);
@@ -1944,11 +1930,8 @@ describe("Lender Integration Test", function () {
                         seniorTrancheVaultContract.connect(sLender).withdrawAfterPoolClosure(),
                     )
                         .to.emit(seniorTrancheVaultContract, "LenderFundDisbursed")
-                        .withArgs(
-                            await sLender.getAddress(),
-                            await sLender.getAddress(),
-                            (actualAmountDisbursed: BN) =>
-                                isCloseTo(actualAmountDisbursed, amountDisbursable, 2),
+                        .withArgs(await sLender.getAddress(), (actualAmountDisbursed: BN) =>
+                            isCloseTo(actualAmountDisbursed, amountDisbursable, 2),
                         )
                         .to.emit(seniorTrancheVaultContract, "LenderFundWithdrawn")
                         .withArgs(await sLender.getAddress(), numShares, expectedAssetsWithdrawn);
@@ -1957,11 +1940,8 @@ describe("Lender Integration Test", function () {
                         seniorTrancheVaultContract.connect(sLender).withdrawAfterPoolClosure(),
                     )
                         .to.emit(seniorTrancheVaultContract, "LenderFundDisbursed")
-                        .withArgs(
-                            await sLender.getAddress(),
-                            await sLender.getAddress(),
-                            (actualAmountDisbursed: BN) =>
-                                isCloseTo(actualAmountDisbursed, amountDisbursable, 2),
+                        .withArgs(await sLender.getAddress(), (actualAmountDisbursed: BN) =>
+                            isCloseTo(actualAmountDisbursed, amountDisbursable, 2),
                         )
                         .not.to.emit(seniorTrancheVaultContract, "LenderFundWithdrawn");
                 }
@@ -2147,7 +2127,7 @@ describe("Lender Integration Test", function () {
         async function prepare() {
             [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
                 protocolOwner,
-                treasury,
+                humaTreasury,
                 eaServiceAccount,
                 sentinelServiceAccount,
                 poolOwner,
@@ -2217,7 +2197,7 @@ describe("Lender Integration Test", function () {
                 let oldBalance = await mockTokenContract.balanceOf(jLenders[i].address);
                 await juniorTrancheVaultContract
                     .connect(jLenders[i])
-                    .deposit(toToken(jLenderInitialAmounts[i]), jLenders[i].address);
+                    .deposit(toToken(jLenderInitialAmounts[i]));
                 expect(await mockTokenContract.balanceOf(jLenders[i].address)).to.equal(
                     oldBalance.sub(toToken(jLenderInitialAmounts[i])),
                 );
@@ -2232,7 +2212,7 @@ describe("Lender Integration Test", function () {
                 let oldBalance = await mockTokenContract.balanceOf(sLenders[i].address);
                 await seniorTrancheVaultContract
                     .connect(sLenders[i])
-                    .deposit(toToken(sLenderInitialAmounts[i]), sLenders[i].address);
+                    .deposit(toToken(sLenderInitialAmounts[i]));
                 expect(await mockTokenContract.balanceOf(sLenders[i].address)).to.equal(
                     oldBalance.sub(toToken(sLenderInitialAmounts[i])),
                 );
@@ -2548,9 +2528,7 @@ describe("Lender Integration Test", function () {
 
             let oldBalance = await mockTokenContract.balanceOf(sLenders[2].address);
             tracker = await tranchesPolicyContract.seniorYieldTracker();
-            await seniorTrancheVaultContract
-                .connect(sLenders[2])
-                .deposit(amount, sLenders[2].address);
+            await seniorTrancheVaultContract.connect(sLenders[2]).deposit(amount);
             let newTracker = await PnLCalculator.calcLatestSeniorTracker(
                 currentTS,
                 FIXED_SENIOR_YIELD_IN_BPS,
@@ -2575,9 +2553,7 @@ describe("Lender Integration Test", function () {
             await setNextBlockTimestamp(currentTS);
 
             await expect(
-                seniorTrancheVaultContract
-                    .connect(sLenders[2])
-                    .deposit(toToken(600_000), sLenders[2].address),
+                seniorTrancheVaultContract.connect(sLenders[2]).deposit(toToken(600_000)),
             ).to.be.revertedWithCustomError(
                 juniorTrancheVaultContract,
                 "TrancheLiquidityCapExceeded",
@@ -2591,9 +2567,7 @@ describe("Lender Integration Test", function () {
             let amount = toToken(30_000);
 
             let oldBalance = await mockTokenContract.balanceOf(jLenders[2].address);
-            await juniorTrancheVaultContract
-                .connect(jLenders[2])
-                .deposit(amount, jLenders[2].address);
+            await juniorTrancheVaultContract.connect(jLenders[2]).deposit(amount);
             expect(await mockTokenContract.balanceOf(jLenders[2].address)).to.equal(
                 oldBalance.sub(amount),
             );
@@ -2613,9 +2587,7 @@ describe("Lender Integration Test", function () {
 
             let oldBalance = await mockTokenContract.balanceOf(sLenders[2].address);
             let oldAssets = await seniorTrancheVaultContract.totalAssetsOf(sLenders[2].address);
-            await seniorTrancheVaultContract
-                .connect(sLenders[2])
-                .deposit(amount, sLenders[2].address);
+            await seniorTrancheVaultContract.connect(sLenders[2]).deposit(amount);
             expect(await mockTokenContract.balanceOf(sLenders[2].address)).to.equal(
                 oldBalance.sub(amount),
             );
@@ -2825,10 +2797,10 @@ describe("Lender Integration Test", function () {
 
             let amount = toToken(100);
 
-            let oldBalance = await mockTokenContract.balanceOf(treasury.address);
+            let oldBalance = await mockTokenContract.balanceOf(humaTreasury.address);
             let poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
-            await poolFeeManagerContract.connect(protocolOwner).withdrawProtocolFee(amount);
-            expect(await mockTokenContract.balanceOf(treasury.address)).to.equal(
+            await poolFeeManagerContract.connect(humaTreasury).withdrawProtocolFee(amount);
+            expect(await mockTokenContract.balanceOf(humaTreasury.address)).to.equal(
                 oldBalance.add(amount),
             );
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
@@ -3461,11 +3433,8 @@ describe("Lender Integration Test", function () {
                         juniorTrancheVaultContract.connect(jLender).withdrawAfterPoolClosure(),
                     )
                         .to.emit(juniorTrancheVaultContract, "LenderFundDisbursed")
-                        .withArgs(
-                            await jLender.getAddress(),
-                            await jLender.getAddress(),
-                            (actualAmountDisbursed: BN) =>
-                                isCloseTo(actualAmountDisbursed, amountDisbursable, 2),
+                        .withArgs(await jLender.getAddress(), (actualAmountDisbursed: BN) =>
+                            isCloseTo(actualAmountDisbursed, amountDisbursable, 2),
                         )
                         .not.to.emit(juniorTrancheVaultContract, "LenderFundWithdrawn");
                 } else if (i === 1) {
@@ -3473,11 +3442,8 @@ describe("Lender Integration Test", function () {
                         juniorTrancheVaultContract.connect(jLender).withdrawAfterPoolClosure(),
                     )
                         .to.emit(juniorTrancheVaultContract, "LenderFundDisbursed")
-                        .withArgs(
-                            await jLender.getAddress(),
-                            await jLender.getAddress(),
-                            (actualAmountDisbursed: BN) =>
-                                isCloseTo(actualAmountDisbursed, amountDisbursable, 2),
+                        .withArgs(await jLender.getAddress(), (actualAmountDisbursed: BN) =>
+                            isCloseTo(actualAmountDisbursed, amountDisbursable, 2),
                         )
                         .to.emit(juniorTrancheVaultContract, "LenderFundWithdrawn")
                         .withArgs(await jLender.getAddress(), numShares, expectedAssetsWithdrawn);
@@ -3543,11 +3509,8 @@ describe("Lender Integration Test", function () {
                         seniorTrancheVaultContract.connect(sLender).withdrawAfterPoolClosure(),
                     )
                         .to.emit(seniorTrancheVaultContract, "LenderFundDisbursed")
-                        .withArgs(
-                            await sLender.getAddress(),
-                            await sLender.getAddress(),
-                            (actualAmountDisbursed: BN) =>
-                                isCloseTo(actualAmountDisbursed, amountDisbursable, 2),
+                        .withArgs(await sLender.getAddress(), (actualAmountDisbursed: BN) =>
+                            isCloseTo(actualAmountDisbursed, amountDisbursable, 2),
                         )
                         .not.to.emit(seniorTrancheVaultContract, "LenderFundWithdrawn");
                 } else {
@@ -3555,11 +3518,8 @@ describe("Lender Integration Test", function () {
                         seniorTrancheVaultContract.connect(sLender).withdrawAfterPoolClosure(),
                     )
                         .to.emit(seniorTrancheVaultContract, "LenderFundDisbursed")
-                        .withArgs(
-                            await sLender.getAddress(),
-                            await sLender.getAddress(),
-                            (actualAmountDisbursed: BN) =>
-                                isCloseTo(actualAmountDisbursed, amountDisbursable, 2),
+                        .withArgs(await sLender.getAddress(), (actualAmountDisbursed: BN) =>
+                            isCloseTo(actualAmountDisbursed, amountDisbursable, 2),
                         )
                         .to.emit(seniorTrancheVaultContract, "LenderFundWithdrawn")
                         .withArgs(await sLender.getAddress(), numShares, expectedAssetsWithdrawn);

@@ -810,6 +810,7 @@ describe("PoolConfig Tests", function () {
                 "MockPoolCredit",
                 "CreditLineManager",
                 evaluationAgent,
+                protocolTreasury,
                 poolOwnerTreasury,
                 poolOperator,
                 [regularUser, evaluationAgent2],
@@ -1007,7 +1008,7 @@ describe("PoolConfig Tests", function () {
                     .addApprovedLender(evaluationAgent.getAddress(), true);
                 await juniorTrancheVaultContract
                     .connect(evaluationAgent)
-                    .deposit(evaluationAgentLiquidity, evaluationAgent.getAddress());
+                    .deposit(evaluationAgentLiquidity);
                 await expect(
                     poolConfigContract
                         .connect(poolOwner)
@@ -1037,9 +1038,7 @@ describe("PoolConfig Tests", function () {
                         adminFirstLossCoverContract.address,
                         minFirstLossCoverRequirement.add(minLiquidity),
                     );
-                await juniorTrancheVaultContract
-                    .connect(evaluationAgent2)
-                    .deposit(minLiquidity, evaluationAgent2.address);
+                await juniorTrancheVaultContract.connect(evaluationAgent2).deposit(minLiquidity);
 
                 await expect(
                     poolConfigContract
@@ -1117,9 +1116,7 @@ describe("PoolConfig Tests", function () {
                         adminFirstLossCoverContract.address,
                         minFirstLossCoverRequirement.add(minLiquidity),
                     );
-                await juniorTrancheVaultContract
-                    .connect(evaluationAgent2)
-                    .deposit(minLiquidity, evaluationAgent2.address);
+                await juniorTrancheVaultContract.connect(evaluationAgent2).deposit(minLiquidity);
 
                 await expect(
                     poolConfigContract
@@ -1185,17 +1182,6 @@ describe("PoolConfig Tests", function () {
         });
 
         describe("setHumaConfig", function () {
-            it("Should allow the pool owner to set Huma config", async function () {
-                await expect(
-                    poolConfigContract
-                        .connect(poolOwner)
-                        .setHumaConfig(humaConfigContract.address),
-                )
-                    .to.emit(poolConfigContract, "HumaConfigChanged")
-                    .withArgs(humaConfigContract.address, poolOwner.address);
-                expect(await poolConfigContract.humaConfig()).to.equal(humaConfigContract.address);
-            });
-
             it("Should allow the Huma master admin to set Huma config", async function () {
                 await expect(
                     poolConfigContract
@@ -1207,10 +1193,10 @@ describe("PoolConfig Tests", function () {
                 expect(await poolConfigContract.humaConfig()).to.equal(humaConfigContract.address);
             });
 
-            it("Should reject non-owner or admin to call setHumaConfig", async function () {
+            it("Should reject non-admin to call setHumaConfig", async function () {
                 await expect(
                     poolConfigContract
-                        .connect(regularUser)
+                        .connect(poolOwner)
                         .setHumaConfig(humaConfigContract.address),
                 ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
             });
@@ -1218,7 +1204,7 @@ describe("PoolConfig Tests", function () {
             it("Should reject Huma config with zero address", async function () {
                 await expect(
                     poolConfigContract
-                        .connect(poolOwner)
+                        .connect(protocolOwner)
                         .setHumaConfig(ethers.constants.AddressZero),
                 ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
             });
@@ -1318,50 +1304,6 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract
                         .connect(poolOwner)
                         .setPoolOwnerTreasury(ethers.constants.AddressZero),
-                ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
-            });
-        });
-
-        describe("setPoolUnderlyingToken", function () {
-            it("Should allow the pool owner to set the underlying token", async function () {
-                await expect(
-                    poolConfigContract
-                        .connect(poolOwner)
-                        .setPoolUnderlyingToken(mockTokenContract.address),
-                )
-                    .to.emit(poolConfigContract, "PoolUnderlyingTokenChanged")
-                    .withArgs(mockTokenContract.address, poolOwner.address);
-                expect(await poolConfigContract.underlyingToken()).to.equal(
-                    mockTokenContract.address,
-                );
-            });
-
-            it("Should allow the Huma master admin to set the underlying token", async function () {
-                await expect(
-                    poolConfigContract
-                        .connect(protocolOwner)
-                        .setPoolUnderlyingToken(mockTokenContract.address),
-                )
-                    .to.emit(poolConfigContract, "PoolUnderlyingTokenChanged")
-                    .withArgs(mockTokenContract.address, protocolOwner.address);
-                expect(await poolConfigContract.underlyingToken()).to.equal(
-                    mockTokenContract.address,
-                );
-            });
-
-            it("Should reject non-owner or admin to set the underlying token", async function () {
-                await expect(
-                    poolConfigContract
-                        .connect(regularUser)
-                        .setPoolUnderlyingToken(poolOwnerTreasury.address),
-                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
-            });
-
-            it("Should disallow zero address for the underlying token", async function () {
-                await expect(
-                    poolConfigContract
-                        .connect(poolOwner)
-                        .setPoolUnderlyingToken(ethers.constants.AddressZero),
                 ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
             });
         });
@@ -2168,7 +2110,7 @@ describe("PoolConfig Tests", function () {
                     .addApprovedLender(evaluationAgent.getAddress(), true);
                 await juniorTrancheVaultContract
                     .connect(evaluationAgent)
-                    .deposit(evaluationAgentLiquidity, evaluationAgent.getAddress());
+                    .deposit(evaluationAgentLiquidity);
                 await poolConfigContract
                     .connect(poolOwner)
                     .setEvaluationAgent(eaNFTTokenId, evaluationAgent.address);
