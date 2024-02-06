@@ -1272,17 +1272,6 @@ describe("PoolConfig Tests", function () {
         });
 
         describe("setHumaConfig", function () {
-            it("Should allow the pool owner to set Huma config", async function () {
-                await expect(
-                    poolConfigContract
-                        .connect(poolOwner)
-                        .setHumaConfig(humaConfigContract.address),
-                )
-                    .to.emit(poolConfigContract, "HumaConfigChanged")
-                    .withArgs(humaConfigContract.address, poolOwner.address);
-                expect(await poolConfigContract.humaConfig()).to.equal(humaConfigContract.address);
-            });
-
             it("Should allow the Huma master admin to set Huma config", async function () {
                 await expect(
                     poolConfigContract
@@ -1294,10 +1283,10 @@ describe("PoolConfig Tests", function () {
                 expect(await poolConfigContract.humaConfig()).to.equal(humaConfigContract.address);
             });
 
-            it("Should reject non-owner or admin to call setHumaConfig", async function () {
+            it("Should reject non-admin to call setHumaConfig", async function () {
                 await expect(
                     poolConfigContract
-                        .connect(regularUser)
+                        .connect(poolOwner)
                         .setHumaConfig(humaConfigContract.address),
                 ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
             });
@@ -1305,7 +1294,7 @@ describe("PoolConfig Tests", function () {
             it("Should reject Huma config with zero address", async function () {
                 await expect(
                     poolConfigContract
-                        .connect(poolOwner)
+                        .connect(protocolOwner)
                         .setHumaConfig(ethers.constants.AddressZero),
                 ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
             });

@@ -375,7 +375,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
 
     /// @custom:access Only the pool owner and the Huma master admin can call this function.
     function setHumaConfig(address _humaConfig) external {
-        _onlyOwnerOrHumaMasterAdmin();
+        onlyHumaMasterAdmin(msg.sender);
         if (_humaConfig == address(0)) revert Errors.ZeroAddressProvided();
         humaConfig = HumaConfig(_humaConfig);
         emit HumaConfigChanged(_humaConfig, msg.sender);

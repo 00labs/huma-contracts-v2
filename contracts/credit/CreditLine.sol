@@ -46,7 +46,7 @@ contract CreditLine is Credit, ICreditLine {
         uint256 amount
     ) external virtual override returns (uint256 amountPaid, bool paidoff) {
         poolConfig.onlyProtocolAndPoolOn();
-        if (msg.sender != borrower) _onlySentinelServiceAccount();
+        if (msg.sender != borrower) revert Errors.BorrowerRequired();
 
         bytes32 creditHash = getCreditHash(borrower);
         creditManager.onlyCreditBorrower(creditHash, borrower);
