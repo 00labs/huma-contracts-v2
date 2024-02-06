@@ -2651,7 +2651,7 @@ describe("TrancheVault Test", function () {
             expect(expectedLenderSharesToBurn).to.be.gt(lender1SharesRoundedDown);
 
             // Transfer to lender 2 should fail.
-            mockTokenContract.blocklistAddress(lender2.getAddress());
+            mockTokenContract.addToSoftFailBlocklist(lender2.getAddress());
             lenders[1].setYield(totalSupply, totalAssets);
             const expectedLender2SharesToBurn = ceilDiv(
                 lenders[1].yield.mul(totalSupply),
@@ -2706,7 +2706,7 @@ describe("TrancheVault Test", function () {
                     juniorTrancheVaultContract.address,
                 ),
             ).to.equal(0);
-            mockTokenContract.removeAddressFromBlocklist(lender2.getAddress());
+            mockTokenContract.removeFromSoftFailBlocklist(lender2.getAddress());
         });
 
         it("Should reinvest yields", async function () {

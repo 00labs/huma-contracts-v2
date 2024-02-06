@@ -8,8 +8,10 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
 contract MockToken is ERC20Permit, IERC165 {
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    /// Transfers to these addresses will fail so that we can test transfer failure handling.
-    EnumerableSet.AddressSet internal _blocklistedAddresses;
+    /// Transfers to these addresses will fail and return `false` so that we can test transfer failure handling.
+    EnumerableSet.AddressSet internal _softFailBlocklist;
+    /// Transfers to these addresses will fail and revert with an error so that we can test transfer failure handling.
+    EnumerableSet.AddressSet internal _revertingBlocklist;
 
     constructor() ERC20Permit("TestToken") ERC20("TestToken", "USDC") {
         _mint(msg.sender, 1000 * 10 ** decimals());
@@ -31,12 +33,20 @@ contract MockToken is ERC20Permit, IERC165 {
         _burn(from, amount);
     }
 
-    function blocklistAddress(address addr) external {
-        _blocklistedAddresses.add(addr);
+    function addToSoftFailBlocklist(address addr) external {
+        _softFailBlocklist.add(addr);
     }
 
-    function removeAddressFromBlocklist(address addr) external {
-        _blocklistedAddresses.remove(addr);
+    function removeFromSoftFailBlocklist(address addr) external {
+        _softFailBlocklist.remove(addr);
+    }
+
+    function addToRevertingBlocklist(address addr) external {
+        _revertingBlocklist.add(addr);
+    }
+
+    function removeFromRevertingBlocklist(address addr) external {
+        _revertingBlocklist.remove(addr);
     }
 
     function supportsInterface(bytes4 interfaceId) external view virtual override returns (bool) {
@@ -44,7 +54,9 @@ contract MockToken is ERC20Permit, IERC165 {
     }
 
     function transfer(address to, uint256 amount) public virtual override returns (bool) {
-        if (_blocklistedAddresses.contains(to)) return false;
+        if (_softFailBlocklist.contains(to)) return false;
+        require(!_revertingBlocklist.contains(to));
+
         return super.transfer(to, amount);
     }
 

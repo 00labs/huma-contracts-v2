@@ -1077,7 +1077,7 @@ describe("PoolConfig Tests", function () {
                     .addApprovedLender(evaluationAgent.getAddress(), true);
                 await juniorTrancheVaultContract
                     .connect(evaluationAgent)
-                    .deposit(evaluationAgentLiquidity, evaluationAgent.getAddress());
+                    .deposit(evaluationAgentLiquidity);
                 await expect(
                     poolConfigContract
                         .connect(poolOwner)
@@ -1114,7 +1114,7 @@ describe("PoolConfig Tests", function () {
                 expect(eaFees).to.be.gt(0);
 
                 // Transfer to the old EA fails due to blocklisting.
-                await mockTokenContract.blocklistAddress(evaluationAgent.getAddress());
+                await mockTokenContract.addToSoftFailBlocklist(evaluationAgent.getAddress());
 
                 const oldEABalance = await mockTokenContract.balanceOf(
                     evaluationAgent.getAddress(),
@@ -1145,7 +1145,7 @@ describe("PoolConfig Tests", function () {
                     oldEABalance,
                 );
 
-                await mockTokenContract.removeAddressFromBlocklist(evaluationAgent.getAddress());
+                await mockTokenContract.removeFromSoftFailBlocklist(evaluationAgent.getAddress());
             });
 
             it("Should reject zero address EA", async function () {
