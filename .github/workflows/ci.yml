@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
     types: [opened, reopened, edited, synchronize]
-    branches: ["main", "develop", "release*"]
+    branches: ["main", "develop", "release*", "spearbit*"]
 
   workflow_dispatch:
 

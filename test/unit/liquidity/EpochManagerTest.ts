@@ -143,28 +143,21 @@ describe("EpochManager Test", function () {
             "MockPoolCredit",
             "CreditLineManager",
             evaluationAgent,
+            treasury,
             poolOwnerTreasury,
             poolOperator,
             [lender, lender2],
         );
 
         let juniorDepositAmount = toToken(400_000);
-        await juniorTrancheVaultContract
-            .connect(lender)
-            .deposit(juniorDepositAmount, lender.address);
+        await juniorTrancheVaultContract.connect(lender).deposit(juniorDepositAmount);
         let seniorDepositAmount = toToken(10_000);
-        await seniorTrancheVaultContract
-            .connect(lender)
-            .deposit(seniorDepositAmount, lender.address);
+        await seniorTrancheVaultContract.connect(lender).deposit(seniorDepositAmount);
 
         juniorDepositAmount = toToken(50_000);
-        await juniorTrancheVaultContract
-            .connect(lender2)
-            .deposit(juniorDepositAmount, lender2.address);
+        await juniorTrancheVaultContract.connect(lender2).deposit(juniorDepositAmount);
         seniorDepositAmount = toToken(20_000);
-        await seniorTrancheVaultContract
-            .connect(lender2)
-            .deposit(seniorDepositAmount, lender2.address);
+        await seniorTrancheVaultContract.connect(lender2).deposit(seniorDepositAmount);
 
         await overrideLPConfig(poolConfigContract, poolOwner, {
             withdrawalLockoutPeriodInDays: 0,

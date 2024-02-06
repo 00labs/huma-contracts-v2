@@ -126,6 +126,7 @@ describe("ReceivableFactoringCreditManager Test", function () {
             "ReceivableFactoringCredit",
             "ReceivableFactoringCreditManager",
             evaluationAgent,
+            treasury,
             poolOwnerTreasury,
             poolOperator,
             [lender, borrower, payer],
@@ -144,9 +145,7 @@ describe("ReceivableFactoringCreditManager Test", function () {
             .connect(borrower)
             .approve(borrowerFirstLossCoverContract.address, ethers.constants.MaxUint256);
 
-        await juniorTrancheVaultContract
-            .connect(lender)
-            .deposit(toToken(10_000_000), lender.address);
+        await juniorTrancheVaultContract.connect(lender).deposit(toToken(10_000_000));
     }
 
     beforeEach(async function () {
@@ -687,83 +686,6 @@ describe("ReceivableFactoringCreditManager Test", function () {
                 const cc = await creditManagerContract.getCreditConfig(creditHash);
                 expect(cc.creditLimit).to.equal(ethers.constants.Zero);
             });
-        });
-    });
-
-    describe("pauseCredit and unpauseCredit", function () {
-        let tokenId: BN;
-        const numOfPeriods = 1,
-            yieldInBps = 1517;
-        let creditLimit: BN;
-
-        async function prepareForPauseAndUnpauseCredit() {
-            await nftContract.mintNFT(borrower.address, "");
-            tokenId = await nftContract.tokenOfOwnerByIndex(borrower.address, 0);
-            await nftContract.connect(borrower).approve(creditContract.address, tokenId);
-
-            creditLimit = toToken(15_000);
-
-            await creditManagerContract
-                .connect(eaServiceAccount)
-                .approveReceivable(
-                    borrower.address,
-                    { receivableAmount: creditLimit, receivableId: tokenId },
-                    creditLimit,
-                    numOfPeriods,
-                    yieldInBps,
-                );
-            await creditContract
-                .connect(borrower)
-                .drawdownWithReceivable(borrower.getAddress(), tokenId, creditLimit);
-        }
-
-        beforeEach(async function () {
-            await loadFixture(prepareForPauseAndUnpauseCredit);
-        });
-
-        it("Should allow the EA to pause and unpause a credit", async function () {
-            await creditManagerContract.connect(eaServiceAccount).pauseCredit(tokenId);
-            let cr = await creditContract["getCreditRecord(uint256)"](tokenId);
-            expect(cr.state).to.equal(CreditState.Paused);
-
-            await creditManagerContract.connect(eaServiceAccount).unpauseCredit(tokenId);
-            cr = await creditContract["getCreditRecord(uint256)"](tokenId);
-            expect(cr.state).to.equal(CreditState.GoodStanding);
-        });
-
-        it("Should not allow the credit to be paused/unpaused when the protocol is paused or pool is not on", async function () {
-            await humaConfigContract.connect(protocolOwner).pause();
-            await expect(
-                creditManagerContract.connect(eaServiceAccount).pauseCredit(tokenId),
-            ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
-            await humaConfigContract.connect(protocolOwner).unpause();
-
-            await poolContract.connect(poolOwner).disablePool();
-            await expect(
-                creditManagerContract.connect(eaServiceAccount).pauseCredit(tokenId),
-            ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
-            await poolContract.connect(poolOwner).enablePool();
-        });
-
-        it("Should not allow non-EA to pause or unpause the credit", async function () {
-            const oldCR = await creditContract["getCreditRecord(uint256)"](tokenId);
-            await expect(
-                creditManagerContract.connect(borrower).pauseCredit(tokenId),
-            ).to.be.revertedWithCustomError(
-                creditManagerContract,
-                "EvaluationAgentServiceAccountRequired",
-            );
-            let newCR = await creditContract["getCreditRecord(uint256)"](tokenId);
-            expect(newCR.state).to.equal(oldCR.state);
-
-            await expect(
-                creditManagerContract.connect(borrower).unpauseCredit(tokenId),
-            ).to.be.revertedWithCustomError(
-                creditManagerContract,
-                "EvaluationAgentServiceAccountRequired",
-            );
-            newCR = await creditContract["getCreditRecord(uint256)"](tokenId);
-            expect(newCR.state).to.equal(oldCR.state);
         });
     });
 
