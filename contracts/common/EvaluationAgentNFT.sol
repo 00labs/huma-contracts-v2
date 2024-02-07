@@ -59,7 +59,7 @@ contract EvaluationAgentNFT is ERC721URIStorage, Ownable {
         address to,
         uint256 tokenId
     ) public virtual override(ERC721, IERC721) {
-        // Intentionally disable transfer by doing nothing.
+        revert Errors.UnsupportedFunction();
     }
 
     function safeTransferFrom(
@@ -67,7 +67,7 @@ contract EvaluationAgentNFT is ERC721URIStorage, Ownable {
         address to,
         uint256 tokenId
     ) public virtual override(ERC721, IERC721) {
-        // Intentionally disable transfer by doing nothing.
+        revert Errors.UnsupportedFunction();
     }
 
     function safeTransferFrom(
@@ -76,6 +76,6 @@ contract EvaluationAgentNFT is ERC721URIStorage, Ownable {
         uint256 tokenId,
         bytes memory data
     ) public virtual override(ERC721, IERC721) {
-        // Intentionally disable transfer by doing nothing.
+        revert Errors.UnsupportedFunction();
     }
 }

@@ -37,7 +37,6 @@ contract CreditLine is Credit, ICreditLine {
         creditManager.onlyCreditBorrower(creditHash, borrower);
 
         (amountPaid, paidoff, ) = _makePayment(borrower, creditHash, amount);
-        return (amountPaid, paidoff);
     }
 
     /// @inheritdoc ICreditLine
@@ -52,7 +51,6 @@ contract CreditLine is Credit, ICreditLine {
         creditManager.onlyCreditBorrower(creditHash, borrower);
 
         (amountPaid, paidoff) = _makePrincipalPayment(borrower, creditHash, amount);
-        return (amountPaid, paidoff);
     }
 
     /// @inheritdoc ICreditLine
@@ -69,7 +67,7 @@ contract CreditLine is Credit, ICreditLine {
         return _getDueInfo(creditHash);
     }
 
-    function getCreditHash(address borrower) internal view virtual returns (bytes32 creditHash) {
+    function getCreditHash(address borrower) public view virtual returns (bytes32 creditHash) {
         return keccak256(abi.encode(address(this), borrower));
     }
 }

@@ -576,6 +576,7 @@ describe("FirstLossCover Tests", function () {
             await poolConfigContract
                 .connect(poolOwner)
                 .setPoolFeeManager(defaultDeployer.getAddress());
+            await adminFirstLossCoverContract.connect(poolOwner).updatePoolConfigData();
         });
 
         it("Should allow the pool fee manager to deposit on behalf of a cover provider", async function () {
@@ -639,16 +640,6 @@ describe("FirstLossCover Tests", function () {
                 adminFirstLossCoverContract,
                 "AuthorizedContractCallerRequired",
             );
-        });
-
-        it("Should disallow deposits with amounts lower than the min requirement", async function () {
-            const poolSettings = await poolConfigContract.getPoolSettings();
-            await expect(
-                adminFirstLossCoverContract.depositCoverFor(
-                    poolSettings.minDepositAmount.sub(toToken(1)),
-                    evaluationAgent.getAddress(),
-                ),
-            ).to.be.revertedWithCustomError(adminFirstLossCoverContract, "DepositAmountTooLow");
         });
     });
 

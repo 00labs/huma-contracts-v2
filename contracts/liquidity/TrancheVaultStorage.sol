@@ -6,6 +6,7 @@ import {IEpochManager} from "./interfaces/IEpochManager.sol";
 import {IPool} from "./interfaces/IPool.sol";
 import {IPoolSafe} from "./interfaces/IPoolSafe.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ICalendar} from "../common/interfaces/ICalendar.sol";
 
 contract TrancheVaultStorage {
     struct LenderRedemptionRecord {
@@ -38,6 +39,7 @@ contract TrancheVaultStorage {
     IPool public pool;
     IPoolSafe public poolSafe;
     IEpochManager public epochManager;
+    ICalendar public calendar;
 
     /// Maps from epochId to the redemption summary for that epoch
     mapping(uint256 => EpochRedemptionSummary) public epochRedemptionSummaries;
