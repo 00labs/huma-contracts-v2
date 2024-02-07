@@ -2,7 +2,7 @@
 pragma solidity 0.8.23;
 
 import {Errors} from "../common/Errors.sol";
-import {LPConfig} from "../common/PoolConfig.sol";
+import {LPConfig, PoolConfig} from "../common/PoolConfig.sol";
 import {BaseTranchesPolicy} from "./BaseTranchesPolicy.sol";
 import {SENIOR_TRANCHE, DAYS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS} from "../common/SharedDefs.sol";
 import {ICalendar} from "../common/interfaces/ICalendar.sol";
@@ -78,10 +78,10 @@ contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
         return (seniorProfit, remainingProfit);
     }
 
-    function _updatePoolConfigData(PoolConfig poolConfig) internal virtual override {
-        super._updatePoolConfigData(poolConfig);
+    function _updatePoolConfigData(PoolConfig poolConfig_) internal virtual override {
+        super._updatePoolConfigData(poolConfig_);
 
-        address addr = poolConfig.calendar();
+        address addr = poolConfig_.calendar();
         assert(addr != address(0));
         calender = ICalendar(addr);
     }
