@@ -43,31 +43,6 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
     event BillRefreshed(bytes32 indexed creditHash, uint256 newDueDate, uint256 amountDue);
 
     /**
-     * @notice Credit line created
-     * @param borrower the address of the borrower
-     * @param creditLimit the credit limit of the credit line
-     * @param aprInBps interest rate (APR) expressed in basis points, 1% is 100, 100% is 10000
-     * @param periodDuration The pay period duration
-     * @param remainingPeriods how many cycles are there before the credit line expires
-     * @param approved flag that shows if the credit line has been approved or not
-     */
-    event CreditInitiated(
-        address indexed borrower,
-        uint256 creditLimit,
-        uint256 aprInBps,
-        PayPeriodDuration periodDuration,
-        uint256 remainingPeriods,
-        bool approved
-    );
-
-    /// Credit limit for an existing credit line has been changed
-    event CreditLineChanged(
-        address indexed borrower,
-        uint256 oldCreditLimit,
-        uint256 newCreditLimit
-    );
-
-    /**
      * @notice A borrowing event has happened to the credit.
      * @param borrower The address of the borrower.
      * @param borrowAmount The amount the user has borrowed.

@@ -88,8 +88,6 @@ contract HumaConfig is Ownable, Pausable {
      */
     event SentinelServiceAccountChanged(address sentinelService);
 
-    event ProtocolDefaultGracePeriodChanged(uint256 gracePeriod);
-
     /**
      * @notice The Huma protocol has been initialized.
      * @param by The address that initialized the protocol.
