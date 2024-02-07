@@ -98,6 +98,20 @@ contract TrancheVault is
     event YieldPaidOut(address indexed account, uint256 yields, uint256 shares);
 
     /**
+     * @notice Yield payout to the investor has failed.
+     * @param account The account who should have received the yield distribution.
+     * @param yields The amount of yield that should have been distributed.
+     * @param shares The number of shares that should have been burned for this distribution.
+     * @param reason The reason why the payout failed.
+     */
+    event YieldPayoutFailed(
+        address indexed account,
+        uint256 yields,
+        uint256 shares,
+        string reason
+    );
+
+    /**
      * @notice Yield has been reinvested into the tranche.
      * @param account The account whose yield has been reinvested.
      * @param yields The yield amount reinvested.
@@ -408,23 +422,32 @@ contract TrancheVault is
     function processYieldForLenders() external {
         poolConfig.onlyProtocolAndPoolOn();
 
+        uint256 priceWithDecimals = convertToAssets(DEFAULT_DECIMALS_FACTOR);
         uint256 len = nonReinvestingLenders.length;
-        uint256 price = convertToAssets(DEFAULT_DECIMALS_FACTOR);
         uint96[2] memory tranchesAssets = pool.currentTranchesAssets();
         for (uint256 i = 0; i < len; i++) {
             address lender = nonReinvestingLenders[i];
             uint256 shares = ERC20Upgradeable.balanceOf(lender);
-            uint256 assets = (shares * price) / DEFAULT_DECIMALS_FACTOR;
+            uint256 assetsWithDecimals = shares * priceWithDecimals;
             DepositRecord memory depositRecord = _getDepositRecord(lender);
-            if (assets > depositRecord.principal) {
-                uint256 yield = assets - depositRecord.principal;
-                tranchesAssets[trancheIndex] -= uint96(yield);
+            uint256 principalWithDecimals = depositRecord.principal * DEFAULT_DECIMALS_FACTOR;
+            if (assetsWithDecimals > principalWithDecimals) {
+                uint256 yieldWithDecimals = assetsWithDecimals - principalWithDecimals;
+                uint256 yield = yieldWithDecimals / DEFAULT_DECIMALS_FACTOR;
                 // Round up the number of shares the lender has to burn in order to receive
                 // the given amount of yield. Round-up applies the favor-the-pool principle.
-                shares = Math.ceilDiv(yield * DEFAULT_DECIMALS_FACTOR, price);
-                ERC20Upgradeable._burn(lender, shares);
-                poolSafe.withdraw(lender, yield);
-                emit YieldPaidOut(lender, yield, shares);
+                shares = Math.ceilDiv(yieldWithDecimals, priceWithDecimals);
+                // The underlying asset of the pool may incorporate a blocklist feature that prevents the lender
+                // from receiving yield if they are subject to sanctions, and consequently the `transfer` call
+                // would fail for the lender. We bypass the yield of this lender so that other lenders can
+                // still get their yield paid out as normal.
+                try poolSafe.withdraw(lender, yield) {
+                    tranchesAssets[trancheIndex] -= uint96(yield);
+                    ERC20Upgradeable._burn(lender, shares);
+                    emit YieldPaidOut(lender, yield, shares);
+                } catch Error(string memory reason) {
+                    emit YieldPayoutFailed(lender, yield, shares, reason);
+                }
             }
         }
         poolSafe.resetUnprocessedProfit();

@@ -82,11 +82,18 @@ contract FirstLossCover is
     event AssetsAdded(uint256 assets);
 
     /**
-     * @notice Yield has been paid out to the cover providers.
+     * @notice Yield has been paid out to the cover provider.
      * @param account The address of the cover provider that received the yield.
      * @param yields The amount of yield paid out to the cover provider.
      */
     event YieldPaidOut(address indexed account, uint256 yields);
+
+    /**
+     * @notice Yield payout to the cover provider has failed.
+     * @param account The address of the cover provider that should have received the yield.
+     * @param yields The amount of yield that should have been paid out to the cover provider.
+     */
+    event YieldPayoutFailed(address indexed account, uint256 yields);
 
     function initialize(
         string memory name,
@@ -240,8 +247,28 @@ contract FirstLossCover is
 
             uint256 payout = (yield * shares) / totalShares;
             remainingShares -= shares;
-            underlyingToken.safeTransfer(provider, payout);
-            emit YieldPaidOut(provider, payout);
+
+            // The underlying asset of the pool may incorporate a blocklist feature that prevents the provider
+            // from receiving yield if they are subject to sanctions, and consequently the `transfer` call
+            // would fail for the lender. We bypass the yield of this provider so that other
+            // providers can still get their yield paid out as normal.
+            // Notes on the implementation:
+            // 1. We need to use the regular `transfer` function instead of `safeTransfer` since
+            //    `safeTransfer` reverts on failure, but we can't use `try/catch` to catch the reversion since
+            //    `safeTransfer` is an internal function.
+            // 2. We need to use try/catch as well as checking on the status code returned by `transfer` since
+            //    `transfer` may either revert or return `false` on failure.
+            bool success = false;
+            try underlyingToken.transfer(provider, payout) returns (bool result) {
+                success = result;
+            } catch {
+                // `success` is already false. No need to explicitly assign it to false again.
+            }
+            if (success) {
+                emit YieldPaidOut(provider, payout);
+            } else {
+                emit YieldPayoutFailed(provider, payout);
+            }
         }
 
         // We expect all yield to be paid out in one go. It's technically impossible for remainingShares

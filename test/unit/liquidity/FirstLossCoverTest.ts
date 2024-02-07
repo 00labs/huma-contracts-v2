@@ -1183,7 +1183,7 @@ describe("FirstLossCover Tests", function () {
     });
 
     describe("payoutYield", function () {
-        it("Should pay out yield to all providers ", async function () {
+        it("Should pay out yield to all providers", async function () {
             const totalAssets = await adminFirstLossCoverContract.totalAssets();
             const yieldAmount = toToken(8273);
 
@@ -1242,6 +1242,112 @@ describe("FirstLossCover Tests", function () {
                     evaluationAgentShares.mul(yieldAmount).div(totalShares),
                 ),
             );
+        });
+
+        it("Should skip providers that are blocklisted by the underlying asset", async function () {
+            const totalAssets = await adminFirstLossCoverContract.totalAssets();
+            const totalYield = toToken(8273);
+
+            await overrideFirstLossCoverConfig(
+                adminFirstLossCoverContract,
+                CONSTANTS.ADMIN_LOSS_COVER_INDEX,
+                poolConfigContract,
+                poolOwner,
+                {
+                    maxLiquidity: totalAssets.sub(totalYield),
+                },
+            );
+
+            const poolOwnerTreasuryBalance = await mockTokenContract.balanceOf(
+                poolOwnerTreasury.address,
+            );
+            const evaluationAgentBalance = await mockTokenContract.balanceOf(
+                evaluationAgent.address,
+            );
+            const totalShares = await adminFirstLossCoverContract.totalSupply();
+            const poolOwnerTreasuryShares = await adminFirstLossCoverContract.balanceOf(
+                poolOwnerTreasury.address,
+            );
+            const poolOwnerYieldPaidOut = totalYield.mul(poolOwnerTreasuryShares).div(totalShares);
+            // Payout to the EA fails due to blocklisting.
+            const evaluationAgentShares = await adminFirstLossCoverContract.balanceOf(
+                evaluationAgent.address,
+            );
+            await mockTokenContract.addToSoftFailBlocklist(evaluationAgent.getAddress());
+
+            await expect(adminFirstLossCoverContract.payoutYield())
+                .to.emit(adminFirstLossCoverContract, "YieldPaidOut")
+                .withArgs(poolOwnerTreasury.address, poolOwnerYieldPaidOut)
+                .to.emit(adminFirstLossCoverContract, "YieldPayoutFailed")
+                .withArgs(
+                    evaluationAgent.address,
+                    totalYield.mul(evaluationAgentShares).div(totalShares),
+                );
+
+            expect(await adminFirstLossCoverContract.totalAssets()).to.equal(
+                totalAssets.sub(poolOwnerYieldPaidOut),
+            );
+            expect(await mockTokenContract.balanceOf(poolOwnerTreasury.address)).to.equal(
+                poolOwnerTreasuryBalance.add(poolOwnerYieldPaidOut),
+            );
+            expect(await mockTokenContract.balanceOf(evaluationAgent.address)).to.equal(
+                evaluationAgentBalance,
+            );
+
+            await mockTokenContract.removeFromSoftFailBlocklist(evaluationAgent.getAddress());
+        });
+
+        it("Should skip providers that are blocklisted by the underlying asset and the underlying asset reverts the transfer with error", async function () {
+            const totalAssets = await adminFirstLossCoverContract.totalAssets();
+            const totalYield = toToken(8273);
+
+            await overrideFirstLossCoverConfig(
+                adminFirstLossCoverContract,
+                CONSTANTS.ADMIN_LOSS_COVER_INDEX,
+                poolConfigContract,
+                poolOwner,
+                {
+                    maxLiquidity: totalAssets.sub(totalYield),
+                },
+            );
+
+            const poolOwnerTreasuryBalance = await mockTokenContract.balanceOf(
+                poolOwnerTreasury.address,
+            );
+            const evaluationAgentBalance = await mockTokenContract.balanceOf(
+                evaluationAgent.address,
+            );
+            const totalShares = await adminFirstLossCoverContract.totalSupply();
+            const poolOwnerTreasuryShares = await adminFirstLossCoverContract.balanceOf(
+                poolOwnerTreasury.address,
+            );
+            const poolOwnerYieldPaidOut = totalYield.mul(poolOwnerTreasuryShares).div(totalShares);
+            // Payout to the EA fails due to blocklisting.
+            const evaluationAgentShares = await adminFirstLossCoverContract.balanceOf(
+                evaluationAgent.address,
+            );
+            await mockTokenContract.addToRevertingBlocklist(evaluationAgent.getAddress());
+
+            await expect(adminFirstLossCoverContract.payoutYield())
+                .to.emit(adminFirstLossCoverContract, "YieldPaidOut")
+                .withArgs(poolOwnerTreasury.address, poolOwnerYieldPaidOut)
+                .to.emit(adminFirstLossCoverContract, "YieldPayoutFailed")
+                .withArgs(
+                    evaluationAgent.address,
+                    totalYield.mul(evaluationAgentShares).div(totalShares),
+                );
+
+            expect(await adminFirstLossCoverContract.totalAssets()).to.equal(
+                totalAssets.sub(poolOwnerYieldPaidOut),
+            );
+            expect(await mockTokenContract.balanceOf(poolOwnerTreasury.address)).to.equal(
+                poolOwnerTreasuryBalance.add(poolOwnerYieldPaidOut),
+            );
+            expect(await mockTokenContract.balanceOf(evaluationAgent.address)).to.equal(
+                evaluationAgentBalance,
+            );
+
+            await mockTokenContract.removeFromRevertingBlocklist(evaluationAgent.getAddress());
         });
 
         it("Should do nothing if the yield is 0", async function () {
