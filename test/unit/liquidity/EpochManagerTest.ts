@@ -203,27 +203,27 @@ describe("EpochManager Test", function () {
 
             await poolContract.connect(poolOwner).disablePool();
 
-            let oldSeniorRedemptionSummary =
-                await seniorTrancheVaultContract.currentRedemptionSummary();
-            let oldJuniorRedemptionSummary =
-                await juniorTrancheVaultContract.currentRedemptionSummary();
+            const currentEpochId = await epochManagerContract.currentEpochId();
+            const oldSeniorRedemptionSummary =
+                await seniorTrancheVaultContract.epochRedemptionSummary(currentEpochId);
+            expect(oldSeniorRedemptionSummary.totalSharesRequested).to.be.gt(0);
+            const oldJuniorRedemptionSummary =
+                await juniorTrancheVaultContract.epochRedemptionSummary(currentEpochId);
+            expect(oldJuniorRedemptionSummary.totalSharesRequested).to.be.gt(0);
 
-            let block = await getLatestBlock();
-            let ts = block.timestamp + 365 * CONSTANTS.SECONDS_IN_A_DAY;
+            const block = await getLatestBlock();
+            const ts = block.timestamp + 365 * CONSTANTS.SECONDS_IN_A_DAY;
             await mineNextBlockWithTimestamp(ts);
 
             await poolContract.connect(poolOwner).enablePool();
 
-            let newSeniorRedemptionSummary =
-                await seniorTrancheVaultContract.currentRedemptionSummary();
-            let newJuniorRedemptionSummary =
-                await juniorTrancheVaultContract.currentRedemptionSummary();
-
-            expect(oldJuniorRedemptionSummary.totalSharesRequested).to.greaterThan(0);
+            const newSeniorRedemptionSummary =
+                await seniorTrancheVaultContract.epochRedemptionSummary(currentEpochId);
+            const newJuniorRedemptionSummary =
+                await juniorTrancheVaultContract.epochRedemptionSummary(currentEpochId);
             expect(oldJuniorRedemptionSummary.totalSharesRequested).to.equal(
                 newJuniorRedemptionSummary.totalSharesRequested,
             );
-            expect(oldSeniorRedemptionSummary.totalSharesRequested).to.greaterThan(0);
             expect(oldSeniorRedemptionSummary.totalSharesRequested).to.equal(
                 newSeniorRedemptionSummary.totalSharesRequested,
             );
