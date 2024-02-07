@@ -41,7 +41,7 @@ contract Errors {
     error PoolOwnerInsufficientLiquidity(); // 0xbd8efe51
     error EvaluationAgentInsufficientLiquidity(); // 0xc4c087d5
     error MinDepositAmountTooLow(); // 0xf250b9dc
-    error LatePaymentGracePeriodTooLong();
+    error LatePaymentGracePeriodTooLong(); // 0x2e727550
 
     // Pool state
     error ProtocolIsPaused(); // 0xaf0b004c
