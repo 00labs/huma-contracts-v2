@@ -39,8 +39,6 @@ abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
                 profitsForFirstLossCover
             ) = _calcProfitForFirstLossCovers(remainingProfit, assets[JUNIOR_TRANCHE]);
         }
-
-        return (profitsForTrancheVault, profitsForFirstLossCover);
     }
 
     /// @inheritdoc ITranchesPolicy
@@ -81,7 +79,7 @@ abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
     ) internal virtual returns (uint256 seniorProfit, uint256 remainingProfit);
 
     /**
-     * @notice Internal function that calculates the profit distribution between the junior trnache and
+     * @notice Internal function that calculates the profit distribution between the junior tranche and
      * first loss covers (FLCs).
      * @dev There is a risk multiplier assigned to each first loss cover. To compute the profit
      * for each FLCs, we first get the product of the asset amount of each FLC and the risk
@@ -123,6 +121,5 @@ abstract contract BaseTranchesPolicy is PoolConfigCache, ITranchesPolicy {
             // it is guaranteed that juniorProfit will not be negative.
             juniorProfit -= profitsForFirstLossCovers[i];
         }
-        return (juniorProfit, profitsForFirstLossCovers);
     }
 }

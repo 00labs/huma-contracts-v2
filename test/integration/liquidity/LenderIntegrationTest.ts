@@ -313,11 +313,12 @@ async function configPool(lpConfig: Partial<LPConfigStructOutput>) {
     }
 
     feeCalculator = new FeeCalculator(humaConfigContract, poolConfigContract);
-    pnlCalculator = new ProfitAndLossCalculator(poolConfigContract, poolContract, [
-        borrowerFirstLossCoverContract,
-        null,
-        adminFirstLossCoverContract,
-    ]);
+    pnlCalculator = new ProfitAndLossCalculator(
+        poolConfigContract,
+        poolContract,
+        calendarContract,
+        [borrowerFirstLossCoverContract, null, adminFirstLossCoverContract],
+    );
     epochChecker = new EpochChecker(
         epochManagerContract,
         seniorTrancheVaultContract,
@@ -2530,6 +2531,7 @@ describe("Lender Integration Test", function () {
             tracker = await tranchesPolicyContract.seniorYieldTracker();
             await seniorTrancheVaultContract.connect(sLenders[2]).deposit(amount);
             let newTracker = await PnLCalculator.calcLatestSeniorTracker(
+                calendarContract,
                 currentTS,
                 FIXED_SENIOR_YIELD_IN_BPS,
                 tracker,

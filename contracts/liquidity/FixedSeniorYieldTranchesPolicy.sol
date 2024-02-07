@@ -2,9 +2,10 @@
 pragma solidity 0.8.23;
 
 import {Errors} from "../common/Errors.sol";
-import {LPConfig} from "../common/PoolConfig.sol";
+import {LPConfig, PoolConfig} from "../common/PoolConfig.sol";
 import {BaseTranchesPolicy} from "./BaseTranchesPolicy.sol";
-import {SENIOR_TRANCHE, SECONDS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS} from "../common/SharedDefs.sol";
+import {SENIOR_TRANCHE, DAYS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS} from "../common/SharedDefs.sol";
+import {ICalendar} from "../common/interfaces/ICalendar.sol";
 
 /**
  * @notice Tranche policy where the yield for the senior tranche is fixed as long as
@@ -24,6 +25,7 @@ contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
     }
 
     SeniorYieldTracker public seniorYieldTracker;
+    ICalendar public calender;
 
     /**
      * @notice The senior yield tracker has been refreshed.
@@ -72,8 +74,14 @@ contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
             tracker.unpaidYield,
             tracker.lastUpdatedDate
         );
+    }
 
-        return (seniorProfit, remainingProfit);
+    function _updatePoolConfigData(PoolConfig poolConfig_) internal virtual override {
+        super._updatePoolConfigData(poolConfig_);
+
+        address addr = poolConfig_.calendar();
+        assert(addr != address(0));
+        calender = ICalendar(addr);
     }
 
     /**
@@ -84,15 +92,15 @@ contract FixedSeniorYieldTranchePolicy is BaseTranchesPolicy {
      */
     function _getYieldTracker() internal view returns (SeniorYieldTracker memory, bool updated) {
         SeniorYieldTracker memory tracker = seniorYieldTracker;
-        if (block.timestamp > tracker.lastUpdatedDate) {
+        uint256 startOfNextDay = calender.getStartOfNextDay(block.timestamp);
+        uint256 daysDiff = calender.getDaysDiff(tracker.lastUpdatedDate, startOfNextDay);
+        if (daysDiff > 0) {
             LPConfig memory lpConfig = poolConfig.getLPConfig();
             tracker.unpaidYield += uint96(
-                (tracker.totalAssets *
-                    lpConfig.fixedSeniorYieldInBps *
-                    (block.timestamp - tracker.lastUpdatedDate)) /
-                    (SECONDS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
+                (tracker.totalAssets * lpConfig.fixedSeniorYieldInBps * daysDiff) /
+                    (DAYS_IN_A_YEAR * HUNDRED_PERCENT_IN_BPS)
             );
-            tracker.lastUpdatedDate = uint64(block.timestamp);
+            tracker.lastUpdatedDate = uint64(startOfNextDay);
             updated = true;
         }
 

@@ -148,13 +148,6 @@ export enum ReceivableState {
     Defaulted,
 }
 
-export enum CreditClosureReason {
-    Paidoff,
-    CreditLimitChangedToBeZero,
-    OverwrittenByNewLine,
-    AdminClosure,
-}
-
 export enum PoolStatus {
     Created,
     Initialized,
@@ -834,36 +827,48 @@ export async function deployAndSetupPoolContracts(
 
 export type SeniorYieldTracker = { totalAssets: BN; unpaidYield: BN; lastUpdatedDate: BN };
 
-function calcLatestSeniorTracker(
+async function calcLatestSeniorTracker(
+    calendarContract: Calendar,
     currentTS: number,
     yieldInBps: number,
     seniorYieldTracker: SeniorYieldTracker,
-): SeniorYieldTracker {
-    let newSeniorTracker = { ...seniorYieldTracker };
-    if (currentTS > newSeniorTracker.lastUpdatedDate.toNumber()) {
+): Promise<SeniorYieldTracker> {
+    const newSeniorTracker = { ...seniorYieldTracker };
+    const startOfNextDay = await calendarContract.getStartOfNextDay(currentTS);
+    const daysDiff = await calendarContract.getDaysDiff(
+        newSeniorTracker.lastUpdatedDate,
+        startOfNextDay,
+    );
+    if (daysDiff.gt(0)) {
         newSeniorTracker.unpaidYield = newSeniorTracker.unpaidYield.add(
             newSeniorTracker.totalAssets
-                .mul(BN.from(currentTS).sub(newSeniorTracker.lastUpdatedDate))
+                .mul(daysDiff)
                 .mul(BN.from(yieldInBps))
-                .div(BN.from(CONSTANTS.SECONDS_IN_A_YEAR).mul(CONSTANTS.BP_FACTOR)),
+                .div(BN.from(CONSTANTS.DAYS_IN_A_YEAR).mul(CONSTANTS.BP_FACTOR)),
         );
-        newSeniorTracker.lastUpdatedDate = BN.from(currentTS);
+        newSeniorTracker.lastUpdatedDate = BN.from(startOfNextDay);
     }
     return newSeniorTracker;
 }
 
-function calcProfitForFixedSeniorYieldPolicy(
+async function calcProfitForFixedSeniorYieldPolicy(
+    calendarContract: Calendar,
     profit: BN,
     assets: BN[],
     currentTS: number,
     yieldInBps: number,
     seniorYieldTracker: SeniorYieldTracker,
-): [SeniorYieldTracker, BN[]] {
-    let newSeniorTracker = calcLatestSeniorTracker(currentTS, yieldInBps, seniorYieldTracker);
-    let seniorProfit = newSeniorTracker.unpaidYield.gt(profit)
+): Promise<[SeniorYieldTracker, BN[]]> {
+    const newSeniorTracker = await calcLatestSeniorTracker(
+        calendarContract,
+        currentTS,
+        yieldInBps,
+        seniorYieldTracker,
+    );
+    const seniorProfit = newSeniorTracker.unpaidYield.gt(profit)
         ? profit
         : newSeniorTracker.unpaidYield;
-    let juniorProfit = profit.sub(seniorProfit);
+    const juniorProfit = profit.sub(seniorProfit);
     newSeniorTracker.unpaidYield = newSeniorTracker.unpaidYield.sub(seniorProfit);
     newSeniorTracker.totalAssets = assets[CONSTANTS.SENIOR_TRANCHE].add(seniorProfit);
 
@@ -1115,6 +1120,7 @@ export class FeeCalculator {
 export class ProfitAndLossCalculator {
     poolConfigContract: PoolConfig;
     poolContract: Pool;
+    calendarContract: Calendar;
     firstLossCoverContracts: (FirstLossCover | null)[];
 
     tranchesAssets: BN[] = [];
@@ -1123,10 +1129,12 @@ export class ProfitAndLossCalculator {
     constructor(
         poolConfigContract: PoolConfig,
         poolContract: Pool,
+        calendarContract: Calendar,
         firstLossCoverContracts: (FirstLossCover | null)[],
     ) {
         this.poolConfigContract = poolConfigContract;
         this.poolContract = poolContract;
+        this.calendarContract = calendarContract;
         this.firstLossCoverContracts = firstLossCoverContracts;
     }
 
@@ -1242,6 +1250,7 @@ export class ProfitAndLossCalculator {
         let lpConfig = await this.poolConfigContract.getLPConfig();
         let block = await getLatestBlock();
         let [newTracker, assets] = await calcProfitForFixedSeniorYieldPolicy(
+            this.calendarContract,
             profit,
             this.tranchesAssets,
             block.timestamp,
