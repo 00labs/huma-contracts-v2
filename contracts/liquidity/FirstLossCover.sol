@@ -172,22 +172,11 @@ contract FirstLossCover is
     function redeemCover(uint256 shares, address receiver) external returns (uint256 assets) {
         if (shares == 0) revert Errors.ZeroAmountProvided();
         if (receiver == address(0)) revert Errors.ZeroAddressProvided();
-
-        uint256 minLiquidity = getMinLiquidity();
-        uint256 currTotalAssets = totalAssets();
-
-        bool ready = pool.readyForFirstLossCoverWithdrawal();
-        // If ready, all assets can be withdrawn. Otherwise, only the excessive assets over the minimum
-        // liquidity requirement can be withdrawn.
-        if (!ready && currTotalAssets <= minLiquidity)
+        if (!pool.readyForFirstLossCoverWithdrawal())
             revert Errors.PoolIsNotReadyForFirstLossCoverWithdrawal();
-
         if (shares > balanceOf(msg.sender)) revert Errors.InsufficientSharesForRequest();
-        assets = convertToAssets(shares);
-        // Revert if the pool is not ready and the assets to be withdrawn is more than the available value.
-        if (!ready && assets > currTotalAssets - minLiquidity)
-            revert Errors.InsufficientAmountForRequest();
 
+        assets = convertToAssets(shares);
         ERC20Upgradeable._burn(msg.sender, shares);
         underlyingToken.safeTransfer(receiver, assets);
         emit CoverRedeemed(msg.sender, receiver, shares, assets);

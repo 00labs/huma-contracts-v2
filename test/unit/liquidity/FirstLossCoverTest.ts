@@ -770,173 +770,25 @@ describe("FirstLossCover Tests", function () {
                 await poolContract.connect(poolOwner).setReadyForFirstLossCoverWithdrawal(false);
             }
 
-            async function testRedeemCover(
-                assetsToRedeem: BN,
-                profit: BN = BN.from(0),
-                loss: BN = BN.from(0),
-                lossRecovery: BN = BN.from(0),
-            ) {
-                const minLiquidityRequired = await adminFirstLossCoverContract.getMinLiquidity();
-                await depositCover(
-                    minLiquidityRequired.add(assetsToRedeem),
-                    profit,
-                    loss,
-                    lossRecovery,
-                );
-
-                const oldSupply = await adminFirstLossCoverContract.totalSupply();
-                const oldAssets = await adminFirstLossCoverContract.totalAssets();
-                const sharesToRedeem = assetsToRedeem.mul(oldSupply).div(oldAssets);
-                const expectedAssetsToRedeem = sharesToRedeem.mul(oldAssets).div(oldSupply);
-                const oldEABalance = await mockTokenContract.balanceOf(
-                    evaluationAgent.getAddress(),
-                );
-                const oldFirstLossCoverContractBalance = await mockTokenContract.balanceOf(
-                    adminFirstLossCoverContract.address,
-                );
-
-                await expect(
-                    adminFirstLossCoverContract
-                        .connect(evaluationAgent)
-                        .redeemCover(sharesToRedeem, evaluationAgent.getAddress()),
-                )
-                    .to.emit(adminFirstLossCoverContract, "CoverRedeemed")
-                    .withArgs(
-                        await evaluationAgent.getAddress(),
-                        await evaluationAgent.getAddress(),
-                        sharesToRedeem,
-                        expectedAssetsToRedeem,
-                    );
-
-                expect(await adminFirstLossCoverContract.totalSupply()).to.equal(
-                    oldSupply.sub(sharesToRedeem),
-                );
-                expect(await adminFirstLossCoverContract.totalAssets()).to.equal(
-                    oldAssets.sub(expectedAssetsToRedeem),
-                );
-                expect(await mockTokenContract.balanceOf(evaluationAgent.getAddress())).to.equal(
-                    oldEABalance.add(expectedAssetsToRedeem),
-                );
-                expect(
-                    await mockTokenContract.balanceOf(adminFirstLossCoverContract.address),
-                ).to.equal(oldFirstLossCoverContractBalance.sub(expectedAssetsToRedeem));
-            }
-
             beforeEach(async function () {
                 await loadFixture(setFirstLossCoverWithdrawalToNotReady);
             });
 
-            it("Should allow the cover provider to redeem excessive assets over the cover cap", async function () {
-                const assetsToRedeem = toToken(5_000);
-                await testRedeemCover(assetsToRedeem);
-            });
-
-            it("Should allow the cover provider to redeem excessive assets over the cover cap when there is more profit than loss", async function () {
-                const assetsToRedeem = toToken(5_000);
-                const profit = toToken(178),
-                    loss = toToken(132),
-                    lossRecovery = toToken(59);
-                await testRedeemCover(assetsToRedeem, profit, loss, lossRecovery);
-            });
-
-            it("Should allow the cover provider to redeem excessive assets over the liquidity cap when there is more loss than profit", async function () {
-                const assetsToRedeem = toToken(5_000);
-                const profit = toToken(132),
-                    loss = toToken(1908),
-                    lossRecovery = toToken(59);
-                await testRedeemCover(assetsToRedeem, profit, loss, lossRecovery);
-            });
-
-            it("Should disallow the cover provider to redeem assets if the min liquidity requirement hasn't been satisfied", async function () {
-                // Make the cap large enough so that the first loss cover total assets fall below the cover cap.
-                const coverAssets = await adminFirstLossCoverContract.totalAssets();
-                const minLiquidity = coverAssets.add(1);
-                await overrideFirstLossCoverConfig(
-                    adminFirstLossCoverContract,
-                    CONSTANTS.ADMIN_LOSS_COVER_INDEX,
-                    poolConfigContract,
-                    poolOwner,
-                    {
-                        minLiquidity,
-                    },
-                );
-                const assetsToRedeem = toToken(5_000);
-
+            it("Should disallow the cover provider to redeem", async function () {
                 const oldSupply = await adminFirstLossCoverContract.totalSupply();
                 const oldAssets = await adminFirstLossCoverContract.totalAssets();
-                const sharesToRedeem = assetsToRedeem.mul(oldSupply).div(oldAssets);
 
                 await expect(
                     adminFirstLossCoverContract
                         .connect(evaluationAgent)
-                        .redeemCover(sharesToRedeem, evaluationAgent.getAddress()),
+                        .redeemCover(toToken(1), evaluationAgent.getAddress()),
                 ).to.be.revertedWithCustomError(
                     adminFirstLossCoverContract,
                     "PoolIsNotReadyForFirstLossCoverWithdrawal",
                 );
-            });
 
-            it("Should disallow the cover provider to redeem more shares than they own", async function () {
-                const minLiquidityRequired = await adminFirstLossCoverContract.getMinLiquidity();
-                const assetsToRedeem = toToken(5_000);
-                await depositCover(minLiquidityRequired.add(assetsToRedeem));
-
-                const eaShares = await adminFirstLossCoverContract.balanceOf(
-                    evaluationAgent.getAddress(),
-                );
-
-                await expect(
-                    adminFirstLossCoverContract
-                        .connect(evaluationAgent)
-                        .redeemCover(eaShares.add(1), evaluationAgent.getAddress()),
-                ).to.be.revertedWithCustomError(
-                    adminFirstLossCoverContract,
-                    "InsufficientSharesForRequest",
-                );
-            });
-
-            it("Should disallow the cover provider to redeem more assets than the excessive amount over the min liquidity requirement", async function () {
-                const coverTotalAssets = await adminFirstLossCoverContract.totalAssets();
-                await overrideFirstLossCoverConfig(
-                    adminFirstLossCoverContract,
-                    CONSTANTS.ADMIN_LOSS_COVER_INDEX,
-                    poolConfigContract,
-                    poolOwner,
-                    {
-                        minLiquidity: coverTotalAssets.sub(toToken(1)),
-                    },
-                );
-                const sharesToRedeem = await adminFirstLossCoverContract.balanceOf(
-                    evaluationAgent.getAddress(),
-                );
-
-                await expect(
-                    adminFirstLossCoverContract
-                        .connect(evaluationAgent)
-                        .redeemCover(sharesToRedeem, evaluationAgent.getAddress()),
-                ).to.be.revertedWithCustomError(
-                    adminFirstLossCoverContract,
-                    "InsufficientAmountForRequest",
-                );
-            });
-
-            it("Should disallow 0 as the number of shares", async function () {
-                await expect(
-                    adminFirstLossCoverContract
-                        .connect(evaluationAgent)
-                        .redeemCover(ethers.constants.Zero, evaluationAgent.getAddress()),
-                ).to.be.revertedWithCustomError(adminFirstLossCoverContract, "ZeroAmountProvided");
-            });
-
-            it("Should disallow 0 zero as the receiver", async function () {
-                await expect(
-                    adminFirstLossCoverContract
-                        .connect(evaluationAgent)
-                        .redeemCover(toToken(5_000), ethers.constants.AddressZero),
-                ).to.be.revertedWithCustomError(
-                    adminFirstLossCoverContract,
-                    "ZeroAddressProvided",
-                );
+                expect(await adminFirstLossCoverContract.totalSupply()).to.equal(oldSupply);
+                expect(await adminFirstLossCoverContract.totalAssets()).to.equal(oldAssets);
             });
         });
 
