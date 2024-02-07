@@ -6,9 +6,11 @@ import {CreditConfig} from "./CreditStructs.sol";
 import {ICredit} from "./interfaces/ICredit.sol";
 import {ICalendar} from "../common/interfaces/ICalendar.sol";
 import {ICreditDueManager} from "./interfaces/ICreditDueManager.sol";
+import {IPool} from "../liquidity/interfaces/IPool.sol";
 
 contract CreditManagerStorage {
     HumaConfig public humaConfig;
+    IPool public pool;
     ICredit public credit;
     ICalendar public calendar;
     ICreditDueManager public dueManager;

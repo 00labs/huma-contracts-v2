@@ -32,7 +32,5 @@ contract RiskAdjustedTranchesPolicy is BaseTranchesPolicy {
                 (HUNDRED_PERCENT_IN_BPS - lpConfig.tranchesRiskAdjustmentInBps)) /
             (HUNDRED_PERCENT_IN_BPS * (seniorAssets + juniorAssets));
         remainingProfit = profit - seniorProfit;
-
-        return (seniorProfit, remainingProfit);
     }
 }

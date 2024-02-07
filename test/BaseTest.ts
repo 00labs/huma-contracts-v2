@@ -140,13 +140,6 @@ export enum ReceivableState {
     Defaulted,
 }
 
-export enum CreditClosureReason {
-    Paidoff,
-    CreditLimitChangedToBeZero,
-    OverwrittenByNewLine,
-    AdminClosure,
-}
-
 export enum PoolStatus {
     Created,
     Initialized,

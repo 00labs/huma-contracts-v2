@@ -9,7 +9,7 @@ import {ICreditManager} from "./interfaces/ICreditManager.sol";
 import {PoolConfig, PoolSettings} from "../common/PoolConfig.sol";
 import {PoolConfigCache} from "../common/PoolConfigCache.sol";
 import {CreditManagerStorage} from "./CreditManagerStorage.sol";
-import {CreditClosureReason, CreditConfig, CreditRecord, CreditState, DueDetail} from "./CreditStructs.sol";
+import {CreditConfig, CreditRecord, CreditState, DueDetail} from "./CreditStructs.sol";
 import {PayPeriodDuration} from "../common/SharedDefs.sol";
 import {Errors} from "../common/Errors.sol";
 import {ICreditDueManager} from "./interfaces/ICreditDueManager.sol";
@@ -24,10 +24,9 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
     /**
      * @notice An existing credit has been closed.
      * @param creditHash The hash of the credit.
-     * @param reasonCode The reason for the credit closure.
      * @param by The address who closed the credit.
      */
-    event CreditClosed(bytes32 indexed creditHash, CreditClosureReason reasonCode, address by);
+    event CreditClosedByAdmin(bytes32 indexed creditHash, address by);
 
     /**
      * @notice The credit has been marked as Defaulted.
@@ -148,6 +147,10 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         address addr = address(_poolConfig.humaConfig());
         assert(addr != address(0));
         humaConfig = HumaConfig(addr);
+
+        addr = _poolConfig.pool();
+        assert(addr != address(0));
+        pool = IPool(addr);
 
         addr = _poolConfig.calendar();
         assert(addr != address(0));
@@ -291,7 +294,7 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         cr.remainingPeriods = 0;
         credit.setCreditRecord(creditHash, cr);
 
-        emit CreditClosed(creditHash, CreditClosureReason.AdminClosure, msg.sender);
+        emit CreditClosedByAdmin(creditHash, msg.sender);
     }
 
     /**
@@ -338,8 +341,8 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         yieldLoss = cr.yieldDue + dd.yieldPastDue;
         feesLoss = dd.lateFee;
 
-        IPool(poolConfig.pool()).distributeProfit(yieldLoss + feesLoss);
-        IPool(poolConfig.pool()).distributeLoss(principalLoss + yieldLoss + feesLoss);
+        pool.distributeProfit(yieldLoss + feesLoss);
+        pool.distributeLoss(principalLoss + yieldLoss + feesLoss);
 
         cr.state = CreditState.Defaulted;
         credit.updateDueInfo(creditHash, cr, dd);
@@ -542,7 +545,6 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         credit.updateDueInfo(creditHash, cr, dd);
 
         emit LateFeeWaived(creditHash, oldLateFee, dd.lateFee, msg.sender);
-        return amountWaived;
     }
 
     /// Shared setter to the credit config mapping
