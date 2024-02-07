@@ -678,9 +678,9 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         poolAddresses[0] = humaConfigAddress;
         poolAddresses[1] = assetTokenAddress;
         poolAddresses[2] = calendarAddress;
-        poolAddresses[3] = _addProxy(poolImplAddress, ""); // poolConfig
-        poolAddresses[4] = _addProxy(poolSafeImplAddress, ""); // poolSafe
-        poolAddresses[5] = _addProxy(poolFeeManagerImplAddress, ""); // poolFeeManager
+        poolAddresses[3] = _addProxy(poolImplAddress, "");
+        poolAddresses[4] = _addProxy(poolSafeImplAddress, "");
+        poolAddresses[5] = _addProxy(poolFeeManagerImplAddress, "");
 
         if (keccak256(bytes(tranchesPolicyType)) == keccak256(bytes("fixed"))) {
             poolAddresses[6] = _addProxy(fixedSeniorYieldTranchesPolicyImplAddress, "");
@@ -690,10 +690,10 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
             revert Errors.InvalidTranchesPolicyType();
         }
 
-        poolAddresses[7] = _addProxy(epochManagerImplAddress, ""); // epochManager
+        poolAddresses[7] = _addProxy(epochManagerImplAddress, "");
         poolAddresses[8] = _addProxy(trancheVaultImplAddress, ""); // senior tranche vault
         poolAddresses[9] = _addProxy(trancheVaultImplAddress, ""); // junior tranche vault
-        poolAddresses[11] = _addProxy(creditDueManagerImplAddress, ""); // creditDueManager
+        poolAddresses[11] = _addProxy(creditDueManagerImplAddress, "");
 
         if (keccak256(bytes(creditType)) == keccak256(bytes("receivablebacked"))) {
             poolAddresses[10] = _addProxy(receivableBackedCreditLineImplAddress, "");
