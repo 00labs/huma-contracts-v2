@@ -266,7 +266,7 @@ contract CreditDueManager is PoolConfigCache, ICreditDueManager {
         uint256 frontLoadingFeeBps;
         (fees, frontLoadingFeeBps) = poolConfig.getFrontLoadingFees();
         if (frontLoadingFeeBps > 0)
-            fees += (_amount * frontLoadingFeeBps) / HUNDRED_PERCENT_IN_BPS;
+            fees += (amount * frontLoadingFeeBps) / HUNDRED_PERCENT_IN_BPS;
     }
 
     function refreshLateFee(
