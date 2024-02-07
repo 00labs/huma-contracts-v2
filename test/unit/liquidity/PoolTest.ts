@@ -1046,12 +1046,8 @@ describe("Pool Test", function () {
                 });
 
                 it("Should return 0 if the senior total assets is already higher than the 'junior total assets * max senior : junior ratio'", async function () {
-                    await seniorTrancheVaultContract
-                        .connect(lender)
-                        .deposit(toToken(10_000), lender.address);
-                    await juniorTrancheVaultContract
-                        .connect(lender)
-                        .deposit(toToken(10_000), lender.address);
+                    await seniorTrancheVaultContract.connect(lender).deposit(toToken(10_000));
+                    await juniorTrancheVaultContract.connect(lender).deposit(toToken(10_000));
 
                     const [seniorAssets, juniorAssets] =
                         await poolContract.currentTranchesAssets();
