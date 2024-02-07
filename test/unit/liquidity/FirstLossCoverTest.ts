@@ -576,6 +576,7 @@ describe("FirstLossCover Tests", function () {
             await poolConfigContract
                 .connect(poolOwner)
                 .setPoolFeeManager(defaultDeployer.getAddress());
+            await adminFirstLossCoverContract.connect(poolOwner).updatePoolConfigData();
         });
 
         it("Should allow the pool fee manager to deposit on behalf of a cover provider", async function () {

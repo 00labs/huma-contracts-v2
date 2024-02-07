@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {Errors} from "../common/Errors.sol";
 import {PoolConfig, LPConfig} from "../common/PoolConfig.sol";
@@ -43,6 +43,8 @@ contract Pool is PoolConfigCache, IPool {
     ITranchesPolicy public tranchesPolicy;
     ICredit public credit;
     ICreditManager public creditManager;
+    address public juniorTranche;
+    address public seniorTranche;
 
     TranchesAssets public tranchesAssets;
     TranchesLosses public tranchesLosses;
@@ -70,17 +72,6 @@ contract Pool is PoolConfigCache, IPool {
      * @param ready Whether the pool is now ready for first loss cover withdrawal.
      */
     event PoolReadyForFirstLossCoverWithdrawal(address indexed by, bool ready);
-
-    event PoolAssetsRefreshed(
-        uint256 refreshedTimestamp,
-        uint256 profit,
-        uint256 loss,
-        uint256 lossRecovery,
-        uint256 seniorTotalAssets,
-        uint256 juniorTotalAssets,
-        uint256 seniorTotalLoss,
-        uint256 juniorTotalLoss
-    );
 
     /**
      * @notice Pool profit has been distributed.
@@ -128,7 +119,7 @@ contract Pool is PoolConfigCache, IPool {
      * @custom:access Only the pool owner or protocol owner can enable a pool.
      */
     function enablePool() external {
-        poolConfig.onlyOwnerOrHumaMasterAdmin(msg.sender);
+        poolConfig.onlyPoolOwnerOrHumaOwner(msg.sender);
         poolConfig.checkFirstLossCoverRequirementsForAdmin();
         poolConfig.checkLiquidityRequirements();
 
@@ -153,7 +144,7 @@ contract Pool is PoolConfigCache, IPool {
      * @custom:access Only pool owner or Huma protocol owner can call this function.
      */
     function setReadyForFirstLossCoverWithdrawal(bool isReady) external {
-        poolConfig.onlyOwnerOrHumaMasterAdmin(msg.sender);
+        poolConfig.onlyPoolOwnerOrHumaOwner(msg.sender);
         readyForFirstLossCoverWithdrawal = isReady;
         emit PoolReadyForFirstLossCoverWithdrawal(msg.sender, isReady);
     }
@@ -207,10 +198,12 @@ contract Pool is PoolConfigCache, IPool {
         if (index == SENIOR_TRANCHE) {
             // The available cap for the senior tranche is subject to the additional constraint of the
             // max senior : junior asset ratio, i.e. the total assets in the senior tranche must not exceed
-            // assets[JUNIOR_TRANCHE] * maxSeniorJuniorRatio at all times.
-            uint256 seniorAvailableCap = assets[JUNIOR_TRANCHE] *
-                config.maxSeniorJuniorRatio -
-                assets[SENIOR_TRANCHE];
+            // assets[JUNIOR_TRANCHE] * maxSeniorJuniorRatio at all times. Note that if this value is less than
+            // the current total senior assets (i.e. in the case of default), then the senior available cap is 0.
+            uint256 seniorAvailableCap = Math.max(
+                assets[JUNIOR_TRANCHE] * config.maxSeniorJuniorRatio,
+                assets[SENIOR_TRANCHE]
+            ) - assets[SENIOR_TRANCHE];
             availableCap = availableCap > seniorAvailableCap ? seniorAvailableCap : availableCap;
         }
     }
@@ -259,6 +252,14 @@ contract Pool is PoolConfigCache, IPool {
         assert(addr != address(0));
         creditManager = ICreditManager(addr);
 
+        addr = _poolConfig.seniorTranche();
+        assert(addr != address(0));
+        seniorTranche = addr;
+
+        addr = _poolConfig.juniorTranche();
+        assert(addr != address(0));
+        juniorTranche = addr;
+
         delete _firstLossCovers;
         address[16] memory covers = _poolConfig.getFirstLossCovers();
         for (uint256 i = 0; i < covers.length; i++) {
@@ -292,15 +293,12 @@ contract Pool is PoolConfigCache, IPool {
             newAssets[SENIOR_TRANCHE] =
                 assets.seniorTotalAssets +
                 profitsForTrancheVaults[SENIOR_TRANCHE];
-            poolSafe.addUnprocessedProfit(
-                poolConfig.seniorTranche(),
-                profitsForTrancheVaults[SENIOR_TRANCHE]
-            );
+            poolSafe.addUnprocessedProfit(seniorTranche, profitsForTrancheVaults[SENIOR_TRANCHE]);
             newAssets[JUNIOR_TRANCHE] = assets.juniorTotalAssets;
             if (profitsForTrancheVaults[JUNIOR_TRANCHE] > 0) {
                 newAssets[JUNIOR_TRANCHE] += profitsForTrancheVaults[JUNIOR_TRANCHE];
                 poolSafe.addUnprocessedProfit(
-                    poolConfig.juniorTranche(),
+                    juniorTranche,
                     profitsForTrancheVaults[JUNIOR_TRANCHE]
                 );
             }
@@ -353,14 +351,15 @@ contract Pool is PoolConfigCache, IPool {
         uint256 juniorTotalAssets = assets.juniorTotalAssets;
         // Distribute losses to the junior tranche up to the total junior asset.
         uint256 juniorLoss = juniorTotalAssets >= loss ? loss : juniorTotalAssets;
-        // There are two possible scenarios for the remaining loss to surpass the total assets of the senior tranche:
-        // 1. Admin fees are also subject to losses. However, these fees are not explicitly included in the
-        // loss distribution process.
-        // 2. First loss covers are configured in a way that they take on more profit than loss, although this is unlikely.
-        // In such instances, we cap the loss at the senior total assets. It's important to note
+        // When triggering default, since we distribute profit right before distributing loss,
+        // `loss - juniorLoss` could surpass the total assets of the senior tranche in the following two scenarios:
+        // 1. Admins earn fees during profit distribution, but the fees do not explicitly participate in
+        //    loss distribution.
+        // 2. Theoretically, first loss covers could be configured to take on more profit than loss when
+        //    default is triggered, and the additional loss would fall on tranches. However, this is extremely unlikely.
+        // Therefore, we need to cap the loss at the senior total assets. It's important to note
         // that borrowers' payment obligations are based on the total amount due in `CreditRecord`, thus omitting to
-        // fully account for losses in the senior tranche does not reduce the amount the borrower is required to pay,
-        // ensuring their payment obligations remain unaffected.
+        // fully account for losses in the senior tranche does not reduce the amount the borrower is required to pay.
         uint256 seniorLoss = Math.min(assets.seniorTotalAssets, loss - juniorLoss);
 
         assets.seniorTotalAssets -= uint96(seniorLoss);
@@ -440,8 +439,6 @@ contract Pool is PoolConfigCache, IPool {
             losses.seniorLoss,
             losses.juniorLoss
         );
-
-        return remainingLossRecovery;
     }
 
     /**
@@ -459,9 +456,9 @@ contract Pool is PoolConfigCache, IPool {
 
     function _onlyTrancheVaultOrEpochManager(address account) internal view {
         if (
-            account != poolConfig.juniorTranche() &&
-            account != poolConfig.seniorTranche() &&
-            account != poolConfig.epochManager()
+            account != juniorTranche &&
+            account != seniorTranche &&
+            account != address(epochManager)
         ) revert Errors.AuthorizedContractCallerRequired();
     }
 

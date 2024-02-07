@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {Errors} from "../common/Errors.sol";
 import {FirstLossCoverStorage} from "./FirstLossCoverStorage.sol";
@@ -13,6 +13,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20MetadataUpgradeable, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  * @title FirstLossCover
@@ -210,11 +211,11 @@ contract FirstLossCover is
     function recoverLoss(uint256 recovery) external returns (uint256 remainingRecovery) {
         poolConfig.onlyPool(msg.sender);
 
-        uint256 recoveredAmount;
-        (remainingRecovery, recoveredAmount) = _calcLossRecovery(coveredLoss, recovery);
+        uint256 currCoveredLoss = coveredLoss;
+        uint256 recoveredAmount = Math.min(currCoveredLoss, recovery);
+        remainingRecovery = recovery - recoveredAmount;
 
         if (recoveredAmount > 0) {
-            uint256 currCoveredLoss = coveredLoss;
             currCoveredLoss -= recoveredAmount;
             coveredLoss = currCoveredLoss;
 
@@ -342,6 +343,10 @@ contract FirstLossCover is
         addr = _poolConfig.pool();
         assert(addr != address(0));
         pool = IPool(addr);
+
+        addr = _poolConfig.poolFeeManager();
+        assert(addr != address(0));
+        poolFeeManager = addr;
     }
 
     /**
@@ -423,15 +428,6 @@ contract FirstLossCover is
     }
 
     function _onlyPoolFeeManager(address account) internal view {
-        if (account != poolConfig.poolFeeManager())
-            revert Errors.AuthorizedContractCallerRequired();
-    }
-
-    function _calcLossRecovery(
-        uint256 coveredLoss,
-        uint256 recoveryAmount
-    ) internal pure returns (uint256 remainingRecovery, uint256 recoveredAmount) {
-        recoveredAmount = coveredLoss < recoveryAmount ? coveredLoss : recoveryAmount;
-        remainingRecovery = recoveryAmount - recoveredAmount;
+        if (account != poolFeeManager) revert Errors.AuthorizedContractCallerRequired();
     }
 }

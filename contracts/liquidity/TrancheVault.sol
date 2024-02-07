@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {Errors} from "../common/Errors.sol";
 import {PoolConfig, PoolSettings} from "../common/PoolConfig.sol";
@@ -282,7 +282,7 @@ contract TrancheVault is
         poolConfig.onlyProtocolAndPoolOn();
 
         PoolSettings memory poolSettings = poolConfig.getPoolSettings();
-        uint256 nextEpochStartTime = ICalendar(poolConfig.calendar()).getStartDateOfNextPeriod(
+        uint256 nextEpochStartTime = calendar.getStartDateOfNextPeriod(
             poolSettings.payPeriodDuration,
             block.timestamp
         );
@@ -330,11 +330,7 @@ contract TrancheVault is
         uint256 principalRequested = (depositRecord.principal * shares) / sharesBalance;
         lenderRedemptionRecord.principalRequested += uint96(principalRequested);
         _setLenderRedemptionRecord(msg.sender, lenderRedemptionRecord);
-        depositRecord.principal = uint96(
-            depositRecord.principal > principalRequested
-                ? depositRecord.principal - principalRequested
-                : 0
-        );
+        depositRecord.principal -= uint96(principalRequested);
         _setDepositRecord(msg.sender, depositRecord);
 
         ERC20Upgradeable._transfer(msg.sender, address(this), shares);
@@ -436,13 +432,10 @@ contract TrancheVault is
     }
 
     /// @inheritdoc IRedemptionHandler
-    function currentRedemptionSummary()
-        external
-        view
-        override
-        returns (EpochRedemptionSummary memory redemptionSummary)
-    {
-        redemptionSummary = _getEpochRedemptionSummary(epochManager.currentEpochId());
+    function epochRedemptionSummary(
+        uint256 epochId
+    ) external view override returns (EpochRedemptionSummary memory redemptionSummary) {
+        redemptionSummary = _getEpochRedemptionSummary(epochId);
     }
 
     /**
@@ -530,6 +523,10 @@ contract TrancheVault is
         addr = _poolConfig.epochManager();
         assert(addr != address(0));
         epochManager = IEpochManager(addr);
+
+        addr = _poolConfig.calendar();
+        assert(addr != address(0));
+        calendar = ICalendar(addr);
     }
 
     /**

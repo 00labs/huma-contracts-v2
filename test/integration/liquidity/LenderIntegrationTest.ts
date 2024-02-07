@@ -57,7 +57,7 @@ import { CONSTANTS } from "../../constants";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
-    treasury: SignerWithAddress,
+    humaTreasury: SignerWithAddress,
     eaServiceAccount: SignerWithAddress,
     sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
@@ -312,11 +312,12 @@ async function configPool(lpConfig: Partial<LPConfigStructOutput>) {
     }
 
     feeCalculator = new FeeCalculator(humaConfigContract, poolConfigContract);
-    pnlCalculator = new ProfitAndLossCalculator(poolConfigContract, poolContract, [
-        borrowerFirstLossCoverContract,
-        null,
-        adminFirstLossCoverContract,
-    ]);
+    pnlCalculator = new ProfitAndLossCalculator(
+        poolConfigContract,
+        poolContract,
+        calendarContract,
+        [borrowerFirstLossCoverContract, null, adminFirstLossCoverContract],
+    );
     epochChecker = new EpochChecker(
         epochManagerContract,
         seniorTrancheVaultContract,
@@ -555,7 +556,7 @@ describe("Lender Integration Test", function () {
         [
             defaultDeployer,
             protocolOwner,
-            treasury,
+            humaTreasury,
             eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
@@ -590,7 +591,7 @@ describe("Lender Integration Test", function () {
         async function prepare() {
             [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
                 protocolOwner,
-                treasury,
+                humaTreasury,
                 eaServiceAccount,
                 sentinelServiceAccount,
                 poolOwner,
@@ -1221,10 +1222,10 @@ describe("Lender Integration Test", function () {
 
             let amount = toToken(100);
 
-            let oldBalance = await mockTokenContract.balanceOf(treasury.address);
+            let oldBalance = await mockTokenContract.balanceOf(humaTreasury.address);
             let poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
-            await poolFeeManagerContract.connect(protocolOwner).withdrawProtocolFee(amount);
-            expect(await mockTokenContract.balanceOf(treasury.address)).to.equal(
+            await poolFeeManagerContract.connect(humaTreasury).withdrawProtocolFee(amount);
+            expect(await mockTokenContract.balanceOf(humaTreasury.address)).to.equal(
                 oldBalance.add(amount),
             );
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
@@ -1816,7 +1817,7 @@ describe("Lender Integration Test", function () {
         async function prepare() {
             [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
                 protocolOwner,
-                treasury,
+                humaTreasury,
                 eaServiceAccount,
                 sentinelServiceAccount,
                 poolOwner,
@@ -2219,6 +2220,7 @@ describe("Lender Integration Test", function () {
             tracker = await tranchesPolicyContract.seniorYieldTracker();
             await seniorTrancheVaultContract.connect(sLenders[2]).deposit(amount);
             let newTracker = await PnLCalculator.calcLatestSeniorTracker(
+                calendarContract,
                 currentTS,
                 FIXED_SENIOR_YIELD_IN_BPS,
                 tracker,
@@ -2486,10 +2488,10 @@ describe("Lender Integration Test", function () {
 
             let amount = toToken(100);
 
-            let oldBalance = await mockTokenContract.balanceOf(treasury.address);
+            let oldBalance = await mockTokenContract.balanceOf(humaTreasury.address);
             let poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
-            await poolFeeManagerContract.connect(protocolOwner).withdrawProtocolFee(amount);
-            expect(await mockTokenContract.balanceOf(treasury.address)).to.equal(
+            await poolFeeManagerContract.connect(humaTreasury).withdrawProtocolFee(amount);
+            expect(await mockTokenContract.balanceOf(humaTreasury.address)).to.equal(
                 oldBalance.add(amount),
             );
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
