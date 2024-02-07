@@ -1,6 +1,6 @@
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
-import { BigNumber as BN, ContractFactory } from "ethers";
+import { BigNumber as BN, BigNumberish, ContractFactory } from "ethers";
 import { ethers } from "hardhat";
 import moment from "moment";
 import {
@@ -15,6 +15,7 @@ import {
     FixedSeniorYieldTranchePolicy,
     HumaConfig,
     MockPoolCredit,
+    MockPoolCreditManager,
     MockToken,
     Pool,
     PoolConfig,
@@ -50,6 +51,7 @@ export type CreditContractType =
     | ReceivableBackedCreditLine
     | ReceivableFactoringCredit;
 export type CreditManagerContractType =
+    | MockPoolCreditManager
     | CreditLineManager
     | ReceivableBackedCreditLineManager
     | ReceivableFactoringCreditManager;
@@ -113,7 +115,8 @@ export type CreditContractName =
 export type CreditManagerContractName =
     | "CreditLineManager"
     | "ReceivableBackedCreditLineManager"
-    | "ReceivableFactoringCreditManager";
+    | "ReceivableFactoringCreditManager"
+    | "MockPoolCreditManager";
 
 export enum PayPeriodDuration {
     Monthly,
@@ -255,15 +258,15 @@ export async function deployPoolContracts(
     const Credit = await getCreditContractFactory(creditContractName);
     const creditContract = (await deployProxyContract(Credit)) as CreditContractType;
 
-    const CreditDueManager = await ethers.getContractFactory("CreditDueManager");
-    const creditDueManagerContract = (await deployProxyContract(
-        CreditDueManager,
-    )) as CreditDueManager;
-
     const CreditManager = await getCreditManagerContractFactory(creditManagerContractName);
     const creditManagerContract = (await deployProxyContract(
         CreditManager,
     )) as CreditManagerContractType;
+
+    const CreditDueManager = await ethers.getContractFactory("CreditDueManager");
+    const creditDueManagerContract = (await deployProxyContract(
+        CreditDueManager,
+    )) as CreditDueManager;
 
     const Receivable = await ethers.getContractFactory("Receivable");
     const receivableContract = (await deployProxyContract(Receivable, "initialize")) as Receivable;
@@ -584,22 +587,19 @@ export async function deployPoolWithFactory(
     poolFactoryContract: PoolFactory,
     mockTokenContract: MockToken,
     receivableContract: Receivable,
-    deployer: SignerWithAddress,
-    poolOwner: SignerWithAddress,
     creditType: CreditType,
-    trachesPolicyType: TranchesPolicyType,
+    tranchesPolicyType: TranchesPolicyType,
     poolName: string,
 ): Promise<PoolRecord> {
     await poolFactoryContract.deployPool(
         poolName,
         mockTokenContract.address,
         receivableContract.address,
-        trachesPolicyType,
+        tranchesPolicyType,
         creditType,
     );
     const poolId = await poolFactoryContract.poolId();
-    const poolRecords = await poolFactoryContract.checkPool(poolId);
-    return poolRecords;
+    return await poolFactoryContract.checkPool(poolId);
 }
 
 export async function setupPoolContracts(
@@ -815,6 +815,18 @@ export async function deployAndSetupPoolContracts(
         creditManagerContract,
         receivableContract,
     ];
+}
+
+export async function mockDistributePnL(
+    creditContract: MockPoolCredit,
+    creditManagerContract: MockPoolCreditManager,
+    profit: BigNumberish,
+    loss: BigNumberish,
+    lossRecovery: BigNumberish,
+) {
+    await creditContract.mockDistributeProfit(profit);
+    await creditManagerContract.mockDistributeLoss(loss);
+    await creditContract.mockDistributeLossRecovery(lossRecovery);
 }
 
 export type SeniorYieldTracker = { totalAssets: BN; unpaidYield: BN; lastUpdatedDate: BN };
@@ -1838,7 +1850,7 @@ export function getNextBillRefreshDate(
         latePaymentGracePeriodInDays,
     );
     if (cr.state === CreditState.GoodStanding && currentDate.isBefore(latePaymentDeadline)) {
-        // If this is the first time ever that the bill has surpassed the due dat, then we don't want to refresh
+        // If this is the first time ever that the bill has surpassed the due date, then we don't want to refresh
         // the bill since we want the user to focus on paying off the current due.
         return latePaymentDeadline;
     }
@@ -1882,13 +1894,8 @@ export function printCreditRecord(name: string, creditRecord: CreditRecordStruct
 async function getTranchesPolicyContractFactory(
     tranchesPolicyContractName: TranchesPolicyContractName,
 ) {
-    // Note: Both branches contain identical logic, which might seem unusual at first glance.
-    // This structure is intentional and solely to satisfy TypeScript's type inference.
-    // The TypeScript compiler cannot deduce the specific return types based solely on the input values,
-    // so this approach ensures correct type association for each possible input.
     switch (tranchesPolicyContractName) {
         case "FixedSeniorYieldTranchePolicy":
-            return await ethers.getContractFactory(tranchesPolicyContractName);
         case "RiskAdjustedTranchesPolicy":
             return await ethers.getContractFactory(tranchesPolicyContractName);
         default:
@@ -1897,17 +1904,10 @@ async function getTranchesPolicyContractFactory(
 }
 
 async function getCreditContractFactory(creditContractName: CreditContractName) {
-    // Note: All branches contain identical logic, which might seem unusual at first glance.
-    // This structure is intentional and solely to satisfy TypeScript's type inference.
-    // The TypeScript compiler cannot deduce the specific return types based solely on the input values,
-    // so this approach ensures correct type association for each possible input.
     switch (creditContractName) {
         case "CreditLine":
-            return await ethers.getContractFactory(creditContractName);
         case "ReceivableBackedCreditLine":
-            return await ethers.getContractFactory(creditContractName);
         case "ReceivableFactoringCredit":
-            return await ethers.getContractFactory(creditContractName);
         case "MockPoolCredit":
             return await ethers.getContractFactory(creditContractName);
         default:
@@ -1918,16 +1918,11 @@ async function getCreditContractFactory(creditContractName: CreditContractName) 
 async function getCreditManagerContractFactory(
     creditManagerContractName: CreditManagerContractName,
 ) {
-    // Note: All branches contain identical logic, which might seem unusual at first glance.
-    // This structure is intentional and solely to satisfy TypeScript's type inference.
-    // The TypeScript compiler cannot deduce the specific return types based solely on the input values,
-    // so this approach ensures correct type association for each possible input.
     switch (creditManagerContractName) {
         case "CreditLineManager":
-            return await ethers.getContractFactory(creditManagerContractName);
         case "ReceivableBackedCreditLineManager":
-            return await ethers.getContractFactory(creditManagerContractName);
         case "ReceivableFactoringCreditManager":
+        case "MockPoolCreditManager":
             return await ethers.getContractFactory(creditManagerContractName);
         default:
             throw new Error("Invalid creditManagerContractName");

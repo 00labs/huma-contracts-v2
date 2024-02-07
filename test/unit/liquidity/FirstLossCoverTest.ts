@@ -6,12 +6,12 @@ import { ethers } from "hardhat";
 import {
     Calendar,
     CreditDueManager,
-    CreditLineManager,
     EpochManager,
     EvaluationAgentNFT,
     FirstLossCover,
     HumaConfig,
     MockPoolCredit,
+    MockPoolCreditManager,
     MockToken,
     Pool,
     PoolConfig,
@@ -24,6 +24,7 @@ import {
     deployAndSetupPoolContracts,
     deployProtocolContracts,
     deployProxyContract,
+    mockDistributePnL,
 } from "../../BaseTest";
 import {
     getMinFirstLossCoverRequirement,
@@ -61,7 +62,7 @@ let poolConfigContract: PoolConfig,
     juniorTrancheVaultContract: TrancheVault,
     creditContract: MockPoolCredit,
     creditDueManagerContract: CreditDueManager,
-    creditManagerContract: CreditLineManager;
+    creditManagerContract: MockPoolCreditManager;
 
 describe("FirstLossCover Tests", function () {
     before(async function () {
@@ -112,7 +113,7 @@ describe("FirstLossCover Tests", function () {
             defaultDeployer,
             poolOwner,
             "MockPoolCredit",
-            "CreditLineManager",
+            "MockPoolCreditManager",
             evaluationAgent,
             protocolTreasury,
             poolOwnerTreasury,
@@ -760,7 +761,13 @@ describe("FirstLossCover Tests", function () {
 
             // Distribute PnL so that the LP token isn't always 1:1 with the asset
             // when PnL is non-zero.
-            await creditContract.mockDistributePnL(profit, BN.from(0), BN.from(0));
+            await mockDistributePnL(
+                creditContract,
+                creditManagerContract,
+                profit,
+                BN.from(0),
+                BN.from(0),
+            );
 
             await adminFirstLossCoverContract.connect(evaluationAgent).depositCover(assets);
         }
@@ -814,7 +821,13 @@ describe("FirstLossCover Tests", function () {
                 );
                 const poolSettings = await poolConfigContract.getPoolSettings();
                 await depositCover(poolSettings.minDepositAmount);
-                await creditContract.mockDistributePnL(profit, loss, lossRecovery);
+                await mockDistributePnL(
+                    creditContract,
+                    creditManagerContract,
+                    profit,
+                    loss,
+                    lossRecovery,
+                );
 
                 const oldSupply = await adminFirstLossCoverContract.totalSupply();
                 const oldAssets = await adminFirstLossCoverContract.totalAssets();
