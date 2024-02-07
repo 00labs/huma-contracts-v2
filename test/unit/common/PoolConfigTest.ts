@@ -810,6 +810,7 @@ describe("PoolConfig Tests", function () {
                 "MockPoolCredit",
                 "CreditLineManager",
                 evaluationAgent,
+                protocolTreasury,
                 poolOwnerTreasury,
                 poolOperator,
                 [regularUser, evaluationAgent2],
@@ -837,7 +838,7 @@ describe("PoolConfig Tests", function () {
                     .withArgs(rewardsRate, liquidityRate, poolOwner.address);
             });
 
-            it("Should allow setting rewards and liquidity by the Huma master admin", async function () {
+            it("Should allow setting rewards and liquidity by the Huma owner", async function () {
                 const tx = await poolConfigContract
                     .connect(protocolOwner)
                     .setPoolOwnerRewardsAndLiquidity(rewardsRate, liquidityRate);
@@ -854,7 +855,10 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract
                         .connect(regularUser)
                         .setPoolOwnerRewardsAndLiquidity(rewardsRate, liquidityRate),
-                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "PoolOwnerOrHumaOwnerRequired",
+                );
             });
 
             it("Should fail if reward rate exceeds 100%", async function () {
@@ -908,7 +912,7 @@ describe("PoolConfig Tests", function () {
                     .withArgs(rewardsRate, liquidityRate, poolOwner.address);
             });
 
-            it("Should allow setting rewards and liquidity by the Huma master admin", async function () {
+            it("Should allow setting rewards and liquidity by the Huma owner", async function () {
                 const tx = await poolConfigContract
                     .connect(protocolOwner)
                     .setEARewardsAndLiquidity(rewardsRate, liquidityRate);
@@ -925,7 +929,10 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract
                         .connect(regularUser)
                         .setEARewardsAndLiquidity(rewardsRate, liquidityRate),
-                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "PoolOwnerOrHumaOwnerRequired",
+                );
             });
 
             it("Should fail if reward rate exceeds 100%", async function () {
@@ -1007,7 +1014,7 @@ describe("PoolConfig Tests", function () {
                     .addApprovedLender(evaluationAgent.getAddress(), true);
                 await juniorTrancheVaultContract
                     .connect(evaluationAgent)
-                    .deposit(evaluationAgentLiquidity, evaluationAgent.getAddress());
+                    .deposit(evaluationAgentLiquidity);
                 await expect(
                     poolConfigContract
                         .connect(poolOwner)
@@ -1037,9 +1044,7 @@ describe("PoolConfig Tests", function () {
                         adminFirstLossCoverContract.address,
                         minFirstLossCoverRequirement.add(minLiquidity),
                     );
-                await juniorTrancheVaultContract
-                    .connect(evaluationAgent2)
-                    .deposit(minLiquidity, evaluationAgent2.address);
+                await juniorTrancheVaultContract.connect(evaluationAgent2).deposit(minLiquidity);
 
                 await expect(
                     poolConfigContract
@@ -1067,12 +1072,15 @@ describe("PoolConfig Tests", function () {
                 ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
             });
 
-            it("Should not allow non-pool owners or Huma master admin to set the EA", async function () {
+            it("Should not allow non-pool owners or Huma owner to set the EA", async function () {
                 await expect(
                     poolConfigContract
                         .connect(regularUser)
                         .setEvaluationAgent(newNFTTokenId, evaluationAgent2.address),
-                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "PoolOwnerOrHumaOwnerRequired",
+                );
             });
 
             it("Should reject when the proposed new EA does not own the EA NFT", async function () {
@@ -1117,9 +1125,7 @@ describe("PoolConfig Tests", function () {
                         adminFirstLossCoverContract.address,
                         minFirstLossCoverRequirement.add(minLiquidity),
                     );
-                await juniorTrancheVaultContract
-                    .connect(evaluationAgent2)
-                    .deposit(minLiquidity, evaluationAgent2.address);
+                await juniorTrancheVaultContract.connect(evaluationAgent2).deposit(minLiquidity);
 
                 await expect(
                     poolConfigContract
@@ -1172,7 +1178,10 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract
                         .connect(regularUser)
                         .setPoolFeeManager(poolFeeManagerContract.address),
-                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "PoolOwnerOrHumaOwnerRequired",
+                );
             });
 
             it("Should reject fee manager with zero address", async function () {
@@ -1185,18 +1194,7 @@ describe("PoolConfig Tests", function () {
         });
 
         describe("setHumaConfig", function () {
-            it("Should allow the pool owner to set Huma config", async function () {
-                await expect(
-                    poolConfigContract
-                        .connect(poolOwner)
-                        .setHumaConfig(humaConfigContract.address),
-                )
-                    .to.emit(poolConfigContract, "HumaConfigChanged")
-                    .withArgs(humaConfigContract.address, poolOwner.address);
-                expect(await poolConfigContract.humaConfig()).to.equal(humaConfigContract.address);
-            });
-
-            it("Should allow the Huma master admin to set Huma config", async function () {
+            it("Should allow the Huma owner to set Huma config", async function () {
                 await expect(
                     poolConfigContract
                         .connect(protocolOwner)
@@ -1207,18 +1205,18 @@ describe("PoolConfig Tests", function () {
                 expect(await poolConfigContract.humaConfig()).to.equal(humaConfigContract.address);
             });
 
-            it("Should reject non-owner or admin to call setHumaConfig", async function () {
+            it("Should reject non-admin to call setHumaConfig", async function () {
                 await expect(
                     poolConfigContract
-                        .connect(regularUser)
+                        .connect(poolOwner)
                         .setHumaConfig(humaConfigContract.address),
-                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
+                ).to.be.revertedWithCustomError(poolConfigContract, "HumaOwnerRequired");
             });
 
             it("Should reject Huma config with zero address", async function () {
                 await expect(
                     poolConfigContract
-                        .connect(poolOwner)
+                        .connect(protocolOwner)
                         .setHumaConfig(ethers.constants.AddressZero),
                 ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
             });
@@ -1232,7 +1230,7 @@ describe("PoolConfig Tests", function () {
                 expect(await poolConfigContract.pool()).to.equal(poolContract.address);
             });
 
-            it("Should allow the Huma master admin to set the pool", async function () {
+            it("Should allow the Huma owner to set the pool", async function () {
                 await expect(
                     poolConfigContract.connect(protocolOwner).setPool(poolContract.address),
                 )
@@ -1244,7 +1242,10 @@ describe("PoolConfig Tests", function () {
             it("Should reject non-owner or admin to set the pool", async function () {
                 await expect(
                     poolConfigContract.connect(regularUser).setPool(poolContract.address),
-                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "PoolOwnerOrHumaOwnerRequired",
+                );
             });
 
             it("Should reject pools with zero address", async function () {
@@ -1264,7 +1265,7 @@ describe("PoolConfig Tests", function () {
                 expect(await poolConfigContract.poolName()).to.equal(poolName);
             });
 
-            it("Should allow the Huma master admin to set pool name", async function () {
+            it("Should allow the Huma owner to set pool name", async function () {
                 await expect(poolConfigContract.connect(protocolOwner).setPoolName(poolName))
                     .to.emit(poolConfigContract, "PoolNameChanged")
                     .withArgs(poolName, protocolOwner.address);
@@ -1274,7 +1275,10 @@ describe("PoolConfig Tests", function () {
             it("Should reject non-owner or admin to call setPoolName", async function () {
                 await expect(
                     poolConfigContract.connect(regularUser).setPoolName(poolName),
-                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "PoolOwnerOrHumaOwnerRequired",
+                );
             });
         });
 
@@ -1292,7 +1296,7 @@ describe("PoolConfig Tests", function () {
                 );
             });
 
-            it("Should allow the Huma master admin to call setPoolOwnerTreasury", async function () {
+            it("Should allow the Huma owner to call setPoolOwnerTreasury", async function () {
                 await expect(
                     poolConfigContract
                         .connect(protocolOwner)
@@ -1310,7 +1314,10 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract
                         .connect(regularUser)
                         .setPoolOwnerTreasury(poolOwnerTreasury.address),
-                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "PoolOwnerOrHumaOwnerRequired",
+                );
             });
 
             it("Should disallow zero address for pool owner treasury", async function () {
@@ -1318,50 +1325,6 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract
                         .connect(poolOwner)
                         .setPoolOwnerTreasury(ethers.constants.AddressZero),
-                ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
-            });
-        });
-
-        describe("setPoolUnderlyingToken", function () {
-            it("Should allow the pool owner to set the underlying token", async function () {
-                await expect(
-                    poolConfigContract
-                        .connect(poolOwner)
-                        .setPoolUnderlyingToken(mockTokenContract.address),
-                )
-                    .to.emit(poolConfigContract, "PoolUnderlyingTokenChanged")
-                    .withArgs(mockTokenContract.address, poolOwner.address);
-                expect(await poolConfigContract.underlyingToken()).to.equal(
-                    mockTokenContract.address,
-                );
-            });
-
-            it("Should allow the Huma master admin to set the underlying token", async function () {
-                await expect(
-                    poolConfigContract
-                        .connect(protocolOwner)
-                        .setPoolUnderlyingToken(mockTokenContract.address),
-                )
-                    .to.emit(poolConfigContract, "PoolUnderlyingTokenChanged")
-                    .withArgs(mockTokenContract.address, protocolOwner.address);
-                expect(await poolConfigContract.underlyingToken()).to.equal(
-                    mockTokenContract.address,
-                );
-            });
-
-            it("Should reject non-owner or admin to set the underlying token", async function () {
-                await expect(
-                    poolConfigContract
-                        .connect(regularUser)
-                        .setPoolUnderlyingToken(poolOwnerTreasury.address),
-                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
-            });
-
-            it("Should disallow zero address for the underlying token", async function () {
-                await expect(
-                    poolConfigContract
-                        .connect(poolOwner)
-                        .setPoolUnderlyingToken(ethers.constants.AddressZero),
                 ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
             });
         });
@@ -1390,7 +1353,7 @@ describe("PoolConfig Tests", function () {
                 );
             });
 
-            it("Should allow the Huma master admin to set the tranches", async function () {
+            it("Should allow the Huma owner to set the tranches", async function () {
                 await expect(
                     poolConfigContract
                         .connect(protocolOwner)
@@ -1421,7 +1384,10 @@ describe("PoolConfig Tests", function () {
                             seniorTrancheVaultContract.address,
                             juniorTrancheVaultContract.address,
                         ),
-                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "PoolOwnerOrHumaOwnerRequired",
+                );
             });
 
             it("Should disallow zero addresses for the senior tranche", async function () {
@@ -1457,7 +1423,7 @@ describe("PoolConfig Tests", function () {
                 expect(await poolConfigContract.poolSafe()).to.equal(poolSafeContract.address);
             });
 
-            it("Should allow the Huma master admin to set the pool safe", async function () {
+            it("Should allow the Huma owner to set the pool safe", async function () {
                 await expect(
                     poolConfigContract
                         .connect(protocolOwner)
@@ -1471,7 +1437,10 @@ describe("PoolConfig Tests", function () {
             it("Should reject non-owner or admin to set the pool safe", async function () {
                 await expect(
                     poolConfigContract.connect(regularUser).setPoolSafe(poolSafeContract.address),
-                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "PoolOwnerOrHumaOwnerRequired",
+                );
             });
 
             it("Should disallow zero address for the pool safe", async function () {
@@ -1497,7 +1466,7 @@ describe("PoolConfig Tests", function () {
                 );
             });
 
-            it("Should allow the Huma master admin to set the tranches policy", async function () {
+            it("Should allow the Huma owner to set the tranches policy", async function () {
                 await expect(
                     poolConfigContract
                         .connect(protocolOwner)
@@ -1515,7 +1484,10 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract
                         .connect(regularUser)
                         .setTranchesPolicy(tranchesPolicyContract.address),
-                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "PoolOwnerOrHumaOwnerRequired",
+                );
             });
 
             it("Should disallow zero address for the tranches policy", async function () {
@@ -1541,7 +1513,7 @@ describe("PoolConfig Tests", function () {
                 );
             });
 
-            it("Should allow the Huma master admin to set the epoch manager", async function () {
+            it("Should allow the Huma owner to set the epoch manager", async function () {
                 await expect(
                     poolConfigContract
                         .connect(protocolOwner)
@@ -1559,7 +1531,10 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract
                         .connect(regularUser)
                         .setEpochManager(epochManagerContract.address),
-                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "PoolOwnerOrHumaOwnerRequired",
+                );
             });
 
             it("Should disallow zero address for the epoch manager", async function () {
@@ -1571,8 +1546,55 @@ describe("PoolConfig Tests", function () {
             });
         });
 
+        describe("setCreditDueManager", function () {
+            it("Should allow the pool owner to set the CreditDueManager contract", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setCreditDueManager(creditDueManagerContract.address),
+                )
+                    .to.emit(poolConfigContract, "CreditDueManagerChanged")
+                    .withArgs(creditDueManagerContract.address, poolOwner.address);
+                expect(await poolConfigContract.creditDueManager()).to.equal(
+                    creditDueManagerContract.address,
+                );
+            });
+
+            it("Should allow the Huma master admin to set the CreditDueManager contract", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(protocolOwner)
+                        .setCreditDueManager(creditDueManagerContract.address),
+                )
+                    .to.emit(poolConfigContract, "CreditDueManagerChanged")
+                    .withArgs(creditDueManagerContract.address, protocolOwner.address);
+                expect(await poolConfigContract.creditDueManager()).to.equal(
+                    creditDueManagerContract.address,
+                );
+            });
+
+            it("Should reject non-owner or admin to set the CreditDueManager contract", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(regularUser)
+                        .setCreditDueManager(creditDueManagerContract.address),
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "PoolOwnerOrHumaOwnerRequired",
+                );
+            });
+
+            it("Should disallow zero address for the CreditDueManager contract", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setCreditDueManager(ethers.constants.AddressZero),
+                ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
+            });
+        });
+
         describe("setCredit", function () {
-            it("Should allow the pool owner to set the credit contract", async function () {
+            it("Should allow the pool owner to set the Credit contract", async function () {
                 await expect(
                     poolConfigContract.connect(poolOwner).setCredit(creditContract.address),
                 )
@@ -1581,7 +1603,7 @@ describe("PoolConfig Tests", function () {
                 expect(await poolConfigContract.credit()).to.equal(creditContract.address);
             });
 
-            it("Should allow the Huma master admin to set the credit contract", async function () {
+            it("Should allow the Huma owner to set the credit contract", async function () {
                 await expect(
                     poolConfigContract.connect(protocolOwner).setCredit(creditContract.address),
                 )
@@ -1590,15 +1612,65 @@ describe("PoolConfig Tests", function () {
                 expect(await poolConfigContract.credit()).to.equal(creditContract.address);
             });
 
-            it("Should reject non-owner or admin to set the credit contract", async function () {
+            it("Should reject non-owner or admin to set the Credit contract", async function () {
                 await expect(
                     poolConfigContract.connect(regularUser).setCredit(creditContract.address),
-                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "PoolOwnerOrHumaOwnerRequired",
+                );
             });
 
-            it("Should disallow zero address for the credit contract", async function () {
+            it("Should disallow zero address for the Credit contract", async function () {
                 await expect(
                     poolConfigContract.connect(poolOwner).setCredit(ethers.constants.AddressZero),
+                ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
+            });
+        });
+
+        describe("setCreditManager", function () {
+            it("Should allow the pool owner to set the CreditManager contract", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setCreditManager(creditManagerContract.address),
+                )
+                    .to.emit(poolConfigContract, "CreditManagerChanged")
+                    .withArgs(creditManagerContract.address, poolOwner.address);
+                expect(await poolConfigContract.creditManager()).to.equal(
+                    creditManagerContract.address,
+                );
+            });
+
+            it("Should allow the Huma owner to set the CreditManager contract", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(protocolOwner)
+                        .setCreditManager(creditManagerContract.address),
+                )
+                    .to.emit(poolConfigContract, "CreditManagerChanged")
+                    .withArgs(creditManagerContract.address, protocolOwner.address);
+                expect(await poolConfigContract.creditManager()).to.equal(
+                    creditManagerContract.address,
+                );
+            });
+
+            it("Should reject non-pool owner or Huma owner to set the CreditManager contract", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(regularUser)
+                        .setCreditManager(creditManagerContract.address),
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "PoolOwnerOrHumaOwnerRequired",
+                );
+            });
+
+            it("Should disallow zero address for the CreditManager contract", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setCreditManager(ethers.constants.AddressZero),
                 ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
             });
         });
@@ -1654,7 +1726,7 @@ describe("PoolConfig Tests", function () {
                 await testSetterAndGetter(poolOwner);
             });
 
-            it("Should allow the Huma master admin to set the first loss cover", async function () {
+            it("Should allow the Huma owner to set the first loss cover", async function () {
                 await testSetterAndGetter(protocolOwner);
             });
 
@@ -1667,7 +1739,30 @@ describe("PoolConfig Tests", function () {
                             adminFirstLossCoverContract.address,
                             config,
                         ),
-                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "PoolOwnerOrHumaOwnerRequired",
+                );
+            });
+
+            it("Should not the cover rate to exceed 100%", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setFirstLossCover(
+                            CONSTANTS.ADMIN_LOSS_COVER_INDEX,
+                            adminFirstLossCoverContract.address,
+                            {
+                                ...config,
+                                ...{
+                                    coverRatePerLossInBps: CONSTANTS.BP_FACTOR.add(1),
+                                },
+                            },
+                        ),
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "InvalidBasisPointHigherThan10000",
+                );
             });
         });
 
@@ -1681,7 +1776,7 @@ describe("PoolConfig Tests", function () {
                 expect(await poolConfigContract.calendar()).to.equal(calendarContract.address);
             });
 
-            it("Should allow the Huma master admin to set the calendar contract", async function () {
+            it("Should allow the Huma owner to set the calendar contract", async function () {
                 await expect(
                     poolConfigContract
                         .connect(protocolOwner)
@@ -1695,7 +1790,10 @@ describe("PoolConfig Tests", function () {
             it("Should reject non-owner or admin to set the calendar contract", async function () {
                 await expect(
                     poolConfigContract.connect(regularUser).setCalendar(calendarContract.address),
-                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "PoolOwnerOrHumaOwnerRequired",
+                );
             });
 
             it("Should disallow zero address for the calendar contract", async function () {
@@ -1721,7 +1819,7 @@ describe("PoolConfig Tests", function () {
                 );
             });
 
-            it("Should allow the Huma master admin to set the receivable asset", async function () {
+            it("Should allow the Huma owner to set the receivable asset", async function () {
                 await expect(
                     poolConfigContract
                         .connect(protocolOwner)
@@ -1739,7 +1837,10 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract
                         .connect(regularUser)
                         .setReceivableAsset(defaultDeployer.address),
-                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "PoolOwnerOrHumaOwnerRequired",
+                );
             });
 
             it("Should disallow zero address for the receivable asset", async function () {
@@ -1796,7 +1897,7 @@ describe("PoolConfig Tests", function () {
                 );
             });
 
-            it("Should allow the Huma master admin to set the pool settings", async function () {
+            it("Should allow the Huma owner to set the pool settings", async function () {
                 await expect(
                     poolConfigContract.connect(protocolOwner).setPoolSettings(newSettings),
                 )
@@ -1833,7 +1934,10 @@ describe("PoolConfig Tests", function () {
             it("Should reject non-owner or admin to set the pool settings", async function () {
                 await expect(
                     poolConfigContract.connect(regularUser).setPoolSettings(newSettings),
-                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "PoolOwnerOrHumaOwnerRequired",
+                );
             });
 
             it("Should disallow min deposit amount that's less than the min threshold", async function () {
@@ -1845,6 +1949,21 @@ describe("PoolConfig Tests", function () {
                         },
                     }),
                 ).to.be.revertedWithCustomError(poolConfigContract, "MinDepositAmountTooLow");
+            });
+
+            it("Should disallow late payment grace periods that are longer than or equal to the number of days in a full pay period", async function () {
+                await expect(
+                    poolConfigContract.connect(poolOwner).setPoolSettings({
+                        ...newSettings,
+                        ...{
+                            payPeriodDuration: PayPeriodDuration.Monthly,
+                            latePaymentGracePeriodInDays: 30,
+                        },
+                    }),
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "LatePaymentGracePeriodTooLong",
+                );
             });
 
             it("Should disallow advance rates that exceed 10000", async function () {
@@ -1898,7 +2017,7 @@ describe("PoolConfig Tests", function () {
                 );
             });
 
-            it("Should allow the Huma master admin to set the LP config", async function () {
+            it("Should allow the Huma owner to set the LP config", async function () {
                 await expect(poolConfigContract.connect(protocolOwner).setLPConfig(newLPConfig))
                     .to.emit(poolConfigContract, "LPConfigChanged")
                     .withArgs(
@@ -1924,7 +2043,38 @@ describe("PoolConfig Tests", function () {
             it("Should reject non-owner or admin to set the LP config", async function () {
                 await expect(
                     poolConfigContract.connect(regularUser).setLPConfig(newLPConfig),
-                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "PoolOwnerOrHumaOwnerRequired",
+                );
+            });
+
+            it("Should not allow fixSeniorYieldInBps to exceed 10000", async function () {
+                await expect(
+                    poolConfigContract.connect(poolOwner).setLPConfig({
+                        ...newLPConfig,
+                        ...{
+                            fixedSeniorYieldInBps: CONSTANTS.BP_FACTOR.add(1),
+                        },
+                    }),
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "InvalidBasisPointHigherThan10000",
+                );
+            });
+
+            it("Should not allow tranchesRiskAdjustmentInBps to exceed 10000", async function () {
+                await expect(
+                    poolConfigContract.connect(poolOwner).setLPConfig({
+                        ...newLPConfig,
+                        ...{
+                            tranchesRiskAdjustmentInBps: CONSTANTS.BP_FACTOR.add(1),
+                        },
+                    }),
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "InvalidBasisPointHigherThan10000",
+                );
             });
         });
 
@@ -1959,7 +2109,7 @@ describe("PoolConfig Tests", function () {
                 );
             });
 
-            it("Should allow the Huma master admin to set the front loading fees", async function () {
+            it("Should allow the Huma owner to set the front loading fees", async function () {
                 await expect(
                     poolConfigContract
                         .connect(protocolOwner)
@@ -1985,7 +2135,24 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract
                         .connect(regularUser)
                         .setFrontLoadingFees(newFrontLoadingFeeStructure),
-                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "PoolOwnerOrHumaOwnerRequired",
+                );
+            });
+
+            it("Should not allow frontLoadingFeeBps to exceed 10000", async function () {
+                await expect(
+                    poolConfigContract.connect(poolOwner).setFrontLoadingFees({
+                        ...newFrontLoadingFeeStructure,
+                        ...{
+                            frontLoadingFeeBps: CONSTANTS.BP_FACTOR.add(1),
+                        },
+                    }),
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "InvalidBasisPointHigherThan10000",
+                );
             });
         });
 
@@ -2017,7 +2184,7 @@ describe("PoolConfig Tests", function () {
                 expect(fees.minPrincipalRateInBps).to.equal(newFeeStructure.minPrincipalRateInBps);
             });
 
-            it("Should allow the Huma master admin to set the fee structure", async function () {
+            it("Should allow the Huma owner to set the fee structure", async function () {
                 await expect(
                     poolConfigContract.connect(protocolOwner).setFeeStructure(newFeeStructure),
                 )
@@ -2038,7 +2205,38 @@ describe("PoolConfig Tests", function () {
             it("Should reject non-owner or admin to set the fee structure", async function () {
                 await expect(
                     poolConfigContract.connect(regularUser).setFeeStructure(newFeeStructure),
-                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "PoolOwnerOrHumaOwnerRequired",
+                );
+            });
+
+            it("Should not allow minPrincipalRateInBps to exceed 10000", async function () {
+                await expect(
+                    poolConfigContract.connect(poolOwner).setFeeStructure({
+                        ...newFeeStructure,
+                        ...{
+                            minPrincipalRateInBps: CONSTANTS.BP_FACTOR.add(1),
+                        },
+                    }),
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "InvalidBasisPointHigherThan10000",
+                );
+            });
+
+            it("Should not allow lateFeeBps to exceed 10000", async function () {
+                await expect(
+                    poolConfigContract.connect(poolOwner).setFeeStructure({
+                        ...newFeeStructure,
+                        ...{
+                            lateFeeBps: CONSTANTS.BP_FACTOR.add(1),
+                        },
+                    }),
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "InvalidBasisPointHigherThan10000",
+                );
             });
         });
 
@@ -2168,7 +2366,7 @@ describe("PoolConfig Tests", function () {
                     .addApprovedLender(evaluationAgent.getAddress(), true);
                 await juniorTrancheVaultContract
                     .connect(evaluationAgent)
-                    .deposit(evaluationAgentLiquidity, evaluationAgent.getAddress());
+                    .deposit(evaluationAgentLiquidity);
                 await poolConfigContract
                     .connect(poolOwner)
                     .setEvaluationAgent(eaNFTTokenId, evaluationAgent.address);

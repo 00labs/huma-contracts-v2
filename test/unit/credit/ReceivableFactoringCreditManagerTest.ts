@@ -22,7 +22,6 @@ import {
     TrancheVault,
 } from "../../../typechain-types";
 import {
-    CreditClosureReason,
     CreditState,
     PayPeriodDuration,
     calcYield,
@@ -125,6 +124,7 @@ describe("ReceivableFactoringCreditManager Test", function () {
             "ReceivableFactoringCredit",
             "ReceivableFactoringCreditManager",
             evaluationAgent,
+            treasury,
             poolOwnerTreasury,
             poolOperator,
             [lender, borrower, payer],
@@ -143,9 +143,7 @@ describe("ReceivableFactoringCreditManager Test", function () {
             .connect(borrower)
             .approve(borrowerFirstLossCoverContract.address, ethers.constants.MaxUint256);
 
-        await juniorTrancheVaultContract
-            .connect(lender)
-            .deposit(toToken(10_000_000), lender.address);
+        await juniorTrancheVaultContract.connect(lender).deposit(toToken(10_000_000));
     }
 
     beforeEach(async function () {
@@ -270,6 +268,21 @@ describe("ReceivableFactoringCreditManager Test", function () {
                     yieldInBps,
                 ),
             ).to.be.revertedWithCustomError(creditManagerContract, "InsufficientReceivableAmount");
+        });
+
+        it("Should not approve if the receivable ID is 0", async function () {
+            await expect(
+                creditManagerContract.connect(eaServiceAccount).approveReceivable(
+                    borrower.address,
+                    {
+                        receivableAmount: creditLimit,
+                        receivableId: 0,
+                    },
+                    creditLimit,
+                    numOfPeriods,
+                    yieldInBps,
+                ),
+            ).to.be.revertedWithCustomError(creditManagerContract, "ZeroReceivableIdProvided");
         });
 
         it("Should approve a borrower correctly", async function () {
@@ -657,12 +670,8 @@ describe("ReceivableFactoringCreditManager Test", function () {
                         .connect(borrower)
                         .closeCredit(borrower.getAddress(), tokenId),
                 )
-                    .to.emit(creditManagerContract, "CreditClosed")
-                    .withArgs(
-                        creditHash,
-                        CreditClosureReason.AdminClosure,
-                        await borrower.getAddress(),
-                    );
+                    .to.emit(creditManagerContract, "CreditClosedByAdmin")
+                    .withArgs(creditHash, await borrower.getAddress());
 
                 // Make sure relevant fields have been reset.
                 const cr = await creditContract["getCreditRecord(uint256)"](tokenId);

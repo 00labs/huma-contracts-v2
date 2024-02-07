@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {Errors} from "../common/Errors.sol";
 import {PoolConfig, PoolSettings} from "../common/PoolConfig.sol";
@@ -61,24 +61,17 @@ contract TrancheVault is
     /**
      * @notice A deposit has been made to the tranche.
      * @param sender The address that made the deposit.
-     * @param receiver The address of the beneficiary of the deposit. It owns the tranche token.
      * @param assetAmount The amount measured in the underlying asset.
      * @param shareAmount The number of shares minted for this deposit.
      */
-    event LiquidityDeposited(
-        address indexed sender,
-        address indexed receiver,
-        uint256 assetAmount,
-        uint256 shareAmount
-    );
+    event LiquidityDeposited(address indexed sender, uint256 assetAmount, uint256 shareAmount);
 
     /**
      * @notice A disbursement to the lender for a processed redemption.
      * @param account The account whose shares have been redeemed.
-     * @param receiver The account that receives the disbursement.
      * @param withdrawnAmount The amount of the disbursement.
      */
-    event LenderFundDisbursed(address indexed account, address receiver, uint256 withdrawnAmount);
+    event LenderFundDisbursed(address indexed account, uint256 withdrawnAmount);
 
     /**
      * @notice A redemption request has been added.
@@ -199,6 +192,8 @@ contract TrancheVault is
      */
     function setReinvestYield(address lender, bool reinvestYield) external {
         poolConfig.onlyPoolOperator(msg.sender);
+        if (!hasRole(LENDER_ROLE, lender)) revert Errors.LenderRequired();
+
         DepositRecord memory depositRecord = _getDepositRecord(lender);
         if (depositRecord.reinvestYield == reinvestYield)
             revert Errors.ReinvestYieldOptionAlreadySet();
@@ -255,7 +250,7 @@ contract TrancheVault is
      */
     function makeInitialDeposit(uint256 assets) external returns (uint256 shares) {
         _onlyAuthorizedInitialDepositor(msg.sender);
-        return _deposit(assets, msg.sender);
+        return _deposit(assets);
     }
 
     /**
@@ -266,18 +261,15 @@ contract TrancheVault is
      * which will cause a permanent loss and we cannot help reverse transactions
      * or retrieve assets from the contracts.
      * @param assets The number of underlyingTokens to be deposited.
-     * @param receiver The address to receive the minted tranche token.
      * @return shares The number of tranche token to be minted.
      * @custom:access Any approved lender can call to deposit.
      */
-    function deposit(uint256 assets, address receiver) external returns (uint256 shares) {
+    function deposit(uint256 assets) external returns (uint256 shares) {
         poolConfig.onlyProtocolAndPoolOn();
         if (assets == 0) revert Errors.ZeroAmountProvided();
-        if (receiver == address(0)) revert Errors.ZeroAddressProvided();
         _onlyLender(msg.sender);
-        _onlyLender(receiver);
 
-        return _deposit(assets, receiver);
+        return _deposit(assets);
     }
 
     /**
@@ -290,7 +282,7 @@ contract TrancheVault is
         poolConfig.onlyProtocolAndPoolOn();
 
         PoolSettings memory poolSettings = poolConfig.getPoolSettings();
-        uint256 nextEpochStartTime = ICalendar(poolConfig.calendar()).getStartDateOfNextPeriod(
+        uint256 nextEpochStartTime = calendar.getStartDateOfNextPeriod(
             poolSettings.payPeriodDuration,
             block.timestamp
         );
@@ -338,11 +330,7 @@ contract TrancheVault is
         uint256 principalRequested = (depositRecord.principal * shares) / sharesBalance;
         lenderRedemptionRecord.principalRequested += uint96(principalRequested);
         _setLenderRedemptionRecord(msg.sender, lenderRedemptionRecord);
-        depositRecord.principal = uint96(
-            depositRecord.principal > principalRequested
-                ? depositRecord.principal - principalRequested
-                : 0
-        );
+        depositRecord.principal -= uint96(principalRequested);
         _setDepositRecord(msg.sender, depositRecord);
 
         ERC20Upgradeable._transfer(msg.sender, address(this), shares);
@@ -406,7 +394,7 @@ contract TrancheVault is
             record.totalAmountWithdrawn += uint96(withdrawable);
             _setLenderRedemptionRecord(msg.sender, record);
             underlyingToken.safeTransfer(msg.sender, withdrawable);
-            emit LenderFundDisbursed(msg.sender, msg.sender, withdrawable);
+            emit LenderFundDisbursed(msg.sender, withdrawable);
         }
     }
 
@@ -418,8 +406,9 @@ contract TrancheVault is
      * a cron-like mechanism like autotask to trigger it.
      */
     function processYieldForLenders() external {
-        uint256 len = nonReinvestingLenders.length;
+        poolConfig.onlyProtocolAndPoolOn();
 
+        uint256 len = nonReinvestingLenders.length;
         uint256 price = convertToAssets(DEFAULT_DECIMALS_FACTOR);
         uint96[2] memory tranchesAssets = pool.currentTranchesAssets();
         for (uint256 i = 0; i < len; i++) {
@@ -443,13 +432,10 @@ contract TrancheVault is
     }
 
     /// @inheritdoc IRedemptionHandler
-    function currentRedemptionSummary()
-        external
-        view
-        override
-        returns (EpochRedemptionSummary memory redemptionSummary)
-    {
-        redemptionSummary = _getEpochRedemptionSummary(epochManager.currentEpochId());
+    function epochRedemptionSummary(
+        uint256 epochId
+    ) external view override returns (EpochRedemptionSummary memory redemptionSummary) {
+        redemptionSummary = _getEpochRedemptionSummary(epochId);
     }
 
     /**
@@ -537,15 +523,18 @@ contract TrancheVault is
         addr = _poolConfig.epochManager();
         assert(addr != address(0));
         epochManager = IEpochManager(addr);
+
+        addr = _poolConfig.calendar();
+        assert(addr != address(0));
+        calendar = ICalendar(addr);
     }
 
     /**
      * @notice Internal function to support LP deposit into the tranche.
      * @param assets The number of underlyingTokens to be deposited.
-     * @param receiver The address to receive the minted tranche token.
      * @return shares The number of tranche token to be minted.
      */
-    function _deposit(uint256 assets, address receiver) internal returns (uint256 shares) {
+    function _deposit(uint256 assets) internal returns (uint256 shares) {
         PoolSettings memory poolSettings = poolConfig.getPoolSettings();
         if (assets < poolSettings.minDepositAmount) {
             revert Errors.DepositAmountTooLow();
@@ -559,16 +548,22 @@ contract TrancheVault is
         uint96[2] memory tranches = pool.currentTranchesAssets();
         uint256 trancheAssets = tranches[trancheIndex];
         shares = _convertToShares(assets, trancheAssets);
-        ERC20Upgradeable._mint(receiver, shares);
-        DepositRecord memory depositRecord = _getDepositRecord(receiver);
+
+        if (shares == 0) {
+            // Disallows 0 shares to be minted. This can be caused by rounding errors or the tranche
+            // losing all of its assets after default.
+            revert Errors.ZeroSharesMinted();
+        }
+        ERC20Upgradeable._mint(msg.sender, shares);
+        DepositRecord memory depositRecord = _getDepositRecord(msg.sender);
         depositRecord.principal += uint96(assets);
         depositRecord.lastDepositTime = uint64(block.timestamp);
-        _setDepositRecord(receiver, depositRecord);
+        _setDepositRecord(msg.sender, depositRecord);
 
         tranches[trancheIndex] += uint96(assets);
         pool.updateTranchesAssets(tranches);
 
-        emit LiquidityDeposited(msg.sender, receiver, assets, shares);
+        emit LiquidityDeposited(msg.sender, assets, shares);
     }
 
     /**
@@ -620,7 +615,7 @@ contract TrancheVault is
         uint256 _totalAssets
     ) internal view returns (uint256 shares) {
         uint256 supply = ERC20Upgradeable.totalSupply();
-
+        if (supply != 0 && _totalAssets == 0) return 0;
         return supply == 0 ? _assets : (_assets * supply) / _totalAssets;
     }
 

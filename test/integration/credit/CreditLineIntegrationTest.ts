@@ -231,6 +231,7 @@ describe("CreditLine Integration Test", function () {
             "CreditLine",
             "CreditLineManager",
             evaluationAgent,
+            treasury,
             poolOwnerTreasury,
             poolOperator,
             [juniorLender, seniorLender, borrower],
@@ -285,16 +286,9 @@ describe("CreditLine Integration Test", function () {
         await adminFirstLossCoverContract
             .connect(poolOwnerTreasury)
             .depositCover(firstLossCoverMaxLiquidity.div(2));
-        // await adminFirstLossCoverContract
-        //     .connect(evaluationAgent)
-        //     .depositCover(firstLossCoverMaxLiquidity.div(2));
 
-        await juniorTrancheVaultContract
-            .connect(juniorLender)
-            .deposit(toToken(500_000), juniorLender.getAddress());
-        await seniorTrancheVaultContract
-            .connect(seniorLender)
-            .deposit(toToken(1_500_000), seniorLender.getAddress());
+        await juniorTrancheVaultContract.connect(juniorLender).deposit(toToken(500_000));
+        await seniorTrancheVaultContract.connect(seniorLender).deposit(toToken(1_500_000));
 
         creditHash = await borrowerLevelCreditHash(creditContract, borrower);
 
@@ -1589,7 +1583,7 @@ describe("CreditLine Integration Test", function () {
         await expect(
             juniorTrancheVaultContract
                 .connect(juniorLender)
-                .deposit(poolSettings.minDepositAmount, juniorLender.getAddress()),
+                .deposit(poolSettings.minDepositAmount),
         ).to.be.revertedWithCustomError(juniorTrancheVaultContract, "TrancheLiquidityCapExceeded");
         // So do first loss covers.
         await expect(
