@@ -531,7 +531,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
 
     /// @custom:access Only the pool owner and the Huma owner can call this function.
     function setLPConfig(LPConfig memory lpConfig) external {
-        if (msg.sender != address(pool)) onlyHumaOwner();
+        if (msg.sender != address(pool)) _onlyPoolOwnerOrHumaOwner();
         if (
             lpConfig.fixedSeniorYieldInBps > HUNDRED_PERCENT_IN_BPS ||
             lpConfig.tranchesRiskAdjustmentInBps > HUNDRED_PERCENT_IN_BPS
@@ -541,6 +541,7 @@ contract PoolConfig is Initializable, AccessControlUpgradeable, UUPSUpgradeable 
                 IPool(pool).currentTranchesAssets()
             );
         }
+
         _lpConfig = lpConfig;
         emit LPConfigChanged(
             lpConfig.liquidityCap,

@@ -587,7 +587,7 @@ describe("Pool Test", function () {
             it("Should not allow non-PoolOwner or non-HumaOwner to close the pool", async function () {
                 await expect(poolContract.closePool()).to.be.revertedWithCustomError(
                     poolConfigContract,
-                    "AdminRequired",
+                    "PoolOwnerOrHumaOwnerRequired",
                 );
                 expect(await poolContract.isPoolClosed()).to.be.false;
             });
