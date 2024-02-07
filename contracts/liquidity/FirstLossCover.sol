@@ -343,6 +343,10 @@ contract FirstLossCover is
         addr = _poolConfig.pool();
         assert(addr != address(0));
         pool = IPool(addr);
+
+        addr = _poolConfig.poolFeeManager();
+        assert(addr != address(0));
+        poolFeeManager = addr;
     }
 
     /**
@@ -424,7 +428,6 @@ contract FirstLossCover is
     }
 
     function _onlyPoolFeeManager(address account) internal view {
-        if (account != poolConfig.poolFeeManager())
-            revert Errors.AuthorizedContractCallerRequired();
+        if (account != poolFeeManager) revert Errors.AuthorizedContractCallerRequired();
     }
 }
