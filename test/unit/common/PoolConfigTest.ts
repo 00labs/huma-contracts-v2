@@ -810,6 +810,7 @@ describe("PoolConfig Tests", function () {
                 "MockPoolCredit",
                 "CreditLineManager",
                 evaluationAgent,
+                protocolTreasury,
                 poolOwnerTreasury,
                 poolOperator,
                 [regularUser, evaluationAgent2],
@@ -1181,17 +1182,6 @@ describe("PoolConfig Tests", function () {
         });
 
         describe("setHumaConfig", function () {
-            it("Should allow the pool owner to set Huma config", async function () {
-                await expect(
-                    poolConfigContract
-                        .connect(poolOwner)
-                        .setHumaConfig(humaConfigContract.address),
-                )
-                    .to.emit(poolConfigContract, "HumaConfigChanged")
-                    .withArgs(humaConfigContract.address, poolOwner.address);
-                expect(await poolConfigContract.humaConfig()).to.equal(humaConfigContract.address);
-            });
-
             it("Should allow the Huma master admin to set Huma config", async function () {
                 await expect(
                     poolConfigContract
@@ -1203,10 +1193,10 @@ describe("PoolConfig Tests", function () {
                 expect(await poolConfigContract.humaConfig()).to.equal(humaConfigContract.address);
             });
 
-            it("Should reject non-owner or admin to call setHumaConfig", async function () {
+            it("Should reject non-admin to call setHumaConfig", async function () {
                 await expect(
                     poolConfigContract
-                        .connect(regularUser)
+                        .connect(poolOwner)
                         .setHumaConfig(humaConfigContract.address),
                 ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
             });
@@ -1214,7 +1204,7 @@ describe("PoolConfig Tests", function () {
             it("Should reject Huma config with zero address", async function () {
                 await expect(
                     poolConfigContract
-                        .connect(poolOwner)
+                        .connect(protocolOwner)
                         .setHumaConfig(ethers.constants.AddressZero),
                 ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
             });
@@ -1523,8 +1513,52 @@ describe("PoolConfig Tests", function () {
             });
         });
 
+        describe("setCreditDueManager", function () {
+            it("Should allow the pool owner to set the CreditDueManager contract", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setCreditDueManager(creditDueManagerContract.address),
+                )
+                    .to.emit(poolConfigContract, "CreditDueManagerChanged")
+                    .withArgs(creditDueManagerContract.address, poolOwner.address);
+                expect(await poolConfigContract.creditDueManager()).to.equal(
+                    creditDueManagerContract.address,
+                );
+            });
+
+            it("Should allow the Huma master admin to set the CreditDueManager contract", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(protocolOwner)
+                        .setCreditDueManager(creditDueManagerContract.address),
+                )
+                    .to.emit(poolConfigContract, "CreditDueManagerChanged")
+                    .withArgs(creditDueManagerContract.address, protocolOwner.address);
+                expect(await poolConfigContract.creditDueManager()).to.equal(
+                    creditDueManagerContract.address,
+                );
+            });
+
+            it("Should reject non-owner or admin to set the CreditDueManager contract", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(regularUser)
+                        .setCreditDueManager(creditDueManagerContract.address),
+                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
+            });
+
+            it("Should disallow zero address for the CreditDueManager contract", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setCreditDueManager(ethers.constants.AddressZero),
+                ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
+            });
+        });
+
         describe("setCredit", function () {
-            it("Should allow the pool owner to set the credit contract", async function () {
+            it("Should allow the pool owner to set the Credit contract", async function () {
                 await expect(
                     poolConfigContract.connect(poolOwner).setCredit(creditContract.address),
                 )
@@ -1533,7 +1567,7 @@ describe("PoolConfig Tests", function () {
                 expect(await poolConfigContract.credit()).to.equal(creditContract.address);
             });
 
-            it("Should allow the Huma master admin to set the credit contract", async function () {
+            it("Should allow the Huma master admin to set the Credit contract", async function () {
                 await expect(
                     poolConfigContract.connect(protocolOwner).setCredit(creditContract.address),
                 )
@@ -1542,15 +1576,59 @@ describe("PoolConfig Tests", function () {
                 expect(await poolConfigContract.credit()).to.equal(creditContract.address);
             });
 
-            it("Should reject non-owner or admin to set the credit contract", async function () {
+            it("Should reject non-owner or admin to set the Credit contract", async function () {
                 await expect(
                     poolConfigContract.connect(regularUser).setCredit(creditContract.address),
                 ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
             });
 
-            it("Should disallow zero address for the credit contract", async function () {
+            it("Should disallow zero address for the Credit contract", async function () {
                 await expect(
                     poolConfigContract.connect(poolOwner).setCredit(ethers.constants.AddressZero),
+                ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
+            });
+        });
+
+        describe("setCreditManager", function () {
+            it("Should allow the pool owner to set the CreditManager contract", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setCreditManager(creditManagerContract.address),
+                )
+                    .to.emit(poolConfigContract, "CreditManagerChanged")
+                    .withArgs(creditManagerContract.address, poolOwner.address);
+                expect(await poolConfigContract.creditManager()).to.equal(
+                    creditManagerContract.address,
+                );
+            });
+
+            it("Should allow the Huma master admin to set the CreditManager contract", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(protocolOwner)
+                        .setCreditManager(creditManagerContract.address),
+                )
+                    .to.emit(poolConfigContract, "CreditManagerChanged")
+                    .withArgs(creditManagerContract.address, protocolOwner.address);
+                expect(await poolConfigContract.creditManager()).to.equal(
+                    creditManagerContract.address,
+                );
+            });
+
+            it("Should reject non-owner or admin to set the CreditManager contract", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(regularUser)
+                        .setCreditManager(creditManagerContract.address),
+                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
+            });
+
+            it("Should disallow zero address for the CreditManager contract", async function () {
+                await expect(
+                    poolConfigContract
+                        .connect(poolOwner)
+                        .setCreditManager(ethers.constants.AddressZero),
                 ).to.be.revertedWithCustomError(poolConfigContract, "ZeroAddressProvided");
             });
         });

@@ -290,6 +290,7 @@ describe("Pool Test", function () {
                 "MockPoolCredit",
                 "CreditLineManager",
                 evaluationAgent,
+                treasury,
                 poolOwnerTreasury,
                 poolOperator,
                 [lender],
@@ -637,6 +638,23 @@ describe("Pool Test", function () {
                     expect(await adminFirstLossCoverContract.totalAssets()).to.equal(0);
                     expect(await juniorTrancheVaultContract.totalAssets()).to.equal(0);
                     expect(await seniorTrancheVaultContract.totalAssets()).to.equal(toToken(1));
+                });
+
+                it("Should distribute loss correctly when the loss exceeds tranche total assets", async function () {
+                    const assets = await poolContract.currentTranchesAssets();
+                    const profit = toToken(0);
+                    const loss = coverTotalAssets
+                        .add(assets[CONSTANTS.JUNIOR_TRANCHE])
+                        .add(assets[CONSTANTS.SENIOR_TRANCHE])
+                        .add(toToken(1_000));
+                    const recovery = toToken(0);
+
+                    await testDistribution(profit, loss, recovery);
+
+                    expect(await borrowerFirstLossCoverContract.totalAssets()).to.equal(0);
+                    expect(await adminFirstLossCoverContract.totalAssets()).to.equal(0);
+                    expect(await juniorTrancheVaultContract.totalAssets()).to.equal(0);
+                    expect(await seniorTrancheVaultContract.totalAssets()).to.equal(0);
                 });
 
                 it("Should distribute loss recovery correctly when senior loss can be partially recovered", async function () {
@@ -1025,6 +1043,29 @@ describe("Pool Test", function () {
                     expect(
                         await poolContract.getTrancheAvailableCap(CONSTANTS.SENIOR_TRANCHE),
                     ).to.equal(poolConfig.liquidityCap.sub(poolTotalAssets));
+                });
+
+                it("Should return 0 if the senior total assets is already higher than the 'junior total assets * max senior : junior ratio'", async function () {
+                    await seniorTrancheVaultContract.connect(lender).deposit(toToken(10_000));
+                    await juniorTrancheVaultContract.connect(lender).deposit(toToken(10_000));
+
+                    const [seniorAssets, juniorAssets] =
+                        await poolContract.currentTranchesAssets();
+                    // Make sure the liquidity cap is high enough so that the senior available cap is not constraint
+                    // by the liquidity cap.
+                    await overrideLPConfig(poolConfigContract, poolOwner, {
+                        liquidityCap: seniorAssets.add(toToken(1)),
+                    });
+                    // Mark all junior assets as loss.
+                    await creditContract.mockDistributePnL(BN.from(0), juniorAssets, BN.from(0));
+                    const [newSeniorAssets, newJuniorAssets] =
+                        await poolContract.currentTranchesAssets();
+                    expect(newJuniorAssets).to.equal(0);
+                    expect(newSeniorAssets).to.equal(seniorAssets);
+
+                    expect(
+                        await poolContract.getTrancheAvailableCap(CONSTANTS.SENIOR_TRANCHE),
+                    ).to.equal(0);
                 });
             });
         });

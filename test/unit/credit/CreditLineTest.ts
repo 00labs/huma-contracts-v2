@@ -144,6 +144,7 @@ describe("CreditLine Test", function () {
             "CreditLine",
             "CreditLineManager",
             evaluationAgent,
+            treasury,
             poolOwnerTreasury,
             poolOperator,
             [lender, borrower, borrower2],
@@ -7806,7 +7807,7 @@ describe("CreditLine Test", function () {
                     await poolContract.connect(poolOwner).enablePool();
                 });
 
-                it("Should not allow non-borrower or non-Sentinel Service account to make principal payment", async function () {
+                it("Should not allow non-borrowers to make principal payment", async function () {
                     await expect(
                         creditContract.connect(borrower2).makePrincipalPayment(toToken(1)),
                     ).to.be.revertedWithCustomError(creditManagerContract, "BorrowerRequired");
@@ -9515,17 +9516,38 @@ describe("CreditLine Test", function () {
         });
 
         describe("With drawdown", function () {
+            describe("If the credit limit is updated to 0", function () {
+                beforeEach(async function () {
+                    creditLimit = BN.from(0);
+                    committedAmount = toToken(75_000);
+                    newCommittedAmount = committedAmount;
+                    await loadFixture(approveCredit);
+                    await loadFixture(drawdown);
+                });
+
+                it("Should allow a non-zero committed amount", async function () {
+                    const oldCR = await creditContract.getCreditRecord(creditHash);
+                    const oldDD = await creditContract.getDueDetail(creditHash);
+
+                    await testUpdate(
+                        oldDD.committed,
+                        oldDD.committed,
+                        oldCR.nextDue,
+                        oldCR.yieldDue,
+                    );
+                });
+            });
+
             describe("If the updated committed yield stays below the accrued yield", function () {
                 beforeEach(async function () {
                     committedAmount = toToken(0);
                     newCommittedAmount = toToken(25_000);
                     await loadFixture(approveCredit);
+                    await loadFixture(drawdown);
                 });
 
                 describe("If the yield hasn't been paid yet", function () {
                     it("Should update the committed amount but not the yield due", async function () {
-                        await drawdown();
-
                         const oldCR = await creditContract.getCreditRecord(creditHash);
                         const oldDD = await creditContract.getDueDetail(creditHash);
                         await testUpdate(
@@ -9539,7 +9561,6 @@ describe("CreditLine Test", function () {
 
                 describe("If the yield has been partially paid", function () {
                     it("Should update the committed amount but not the yield due", async function () {
-                        await drawdown();
                         // Make partial payment towards the yield due.
                         const yieldDue = calcYield(
                             borrowAmount,
@@ -9563,7 +9584,6 @@ describe("CreditLine Test", function () {
 
                 describe("If the yield has been paid off", function () {
                     it("Should update the committed amount but not the yield due", async function () {
-                        await drawdown();
                         // Make full payment towards the yield due.
                         const yieldDue = calcYield(
                             borrowAmount,
@@ -9721,6 +9741,27 @@ describe("CreditLine Test", function () {
                         creditManagerContract,
                         "CommittedAmountGreaterThanCreditLimit",
                     );
+                });
+
+                it("Should not allow the updated credit limit to exceed the max credit limit in poolSettings", async function () {
+                    const maxCreditLine = toToken(200_000);
+                    const poolSettings = await poolConfigContract.getPoolSettings();
+                    await poolConfigContract.connect(poolOwner).setPoolSettings({
+                        ...poolSettings,
+                        ...{
+                            maxCreditLine,
+                        },
+                    });
+
+                    await expect(
+                        creditManagerContract
+                            .connect(eaServiceAccount)
+                            .updateLimitAndCommitment(
+                                await borrower.getAddress(),
+                                maxCreditLine.add(toToken(1)),
+                                maxCreditLine,
+                            ),
+                    ).to.be.revertedWithCustomError(creditManagerContract, "CreditLimitTooHigh");
                 });
             });
 

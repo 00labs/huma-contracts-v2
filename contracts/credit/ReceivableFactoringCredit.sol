@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {IERC721, IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {ERC165Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/introspection/ERC165Upgradeable.sol";
@@ -67,7 +67,7 @@ contract ReceivableFactoringCredit is
         if (receivableAsset.ownerOf(receivableId) != msg.sender)
             revert Errors.ReceivableOwnerRequired();
 
-        bytes32 creditHash = _getCreditHash(receivableId);
+        bytes32 creditHash = getCreditHash(receivableId);
         creditManager.onlyCreditBorrower(creditHash, msg.sender);
 
         receivableAsset.safeTransferFrom(msg.sender, address(this), receivableId);
@@ -85,7 +85,7 @@ contract ReceivableFactoringCredit is
         poolConfig.onlyProtocolAndPoolOn();
         if (receivableId == 0) revert Errors.ZeroReceivableIdProvided();
 
-        bytes32 creditHash = _getCreditHash(receivableId);
+        bytes32 creditHash = getCreditHash(receivableId);
         creditManager.onlyCreditBorrower(creditHash, msg.sender);
 
         IERC721 receivableAsset = IERC721(poolConfig.receivableAsset());
@@ -117,7 +117,7 @@ contract ReceivableFactoringCredit is
         if (receivableAsset.ownerOf(receivableId) != address(this))
             revert Errors.ReceivableOwnerRequired();
 
-        bytes32 creditHash = _getCreditHash(receivableId);
+        bytes32 creditHash = getCreditHash(receivableId);
         // Restrict access to only payers to prevent money laundering.
         address borrower = IReceivableFactoringCreditManager(address(creditManager)).onlyPayer(
             msg.sender,
@@ -132,7 +132,7 @@ contract ReceivableFactoringCredit is
     function getNextBillRefreshDate(
         uint256 receivableId
     ) external view returns (uint256 refreshDate) {
-        bytes32 creditHash = _getCreditHash(receivableId);
+        bytes32 creditHash = getCreditHash(receivableId);
         return _getNextBillRefreshDate(creditHash);
     }
 
@@ -140,13 +140,13 @@ contract ReceivableFactoringCredit is
     function getDueInfo(
         uint256 receivableId
     ) external view returns (CreditRecord memory cr, DueDetail memory dd) {
-        bytes32 creditHash = _getCreditHash(receivableId);
+        bytes32 creditHash = getCreditHash(receivableId);
         return _getDueInfo(creditHash);
     }
 
     /// @inheritdoc IReceivableFactoringCredit
     function getCreditRecord(uint256 receivableId) external view returns (CreditRecord memory) {
-        bytes32 creditHash = _getCreditHash(receivableId);
+        bytes32 creditHash = getCreditHash(receivableId);
         return getCreditRecord(creditHash);
     }
 
@@ -154,6 +154,10 @@ contract ReceivableFactoringCredit is
         return
             interfaceId == type(IReceivablePayable).interfaceId ||
             super.supportsInterface(interfaceId);
+    }
+
+    function getCreditHash(uint256 receivableId) public view virtual returns (bytes32 creditHash) {
+        return keccak256(abi.encode(address(this), poolConfig.receivableAsset(), receivableId));
     }
 
     function _makePaymentWithReceivable(
@@ -172,11 +176,5 @@ contract ReceivableFactoringCredit is
         }
 
         // Don't delete the paid receivable.
-    }
-
-    function _getCreditHash(
-        uint256 receivableId
-    ) internal view virtual returns (bytes32 creditHash) {
-        return keccak256(abi.encode(address(this), poolConfig.receivableAsset(), receivableId));
     }
 }

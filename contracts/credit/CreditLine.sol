@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {ICreditLine} from "./interfaces/ICreditLine.sol";
 import {Credit} from "./Credit.sol";
@@ -65,7 +65,7 @@ contract CreditLine is Credit, ICreditLine {
         return _getDueInfo(creditHash);
     }
 
-    function getCreditHash(address borrower) internal view virtual returns (bytes32 creditHash) {
+    function getCreditHash(address borrower) public view virtual returns (bytes32 creditHash) {
         return keccak256(abi.encode(address(this), borrower));
     }
 }

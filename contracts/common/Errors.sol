@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 contract Errors {
     // Common
@@ -15,7 +15,7 @@ contract Errors {
     error AdminRequired(); // 0x92d14c9e
     error PoolOperatorRequired(); // 0xae7fe070
     error PoolOwnerRequired(); // 0x8b506451
-    error ProtocolOwnerRequired(); // 0xd99ba4d3
+    error HumaTreasuryRequired(); // 0x6e0a9ac9
     error PoolOwnerOrEARequired(); // 0xe54466f3
     error PauserRequired(); // 0xd4a99e4e
     error NFTOwnerRequired(); // 0x85179c58
@@ -32,7 +32,6 @@ contract Errors {
     // Protocol config
     error TreasuryFeeHighThanUpperLimit(); // 0x743a9631
     error AlreadyAPauser(); // 0x2fe391f2
-    error AlreadyPoolAdmin(); // 0xebe277bd
 
     // Pool config
     error ProposedEADoesNotOwnProvidedEANFT(); // 0xc7388fc8
