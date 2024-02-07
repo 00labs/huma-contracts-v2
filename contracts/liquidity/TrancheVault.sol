@@ -330,11 +330,7 @@ contract TrancheVault is
         uint256 principalRequested = (depositRecord.principal * shares) / sharesBalance;
         lenderRedemptionRecord.principalRequested += uint96(principalRequested);
         _setLenderRedemptionRecord(msg.sender, lenderRedemptionRecord);
-        depositRecord.principal = uint96(
-            depositRecord.principal > principalRequested
-                ? depositRecord.principal - principalRequested
-                : 0
-        );
+        depositRecord.principal -= uint96(principalRequested);
         _setDepositRecord(msg.sender, depositRecord);
 
         ERC20Upgradeable._transfer(msg.sender, address(this), shares);
