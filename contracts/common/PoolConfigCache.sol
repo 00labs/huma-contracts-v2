@@ -69,6 +69,6 @@ abstract contract PoolConfigCache is Initializable, UUPSUpgradeable {
     }
 
     function _authorizeUpgrade(address) internal view override {
-        poolConfig.onlyHumaMasterAdmin(msg.sender);
+        poolConfig.onlyHumaOwner(msg.sender);
     }
 }

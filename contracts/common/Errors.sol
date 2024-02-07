@@ -12,7 +12,8 @@ contract Errors {
     error UnsupportedFunction(); // 0xea1c702e
 
     // Security
-    error AdminRequired(); // 0x92d14c9e
+    error HumaOwnerRequired(); // 0x290df4f6
+    error PoolOwnerOrHumaOwnerRequired(); // 0x3e984120
     error PoolOperatorRequired(); // 0xae7fe070
     error PoolOwnerRequired(); // 0x8b506451
     error HumaTreasuryRequired(); // 0x6e0a9ac9

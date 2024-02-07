@@ -178,7 +178,7 @@ describe("Pool Test", function () {
         it("Should not allow non-poolOwner and non-protocolAdmin to enable a pool", async function () {
             await expect(poolContract.enablePool()).to.be.revertedWithCustomError(
                 poolConfigContract,
-                "AdminRequired",
+                "PoolOwnerOrHumaOwnerRequired",
             );
             const isPoolOn = await poolContract.isPoolOn();
             expect(isPoolOn).to.be.false;
