@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {Errors} from "../common/Errors.sol";
 import {HumaConfig} from "../common/HumaConfig.sol";
@@ -470,7 +470,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
         } else {
             principalDuePaid = principalDue;
             unbilledPrincipalPaid = amountToCollect - principalDuePaid;
-            cr.nextDue = uint96(cr.nextDue - principalDuePaid);
+            cr.nextDue = cr.yieldDue;
             cr.unbilledPrincipal = uint96(cr.unbilledPrincipal - unbilledPrincipalPaid);
         }
 
@@ -543,8 +543,7 @@ abstract contract Credit is PoolConfigCache, CreditStorage, ICredit {
             // After the credit approval, if the credit has commitment and a designated start date, then the
             // credit will kick start on that whether the borrower has initiated the drawdown or not.
             // The date is set in `cr.nextDueDate` in `approveCredit()`.
-            if (cr.nextDueDate > 0 && block.timestamp < cr.nextDueDate)
-                revert Errors.FirstDrawdownTooEarly();
+            if (block.timestamp < cr.nextDueDate) revert Errors.FirstDrawdownTooEarly();
 
             if (borrowAmount > creditLimit) revert Errors.CreditLimitExceeded();
         } else if (cr.state != CreditState.GoodStanding) {

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {DAYS_IN_A_MONTH, DAYS_IN_A_QUARTER, DAYS_IN_A_HALF_YEAR} from "../common/SharedDefs.sol";
 import {ICalendar} from "../common/interfaces/ICalendar.sol";
@@ -23,8 +23,7 @@ contract Calendar is ICalendar {
         uint256 day = DTL.getDay(block.timestamp);
         // If the day falls on the 31st, move it back to the 30th.
         day = day > DAYS_IN_A_MONTH ? DAYS_IN_A_MONTH : day;
-        uint256 startDateOfMonth = _getStartOfMonth(block.timestamp);
-        uint256 numMonths = DTL.diffMonths(startDateOfMonth, endDate);
+        uint256 numMonths = DTL.diffMonths(block.timestamp, endDate);
         if (numMonths == 0) {
             // This happens if block.timestamp happens to be the same as the end date.
             return 0;
@@ -71,11 +70,11 @@ contract Calendar is ICalendar {
         uint256 startDate,
         uint256 endDate
     ) public view returns (uint256 daysDiff) {
-        if (startDate > endDate) {
-            revert Errors.StartDateLaterThanEndDate();
-        }
         if (startDate == 0) {
             startDate = block.timestamp;
+        }
+        if (startDate > endDate) {
+            revert Errors.StartDateLaterThanEndDate();
         }
 
         (uint256 startYear, uint256 startMonth, uint256 startDay) = DTL.timestampToDate(startDate);
@@ -92,7 +91,7 @@ contract Calendar is ICalendar {
         // 1. The number of days between the start date and the end of the start month.
         // 2. The number of days in whole months passed.
         // 3. The number of days between the start of the end month and the end date.
-        return DAYS_IN_A_MONTH - startDay + (numMonthsPassed - 1) * DAYS_IN_A_MONTH + endDay;
+        return numMonthsPassed * DAYS_IN_A_MONTH + endDay - startDay;
     }
 
     /// @inheritdoc ICalendar
@@ -161,30 +160,26 @@ contract Calendar is ICalendar {
 
     function _getStartOfMonth(uint256 timestamp) internal pure returns (uint256 startOfMonth) {
         (uint256 year, uint256 month, ) = DTL.timestampToDate(timestamp);
-        startOfMonth = DTL.timestampFromDate(year, month, 1);
-        return startOfMonth;
+        return DTL.timestampFromDate(year, month, 1);
     }
 
     function _getStartOfQuarter(uint256 timestamp) internal pure returns (uint256 startOfQuarter) {
         (uint256 year, uint256 month, ) = DTL.timestampToDate(timestamp);
-        startOfQuarter = DTL.timestampFromDate(year, ((month - 1) / 3) * 3 + 1, 1);
-        return startOfQuarter;
+        return DTL.timestampFromDate(year, ((month - 1) / 3) * 3 + 1, 1);
     }
 
     function _getStartOfHalfYear(
         uint256 timestamp
     ) internal pure returns (uint256 startOfHalfYear) {
         (uint256 year, uint256 month, ) = DTL.timestampToDate(timestamp);
-        startOfHalfYear = DTL.timestampFromDate(year, month <= 6 ? 1 : 7, 1);
-        return startOfHalfYear;
+        return DTL.timestampFromDate(year, month <= 6 ? 1 : 7, 1);
     }
 
     function _getStartOfNextMonth(
         uint256 timestamp
     ) internal pure returns (uint256 startOfNextMonth) {
         uint256 startOfMonth = _getStartOfMonth(timestamp);
-        startOfNextMonth = DTL.addMonths(startOfMonth, 1);
-        return startOfNextMonth;
+        return DTL.addMonths(startOfMonth, 1);
     }
 
     function _getStartOfNextQuarter(
@@ -197,15 +192,19 @@ contract Calendar is ICalendar {
             quarter = 1;
         } else quarter++;
 
-        startOfNextQuarter = DTL.timestampFromDate(year, (quarter - 1) * 3 + 1, 1);
-        return startOfNextQuarter;
+        return DTL.timestampFromDate(year, (quarter - 1) * 3 + 1, 1);
     }
 
     function _getStartOfNextHalfYear(
         uint256 timestamp
     ) internal pure returns (uint256 startOfNextHalfYear) {
         (uint256 year, uint256 month, ) = DTL.timestampToDate(timestamp);
-        startOfNextHalfYear = DTL.timestampFromDate(year, month > 6 ? 1 : 7, 1);
-        return startOfNextHalfYear;
+        if (month > 6) {
+            month = 1;
+            ++year;
+        } else {
+            month = 7;
+        }
+        return DTL.timestampFromDate(year, month, 1);
     }
 }
