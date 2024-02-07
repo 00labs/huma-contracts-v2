@@ -892,10 +892,7 @@ describe("PoolConfig Tests", function () {
                             CONSTANTS.BP_FACTOR.sub(adminRnR.rewardRateInBpsForEA).add(1),
                             liquidityRate,
                         ),
-                ).to.be.revertedWithCustomError(
-                    poolConfigContract,
-                    "PoolOwnerOrHumaOwnerRequired",
-                );
+                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRewardRateTooHigh");
             });
         });
 
@@ -1581,7 +1578,10 @@ describe("PoolConfig Tests", function () {
                     poolConfigContract
                         .connect(regularUser)
                         .setCreditDueManager(creditDueManagerContract.address),
-                ).to.be.revertedWithCustomError(poolConfigContract, "AdminRequired");
+                ).to.be.revertedWithCustomError(
+                    poolConfigContract,
+                    "PoolOwnerOrHumaOwnerRequired",
+                );
             });
 
             it("Should disallow zero address for the CreditDueManager contract", async function () {
