@@ -80,6 +80,14 @@ async function initHumaConfig() {
     const HumaConfig = await hre.ethers.getContractFactory("HumaConfig");
     const humaConfig = HumaConfig.attach(deployedContracts["HumaConfig"]);
 
+    await sendTransaction("HumaConfig", humaConfig, "setHumaTreasury", [HUMA_TREASURY_ACCOUNT]);
+    await sendTransaction("HumaConfig", humaConfig, "setEAServiceAccount", [EA_SERVICE_ACCOUNT]);
+    await sendTransaction("HumaConfig", humaConfig, "setEANFTContractAddress", [
+        deployedContracts["EANFT"],
+    ]);
+    await sendTransaction("HumaConfig", humaConfig, "setSentinelServiceAccount", [
+        SENTINEL_ACCOUNT,
+    ]);
     await sendTransaction("HumaConfig", humaConfig, "setLiquidityAsset", [
         deployedContracts["MockToken"],
     ]);
