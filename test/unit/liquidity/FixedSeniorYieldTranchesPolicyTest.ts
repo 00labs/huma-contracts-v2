@@ -114,19 +114,16 @@ describe("FixedSeniorYieldTranchesPolicy Test", function () {
             "MockPoolCredit",
             "CreditLineManager",
             evaluationAgent,
+            treasury,
             poolOwnerTreasury,
             poolOperator,
             [lender],
         );
 
         let juniorDepositAmount = toToken(100_000);
-        await juniorTrancheVaultContract
-            .connect(lender)
-            .deposit(juniorDepositAmount, lender.address);
+        await juniorTrancheVaultContract.connect(lender).deposit(juniorDepositAmount);
         let seniorDepositAmount = toToken(300_000);
-        await seniorTrancheVaultContract
-            .connect(lender)
-            .deposit(seniorDepositAmount, lender.address);
+        await seniorTrancheVaultContract.connect(lender).deposit(seniorDepositAmount);
 
         await overrideLPConfig(poolConfigContract, poolOwner, {
             fixedSeniorYieldInBps: apy,
@@ -353,9 +350,7 @@ describe("FixedSeniorYieldTranchesPolicy Test", function () {
             );
             expectedTracker.totalAssets = oldTracker.totalAssets.add(amount);
 
-            await expect(
-                seniorTrancheVaultContract.connect(lender).deposit(amount, lender.address),
-            )
+            await expect(seniorTrancheVaultContract.connect(lender).deposit(amount))
                 .to.emit(tranchesPolicyContract, "YieldTrackerRefreshed")
                 .withArgs(
                     expectedTracker.totalAssets,
@@ -383,9 +378,7 @@ describe("FixedSeniorYieldTranchesPolicy Test", function () {
             );
             expectedTracker.totalAssets = oldTracker.totalAssets;
 
-            await expect(
-                juniorTrancheVaultContract.connect(lender).deposit(amount, lender.address),
-            )
+            await expect(juniorTrancheVaultContract.connect(lender).deposit(amount))
                 .to.emit(tranchesPolicyContract, "YieldTrackerRefreshed")
                 .withArgs(
                     expectedTracker.totalAssets,

@@ -19,11 +19,9 @@ import {
     ReceivableBackedCreditLine,
     ReceivableBackedCreditLineManager,
     RiskAdjustedTranchesPolicy,
-    TrancheVault,
+    TrancheVault
 } from "../../../typechain-types";
 import {
-    CreditState,
-    PayPeriodDuration,
     calcPrincipalDueForFullPeriods,
     calcPrincipalDueForPartialPeriod,
     calcYield,
@@ -31,9 +29,11 @@ import {
     checkCreditRecord,
     checkCreditRecordsMatch,
     checkDueDetailsMatch,
+    CreditState,
     deployAndSetupPoolContracts,
     deployProtocolContracts,
     genDueDetail,
+    PayPeriodDuration
 } from "../../BaseTest";
 import {
     borrowerLevelCreditHash,
@@ -41,7 +41,7 @@ import {
     getLatestBlock,
     mineNextBlockWithTimestamp,
     setNextBlockTimestamp,
-    toToken,
+    toToken
 } from "../../TestUtils";
 import { CONSTANTS } from "../../constants";
 
@@ -127,6 +127,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
             "ReceivableBackedCreditLine",
             "ReceivableBackedCreditLineManager",
             evaluationAgent,
+            treasury,
             poolOwnerTreasury,
             poolOperator,
             [lender, borrower],
@@ -149,9 +150,7 @@ describe("ReceivableBackedCreditLine Tests", function () {
             .connect(borrower)
             .approve(borrowerFirstLossCoverContract.address, ethers.constants.MaxUint256);
 
-        await juniorTrancheVaultContract
-            .connect(lender)
-            .deposit(toToken(10_000_000), lender.address);
+        await juniorTrancheVaultContract.connect(lender).deposit(toToken(10_000_000));
     }
 
     beforeEach(async function () {
@@ -638,7 +637,12 @@ describe("ReceivableBackedCreditLine Tests", function () {
             creditHash = await borrowerLevelCreditHash(creditContract, borrower);
 
             const currentTS = (await getLatestBlock()).timestamp;
-            maturityDate = currentTS + CONSTANTS.SECONDS_IN_A_DAY * CONSTANTS.DAYS_IN_A_MONTH;
+            maturityDate = (
+                await calendarContract.getStartDateOfNextPeriod(
+                    PayPeriodDuration.Monthly,
+                    currentTS,
+                )
+            ).toNumber();
             await receivableContract
                 .connect(borrower)
                 .createReceivable(1, borrowAmount, maturityDate, "", "");

@@ -57,7 +57,7 @@ import { CONSTANTS } from "../../constants";
 
 let defaultDeployer: SignerWithAddress,
     protocolOwner: SignerWithAddress,
-    treasury: SignerWithAddress,
+    humaTreasury: SignerWithAddress,
     eaServiceAccount: SignerWithAddress,
     sentinelServiceAccount: SignerWithAddress;
 let poolOwner: SignerWithAddress,
@@ -255,10 +255,10 @@ async function configPool(lpConfig: Partial<LPConfigStructOutput>) {
 
     await juniorTrancheVaultContract
         .connect(poolOperator)
-        .setReinvestYield(poolOwnerTreasury.address, true);
+        .addApprovedLender(poolOwnerTreasury.address, true);
     await juniorTrancheVaultContract
         .connect(poolOperator)
-        .setReinvestYield(evaluationAgent.address, true);
+        .addApprovedLender(evaluationAgent.address, true);
 
     // Deposit 1% of the pool liquidity cap as the first loss cover.
     await adminFirstLossCoverContract
@@ -556,7 +556,7 @@ describe("Lender Integration Test", function () {
         [
             defaultDeployer,
             protocolOwner,
-            treasury,
+            humaTreasury,
             eaServiceAccount,
             sentinelServiceAccount,
             poolOwner,
@@ -591,7 +591,7 @@ describe("Lender Integration Test", function () {
         async function prepare() {
             [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
                 protocolOwner,
-                treasury,
+                humaTreasury,
                 eaServiceAccount,
                 sentinelServiceAccount,
                 poolOwner,
@@ -661,7 +661,7 @@ describe("Lender Integration Test", function () {
                 let oldBalance = await mockTokenContract.balanceOf(jLenders[i].address);
                 await juniorTrancheVaultContract
                     .connect(jLenders[i])
-                    .deposit(toToken(jLenderInitialAmounts[i]), jLenders[i].address);
+                    .deposit(toToken(jLenderInitialAmounts[i]));
                 expect(await mockTokenContract.balanceOf(jLenders[i].address)).to.equal(
                     oldBalance.sub(toToken(jLenderInitialAmounts[i])),
                 );
@@ -676,7 +676,7 @@ describe("Lender Integration Test", function () {
                 let oldBalance = await mockTokenContract.balanceOf(sLenders[i].address);
                 await seniorTrancheVaultContract
                     .connect(sLenders[i])
-                    .deposit(toToken(sLenderInitialAmounts[i]), sLenders[i].address);
+                    .deposit(toToken(sLenderInitialAmounts[i]));
                 expect(await mockTokenContract.balanceOf(sLenders[i].address)).to.equal(
                     oldBalance.sub(toToken(sLenderInitialAmounts[i])),
                 );
@@ -969,9 +969,7 @@ describe("Lender Integration Test", function () {
             let amount = toToken(600_000);
 
             let oldBalance = await mockTokenContract.balanceOf(sLenders[2].address);
-            await seniorTrancheVaultContract
-                .connect(sLenders[2])
-                .deposit(amount, sLenders[2].address);
+            await seniorTrancheVaultContract.connect(sLenders[2]).deposit(amount);
             expect(await mockTokenContract.balanceOf(sLenders[2].address)).to.equal(
                 oldBalance.sub(amount),
             );
@@ -988,9 +986,7 @@ describe("Lender Integration Test", function () {
             await setNextBlockTimestamp(currentTS);
 
             await expect(
-                seniorTrancheVaultContract
-                    .connect(sLenders[2])
-                    .deposit(toToken(600_000), sLenders[2].address),
+                seniorTrancheVaultContract.connect(sLenders[2]).deposit(toToken(600_000)),
             ).to.be.revertedWithCustomError(
                 juniorTrancheVaultContract,
                 "TrancheLiquidityCapExceeded",
@@ -1004,9 +1000,7 @@ describe("Lender Integration Test", function () {
             let amount = toToken(30_000);
 
             let oldBalance = await mockTokenContract.balanceOf(jLenders[2].address);
-            await juniorTrancheVaultContract
-                .connect(jLenders[2])
-                .deposit(amount, jLenders[2].address);
+            await juniorTrancheVaultContract.connect(jLenders[2]).deposit(amount);
             expect(await mockTokenContract.balanceOf(jLenders[2].address)).to.equal(
                 oldBalance.sub(amount),
             );
@@ -1026,9 +1020,7 @@ describe("Lender Integration Test", function () {
 
             let oldBalance = await mockTokenContract.balanceOf(sLenders[2].address);
             let oldAssets = await seniorTrancheVaultContract.totalAssetsOf(sLenders[2].address);
-            await seniorTrancheVaultContract
-                .connect(sLenders[2])
-                .deposit(amount, sLenders[2].address);
+            await seniorTrancheVaultContract.connect(sLenders[2]).deposit(amount);
             expect(await mockTokenContract.balanceOf(sLenders[2].address)).to.equal(
                 oldBalance.sub(amount),
             );
@@ -1230,10 +1222,10 @@ describe("Lender Integration Test", function () {
 
             let amount = toToken(100);
 
-            let oldBalance = await mockTokenContract.balanceOf(treasury.address);
+            let oldBalance = await mockTokenContract.balanceOf(humaTreasury.address);
             let poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
-            await poolFeeManagerContract.connect(protocolOwner).withdrawProtocolFee(amount);
-            expect(await mockTokenContract.balanceOf(treasury.address)).to.equal(
+            await poolFeeManagerContract.connect(humaTreasury).withdrawProtocolFee(amount);
+            expect(await mockTokenContract.balanceOf(humaTreasury.address)).to.equal(
                 oldBalance.add(amount),
             );
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(
@@ -1825,7 +1817,7 @@ describe("Lender Integration Test", function () {
         async function prepare() {
             [eaNFTContract, humaConfigContract, mockTokenContract] = await deployProtocolContracts(
                 protocolOwner,
-                treasury,
+                humaTreasury,
                 eaServiceAccount,
                 sentinelServiceAccount,
                 poolOwner,
@@ -1895,7 +1887,7 @@ describe("Lender Integration Test", function () {
                 let oldBalance = await mockTokenContract.balanceOf(jLenders[i].address);
                 await juniorTrancheVaultContract
                     .connect(jLenders[i])
-                    .deposit(toToken(jLenderInitialAmounts[i]), jLenders[i].address);
+                    .deposit(toToken(jLenderInitialAmounts[i]));
                 expect(await mockTokenContract.balanceOf(jLenders[i].address)).to.equal(
                     oldBalance.sub(toToken(jLenderInitialAmounts[i])),
                 );
@@ -1910,7 +1902,7 @@ describe("Lender Integration Test", function () {
                 let oldBalance = await mockTokenContract.balanceOf(sLenders[i].address);
                 await seniorTrancheVaultContract
                     .connect(sLenders[i])
-                    .deposit(toToken(sLenderInitialAmounts[i]), sLenders[i].address);
+                    .deposit(toToken(sLenderInitialAmounts[i]));
                 expect(await mockTokenContract.balanceOf(sLenders[i].address)).to.equal(
                     oldBalance.sub(toToken(sLenderInitialAmounts[i])),
                 );
@@ -2226,9 +2218,7 @@ describe("Lender Integration Test", function () {
 
             let oldBalance = await mockTokenContract.balanceOf(sLenders[2].address);
             tracker = await tranchesPolicyContract.seniorYieldTracker();
-            await seniorTrancheVaultContract
-                .connect(sLenders[2])
-                .deposit(amount, sLenders[2].address);
+            await seniorTrancheVaultContract.connect(sLenders[2]).deposit(amount);
             let newTracker = await PnLCalculator.calcLatestSeniorTracker(
                 calendarContract,
                 currentTS,
@@ -2254,9 +2244,7 @@ describe("Lender Integration Test", function () {
             await setNextBlockTimestamp(currentTS);
 
             await expect(
-                seniorTrancheVaultContract
-                    .connect(sLenders[2])
-                    .deposit(toToken(600_000), sLenders[2].address),
+                seniorTrancheVaultContract.connect(sLenders[2]).deposit(toToken(600_000)),
             ).to.be.revertedWithCustomError(
                 juniorTrancheVaultContract,
                 "TrancheLiquidityCapExceeded",
@@ -2270,9 +2258,7 @@ describe("Lender Integration Test", function () {
             let amount = toToken(30_000);
 
             let oldBalance = await mockTokenContract.balanceOf(jLenders[2].address);
-            await juniorTrancheVaultContract
-                .connect(jLenders[2])
-                .deposit(amount, jLenders[2].address);
+            await juniorTrancheVaultContract.connect(jLenders[2]).deposit(amount);
             expect(await mockTokenContract.balanceOf(jLenders[2].address)).to.equal(
                 oldBalance.sub(amount),
             );
@@ -2292,9 +2278,7 @@ describe("Lender Integration Test", function () {
 
             let oldBalance = await mockTokenContract.balanceOf(sLenders[2].address);
             let oldAssets = await seniorTrancheVaultContract.totalAssetsOf(sLenders[2].address);
-            await seniorTrancheVaultContract
-                .connect(sLenders[2])
-                .deposit(amount, sLenders[2].address);
+            await seniorTrancheVaultContract.connect(sLenders[2]).deposit(amount);
             expect(await mockTokenContract.balanceOf(sLenders[2].address)).to.equal(
                 oldBalance.sub(amount),
             );
@@ -2504,10 +2488,10 @@ describe("Lender Integration Test", function () {
 
             let amount = toToken(100);
 
-            let oldBalance = await mockTokenContract.balanceOf(treasury.address);
+            let oldBalance = await mockTokenContract.balanceOf(humaTreasury.address);
             let poolSafeOldBalance = await mockTokenContract.balanceOf(poolSafeContract.address);
-            await poolFeeManagerContract.connect(protocolOwner).withdrawProtocolFee(amount);
-            expect(await mockTokenContract.balanceOf(treasury.address)).to.equal(
+            await poolFeeManagerContract.connect(humaTreasury).withdrawProtocolFee(amount);
+            expect(await mockTokenContract.balanceOf(humaTreasury.address)).to.equal(
                 oldBalance.add(amount),
             );
             expect(await mockTokenContract.balanceOf(poolSafeContract.address)).to.equal(

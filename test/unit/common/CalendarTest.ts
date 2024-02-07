@@ -782,6 +782,55 @@ describe("Calendar Test", function () {
                     ),
                 ).to.equal(startDateOfNextPeriod.unix());
             });
+
+            it("Should return the start date of the immediate next period relative to the current block timestamp if timestamp is 0 and the next period is in the next year", async function () {
+                const nextYear = moment.utc().year() + 1;
+                const nextBlockTime = moment.utc({
+                    year: nextYear,
+                    month: 10,
+                    day: 2,
+                });
+                await mineNextBlockWithTimestamp(nextBlockTime.unix());
+                const startDateOfNextPeriod = moment.utc({
+                    year: nextYear + 1,
+                    month: 0,
+                    day: 1,
+                });
+                expect(
+                    await calendarContract.getStartDateOfNextPeriod(
+                        PayPeriodDuration.SemiAnnually,
+                        0,
+                    ),
+                ).to.equal(startDateOfNextPeriod.unix());
+            });
+
+            it("Should return the start date of the immediate next period relative to the given timestamp if it's not 0 and the next period is in the next year", async function () {
+                const nextYear = moment.utc().year() + 1;
+                const nextBlockTime = moment.utc({
+                    year: nextYear,
+                    month: 0,
+                    day: 2,
+                });
+                await mineNextBlockWithTimestamp(nextBlockTime.unix());
+
+                const timestamp = moment.utc({
+                    year: nextYear,
+                    month: 8,
+                    day: 2,
+                });
+                // The start date should be based on `timestamp` rather `nextBlockTime`.
+                const startDateOfNextPeriod = moment.utc({
+                    year: nextYear + 1,
+                    month: 0,
+                    day: 1,
+                });
+                expect(
+                    await calendarContract.getStartDateOfNextPeriod(
+                        PayPeriodDuration.SemiAnnually,
+                        timestamp.unix(),
+                    ),
+                ).to.equal(startDateOfNextPeriod.unix());
+            });
         });
     });
 

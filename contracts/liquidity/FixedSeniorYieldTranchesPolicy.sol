@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {Errors} from "../common/Errors.sol";
-import {LPConfig, PoolConfig} from "../common/PoolConfig.sol";
+import {LPConfig} from "../common/PoolConfig.sol";
 import {BaseTranchesPolicy} from "./BaseTranchesPolicy.sol";
 import {SENIOR_TRANCHE, DAYS_IN_A_YEAR, HUNDRED_PERCENT_IN_BPS} from "../common/SharedDefs.sol";
 import {ICalendar} from "../common/interfaces/ICalendar.sol";
