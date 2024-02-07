@@ -9,6 +9,8 @@ import {PoolConfig, FirstLossCoverConfig, PoolSettings} from "../common/PoolConf
 import {PoolSettings, LPConfig, FrontLoadingFeesStructure, FeeStructure} from "../common/PoolConfig.sol";
 import {Errors} from "../common/Errors.sol";
 import {PayPeriodDuration} from "../common/SharedDefs.sol";
+import {SENIOR_TRANCHE, JUNIOR_TRANCHE} from "../common/SharedDefs.sol";
+import {BORROWER_LOSS_COVER_INDEX, INSURANCE_LOSS_COVER_INDEX, ADMIN_LOSS_COVER_INDEX} from "../common/SharedDefs.sol";
 import {LibTimelockController} from "./library/LibTimelockController.sol";
 
 interface IPoolConfigCacheLike {
@@ -370,9 +372,39 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         // First Loss Cover index [0, 1, 2] are reserved for borrower, insurance and admin
         // all fields are set to 0 by default, and can be changed by pool owner later
         // or by the deployer if the pool owner provides the details
-        _setFirstLossCover(poolConfig, 0, 0, 0, 0, 0, 0, "Borrower First Loss Cover", "BFLC");
-        _setFirstLossCover(poolConfig, 1, 0, 0, 0, 0, 0, "Insurance First Loss Cover", "IFLC");
-        _setFirstLossCover(poolConfig, 2, 0, 0, 0, 0, 0, "Admin First Loss Cover", "AFLC");
+        _setFirstLossCover(
+            poolConfig,
+            uint8(BORROWER_LOSS_COVER_INDEX),
+            0,
+            0,
+            0,
+            0,
+            0,
+            "Borrower First Loss Cover",
+            "BFLC"
+        );
+        _setFirstLossCover(
+            poolConfig,
+            uint8(INSURANCE_LOSS_COVER_INDEX),
+            0,
+            0,
+            0,
+            0,
+            0,
+            "Insurance First Loss Cover",
+            "IFLC"
+        );
+        _setFirstLossCover(
+            poolConfig,
+            uint8(ADMIN_LOSS_COVER_INDEX),
+            0,
+            0,
+            0,
+            0,
+            0,
+            "Admin First Loss Cover",
+            "AFLC"
+        );
         for (uint8 i = 3; i <= 12; i++) {
             // when index is 8 or 9, it is senior or junior tranche vault
             // trancheVault uses different initialize function
@@ -381,14 +413,14 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
                     "Senior Tranche Vault",
                     "STV",
                     poolConfig,
-                    0
+                    uint8(SENIOR_TRANCHE)
                 );
             } else if (i == 9) {
                 IVaultLike(poolAddresses[i]).initialize(
                     "Junior Tranche Vault",
                     "JTV",
                     poolConfig,
-                    1
+                    uint8(JUNIOR_TRANCHE)
                 );
             } else {
                 IPoolConfigCacheLike(poolAddresses[i]).initialize(poolConfigAddress);
@@ -459,21 +491,16 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
             frontLoadingFeeFlat: frontLoadingFeeFlat,
             frontLoadingFeeBps: frontLoadingFeeBps
         });
-        PoolConfig(pools[_poolId].poolConfigAddress).setFrontLoadingFees(frontLoadingFees);
+        PoolConfig poolConfig = PoolConfig(pools[_poolId].poolConfigAddress);
+        poolConfig.setFrontLoadingFees(frontLoadingFees);
         FeeStructure memory fees = FeeStructure({
             yieldInBps: yieldInBps,
             minPrincipalRateInBps: minPrincipalRateInBps,
             lateFeeBps: lateFeeBps
         });
-        PoolConfig(pools[_poolId].poolConfigAddress).setFeeStructure(fees);
-        PoolConfig(pools[_poolId].poolConfigAddress).setPoolOwnerRewardsAndLiquidity(
-            poolOwnerRewardRate,
-            poolOwnerLiquidityRate
-        );
-        PoolConfig(pools[_poolId].poolConfigAddress).setEARewardsAndLiquidity(
-            eaRewardRate,
-            eaLiquidityRate
-        );
+        poolConfig.setFeeStructure(fees);
+        poolConfig.setPoolOwnerRewardsAndLiquidity(poolOwnerRewardRate, poolOwnerLiquidityRate);
+        poolConfig.setEARewardsAndLiquidity(eaRewardRate, eaLiquidityRate);
     }
 
     // After deploying a new pool, the deployer needs to set pool parameters using this function
@@ -482,10 +509,8 @@ contract PoolFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable
     function addPoolOperator(uint256 _poolId, address poolOperator) external {
         _onlyDeployer(msg.sender);
         _notZeroAddress(poolOperator);
-        PoolConfig(pools[_poolId].poolConfigAddress).grantRole(
-            PoolConfig(pools[_poolId].poolConfigAddress).POOL_OPERATOR_ROLE(),
-            poolOperator
-        );
+        PoolConfig poolConfig = PoolConfig(pools[_poolId].poolConfigAddress);
+        poolConfig.grantRole(poolConfig.POOL_OPERATOR_ROLE(), poolOperator);
     }
 
     // Huma requires all pools to have a timelock controller, this function adds a timelock controller to a pool
