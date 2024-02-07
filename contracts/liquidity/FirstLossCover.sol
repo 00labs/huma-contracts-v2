@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 import {Errors} from "../common/Errors.sol";
 import {FirstLossCoverStorage} from "./FirstLossCoverStorage.sol";
@@ -13,6 +13,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20MetadataUpgradeable, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  * @title FirstLossCover
@@ -81,11 +82,18 @@ contract FirstLossCover is
     event AssetsAdded(uint256 assets);
 
     /**
-     * @notice Yield has been paid out to the cover providers.
+     * @notice Yield has been paid out to the cover provider.
      * @param account The address of the cover provider that received the yield.
      * @param yields The amount of yield paid out to the cover provider.
      */
     event YieldPaidOut(address indexed account, uint256 yields);
+
+    /**
+     * @notice Yield payout to the cover provider has failed.
+     * @param account The address of the cover provider that should have received the yield.
+     * @param yields The amount of yield that should have been paid out to the cover provider.
+     */
+    event YieldPayoutFailed(address indexed account, uint256 yields);
 
     function initialize(
         string memory name,
@@ -134,6 +142,10 @@ contract FirstLossCover is
     function depositCover(uint256 assets) external returns (uint256 shares) {
         if (assets == 0) revert Errors.ZeroAmountProvided();
         _onlyCoverProvider(msg.sender);
+        PoolSettings memory poolSettings = poolConfig.getPoolSettings();
+        if (assets < poolSettings.minDepositAmount) {
+            revert Errors.DepositAmountTooLow();
+        }
 
         // Note: we have to mint the shares first by calling _deposit() before transferring the assets.
         // Transferring assets first would increase the total cover assets without increasing the supply, resulting in
@@ -145,7 +157,7 @@ contract FirstLossCover is
     /// @inheritdoc IFirstLossCover
     function depositCoverFor(uint256 assets, address receiver) external returns (uint256 shares) {
         if (assets == 0) revert Errors.ZeroAmountProvided();
-        if (receiver == address(0)) revert Errors.ZeroAddressProvided();
+        _onlyCoverProvider(receiver);
         _onlyPoolFeeManager(msg.sender);
 
         // Note: we have to mint the shares first by calling _deposit() before transferring the assets.
@@ -167,22 +179,11 @@ contract FirstLossCover is
     function redeemCover(uint256 shares, address receiver) external returns (uint256 assets) {
         if (shares == 0) revert Errors.ZeroAmountProvided();
         if (receiver == address(0)) revert Errors.ZeroAddressProvided();
-
-        uint256 minLiquidity = getMinLiquidity();
-        uint256 currTotalAssets = totalAssets();
-
-        bool ready = pool.readyForFirstLossCoverWithdrawal();
-        // If ready, all assets can be withdrawn. Otherwise, only the excessive assets over the minimum
-        // liquidity requirement can be withdrawn.
-        if (!ready && currTotalAssets <= minLiquidity)
+        if (!pool.readyForFirstLossCoverWithdrawal())
             revert Errors.PoolIsNotReadyForFirstLossCoverWithdrawal();
-
         if (shares > balanceOf(msg.sender)) revert Errors.InsufficientSharesForRequest();
-        assets = convertToAssets(shares);
-        // Revert if the pool is not ready and the assets to be withdrawn is more than the available value.
-        if (!ready && assets > currTotalAssets - minLiquidity)
-            revert Errors.InsufficientAmountForRequest();
 
+        assets = convertToAssets(shares);
         ERC20Upgradeable._burn(msg.sender, shares);
         underlyingToken.safeTransfer(receiver, assets);
         emit CoverRedeemed(msg.sender, receiver, shares, assets);
@@ -210,11 +211,11 @@ contract FirstLossCover is
     function recoverLoss(uint256 recovery) external returns (uint256 remainingRecovery) {
         poolConfig.onlyPool(msg.sender);
 
-        uint256 recoveredAmount;
-        (remainingRecovery, recoveredAmount) = _calcLossRecovery(coveredLoss, recovery);
+        uint256 currCoveredLoss = coveredLoss;
+        uint256 recoveredAmount = Math.min(currCoveredLoss, recovery);
+        remainingRecovery = recovery - recoveredAmount;
 
         if (recoveredAmount > 0) {
-            uint256 currCoveredLoss = coveredLoss;
             currCoveredLoss -= recoveredAmount;
             coveredLoss = currCoveredLoss;
 
@@ -229,6 +230,8 @@ contract FirstLossCover is
      * @notice Yield payout is expected to be handled by a cron-like mechanism like autotask.
      */
     function payoutYield() external {
+        poolConfig.onlyProtocolAndPoolOn();
+
         uint256 maxLiquidity = getMaxLiquidity();
         uint256 assets = totalAssets();
         if (assets <= maxLiquidity) return;
@@ -244,8 +247,28 @@ contract FirstLossCover is
 
             uint256 payout = (yield * shares) / totalShares;
             remainingShares -= shares;
-            underlyingToken.safeTransfer(provider, payout);
-            emit YieldPaidOut(provider, payout);
+
+            // The underlying asset of the pool may incorporate a blocklist feature that prevents the provider
+            // from receiving yield if they are subject to sanctions, and consequently the `transfer` call
+            // would fail for the lender. We bypass the yield of this provider so that other
+            // providers can still get their yield paid out as normal.
+            // Notes on the implementation:
+            // 1. We need to use the regular `transfer` function instead of `safeTransfer` since
+            //    `safeTransfer` reverts on failure, but we can't use `try/catch` to catch the reversion since
+            //    `safeTransfer` is an internal function.
+            // 2. We need to use try/catch as well as checking on the status code returned by `transfer` since
+            //    `transfer` may either revert or return `false` on failure.
+            bool success = false;
+            try underlyingToken.transfer(provider, payout) returns (bool result) {
+                success = result;
+            } catch {
+                // `success` is already false. No need to explicitly assign it to false again.
+            }
+            if (success) {
+                emit YieldPaidOut(provider, payout);
+            } else {
+                emit YieldPayoutFailed(provider, payout);
+            }
         }
 
         // We expect all yield to be paid out in one go. It's technically impossible for remainingShares
@@ -340,6 +363,10 @@ contract FirstLossCover is
         addr = _poolConfig.pool();
         assert(addr != address(0));
         pool = IPool(addr);
+
+        addr = _poolConfig.poolFeeManager();
+        assert(addr != address(0));
+        poolFeeManager = addr;
     }
 
     /**
@@ -370,10 +397,6 @@ contract FirstLossCover is
     }
 
     function _deposit(uint256 assets, address account) internal returns (uint256 shares) {
-        PoolSettings memory poolSettings = poolConfig.getPoolSettings();
-        if (assets < poolSettings.minDepositAmount) {
-            revert Errors.DepositAmountTooLow();
-        }
         if (assets > getAvailableCap()) {
             revert Errors.FirstLossCoverLiquidityCapExceeded();
         }
@@ -421,15 +444,6 @@ contract FirstLossCover is
     }
 
     function _onlyPoolFeeManager(address account) internal view {
-        if (account != poolConfig.poolFeeManager())
-            revert Errors.AuthorizedContractCallerRequired();
-    }
-
-    function _calcLossRecovery(
-        uint256 coveredLoss,
-        uint256 recoveryAmount
-    ) internal pure returns (uint256 remainingRecovery, uint256 recoveredAmount) {
-        recoveredAmount = coveredLoss < recoveryAmount ? coveredLoss : recoveryAmount;
-        remainingRecovery = recoveryAmount - recoveredAmount;
+        if (account != poolFeeManager) revert Errors.AuthorizedContractCallerRequired();
     }
 }

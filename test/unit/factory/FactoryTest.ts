@@ -179,10 +179,10 @@ describe("Factory Test", function () {
     it("Non Factory Admin cannot add or remove deployer", async function () {
         await expect(
             poolFactoryContract.connect(poolOperator).addDeployer(poolOperator.getAddress()),
-        ).to.be.revertedWithCustomError(poolFactoryContract, "AdminRequired");
+        ).to.be.revertedWithCustomError(poolFactoryContract, "HumaOwnerRequired");
         await expect(
             poolFactoryContract.connect(poolOperator).removeDeployer(defaultDeployer.getAddress()),
-        ).to.be.revertedWithCustomError(poolFactoryContract, "AdminRequired");
+        ).to.be.revertedWithCustomError(poolFactoryContract, "HumaOwnerRequired");
     });
 
     it("Deploy a pool using factory", async function () {
@@ -190,8 +190,6 @@ describe("Factory Test", function () {
             poolFactoryContract,
             mockTokenContract,
             await ethers.getContractAt("Receivable", ethers.constants.AddressZero),
-            defaultDeployer,
-            poolOwner,
             "creditline",
             "fixed",
             "test pool",
@@ -334,6 +332,8 @@ describe("Factory Test", function () {
             toToken(10000),
             toToken(5000),
             15000,
+            "Borrower First Loss Cover",
+            "BFLC",
         );
     });
     it("Non deployer cannot set first loss cover", async function () {
@@ -357,6 +357,8 @@ describe("Factory Test", function () {
                     toToken(10000),
                     toToken(5000),
                     15000,
+                    "Borrower First Loss Cover",
+                    "BFLC",
                 ),
         ).to.be.revertedWithCustomError(poolFactoryContract, "DeployerRequired");
     });
