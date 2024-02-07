@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity 0.8.23;
 
 // ----------------------------------------------------------------------------
 // BokkyPooBah's DateTime Library v1.01
