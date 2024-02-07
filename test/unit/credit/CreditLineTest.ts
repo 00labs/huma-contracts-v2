@@ -52,7 +52,6 @@ import {
     getMaturityDate,
     getStartOfDay,
     getStartOfNextMonth,
-    isCloseTo,
     maxBigNumber,
     minBigNumber,
     mineNextBlockWithTimestamp,
@@ -8884,12 +8883,7 @@ describe("CreditLine Test", function () {
                 .makePayment(borrower.getAddress(), paymentAmount);
         }
 
-        async function testUpdate(
-            oldYieldDue: BN,
-            newYieldDue: BN,
-            expectedNextDue: BN,
-            expectedYieldDue: BN,
-        ) {
+        async function testUpdate() {
             const updateDate: number = drawdownDate + CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(updateDate);
             const oldCR = await creditContract.getCreditRecord(creditHash);
@@ -8904,538 +8898,136 @@ describe("CreditLine Test", function () {
                     creditHash,
                     yieldInBps,
                     newYieldInBps,
-                    oldYieldDue,
-                    (actualNewYieldDue: BN) =>
-                        isCloseTo(actualNewYieldDue, newYieldDue, BN.from(1)),
                     await eaServiceAccount.getAddress(),
                 );
 
             const cc = await creditManagerContract.getCreditConfig(creditHash);
             expect(cc.yieldInBps).to.equal(newYieldInBps);
             const actualCR = await creditContract.getCreditRecord(creditHash);
-            const expectedCR = {
-                ...oldCR,
-                ...{
-                    nextDue: expectedNextDue,
-                    yieldDue: expectedYieldDue,
-                },
-            };
-            checkCreditRecordsMatch(actualCR, expectedCR, BN.from(1));
+            checkCreditRecordsMatch(actualCR, oldCR);
             const actualDD = await creditContract.getDueDetail(creditHash);
-            const expectedAccruedYield = calcYield(borrowAmount, yieldInBps, 2).add(
-                calcYield(borrowAmount, newYieldInBps, CONSTANTS.DAYS_IN_A_MONTH - 2),
-            );
-            const expectedCommittedYield = calcYield(committedAmount, yieldInBps, 2).add(
-                calcYield(committedAmount, newYieldInBps, CONSTANTS.DAYS_IN_A_MONTH - 2),
-            );
-            const expectedDD = {
-                ...oldDD,
-                ...{
-                    accrued: expectedAccruedYield,
-                    committed: expectedCommittedYield,
-                },
-            };
-            checkDueDetailsMatch(actualDD, expectedDD, BN.from(1));
+            checkDueDetailsMatch(actualDD, oldDD);
         }
 
-        describe("If the borrow amount is greater than the committed amount", function () {
+        beforeEach(async function () {
+            borrowAmount = toToken(50_000);
+            committedAmount = toToken(40_000);
+            await loadFixture(approveCredit);
+        });
+
+        describe("If the yield is updated to a higher value", function () {
             beforeEach(async function () {
-                borrowAmount = toToken(50_000);
-                committedAmount = toToken(40_000);
-                await loadFixture(approveCredit);
+                newYieldInBps = 1517;
             });
 
-            describe("If the yield is updated to a higher value", function () {
-                beforeEach(async function () {
-                    newYieldInBps = 1517;
-                });
+            it("Should update the yield due", async function () {
+                await drawdown();
 
-                describe("If the yield hasn't been paid yet", function () {
-                    it("Should update the yield due", async function () {
-                        await drawdown();
-
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        const expectedAccruedYield = calcYield(borrowAmount, yieldInBps, 2).add(
-                            calcYield(borrowAmount, newYieldInBps, CONSTANTS.DAYS_IN_A_MONTH - 2),
-                        );
-                        await testUpdate(
-                            oldDD.accrued,
-                            expectedAccruedYield,
-                            oldCR.nextDue.sub(oldCR.yieldDue).add(expectedAccruedYield),
-                            expectedAccruedYield,
-                        );
-                    });
-
-                    it("Should allow more than one update within a period", async function () {
-                        await drawdown();
-
-                        // First update.
-                        const firstYieldInBps = 1517;
-                        const firstUpdateDate = drawdownDate + CONSTANTS.SECONDS_IN_A_DAY;
-                        await setNextBlockTimestamp(firstUpdateDate);
-                        await creditManagerContract
-                            .connect(eaServiceAccount)
-                            .updateYield(borrower.getAddress(), firstYieldInBps);
-
-                        // Second update.
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        const secondYieldInBps = 1717;
-                        const secondUpdateDate = firstUpdateDate + 12 * CONSTANTS.SECONDS_IN_A_DAY;
-                        await setNextBlockTimestamp(secondUpdateDate);
-                        const expectedAccruedYield = calcYield(borrowAmount, yieldInBps, 2)
-                            .add(calcYield(borrowAmount, firstYieldInBps, 12))
-                            .add(calcYield(borrowAmount, secondYieldInBps, 16));
-                        await expect(
-                            creditManagerContract
-                                .connect(eaServiceAccount)
-                                .updateYield(borrower.getAddress(), secondYieldInBps),
-                        )
-                            .to.emit(creditManagerContract, "YieldUpdated")
-                            .withArgs(
-                                creditHash,
-                                firstYieldInBps,
-                                secondYieldInBps,
-                                oldCR.yieldDue,
-                                expectedAccruedYield,
-                                await eaServiceAccount.getAddress(),
-                            );
-
-                        const cc = await creditManagerContract.getCreditConfig(creditHash);
-                        expect(cc.yieldInBps).to.equal(secondYieldInBps);
-                        const actualCR = await creditContract.getCreditRecord(creditHash);
-                        const expectedCR = {
-                            ...oldCR,
-                            ...{
-                                nextDue: oldCR.nextDue
-                                    .sub(oldCR.yieldDue)
-                                    .add(expectedAccruedYield),
-                                yieldDue: expectedAccruedYield,
-                            },
-                        };
-                        checkCreditRecordsMatch(actualCR, expectedCR);
-                        const actualDD = await creditContract.getDueDetail(creditHash);
-                        const expectedCommittedYield = calcYield(committedAmount, yieldInBps, 2)
-                            .add(calcYield(committedAmount, firstYieldInBps, 12))
-                            .add(calcYield(committedAmount, secondYieldInBps, 16));
-                        const expectedDD = {
-                            ...oldDD,
-                            ...{
-                                accrued: expectedAccruedYield,
-                                committed: expectedCommittedYield,
-                            },
-                        };
-                        checkDueDetailsMatch(actualDD, expectedDD, BN.from(1));
-                    });
-                });
-
-                describe("If the yield has been partially paid", function () {
-                    it("Should update the yield due", async function () {
-                        await drawdown();
-                        // Make partial payment towards the yield due.
-                        const yieldDue = calcYield(
-                            borrowAmount,
-                            yieldInBps,
-                            CONSTANTS.DAYS_IN_A_MONTH,
-                        );
-                        expect(yieldDue).to.be.gt(0);
-                        await makePayment(yieldDue.div(2));
-
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        expect(oldDD.paid).to.be.gt(0);
-                        const expectedAccruedYield = calcYield(borrowAmount, yieldInBps, 2).add(
-                            calcYield(borrowAmount, newYieldInBps, CONSTANTS.DAYS_IN_A_MONTH - 2),
-                        );
-                        await testUpdate(
-                            oldDD.accrued.sub(oldDD.paid),
-                            expectedAccruedYield.sub(oldDD.paid),
-                            oldCR.nextDue
-                                .sub(oldCR.yieldDue)
-                                .add(expectedAccruedYield)
-                                .sub(oldDD.paid),
-                            expectedAccruedYield.sub(oldDD.paid),
-                        );
-                    });
-                });
-
-                describe("If the yield has been paid off", function () {
-                    it("Should update the yield due", async function () {
-                        await drawdown();
-                        // Make full payment towards the yield due.
-                        const yieldDue = calcYield(
-                            borrowAmount,
-                            yieldInBps,
-                            CONSTANTS.DAYS_IN_A_MONTH,
-                        );
-                        expect(yieldDue).to.be.gt(0);
-                        await makePayment(yieldDue);
-
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        expect(oldDD.paid).to.equal(yieldDue);
-                        const expectedAccruedYield = calcYield(borrowAmount, yieldInBps, 2).add(
-                            calcYield(borrowAmount, newYieldInBps, CONSTANTS.DAYS_IN_A_MONTH - 2),
-                        );
-                        await testUpdate(
-                            toToken(0),
-                            expectedAccruedYield.sub(oldDD.paid),
-                            oldCR.nextDue
-                                .sub(oldCR.yieldDue)
-                                .add(expectedAccruedYield)
-                                .sub(oldDD.paid),
-                            expectedAccruedYield.sub(oldDD.paid),
-                        );
-                    });
-                });
+                await testUpdate();
             });
 
-            describe("If the yield is updated to a lower value", function () {
-                beforeEach(async function () {
-                    newYieldInBps = 1117;
-                });
+            it("Should allow more than one update within a period", async function () {
+                await drawdown();
 
-                describe("If the yield hasn't been paid yet", function () {
-                    it("Should update the yield due", async function () {
-                        await drawdown();
-
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        const expectedAccruedYield = calcYield(borrowAmount, yieldInBps, 2).add(
-                            calcYield(borrowAmount, newYieldInBps, CONSTANTS.DAYS_IN_A_MONTH - 2),
-                        );
-                        await testUpdate(
-                            oldDD.accrued,
-                            expectedAccruedYield,
-                            oldCR.nextDue.sub(oldCR.yieldDue).add(expectedAccruedYield),
-                            expectedAccruedYield,
-                        );
-                    });
-                });
-
-                describe("If the yield has been partially paid", function () {
-                    it("Should update the yield due", async function () {
-                        await drawdown();
-                        // Make partial payment towards the yield due.
-                        const yieldDue = calcYield(
-                            borrowAmount,
-                            yieldInBps,
-                            CONSTANTS.DAYS_IN_A_MONTH,
-                        );
-                        expect(yieldDue).to.be.gt(0);
-                        await makePayment(yieldDue.div(2));
-
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        expect(oldDD.paid).to.be.gt(0);
-                        const expectedAccruedYield = calcYield(borrowAmount, yieldInBps, 2).add(
-                            calcYield(borrowAmount, newYieldInBps, CONSTANTS.DAYS_IN_A_MONTH - 2),
-                        );
-                        await testUpdate(
-                            oldDD.accrued.sub(oldDD.paid),
-                            expectedAccruedYield.sub(oldDD.paid),
-                            oldCR.nextDue
-                                .sub(oldCR.yieldDue)
-                                .add(expectedAccruedYield)
-                                .sub(oldDD.paid),
-                            expectedAccruedYield.sub(oldDD.paid),
-                        );
-                    });
-                });
-
-                describe("If the yield has been paid off", function () {
-                    it("Should update the yield due", async function () {
-                        await drawdown();
-                        // Make full payment towards the yield due.
-                        const yieldDue = calcYield(
-                            borrowAmount,
-                            yieldInBps,
-                            CONSTANTS.DAYS_IN_A_MONTH,
-                        );
-                        expect(yieldDue).to.be.gt(0);
-                        await makePayment(yieldDue);
-
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        expect(oldDD.paid).to.equal(yieldDue);
-                        await testUpdate(
-                            oldDD.accrued.sub(oldDD.paid),
-                            toToken(0),
-                            oldCR.nextDue,
-                            toToken(0),
-                        );
-                    });
-                });
-            });
-
-            it("Should not allow update when the protocol is paused or pool is not on", async function () {
-                await humaConfigContract.connect(protocolOwner).pause();
-                await expect(
-                    creditManagerContract
-                        .connect(eaServiceAccount)
-                        .updateYield(await borrower.getAddress(), 1517),
-                ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
-                await humaConfigContract.connect(protocolOwner).unpause();
-
-                await poolContract.connect(poolOwner).disablePool();
-                await expect(
-                    creditManagerContract
-                        .connect(eaServiceAccount)
-                        .updateYield(await borrower.getAddress(), 1517),
-                ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
-                await poolContract.connect(poolOwner).enablePool();
-            });
-
-            it("Should not allow non-EAs to perform the update", async function () {
-                await expect(
-                    creditManagerContract.updateYield(await borrower.getAddress(), 1517),
-                ).to.be.revertedWithCustomError(
-                    creditManagerContract,
-                    "EvaluationAgentServiceAccountRequired",
-                );
-            });
-
-            it("Should not allow the EA to update the yield if the credit is newly approved", async function () {
-                const cr = await creditContract.getCreditRecord(creditHash);
-                expect(cr.state).to.eq(CreditState.Approved);
-
-                await expect(
-                    creditManagerContract
-                        .connect(eaServiceAccount)
-                        .updateYield(borrower.getAddress(), 1517),
-                ).to.be.revertedWithCustomError(
-                    creditManagerContract,
-                    "CreditNotInStateForUpdate",
-                );
-            });
-
-            it("Should not allow the EA to update the yield if the credit is closed", async function () {
+                // First update.
+                const firstYieldInBps = 1517;
+                const firstUpdateDate = drawdownDate + CONSTANTS.SECONDS_IN_A_DAY;
+                await setNextBlockTimestamp(firstUpdateDate);
                 await creditManagerContract
                     .connect(eaServiceAccount)
-                    .closeCredit(borrower.getAddress());
-                const cr = await creditContract.getCreditRecord(creditHash);
-                expect(cr.state).to.eq(CreditState.Deleted);
+                    .updateYield(borrower.getAddress(), firstYieldInBps);
+
+                // Second update.
+                const oldCR = await creditContract.getCreditRecord(creditHash);
+                const oldDD = await creditContract.getDueDetail(creditHash);
+                const secondYieldInBps = 1717;
+                const secondUpdateDate = firstUpdateDate + 12 * CONSTANTS.SECONDS_IN_A_DAY;
+                await setNextBlockTimestamp(secondUpdateDate);
 
                 await expect(
                     creditManagerContract
                         .connect(eaServiceAccount)
-                        .updateYield(borrower.getAddress(), 1517),
-                ).to.be.revertedWithCustomError(
-                    creditManagerContract,
-                    "CreditNotInStateForUpdate",
-                );
+                        .updateYield(borrower.getAddress(), secondYieldInBps),
+                )
+                    .to.emit(creditManagerContract, "YieldUpdated")
+                    .withArgs(
+                        creditHash,
+                        firstYieldInBps,
+                        secondYieldInBps,
+                        await eaServiceAccount.getAddress(),
+                    );
+
+                const cc = await creditManagerContract.getCreditConfig(creditHash);
+                expect(cc.yieldInBps).to.equal(secondYieldInBps);
+                const actualCR = await creditContract.getCreditRecord(creditHash);
+                checkCreditRecordsMatch(actualCR, oldCR);
+                const actualDD = await creditContract.getDueDetail(creditHash);
+                checkDueDetailsMatch(actualDD, oldDD);
             });
         });
 
-        describe("If the borrow amount is less than the committed amount", function () {
+        describe("If the yield is updated to a lower value", function () {
             beforeEach(async function () {
-                borrowAmount = toToken(40_000);
-                committedAmount = toToken(50_000);
-                await loadFixture(approveCredit);
+                newYieldInBps = 1117;
             });
 
-            describe("If the yield is updated to a higher value", function () {
-                beforeEach(async function () {
-                    newYieldInBps = 1517;
-                });
+            it("Should update the yield due", async function () {
+                await drawdown();
 
-                describe("If the yield hasn't been paid yet", function () {
-                    it("Should update the yield due", async function () {
-                        await drawdown();
-
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        const expectedCommittedYield = calcYield(
-                            committedAmount,
-                            yieldInBps,
-                            2,
-                        ).add(
-                            calcYield(
-                                committedAmount,
-                                newYieldInBps,
-                                CONSTANTS.DAYS_IN_A_MONTH - 2,
-                            ),
-                        );
-                        await testUpdate(
-                            oldDD.committed,
-                            expectedCommittedYield,
-                            oldCR.nextDue.sub(oldCR.yieldDue).add(expectedCommittedYield),
-                            expectedCommittedYield,
-                        );
-                    });
-                });
-
-                describe("If the yield has been partially paid", function () {
-                    it("Should update the yield due", async function () {
-                        await drawdown();
-                        // Make partial payment towards the yield due.
-                        const yieldDue = calcYield(
-                            committedAmount,
-                            yieldInBps,
-                            CONSTANTS.DAYS_IN_A_MONTH,
-                        );
-                        expect(yieldDue).to.be.gt(0);
-                        await makePayment(yieldDue.div(2));
-
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        expect(oldDD.paid).to.be.gt(0);
-                        const expectedCommittedYield = calcYield(
-                            committedAmount,
-                            yieldInBps,
-                            2,
-                        ).add(
-                            calcYield(
-                                committedAmount,
-                                newYieldInBps,
-                                CONSTANTS.DAYS_IN_A_MONTH - 2,
-                            ),
-                        );
-                        await testUpdate(
-                            oldDD.committed.sub(oldDD.paid),
-                            expectedCommittedYield.sub(oldDD.paid),
-                            oldCR.nextDue
-                                .sub(oldCR.yieldDue)
-                                .add(expectedCommittedYield)
-                                .sub(oldDD.paid),
-                            expectedCommittedYield.sub(oldDD.paid),
-                        );
-                    });
-                });
-
-                describe("If the yield has been paid off", function () {
-                    it("Should update the yield due", async function () {
-                        await drawdown();
-                        // Make full payment towards the yield due.
-                        const yieldDue = calcYield(
-                            committedAmount,
-                            yieldInBps,
-                            CONSTANTS.DAYS_IN_A_MONTH,
-                        );
-                        expect(yieldDue).to.be.gt(0);
-                        await makePayment(yieldDue);
-
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        expect(oldDD.paid).to.equal(yieldDue);
-                        const expectedCommittedYield = calcYield(
-                            committedAmount,
-                            yieldInBps,
-                            2,
-                        ).add(
-                            calcYield(
-                                committedAmount,
-                                newYieldInBps,
-                                CONSTANTS.DAYS_IN_A_MONTH - 2,
-                            ),
-                        );
-                        await testUpdate(
-                            toToken(0),
-                            expectedCommittedYield.sub(oldDD.paid),
-                            oldCR.nextDue
-                                .sub(oldCR.yieldDue)
-                                .add(expectedCommittedYield)
-                                .sub(oldDD.paid),
-                            expectedCommittedYield.sub(oldDD.paid),
-                        );
-                    });
-                });
+                await testUpdate();
             });
+        });
 
-            describe("If the yield is updated to a lower value", function () {
-                beforeEach(async function () {
-                    newYieldInBps = 1117;
-                });
+        it("Should not allow update when the protocol is paused or pool is not on", async function () {
+            await humaConfigContract.connect(protocolOwner).pause();
+            await expect(
+                creditManagerContract
+                    .connect(eaServiceAccount)
+                    .updateYield(await borrower.getAddress(), 1517),
+            ).to.be.revertedWithCustomError(poolConfigContract, "ProtocolIsPaused");
+            await humaConfigContract.connect(protocolOwner).unpause();
 
-                describe("If the yield hasn't been paid yet", function () {
-                    it("Should update the yield due", async function () {
-                        await drawdown();
+            await poolContract.connect(poolOwner).disablePool();
+            await expect(
+                creditManagerContract
+                    .connect(eaServiceAccount)
+                    .updateYield(await borrower.getAddress(), 1517),
+            ).to.be.revertedWithCustomError(poolConfigContract, "PoolIsNotOn");
+            await poolContract.connect(poolOwner).enablePool();
+        });
 
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        const expectedCommittedYield = calcYield(
-                            committedAmount,
-                            yieldInBps,
-                            2,
-                        ).add(
-                            calcYield(
-                                committedAmount,
-                                newYieldInBps,
-                                CONSTANTS.DAYS_IN_A_MONTH - 2,
-                            ),
-                        );
-                        await testUpdate(
-                            oldDD.committed,
-                            expectedCommittedYield,
-                            oldCR.nextDue.sub(oldCR.yieldDue).add(expectedCommittedYield),
-                            expectedCommittedYield,
-                        );
-                    });
-                });
+        it("Should not allow non-EAs to perform the update", async function () {
+            await expect(
+                creditManagerContract.updateYield(await borrower.getAddress(), 1517),
+            ).to.be.revertedWithCustomError(
+                creditManagerContract,
+                "EvaluationAgentServiceAccountRequired",
+            );
+        });
 
-                describe("If the yield has been partially paid", function () {
-                    it("Should update the yield due", async function () {
-                        await drawdown();
-                        // Make partial payment towards the yield due.
-                        const yieldDue = calcYield(
-                            borrowAmount,
-                            yieldInBps,
-                            CONSTANTS.DAYS_IN_A_MONTH,
-                        );
-                        expect(yieldDue).to.be.gt(0);
-                        await makePayment(yieldDue.div(2));
+        it("Should not allow the EA to update the yield if the credit is newly approved", async function () {
+            const cr = await creditContract.getCreditRecord(creditHash);
+            expect(cr.state).to.eq(CreditState.Approved);
 
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        expect(oldDD.paid).to.be.gt(0);
-                        const expectedCommittedYield = calcYield(
-                            committedAmount,
-                            yieldInBps,
-                            2,
-                        ).add(
-                            calcYield(
-                                committedAmount,
-                                newYieldInBps,
-                                CONSTANTS.DAYS_IN_A_MONTH - 2,
-                            ),
-                        );
-                        await testUpdate(
-                            oldDD.committed.sub(oldDD.paid),
-                            expectedCommittedYield.sub(oldDD.paid),
-                            oldCR.nextDue
-                                .sub(oldCR.yieldDue)
-                                .add(expectedCommittedYield)
-                                .sub(oldDD.paid),
-                            expectedCommittedYield.sub(oldDD.paid),
-                        );
-                    });
-                });
+            await expect(
+                creditManagerContract
+                    .connect(eaServiceAccount)
+                    .updateYield(borrower.getAddress(), 1517),
+            ).to.be.revertedWithCustomError(creditManagerContract, "CreditNotInStateForUpdate");
+        });
 
-                describe("If the yield has been paid off", function () {
-                    it("Should update the yield due", async function () {
-                        await drawdown();
-                        // Make full payment towards the yield due.
-                        const yieldDue = calcYield(
-                            committedAmount,
-                            yieldInBps,
-                            CONSTANTS.DAYS_IN_A_MONTH,
-                        );
-                        expect(yieldDue).to.be.gt(0);
-                        await makePayment(yieldDue);
+        it("Should not allow the EA to update the yield if the credit is closed", async function () {
+            await creditManagerContract
+                .connect(eaServiceAccount)
+                .closeCredit(borrower.getAddress());
+            const cr = await creditContract.getCreditRecord(creditHash);
+            expect(cr.state).to.eq(CreditState.Deleted);
 
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        expect(oldDD.paid).to.equal(yieldDue);
-                        await testUpdate(
-                            oldDD.committed.sub(oldDD.paid),
-                            toToken(0),
-                            oldCR.nextDue,
-                            toToken(0),
-                        );
-                    });
-                });
-            });
+            await expect(
+                creditManagerContract
+                    .connect(eaServiceAccount)
+                    .updateYield(borrower.getAddress(), 1517),
+            ).to.be.revertedWithCustomError(creditManagerContract, "CreditNotInStateForUpdate");
         });
     });
 
@@ -9477,12 +9069,7 @@ describe("CreditLine Test", function () {
                 .makePayment(borrower.getAddress(), paymentAmount);
         }
 
-        async function testUpdate(
-            oldYieldDue: BN,
-            newYieldDue: BN,
-            expectedNextDue: BN,
-            expectedYieldDue: BN,
-        ) {
+        async function testUpdate() {
             const updateDate = drawdownDate + CONSTANTS.SECONDS_IN_A_DAY;
             await setNextBlockTimestamp(updateDate);
             const oldCR = await creditContract.getCreditRecord(creditHash);
@@ -9503,8 +9090,6 @@ describe("CreditLine Test", function () {
                     creditLimit,
                     committedAmount,
                     newCommittedAmount,
-                    oldYieldDue,
-                    newYieldDue,
                     await eaServiceAccount.getAddress(),
                 );
 
@@ -9512,25 +9097,9 @@ describe("CreditLine Test", function () {
             expect(cc.creditLimit).to.equal(creditLimit);
             expect(cc.committedAmount).to.equal(newCommittedAmount);
             const actualCR = await creditContract.getCreditRecord(creditHash);
-            const expectedCR = {
-                ...oldCR,
-                ...{
-                    nextDue: expectedNextDue,
-                    yieldDue: expectedYieldDue,
-                },
-            };
-            checkCreditRecordsMatch(actualCR, expectedCR);
+            checkCreditRecordsMatch(actualCR, oldCR);
             const actualDD = await creditContract.getDueDetail(creditHash);
-            const expectedCommittedYield = calcYield(committedAmount, yieldInBps, 2).add(
-                calcYield(newCommittedAmount, yieldInBps, CONSTANTS.DAYS_IN_A_MONTH - 2),
-            );
-            const expectedDD = {
-                ...oldDD,
-                ...{
-                    committed: expectedCommittedYield,
-                },
-            };
-            checkDueDetailsMatch(actualDD, expectedDD);
+            checkDueDetailsMatch(actualDD, oldDD);
         }
 
         describe("Without drawdown", function () {
@@ -9591,15 +9160,7 @@ describe("CreditLine Test", function () {
                 });
 
                 it("Should allow a non-zero committed amount", async function () {
-                    const oldCR = await creditContract.getCreditRecord(creditHash);
-                    const oldDD = await creditContract.getDueDetail(creditHash);
-
-                    await testUpdate(
-                        oldDD.committed,
-                        oldDD.committed,
-                        oldCR.nextDue,
-                        oldCR.yieldDue,
-                    );
+                    await testUpdate();
                 });
             });
 
@@ -9611,58 +9172,8 @@ describe("CreditLine Test", function () {
                     await loadFixture(drawdown);
                 });
 
-                describe("If the yield hasn't been paid yet", function () {
-                    it("Should update the committed amount but not the yield due", async function () {
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        await testUpdate(
-                            oldDD.accrued,
-                            oldDD.accrued,
-                            oldCR.nextDue,
-                            oldCR.yieldDue,
-                        );
-                    });
-                });
-
-                describe("If the yield has been partially paid", function () {
-                    it("Should update the committed amount but not the yield due", async function () {
-                        // Make partial payment towards the yield due.
-                        const yieldDue = calcYield(
-                            borrowAmount,
-                            yieldInBps,
-                            CONSTANTS.DAYS_IN_A_MONTH,
-                        );
-                        expect(yieldDue).to.be.gt(0);
-                        await makePayment(yieldDue.div(2));
-
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        expect(oldDD.paid).to.be.gt(0);
-                        await testUpdate(
-                            oldDD.accrued.sub(oldDD.paid),
-                            oldDD.accrued.sub(oldDD.paid),
-                            oldCR.nextDue,
-                            oldCR.yieldDue,
-                        );
-                    });
-                });
-
-                describe("If the yield has been paid off", function () {
-                    it("Should update the committed amount but not the yield due", async function () {
-                        // Make full payment towards the yield due.
-                        const yieldDue = calcYield(
-                            borrowAmount,
-                            yieldInBps,
-                            CONSTANTS.DAYS_IN_A_MONTH,
-                        );
-                        expect(yieldDue).to.be.gt(0);
-                        await makePayment(yieldDue);
-
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        expect(oldDD.paid).to.equal(yieldDue);
-                        await testUpdate(toToken(0), toToken(0), oldCR.nextDue, oldCR.yieldDue);
-                    });
+                it("Should update the committed amount but not the yield due", async function () {
+                    await testUpdate();
                 });
             });
 
@@ -9674,84 +9185,8 @@ describe("CreditLine Test", function () {
                     await loadFixture(drawdown);
                 });
 
-                describe("If the yield hasn't been paid yet", function () {
-                    it("Should update the committed amount and the yield due", async function () {
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        const expectedCommittedYield = calcYield(
-                            newCommittedAmount,
-                            yieldInBps,
-                            CONSTANTS.DAYS_IN_A_MONTH - 2,
-                        );
-                        await testUpdate(
-                            oldDD.accrued,
-                            expectedCommittedYield,
-                            oldCR.nextDue.sub(oldCR.yieldDue).add(expectedCommittedYield),
-                            expectedCommittedYield,
-                        );
-                    });
-                });
-
-                describe("If the yield has been partially paid", function () {
-                    it("Should update the committed amount and the yield due", async function () {
-                        // Make partial payment towards the yield due.
-                        const yieldDue = calcYield(
-                            borrowAmount,
-                            yieldInBps,
-                            CONSTANTS.DAYS_IN_A_MONTH,
-                        );
-                        expect(yieldDue).to.be.gt(0);
-                        await makePayment(yieldDue.div(2));
-
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        const expectedCommittedYield = calcYield(
-                            newCommittedAmount,
-                            yieldInBps,
-                            CONSTANTS.DAYS_IN_A_MONTH - 2,
-                        );
-                        expect(oldDD.paid).to.be.gt(0);
-                        await testUpdate(
-                            oldDD.accrued.sub(oldDD.paid),
-                            expectedCommittedYield.sub(oldDD.paid),
-                            oldCR.nextDue
-                                .sub(oldCR.yieldDue)
-                                .add(expectedCommittedYield)
-                                .sub(oldDD.paid),
-                            expectedCommittedYield.sub(oldDD.paid),
-                        );
-                    });
-                });
-
-                describe("If the yield has been paid off", function () {
-                    it("Should update the committed amount and the yield due", async function () {
-                        // Make full payment towards the yield due.
-                        const yieldDue = calcYield(
-                            borrowAmount,
-                            yieldInBps,
-                            CONSTANTS.DAYS_IN_A_MONTH,
-                        );
-                        expect(yieldDue).to.be.gt(0);
-                        await makePayment(yieldDue);
-
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        const expectedCommittedYield = calcYield(
-                            newCommittedAmount,
-                            yieldInBps,
-                            CONSTANTS.DAYS_IN_A_MONTH - 2,
-                        );
-                        expect(oldDD.paid).to.equal(yieldDue);
-                        await testUpdate(
-                            toToken(0),
-                            expectedCommittedYield.sub(oldDD.paid),
-                            oldCR.nextDue
-                                .sub(oldCR.yieldDue)
-                                .add(expectedCommittedYield)
-                                .sub(oldDD.paid),
-                            expectedCommittedYield.sub(oldDD.paid),
-                        );
-                    });
+                it("Should update the committed amount and the yield due", async function () {
+                    await testUpdate();
                 });
 
                 it("Should not allow update when the protocol is paused or pool is not on", async function () {
@@ -9838,71 +9273,8 @@ describe("CreditLine Test", function () {
                     await loadFixture(drawdown);
                 });
 
-                describe("If the yield hasn't been paid yet", function () {
-                    it("Should update the committed amount and the yield due", async function () {
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        const expectedAccruedYield = calcYield(
-                            borrowAmount,
-                            yieldInBps,
-                            CONSTANTS.DAYS_IN_A_MONTH,
-                        );
-                        await testUpdate(
-                            oldDD.committed,
-                            expectedAccruedYield,
-                            oldCR.nextDue.sub(oldCR.yieldDue).add(expectedAccruedYield),
-                            expectedAccruedYield,
-                        );
-                    });
-                });
-
-                describe("If the yield has been partially paid", function () {
-                    it("Should update the committed amount and the yield due", async function () {
-                        // Make partial payment towards the yield due.
-                        const yieldDue = calcYield(
-                            committedAmount,
-                            yieldInBps,
-                            CONSTANTS.DAYS_IN_A_MONTH,
-                        );
-                        expect(yieldDue).to.be.gt(0);
-                        await makePayment(yieldDue.div(2));
-
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        const expectedAccruedYield = calcYield(
-                            borrowAmount,
-                            yieldInBps,
-                            CONSTANTS.DAYS_IN_A_MONTH,
-                        );
-                        expect(oldDD.paid).to.be.gt(0);
-                        await testUpdate(
-                            oldDD.committed.sub(oldDD.paid),
-                            expectedAccruedYield.sub(oldDD.paid),
-                            oldCR.nextDue
-                                .sub(oldCR.yieldDue)
-                                .add(expectedAccruedYield)
-                                .sub(oldDD.paid),
-                            expectedAccruedYield.sub(oldDD.paid),
-                        );
-                    });
-                });
-
-                describe("If the yield has been paid off", function () {
-                    it("Should update the committed amount and the yield due", async function () {
-                        // Make full payment towards the yield due.
-                        const yieldDue = calcYield(
-                            committedAmount,
-                            yieldInBps,
-                            CONSTANTS.DAYS_IN_A_MONTH,
-                        );
-                        expect(yieldDue).to.be.gt(0);
-                        await makePayment(yieldDue);
-
-                        const oldCR = await creditContract.getCreditRecord(creditHash);
-                        const oldDD = await creditContract.getDueDetail(creditHash);
-                        expect(oldDD.paid).to.equal(yieldDue);
-                        await testUpdate(toToken(0), toToken(0), oldCR.nextDue, toToken(0));
-                    });
+                it("Should update the committed amount and the yield due", async function () {
+                    await testUpdate();
                 });
             });
         });

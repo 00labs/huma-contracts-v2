@@ -63,16 +63,12 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
      * @param creditHash The credit hash.
      * @param oldYieldInBps The old yield in basis points before the update.
      * @param newYieldInBps The new yield in basis points limit after the update.
-     * @param oldYieldDue The old amount of yield due before the update.
-     * @param newYieldDue The new amount of yield due after the update.
      * @param by The address who triggered the update.
      */
     event YieldUpdated(
         bytes32 indexed creditHash,
         uint256 oldYieldInBps,
         uint256 newYieldInBps,
-        uint256 oldYieldDue,
-        uint256 newYieldDue,
         address by
     );
 
@@ -83,8 +79,6 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
      * @param newLimit The new credit limit after the update.
      * @param oldCommittedAmount The old committed amount before the update.
      * @param newCommittedAmount The new committed amount after the update.
-     * @param oldYieldDue The old amount of yield due before the update.
-     * @param newYieldDue The new amount of yield due after the update.
      * @param by The address who triggered the update.
      */
     event LimitAndCommitmentUpdated(
@@ -93,8 +87,6 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         uint256 newLimit,
         uint256 oldCommittedAmount,
         uint256 newCommittedAmount,
-        uint256 oldYieldDue,
-        uint256 newYieldDue,
         address by
     );
 
@@ -388,6 +380,8 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
 
     /**
      * @notice Updates the yield of the credit.
+     * @notice The new `yieldInBps` will not take effect and impact the amount of yield due immediately.
+     * It will take effect the next time the bill is refreshed or when the borrower makes additional drawdown.
      * @param creditHash The hash of the credit.
      * @param yieldInBps the new yield in basis points.
      */
@@ -397,59 +391,21 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
             revert Errors.CreditNotInStateForUpdate();
         }
         CreditConfig memory cc = getCreditConfig(creditHash);
-        DueDetail memory dd = credit.getDueDetail(creditHash);
-        (cr, dd) = dueManager.getDueInfo(cr, cc, dd, block.timestamp);
-        // No state check is needed after the bill is updated since it's impossible for a
-        // credit to go into the Approved or Deleted state if they weren't already in these
-        // states prior to the update.
 
         uint256 oldYieldInBps = cc.yieldInBps;
         cc.yieldInBps = uint16(yieldInBps);
         _setCreditConfig(creditHash, cc);
 
-        uint256 principal = cr.unbilledPrincipal + cr.nextDue - cr.yieldDue + dd.principalPastDue;
-        // Note that the new yield rate takes effect the next day. We need to:
-        // 1. Deduct the yield that was computed with the previous rate from tomorrow onwards, and
-        // 2. Incorporate the yield calculated with the new rate, also beginning tomorrow.
-        dd.accrued = uint96(
-            dueManager.recomputeYieldDue(
-                cr.nextDueDate,
-                dd.accrued,
-                oldYieldInBps,
-                yieldInBps,
-                principal
-            )
-        );
-        dd.committed = uint96(
-            dueManager.recomputeYieldDue(
-                cr.nextDueDate,
-                dd.committed,
-                oldYieldInBps,
-                yieldInBps,
-                cc.committedAmount
-            )
-        );
-        uint256 updatedYieldDue = dd.committed > dd.accrued ? dd.committed : dd.accrued;
-        uint256 unpaidYieldDue = updatedYieldDue > dd.paid ? updatedYieldDue - dd.paid : 0;
-        cr.nextDue = uint96(cr.nextDue - cr.yieldDue + unpaidYieldDue);
-        uint256 oldYieldDue = cr.yieldDue;
-        cr.yieldDue = uint96(unpaidYieldDue);
-        credit.updateDueInfo(creditHash, cr, dd);
-
-        emit YieldUpdated(
-            creditHash,
-            oldYieldInBps,
-            cc.yieldInBps,
-            oldYieldDue,
-            cr.yieldDue,
-            msg.sender
-        );
+        emit YieldUpdated(creditHash, oldYieldInBps, cc.yieldInBps, msg.sender);
     }
 
     /**
      * @notice Updates credit limit and committed amount for the credit.
      * @notice It is possible that the credit limit is lower than what has been borrowed. No further
      * drawdown is allowed until the principal balance is below the limit again after payments.
+     * @notice The new `committedAmount` will not take effect and impact the amount of yield due immediately.
+     * When the bill is refreshed or when the borrower makes additional drawdown and the updated committed amount
+     * is higher than the outstanding principal, then the amount of yield due will be re-computed.
      * @param creditHash The hash of the credit.
      * @param creditLimit The new credit limit to set.
      * @param committedAmount The new committed amount. The borrower will be charged interest for
@@ -477,11 +433,6 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
             revert Errors.CreditNotInStateForUpdate();
         }
         CreditConfig memory cc = getCreditConfig(creditHash);
-        DueDetail memory dd = credit.getDueDetail(creditHash);
-        (cr, dd) = dueManager.getDueInfo(cr, cc, dd, block.timestamp);
-        // No state check is needed after the bill is updated since it's impossible for a
-        // credit to go into the Approved or Deleted state if they weren't already in these
-        // states prior to the update.
 
         uint256 oldCreditLimit = cc.creditLimit;
         cc.creditLimit = uint96(creditLimit);
@@ -489,30 +440,12 @@ abstract contract CreditManager is PoolConfigCache, CreditManagerStorage, ICredi
         cc.committedAmount = uint96(committedAmount);
         _setCreditConfig(creditHash, cc);
 
-        dd.committed = uint96(
-            dueManager.recomputeCommittedYieldDueAfterCommitmentChange(
-                cr.nextDueDate,
-                dd.committed,
-                oldCommittedAmount,
-                committedAmount,
-                cc.yieldInBps
-            )
-        );
-        uint256 updatedYieldDue = dd.committed > dd.accrued ? dd.committed : dd.accrued;
-        uint256 unpaidYieldDue = updatedYieldDue > dd.paid ? updatedYieldDue - dd.paid : 0;
-        cr.nextDue = uint96(cr.nextDue - cr.yieldDue + unpaidYieldDue);
-        uint256 oldYieldDue = cr.yieldDue;
-        cr.yieldDue = uint96(unpaidYieldDue);
-        credit.updateDueInfo(creditHash, cr, dd);
-
         emit LimitAndCommitmentUpdated(
             creditHash,
             oldCreditLimit,
             cc.creditLimit,
             oldCommittedAmount,
             cc.committedAmount,
-            oldYieldDue,
-            cr.yieldDue,
             msg.sender
         );
     }
